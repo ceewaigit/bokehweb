@@ -37,8 +37,8 @@ class RealRecordingTest {
       log('\n🚀 Starting Electron app...', colors.blue);
       
       this.electronProcess = spawn('npm', ['run', 'electron-dev'], {
-        cwd: path.join(__dirname),
-        env: { ...process.env, NODE_ENV: 'development' }
+        cwd: path.join(__dirname, '../..'),
+        env: { ...process.env, NODE_ENV: 'development', TEST_AUTO_RECORD: 'true' }
       });
 
       let appReady = false;
@@ -93,6 +93,15 @@ class RealRecordingTest {
       
       const checkOutput = (data) => {
         const output = data.toString();
+        
+        // Check for auto-click
+        if (output.includes('[TEST] Auto-clicking record button')) {
+          log('  🤖 Auto-click initiated', colors.cyan);
+        }
+        
+        if (output.includes('[TEST] Clicked Start Recording button')) {
+          log('  ✓ Auto-click successful', colors.green);
+        }
         
         // Check for countdown
         if (output.includes('show-countdown')) {
@@ -149,10 +158,10 @@ class RealRecordingTest {
       this.electronProcess.stdout.on('data', checkOutput);
       this.electronProcess.stderr.on('data', checkOutput);
 
-      // Simulate clicking record after a delay
+      // The app will auto-click due to TEST_AUTO_RECORD env var
       setTimeout(() => {
-        log('  ⏱️  Waiting for recording to start...', colors.yellow);
-      }, 3000);
+        log('  🎬 Waiting for automatic recording start (TEST_AUTO_RECORD=true)...', colors.yellow);
+      }, 2000);
 
       // Timeout - if no recording started or crash
       setTimeout(() => {

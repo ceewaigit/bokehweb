@@ -47,7 +47,7 @@ class RecordingTest {
       this.log('\nStarting Electron app...', colors.blue);
       
       this.electronProcess = spawn('npm', ['run', 'electron-dev'], {
-        cwd: path.join(__dirname),
+        cwd: path.join(__dirname, '../..'),
         env: { ...process.env, NODE_ENV: 'development' }
       });
 

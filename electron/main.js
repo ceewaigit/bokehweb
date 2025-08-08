@@ -230,6 +230,20 @@ app.whenReady().then(async () => {
   // Show the record button immediately
   recordButton.once('ready-to-show', () => {
     recordButton.show()
+    
+    // Auto-click for testing if TEST_AUTO_RECORD env var is set
+    if (process.env.TEST_AUTO_RECORD === 'true') {
+      setTimeout(() => {
+        console.log('[TEST] Auto-clicking record button...')
+        recordButton.webContents.executeJavaScript(`
+          const button = document.querySelector('button');
+          if (button && button.textContent.includes('Start Recording')) {
+            button.click();
+            console.log('[TEST] Clicked Start Recording button');
+          }
+        `)
+      }, 3000)
+    }
   })
 
   app.on('activate', () => {

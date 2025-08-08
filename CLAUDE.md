@@ -111,18 +111,34 @@ video: {
 ```bash
 npm run electron-dev     # Development
 npm run build-electron   # Production build
-npm test                 # Run tests
-node test-constraints.js # Test recording constraints
-node test-recording.js   # Integration test (requires app running)
+npm test                 # Run all tests automatically
+npm run test:unit        # Run unit tests only
+npm run test:integration # Run integration tests only
+npm run test:e2e        # Run end-to-end tests only
+npm run test:autoclick   # Quick test for auto-click feature
+```
+
+## Test Structure
+```
+tests/
+├── unit/               # Fast isolated tests (constraints, effects, export)
+├── integration/        # Component integration tests
+├── e2e/               # Full app end-to-end tests
+└── run-all.js         # Master test runner
 ```
 
 ## IMPORTANT: Testing Requirements
 **ALWAYS run tests after making changes to recording functionality:**
-1. Run `node test-constraints.js` to verify getUserMedia constraints are correct
-2. Test the actual recording flow manually or with `node test-recording.js`
-3. Verify countdown shows with transparent background (not white)
-4. Ensure dock window shows all controls without being cut off
-5. Test that recording actually starts without renderer crashes
+1. Run `npm test` to execute full test suite automatically
+2. Tests verify getUserMedia constraints, effects, export, and recording flow
+3. E2E tests now AUTO-CLICK the record button (no manual intervention needed!)
+4. Tests run in order: unit → integration → e2e
+5. All tests must pass before committing changes
+
+**Auto-Click Feature:**
+- E2E tests set `TEST_AUTO_RECORD=true` environment variable
+- Electron app detects this and auto-clicks "Start Recording" after 3 seconds
+- No manual clicking required during tests!
 
 ## Current Status
 - Basic recording: ✅ FIXED - Electron desktop capture with correct constraints

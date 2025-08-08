@@ -20,7 +20,7 @@ function log(message, color = colors.reset) {
 }
 
 // Check the record button page for correct constraints
-const recordButtonPath = path.join(__dirname, 'src/app/record-button/page.tsx');
+const recordButtonPath = path.join(__dirname, '../../src/app/record-button/page.tsx');
 const content = fs.readFileSync(recordButtonPath, 'utf8');
 
 log('\n🔍 Checking getUserMedia constraints...', colors.cyan);
