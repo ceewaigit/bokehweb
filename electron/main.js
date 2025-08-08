@@ -9,12 +9,14 @@ const getAppURL = (route = '') => {
     return `http://localhost:3000${route}`
   } else {
     // In production, use file:// protocol with Next.js static export structure
-    if (route === '') {
-      return `file://${path.join(__dirname, '../out/index.html')}`
-    } else {
-      // Next.js creates route/index.html for static exports
-      return `file://${path.join(__dirname, '../out', route, 'index.html')}`
-    }
+    const htmlPath = route === ''
+      ? path.join(__dirname, '../out/index.html')
+      : path.join(__dirname, '../out', route.replace('/', ''), 'index.html')
+
+    console.log(`📁 Loading production HTML: ${htmlPath}`)
+    console.log(`📁 File exists: ${require('fs').existsSync(htmlPath)}`)
+
+    return `file://${htmlPath}`
   }
 }
 
@@ -50,11 +52,11 @@ function createCountdownWindow() {
       preload: path.join(__dirname, 'preload.js')
     }
   })
-  
+
   countdownWindow.setIgnoreMouseEvents(true)
   countdownWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   countdownWindow.setAlwaysOnTop(true, 'screen-saver', 1000)
-  
+
   return countdownWindow
 }
 
@@ -88,7 +90,7 @@ function createRecordButton() {
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   recordButton.setAlwaysOnTop(true, 'screen-saver', 1)  // Higher level
   recordButton.setIgnoreMouseEvents(false)
-  
+
   return recordButton
 }
 
@@ -133,7 +135,7 @@ function createWindow() {
       callback(false)
     }
   })
-  
+
   // Also set permission check handler
   mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
     console.log('🔍 Permission check:', permission, 'from:', requestingOrigin)
@@ -160,14 +162,18 @@ function createWindow() {
   })
 
   mainWindow.loadURL(getAppURL())
-  
+
   if (isDev) {
     mainWindow.webContents.openDevTools()
   }
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show()
-  })
+  // In production, only show after recording stops
+  // In dev, show immediately
+  if (isDev) {
+    mainWindow.once('ready-to-show', () => {
+      mainWindow.show()
+    })
+  }
 
   return mainWindow
 }
@@ -175,28 +181,28 @@ function createWindow() {
 app.whenReady().then(async () => {
   console.log('🚀 App ready - Electron version:', process.versions.electron)
   console.log('🌐 Chrome version:', process.versions.chrome)
-  
+
   // Request media permissions on macOS
   if (process.platform === 'darwin') {
     try {
       console.log('🔐 Checking macOS media permissions...')
-      
+
       // Check screen recording permission first (most important)
       const screenStatus = systemPreferences.getMediaAccessStatus('screen')
       console.log('🖥️ Screen recording permission:', screenStatus)
-      
+
       if (screenStatus !== 'granted') {
         console.log('⚠️ Screen recording permission not granted')
-        
+
         // Store permission status globally for renderer to check
         global.screenRecordingPermission = screenStatus
-        
+
         // We'll show a dialog in the renderer to guide the user
         console.log('📝 Will show permission guide to user after window loads')
       } else {
         global.screenRecordingPermission = 'granted'
       }
-      
+
       // Request microphone access (optional for screen recording)
       try {
         const microphoneStatus = await systemPreferences.askForMediaAccess('microphone')
@@ -204,7 +210,7 @@ app.whenReady().then(async () => {
       } catch (e) {
         console.log('🎤 Microphone permission check skipped:', e.message)
       }
-      
+
     } catch (error) {
       console.error('❌ Error checking media permissions:', error)
       global.screenRecordingPermission = 'unknown'
@@ -213,24 +219,24 @@ app.whenReady().then(async () => {
     // Non-macOS platforms don't need special permissions
     global.screenRecordingPermission = 'granted'
   }
-  
+
   // Mouse tracker will be initialized on demand when needed
-  
+
   // DON'T create main window on startup - only floating button
   // Main window is created only when user wants to edit
   global.mainWindow = null
-  
+
   // Create the floating record button (this is all that shows)
   const recordButton = createRecordButton()
   global.recordButton = recordButton
-  
+
   // Load the record button UI
   recordButton.loadURL(getAppURL('/record-button'))
-  
+
   // Show the record button immediately
   recordButton.once('ready-to-show', () => {
     recordButton.show()
-    
+
     // Auto-click for testing if TEST_AUTO_RECORD env var is set
     if (process.env.TEST_AUTO_RECORD === 'true') {
       setTimeout(() => {
@@ -267,10 +273,10 @@ ipcMain.handle('open-workspace', () => {
   // Create main window if it doesn't exist
   if (!global.mainWindow) {
     global.mainWindow = createWindow()
-    
+
     // Load the workspace
     global.mainWindow.loadURL(getAppURL())
-    
+
     global.mainWindow.once('ready-to-show', () => {
       global.mainWindow.show()
       global.mainWindow.focus()
@@ -333,7 +339,7 @@ ipcMain.handle('show-countdown', async (event, number) => {
     countdownWindow = null
   }
   countdownWindow = createCountdownWindow()
-  
+
   // Send countdown number to the window
   const html = `
     <!DOCTYPE html>
@@ -390,10 +396,10 @@ ipcMain.handle('show-countdown', async (event, number) => {
     </body>
     </html>
   `
-  
+
   countdownWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
   countdownWindow.show()
-  
+
   return { success: true }
 })
 
@@ -439,7 +445,7 @@ app.on('window-all-closed', () => {
     mouseTrackingInterval = null
     isMouseTracking = false
   }
-  
+
   if (process.platform !== 'darwin') {
     app.quit()
   }
@@ -478,12 +484,12 @@ ipcMain.handle('check-screen-recording-permission', async () => {
 let permissionCheckInterval = null
 ipcMain.handle('start-permission-monitoring', async (event) => {
   if (process.platform !== 'darwin') return
-  
+
   // Clear any existing interval
   if (permissionCheckInterval) {
     clearInterval(permissionCheckInterval)
   }
-  
+
   // Check every 2 seconds for permission changes
   permissionCheckInterval = setInterval(() => {
     try {
@@ -493,7 +499,7 @@ ipcMain.handle('start-permission-monitoring', async (event) => {
       console.error('Error checking permission status:', error)
     }
   }, 2000)
-  
+
   console.log('📊 Started monitoring screen recording permission')
 })
 
@@ -512,7 +518,7 @@ ipcMain.handle('request-screen-recording-permission', async () => {
       // Open System Preferences directly to Screen Recording section
       console.log('🔐 Opening System Preferences for screen recording permission')
       require('child_process').exec('open x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
-      
+
       // Return current status after opening preferences
       const status = systemPreferences.getMediaAccessStatus('screen')
       return { opened: true, status, granted: status === 'granted' }
@@ -528,7 +534,7 @@ ipcMain.handle('request-screen-recording-permission', async () => {
 ipcMain.handle('get-desktop-stream', async (event, sourceId) => {
   try {
     console.log('🎥 Creating desktop stream for source:', sourceId)
-    
+
     // Return the constraints that should be used with getUserMedia
     // The renderer will use these to create the stream
     return {
@@ -553,7 +559,7 @@ ipcMain.handle('get-desktop-sources', async (event, options = {}) => {
     if (process.platform === 'darwin') {
       const status = systemPreferences.getMediaAccessStatus('screen')
       console.log('🔍 Screen recording permission check:', status)
-      
+
       if (status !== 'granted') {
         // Show helpful dialog
         const { response } = await dialog.showMessageBox(BrowserWindow.fromWebContents(event.sender), {
@@ -565,29 +571,29 @@ ipcMain.handle('get-desktop-sources', async (event, options = {}) => {
           defaultId: 0,
           cancelId: 1
         })
-        
+
         if (response === 0) {
           // Open System Preferences to the right pane
           require('child_process').exec('open x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
         }
-        
+
         const permissionError = new Error('Screen recording permission denied')
         permissionError.code = 'PERMISSION_DENIED'
         throw permissionError
       }
     }
-    
+
     // Validate and sanitize options
     if (typeof options !== 'object' || options === null) {
       options = {}
     }
-    
+
     const defaultOptions = {
       types: ['screen', 'window'],
       thumbnailSize: { width: 150, height: 150 },
       fetchWindowIcons: true
     }
-    
+
     // Sanitize options to prevent malicious input
     const sanitizedOptions = {
       types: Array.isArray(options.types) ? options.types.filter(t => ['screen', 'window'].includes(t)) : defaultOptions.types,
@@ -597,13 +603,13 @@ ipcMain.handle('get-desktop-sources', async (event, options = {}) => {
       } : defaultOptions.thumbnailSize,
       fetchWindowIcons: typeof options.fetchWindowIcons === 'boolean' ? options.fetchWindowIcons : defaultOptions.fetchWindowIcons
     }
-    
+
     console.log('🎥 Requesting desktop sources with sanitized options:', sanitizedOptions)
-    
+
     const sources = await desktopCapturer.getSources(sanitizedOptions)
-    
+
     console.log(`📺 Found ${sources.length} desktop sources`)
-    
+
     const mappedSources = sources.map(source => ({
       id: source.id,
       name: source.name,
@@ -611,14 +617,14 @@ ipcMain.handle('get-desktop-sources', async (event, options = {}) => {
       display_id: source.display_id,
       appIcon: source.appIcon?.toDataURL()
     }))
-    
+
     console.log('📺 Mapped sources:', mappedSources.map(s => ({ id: s.id, name: s.name })))
-    
+
     return mappedSources
   } catch (error) {
     console.error('❌ Error getting desktop sources:', error)
     console.error('❌ Error details:', error?.message, error?.stack)
-    
+
     // Check if it's a permissions issue
     if (error?.message?.includes('Failed to get sources') || !error?.message) {
       const permissionError = new Error(
@@ -627,7 +633,7 @@ ipcMain.handle('get-desktop-sources', async (event, options = {}) => {
       permissionError.code = 'PERMISSION_DENIED'
       throw permissionError
     }
-    
+
     throw error
   }
 })
@@ -656,11 +662,11 @@ ipcMain.handle('get-screens', async () => {
 ipcMain.handle('save-file', async (event, data, filepath) => {
   try {
     const fs = require('fs').promises
-    
+
     // If filepath is provided (from save dialog), use it directly
     // Otherwise use downloads folder
     const finalPath = filepath || path.join(app.getPath('downloads'), 'recording.webm')
-    
+
     // Handle different data types
     let buffer
     if (Buffer.isBuffer(data)) {
@@ -673,7 +679,7 @@ ipcMain.handle('save-file', async (event, data, filepath) => {
     } else {
       buffer = Buffer.from(JSON.stringify(data))
     }
-    
+
     await fs.writeFile(finalPath, buffer)
     console.log(`✅ File saved: ${finalPath} (${buffer.length} bytes)`)
     return { success: true, path: finalPath }
@@ -719,42 +725,42 @@ ipcMain.handle('start-mouse-tracking', async (event, options = {}) => {
     if (typeof options !== 'object' || options === null) {
       options = {}
     }
-    
+
     const intervalMs = Math.max(8, Math.min(1000, parseInt(options.intervalMs) || 16)) // 8ms to 1000ms range
-    
+
     mouseEventSender = event.sender
     isMouseTracking = true
-    
+
     // Track mouse position using Electron's screen API
     let lastPosition = null
     mouseTrackingInterval = setInterval(() => {
       if (!isMouseTracking || !mouseEventSender) return
-      
+
       try {
         const currentPosition = screen.getCursorScreenPoint()
-        
+
         // Send mouse move events
-        if (!lastPosition || 
-            lastPosition.x !== currentPosition.x || 
-            lastPosition.y !== currentPosition.y) {
-          
+        if (!lastPosition ||
+          lastPosition.x !== currentPosition.x ||
+          lastPosition.y !== currentPosition.y) {
+
           mouseEventSender.send('mouse-move', {
             x: Math.round(currentPosition.x),
             y: Math.round(currentPosition.y),
             timestamp: Date.now()
           })
-          
+
           lastPosition = currentPosition
         }
       } catch (error) {
         console.error('❌ Error tracking mouse:', error)
       }
     }, intervalMs)
-    
+
     console.log(`🖱️ Mouse tracking started (interval: ${intervalMs}ms)`)
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       nativeTracking: true,
       fps: Math.round(1000 / intervalMs)
     }
@@ -770,10 +776,10 @@ ipcMain.handle('stop-mouse-tracking', async (event) => {
       clearInterval(mouseTrackingInterval)
       mouseTrackingInterval = null
     }
-    
+
     isMouseTracking = false
     mouseEventSender = null
-    
+
     console.log('🖱️ Mouse tracking stopped')
     return { success: true }
   } catch (error) {
@@ -786,8 +792,8 @@ ipcMain.handle('stop-mouse-tracking', async (event) => {
 ipcMain.handle('get-mouse-position', async () => {
   try {
     const position = screen.getCursorScreenPoint()
-    return { 
-      success: true, 
+    return {
+      success: true,
       position: {
         x: position.x,
         y: position.y

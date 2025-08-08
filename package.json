@@ -10,7 +10,7 @@
     "dev": "NODE_ENV=development next dev",
     "build": "next build && npm run fix-paths",
     "build-only": "next build",
-    "fix-paths": "sed -i '' 's|/_next/|./_next/|g' out/index.html",
+    "fix-paths": "sed -i '' 's|/_next/|./_next/|g' out/index.html && sed -i '' 's|\\./_next/|../_next/|g' out/record-button/index.html",
     "start": "next start",
     "lint": "next lint",
     "electron": "electron .",

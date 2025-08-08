@@ -10,11 +10,11 @@ interface CountdownTimerProps {
   isVisible: boolean
 }
 
-export function CountdownTimer({ 
-  seconds, 
-  onComplete, 
+export function CountdownTimer({
+  seconds,
+  onComplete,
   onCancel,
-  isVisible 
+  isVisible
 }: CountdownTimerProps) {
   const [count, setCount] = useState(seconds)
 
@@ -55,7 +55,7 @@ export function CountdownTimer({
           )}>
             {count === 0 ? 'GO!' : count}
           </div>
-          
+
           {/* Circular progress ring */}
           <svg className="absolute inset-0 w-full h-full -rotate-90">
             <circle
