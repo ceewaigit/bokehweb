@@ -8,15 +8,28 @@ const getAppURL = (route = '') => {
   if (isDev) {
     return `http://localhost:3000${route}`
   } else {
-    // In production, use file:// protocol with Next.js static export structure
-    const htmlPath = route === ''
-      ? path.join(__dirname, '../out/index.html')
-      : path.join(__dirname, '../out', route.replace('/', ''), 'index.html')
+    // In production, check if we're in a packaged app or running locally
+    const isPackaged = app.isPackaged
+    
+    if (isPackaged) {
+      // In packaged app, use custom protocol
+      const htmlFile = route === ''
+        ? 'index.html'
+        : `${route.replace('/', '')}/index.html`
+      
+      console.log(`📦 Loading packaged app URL: app://${htmlFile}`)
+      return `app://${htmlFile}`
+    } else {
+      // Running locally with NODE_ENV=production
+      const htmlPath = route === ''
+        ? path.join(__dirname, '../out/index.html')
+        : path.join(__dirname, '../out', route.replace('/', ''), 'index.html')
 
-    console.log(`📁 Loading production HTML: ${htmlPath}`)
-    console.log(`📁 File exists: ${require('fs').existsSync(htmlPath)}`)
+      console.log(`📁 Loading local production HTML: ${htmlPath}`)
+      console.log(`📁 File exists: ${require('fs').existsSync(htmlPath)}`)
 
-    return `file://${htmlPath}`
+      return `file://${htmlPath}`
+    }
   }
 }
 
@@ -181,6 +194,20 @@ function createWindow() {
 app.whenReady().then(async () => {
   console.log('🚀 App ready - Electron version:', process.versions.electron)
   console.log('🌐 Chrome version:', process.versions.chrome)
+  
+  // Register protocol for serving local files in production
+  if (!isDev && app.isPackaged) {
+    protocol.registerFileProtocol('app', (request, callback) => {
+      const url = request.url.replace('app://', '')
+      const decodedUrl = decodeURIComponent(url)
+      try {
+        const filePath = path.join(app.getAppPath(), 'out', decodedUrl)
+        callback(filePath)
+      } catch (error) {
+        console.error('Error loading file:', error)
+      }
+    })
+  }
 
   // Request media permissions on macOS
   if (process.platform === 'darwin') {
