@@ -125,14 +125,23 @@ node test-recording.js   # Integration test (requires app running)
 5. Test that recording actually starts without renderer crashes
 
 ## Current Status
-- Basic recording: ✅ Working with Electron desktop capture
+- Basic recording: ✅ FIXED - Electron desktop capture with correct constraints
 - Video preview: ✅ Shows recordings with live effects
 - Cursor overlay: ✅ macOS-style cursor with motion blur
 - Zoom effects: ✅ Smooth with context-aware easing (smoothStep, easeOutExpo, etc)
 - Export with effects: ✅ Optimized with frame caching (30-50% faster)
 - Background system: ✅ Gradients, blur, padding, shadows implemented
 - Audio recording: ✅ System + microphone support added
+- Countdown timer: ✅ FIXED - Shows transparent countdown correctly
+- Record button dock: ✅ FIXED - Full 700x100 size, draggable, transparent
 - Timeline: ⚠️ Basic only - NO editing features yet
+
+## Critical Fixes Applied (Latest Session)
+1. **Recording Crash Fixed** - electron-recorder.ts now uses mandatory constraints in fallback (line 162-165)
+2. **Dock Window Fixed** - 700x100 size shows all controls
+3. **Countdown Transparency Fixed** - Window recreated each time for proper transparency
+4. **Window Dragging Fixed** - WebkitAppRegion properly applied
+5. **Hardcoded localhost Removed** - Uses getAppURL() helper
 
 ## Critical Issues for Next Agent
 - Timeline editing completely missing - can't cut/trim/split
@@ -142,6 +151,7 @@ node test-recording.js   # Integration test (requires app running)
 - No manual zoom controls UI - only automatic zoom works
 - Window/app selection missing - only captures entire screen
 - Performance still 7/10 - needs GPU acceleration for true 60fps
+- **NOTE**: Screen recording permission must be granted in System Preferences
 
 ## Known Issues & Solutions
 1. **Renderer crash on recording**: Use `mandatory` constraints, NOT modern `deviceId: {exact:}` format

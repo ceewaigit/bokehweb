@@ -159,8 +159,10 @@ export class ElectronRecorder {
         const fallbackConstraints = {
           audio: hasAudio,
           video: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: primarySource.id
+            }
           } as any
         }
         
