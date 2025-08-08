@@ -57,8 +57,8 @@ function createCountdownWindow() {
 function createRecordButton() {
   const display = screen.getPrimaryDisplay()
   const recordButton = new BrowserWindow({
-    width: 600,  // Much wider for full controls
-    height: 80,  // Taller for better visibility
+    width: 700,  // Wider to fit all controls
+    height: 100,  // Taller for better visibility
     x: Math.floor(display.workAreaSize.width / 2 - 300),  // Center horizontally
     y: 20,  // Position from top with some padding
     frame: false,
@@ -308,9 +308,12 @@ ipcMain.handle('show-record-button', () => {
 
 // IPC handlers for countdown window
 ipcMain.handle('show-countdown', async (event, number) => {
-  if (!countdownWindow) {
-    countdownWindow = createCountdownWindow()
+  // Always recreate window to ensure transparency
+  if (countdownWindow) {
+    countdownWindow.close()
+    countdownWindow = null
   }
+  countdownWindow = createCountdownWindow()
   
   // Send countdown number to the window
   const html = `

@@ -3,6 +3,25 @@
 Build a complete 1:1 Screen Studio clone with all professional features.
 IMPORTANT: YOUR CODE SHOULD BE STREAMLINED BUT NOT OVERLY COMPLEX. AIM FOR A BALANCED APPROACH THAT PRIORITIZES FUNCTIONALITY AND USER EXPERIENCE. REMEMBER, THIS IS A PROFESSIONAL TOOL, SO IT SHOULD BE POLISHED AND EFFICIENT. HOWEVER, DO NOT OVER-ENGINEER; KEEP IT SIMPLE AND EFFECTIVE.
 
+## ⚠️ CRITICAL: Electron Recording Constraints
+**MUST use `mandatory` format for getUserMedia or recording will crash:**
+```javascript
+// ✅ CORRECT - Use this format
+video: {
+  mandatory: {
+    chromeMediaSource: 'desktop',
+    chromeMediaSourceId: source.id
+  }
+}
+
+// ❌ WRONG - This crashes Electron
+video: {
+  deviceId: { exact: source.id },
+  mediaStreamSource: { exact: 'desktop' }
+}
+```
+**ALWAYS run `node test-constraints.js` after modifying recording code!**
+
 ## Tech Stack
 - **Frontend**: Next.js 14 + React + TypeScript
 - **Desktop**: Electron for native capabilities  
@@ -93,7 +112,17 @@ IMPORTANT: YOUR CODE SHOULD BE STREAMLINED BUT NOT OVERLY COMPLEX. AIM FOR A BAL
 npm run electron-dev     # Development
 npm run build-electron   # Production build
 npm test                 # Run tests
+node test-constraints.js # Test recording constraints
+node test-recording.js   # Integration test (requires app running)
 ```
+
+## IMPORTANT: Testing Requirements
+**ALWAYS run tests after making changes to recording functionality:**
+1. Run `node test-constraints.js` to verify getUserMedia constraints are correct
+2. Test the actual recording flow manually or with `node test-recording.js`
+3. Verify countdown shows with transparent background (not white)
+4. Ensure dock window shows all controls without being cut off
+5. Test that recording actually starts without renderer crashes
 
 ## Current Status
 - Basic recording: ✅ Working with Electron desktop capture
@@ -112,8 +141,13 @@ npm test                 # Run tests
 - Export only WebM - needs MP4/MOV/GIF support via FFmpeg
 - No manual zoom controls UI - only automatic zoom works
 - Window/app selection missing - only captures entire screen
-- No countdown timer before recording
 - Performance still 7/10 - needs GPU acceleration for true 60fps
+
+## Known Issues & Solutions
+1. **Renderer crash on recording**: Use `mandatory` constraints, NOT modern `deviceId: {exact:}` format
+2. **White background on countdown**: Recreate countdown window each time (don't reuse)
+3. **Dock cut off**: Window needs to be 700x100px minimum
+4. **Can't drag dock**: Parent div needs `WebkitAppRegion: 'drag'`, buttons need `'no-drag'`
 
 ## Key Files Updated
 - src/lib/effects/zoom-engine.ts - NOW has smooth easing (smoothStep, easeOutExpo, etc)
