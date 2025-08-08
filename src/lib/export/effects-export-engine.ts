@@ -2,6 +2,7 @@
 
 import { CursorRenderer } from '../effects/cursor-renderer'
 import { ZoomEngine } from '../effects/zoom-engine'
+import { BackgroundRenderer } from '../effects/background-renderer'
 
 export interface ExportProgress {
   progress: number
@@ -19,6 +20,18 @@ export interface ExportOptions {
   enableCursor?: boolean
   enableZoom?: boolean
   enableEffects?: boolean
+  enableBackground?: boolean
+  background?: {
+    type: 'solid' | 'gradient' | 'blur'
+    color?: string
+    gradient?: {
+      colors: string[]
+      angle?: number
+    }
+    padding?: number
+    borderRadius?: number
+    shadow?: boolean
+  }
 }
 
 export class EffectsExportEngine {
@@ -26,6 +39,8 @@ export class EffectsExportEngine {
   private processingCtx: CanvasRenderingContext2D | null = null
   private mediaRecorder: MediaRecorder | null = null
   private chunks: Blob[] = []
+  private frameCache: Map<string, ImageData> = new Map()
+  private lastRenderedFrame: { zoom: any; cursor: any; frameData: ImageData } | null = null
 
   async exportWithEffects(
     videoBlob: Blob,
@@ -73,6 +88,7 @@ export class EffectsExportEngine {
       // Initialize effects if enabled
       let zoomEngine: ZoomEngine | null = null
       let cursorRenderer: CursorRenderer | null = null
+      let backgroundRenderer: BackgroundRenderer | null = null
 
       if (enableEffects && enableZoom && metadata.length > 0) {
         zoomEngine = new ZoomEngine({
@@ -93,8 +109,30 @@ export class EffectsExportEngine {
       if (enableEffects && enableCursor && metadata.length > 0) {
         cursorRenderer = new CursorRenderer({
           size: 1.2,
-          color: '#ffffff',
-          clickColor: '#3b82f6'
+          color: '#000000',
+          clickColor: '#007AFF',
+          cursorStyle: 'macos'
+        })
+      }
+      
+      if (options.enableBackground && options.background) {
+        const bg = options.background
+        backgroundRenderer = new BackgroundRenderer({
+          type: bg.type,
+          color: bg.color,
+          gradient: bg.gradient ? {
+            type: 'linear',
+            colors: bg.gradient.colors,
+            angle: bg.gradient.angle
+          } : undefined,
+          padding: bg.padding || 60,
+          borderRadius: bg.borderRadius || 12,
+          shadow: bg.shadow ? {
+            color: 'rgba(0, 0, 0, 0.3)',
+            blur: 20,
+            offsetX: 0,
+            offsetY: 10
+          } : undefined
         })
       }
 
@@ -123,9 +161,12 @@ export class EffectsExportEngine {
       // Start recording
       this.mediaRecorder.start()
 
-      // Process video frame by frame
+      // Process video frame by frame with optimizations
       const totalFrames = Math.ceil(videoDuration * framerate)
       let currentFrame = 0
+      let lastZoomState: any = null
+      let lastCursorState: any = null
+      let consecutiveUnchangedFrames = 0
 
       const processFrame = () => {
         return new Promise<void>((resolve) => {
@@ -136,72 +177,142 @@ export class EffectsExportEngine {
             return
           }
 
+          // Check if we can skip rendering (nothing changed)
+          const currentZoom = zoomEngine ? zoomEngine.getZoomAtTime(currentTime * 1000) : null
+          const currentCursor = metadata.find(m =>
+            Math.abs(m.timestamp - currentTime * 1000) < 50
+          )
+          
+          const zoomChanged = !lastZoomState || 
+            (currentZoom && (
+              Math.abs(currentZoom.x - lastZoomState.x) > 0.001 ||
+              Math.abs(currentZoom.y - lastZoomState.y) > 0.001 ||
+              Math.abs(currentZoom.scale - lastZoomState.scale) > 0.001
+            ))
+          
+          const cursorChanged = !lastCursorState || !currentCursor ||
+            Math.abs(currentCursor.mouseX - lastCursorState.mouseX) > 1 ||
+            Math.abs(currentCursor.mouseY - lastCursorState.mouseY) > 1 ||
+            currentCursor.eventType !== lastCursorState.eventType
+
+          // If nothing significant changed, we can potentially reuse the last frame
+          if (!zoomChanged && !cursorChanged && this.lastRenderedFrame && consecutiveUnchangedFrames < 5) {
+            consecutiveUnchangedFrames++
+            // Still need to advance frame for timing
+            currentFrame++
+            const progress = 10 + (currentFrame / totalFrames) * 80
+            onProgress?.({ 
+              progress, 
+              phase: 'processing', 
+              message: `Processing frame ${currentFrame} of ${totalFrames} (cached)`,
+              currentFrame,
+              totalFrames
+            })
+            setTimeout(() => processFrame().then(resolve), 1000 / framerate / 2) // Faster for cached frames
+            return
+          }
+          
+          consecutiveUnchangedFrames = 0
+          lastZoomState = currentZoom
+          lastCursorState = currentCursor
+
           video.currentTime = currentTime
           video.onseeked = () => {
             // Clear canvas
             this.processingCtx!.clearRect(0, 0, videoWidth, videoHeight)
-
-            // Apply zoom effect if enabled
-            if (zoomEngine) {
-              const zoom = zoomEngine.getZoomAtTime(currentTime * 1000)
-              zoomEngine.applyZoomToCanvas(this.processingCtx!, video, zoom)
+            
+            // Apply background if enabled
+            if (backgroundRenderer) {
+              // Create a temporary canvas for the video frame with zoom
+              const tempCanvas = document.createElement('canvas')
+              tempCanvas.width = videoWidth
+              tempCanvas.height = videoHeight
+              const tempCtx = tempCanvas.getContext('2d')!
+              
+              // Apply zoom to temp canvas
+              if (zoomEngine && currentZoom) {
+                zoomEngine.applyZoomToCanvas(tempCtx, video, currentZoom)
+              } else {
+                tempCtx.drawImage(video, 0, 0, videoWidth, videoHeight)
+              }
+              
+              // Apply background with video frame
+              backgroundRenderer.applyBackground(this.processingCtx!, tempCanvas)
             } else {
-              // Draw video frame directly
-              this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
+              // Apply zoom effect if enabled (no background)
+              if (zoomEngine && currentZoom) {
+                zoomEngine.applyZoomToCanvas(this.processingCtx!, video, currentZoom)
+              } else {
+                // Draw video frame directly
+                this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
+              }
             }
 
-            // Draw cursor if enabled
-            if (cursorRenderer && metadata.length > 0) {
-              const cursorEvent = metadata.find(m =>
-                Math.abs(m.timestamp - currentTime * 1000) < 50
-              )
-
-              if (cursorEvent) {
-                // Draw cursor
-                const cursorSize = 20
-                this.processingCtx!.save()
-
-                // Draw cursor shadow
-                this.processingCtx!.fillStyle = 'rgba(0,0,0,0.3)'
-                this.processingCtx!.beginPath()
-                this.processingCtx!.moveTo(cursorEvent.mouseX + 2, cursorEvent.mouseY + 2)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 2, cursorEvent.mouseY + 18)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 6, cursorEvent.mouseY + 14)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 9, cursorEvent.mouseY + 20)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 12, cursorEvent.mouseY + 19)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 9, cursorEvent.mouseY + 13)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 14, cursorEvent.mouseY + 13)
-                this.processingCtx!.closePath()
-                this.processingCtx!.fill()
-
-                // Draw cursor
-                this.processingCtx!.fillStyle = '#ffffff'
-                this.processingCtx!.strokeStyle = '#000000'
-                this.processingCtx!.lineWidth = 1
-                this.processingCtx!.beginPath()
-                this.processingCtx!.moveTo(cursorEvent.mouseX, cursorEvent.mouseY)
-                this.processingCtx!.lineTo(cursorEvent.mouseX, cursorEvent.mouseY + 16)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 4, cursorEvent.mouseY + 12)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 7, cursorEvent.mouseY + 18)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 10, cursorEvent.mouseY + 17)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 7, cursorEvent.mouseY + 11)
-                this.processingCtx!.lineTo(cursorEvent.mouseX + 12, cursorEvent.mouseY + 11)
-                this.processingCtx!.closePath()
-                this.processingCtx!.fill()
-                this.processingCtx!.stroke()
-
-                // Draw click effect if it's a click
-                if (cursorEvent.eventType === 'click') {
-                  this.processingCtx!.strokeStyle = '#3b82f6'
-                  this.processingCtx!.lineWidth = 2
-                  this.processingCtx!.globalAlpha = 0.6
+            // Draw cursor if enabled with better design
+            if (cursorRenderer && currentCursor) {
+              this.processingCtx!.save()
+              
+              // Enhanced macOS-style cursor
+              const scale = 1.2
+              const x = currentCursor.mouseX
+              const y = currentCursor.mouseY
+              
+              // Shadow for depth
+              this.processingCtx!.shadowColor = 'rgba(0, 0, 0, 0.3)'
+              this.processingCtx!.shadowBlur = 3
+              this.processingCtx!.shadowOffsetX = 0
+              this.processingCtx!.shadowOffsetY = 2
+              
+              // White outline for visibility
+              this.processingCtx!.fillStyle = '#ffffff'
+              this.processingCtx!.strokeStyle = '#ffffff'
+              this.processingCtx!.lineWidth = 2
+              this.processingCtx!.beginPath()
+              this.processingCtx!.moveTo(x, y)
+              this.processingCtx!.lineTo(x, y + 18 * scale)
+              this.processingCtx!.lineTo(x + 5 * scale, y + 14 * scale)
+              this.processingCtx!.lineTo(x + 8 * scale, y + 21 * scale)
+              this.processingCtx!.lineTo(x + 11 * scale, y + 20 * scale)
+              this.processingCtx!.lineTo(x + 8 * scale, y + 13 * scale)
+              this.processingCtx!.lineTo(x + 13 * scale, y + 13 * scale)
+              this.processingCtx!.closePath()
+              this.processingCtx!.fill()
+              
+              // Main cursor body
+              this.processingCtx!.shadowBlur = 0
+              this.processingCtx!.fillStyle = '#000000'
+              this.processingCtx!.beginPath()
+              this.processingCtx!.moveTo(x + 2, y + 2)
+              this.processingCtx!.lineTo(x + 2, y + 16 * scale)
+              this.processingCtx!.lineTo(x + 5 * scale, y + 13 * scale)
+              this.processingCtx!.lineTo(x + 7.5 * scale, y + 19 * scale)
+              this.processingCtx!.lineTo(x + 9.5 * scale, y + 18.5 * scale)
+              this.processingCtx!.lineTo(x + 7.5 * scale, y + 12 * scale)
+              this.processingCtx!.lineTo(x + 11.5 * scale, y + 12 * scale)
+              this.processingCtx!.closePath()
+              this.processingCtx!.fill()
+              
+              // Click animation - ripple effect
+              if (currentCursor.eventType === 'click') {
+                // Multiple concentric circles for ripple
+                for (let i = 0; i < 2; i++) {
+                  this.processingCtx!.strokeStyle = '#007AFF'
+                  this.processingCtx!.lineWidth = 2 - i * 0.5
+                  this.processingCtx!.globalAlpha = 0.6 - i * 0.2
                   this.processingCtx!.beginPath()
-                  this.processingCtx!.arc(cursorEvent.mouseX, cursorEvent.mouseY, 15, 0, Math.PI * 2)
+                  this.processingCtx!.arc(x + 5, y + 5, 15 + i * 8, 0, Math.PI * 2)
                   this.processingCtx!.stroke()
                 }
-
-                this.processingCtx!.restore()
               }
+              
+              this.processingCtx!.restore()
+            }
+            
+            // Cache the rendered frame
+            this.lastRenderedFrame = {
+              zoom: currentZoom,
+              cursor: currentCursor,
+              frameData: this.processingCtx!.getImageData(0, 0, videoWidth, videoHeight)
             }
 
             currentFrame++
@@ -215,10 +326,15 @@ export class EffectsExportEngine {
               totalFrames
             })
 
+            // Adaptive frame processing speed
+            const processingDelay = consecutiveUnchangedFrames > 0 ? 
+              Math.max(1, 1000 / framerate / 2) : // Faster for static content
+              1000 / framerate // Normal speed for changing content
+            
             // Process next frame
             setTimeout(() => {
               processFrame().then(resolve)
-            }, 1000 / framerate)
+            }, processingDelay)
           }
         })
       }
@@ -244,6 +360,9 @@ export class EffectsExportEngine {
       // Cleanup
       URL.revokeObjectURL(video.src)
       if (cursorRenderer) cursorRenderer.dispose()
+      if (backgroundRenderer) backgroundRenderer.dispose()
+      this.frameCache.clear()
+      this.lastRenderedFrame = null
 
       onProgress?.({
         progress: 100,

@@ -240,6 +240,28 @@ ipcMain.handle('request-screen-recording-permission', async () => {
   return { opened: false, status: 'not-applicable', granted: true }
 })
 
+// Get user media stream for desktop capture
+ipcMain.handle('get-desktop-stream', async (event, sourceId) => {
+  try {
+    console.log('🎥 Creating desktop stream for source:', sourceId)
+    
+    // Return the constraints that should be used with getUserMedia
+    // The renderer will use these to create the stream
+    return {
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: sourceId
+        }
+      }
+    }
+  } catch (error) {
+    console.error('❌ Failed to create stream constraints:', error)
+    throw error
+  }
+})
+
 // Enhanced desktop sources handler for the new ElectronRecorder
 ipcMain.handle('get-desktop-sources', async (event, options = {}) => {
   try {

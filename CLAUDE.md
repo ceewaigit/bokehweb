@@ -97,8 +97,32 @@ npm test                 # Run tests
 
 ## Current Status
 - Basic recording: ✅ Working
-- Effects: ❌ Not implemented
-- Timeline: ❌ Broken (no video preview)
-- Export: ❌ Incomplete (no effects applied)
+- Video preview: ✅ Fixed - plays recordings with effects
+- Cursor overlay: ✅ Working but needs polish (basic SVG cursor)
+- Zoom effects: ✅ Working but jerky (needs smooth easing and better detection)
+- Export with effects: ✅ Working but slow (frame-by-frame, no GPU)
+- Timeline: ⚠️ Basic functionality only (no editing features)
 
-**Goal**: Make every feature work exactly like Screen Studio. No compromises.
+## Critical Issues for Next Agent
+- Zoom is jerky - needs bezier curves not linear easing
+- Cursor is ugly - needs native macOS cursor not SVG
+- Export is slow - processes every frame even when nothing changes
+- No audio recording - completely missing
+- No webcam support - not implemented
+- No backgrounds/padding - videos have no styling
+- Effects quality is 3/10 compared to Screen Studio's 10/10
+
+## Key Files to Know
+- src/lib/effects/zoom-engine.ts - Zoom logic (needs complete rewrite for smooth animations)
+- src/lib/effects/cursor-renderer.ts - Cursor overlay (needs native cursor)
+- src/lib/export/effects-export-engine.ts - Export pipeline (needs optimization)
+- src/components/preview-area.tsx - Video preview with effects toggles
+- Deleted: effects-processor.ts, hardware-effects-processor.ts, animation-overlay.tsx (were redundant)
+
+## Architecture Decisions
+- Effects are applied during export, not during recording
+- Metadata (mouse positions) stored in localStorage with clip ID
+- No post-processing after recording - keeps original video
+- Zoom and cursor can be toggled on/off in preview
+
+**Goal**: Make effects as smooth as Screen Studio - 60fps, GPU accelerated, professional polish.

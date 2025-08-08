@@ -74,9 +74,10 @@ export class ElectronRecorder {
       // Check and request screen recording permission first
       await this.checkScreenRecordingPermission()
 
-      // Get media stream from desktop capturer
+      // Get media stream from desktop capturer with audio support
+      const hasAudio = recordingSettings.audioInput !== 'none'
       console.log('🎥 Requesting media stream with constraints:', {
-        audio: recordingSettings.audioInput !== 'none',
+        audio: hasAudio,
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
@@ -101,22 +102,74 @@ export class ElectronRecorder {
         ])
       }
 
-      this.stream = await getUserMediaWithTimeout({
-        audio: recordingSettings.audioInput !== 'none',
+      // Get the proper constraints from the main process
+      const constraints = await window.electronAPI?.getDesktopStream?.(primarySource.id) || {
+        audio: hasAudio ? {
+          mandatory: {
+            chromeMediaSource: 'desktop'
+          }
+        } : false,
         video: {
-          // @ts-ignore - Electron-specific constraint
           mandatory: {
             chromeMediaSource: 'desktop',
             chromeMediaSourceId: primarySource.id,
             minWidth: 1280,
             maxWidth: 4096,
             minHeight: 720,
-            maxHeight: 2160,
-            minFrameRate: 30,
-            maxFrameRate: 60
+            maxHeight: 2160
           }
         }
-      }) as MediaStream
+      }
+      console.log('🎥 Got stream constraints:', constraints)
+
+      // Now use getUserMedia with the Electron-specific constraints
+      console.log('🎥 Requesting media stream with Electron constraints...')
+      
+      try {
+        // In Electron, we must use getUserMedia with the specific desktop constraints
+        this.stream = await navigator.mediaDevices.getUserMedia(constraints) as MediaStream
+        console.log('✅ Desktop capture stream acquired successfully')
+        
+        // If audio was requested but not in the desktop stream, add microphone
+        if (hasAudio && this.stream.getAudioTracks().length === 0) {
+          console.log('🎤 Adding microphone audio track...')
+          try {
+            const audioStream = await navigator.mediaDevices.getUserMedia({ 
+              audio: true, 
+              video: false 
+            })
+            const audioTrack = audioStream.getAudioTracks()[0]
+            if (audioTrack) {
+              this.stream.addTrack(audioTrack)
+              console.log('✅ Microphone audio added to stream')
+            }
+          } catch (audioError) {
+            console.warn('⚠️ Could not add microphone audio:', audioError)
+          }
+        }
+      } catch (error) {
+        console.error('❌ getUserMedia failed:', error)
+        
+        // If that fails, try a different approach
+        // Some Electron versions require different constraint format
+        const fallbackConstraints = {
+          audio: hasAudio,
+          video: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: primarySource.id
+          } as any
+        }
+        
+        console.log('🔄 Trying fallback constraints:', fallbackConstraints)
+        
+        try {
+          this.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints) as MediaStream
+          console.log('✅ Stream acquired with fallback constraints')
+        } catch (fallbackError) {
+          console.error('❌ Fallback also failed:', fallbackError)
+          throw new Error(`Failed to capture desktop. Original error: ${error}. Fallback error: ${fallbackError}`)
+        }
+      }
 
       console.log('✅ Desktop capture stream acquired:', {
         streamId: this.stream.id,
@@ -322,7 +375,7 @@ export class ElectronRecorder {
     }
 
     // Set up event listeners for native mouse events
-    const handleMouseMove = (event: any, data: any) => {
+    const handleMouseMove = (_event: any, data: any) => {
       if (this.isRecording) {
         this.metadata.push({
           timestamp: Date.now() - this.startTime,
@@ -333,7 +386,7 @@ export class ElectronRecorder {
       }
     }
 
-    const handleMouseClick = (event: any, data: any) => {
+    const handleMouseClick = (_event: any, data: any) => {
       if (this.isRecording) {
         this.metadata.push({
           timestamp: Date.now() - this.startTime,
