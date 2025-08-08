@@ -107,7 +107,7 @@ export class ElectronRecorder {
       }
 
       // Get the proper constraints from the main process
-      const constraints = await window.electronAPI?.getDesktopStream?.(primarySource.id) || {
+      const constraints = await window.electronAPI?.getDesktopStream?.(primarySource.id, hasAudio) || {
         audio: hasAudio ? {
           mandatory: {
             chromeMediaSource: 'desktop'

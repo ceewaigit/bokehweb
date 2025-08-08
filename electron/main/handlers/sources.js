@@ -14,15 +14,23 @@ function registerSourceHandlers() {
     }
   })
 
-  ipcMain.handle('get-desktop-stream', async (event, sourceId) => {
+  ipcMain.handle('get-desktop-stream', async (event, sourceId, hasAudio = false) => {
     try {
-      console.log('🎥 Creating desktop stream for source:', sourceId)
+      console.log('🎥 Creating desktop stream for source:', sourceId, 'with audio:', hasAudio)
       return {
-        audio: false,
+        audio: hasAudio ? {
+          mandatory: {
+            chromeMediaSource: 'desktop'
+          }
+        } : false,
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
-            chromeMediaSourceId: sourceId
+            chromeMediaSourceId: sourceId,
+            minWidth: 1280,
+            maxWidth: 4096,
+            minHeight: 720,
+            maxHeight: 2160
           }
         }
       }

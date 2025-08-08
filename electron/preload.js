@@ -14,7 +14,7 @@ const electronAPI = {
       }
       return ipcRenderer.invoke('get-desktop-sources', options)
     },
-    getDesktopStream: (sourceId) => ipcRenderer.invoke('get-desktop-stream', sourceId),
+    getDesktopStream: (sourceId, hasAudio) => ipcRenderer.invoke('get-desktop-stream', sourceId, hasAudio),
     getSources: () => ipcRenderer.invoke('get-sources'), // Keep backward compatibility
 
     // Permission checking methods
