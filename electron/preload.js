@@ -81,6 +81,11 @@ const electronAPI = {
     saveRecording: (filePath, buffer) => ipcRenderer.invoke('save-recording', filePath, buffer),
     loadRecordings: () => ipcRenderer.invoke('load-recordings'),
     minimizeRecordButton: () => ipcRenderer.invoke('minimize-record-button'),
+    showRecordButton: () => ipcRenderer.invoke('show-record-button'),
+    
+    // Countdown window methods
+    showCountdown: (number) => ipcRenderer.invoke('show-countdown', number),
+    hideCountdown: () => ipcRenderer.invoke('hide-countdown'),
 
     // File dialogs
     showSaveDialog: (options) => {

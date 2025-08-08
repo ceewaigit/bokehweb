@@ -46,6 +46,11 @@ export interface ElectronAPI {
   maximize: () => void
   quit: () => void
   minimizeRecordButton?: () => void
+  showRecordButton?: () => void
+  
+  // Countdown window methods
+  showCountdown?: (number: number) => Promise<{ success: boolean }>
+  hideCountdown?: () => Promise<{ success: boolean }>
   
   // Recording events
   onRecordingStarted: (callback: () => void) => void

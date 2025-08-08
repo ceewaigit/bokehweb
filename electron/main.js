@@ -3,10 +3,55 @@ const path = require('path')
 const { URL } = require('url')
 const isDev = process.env.NODE_ENV === 'development'
 
+// URL configuration for development vs production
+const getAppURL = (route = '') => {
+  if (isDev) {
+    return `http://localhost:3000${route}`
+  } else {
+    // In production, we'll use file:// protocol with a custom scheme
+    return `file://${path.join(__dirname, '../out', route ? route + '.html' : 'index.html')}`
+  }
+}
+
 // Mouse tracking state
 let mouseTrackingInterval = null
 let mouseEventSender = null
 let isMouseTracking = false
+
+// Countdown window reference
+let countdownWindow = null
+
+// Create fullscreen countdown window
+function createCountdownWindow() {
+  const display = screen.getPrimaryDisplay()
+  countdownWindow = new BrowserWindow({
+    width: display.bounds.width,
+    height: display.bounds.height,
+    x: display.bounds.x,
+    y: display.bounds.y,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: true,
+    hasShadow: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
+  })
+  
+  countdownWindow.setIgnoreMouseEvents(true)
+  countdownWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  countdownWindow.setAlwaysOnTop(true, 'screen-saver', 1000)
+  
+  return countdownWindow
+}
 
 // Create a floating record button overlay window (like Screen Studio)
 function createRecordButton() {
@@ -109,11 +154,10 @@ function createWindow() {
     })
   })
 
+  mainWindow.loadURL(getAppURL())
+  
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000')
     mainWindow.webContents.openDevTools()
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../out/index.html'))
   }
 
   mainWindow.once('ready-to-show', () => {
@@ -176,11 +220,7 @@ app.whenReady().then(async () => {
   global.recordButton = recordButton
   
   // Load the record button UI
-  if (isDev) {
-    recordButton.loadURL('http://localhost:3000/record-button')
-  } else {
-    recordButton.loadFile(path.join(__dirname, '../out/record-button.html'))
-  }
+  recordButton.loadURL(getAppURL('/record-button'))
   
   // Show the record button immediately
   recordButton.once('ready-to-show', () => {
@@ -210,11 +250,7 @@ ipcMain.handle('open-workspace', () => {
     global.mainWindow = createWindow()
     
     // Load the workspace
-    if (isDev) {
-      global.mainWindow.loadURL('http://localhost:3000')
-    } else {
-      global.mainWindow.loadFile(path.join(__dirname, '../out/index.html'))
-    }
+    global.mainWindow.loadURL(getAppURL())
     
     global.mainWindow.once('ready-to-show', () => {
       global.mainWindow.show()
@@ -261,6 +297,71 @@ ipcMain.handle('minimize-record-button', () => {
   if (global.recordButton) {
     global.recordButton.hide()
   }
+})
+
+// IPC to show record button window
+ipcMain.handle('show-record-button', () => {
+  if (global.recordButton) {
+    global.recordButton.show()
+  }
+})
+
+// IPC handlers for countdown window
+ipcMain.handle('show-countdown', async (event, number) => {
+  if (!countdownWindow) {
+    countdownWindow = createCountdownWindow()
+  }
+  
+  // Send countdown number to the window
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * { margin: 0; padding: 0; }
+        body {
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          user-select: none;
+          -webkit-user-select: none;
+        }
+        .countdown {
+          font-size: 300px;
+          font-weight: bold;
+          color: white;
+          text-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+          animation: pulse 0.5s ease-out;
+        }
+        @keyframes pulse {
+          0% { transform: scale(0.5); opacity: 0; }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="countdown">${number || ''}</div>
+    </body>
+    </html>
+  `
+  
+  countdownWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+  countdownWindow.show()
+  
+  return { success: true }
+})
+
+ipcMain.handle('hide-countdown', async () => {
+  if (countdownWindow) {
+    countdownWindow.hide()
+    countdownWindow.close()
+    countdownWindow = null
+  }
+  return { success: true }
 })
 
 // IPC to load all recordings

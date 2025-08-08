@@ -50,17 +50,38 @@ export default function RecordingDock() {
     }
   }, [])
 
-  const startCountdown = () => {
-    setCountdown(3)
-    const countdownInterval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev === null || prev <= 1) {
-          clearInterval(countdownInterval)
-          actuallyStartRecording()
-          return null
+  const startCountdown = async () => {
+    let count = 3
+    setCountdown(count)
+
+    // Show fullscreen countdown if available, otherwise show inline
+    const hasFullscreenCountdown = window.electronAPI?.showCountdown
+
+    if (hasFullscreenCountdown) {
+      await window.electronAPI?.showCountdown?.(count)
+    }
+
+    const countdownInterval = setInterval(async () => {
+      count--
+
+      if (count <= 0) {
+        clearInterval(countdownInterval)
+        setCountdown(null)
+
+        // Hide countdown and start recording
+        if (hasFullscreenCountdown) {
+          await window.electronAPI?.hideCountdown?.()
         }
-        return prev - 1
-      })
+
+        actuallyStartRecording()
+      } else {
+        setCountdown(count)
+
+        // Update countdown display
+        if (hasFullscreenCountdown) {
+          await window.electronAPI?.showCountdown?.(count)
+        }
+      }
     }, 1000)
   }
 
@@ -82,23 +103,18 @@ export default function RecordingDock() {
 
       // Get the stream with proper constraints for Electron
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: micEnabled ? { 
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+        audio: micEnabled ? {
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true }
         } : false,
         video: {
+          width: { min: 1280, max: 3840 },
+          height: { min: 720, max: 2160 },
+          frameRate: { min: 30, max: 60 },
           // @ts-ignore - Electron-specific constraints
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: source.id,
-            minWidth: 1280,
-            maxWidth: 3840,
-            minHeight: 720,
-            maxHeight: 2160,
-            minFrameRate: 30,
-            maxFrameRate: 60
-          }
+          deviceId: { exact: source.id },
+          mediaStreamSource: { exact: 'desktop' }
         } as any
       })
 
@@ -134,12 +150,12 @@ export default function RecordingDock() {
       startTimeRef.current = Date.now()
       timerRef.current = setInterval(() => {
         if (!isPaused) {
-          setDuration(Math.floor((Date.now() - startTimeRef.current - pausedTimeRef.current) / 1000))
+          setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000))
         }
       }, 100)
 
       setIsRecording(true)
-      setIsExpanded(true)
+      setIsExpanded(false)
     } catch (error) {
       console.error('Failed to start recording:', error)
       setCountdown(null)
@@ -161,7 +177,10 @@ export default function RecordingDock() {
   const resumeRecording = () => {
     if (recorderRef.current && recorderRef.current.state === 'paused') {
       recorderRef.current.resume()
-      pausedTimeRef.current += Date.now() - pausedTimeRef.current
+      // Calculate total paused duration
+      const pauseDuration = Date.now() - pausedTimeRef.current
+      startTimeRef.current += pauseDuration
+      pausedTimeRef.current = 0
       setIsPaused(false)
     }
   }
@@ -196,17 +215,85 @@ export default function RecordingDock() {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  // Show prominent control panel during recording
+  if (isRecording) {
+    return (
+      <div
+        className="fixed top-6 left-1/2 -translate-x-1/2 z-50"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+      >
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0, y: -20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          transition={{ type: "spring", damping: 20 }}
+          className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-gray-900 to-gray-800 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-600"
+        >
+          {/* Recording indicator */}
+          <div className="flex items-center gap-2">
+            <motion.div
+              className="w-3 h-3 bg-red-500 rounded-full shadow-lg shadow-red-500/50"
+              animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
+            <span className="text-white text-sm font-semibold">Recording</span>
+          </div>
+
+          {/* Timer display */}
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-black/30 rounded-lg">
+            <span className="text-white font-mono text-base font-medium">{formatTime(duration)}</span>
+          </div>
+
+          {/* Pause/Resume button */}
+          <motion.button
+            onClick={isPaused ? resumeRecording : pauseRecording}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
+            title={isPaused ? "Resume recording" : "Pause recording"}
+          >
+            {isPaused ? (
+              <Play className="w-4 h-4 text-white group-hover:text-green-400 transition-colors" />
+            ) : (
+              <Pause className="w-4 h-4 text-white group-hover:text-yellow-400 transition-colors" />
+            )}
+          </motion.button>
+
+          {/* Stop button */}
+          <motion.button
+            onClick={stopRecording}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-2.5 bg-red-600 hover:bg-red-500 rounded-lg transition-colors group shadow-lg shadow-red-600/30"
+            title="Stop recording"
+          >
+            <Square className="w-4 h-4 text-white fill-white" />
+          </motion.button>
+
+          {/* Optional: Quick settings */}
+          <div className="flex items-center gap-1 ml-2 pl-3 border-l border-gray-600">
+            <button
+              className={`p-2 rounded-lg transition-colors ${micEnabled ? 'bg-gray-700 text-white' : 'bg-gray-800 text-gray-500'}`}
+              onClick={() => {/* Toggle mic during recording */ }}
+              title={micEnabled ? "Microphone on" : "Microphone off"}
+            >
+              {micEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
+
   return (
     <>
-      {/* Countdown Overlay */}
+      {/* Inline countdown fallback/indicator */}
       <AnimatePresence>
         {countdown !== null && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
+            className="fixed inset-0 pointer-events-none flex items-center justify-center z-50"
           >
             <motion.div
               key={countdown}
@@ -214,7 +301,8 @@ export default function RecordingDock() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 1.5, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="text-white text-9xl font-bold"
+              className="text-white text-[200px] font-bold drop-shadow-2xl"
+              style={{ textShadow: '0 0 50px rgba(0,0,0,0.8)' }}
             >
               {countdown}
             </motion.div>

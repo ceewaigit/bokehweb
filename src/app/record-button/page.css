@@ -1,21 +1,58 @@
-/* Record Button Specific Styles */
-html,
-body {
-  margin: 0;
-  padding: 0;
-  background: transparent !important;
-  overflow: hidden;
+/* Import Tailwind directives first */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Override all backgrounds for transparency */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  html {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+  
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    overflow: hidden !important;
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+  
+  /* Remove any backgrounds from root elements */
+  :root {
+    background: transparent !important;
+    --background: transparent !important;
+  }
 }
 
 /* Ensure transparent background for Electron window */
-body::before {
+body::before,
+body::after,
+html::before,
+html::after {
   content: none !important;
+  background: transparent !important;
 }
 
-/* Remove any default backgrounds */
+/* Remove any default backgrounds from Next.js */
 #__next,
 .app-wrapper,
-main {
+main,
+div[data-nextjs-scroll-focus-boundary] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Override Tailwind's default backgrounds */
+.bg-background {
   background: transparent !important;
 }
 
