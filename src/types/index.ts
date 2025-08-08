@@ -58,7 +58,7 @@ export interface ProjectSettings {
 
 export interface ExportSettings {
   format: 'mp4' | 'mov' | 'gif' | 'webm'
-  quality: 'low' | 'medium' | 'high' | 'custom'
+  quality: 'low' | 'medium' | 'high' | 'ultra' | 'custom'
   resolution: { width: number; height: number }
   framerate: number
   bitrate?: number

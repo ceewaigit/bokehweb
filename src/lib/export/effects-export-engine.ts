@@ -14,7 +14,7 @@ export interface ExportProgress {
 }
 
 export interface ExportOptions {
-  format?: 'mp4' | 'webm' | 'gif'
+  format?: 'mp4' | 'webm' | 'gif' | 'mov'
   quality?: 'low' | 'medium' | 'high' | 'ultra'
   framerate?: number
   resolution?: { width: number; height: number }
@@ -115,7 +115,7 @@ export class EffectsExportEngine {
           cursorStyle: 'macos'
         })
       }
-      
+
       if (options.enableBackground && options.background) {
         const bg = options.background
         backgroundRenderer = new BackgroundRenderer({
@@ -183,14 +183,14 @@ export class EffectsExportEngine {
           const currentCursor = metadata.find(m =>
             Math.abs(m.timestamp - currentTime * 1000) < 50
           )
-          
-          const zoomChanged = !lastZoomState || 
+
+          const zoomChanged = !lastZoomState ||
             (currentZoom && (
               Math.abs(currentZoom.x - lastZoomState.x) > 0.001 ||
               Math.abs(currentZoom.y - lastZoomState.y) > 0.001 ||
               Math.abs(currentZoom.scale - lastZoomState.scale) > 0.001
             ))
-          
+
           const cursorChanged = !lastCursorState || !currentCursor ||
             Math.abs(currentCursor.mouseX - lastCursorState.mouseX) > 1 ||
             Math.abs(currentCursor.mouseY - lastCursorState.mouseY) > 1 ||
@@ -202,9 +202,9 @@ export class EffectsExportEngine {
             // Still need to advance frame for timing
             currentFrame++
             const progress = 10 + (currentFrame / totalFrames) * 80
-            onProgress?.({ 
-              progress, 
-              phase: 'processing', 
+            onProgress?.({
+              progress,
+              phase: 'processing',
               message: `Processing frame ${currentFrame} of ${totalFrames} (cached)`,
               currentFrame,
               totalFrames
@@ -212,7 +212,7 @@ export class EffectsExportEngine {
             setTimeout(() => processFrame().then(resolve), 1000 / framerate / 2) // Faster for cached frames
             return
           }
-          
+
           consecutiveUnchangedFrames = 0
           lastZoomState = currentZoom
           lastCursorState = currentCursor
@@ -221,7 +221,7 @@ export class EffectsExportEngine {
           video.onseeked = () => {
             // Clear canvas
             this.processingCtx!.clearRect(0, 0, videoWidth, videoHeight)
-            
+
             // Apply background if enabled
             if (backgroundRenderer) {
               // Create a temporary canvas for the video frame with zoom
@@ -229,14 +229,14 @@ export class EffectsExportEngine {
               tempCanvas.width = videoWidth
               tempCanvas.height = videoHeight
               const tempCtx = tempCanvas.getContext('2d')!
-              
+
               // Apply zoom to temp canvas
               if (zoomEngine && currentZoom) {
                 zoomEngine.applyZoomToCanvas(tempCtx, video, currentZoom)
               } else {
                 tempCtx.drawImage(video, 0, 0, videoWidth, videoHeight)
               }
-              
+
               // Apply background with video frame
               backgroundRenderer.applyBackground(this.processingCtx!, tempCanvas)
             } else {
@@ -252,18 +252,18 @@ export class EffectsExportEngine {
             // Draw cursor if enabled with better design
             if (cursorRenderer && currentCursor) {
               this.processingCtx!.save()
-              
+
               // Enhanced macOS-style cursor
               const scale = 1.2
               const x = currentCursor.mouseX
               const y = currentCursor.mouseY
-              
+
               // Shadow for depth
               this.processingCtx!.shadowColor = 'rgba(0, 0, 0, 0.3)'
               this.processingCtx!.shadowBlur = 3
               this.processingCtx!.shadowOffsetX = 0
               this.processingCtx!.shadowOffsetY = 2
-              
+
               // White outline for visibility
               this.processingCtx!.fillStyle = '#ffffff'
               this.processingCtx!.strokeStyle = '#ffffff'
@@ -278,7 +278,7 @@ export class EffectsExportEngine {
               this.processingCtx!.lineTo(x + 13 * scale, y + 13 * scale)
               this.processingCtx!.closePath()
               this.processingCtx!.fill()
-              
+
               // Main cursor body
               this.processingCtx!.shadowBlur = 0
               this.processingCtx!.fillStyle = '#000000'
@@ -292,7 +292,7 @@ export class EffectsExportEngine {
               this.processingCtx!.lineTo(x + 11.5 * scale, y + 12 * scale)
               this.processingCtx!.closePath()
               this.processingCtx!.fill()
-              
+
               // Click animation - ripple effect
               if (currentCursor.eventType === 'click') {
                 // Multiple concentric circles for ripple
@@ -305,10 +305,10 @@ export class EffectsExportEngine {
                   this.processingCtx!.stroke()
                 }
               }
-              
+
               this.processingCtx!.restore()
             }
-            
+
             // Cache the rendered frame
             this.lastRenderedFrame = {
               zoom: currentZoom,
@@ -328,10 +328,10 @@ export class EffectsExportEngine {
             })
 
             // Adaptive frame processing speed
-            const processingDelay = consecutiveUnchangedFrames > 0 ? 
+            const processingDelay = consecutiveUnchangedFrames > 0 ?
               Math.max(1, 1000 / framerate / 2) : // Faster for static content
               1000 / framerate // Normal speed for changing content
-            
+
             // Process next frame
             setTimeout(() => {
               processFrame().then(resolve)
@@ -357,9 +357,9 @@ export class EffectsExportEngine {
 
       // Create WebM blob first
       const webmBlob = new Blob(this.chunks, { type: mimeType })
-      
+
       let finalBlob = webmBlob
-      
+
       // Convert to MP4/MOV/GIF if needed
       if (format === 'mp4' || format === 'mov' || format === 'gif') {
         onProgress?.({
@@ -367,9 +367,9 @@ export class EffectsExportEngine {
           phase: 'encoding',
           message: `Converting to ${format.toUpperCase()}...`
         })
-        
+
         const converter = new FFmpegConverter()
-        
+
         if (format === 'mp4') {
           finalBlob = await converter.convertWebMToMP4(webmBlob, (ffmpegProgress) => {
             onProgress?.({

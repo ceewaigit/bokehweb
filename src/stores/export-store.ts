@@ -96,7 +96,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
           const videoBlob = await videoResponse.blob()
 
           const exportOptions: ExportOptions = {
-            format: exportSettings.format as 'mp4' | 'webm' | 'gif',
+            format: exportSettings.format as 'mp4' | 'webm' | 'gif' | 'mov',
             quality: exportSettings.quality as 'low' | 'medium' | 'high' | 'ultra',
             framerate: exportSettings.framerate,
             resolution: exportSettings.resolution,
