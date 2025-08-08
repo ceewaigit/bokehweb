@@ -57,7 +57,7 @@ export class FFmpegConverter {
 
       // Read output file
       const data = await this.ffmpeg.readFile('output.mp4')
-      const mp4Blob = new Blob([data], { type: 'video/mp4' })
+      const mp4Blob = new Blob([data as unknown as ArrayBuffer], { type: 'video/mp4' })
 
       // Cleanup
       await this.ffmpeg.deleteFile('input.webm')
@@ -96,7 +96,7 @@ export class FFmpegConverter {
       ])
 
       const data = await this.ffmpeg.readFile('output.mov')
-      const movBlob = new Blob([data], { type: 'video/quicktime' })
+      const movBlob = new Blob([data as unknown as ArrayBuffer], { type: 'video/quicktime' })
 
       await this.ffmpeg.deleteFile('input.webm')
       await this.ffmpeg.deleteFile('output.mov')
@@ -144,7 +144,7 @@ export class FFmpegConverter {
       ])
 
       const data = await this.ffmpeg.readFile('output.gif')
-      const gifBlob = new Blob([data], { type: 'image/gif' })
+      const gifBlob = new Blob([data as unknown as ArrayBuffer], { type: 'image/gif' })
 
       // Cleanup
       await this.ffmpeg.deleteFile('input.video')

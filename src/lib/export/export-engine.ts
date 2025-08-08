@@ -93,7 +93,7 @@ export class ExportEngine {
     onProgress?.({ progress: 90, stage: 'finalizing', message: 'Finalizing...' })
 
     const outputData = await this.ffmpeg.readFile(outputFile)
-    const blob = new Blob([outputData], { type: this.getMimeType(settings.format) })
+    const blob = new Blob([outputData as unknown as ArrayBuffer], { type: this.getMimeType(settings.format) })
 
     // Cleanup
     await this.cleanup(videoClips.length, outputFile)

@@ -8,8 +8,13 @@ const getAppURL = (route = '') => {
   if (isDev) {
     return `http://localhost:3000${route}`
   } else {
-    // In production, we'll use file:// protocol with a custom scheme
-    return `file://${path.join(__dirname, '../out', route ? route + '.html' : 'index.html')}`
+    // In production, use file:// protocol with Next.js static export structure
+    if (route === '') {
+      return `file://${path.join(__dirname, '../out/index.html')}`
+    } else {
+      // Next.js creates route/index.html for static exports
+      return `file://${path.join(__dirname, '../out', route, 'index.html')}`
+    }
   }
 }
 
