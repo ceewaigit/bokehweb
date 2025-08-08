@@ -1,5 +1,6 @@
 'use client'
 
+import './page.css'
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -32,6 +33,15 @@ export default function RecordingDock() {
   const streamRef = useRef<MediaStream | null>(null)
 
   useEffect(() => {
+    // Check screen recording permission on macOS
+    const checkPermission = async () => {
+      const result = await window.electronAPI?.checkScreenRecordingPermission()
+      if (result && !result.granted && result.status !== 'not-applicable') {
+        console.warn('Screen recording permission not granted:', result.status)
+      }
+    }
+    checkPermission()
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
       if (streamRef.current) {
@@ -56,13 +66,40 @@ export default function RecordingDock() {
 
   const actuallyStartRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+      // Use Electron's desktop capture API instead of browser's getDisplayMedia
+      const sources = await window.electronAPI?.getDesktopSources({
+        types: ['screen'],
+        thumbnailSize: { width: 150, height: 150 }
+      })
+
+      if (!sources || sources.length === 0) {
+        throw new Error('No screen sources available')
+      }
+
+      // Use the first screen (primary display)
+      const source = sources[0]
+      console.log('Using screen source:', source.name)
+
+      // Get the stream with proper constraints for Electron
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: micEnabled ? { 
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } : false,
         video: {
-          width: { ideal: 3840, max: 3840 },
-          height: { ideal: 2160, max: 2160 },
-          frameRate: { ideal: 60, max: 60 }
-        },
-        audio: micEnabled
+          // @ts-ignore - Electron-specific constraints
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: source.id,
+            minWidth: 1280,
+            maxWidth: 3840,
+            minHeight: 720,
+            maxHeight: 2160,
+            minFrameRate: 30,
+            maxFrameRate: 60
+          }
+        } as any
       })
 
       streamRef.current = stream

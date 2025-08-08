@@ -256,6 +256,13 @@ ipcMain.handle('save-recording', async (event, filePath, buffer) => {
   }
 })
 
+// IPC to minimize record button window
+ipcMain.handle('minimize-record-button', () => {
+  if (global.recordButton) {
+    global.recordButton.hide()
+  }
+})
+
 // IPC to load all recordings
 ipcMain.handle('load-recordings', async () => {
   try {

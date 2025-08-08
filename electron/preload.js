@@ -80,6 +80,7 @@ const electronAPI = {
     getRecordingsDirectory: () => ipcRenderer.invoke('get-recordings-directory'),
     saveRecording: (filePath, buffer) => ipcRenderer.invoke('save-recording', filePath, buffer),
     loadRecordings: () => ipcRenderer.invoke('load-recordings'),
+    minimizeRecordButton: () => ipcRenderer.invoke('minimize-record-button'),
 
     // File dialogs
     showSaveDialog: (options) => {

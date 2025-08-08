@@ -1,0 +1,25 @@
+/* Record Button Specific Styles */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  overflow: hidden;
+}
+
+/* Ensure transparent background for Electron window */
+body::before {
+  content: none !important;
+}
+
+/* Remove any default backgrounds */
+#__next,
+.app-wrapper,
+main {
+  background: transparent !important;
+}
+
+/* Ensure app region styles work properly */
+[style*="WebkitAppRegion"] {
+  -webkit-app-region: no-drag;
+}
