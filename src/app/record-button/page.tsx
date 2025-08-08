@@ -42,11 +42,21 @@ export default function RecordingDock() {
     // Remove any background classes
     document.body.classList.remove('bg-background')
     
-    // Check screen recording permission on macOS
+    // Check screen recording permission on macOS (disabled in production for now)
     const checkPermission = async () => {
-      const result = await window.electronAPI?.checkScreenRecordingPermission()
-      if (result && !result.granted && result.status !== 'not-applicable') {
-        console.warn('Screen recording permission not granted:', result.status)
+      // Skip permission check in production to avoid crash
+      if (window.location.protocol === 'file:') {
+        console.log('Skipping permission check in production mode')
+        return
+      }
+      
+      try {
+        const result = await window.electronAPI?.checkScreenRecordingPermission()
+        if (result && !result.granted && result.status !== 'not-applicable') {
+          console.warn('Screen recording permission not granted:', result.status)
+        }
+      } catch (error) {
+        console.error('Error checking screen recording permission:', error)
       }
     }
     checkPermission()

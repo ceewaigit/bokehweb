@@ -646,7 +646,8 @@ ipcMain.handle('get-desktop-sources', async (event, options = {}) => {
 
       if (status !== 'granted') {
         // Show helpful dialog
-        const { response } = await dialog.showMessageBox(BrowserWindow.fromWebContents(event.sender), {
+        const parentWindow = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
+        const { response } = await dialog.showMessageBox(parentWindow, {
           type: 'warning',
           title: 'Screen Recording Permission Required',
           message: 'Screen Studio needs permission to record your screen.',
