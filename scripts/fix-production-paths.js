@@ -16,6 +16,14 @@ function fixHtmlFile(filePath) {
   // Fix _next paths specifically
   content = content.replace(/"\/_next\//g, `"${prefix}_next/`);
   
+  // Fix paths in inline scripts (Next.js chunk loading)
+  // Replace references to static/chunks with relative paths
+  content = content.replace(/"static\/chunks\//g, `"${prefix}_next/static/chunks/`);
+  
+  // Fix any remaining absolute paths in JavaScript strings
+  content = content.replace(/"\/_next\/static\//g, `"${prefix}_next/static/`);
+  content = content.replace(/'\/_next\/static\//g, `'${prefix}_next/static/`);
+  
   fs.writeFileSync(filePath, content, 'utf8');
   console.log(`Fixed paths in: ${path.basename(filePath)} (depth: ${depth}, prefix: ${prefix})`);
 }

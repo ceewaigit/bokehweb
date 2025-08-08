@@ -304,10 +304,6 @@ app.whenReady().then(async () => {
       recordButton.show()
       recordButton.focus()
       
-      // Open dev tools in production to see errors
-      if (!isDev) {
-        recordButton.webContents.openDevTools({ mode: 'detach' })
-      }
     }
   }, 2000)
   
