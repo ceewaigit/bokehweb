@@ -33,6 +33,15 @@ export default function RecordingDock() {
   const streamRef = useRef<MediaStream | null>(null)
 
   useEffect(() => {
+    // Force transparent background for this component
+    document.body.style.backgroundColor = 'transparent'
+    document.body.style.background = 'transparent'
+    document.documentElement.style.backgroundColor = 'transparent'
+    document.documentElement.style.background = 'transparent'
+    
+    // Remove any background classes
+    document.body.classList.remove('bg-background')
+    
     // Check screen recording permission on macOS
     const checkPermission = async () => {
       const result = await window.electronAPI?.checkScreenRecordingPermission()
@@ -54,11 +63,12 @@ export default function RecordingDock() {
     let count = 3
     setCountdown(count)
 
-    // Show fullscreen countdown if available, otherwise show inline
-    const hasFullscreenCountdown = window.electronAPI?.showCountdown
+    // Hide the dock during countdown for cleaner experience
+    await window.electronAPI?.minimizeRecordButton?.()
 
-    if (hasFullscreenCountdown) {
-      await window.electronAPI?.showCountdown?.(count)
+    // Show fullscreen countdown
+    if (window.electronAPI?.showCountdown) {
+      await window.electronAPI.showCountdown(count)
     }
 
     const countdownInterval = setInterval(async () => {
@@ -68,18 +78,20 @@ export default function RecordingDock() {
         clearInterval(countdownInterval)
         setCountdown(null)
 
-        // Hide countdown and start recording
-        if (hasFullscreenCountdown) {
-          await window.electronAPI?.hideCountdown?.()
+        // Hide countdown
+        if (window.electronAPI?.hideCountdown) {
+          await window.electronAPI.hideCountdown()
         }
-
+        
+        // Show dock again and start recording
+        await window.electronAPI?.showRecordButton?.()
         actuallyStartRecording()
       } else {
         setCountdown(count)
 
         // Update countdown display
-        if (hasFullscreenCountdown) {
-          await window.electronAPI?.showCountdown?.(count)
+        if (window.electronAPI?.showCountdown) {
+          await window.electronAPI.showCountdown(count)
         }
       }
     }, 1000)
@@ -102,6 +114,7 @@ export default function RecordingDock() {
       console.log('Using screen source:', source.name)
 
       // Get the stream with proper constraints for Electron
+      // Must use mandatory constraints for Electron desktop capture
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: micEnabled ? {
           echoCancellation: { ideal: true },
@@ -109,12 +122,11 @@ export default function RecordingDock() {
           autoGainControl: { ideal: true }
         } : false,
         video: {
-          width: { min: 1280, max: 3840 },
-          height: { min: 720, max: 2160 },
-          frameRate: { min: 30, max: 60 },
-          // @ts-ignore - Electron-specific constraints
-          deviceId: { exact: source.id },
-          mediaStreamSource: { exact: 'desktop' }
+          // @ts-ignore - Electron-specific mandatory constraints
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: source.id
+          }
         } as any
       })
 
@@ -285,35 +297,8 @@ export default function RecordingDock() {
   }
 
   return (
-    <>
-      {/* Inline countdown fallback/indicator */}
-      <AnimatePresence>
-        {countdown !== null && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 pointer-events-none flex items-center justify-center z-50"
-          >
-            <motion.div
-              key={countdown}
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 1.5, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="text-white text-[200px] font-bold drop-shadow-2xl"
-              style={{ textShadow: '0 0 50px rgba(0,0,0,0.8)' }}
-            >
-              {countdown}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Recording Dock */}
-      <div
+    <div
         className="fixed top-4 left-1/2 -translate-x-1/2 z-40"
-        style={{ WebkitAppRegion: 'no-drag' } as any}
       >
         <motion.div
           initial={{ y: -100, opacity: 0 }}
@@ -326,6 +311,12 @@ export default function RecordingDock() {
             border border-gray-700
             overflow-hidden
           `}
+          style={{ 
+            // @ts-ignore
+            WebkitAppRegion: 'drag',
+            WebkitUserSelect: 'none',
+            userSelect: 'none'
+          }}
         >
           <div className="flex items-center p-3 gap-2">
             {/* Main Record Button */}
@@ -335,6 +326,10 @@ export default function RecordingDock() {
                 className="relative group"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                style={{ 
+                  // @ts-ignore
+                  WebkitAppRegion: 'no-drag'
+                }}
               >
                 <div className="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 transition-colors">
                   <Circle className="w-4 h-4 text-white fill-white" />
@@ -389,7 +384,10 @@ export default function RecordingDock() {
             <div className="w-px h-8 bg-gray-600 mx-1" />
 
             {/* Quick Controls */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1" style={{ 
+              // @ts-ignore
+              WebkitAppRegion: 'no-drag'
+            }}>
               {/* Microphone Toggle */}
               <motion.button
                 onClick={() => setMicEnabled(!micEnabled)}
@@ -454,6 +452,10 @@ export default function RecordingDock() {
               className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white transition-colors ml-2"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              style={{ 
+                // @ts-ignore
+                WebkitAppRegion: 'no-drag'
+              }}
             >
               <X className="w-4 h-4" />
             </motion.button>
@@ -509,6 +511,5 @@ export default function RecordingDock() {
           </AnimatePresence>
         </motion.div>
       </div>
-    </>
   )
 }

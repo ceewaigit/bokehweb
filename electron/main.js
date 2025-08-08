@@ -318,28 +318,48 @@ ipcMain.handle('show-countdown', async (event, number) => {
     <html>
     <head>
       <style>
-        * { margin: 0; padding: 0; }
-        body {
-          background: rgba(0, 0, 0, 0.7);
+        * { 
+          margin: 0; 
+          padding: 0; 
+          box-sizing: border-box;
+        }
+        html, body {
+          background: transparent;
           display: flex;
           align-items: center;
           justify-content: center;
           height: 100vh;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          width: 100vw;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Display', sans-serif;
           user-select: none;
           -webkit-user-select: none;
+          overflow: hidden;
         }
         .countdown {
-          font-size: 300px;
-          font-weight: bold;
+          font-size: 400px;
+          font-weight: 700;
           color: white;
-          text-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
-          animation: pulse 0.5s ease-out;
+          text-shadow: 
+            0 0 80px rgba(0, 0, 0, 0.9),
+            0 0 120px rgba(0, 0, 0, 0.7),
+            0 10px 40px rgba(0, 0, 0, 0.8);
+          animation: smoothPulse 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+          will-change: transform, opacity;
+          transform-origin: center;
         }
-        @keyframes pulse {
-          0% { transform: scale(0.5); opacity: 0; }
-          50% { transform: scale(1.1); }
-          100% { transform: scale(1); opacity: 1; }
+        @keyframes smoothPulse {
+          0% { 
+            transform: scale(0.3); 
+            opacity: 0;
+          }
+          50% { 
+            transform: scale(1.05);
+            opacity: 0.9;
+          }
+          100% { 
+            transform: scale(1); 
+            opacity: 1;
+          }
         }
       </style>
     </head>

@@ -23,13 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body 
-        className={`${inter.variable} font-sans antialiased`}
-        style={{
-          // Add transparent background as inline style for record button
-          backgroundColor: 'transparent'
-        }}
-      >
+      <body className={`${inter.variable} font-sans antialiased`}>
         <LayoutClient>
           {children}
         </LayoutClient>
