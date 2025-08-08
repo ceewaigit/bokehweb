@@ -57,12 +57,12 @@ function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => voi
         <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
           <AlertTriangle className="w-8 h-8 text-destructive" />
         </div>
-        
+
         <h1 className="text-xl font-semibold mb-2">Something went wrong</h1>
         <p className="text-muted-foreground mb-6">
           An unexpected error occurred. This might be due to a temporary issue.
         </p>
-        
+
         <div className="space-y-2 mb-6">
           <Button onClick={retry} className="w-full">
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -73,7 +73,7 @@ function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => voi
             Reload App
           </Button>
         </div>
-        
+
         <details className="text-left">
           <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
             Error Details
@@ -92,7 +92,7 @@ function DefaultErrorFallback({ error, retry }: { error: Error; retry: () => voi
 export function useErrorHandler() {
   const handleError = (error: Error, errorInfo?: string) => {
     console.error('Error caught by useErrorHandler:', error, errorInfo)
-    
+
     // In production, you might want to send this to an error reporting service
     if (process.env.NODE_ENV === 'production') {
       // Example: Sentry.captureException(error)

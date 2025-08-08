@@ -3,6 +3,7 @@
 import { CursorRenderer } from '../effects/cursor-renderer'
 import { ZoomEngine } from '../effects/zoom-engine'
 import { BackgroundRenderer } from '../effects/background-renderer'
+import { FFmpegConverter } from './ffmpeg-converter'
 
 export interface ExportProgress {
   progress: number
@@ -354,8 +355,51 @@ export class EffectsExportEngine {
         message: 'Finalizing export...'
       })
 
-      // Create final blob
-      const finalBlob = new Blob(this.chunks, { type: mimeType })
+      // Create WebM blob first
+      const webmBlob = new Blob(this.chunks, { type: mimeType })
+      
+      let finalBlob = webmBlob
+      
+      // Convert to MP4/MOV/GIF if needed
+      if (format === 'mp4' || format === 'mov' || format === 'gif') {
+        onProgress?.({
+          progress: 90,
+          phase: 'encoding',
+          message: `Converting to ${format.toUpperCase()}...`
+        })
+        
+        const converter = new FFmpegConverter()
+        
+        if (format === 'mp4') {
+          finalBlob = await converter.convertWebMToMP4(webmBlob, (ffmpegProgress) => {
+            onProgress?.({
+              progress: 90 + (ffmpegProgress * 0.1),
+              phase: 'encoding',
+              message: `Converting to MP4: ${Math.round(ffmpegProgress * 100)}%`
+            })
+          })
+        } else if (format === 'mov') {
+          finalBlob = await converter.convertWebMToMOV(webmBlob, (ffmpegProgress) => {
+            onProgress?.({
+              progress: 90 + (ffmpegProgress * 0.1),
+              phase: 'encoding',
+              message: `Converting to MOV: ${Math.round(ffmpegProgress * 100)}%`
+            })
+          })
+        } else if (format === 'gif') {
+          finalBlob = await converter.convertToGIF(webmBlob, {
+            width: resolution?.width || 480,
+            height: resolution?.height || 360,
+            fps: framerate || 15
+          }, (ffmpegProgress) => {
+            onProgress?.({
+              progress: 90 + (ffmpegProgress * 0.1),
+              phase: 'encoding',
+              message: `Converting to GIF: ${Math.round(ffmpegProgress * 100)}%`
+            })
+          })
+        }
+      }
 
       // Cleanup
       URL.revokeObjectURL(video.src)

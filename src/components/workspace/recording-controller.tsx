@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { RecordingOverlay, RecordingIndicator, RecordingStatusBar } from '../recording-overlay'
 import { RecordingCompleteModal } from '../recording-complete-modal'
 import { ProcessingIndicator } from '../processing-indicator'
+import { CountdownTimer } from '../countdown-timer'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useRecording } from '@/hooks/use-recording'
@@ -12,6 +13,8 @@ import type { RecordingEnhancementSettings } from '@/types/effects'
 export function RecordingController() {
   // Modal State
   const [showRecordingComplete, setShowRecordingComplete] = useState(false)
+  const [showCountdown, setShowCountdown] = useState(false)
+  const [countdownSeconds, setCountdownSeconds] = useState(3)
 
   // Recording State
   const [lastRecordingBlob, setLastRecordingBlob] = useState<Blob | null>(null)
@@ -48,6 +51,12 @@ export function RecordingController() {
   // Enhancement settings are used during recording start
 
   const handleStartRecording = useCallback(async () => {
+    // Show countdown timer first
+    setShowCountdown(true)
+  }, [])
+
+  const handleCountdownComplete = useCallback(async () => {
+    setShowCountdown(false)
     try {
       console.log('🎬 Starting recording with Screen Studio effects:', enhancementSettings)
       await startRecording(undefined, enhancementSettings) // Pass enhancement settings
@@ -61,6 +70,10 @@ export function RecordingController() {
       }
     }
   }, [startRecording, enhancementSettings])
+
+  const handleCountdownCancel = useCallback(() => {
+    setShowCountdown(false)
+  }, [])
 
   const handleStopRecording = useCallback(async () => {
     // Prevent double-stop by checking current state
@@ -147,6 +160,14 @@ export function RecordingController() {
 
   return (
     <>
+      {/* Countdown Timer */}
+      <CountdownTimer
+        seconds={countdownSeconds}
+        onComplete={handleCountdownComplete}
+        onCancel={handleCountdownCancel}
+        isVisible={showCountdown}
+      />
+
       {/* Recording Overlays */}
       {isRecording && (
         <>

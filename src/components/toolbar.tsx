@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from 'react'
-import { 
-  Play, 
-  Pause, 
-  Square, 
-  SkipBack, 
+import {
+  Play,
+  Pause,
+  Square,
+  SkipBack,
   SkipForward,
   Settings,
   Folder,
@@ -36,20 +36,20 @@ interface ToolbarProps {
 }
 
 export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }: ToolbarProps) {
-  const { 
-    isRecording, 
-    isPaused, 
-    duration, 
-    status, 
-    settings 
+  const {
+    isRecording,
+    isPaused,
+    duration,
+    status,
+    settings
   } = useRecordingStore()
-  
-  const { 
-    currentTime, 
-    isPlaying, 
+
+  const {
+    currentTime,
+    isPlaying,
     project,
-    setPlaying, 
-    setCurrentTime 
+    setPlaying,
+    setCurrentTime
   } = useTimelineStore()
 
   // Recording control is handled by RecordingController
@@ -93,7 +93,7 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
           <Separator orientation="vertical" className="h-8 mr-4" />
         </>
       )}
-      
+
       {/* Recording Status Only (controls via floating button) */}
       <div className="flex items-center space-sm">
         {/* Show Screen Studio branding when idle */}
@@ -113,7 +113,7 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
 
         {/* Recording Status */}
         {status !== 'idle' && (
-          <Badge 
+          <Badge
             variant={status === 'recording' ? 'destructive' : 'secondary'}
             className={cn(
               "capitalize",
@@ -123,9 +123,9 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
             {status === 'processing' ? 'Saving...' : status}
           </Badge>
         )}
-        
+
         {/* Show clip count when not recording */}
-        {!isRecording && project?.clips.length > 0 && (
+        {!isRecording && project?.clips && project.clips.length > 0 && (
           <Badge variant="outline">
             {project.clips.length} clip{project.clips.length !== 1 ? 's' : ''}
           </Badge>
@@ -144,7 +144,7 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
         >
           <SkipBack className="w-4 h-4" />
         </Button>
-        
+
         <Button
           onClick={handlePlay}
           variant="ghost"
@@ -153,7 +153,7 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
         >
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
         </Button>
-        
+
         <Button
           onClick={handleForward}
           variant="ghost"
@@ -176,15 +176,15 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
       {/* Audio Controls */}
       <div className="flex items-center space-sm">
         <Button variant="ghost" size="sm">
-          {settings.audioInput === 'none' ? 
-            <VolumeX className="w-4 h-4" /> : 
+          {settings.audioInput === 'none' ?
+            <VolumeX className="w-4 h-4" /> :
             <Volume2 className="w-4 h-4" />
           }
         </Button>
-        
+
         <Button variant="ghost" size="sm">
-          {settings.audioInput === 'microphone' || settings.audioInput === 'both' ? 
-            <Mic className="w-4 h-4" /> : 
+          {settings.audioInput === 'microphone' || settings.audioInput === 'both' ?
+            <Mic className="w-4 h-4" /> :
             <MicOff className="w-4 h-4" />
           }
         </Button>
@@ -199,19 +199,19 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
           <Folder className="w-4 h-4 mr-2" />
           Open
         </Button>
-        
+
         <Button variant="ghost" size="sm" disabled={!project}>
           <Save className="w-4 h-4 mr-2" />
           Save
         </Button>
-        
+
         <Button variant="ghost" size="sm" disabled={!project} onClick={onExport}>
           <Download className="w-4 h-4 mr-2" />
           Export
         </Button>
 
         <Separator orientation="vertical" className="h-8" />
-        
+
         <Button
           variant="ghost"
           size="sm"
@@ -219,7 +219,7 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
         >
           <Settings2 className="w-4 h-4" />
         </Button>
-        
+
         <Button variant="ghost" size="sm">
           <Settings className="w-4 h-4" />
         </Button>

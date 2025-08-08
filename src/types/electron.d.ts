@@ -19,6 +19,19 @@ export interface ElectronAPI {
   onMouseClick: (callback: any) => void
   removeAllMouseListeners: () => void
   
+  // Recording and workspace control
+  openWorkspace?: () => Promise<void>
+  startRecording?: () => Promise<any>
+  stopRecording?: () => Promise<any>
+  getRecordingsDirectory?: () => Promise<string>
+  saveRecording?: (filePath: string, buffer: ArrayBuffer) => Promise<any>
+  loadRecordings?: () => Promise<Array<{
+    name: string
+    path: string
+    timestamp: string | Date
+  }>>
+  onToggleRecording?: (callback: () => void) => void
+  
   // Dialog APIs
   showSaveDialog: (options: any) => Promise<{ canceled: boolean; filePath?: string }>
   showOpenDialog: (options: any) => Promise<{ canceled: boolean; filePaths: string[] }>

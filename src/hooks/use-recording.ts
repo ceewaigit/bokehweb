@@ -21,25 +21,6 @@ const RECORDING_CONSTANTS = {
   TIMER_INTERVAL: 1000,
 } as const
 
-const RECORDING_EVENTS = {
-  STARTED: 'screen-recorder-recording-started',
-  STOPPED: 'screen-recorder-recording-stopped',
-  ERROR: 'screen-recorder-error',
-} as const
-
-// Types for better type safety
-interface EnhancementSettings {
-  enableAutoZoom?: boolean
-  zoomSensitivity?: number
-  maxZoom?: number
-  showCursor?: boolean
-  cursorSize?: number
-  cursorColor?: string
-  showClickEffects?: boolean
-  clickEffectColor?: string
-  [key: string]: any
-}
-
 export function useRecording() {
   const recorderRef = useRef<ScreenRecorder | null>(null)
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)

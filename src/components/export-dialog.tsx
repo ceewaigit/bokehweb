@@ -45,6 +45,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     { id: 'youtube-720p', name: 'YouTube 720p', desc: '1280×720, 60fps, MP4' },
     { id: 'twitter', name: 'Twitter', desc: '1280×720, 30fps, MP4' },
     { id: 'instagram', name: 'Instagram', desc: '1080×1080, 30fps, MP4' },
+    { id: 'prores-mov', name: 'ProRes MOV', desc: '1920×1080, 60fps, MOV' },
     { id: 'gif-small', name: 'Small GIF', desc: '480×360, 15fps, GIF' }
   ]
 

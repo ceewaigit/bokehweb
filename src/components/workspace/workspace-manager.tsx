@@ -4,10 +4,10 @@ import { useState, useCallback, useEffect } from 'react'
 // Recording logic handled by RecordingController component
 import { Toolbar } from '../toolbar'
 import { PreviewArea } from '../preview-area'
-import { Timeline } from '../timeline'
+import { TimelineEditor } from '../timeline/timeline-editor'
 import { PropertiesPanel } from '../properties-panel'
 import { ExportDialog } from '../export-dialog'
-import { WelcomeScreen } from '../welcome-screen'
+import { RecordingsLibrary } from '../recordings-library'
 import { RecordingController } from './recording-controller'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { cn } from '@/lib/utils'
@@ -36,24 +36,38 @@ export function WorkspaceManager() {
   }, [])
 
 
+  // Show recordings library when no active project
   if (!project) {
-    console.log('🔍 WorkspaceManager: No project found, showing welcome screen')
+    console.log('🔍 WorkspaceManager: Showing recordings library')
     return (
-      <>
-        <WelcomeScreen
-          onOpenProject={() => { }}
-          onStartRecording={() => {
-            console.log('🔍 WelcomeScreen: Start recording clicked')
-            // Create a project if none exists
-            if (!project) {
-              createNewProject(`Recording ${new Date().toLocaleDateString()}`)
-              console.log('🔍 WelcomeScreen: Created new project')
+      <div className="h-screen w-screen flex flex-col bg-background">
+        <RecordingsLibrary 
+          onSelectRecording={async (recording) => {
+            console.log('🔍 Selected recording:', recording.name)
+            // Create a new project with the recording
+            createNewProject(recording.name)
+            // Load the video file
+            try {
+              const response = await fetch(`file://${recording.path}`)
+              const blob = await response.blob()
+              // Add to timeline
+              const url = URL.createObjectURL(blob)
+              useTimelineStore.getState().addClip({
+                id: `clip-${Date.now()}`,
+                url,
+                startTime: 0,
+                endTime: 0, // Will be set when video loads
+                duration: 0,
+                trackIndex: 0,
+                metadata: [],
+                effects: []
+              })
+            } catch (error) {
+              console.error('Failed to load recording:', error)
             }
-            // Dispatch event for RecordingController to handle
-            window.dispatchEvent(new CustomEvent('start-recording'))
           }}
         />
-      </>
+      </div>
     )
   }
 
@@ -70,7 +84,7 @@ export function WorkspaceManager() {
         {/* Preview and Timeline Area */}
         <div className="flex-1 flex flex-col min-w-0">
           <PreviewArea />
-          <Timeline />
+          <TimelineEditor />
         </div>
 
         {/* Properties Panel */}

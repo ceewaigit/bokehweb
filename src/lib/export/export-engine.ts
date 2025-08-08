@@ -176,6 +176,24 @@ export class ExportEngine {
         format: 'mp4' as const,
         quality: 'high' as const
       },
+      'twitter': {
+        resolution: { width: 1280, height: 720 },
+        framerate: 30,
+        format: 'mp4' as const,
+        quality: 'medium' as const
+      },
+      'instagram': {
+        resolution: { width: 1080, height: 1080 },
+        framerate: 30,
+        format: 'mp4' as const,
+        quality: 'high' as const
+      },
+      'prores-mov': {
+        resolution: { width: 1920, height: 1080 },
+        framerate: 60,
+        format: 'mov' as any,
+        quality: 'ultra' as const
+      },
       'gif-small': {
         resolution: { width: 480, height: 360 },
         framerate: 15,
@@ -190,6 +208,7 @@ export class ExportEngine {
   private getMimeType(format: string): string {
     const mimeTypes = {
       'mp4': 'video/mp4',
+      'mov': 'video/quicktime',
       'webm': 'video/webm',
       'gif': 'image/gif'
     }

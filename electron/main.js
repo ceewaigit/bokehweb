@@ -8,13 +8,14 @@ let mouseTrackingInterval = null
 let mouseEventSender = null
 let isMouseTracking = false
 
-// Create a floating record button overlay window
+// Create a floating record button overlay window (like Screen Studio)
 function createRecordButton() {
+  const display = screen.getPrimaryDisplay()
   const recordButton = new BrowserWindow({
-    width: 60,
-    height: 60,
-    x: screen.getPrimaryDisplay().workAreaSize.width - 80,
-    y: 20,
+    width: 140,  // Wider for better text
+    height: 44,  // Taller for better click target
+    x: display.workAreaSize.width - 160,  // Position from right edge
+    y: 24,  // Position from top with some padding
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -24,16 +25,18 @@ function createRecordButton() {
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    hasShadow: false,
+    hasShadow: false,  // We'll add our own shadow
+    roundedCorners: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      webSecurity: false  // Allow loading local files
     }
   })
 
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  recordButton.setAlwaysOnTop(true, 'floating', 1)
+  recordButton.setAlwaysOnTop(true, 'screen-saver', 1)  // Higher level
   recordButton.setIgnoreMouseEvents(false)
   
   return recordButton
@@ -164,20 +167,18 @@ app.whenReady().then(async () => {
   
   // Mouse tracker will be initialized on demand when needed
   
-  // Create the main window (hidden initially)
-  const mainWindow = createWindow()
-  global.mainWindow = mainWindow
+  // DON'T create main window on startup - only floating button
+  // Main window is created only when user wants to edit
+  global.mainWindow = null
   
-  // Create the floating record button
+  // Create the floating record button (this is all that shows)
   const recordButton = createRecordButton()
   global.recordButton = recordButton
   
-  // Load the appropriate URLs
+  // Load the record button UI
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000')
     recordButton.loadURL('http://localhost:3000/record-button')
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../out/index.html'))
     recordButton.loadFile(path.join(__dirname, '../out/record-button.html'))
   }
   
@@ -194,24 +195,84 @@ app.whenReady().then(async () => {
   })
 })
 
-// IPC handler to show/hide main window
-ipcMain.handle('show-main-window', () => {
-  if (global.mainWindow) {
+// Create recordings directory if it doesn't exist
+const recordingsDir = path.join(app.getPath('documents'), 'ScreenStudio Recordings')
+const fs = require('fs')
+if (!fs.existsSync(recordingsDir)) {
+  fs.mkdirSync(recordingsDir, { recursive: true })
+}
+global.recordingsDirectory = recordingsDir
+
+// IPC handler to open workspace for editing
+ipcMain.handle('open-workspace', () => {
+  // Create main window if it doesn't exist
+  if (!global.mainWindow) {
+    global.mainWindow = createWindow()
+    
+    // Load the workspace
+    if (isDev) {
+      global.mainWindow.loadURL('http://localhost:3000')
+    } else {
+      global.mainWindow.loadFile(path.join(__dirname, '../out/index.html'))
+    }
+    
+    global.mainWindow.once('ready-to-show', () => {
+      global.mainWindow.show()
+      global.mainWindow.focus()
+    })
+  } else {
+    // Just show existing window
     global.mainWindow.show()
     global.mainWindow.focus()
   }
 })
 
-ipcMain.handle('hide-main-window', () => {
-  if (global.mainWindow) {
-    global.mainWindow.hide()
+// IPC handler to start recording
+ipcMain.handle('start-recording', async () => {
+  // Just return success - recording happens in renderer
+  return { success: true, recordingsDir }
+})
+
+// IPC handler to stop recording and save
+ipcMain.handle('stop-recording', async () => {
+  // Recording is handled in renderer, we just manage the window
+  return { success: true }
+})
+
+// IPC to get recordings directory
+ipcMain.handle('get-recordings-directory', () => {
+  return recordingsDir
+})
+
+// IPC to save recording to disk
+ipcMain.handle('save-recording', async (event, filePath, buffer) => {
+  try {
+    const fs = require('fs').promises
+    await fs.writeFile(filePath, Buffer.from(buffer))
+    return { success: true, filePath }
+  } catch (error) {
+    console.error('Failed to save recording:', error)
+    return { success: false, error: error.message }
   }
 })
 
-// IPC handler to toggle recording state
-ipcMain.handle('toggle-recording', () => {
-  if (global.mainWindow) {
-    global.mainWindow.webContents.send('toggle-recording')
+// IPC to load all recordings
+ipcMain.handle('load-recordings', async () => {
+  try {
+    const fs = require('fs').promises
+    const files = await fs.readdir(recordingsDir)
+    const recordings = files
+      .filter(f => f.endsWith('.webm') || f.endsWith('.mp4'))
+      .map(f => ({
+        name: f,
+        path: path.join(recordingsDir, f),
+        timestamp: fs.statSync(path.join(recordingsDir, f)).mtime
+      }))
+      .sort((a, b) => b.timestamp - a.timestamp)
+    return recordings
+  } catch (error) {
+    console.error('Failed to load recordings:', error)
+    return []
   }
 })
 

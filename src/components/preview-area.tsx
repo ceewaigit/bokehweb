@@ -28,7 +28,7 @@ export function PreviewArea() {
   // Get the current clip (first clip for now)
   const currentClip = project?.clips[0]
   const hasEnhancements = currentClip?.originalSource && currentClip?.source !== currentClip?.originalSource
-  
+
   // Get metadata from localStorage if available
   const getClipMetadata = useCallback(() => {
     if (!currentClip?.id) return null
@@ -51,7 +51,7 @@ export function PreviewArea() {
 
     // Select which source to use
     const sourceUrl = showOriginal && currentClip.originalSource ? currentClip.originalSource : currentClip.source
-    
+
     if (!sourceUrl) {
       setVideoError('No video source available')
       return
@@ -63,22 +63,22 @@ export function PreviewArea() {
     }
 
     console.log('📹 Loading video:', sourceUrl.substring(0, 100))
-    
+
     setIsVideoLoaded(false)
     setVideoError(null)
-    
+
     // Load the new video source
     video.src = sourceUrl
     video.load()
-    
+
   }, [currentClip, showOriginal])
-  
+
   // Set up zoom effect when video loads
   useEffect(() => {
     if (!isVideoLoaded || !videoRef.current || !containerRef.current) {
       return
     }
-    
+
     const metadata = getClipMetadata()
     if (!metadata || metadata.length === 0 || !showZoom) {
       // Hide zoom canvas if disabled
@@ -91,7 +91,7 @@ export function PreviewArea() {
       }
       return
     }
-    
+
     // Create zoom engine and generate keyframes
     const video = videoRef.current
     const engine = new ZoomEngine({
@@ -102,17 +102,17 @@ export function PreviewArea() {
       clickZoom: true,
       panSpeed: 0.08
     })
-    
+
     const keyframes = engine.generateKeyframes(
       metadata,
       video.duration * 1000,
       video.videoWidth || 1920,
       video.videoHeight || 1080
     )
-    
+
     console.log(`🔍 Generated ${keyframes.length} zoom keyframes`)
     zoomEngineRef.current = engine
-    
+
     // Create or update zoom canvas
     let zoomCanvas = zoomCanvasRef.current
     if (!zoomCanvas) {
@@ -124,21 +124,21 @@ export function PreviewArea() {
       zoomCanvas.style.height = '100%'
       zoomCanvas.style.borderRadius = '0.5rem'
       containerRef.current.insertBefore(zoomCanvas, containerRef.current.firstChild)
-      // Store the reference using a mutable ref pattern
-      ;(zoomCanvasRef as any).current = zoomCanvas
+        // Store the reference using a mutable ref pattern
+        ; (zoomCanvasRef as any).current = zoomCanvas
     }
-    
+
     // Update canvas size
     zoomCanvas.width = video.videoWidth || 1920
     zoomCanvas.height = video.videoHeight || 1080
-    
+
     // Hide original video, show canvas
     video.style.display = 'none'
     zoomCanvas.style.display = 'block'
-    
+
     const ctx = zoomCanvas.getContext('2d')
     if (!ctx) return
-    
+
     // Render loop
     const renderFrame = () => {
       if (!video.paused && !video.ended && engine && ctx) {
@@ -147,16 +147,16 @@ export function PreviewArea() {
       }
       animationFrameRef.current = requestAnimationFrame(renderFrame)
     }
-    
+
     renderFrame()
-    
+
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
   }, [isVideoLoaded, showZoom, getClipMetadata])
-  
+
   // Set up cursor rendering when video loads
   useEffect(() => {
     if (!isVideoLoaded || !videoRef.current || !containerRef.current || !showCursor) {
@@ -171,15 +171,15 @@ export function PreviewArea() {
       }
       return
     }
-    
+
     const metadata = getClipMetadata()
     if (!metadata || metadata.length === 0) {
       console.log('No cursor metadata available for this clip')
       return
     }
-    
+
     console.log(`🖱️ Setting up cursor rendering with ${metadata.length} events`)
-    
+
     // Create cursor renderer
     const renderer = new CursorRenderer({
       size: 1.2,
@@ -187,15 +187,15 @@ export function PreviewArea() {
       clickColor: '#3b82f6',
       smoothing: true
     })
-    
+
     // Attach to video or zoom canvas
     const targetElement = showZoom && zoomCanvasRef.current ? zoomCanvasRef.current : videoRef.current
     const canvas = renderer.attachToVideo(targetElement as HTMLVideoElement, metadata)
     containerRef.current.appendChild(canvas)
-    
+
     cursorRendererRef.current = renderer
     cursorCanvasRef.current = canvas
-    
+
     return () => {
       if (cursorCanvasRef.current) {
         cursorCanvasRef.current.remove()
@@ -307,88 +307,88 @@ export function PreviewArea() {
                 onEnded={() => setPlaying(false)}
               />
             </div>
-            
+
             {/* Video Controls Overlay */}
             {isVideoLoaded && (
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/50 backdrop-blur-sm rounded-lg p-2">
-                  <div className="flex items-center space-x-2">
-                    <Button 
-                      variant="secondary" 
-                      size="sm"
-                      onClick={handleSkipBack}
-                      disabled={!isVideoLoaded}
-                    >
-                      <SkipBack className="w-4 h-4" />
-                    </Button>
-                    
-                    <Button 
-                      variant="secondary" 
-                      size="sm"
-                      onClick={handlePlayPause}
-                      disabled={!isVideoLoaded}
-                    >
-                      {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    </Button>
-                    
-                    <Button 
-                      variant="secondary" 
-                      size="sm"
-                      onClick={handleSkipForward}
-                      disabled={!isVideoLoaded}
-                    >
-                      <SkipForward className="w-4 h-4" />
-                    </Button>
-                    
-                    <Button 
-                      variant="secondary" 
-                      size="sm"
-                      onClick={handleRestart}
-                      disabled={!isVideoLoaded}
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  
-                  {/* Effect Toggles */}
-                  <div className="flex items-center space-x-2">
-                    {/* Zoom Toggle */}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setShowZoom(!showZoom)}
-                      title={showZoom ? "Disable zoom" : "Enable zoom"}
-                    >
-                      <ZoomIn className={`w-4 h-4 ${showZoom ? '' : 'opacity-50'}`} />
-                    </Button>
-                    
-                    {/* Cursor Toggle */}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setShowCursor(!showCursor)}
-                      title={showCursor ? "Hide cursor" : "Show cursor"}
-                    >
-                      <MousePointer className={`w-4 h-4 ${showCursor ? '' : 'opacity-50'}`} />
-                    </Button>
-                    
-                    {/* Enhancement Toggle */}
-                    {hasEnhancements && (
-                      <>
-                        <Badge variant={showOriginal ? "outline" : "default"}>
-                          {showOriginal ? "Original" : "Enhanced"}
-                        </Badge>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setShowOriginal(!showOriginal)}
-                        >
-                          {showOriginal ? <Eye className="w-4 h-4 mr-1" /> : <EyeOff className="w-4 h-4 mr-1" />}
-                          {showOriginal ? "Show Enhanced" : "Show Original"}
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSkipBack}
+                    disabled={!isVideoLoaded}
+                  >
+                    <SkipBack className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handlePlayPause}
+                    disabled={!isVideoLoaded}
+                  >
+                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSkipForward}
+                    disabled={!isVideoLoaded}
+                  >
+                    <SkipForward className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleRestart}
+                    disabled={!isVideoLoaded}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </Button>
                 </div>
+
+                {/* Effect Toggles */}
+                <div className="flex items-center space-x-2">
+                  {/* Zoom Toggle */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowZoom(!showZoom)}
+                    title={showZoom ? "Disable zoom" : "Enable zoom"}
+                  >
+                    <ZoomIn className={`w-4 h-4 ${showZoom ? '' : 'opacity-50'}`} />
+                  </Button>
+
+                  {/* Cursor Toggle */}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowCursor(!showCursor)}
+                    title={showCursor ? "Hide cursor" : "Show cursor"}
+                  >
+                    <MousePointer className={`w-4 h-4 ${showCursor ? '' : 'opacity-50'}`} />
+                  </Button>
+
+                  {/* Enhancement Toggle */}
+                  {hasEnhancements && (
+                    <>
+                      <Badge variant={showOriginal ? "outline" : "default"}>
+                        {showOriginal ? "Original" : "Enhanced"}
+                      </Badge>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowOriginal(!showOriginal)}
+                      >
+                        {showOriginal ? <Eye className="w-4 h-4 mr-1" /> : <EyeOff className="w-4 h-4 mr-1" />}
+                        {showOriginal ? "Show Enhanced" : "Show Original"}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
             )}
           </>
         )

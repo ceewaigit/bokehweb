@@ -40,8 +40,8 @@ export function PropertiesPanel() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex-1 flex items-center justify-center space-x-1 text-xs font-medium transition-colors ${activeTab === tab.id
-                  ? 'bg-primary/10 text-primary border-b-2 border-primary'
-                  : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-primary/10 text-primary border-b-2 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
                 }`}
             >
               <Icon className="w-3 h-3" />
