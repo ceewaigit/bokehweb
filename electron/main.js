@@ -1,11 +1,12 @@
 const { app, BrowserWindow, ipcMain, desktopCapturer, dialog, protocol, screen, systemPreferences } = require('electron')
 const path = require('path')
 const { URL } = require('url')
-const NativeMouseTracker = require('./native-mouse-tracker')
 const isDev = process.env.NODE_ENV === 'development'
 
-// Global mouse tracker instance
-let mouseTracker = null
+// Mouse tracking state
+let mouseTrackingInterval = null
+let mouseEventSender = null
+let isMouseTracking = false
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -130,8 +131,7 @@ app.whenReady().then(async () => {
     global.screenRecordingPermission = 'granted'
   }
   
-  // Initialize native mouse tracker
-  mouseTracker = new NativeMouseTracker()
+  // Mouse tracker will be initialized on demand when needed
   
   const mainWindow = createWindow()
 
@@ -149,10 +149,11 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 app.on('window-all-closed', () => {
-  // Clean up mouse tracker
-  if (mouseTracker) {
-    mouseTracker.stop()
-    mouseTracker = null
+  // Clean up mouse tracking
+  if (mouseTrackingInterval) {
+    clearInterval(mouseTrackingInterval)
+    mouseTrackingInterval = null
+    isMouseTracking = false
   }
   
   if (process.platform !== 'darwin') {
@@ -400,13 +401,14 @@ ipcMain.handle('show-message-box', async (event, options) => {
   }
 })
 
-// Native mouse tracking handlers
+// Mouse tracking handlers using Electron's screen API
 ipcMain.handle('start-mouse-tracking', async (event, options = {}) => {
-  if (!mouseTracker) {
-    return { success: false, error: 'Mouse tracker not initialized' }
-  }
-
   try {
+    // Stop any existing tracking
+    if (mouseTrackingInterval) {
+      clearInterval(mouseTrackingInterval)
+    }
+
     // Validate and sanitize options
     if (typeof options !== 'object' || options === null) {
       options = {}
@@ -414,48 +416,40 @@ ipcMain.handle('start-mouse-tracking', async (event, options = {}) => {
     
     const intervalMs = Math.max(8, Math.min(1000, parseInt(options.intervalMs) || 16)) // 8ms to 1000ms range
     
-    // Set up event forwarding to renderer with validation
-    mouseTracker.onMouseMove((data) => {
-      // Validate data before sending to prevent bad IPC messages
-      if (data && typeof data === 'object' && 
-          typeof data.x === 'number' && typeof data.y === 'number' &&
-          isFinite(data.x) && isFinite(data.y)) {
-        try {
-          event.sender.send('mouse-move', {
-            x: Math.round(data.x),
-            y: Math.round(data.y),
+    mouseEventSender = event.sender
+    isMouseTracking = true
+    
+    // Track mouse position using Electron's screen API
+    let lastPosition = null
+    mouseTrackingInterval = setInterval(() => {
+      if (!isMouseTracking || !mouseEventSender) return
+      
+      try {
+        const currentPosition = screen.getCursorScreenPoint()
+        
+        // Send mouse move events
+        if (!lastPosition || 
+            lastPosition.x !== currentPosition.x || 
+            lastPosition.y !== currentPosition.y) {
+          
+          mouseEventSender.send('mouse-move', {
+            x: Math.round(currentPosition.x),
+            y: Math.round(currentPosition.y),
             timestamp: Date.now()
           })
-        } catch (ipcError) {
-          console.error('❌ IPC error sending mouse-move:', ipcError)
+          
+          lastPosition = currentPosition
         }
+      } catch (error) {
+        console.error('❌ Error tracking mouse:', error)
       }
-    })
+    }, intervalMs)
     
-    mouseTracker.onMouseClick((data) => {
-      // Validate data before sending to prevent bad IPC messages
-      if (data && typeof data === 'object' && 
-          typeof data.x === 'number' && typeof data.y === 'number' &&
-          isFinite(data.x) && isFinite(data.y)) {
-        try {
-          event.sender.send('mouse-click', {
-            x: Math.round(data.x),
-            y: Math.round(data.y),
-            timestamp: Date.now()
-          })
-        } catch (ipcError) {
-          console.error('❌ IPC error sending mouse-click:', ipcError)
-        }
-      }
-    })
-    
-    mouseTracker.start(intervalMs)
-    
-    console.log(`🖱️ Native mouse tracking started (Electron-native)`)
+    console.log(`🖱️ Mouse tracking started (interval: ${intervalMs}ms)`)
     
     return { 
       success: true, 
-      nativeTracking: mouseTracker.isNativeTrackingAvailable(),
+      nativeTracking: true,
       fps: Math.round(1000 / intervalMs)
     }
   } catch (error) {
@@ -465,14 +459,16 @@ ipcMain.handle('start-mouse-tracking', async (event, options = {}) => {
 })
 
 ipcMain.handle('stop-mouse-tracking', async (event) => {
-  if (!mouseTracker) {
-    return { success: false, error: 'Mouse tracker not initialized' }
-  }
-
   try {
-    mouseTracker.stop()
-    mouseTracker.removeAllCallbacks()
-    console.log('🖱️ Native mouse tracking stopped')
+    if (mouseTrackingInterval) {
+      clearInterval(mouseTrackingInterval)
+      mouseTrackingInterval = null
+    }
+    
+    isMouseTracking = false
+    mouseEventSender = null
+    
+    console.log('🖱️ Mouse tracking stopped')
     return { success: true }
   } catch (error) {
     console.error('Error stopping mouse tracking:', error)
@@ -482,13 +478,15 @@ ipcMain.handle('stop-mouse-tracking', async (event) => {
 
 // Get current mouse position
 ipcMain.handle('get-mouse-position', async () => {
-  if (!mouseTracker) {
-    return { success: false, error: 'Mouse tracker not initialized' }
-  }
-
   try {
-    const position = mouseTracker.getCurrentPosition()
-    return { success: true, position }
+    const position = screen.getCursorScreenPoint()
+    return { 
+      success: true, 
+      position: {
+        x: position.x,
+        y: position.y
+      }
+    }
   } catch (error) {
     console.error('Error getting mouse position:', error)
     return { success: false, error: error.message }
@@ -498,8 +496,8 @@ ipcMain.handle('get-mouse-position', async () => {
 // Check if native tracking is available
 ipcMain.handle('is-native-mouse-tracking-available', async () => {
   return {
-    available: mouseTracker ? mouseTracker.isNativeTrackingAvailable() : false,
-    tracker: !!mouseTracker
+    available: true, // Electron's screen API is always available
+    tracker: true
   }
 })
 
