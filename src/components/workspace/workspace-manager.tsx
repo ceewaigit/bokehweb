@@ -41,7 +41,7 @@ export function WorkspaceManager() {
     console.log('🔍 WorkspaceManager: Showing recordings library')
     return (
       <div className="h-screen w-screen flex flex-col bg-background">
-        <RecordingsLibrary 
+        <RecordingsLibrary
           onSelectRecording={async (recording) => {
             console.log('🔍 Selected recording:', recording.name)
             // Create a new project with the recording
@@ -54,13 +54,13 @@ export function WorkspaceManager() {
               const url = URL.createObjectURL(blob)
               useTimelineStore.getState().addClip({
                 id: `clip-${Date.now()}`,
-                url,
+                type: 'video',
+                name: recording.name,
+                source: url,
                 startTime: 0,
-                endTime: 0, // Will be set when video loads
-                duration: 0,
+                duration: 10000, // Default 10 seconds, will be updated when video loads
                 trackIndex: 0,
-                metadata: [],
-                effects: []
+                thumbnail: ''
               })
             } catch (error) {
               console.error('Failed to load recording:', error)
