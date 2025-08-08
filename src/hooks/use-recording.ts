@@ -170,12 +170,22 @@ export function useRecording() {
       setRecording(true)
       setStatus('recording')
       
+      // Start duration timer
+      startTimeRef.current = Date.now()
+      setDuration(0) // Reset duration to 0
+      durationIntervalRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTimeRef.current
+        setDuration(elapsed)
+        logger.debug(`Timer tick: ${Math.floor(elapsed / 1000)}s (${elapsed}ms)`)
+      }, RECORDING_CONSTANTS.TIMER_INTERVAL)
+      setIsTimerSynced(true)
+      
       // Mark recording as globally active
       if (typeof window !== 'undefined') {
         (window as any).__screenRecorderActive = true
       }
 
-      logger.info('Recording started successfully')
+      logger.info('Recording started successfully with timer')
       
     } catch (error) {
       handleRecordingError(error)

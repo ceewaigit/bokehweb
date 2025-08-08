@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { RecordingOverlay, RecordingIndicator, RecordingStatusBar } from '../recording-overlay'
-import { RecordingCompleteModal } from '../recording-complete-modal'
 import { ProcessingIndicator } from '../processing-indicator'
 import { CountdownTimer } from '../countdown-timer'
-import { useTimelineStore } from '@/stores/timeline-store'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useRecording } from '@/hooks/use-recording'
 import { logger } from '@/lib/utils/logger'
@@ -13,14 +11,11 @@ import type { RecordingEnhancementSettings } from '@/types/effects'
 
 export function RecordingController() {
   // Modal State
-  const [showRecordingComplete, setShowRecordingComplete] = useState(false)
   const [showCountdown, setShowCountdown] = useState(false)
-  const [countdownSeconds, setCountdownSeconds] = useState(3)
+  const [countdownSeconds] = useState(3)
 
-  // Recording State
-  const [lastRecordingBlob, setLastRecordingBlob] = useState<Blob | null>(null)
-  const [lastRecordingDuration, setLastRecordingDuration] = useState(0)
-  const [enhancementSettings, setEnhancementSettings] = useState<RecordingEnhancementSettings | null>({
+  // Enhancement Settings for Screen Studio effects
+  const [enhancementSettings] = useState<RecordingEnhancementSettings | null>({
     // Enable Screen Studio effects by default
     enableAutoZoom: true,
     zoomSensitivity: 1.0,
@@ -44,9 +39,8 @@ export function RecordingController() {
   })
 
   // Hooks
-  const { project } = useTimelineStore()
-  const { isRecording, status } = useRecordingStore()
-  const { startRecording, stopRecording, pauseRecording, processingProgress, screenRecorder } = useRecording()
+  const { isRecording, isPaused } = useRecordingStore()
+  const { startRecording, stopRecording, pauseRecording, resumeRecording, processingProgress } = useRecording()
 
   // Simple recorder doesn't need enhancement settings applied separately
   // Enhancement settings are used during recording start
@@ -110,22 +104,29 @@ export function RecordingController() {
     pauseRecording()
   }, [pauseRecording])
 
+  const handleResumeRecording = useCallback(() => {
+    resumeRecording()
+  }, [resumeRecording])
+
   // Listen for recording events from other components
   useEffect(() => {
     const handleStartEvent = () => handleStartRecording()
     const handleStopEvent = () => handleStopRecording()
     const handlePauseEvent = () => handlePauseRecording()
+    const handleResumeEvent = () => handleResumeRecording()
 
     window.addEventListener('start-recording', handleStartEvent)
     window.addEventListener('stop-recording', handleStopEvent)
     window.addEventListener('pause-recording', handlePauseEvent)
+    window.addEventListener('resume-recording', handleResumeEvent)
 
     return () => {
       window.removeEventListener('start-recording', handleStartEvent)
       window.removeEventListener('stop-recording', handleStopEvent)
       window.removeEventListener('pause-recording', handlePauseEvent)
+      window.removeEventListener('resume-recording', handleResumeEvent)
     }
-  }, [handleStartRecording, handleStopRecording, handlePauseRecording])
+  }, [handleStartRecording, handleStopRecording, handlePauseRecording, handleResumeRecording])
 
   // Keyboard shortcuts for recording
   useEffect(() => {
@@ -142,7 +143,11 @@ export function RecordingController() {
           case ' ':
             e.preventDefault()
             if (isRecording) {
-              handlePauseRecording()
+              if (isPaused) {
+                handleResumeRecording()
+              } else {
+                handlePauseRecording()
+              }
             }
             break
           case 's':
@@ -157,7 +162,7 @@ export function RecordingController() {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isRecording, handleStartRecording, handlePauseRecording, handleStopRecording])
+  }, [isRecording, isPaused, handleStartRecording, handlePauseRecording, handleResumeRecording, handleStopRecording])
 
   return (
     <>
@@ -176,7 +181,7 @@ export function RecordingController() {
             isVisible={isRecording}
             onStop={handleStopRecording}
             onPause={handlePauseRecording}
-            onResume={handlePauseRecording}
+            onResume={handleResumeRecording}
             onSettings={() => { }}
           />
           <RecordingIndicator />
@@ -184,22 +189,6 @@ export function RecordingController() {
         </>
       )}
 
-      {/* Recording Complete Modal */}
-      {showRecordingComplete && lastRecordingBlob && (
-        <RecordingCompleteModal
-          isOpen={showRecordingComplete}
-          recordingBlob={lastRecordingBlob}
-          duration={lastRecordingDuration}
-          onClose={() => setShowRecordingComplete(false)}
-          onDownload={() => {
-            // Handle download
-          }}
-          onEdit={() => {
-            setShowRecordingComplete(false)
-            // Navigate to editor
-          }}
-        />
-      )}
 
       {/* Processing Indicator */}
       <ProcessingIndicator

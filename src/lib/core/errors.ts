@@ -69,18 +69,18 @@ export function formatErrorMessage(error: unknown): string {
     }
     return `Permission denied for ${error.permissionType} access`
   }
-  
+
   if (error instanceof ElectronError) {
     return `Desktop recording not available. Please ensure you're running the desktop app.`
   }
-  
+
   if (error instanceof ExportError) {
     return `Export failed during ${error.phase || 'processing'}: ${error.message}`
   }
-  
+
   if (error instanceof Error) {
     return error.message
   }
-  
+
   return 'An unknown error occurred'
 }

@@ -6,14 +6,14 @@ import { useTimelineStore } from '@/stores/timeline-store'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Progress } from './ui/progress'
-import { 
-  Download, 
-  Settings, 
-  Play, 
-  FileVideo, 
-  Image, 
-  X, 
-  Check 
+import {
+  Download,
+  Settings,
+  Play,
+  FileVideo,
+  Image,
+  X,
+  Check
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -24,20 +24,20 @@ interface ExportDialogProps {
 
 export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   const [selectedPreset, setSelectedPreset] = useState('youtube-1080p')
-  
-  const { 
-    exportSettings, 
-    isExporting, 
-    progress, 
+
+  const {
+    exportSettings,
+    isExporting,
+    progress,
     lastExport,
-    updateSettings, 
-    exportProject, 
-    exportAsGIF, 
-    saveLastExport, 
+    updateSettings,
+    exportProject,
+    exportAsGIF,
+    saveLastExport,
     setPreset,
-    reset 
+    reset
   } = useExportStore()
-  
+
   const { project } = useTimelineStore()
 
   const presets = [
@@ -51,9 +51,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
   const handleExport = async () => {
     if (!project) return
-    
+
     reset()
-    
+
     if (exportSettings.format === 'gif') {
       await exportAsGIF(project)
     } else {
@@ -189,7 +189,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
               </>
             )}
           </div>
-          
+
           <div className="flex items-center space-x-2">
             {lastExport ? (
               <Button onClick={handleSave} size="sm">
@@ -197,8 +197,8 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                 Save File
               </Button>
             ) : (
-              <Button 
-                onClick={handleExport} 
+              <Button
+                onClick={handleExport}
                 disabled={!project || isExporting}
                 size="sm"
               >

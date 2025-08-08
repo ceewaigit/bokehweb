@@ -12,10 +12,10 @@ let isMouseTracking = false
 function createRecordButton() {
   const display = screen.getPrimaryDisplay()
   const recordButton = new BrowserWindow({
-    width: 140,  // Wider for better text
-    height: 44,  // Taller for better click target
-    x: display.workAreaSize.width - 160,  // Position from right edge
-    y: 24,  // Position from top with some padding
+    width: 600,  // Much wider for full controls
+    height: 80,  // Taller for better visibility
+    x: Math.floor(display.workAreaSize.width / 2 - 300),  // Center horizontally
+    y: 20,  // Position from top with some padding
     frame: false,
     transparent: true,
     alwaysOnTop: true,

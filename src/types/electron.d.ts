@@ -45,6 +45,7 @@ export interface ElectronAPI {
   minimize: () => void
   maximize: () => void
   quit: () => void
+  minimizeRecordButton?: () => void
   
   // Recording events
   onRecordingStarted: (callback: () => void) => void
