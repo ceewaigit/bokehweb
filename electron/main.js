@@ -76,6 +76,8 @@ function createCountdownWindow() {
 // Create a floating record button overlay window (like Screen Studio)
 function createRecordButton() {
   const display = screen.getPrimaryDisplay()
+  console.log('🖥️ Creating record button for display:', display.bounds)
+  
   const recordButton = new BrowserWindow({
     width: 700,  // Wider to fit all controls
     height: 100,  // Taller for better visibility
@@ -92,17 +94,28 @@ function createRecordButton() {
     skipTaskbar: true,
     hasShadow: false,  // We'll add our own shadow
     roundedCorners: true,
+    show: false,  // Don't show until ready
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false  // Allow loading local files
+      webSecurity: false,  // Allow loading local files
+      devTools: true  // Enable for debugging
     }
   })
 
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   recordButton.setAlwaysOnTop(true, 'screen-saver', 1)  // Higher level
   recordButton.setIgnoreMouseEvents(false)
+  
+  // Add debugging
+  recordButton.on('unresponsive', () => {
+    console.error('❌ Record button window became unresponsive')
+  })
+  
+  recordButton.on('closed', () => {
+    console.log('🔒 Record button window closed')
+  })
 
   return recordButton
 }
@@ -258,11 +271,16 @@ app.whenReady().then(async () => {
   global.recordButton = recordButton
 
   // Load the record button UI
-  recordButton.loadURL(getAppURL('/record-button'))
+  const url = getAppURL('/record-button')
+  console.log('🔗 Loading record button from:', url)
+  
+  recordButton.loadURL(url)
 
   // Show the record button immediately
   recordButton.once('ready-to-show', () => {
+    console.log('✅ Record button ready to show')
     recordButton.show()
+    recordButton.focus()
 
     // Auto-click for testing if TEST_AUTO_RECORD env var is set
     if (process.env.TEST_AUTO_RECORD === 'true') {
@@ -277,6 +295,24 @@ app.whenReady().then(async () => {
         `)
       }, 3000)
     }
+  })
+  
+  // Fallback: force show after a delay if ready-to-show doesn't fire
+  setTimeout(() => {
+    if (!recordButton.isVisible()) {
+      console.log('⚠️ Force showing record button (ready-to-show did not fire)')
+      recordButton.show()
+      recordButton.focus()
+    }
+  }, 2000)
+  
+  // Debug: Log when window content loads
+  recordButton.webContents.on('did-finish-load', () => {
+    console.log('📄 Record button content loaded')
+  })
+  
+  recordButton.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('❌ Failed to load record button:', errorCode, errorDescription)
   })
 
   app.on('activate', () => {
