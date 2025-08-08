@@ -1,5 +1,3 @@
-"use client"
-
 export interface RecordingMetadata {
   timestamp: number
   mouseX: number

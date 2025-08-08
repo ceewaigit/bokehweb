@@ -5,6 +5,7 @@ import { useRecordingStore } from '@/stores/recording-store'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { ScreenRecorder, type RecordingResult } from '@/lib/recording/screen-recorder'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { logger } from '@/lib/utils/logger'
 // Processing progress type
 interface ProcessingProgress {
   progress: number
@@ -48,13 +49,13 @@ export function useRecording() {
 
   // Better error handling - replace alerts with logging for now
   const handleRecordingError = useCallback((error: unknown) => {
-    console.error('❌ Recording error:', error)
+    logger.error('Recording error:', error)
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const isPermissionError = errorMessage.toLowerCase().includes('permission')
     
     if (isPermissionError) {
-      console.warn('🔒 Permission error detected')
+      logger.warn('Permission error detected')
       
       // Check if it's our special permission required message
       if (errorMessage.startsWith('PERMISSION_REQUIRED:')) {
@@ -73,10 +74,10 @@ export function useRecording() {
         alert(`🎥 Screen Recording Permission Required\n\nPlease enable screen recording for Screen Studio:\n\n1. System Preferences will open automatically\n2. Check the box next to "Screen Studio"\n3. You may need to restart the app\n4. Then click "Record" again`)
       }
     } else if (errorMessage.includes('electron desktopCapturer not available')) {
-      console.error('📹 Electron not available')
+      logger.error('Electron not available')
       alert(`⚠️ Desktop Recording Not Available\n\nScreen Studio requires the Electron desktop app for screen recording.\n\nPlease make sure you're running the desktop version of the app.`)
     } else {
-      console.error('📹 Recording failed:', errorMessage)
+      logger.error('Recording failed:', errorMessage)
       alert(`Failed to start recording: ${errorMessage}`)
     }
   }, [])
@@ -85,18 +86,18 @@ export function useRecording() {
   useEffect(() => {
     // Check if there's already a global recorder instance to prevent hot reload issues
     if (typeof window !== 'undefined' && (window as any).__screenRecorder) {
-      console.log('♻️ Reusing existing ScreenRecorder instance (hot reload protection)')
+      logger.debug('Reusing existing ScreenRecorder instance (hot reload protection)')
       recorderRef.current = (window as any).__screenRecorder
       
       // CRITICAL: If the existing recorder is actively recording, don't allow any new setup
       if (recorderRef.current?.isRecording()) {
-        console.log('🔒 Existing recorder is actively recording - blocking any new initialization')
+        logger.debug('Existing recorder is actively recording - blocking any new initialization')
         return
       }
     } else if (!recorderRef.current) {
       // Only create new recorder if there's no global instance AND we're not recording
       if (typeof window !== 'undefined' && (window as any).__screenRecorderActive) {
-        console.log('🔒 Recording active globally, preventing new ScreenRecorder creation')
+        logger.debug('Recording active globally, preventing new ScreenRecorder creation')
         return
       }
       
@@ -106,21 +107,21 @@ export function useRecording() {
         if (typeof window !== 'undefined') {
           (window as any).__screenRecorder = recorderRef.current
         }
-        console.log('✅ Screen recorder initialized')
+        logger.info('Screen recorder initialized')
       } catch (error) {
-        console.error('❌ Failed to initialize screen recorder:', error)
+        logger.error('Failed to initialize screen recorder:', error)
         recorderRef.current = null
       }
     }
     
     // Debug: Check if we're in the middle of a recording when component reinitializes
     if (isRecording) {
-      console.log('⚠️ Component reinitialized while recording - preserving existing recording state')
-      console.log('⏱️ Current duration:', useRecordingStore.getState().duration, 'ms')
+      logger.debug('Component reinitialized while recording - preserving existing recording state')
+      logger.debug('Current duration:', useRecordingStore.getState().duration, 'ms')
       
       // If we have an active recording but no timer, we need to restore it
       if (!durationIntervalRef.current && !isTimerSynced) {
-        console.log('⏱️ Restoring timer for ongoing recording')
+        logger.debug('Restoring timer for ongoing recording')
         const currentDuration = useRecordingStore.getState().duration
         startTimeRef.current = Date.now() - currentDuration
         setIsTimerSynced(true)
@@ -128,10 +129,10 @@ export function useRecording() {
         durationIntervalRef.current = setInterval(() => {
           const elapsed = Date.now() - startTimeRef.current
           setDuration(elapsed)
-          console.log(`⏱️ Timer tick (restored): ${Math.floor(elapsed / 1000)}s (${elapsed}ms)`)
+          logger.debug(`Timer tick (restored): ${Math.floor(elapsed / 1000)}s (${elapsed}ms)`)
         }, RECORDING_CONSTANTS.TIMER_INTERVAL)
         
-        console.log('⏱️ Timer restored for ongoing recording')
+        logger.debug('Timer restored for ongoing recording')
       }
     }
     
@@ -147,7 +148,7 @@ export function useRecording() {
   const startRecording = useCallback(async (sourceId?: string, enhancementSettings?: any) => {
     if (!recorderRef.current || isRecording) {
       if (isRecording) {
-        console.log('⚠️ Recording already in progress')
+        logger.debug('Recording already in progress')
       }
       return
     }
@@ -158,7 +159,7 @@ export function useRecording() {
       
       // Enable enhancements if provided
       if (enhancementSettings) {
-        console.log('🎨 Enabling Screen Studio effects:', enhancementSettings)
+        logger.info('Enabling Screen Studio effects:', enhancementSettings)
         recorderRef.current.enableEnhancements(enhancementSettings)
         
       }
@@ -174,7 +175,7 @@ export function useRecording() {
         (window as any).__screenRecorderActive = true
       }
 
-      console.log('✅ Recording started successfully')
+      logger.info('Recording started successfully')
       
     } catch (error) {
       handleRecordingError(error)
@@ -185,23 +186,23 @@ export function useRecording() {
   }, [isRecording, setRecording, setStatus, settings, handleRecordingError])
 
   const stopRecording = useCallback(async () => {
-    console.log('🎯 useRecording.stopRecording called')
+    logger.debug('useRecording.stopRecording called')
     
     // Check store state first to prevent double-stops
     const currentState = useRecordingStore.getState()
     if (!currentState.isRecording) {
-      console.log('🔒 useRecording: Not currently recording according to store - ignoring stop call')
+      logger.debug('useRecording: Not currently recording according to store - ignoring stop call')
       return null
     }
     
     const recorder = recorderRef.current
     if (!recorder?.isRecording()) {
-      console.log('🔒 useRecording: Recorder not in recording state - ignoring stop call')
+      logger.debug('useRecording: Recorder not in recording state - ignoring stop call')
       return null
     }
 
     try {
-      console.log('🛑 Stopping recording...')
+      logger.info('Stopping recording...')
       
       // Immediately update state to prevent double-stops
       setRecording(false)
@@ -222,10 +223,10 @@ export function useRecording() {
       // Clear processing progress when done
       setProcessingProgress(null)
 
-      console.log(`📹 Recording complete: ${result.duration}ms, ${result.video.size} bytes, ${result.metadata.length} events`)
+      logger.info(`Recording complete: ${result.duration}ms, ${result.video.size} bytes, ${result.metadata.length} events`)
       
       if (result.enhancedVideo) {
-        console.log(`✨ Enhanced video available: ${result.enhancedVideo.size} bytes, effects: ${result.effectsApplied?.join(', ')}, processing: ${result.processingTime?.toFixed(2)}ms`)
+        logger.info(`Enhanced video available: ${result.enhancedVideo.size} bytes, effects: ${result.effectsApplied?.join(', ')}, processing: ${result.processingTime?.toFixed(2)}ms`)
       }
 
       // Reset remaining state (recording already set to false above)
@@ -260,9 +261,9 @@ export function useRecording() {
           if (result.metadata && result.metadata.length > 0) {
             try {
               localStorage.setItem(`clip-metadata-${clipId}`, JSON.stringify(result.metadata))
-              console.log(`💾 Saved ${result.metadata.length} metadata events for clip ${clipId}`)
+              logger.debug(`Saved ${result.metadata.length} metadata events for clip ${clipId}`)
             } catch (e) {
-              console.error('Failed to save metadata:', e)
+              logger.error('Failed to save metadata:', e)
             }
           }
           
@@ -283,16 +284,16 @@ export function useRecording() {
           })
           
           if (result.enhancedVideo) {
-            console.log('✅ Enhanced clip added to timeline')
+            logger.info('Enhanced clip added to timeline')
           } else {
-            console.log('✅ Clip added to timeline')
+            logger.info('Clip added to timeline')
           }
         }
       }
 
       return result
     } catch (error) {
-      console.error('❌ Failed to stop recording:', error)
+      logger.error('Failed to stop recording:', error)
       
       // Reset state on error
       if (durationIntervalRef.current) {

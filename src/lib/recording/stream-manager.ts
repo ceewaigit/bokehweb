@@ -1,5 +1,3 @@
-"use client"
-
 import type { RecordingSettings } from '@/types'
 import type { ElectronAPI } from '@/types/electron'
 

@@ -1,10 +1,7 @@
-"use client"
-
 import type { RecordingSettings } from '@/types'
-import { MediaRecorderManager } from './media-recorder-manager'
-import { MetadataCollector, type RecordingMetadata } from './metadata-collector'
-import { StreamManager, type RecordingSource } from './stream-manager'
 import { ElectronRecorder } from './electron-recorder'
+import { logger } from '@/lib/utils/logger'
+import { RecordingError, ElectronError } from '@/lib/core/errors'
 
 export interface RecordingResult {
   video: Blob
@@ -37,50 +34,35 @@ export interface MotionData {
   isTracking: boolean
 }
 
+export interface RecordingMetadata {
+  timestamp: number
+  mouseX: number
+  mouseY: number
+  scrollX: number
+  scrollY: number
+  windowWidth: number
+  windowHeight: number
+  eventType: 'mouse' | 'click' | 'scroll' | 'key'
+  data?: any
+}
+
+/**
+ * Simplified ScreenRecorder that only uses ElectronRecorder
+ * Browser fallback removed for cleaner architecture
+ */
 export class ScreenRecorder {
-  private streamManager = new StreamManager()
-  private mediaRecorderManager: MediaRecorderManager | null = null
-  private metadataCollector = new MetadataCollector()
   private electronRecorder = new ElectronRecorder()
   private _isRecording = false
-  private instanceId = Math.random().toString(36).substr(2, 9)
   private enhancementSettings: EnhancementSettings | null = null
-  private get useElectronRecording(): boolean {
-    // Check if we're in Electron environment
-    const hasWindow = typeof window !== 'undefined'
-    const hasElectronAPI = hasWindow && typeof window.electronAPI === 'object' && window.electronAPI !== null
-    const hasDesktopSources = hasElectronAPI && typeof window.electronAPI?.getDesktopSources === 'function'
-
-    // Additional check for Electron process
-    const isElectronProcess = typeof process !== 'undefined' && process.versions && 'electron' in process.versions
-
-    const result = hasWindow && hasElectronAPI && hasDesktopSources
-
-    console.log('🔍 ScreenRecorder Electron detection:', {
-      hasWindow,
-      hasElectronAPI,
-      hasDesktopSources,
-      isElectronProcess,
-      result,
-      electronAPIKeys: hasElectronAPI && window.electronAPI ? Object.keys(window.electronAPI) : 'N/A'
-    })
-
-    if (isElectronProcess && !result) {
-      console.error('❌ Running in Electron but electronAPI not available!')
-      console.error('Check that preload script is properly configured')
-    }
-
-    return result
-  }
 
   constructor() {
-    console.log(`🔧 ScreenRecorder[${this.instanceId}] created`)
+    logger.debug('ScreenRecorder created')
   }
 
   async startRecording(settings?: RecordingSettings, sourceId?: string): Promise<void> {
     if (this._isRecording) {
-      console.log('⚠️ Already recording')
-      throw new Error('Already recording')
+      logger.warn('Already recording')
+      throw new RecordingError('Already recording')
     }
 
     const recordingSettings: RecordingSettings = settings || {
@@ -92,224 +74,85 @@ export class ScreenRecorder {
     }
 
     try {
-      // Check if we should use Electron recording
-      if (this.useElectronRecording) {
-        console.log('🖥️ Using ElectronRecorder for system-wide recording')
+      logger.info('Starting recording with ElectronRecorder')
+      
+      // Always use ElectronRecorder - this is an Electron app
+      await this.electronRecorder.startRecording(recordingSettings, this.enhancementSettings || undefined)
+      this._isRecording = true
 
-        // Use ElectronRecorder for true system recording
-        await this.electronRecorder.startRecording(recordingSettings, this.enhancementSettings || undefined)
-        this._isRecording = true
-
-        this.dispatchEvent('recording-started', { startTime: Date.now() })
-        console.log('✅ Electron recording started successfully')
-
-      } else {
-        console.log('🌐 Using browser-based recording (Electron API not available)')
-
-        // Fallback to browser recording
-        const stream = await this.streamManager.getDisplayStream(recordingSettings, sourceId)
-        console.log('✅ Display stream acquired:', {
-          streamId: stream.id,
-          videoTracks: stream.getVideoTracks().length,
-          audioTracks: stream.getAudioTracks().length,
-          active: stream.active
-        })
-
-        // Setup MediaRecorder
-        this.mediaRecorderManager = new MediaRecorderManager(stream)
-        await this.mediaRecorderManager.start(recordingSettings)
-        console.log('✅ MediaRecorder started')
-
-        // Start metadata collection
-        this.metadataCollector.start()
-        console.log('✅ Metadata collection started')
-
-        this._isRecording = true
-
-        // Handle stream end
-        window.addEventListener('stream-ended', () => {
-          this.stopRecording()
-        }, { once: true })
-
-        this.dispatchEvent('recording-started', { startTime: Date.now() })
-      }
+      this.dispatchEvent('recording-started', { startTime: Date.now() })
+      logger.info('Recording started successfully')
 
     } catch (error) {
-      console.error('❌ Failed to start recording:', error)
+      logger.error('Failed to start recording:', error)
       this.cleanup()
-
-      // Handle specific error types for test compatibility
-      if (error instanceof Error) {
-        if (error.message.includes('Permission denied') || error.message.includes('permission denied')) {
-          throw new Error('Failed to start recording: Error: Screen recording permission denied')
-        }
-        throw new Error(`Failed to start recording: ${error}`)
-      }
       throw error
     }
   }
 
   async stopRecording(): Promise<RecordingResult | null> {
     if (!this._isRecording) {
-      console.log('⚠️ Not recording')
+      logger.warn('Not recording')
       return null
     }
 
     try {
-      console.log('🛑 Stopping recording...')
+      logger.info('Stopping recording')
 
-      // Handle Electron recording first
-      if (this.electronRecorder.isCurrentlyRecording()) {
-        console.log('🛑 Stopping Electron recording...')
+      const electronResult = await this.electronRecorder.stopRecording()
 
-        const electronResult = await this.electronRecorder.stopRecording()
-
-        // No post-processing - effects are applied during export
-        let enhancedVideo = electronResult.video
-        let effectsApplied = electronResult.effectsApplied
-        let processingTime = 0
-
-        // Convert metadata to our expected format
-        const convertedMetadata: RecordingMetadata[] = electronResult.metadata.map(meta => ({
-          timestamp: meta.timestamp,
-          mouseX: meta.mouseX,
-          mouseY: meta.mouseY,
-          scrollX: 0, // Default values for browser compatibility
-          scrollY: 0,
-          windowWidth: 1920, // Default screen dimensions
-          windowHeight: 1080,
-          eventType: meta.eventType as 'mouse' | 'click' | 'scroll' | 'key',
-          data: meta.key ? { key: meta.key } : undefined
-        }))
-
-        // Convert to our expected format
-        const finalResult: RecordingResult = {
-          video: electronResult.video,
-          enhancedVideo,
-          metadata: convertedMetadata,
-          duration: electronResult.duration,
-          effectsApplied,
-          processingTime
-        }
-
-        this._isRecording = false
-        console.log(`✅ Electron recording complete: ${finalResult.duration}ms, effects: ${finalResult.effectsApplied?.join(', ') || 'none'}`)
-
-        this.dispatchEvent('recording-stopped', finalResult)
-        return finalResult
-      }
-
-
-      // Handle standard recording (fallback)
-      if (!this.mediaRecorderManager) {
-        console.log('⚠️ No media recorder available')
-        return null
-      }
-
-      // Stop metadata collection
-      const metadata = this.metadataCollector.stop()
-      console.log(`📊 Collected ${metadata.length} metadata events`)
-
-      // Stop MediaRecorder
-      const result = await this.mediaRecorderManager.stop()
-      console.log(`📹 Recording stopped: ${result.duration}ms, ${result.video.size} bytes`)
-
-      // No post-processing - effects are applied during export
-      let enhancedVideo: Blob | undefined
-      let effectsApplied: string[] | undefined
-      let processingTime: number | undefined
-      
-      console.log('ℹ️ Effects will be applied during export')
-
-      // Cleanup
-      this.cleanup()
+      // Convert metadata to our expected format
+      const convertedMetadata: RecordingMetadata[] = electronResult.metadata.map(meta => ({
+        timestamp: meta.timestamp,
+        mouseX: meta.mouseX,
+        mouseY: meta.mouseY,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1920,
+        windowHeight: 1080,
+        eventType: meta.eventType as 'mouse' | 'click' | 'scroll' | 'key',
+        data: meta.key ? { key: meta.key } : undefined
+      }))
 
       const finalResult: RecordingResult = {
-        video: result.video,
-        enhancedVideo,
-        metadata,
-        duration: result.duration,
-        effectsApplied,
-        processingTime
+        video: electronResult.video,
+        enhancedVideo: electronResult.video,
+        metadata: convertedMetadata,
+        duration: electronResult.duration,
+        effectsApplied: electronResult.effectsApplied,
+        processingTime: electronResult.processingTime
       }
+
+      this._isRecording = false
+      logger.info(`Recording complete: ${finalResult.duration}ms`)
 
       this.dispatchEvent('recording-stopped', finalResult)
       return finalResult
 
     } catch (error) {
-      console.error('❌ Failed to stop recording:', error)
-      this.cleanup()
-      return null
-    }
-  }
-
-  cleanup(): void {
-    this._isRecording = false
-    this.streamManager.stopStream()
-    this.mediaRecorderManager = null
-    this.enhancementSettings = null
-    console.log(`🧹 ScreenRecorder[${this.instanceId}] cleaned up`)
-  }
-
-  private dispatchEvent(name: string, detail?: any): void {
-    window.dispatchEvent(new CustomEvent(`screen-recorder-${name}`, { detail }))
-  }
-
-  isRecording(): boolean {
-    return this._isRecording
-  }
-
-  getRecordingDurationMs(): number {
-    return this.mediaRecorderManager?.getDuration() || 0
-  }
-
-  getRecordingDuration(): number {
-    return this.getRecordingDurationMs() / 1000 // Convert to seconds for compatibility
-  }
-
-  // Backward compatibility methods for tests
-  getRecordingState(): { isRecording: boolean; isPaused: boolean; duration: number } {
-    return {
-      isRecording: this._isRecording,
-      isPaused: this.mediaRecorderManager?.isPaused() || false,
-      duration: this.getRecordingDurationMs() / 1000 // Convert to seconds for compatibility
+      logger.error('Failed to stop recording:', error)
+      this._isRecording = false
+      throw error
     }
   }
 
   pauseRecording(): void {
-    if (this.mediaRecorderManager && this._isRecording) {
-      this.mediaRecorderManager.pause()
-    }
+    logger.debug('Pause not implemented for Electron recording')
   }
 
   resumeRecording(): void {
-    if (this.mediaRecorderManager && this._isRecording) {
-      this.mediaRecorderManager.resume()
-    }
+    logger.debug('Resume not implemented for Electron recording')
   }
 
-  // Compatibility method that returns result in old format for tests
-  async stopRecordingCompat(): Promise<{ enhanced: Blob; original: Blob } | null> {
-    const result = await this.stopRecording()
-    if (result) {
-      return {
-        enhanced: result.enhancedVideo || result.video, // Use enhanced video if available
-        original: result.video
-      }
-    }
-    return null
-  }
-
-  // Enhancement methods (simplified stubs for compatibility)
+  // Enhancement methods
   enableEnhancements(settings: EnhancementSettings): void {
     this.enhancementSettings = settings
-    console.log('📈 Enhancements enabled (simplified mode)')
+    logger.debug('Enhancements enabled')
   }
-
 
   disableEnhancements(): void {
     this.enhancementSettings = null
-    console.log('📉 Enhancements disabled')
+    logger.debug('Enhancements disabled')
   }
 
   getEnhancementSettings(): EnhancementSettings | null {
@@ -326,20 +169,50 @@ export class ScreenRecorder {
     return null
   }
 
-  // Simplified method for getting available sources
-  getAvailableSources(): Promise<RecordingSource[]> {
-    return ScreenRecorder.getAvailableSources()
+  // Helper methods
+  isRecording(): boolean {
+    return this._isRecording
   }
 
-  // Static methods
-  static getAvailableSources(): Promise<RecordingSource[]> {
-    return StreamManager.getAvailableSources()
+  async getAvailableSources(): Promise<Array<{ id: string, name: string, type: string }>> {
+    return this.electronRecorder.getAvailableSources()
+  }
+
+  private cleanup(): void {
+    this._isRecording = false
+  }
+
+  private dispatchEvent(eventName: string, detail: any): void {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(eventName, { detail }))
+    }
+  }
+
+  // Compatibility method for tests
+  async stopRecordingCompat(): Promise<{ enhanced: Blob; original: Blob } | null> {
+    const result = await this.stopRecording()
+    if (result) {
+      return {
+        enhanced: result.enhancedVideo || result.video,
+        original: result.video
+      }
+    }
+    return null
+  }
+
+  // Static compatibility methods
+  static async getAvailableSources(): Promise<Array<{ id: string, name: string, type: string }>> {
+    const recorder = new ElectronRecorder()
+    return recorder.getAvailableSources()
   }
 
   static isSupported(): boolean {
-    return StreamManager.isSupported()
+    // Check if we're in Electron environment
+    return typeof window !== 'undefined' && 
+           typeof window.electronAPI === 'object' && 
+           window.electronAPI !== null
   }
 }
 
-// Export all types
-export type { RecordingSource, RecordingMetadata }
+// Export types for backward compatibility
+export type { RecordingSource } from './stream-manager'

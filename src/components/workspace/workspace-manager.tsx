@@ -11,6 +11,7 @@ import { RecordingsLibrary } from '../recordings-library'
 import { RecordingController } from './recording-controller'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { cn } from '@/lib/utils'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
 
 export function WorkspaceManager() {
   const { project, createNewProject } = useTimelineStore()
@@ -51,7 +52,7 @@ export function WorkspaceManager() {
               const response = await fetch(`file://${recording.path}`)
               const blob = await response.blob()
               // Add to timeline
-              const url = URL.createObjectURL(blob)
+              const url = globalBlobManager.create(blob, 'loaded-recording')
               useTimelineStore.getState().addClip({
                 id: `clip-${Date.now()}`,
                 type: 'video',

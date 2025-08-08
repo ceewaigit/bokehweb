@@ -120,68 +120,71 @@ export default function RecordButton() {
 
   return (
     <div
-      className="w-full h-full flex items-center justify-center p-1"
+      className="fixed inset-0 flex items-center justify-center"
       style={{
         backgroundColor: 'transparent',
-        // @ts-ignore - Electron-specific CSS property
-        WebkitAppRegion: 'drag'
+        // @ts-ignore
+        WebkitAppRegion: 'drag',
       }}
     >
-      <motion.button
-        onClick={handleClick}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="relative px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-medium text-sm"
-        style={{
-          // @ts-ignore - Electron-specific CSS property
-          WebkitAppRegion: 'no-drag',
-          background: isRecording
-            ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-            : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-          color: 'white',
-          boxShadow: isHovered
-            ? '0 10px 25px rgba(0, 0, 0, 0.3)'
-            : '0 4px 12px rgba(0, 0, 0, 0.15)',
-          minWidth: '100px'
-        }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        {isRecording ? (
-          <>
-            {/* Stop icon */}
-            <motion.div
-              className="w-3 h-3 bg-white rounded-sm"
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            />
-            <span>{formatTime(duration)}</span>
-          </>
-        ) : (
-          <>
-            {/* Record icon */}
-            <div className="w-3 h-3 bg-white rounded-full" />
-            <span>Record</span>
-          </>
-        )}
-      </motion.button>
-
-      {/* Subtle pulse when recording */}
-      {isRecording && (
-        <motion.div
-          className="absolute inset-0 rounded-lg pointer-events-none"
+      <div className="relative">
+        <motion.button
+          onClick={handleClick}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className="relative px-4 py-2 rounded-lg flex items-center justify-center gap-2 font-medium text-sm cursor-pointer"
           style={{
-            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-            opacity: 0.3
+            // @ts-ignore
+            WebkitAppRegion: 'no-drag',
+            background: isRecording
+              ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+              : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+            color: 'white',
+            boxShadow: isHovered
+              ? '0 10px 25px rgba(0, 0, 0, 0.3)'
+              : '0 4px 12px rgba(0, 0, 0, 0.15)',
+            minWidth: '100px',
+            border: 'none',
+            outline: 'none',
           }}
-          animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeOut"
-          }}
-        />
-      )}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          {isRecording ? (
+            <>
+              <motion.div
+                className="w-3 h-3 bg-white rounded-sm"
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              />
+              <span className="select-none">{formatTime(duration)}</span>
+            </>
+          ) : (
+            <>
+              <div className="w-3 h-3 bg-white rounded-full" />
+              <span className="select-none">Record</span>
+            </>
+          )}
+        </motion.button>
+
+        {/* Subtle pulse when recording */}
+        {isRecording && (
+          <motion.div
+            className="absolute inset-0 rounded-lg pointer-events-none"
+            style={{
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              opacity: 0.3,
+              zIndex: -1,
+            }}
+            animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeOut"
+            }}
+          />
+        )}
+      </div>
     </div>
   )
 }

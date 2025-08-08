@@ -1,6 +1,7 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { toBlobURL, fetchFile } from '@ffmpeg/util'
 import type { ExportSettings, Project } from '@/types'
+import { globalBlobManager } from '../security/blob-url-manager'
 
 export interface ExportProgress {
   progress: number
@@ -154,12 +155,13 @@ export class ExportEngine {
     }
 
     // Fallback to browser download
-    const url = URL.createObjectURL(blob)
+    const url = globalBlobManager.create(blob, 'export-download')
     const a = document.createElement('a')
     a.href = url
     a.download = filename
     a.click()
-    URL.revokeObjectURL(url)
+    // Clean up after download
+    setTimeout(() => globalBlobManager.revoke(url), 1000)
   }
 
   getPresetSettings(preset: string): Partial<ExportSettings> {

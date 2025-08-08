@@ -1,9 +1,8 @@
-"use client"
-
 import { CursorRenderer } from '../effects/cursor-renderer'
 import { ZoomEngine } from '../effects/zoom-engine'
 import { BackgroundRenderer } from '../effects/background-renderer'
 import { FFmpegConverter } from './ffmpeg-converter'
+import { globalBlobManager } from '../security/blob-url-manager'
 
 export interface ExportProgress {
   progress: number
@@ -68,7 +67,7 @@ export class EffectsExportEngine {
 
       // Create video element
       const video = document.createElement('video')
-      video.src = URL.createObjectURL(videoBlob)
+      video.src = globalBlobManager.create(videoBlob, 'export-source-video')
       video.muted = true
 
       await new Promise((resolve, reject) => {

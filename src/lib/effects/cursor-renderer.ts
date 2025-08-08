@@ -1,5 +1,3 @@
-"use client"
-
 interface CursorEvent {
   timestamp: number
   mouseX: number

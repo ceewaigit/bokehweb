@@ -1,5 +1,3 @@
-"use client"
-
 export interface BackgroundOptions {
   type: 'solid' | 'gradient' | 'image' | 'wallpaper' | 'blur'
   color?: string

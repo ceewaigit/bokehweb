@@ -8,6 +8,7 @@ import { CountdownTimer } from '../countdown-timer'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useRecording } from '@/hooks/use-recording'
+import { logger } from '@/lib/utils/logger'
 import type { RecordingEnhancementSettings } from '@/types/effects'
 
 export function RecordingController() {
@@ -58,15 +59,15 @@ export function RecordingController() {
   const handleCountdownComplete = useCallback(async () => {
     setShowCountdown(false)
     try {
-      console.log('🎬 Starting recording with Screen Studio effects:', enhancementSettings)
+      logger.info('Starting recording with Screen Studio effects:', enhancementSettings)
       await startRecording(undefined, enhancementSettings) // Pass enhancement settings
     } catch (error) {
-      console.error('Failed to start recording:', error)
+      logger.error('Failed to start recording:', error)
       // Reset recording state on start failure
       try {
         useRecordingStore.getState().reset()
       } catch (resetError) {
-        console.error('Failed to reset recording state after start failure:', resetError)
+        logger.error('Failed to reset recording state after start failure:', resetError)
       }
     }
   }, [startRecording, enhancementSettings])
@@ -79,28 +80,28 @@ export function RecordingController() {
     // Prevent double-stop by checking current state
     const currentState = useRecordingStore.getState()
     if (!currentState.isRecording) {
-      console.log('🔒 Stop recording called but not currently recording - ignoring')
+      logger.debug('Stop recording called but not currently recording - ignoring')
       return
     }
 
     try {
-      console.log('🛑 Stopping recording from controller...')
+      logger.info('Stopping recording from controller...')
       const result = await stopRecording()
       if (result) {
-        console.log('✅ Recording completed successfully - clip handled by useRecording hook')
+        logger.info('Recording completed successfully - clip handled by useRecording hook')
         // useRecording hook handles all clip creation and timeline management
       } else {
         // If no result returned, something went wrong
-        console.error('Stop recording returned null - resetting state')
+        logger.error('Stop recording returned null - resetting state')
         useRecordingStore.getState().reset()
       }
     } catch (error) {
-      console.error('Failed to stop recording:', error)
+      logger.error('Failed to stop recording:', error)
       // Reset recording state on error
       try {
         useRecordingStore.getState().reset()
       } catch (resetError) {
-        console.error('Failed to reset recording state:', resetError)
+        logger.error('Failed to reset recording state:', resetError)
       }
     }
   }, [stopRecording])

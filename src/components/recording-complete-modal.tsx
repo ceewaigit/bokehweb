@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from './ui/button'
 import { CheckCircle, Download, Edit, Share, X } from 'lucide-react'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
 
 interface RecordingCompleteModalProps {
   isOpen: boolean
@@ -38,10 +39,19 @@ export function RecordingCompleteModal({
 
   const handlePreview = () => {
     if (recordingBlob && !previewUrl) {
-      const url = URL.createObjectURL(recordingBlob)
+      const url = globalBlobManager.create(recordingBlob, 'preview-recording')
       setPreviewUrl(url)
     }
   }
+
+  // Clean up preview URL when modal closes
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        globalBlobManager.revoke(previewUrl)
+      }
+    }
+  }, [previewUrl])
 
   return (
     <AnimatePresence>

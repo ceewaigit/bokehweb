@@ -1,5 +1,3 @@
-"use client"
-
 /**
  * Electron-based screen recorder using desktopCapturer
  * Provides native screen recording capabilities with system-level access
@@ -7,6 +5,8 @@
 
 import type { RecordingSettings } from '@/types'
 import type { EnhancementSettings } from './screen-recorder'
+import { logger } from '@/lib/utils/logger'
+import { PermissionError, ElectronError } from '@/lib/core/errors'
 
 export interface ElectronRecordingResult {
   video: Blob
@@ -35,7 +35,7 @@ export class ElectronRecorder {
   private mouseTracker: NodeJS.Timeout | null = null
 
   constructor() {
-    console.log('🖥️ ElectronRecorder initialized')
+    logger.debug('ElectronRecorder initialized')
   }
 
   async startRecording(recordingSettings: RecordingSettings, enhancementSettings?: EnhancementSettings): Promise<void> {
@@ -43,7 +43,7 @@ export class ElectronRecorder {
       throw new Error('Already recording')
     }
 
-    console.log('🎯 Starting Electron-based screen recording...')
+    logger.info('Starting Electron-based screen recording')
 
     try {
       // Check if running in Electron
@@ -56,15 +56,19 @@ export class ElectronRecorder {
       try {
         sources = await this.getDesktopSources()
       } catch (error) {
-        console.error('Failed to get desktop sources:', error)
+        logger.error('Failed to get desktop sources:', error)
         if (error instanceof Error && error.message.includes('PERMISSION_DENIED')) {
-          throw new Error('Screen recording permission required. Please enable it in System Preferences and restart the app.')
+          throw new PermissionError(
+            'Please enable screen recording in System Preferences and restart the app',
+            'screen',
+            true
+          )
         }
         throw error
       }
 
       if (!sources || sources.length === 0) {
-        throw new Error('No screen sources available. Please check permissions.')
+        throw new PermissionError('No screen sources available. Please check permissions.', 'screen')
       }
 
       // Find the "Entire screen" source - this is what Screen Studio uses
@@ -76,31 +80,20 @@ export class ElectronRecorder {
       
       // Fallback to last source (usually the entire screen)
       if (!primarySource) {
-        console.warn('⚠️ Could not find entire screen source, using last available source')
+        logger.warn('Could not find entire screen source, using last available source')
         primarySource = sources[sources.length - 1]
       }
       
-      console.log(`📺 Using screen source: ${primarySource.name} (${primarySource.id})`)
+      logger.info(`Using screen source: ${primarySource.name} (${primarySource.id})`)
 
       // Check and request screen recording permission first
       await this.checkScreenRecordingPermission()
 
       // Get media stream from desktop capturer with audio support
       const hasAudio = recordingSettings.audioInput !== 'none'
-      console.log('🎥 Requesting media stream with constraints:', {
+      logger.debug('Requesting media stream with constraints', {
         audio: hasAudio,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id,
-            minWidth: 1280,
-            maxWidth: 4096,
-            minHeight: 720,
-            maxHeight: 2160,
-            minFrameRate: 30,
-            maxFrameRate: 60
-          }
-        }
+        sourceId: primarySource.id
       })
 
       // Add timeout to getUserMedia call to prevent hanging
@@ -131,19 +124,19 @@ export class ElectronRecorder {
           }
         }
       }
-      console.log('🎥 Got stream constraints:', constraints)
+      logger.debug('Got stream constraints', constraints)
 
       // Now use getUserMedia with the Electron-specific constraints
-      console.log('🎥 Requesting media stream with Electron constraints...')
+      logger.debug('Requesting media stream with Electron constraints')
       
       try {
         // In Electron, we must use getUserMedia with the specific desktop constraints
         this.stream = await navigator.mediaDevices.getUserMedia(constraints) as MediaStream
-        console.log('✅ Desktop capture stream acquired successfully')
+        logger.info('Desktop capture stream acquired successfully')
         
         // If audio was requested but not in the desktop stream, add microphone
         if (hasAudio && this.stream.getAudioTracks().length === 0) {
-          console.log('🎤 Adding microphone audio track...')
+          logger.debug('Adding microphone audio track')
           try {
             const audioStream = await navigator.mediaDevices.getUserMedia({ 
               audio: true, 
@@ -152,14 +145,14 @@ export class ElectronRecorder {
             const audioTrack = audioStream.getAudioTracks()[0]
             if (audioTrack) {
               this.stream.addTrack(audioTrack)
-              console.log('✅ Microphone audio added to stream')
+              logger.debug('Microphone audio added to stream')
             }
           } catch (audioError) {
-            console.warn('⚠️ Could not add microphone audio:', audioError)
+            logger.warn('Could not add microphone audio:', audioError)
           }
         }
       } catch (error) {
-        console.error('❌ getUserMedia failed:', error)
+        logger.error('getUserMedia failed:', error)
         
         // If that fails, try a different approach
         // Some Electron versions require different constraint format
@@ -171,22 +164,21 @@ export class ElectronRecorder {
           } as any
         }
         
-        console.log('🔄 Trying fallback constraints:', fallbackConstraints)
+        logger.debug('Trying fallback constraints')
         
         try {
           this.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints) as MediaStream
-          console.log('✅ Stream acquired with fallback constraints')
+          logger.info('Stream acquired with fallback constraints')
         } catch (fallbackError) {
-          console.error('❌ Fallback also failed:', fallbackError)
-          throw new Error(`Failed to capture desktop. Original error: ${error}. Fallback error: ${fallbackError}`)
+          logger.error('Fallback also failed:', fallbackError)
+          throw new ElectronError(`Failed to capture desktop: ${fallbackError}`, 'getUserMedia')
         }
       }
 
-      console.log('✅ Desktop capture stream acquired:', {
+      logger.debug('Desktop capture stream acquired', {
         streamId: this.stream.id,
         videoTracks: this.stream.getVideoTracks().length,
-        audioTracks: this.stream.getAudioTracks().length,
-        videoTrackSettings: this.stream.getVideoTracks()[0]?.getSettings?.() || 'getSettings not available'
+        audioTracks: this.stream.getAudioTracks().length
       })
 
       // Set up MediaRecorder with high quality settings
@@ -198,7 +190,7 @@ export class ElectronRecorder {
         }
       }
 
-      console.log(`📹 Using mimeType: ${mimeType}`)
+      logger.debug(`Using mimeType: ${mimeType}`)
 
       this.mediaRecorder = new MediaRecorder(this.stream, {
         mimeType,
@@ -209,16 +201,16 @@ export class ElectronRecorder {
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           this.chunks.push(event.data)
-          console.log(`📦 Electron recording chunk: ${event.data.size} bytes`)
+          logger.debug(`Recording chunk: ${event.data.size} bytes`)
         }
       }
 
       this.mediaRecorder.onstart = () => {
-        console.log('🎬 Electron MediaRecorder started')
+        logger.debug('MediaRecorder started')
       }
 
       this.mediaRecorder.onerror = (event) => {
-        console.error('❌ Electron MediaRecorder error:', event)
+        logger.error('MediaRecorder error:', event)
       }
 
       // Start mouse tracking if effects are enabled
@@ -231,7 +223,7 @@ export class ElectronRecorder {
       this.isRecording = true
       this.startTime = Date.now()
 
-      console.log('✅ Electron screen recording started!')
+      logger.info('Screen recording started successfully')
 
     } catch (error) {
       this.cleanup()
@@ -244,14 +236,14 @@ export class ElectronRecorder {
       throw new Error('Not recording')
     }
 
-    console.log('🛑 Stopping Electron screen recording...')
+    logger.info('Stopping screen recording')
 
     return new Promise((resolve, reject) => {
       this.mediaRecorder!.onstop = () => {
         const duration = Date.now() - this.startTime
         const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
 
-        console.log(`✅ Electron recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
+        logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
 
         this.cleanup()
 
@@ -281,11 +273,10 @@ export class ElectronRecorder {
     const hasElectronAPI = typeof window?.electronAPI === 'object' && window?.electronAPI !== null
     const hasDesktopSources = typeof window?.electronAPI?.getDesktopSources === 'function'
 
-    console.log('🔍 ElectronRecorder.isElectron() check:', {
+    logger.debug('Electron environment check', {
       hasWindow,
       hasElectronAPI,
       hasDesktopSources,
-      electronAPIType: typeof window?.electronAPI,
       result: hasWindow && hasElectronAPI && hasDesktopSources
     })
 
@@ -293,10 +284,10 @@ export class ElectronRecorder {
   }
 
   private async checkScreenRecordingPermission(): Promise<void> {
-    console.log('🔐 Checking screen recording permission...')
+    logger.debug('Checking screen recording permission')
 
     if (!window.electronAPI?.showMessageBox) {
-      console.warn('⚠️ Message box API not available, skipping permission check')
+      logger.warn('Message box API not available, skipping permission check')
       return
     }
 
@@ -321,11 +312,11 @@ export class ElectronRecorder {
 
       // If we get here, permission is granted
       testStream.getTracks().forEach(track => track.stop())
-      console.log('✅ Screen recording permission already granted')
+      logger.debug('Screen recording permission already granted')
       return
 
     } catch (error) {
-      console.log('🔐 Screen recording permission needed, showing dialog...')
+      logger.info('Screen recording permission needed, showing dialog')
 
       // Show permission dialog
       const result = await window.electronAPI.showMessageBox({
@@ -339,16 +330,16 @@ export class ElectronRecorder {
       })
 
       if (result.response === 1) {
-        throw new Error('Screen recording permission denied by user')
+        throw new PermissionError('Screen recording permission denied by user', 'screen')
       }
 
-      console.log('🔐 User chose to grant permission, continuing...')
+      logger.debug('User chose to grant permission, continuing')
     }
   }
 
   private async getDesktopSources(): Promise<any[]> {
     if (!window.electronAPI?.getDesktopSources) {
-      throw new Error('Desktop sources API not available - ensure Electron preload script is properly configured')
+      throw new ElectronError('Desktop sources API not available', 'getDesktopSources')
     }
 
     try {
@@ -357,31 +348,28 @@ export class ElectronRecorder {
         thumbnailSize: { width: 150, height: 150 }
       })
 
-      console.log(`📺 Found ${sources.length} desktop sources:`)
-      sources.forEach((source: any, index: number) => {
-        console.log(`  ${index + 1}. ${source.name} (${source.id})`)
-      })
+      logger.debug(`Found ${sources.length} desktop sources`, sources.map((s: any) => ({ name: s.name, id: s.id })))
 
       return sources
     } catch (error) {
-      console.error('❌ Failed to get desktop sources:', error)
-      throw new Error('Failed to access desktop sources')
+      logger.error('Failed to get desktop sources:', error)
+      throw new ElectronError('Failed to access desktop sources', 'getDesktopSources')
     }
   }
 
   private async startMouseTracking(): Promise<void> {
-    console.log('🖱️ Starting native mouse tracking...')
+    logger.debug('Starting native mouse tracking')
 
     if (!window.electronAPI?.startMouseTracking) {
-      throw new Error('Native mouse tracking API not available - ensure Electron environment')
+      throw new ElectronError('Native mouse tracking API not available', 'startMouseTracking')
     }
 
     // Check if native tracking is available
     const nativeAvailable = await window.electronAPI.isNativeMouseTrackingAvailable()
-    console.log(`🖱️ Native tracking status:`, nativeAvailable)
+    logger.debug('Native tracking status', nativeAvailable)
 
     if (!nativeAvailable.available) {
-      console.warn('⚠️ Native mouse tracking not available, using Electron fallback')
+      logger.warn('Native mouse tracking not available, using Electron fallback')
       // Continue anyway - the NativeMouseTracker uses Electron's screen API as fallback
     }
 
@@ -421,15 +409,15 @@ export class ElectronRecorder {
       throw new Error(`Failed to start native mouse tracking: ${result.error}`)
     }
 
-    console.log(`✅ Native mouse tracking started at ${result.fps}fps`)
+    logger.debug(`Native mouse tracking started at ${result.fps}fps`)
 
     this.mouseTrackingCleanup = async () => {
       try {
         await window.electronAPI?.stopMouseTracking()
         window.electronAPI?.removeAllMouseListeners()
-        console.log('🖱️ Native mouse tracking stopped')
+        logger.debug('Native mouse tracking stopped')
       } catch (error) {
-        console.error('Error stopping native mouse tracking:', error)
+        logger.error('Error stopping native mouse tracking:', error)
       }
     }
   }
@@ -441,7 +429,7 @@ export class ElectronRecorder {
       await this.mouseTrackingCleanup()
       this.mouseTrackingCleanup = null
     }
-    console.log('🖱️ Mouse tracking stopped')
+    logger.debug('Mouse tracking stopped')
   }
 
   private async cleanup(): Promise<void> {
@@ -457,7 +445,7 @@ export class ElectronRecorder {
     this.chunks = []
     this.metadata = []
 
-    console.log('🧹 ElectronRecorder cleaned up')
+    logger.debug('ElectronRecorder cleaned up')
   }
 
   isCurrentlyRecording(): boolean {
@@ -474,7 +462,7 @@ export class ElectronRecorder {
         type: source.id.startsWith('screen:') ? 'screen' : 'window'
       }))
     } catch (error) {
-      console.error('Failed to get available sources:', error)
+      logger.error('Failed to get available sources:', error)
       return []
     }
   }

@@ -1,5 +1,3 @@
-"use client"
-
 interface MouseEvent {
   timestamp: number
   mouseX: number
