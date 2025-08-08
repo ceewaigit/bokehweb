@@ -4,7 +4,7 @@
   "description": "Professional screen recording and editing app built with Electron and Next.js",
   "author": "Screen Studio Team",
   "private": true,
-  "main": "electron/main.js",
+  "main": "electron/main/index.js",
   "homepage": "./",
   "scripts": {
     "dev": "NODE_ENV=development next dev",
