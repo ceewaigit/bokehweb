@@ -1,0 +1,94 @@
+name: Test Coverage
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Type check
+      run: npm run type-check
+      
+    - name: Lint check
+      run: npm run lint
+      
+    - name: Run unit tests
+      run: npm run test:unit
+      
+    - name: Run integration tests
+      run: npm run test:integration
+      
+    - name: Generate coverage report
+      run: npm run test:coverage
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: true
+        
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request'
+      uses: romeovs/lcov-reporter-action@v0.3.1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        lcov-file: ./coverage/lcov.info
+        
+    - name: Archive coverage artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report-${{ matrix.node-version }}
+        path: coverage/
+        
+    - name: Check coverage thresholds
+      run: |
+        node -e "
+          const coverage = require('./coverage/coverage-summary.json');
+          const thresholds = {
+            statements: 80,
+            branches: 80,
+            functions: 80,
+            lines: 80
+          };
+          
+          let failed = false;
+          Object.entries(thresholds).forEach(([metric, threshold]) => {
+            const actual = coverage.total[metric].pct;
+            if (actual < threshold) {
+              console.error(\`❌ \${metric}: \${actual}% < \${threshold}%\`);
+              failed = true;
+            } else {
+              console.log(\`✅ \${metric}: \${actual}% >= \${threshold}%\`);
+            }
+          });
+          
+          if (failed) {
+            console.error('Coverage thresholds not met');
+            process.exit(1);
+          } else {
+            console.log('All coverage thresholds met');
+          }
+        "
