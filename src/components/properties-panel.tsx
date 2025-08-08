@@ -6,10 +6,10 @@ import { useRecordingStore } from '@/stores/recording-store'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
 import { Badge } from './ui/badge'
-import { 
-  Settings, 
-  Layers, 
-  Palette, 
+import {
+  Settings,
+  Layers,
+  Palette,
   Volume2,
   Monitor,
   Sliders
@@ -39,11 +39,10 @@ export function PropertiesPanel() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center space-x-1 text-xs font-medium transition-colors ${
-                activeTab === tab.id 
-                  ? 'bg-primary/10 text-primary border-b-2 border-primary' 
+              className={`flex-1 flex items-center justify-center space-x-1 text-xs font-medium transition-colors ${activeTab === tab.id
+                  ? 'bg-primary/10 text-primary border-b-2 border-primary'
                   : 'text-muted-foreground hover:text-foreground'
-              }`}
+                }`}
             >
               <Icon className="w-3 h-3" />
               <span>{tab.label}</span>
@@ -145,8 +144,8 @@ export function PropertiesPanel() {
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  {selectedClips.length > 1 
-                    ? `${selectedClips.length} clips selected` 
+                  {selectedClips.length > 1
+                    ? `${selectedClips.length} clips selected`
                     : 'No clip selected'
                   }
                 </p>

@@ -69,7 +69,7 @@ export function RecordingController() {
       console.log('🔒 Stop recording called but not currently recording - ignoring')
       return
     }
-    
+
     try {
       console.log('🛑 Stopping recording from controller...')
       const result = await stopRecording()

@@ -5,7 +5,10 @@ export interface ElectronAPI {
   
   // Permission checking
   checkScreenRecordingPermission: () => Promise<{ status: string; granted: boolean }>
-  requestScreenRecordingPermission: () => Promise<boolean>
+  requestScreenRecordingPermission: () => Promise<{ opened: boolean; status: string; granted: boolean }>
+  startPermissionMonitoring?: () => Promise<void>
+  stopPermissionMonitoring?: () => Promise<void>
+  onPermissionStatusChanged?: (callback: (event: any, data: { status: string; granted: boolean }) => void) => void
   
   // Mouse tracking
   startMouseTracking: (options: any) => Promise<any>

@@ -189,19 +189,54 @@ ipcMain.handle('check-screen-recording-permission', async () => {
   return { status: 'not-applicable', granted: true }
 })
 
-// Request screen recording permission
+// Monitor permission changes (for macOS)
+let permissionCheckInterval = null
+ipcMain.handle('start-permission-monitoring', async (event) => {
+  if (process.platform !== 'darwin') return
+  
+  // Clear any existing interval
+  if (permissionCheckInterval) {
+    clearInterval(permissionCheckInterval)
+  }
+  
+  // Check every 2 seconds for permission changes
+  permissionCheckInterval = setInterval(() => {
+    try {
+      const status = systemPreferences.getMediaAccessStatus('screen')
+      event.sender.send('permission-status-changed', { status, granted: status === 'granted' })
+    } catch (error) {
+      console.error('Error checking permission status:', error)
+    }
+  }, 2000)
+  
+  console.log('📊 Started monitoring screen recording permission')
+})
+
+ipcMain.handle('stop-permission-monitoring', async () => {
+  if (permissionCheckInterval) {
+    clearInterval(permissionCheckInterval)
+    permissionCheckInterval = null
+    console.log('🛑 Stopped monitoring screen recording permission')
+  }
+})
+
+// Request screen recording permission - opens System Preferences directly
 ipcMain.handle('request-screen-recording-permission', async () => {
   if (process.platform === 'darwin') {
     try {
-      const canPrompt = await systemPreferences.askForMediaAccess('screen')
-      console.log('🔐 Screen recording permission prompt result:', canPrompt)
-      return canPrompt
+      // Open System Preferences directly to Screen Recording section
+      console.log('🔐 Opening System Preferences for screen recording permission')
+      require('child_process').exec('open x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+      
+      // Return current status after opening preferences
+      const status = systemPreferences.getMediaAccessStatus('screen')
+      return { opened: true, status, granted: status === 'granted' }
     } catch (error) {
-      console.error('❌ Error requesting screen recording permission:', error)
-      return false
+      console.error('❌ Error opening System Preferences:', error)
+      return { opened: false, status: 'unknown', granted: false }
     }
   }
-  return true
+  return { opened: false, status: 'not-applicable', granted: true }
 })
 
 // Enhanced desktop sources handler for the new ElectronRecorder

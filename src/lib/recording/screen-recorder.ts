@@ -1,12 +1,10 @@
 "use client"
 
 import type { RecordingSettings } from '@/types'
-import { MediaRecorderManager, type MediaRecorderResult } from './media-recorder-manager'
+import { MediaRecorderManager } from './media-recorder-manager'
 import { MetadataCollector, type RecordingMetadata } from './metadata-collector'
 import { StreamManager, type RecordingSource } from './stream-manager'
-import { EffectsProcessor, type EffectsResult } from './effects-processor'
-import { HardwareEffectsProcessor } from './hardware-effects-processor'
-import { ElectronRecorder, type ElectronRecordingResult } from './electron-recorder'
+import { ElectronRecorder } from './electron-recorder'
 
 export interface RecordingResult {
   video: Blob
@@ -43,8 +41,6 @@ export class ScreenRecorder {
   private streamManager = new StreamManager()
   private mediaRecorderManager: MediaRecorderManager | null = null
   private metadataCollector = new MetadataCollector()
-  private effectsProcessor = new EffectsProcessor()
-  private hardwareEffectsProcessor = new HardwareEffectsProcessor()
   private electronRecorder = new ElectronRecorder()
   private _isRecording = false
   private instanceId = Math.random().toString(36).substr(2, 9)
@@ -54,10 +50,10 @@ export class ScreenRecorder {
     const hasWindow = typeof window !== 'undefined'
     const hasElectronAPI = hasWindow && typeof window.electronAPI === 'object' && window.electronAPI !== null
     const hasDesktopSources = hasElectronAPI && typeof window.electronAPI?.getDesktopSources === 'function'
-    
+
     // Additional check for Electron process
     const isElectronProcess = typeof process !== 'undefined' && process.versions && 'electron' in process.versions
-    
+
     const result = hasWindow && hasElectronAPI && hasDesktopSources
 
     console.log('🔍 ScreenRecorder Electron detection:', {
@@ -99,17 +95,17 @@ export class ScreenRecorder {
       // Check if we should use Electron recording
       if (this.useElectronRecording) {
         console.log('🖥️ Using ElectronRecorder for system-wide recording')
-        
+
         // Use ElectronRecorder for true system recording
         await this.electronRecorder.startRecording(recordingSettings, this.enhancementSettings || undefined)
         this._isRecording = true
-        
+
         this.dispatchEvent('recording-started', { startTime: Date.now() })
         console.log('✅ Electron recording started successfully')
-        
+
       } else {
         console.log('🌐 Using browser-based recording (Electron API not available)')
-        
+
         // Fallback to browser recording
         const stream = await this.streamManager.getDisplayStream(recordingSettings, sourceId)
         console.log('✅ Display stream acquired:', {
@@ -168,31 +164,10 @@ export class ScreenRecorder {
 
         const electronResult = await this.electronRecorder.stopRecording()
 
-        // Apply hardware-accelerated effects if needed
+        // No post-processing - effects are applied during export
         let enhancedVideo = electronResult.video
         let effectsApplied = electronResult.effectsApplied
         let processingTime = 0
-
-        if (this.enhancementSettings && electronResult.metadata.length > 0) {
-          try {
-            console.log('🎬 Applying hardware-accelerated effects to Electron recording...')
-            const hardwareResult = await this.hardwareEffectsProcessor.processVideoWithEffects(
-              electronResult.video,
-              electronResult.metadata,
-              this.enhancementSettings,
-              electronResult.duration
-            )
-
-            enhancedVideo = hardwareResult.enhancedVideo
-            effectsApplied = [...electronResult.effectsApplied, ...hardwareResult.effectsApplied]
-            processingTime = hardwareResult.processingTime
-
-            console.log(`✨ Hardware effects applied: ${hardwareResult.effectsApplied.join(', ')} (${processingTime.toFixed(2)}ms)`)
-          } catch (error) {
-            console.error('⚠️ Hardware effects processing failed, using original video:', error)
-            effectsApplied.push('hardware-effects-failed')
-          }
-        }
 
         // Convert metadata to our expected format
         const convertedMetadata: RecordingMetadata[] = electronResult.metadata.map(meta => ({
@@ -239,50 +214,12 @@ export class ScreenRecorder {
       const result = await this.mediaRecorderManager.stop()
       console.log(`📹 Recording stopped: ${result.duration}ms, ${result.video.size} bytes`)
 
-      // Apply effects if enhancement settings are enabled
+      // No post-processing - effects are applied during export
       let enhancedVideo: Blob | undefined
       let effectsApplied: string[] | undefined
       let processingTime: number | undefined
-
-      if (this.enhancementSettings && metadata.length > 0) {
-        try {
-          console.log('🎨 Applying Screen Studio effects...')
-
-          // Add a timeout for effects processing
-          const effectsPromise = this.effectsProcessor.processVideo(
-            result.video,
-            metadata,
-            this.enhancementSettings,
-            result.duration // Pass estimated duration from recording
-          )
-
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Effects processing timeout')), 60000) // 60 second timeout
-          })
-
-          const effectsResult = await Promise.race([effectsPromise, timeoutPromise]) as any
-
-          if (effectsResult && effectsResult.enhancedVideo) {
-            enhancedVideo = effectsResult.enhancedVideo
-            effectsApplied = effectsResult.effectsApplied
-            processingTime = effectsResult.processingTime
-
-            console.log(`✨ Effects applied: ${effectsApplied?.join(', ') || 'none'} (${processingTime?.toFixed(2) || 0}ms)`)
-          } else {
-            console.log('⚠️ Effects processing returned invalid result, using original video')
-            effectsApplied = ['effects-invalid-result']
-            processingTime = 0
-          }
-        } catch (error) {
-          console.error('⚠️ Effects processing failed, using original video:', error)
-          // Continue with original video
-          enhancedVideo = undefined
-          effectsApplied = ['effects-failed']
-          processingTime = 0
-        }
-      } else {
-        console.log('ℹ️ No enhancement settings or metadata - using original video')
-      }
+      
+      console.log('ℹ️ Effects will be applied during export')
 
       // Cleanup
       this.cleanup()
@@ -310,8 +247,6 @@ export class ScreenRecorder {
     this._isRecording = false
     this.streamManager.stopStream()
     this.mediaRecorderManager = null
-    this.effectsProcessor.dispose()
-    this.hardwareEffectsProcessor.dispose()
     this.enhancementSettings = null
     console.log(`🧹 ScreenRecorder[${this.instanceId}] cleaned up`)
   }
@@ -371,10 +306,6 @@ export class ScreenRecorder {
     console.log('📈 Enhancements enabled (simplified mode)')
   }
 
-  // Expose effects processor for progress callbacks
-  getEffectsProcessor() {
-    return this.effectsProcessor
-  }
 
   disableEnhancements(): void {
     this.enhancementSettings = null

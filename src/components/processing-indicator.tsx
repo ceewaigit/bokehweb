@@ -55,25 +55,25 @@ export function ProcessingIndicator({
           <div className="text-2xl font-semibold">
             {getPhaseLabel(phase)}{dots}
           </div>
-          
+
           <Progress value={progress} className="w-full" />
-          
+
           <div className="text-sm text-muted-foreground">
             {progress}% complete
           </div>
-          
+
           {message && (
             <div className="text-sm">
               {message}
             </div>
           )}
-          
+
           {currentFrame !== undefined && totalFrames !== undefined && (
             <div className="text-xs text-muted-foreground">
               Frame {currentFrame} of {totalFrames}
             </div>
           )}
-          
+
           <div className="text-xs text-muted-foreground mt-4">
             Adding Screen Studio effects to your recording...
           </div>

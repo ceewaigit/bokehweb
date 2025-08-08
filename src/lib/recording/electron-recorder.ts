@@ -62,7 +62,7 @@ export class ElectronRecorder {
         }
         throw error
       }
-      
+
       if (!sources || sources.length === 0) {
         throw new Error('No screen sources available. Please check permissions.')
       }

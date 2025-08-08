@@ -5,7 +5,14 @@ import { useRecordingStore } from '@/stores/recording-store'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { ScreenRecorder, type RecordingResult } from '@/lib/recording/screen-recorder'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import type { ProcessingProgress } from '@/lib/recording/effects-processor'
+// Processing progress type
+interface ProcessingProgress {
+  progress: number
+  phase: string
+  message?: string
+  currentFrame?: number
+  totalFrames?: number
+}
 
 // Constants for better maintainability
 const RECORDING_CONSTANTS = {
@@ -66,21 +73,29 @@ export function useRecording() {
     const isPermissionError = errorMessage.toLowerCase().includes('permission')
     
     if (isPermissionError) {
-      console.warn('🔒 Permission error detected - user should refresh page')
-      // TODO: Replace with proper notification system
-      alert(`🎥 Screen Recording Permission Issue
-
-This often happens after code changes in development.
-
-To fix this:
-1. Refresh this page (Cmd/Ctrl + R)
-2. Click "Record" again
-3. Click "Allow" when the browser asks for permission
-
-Alternative: Try a different browser (Chrome works best)`)
+      console.warn('🔒 Permission error detected')
+      
+      // Check if it's our special permission required message
+      if (errorMessage.startsWith('PERMISSION_REQUIRED:')) {
+        // Extract the actual message after the prefix
+        const userMessage = errorMessage.replace('PERMISSION_REQUIRED: ', '')
+        alert(`🔓 Screen Recording Permission\n\n${userMessage}`)
+      } else if (errorMessage.startsWith('PERMISSION_WAITING:')) {
+        // This is the waiting for permission message
+        const userMessage = errorMessage.replace('PERMISSION_WAITING: ', '')
+        alert(`⏳ Waiting for Permission\n\n${userMessage}`)
+      } else if (errorMessage.startsWith('PERMISSION_TIMEOUT:')) {
+        // Permission check timed out
+        const userMessage = errorMessage.replace('PERMISSION_TIMEOUT: ', '')
+        alert(`⏱️ Permission Timeout\n\n${userMessage}`)
+      } else {
+        alert(`🎥 Screen Recording Permission Required\n\nPlease enable screen recording for Screen Studio:\n\n1. System Preferences will open automatically\n2. Check the box next to "Screen Studio"\n3. You may need to restart the app\n4. Then click "Record" again`)
+      }
+    } else if (errorMessage.includes('electron desktopCapturer not available')) {
+      console.error('📹 Electron not available')
+      alert(`⚠️ Desktop Recording Not Available\n\nScreen Studio requires the Electron desktop app for screen recording.\n\nPlease make sure you're running the desktop version of the app.`)
     } else {
       console.error('📹 Recording failed:', errorMessage)
-      // TODO: Replace with proper notification system
       alert(`Failed to start recording: ${errorMessage}`)
     }
   }, [])
@@ -165,13 +180,6 @@ Alternative: Try a different browser (Chrome works best)`)
         console.log('🎨 Enabling Screen Studio effects:', enhancementSettings)
         recorderRef.current.enableEnhancements(enhancementSettings)
         
-        // Set up progress callback for effects processing
-        const effectsProcessor = recorderRef.current.getEffectsProcessor()
-        if (effectsProcessor && effectsProcessor.setProgressCallback) {
-          effectsProcessor.setProgressCallback((progress: ProcessingProgress) => {
-            setProcessingProgress(progress)
-          })
-        }
       }
       
       // Start recording with simplified approach
@@ -266,6 +274,16 @@ Alternative: Try a different browser (Chrome works best)`)
           
           // Also store original video for backup
           const originalVideoUrl = globalBlobManager.create(result.video)
+          
+          // Save metadata to localStorage for cursor rendering
+          if (result.metadata && result.metadata.length > 0) {
+            try {
+              localStorage.setItem(`clip-metadata-${clipId}`, JSON.stringify(result.metadata))
+              console.log(`💾 Saved ${result.metadata.length} metadata events for clip ${clipId}`)
+            } catch (e) {
+              console.error('Failed to save metadata:', e)
+            }
+          }
           
           const clipName = result.enhancedVideo 
             ? `Enhanced Recording ${new Date().toLocaleTimeString()}`

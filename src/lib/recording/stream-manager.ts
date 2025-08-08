@@ -17,23 +17,76 @@ export class StreamManager {
     // Use Electron's desktopCapturer for cross-application screen recording
     if (typeof window !== 'undefined' && window.electronAPI?.getDesktopSources) {
       console.log('🖥️ Using Electron desktopCapturer for full system recording')
-      
+
       // Check screen recording permission first
       const electronAPI = window.electronAPI as ElectronAPI
       if (electronAPI.checkScreenRecordingPermission) {
         try {
           const permissionResult = await electronAPI.checkScreenRecordingPermission()
           console.log('🔍 Screen recording permission status:', permissionResult)
-          
+
           if (!permissionResult.granted) {
-            throw new Error('Screen recording permission denied. Please enable screen recording in System Preferences > Security & Privacy > Privacy > Screen Recording and restart the app.')
+            // Automatically open System Preferences for the user
+            if (electronAPI.requestScreenRecordingPermission) {
+              console.log('🔓 Opening System Preferences to grant permission...')
+              const requestResult = await electronAPI.requestScreenRecordingPermission()
+
+              // Start monitoring for permission changes
+              if (electronAPI.startPermissionMonitoring) {
+                electronAPI.startPermissionMonitoring()
+
+                // Set up a promise that resolves when permission is granted
+                const permissionGrantedPromise = new Promise<void>((resolve, reject) => {
+                  let checkCount = 0
+                  const maxChecks = 30 // Check for 60 seconds max (30 * 2 seconds)
+
+                  const listener = electronAPI.onPermissionStatusChanged?.((event, data) => {
+                    checkCount++
+                    console.log(`🔍 Permission check ${checkCount}/${maxChecks}:`, data)
+
+                    if (data.granted) {
+                      console.log('✅ Permission granted!')
+                      electronAPI.stopPermissionMonitoring?.()
+                      electronAPI.removeAllListeners?.('permission-status-changed')
+                      resolve()
+                    } else if (checkCount >= maxChecks) {
+                      console.log('⏱️ Permission check timeout')
+                      electronAPI.stopPermissionMonitoring?.()
+                      electronAPI.removeAllListeners?.('permission-status-changed')
+                      reject(new Error('PERMISSION_TIMEOUT: Permission was not granted within 60 seconds. Please try again after granting permission.'))
+                    }
+                  })
+
+                  // Also set a hard timeout
+                  setTimeout(() => {
+                    electronAPI.stopPermissionMonitoring?.()
+                    electronAPI.removeAllListeners?.('permission-status-changed')
+                    reject(new Error('PERMISSION_TIMEOUT: Permission check timed out. Please grant permission and try again.'))
+                  }, 65000)
+                })
+
+                // Check if preferences were opened successfully
+                if (requestResult.opened) {
+                  throw new Error('PERMISSION_WAITING: System Preferences opened. Please check the box next to "Screen Studio" and the app will automatically continue when permission is granted.')
+                }
+              }
+
+              // Fallback if monitoring is not available
+              throw new Error('PERMISSION_REQUIRED: Please check the box next to Screen Studio in System Preferences, then click "Record" again.')
+            } else {
+              throw new Error('Screen recording permission denied. Please enable it in System Preferences > Security & Privacy > Privacy > Screen Recording and restart the app.')
+            }
           }
         } catch (permissionError) {
+          // Re-throw if it's our custom permission error
+          if (permissionError instanceof Error && permissionError.message.startsWith('PERMISSION_REQUIRED:')) {
+            throw permissionError
+          }
           console.error('❌ Permission check failed:', permissionError)
           throw new Error('Failed to check screen recording permissions. Please enable screen recording in System Preferences and restart the app.')
         }
       }
-      
+
       const sources = await window.electronAPI.getDesktopSources({
         types: ['screen', 'window'],
         thumbnailSize: { width: 150, height: 150 }
@@ -64,13 +117,13 @@ export class StreamManager {
         }
 
         console.log('🎥 Creating stream with validated constraints:', videoConstraints)
-        
+
         // Use only video for now to avoid audio complications
         this.stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: videoConstraints
         } as any)
-        
+
         console.log('✅ Electron screen capture stream created')
         console.log('📺 Stream details:', {
           id: this.stream.id,
@@ -78,7 +131,7 @@ export class StreamManager {
           videoTracks: this.stream.getVideoTracks().length,
           audioTracks: this.stream.getAudioTracks().length
         })
-        
+
         // Verify the video track is working
         const videoTrack = this.stream.getVideoTracks()[0]
         if (videoTrack) {
@@ -91,7 +144,7 @@ export class StreamManager {
             readyState: videoTrack.readyState
           })
         }
-        
+
       } catch (error) {
         console.error('❌ Screen capture failed:', error)
         const errorMessage = error instanceof Error ? error.message : String(error)

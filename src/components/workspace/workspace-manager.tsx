@@ -7,7 +7,6 @@ import { PreviewArea } from '../preview-area'
 import { Timeline } from '../timeline'
 import { PropertiesPanel } from '../properties-panel'
 import { ExportDialog } from '../export-dialog'
-import { AnimationOverlay } from '../animation-overlay'
 import { WelcomeScreen } from '../welcome-screen'
 import { RecordingController } from './recording-controller'
 import { useTimelineStore } from '@/stores/timeline-store'
@@ -41,8 +40,8 @@ export function WorkspaceManager() {
     console.log('🔍 WorkspaceManager: No project found, showing welcome screen')
     return (
       <>
-        <WelcomeScreen 
-          onOpenProject={() => {}}
+        <WelcomeScreen
+          onOpenProject={() => { }}
           onStartRecording={() => {
             console.log('🔍 WelcomeScreen: Start recording clicked')
             // Create a project if none exists
@@ -61,11 +60,11 @@ export function WorkspaceManager() {
   return (
     <div className="h-screen w-screen flex flex-col bg-background">
       {/* Top Toolbar */}
-      <Toolbar 
+      <Toolbar
         onToggleProperties={handleToggleProperties}
         onExport={handleExport}
       />
-      
+
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Preview and Timeline Area */}
@@ -73,7 +72,7 @@ export function WorkspaceManager() {
           <PreviewArea />
           <Timeline />
         </div>
-        
+
         {/* Properties Panel */}
         <div className={cn(
           "transition-all duration-300 ease-smooth border-l border-border",
@@ -84,15 +83,14 @@ export function WorkspaceManager() {
       </div>
 
       {/* Animation Overlay */}
-      <AnimationOverlay />
 
       {/* Recording Controller */}
       <RecordingController />
 
       {/* Dialogs and Modals */}
-      <ExportDialog 
-        isOpen={isExportOpen} 
-        onClose={handleCloseExport} 
+      <ExportDialog
+        isOpen={isExportOpen}
+        onClose={handleCloseExport}
       />
     </div>
   )

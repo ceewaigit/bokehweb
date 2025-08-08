@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
-import { 
-  Square, 
-  Pause, 
-  Play, 
-  Settings, 
+import {
+  Square,
+  Pause,
+  Play,
+  Settings,
   Minimize2,
   Volume2,
   VolumeX,
@@ -26,12 +26,12 @@ interface RecordingOverlayProps {
   onSettings: () => void
 }
 
-export function RecordingOverlay({ 
-  isVisible, 
-  onStop, 
-  onPause, 
-  onResume, 
-  onSettings 
+export function RecordingOverlay({
+  isVisible,
+  onStop,
+  onPause,
+  onResume,
+  onSettings
 }: RecordingOverlayProps) {
   const [isMinimized, setIsMinimized] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -70,7 +70,7 @@ export function RecordingOverlay({
         <div className="bg-black/95 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
           {isMinimized ? (
             // Ultra-minimal view - just timer and record dot
-            <motion.div 
+            <motion.div
               className="flex items-center space-x-3 px-4 py-2"
               layout
               onClick={() => setIsMinimized(false)}
@@ -84,7 +84,7 @@ export function RecordingOverlay({
             </motion.div>
           ) : (
             // Compact horizontal layout
-            <motion.div 
+            <motion.div
               className="flex items-center space-x-4 px-5 py-3"
               layout
             >

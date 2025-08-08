@@ -5,13 +5,13 @@ import { useTimelineStore } from '@/stores/timeline-store'
 import { useAnimationStore } from '@/stores/animation-store'
 
 export function Timeline() {
-  const { 
-    project, 
-    selectedClips, 
-    currentTime, 
+  const {
+    project,
+    selectedClips,
+    currentTime,
     setCurrentTime,
     selectClip,
-    removeClip 
+    removeClip
   } = useTimelineStore()
 
   // Animation store might not be available, so handle gracefully
@@ -46,7 +46,7 @@ export function Timeline() {
           <span className="text-sm font-medium">Timeline</span>
           <div className="flex-1 relative">
             <div className="w-full h-2 bg-muted rounded">
-              <div 
+              <div
                 className="h-full bg-primary rounded transition-all"
                 style={{ width: `${progress}%` }}
               />
@@ -73,11 +73,11 @@ export function Timeline() {
             key={clip.id}
             className={`
               p-3 rounded border cursor-pointer transition-colors
-              ${selectedClips.includes(clip.id) 
-                ? 'border-primary bg-primary/10' 
+              ${selectedClips.includes(clip.id)
+                ? 'border-primary bg-primary/10'
                 : 'border-border hover:border-primary/50'
               }
-              ${clip.type === 'video' ? 'bg-blue-50' : 
+              ${clip.type === 'video' ? 'bg-blue-50' :
                 clip.type === 'audio' ? 'bg-green-50' : 'bg-purple-50'}
             `}
             onClick={() => selectClip(clip.id, false)}
@@ -101,7 +101,7 @@ export function Timeline() {
             </div>
           </div>
         ))}
-        
+
         {project.clips.length === 0 && (
           <div className="text-center text-muted-foreground py-8">
             No clips in timeline. Start recording to add clips.

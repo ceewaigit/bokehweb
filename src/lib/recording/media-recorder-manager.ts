@@ -13,7 +13,7 @@ export class MediaRecorderManager {
   private startTime = 0
   private _isRecording = false
 
-  constructor(private stream: MediaStream) {}
+  constructor(private stream: MediaStream) { }
 
   async start(settings: RecordingSettings): Promise<void> {
     if (this._isRecording) {
@@ -46,10 +46,10 @@ export class MediaRecorderManager {
         // Use the actual MIME type from the MediaRecorder
         const mimeType = this.mediaRecorder!.mimeType || 'video/webm'
         const video = new Blob(this.chunks, { type: mimeType })
-        
+
         this._isRecording = false
         this.cleanup()
-        
+
         resolve({ video, duration })
       }
 

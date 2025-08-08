@@ -19,6 +19,17 @@ const electronAPI = {
     // Permission checking methods
     checkScreenRecordingPermission: () => ipcRenderer.invoke('check-screen-recording-permission'),
     requestScreenRecordingPermission: () => ipcRenderer.invoke('request-screen-recording-permission'),
+    startPermissionMonitoring: () => ipcRenderer.invoke('start-permission-monitoring'),
+    stopPermissionMonitoring: () => ipcRenderer.invoke('stop-permission-monitoring'),
+    onPermissionStatusChanged: (callback) => {
+      const wrappedCallback = (event, data) => {
+        if (data && typeof data === 'object') {
+          callback(event, data)
+        }
+      }
+      ipcRenderer.on('permission-status-changed', wrappedCallback)
+      return wrappedCallback
+    },
 
     // Mouse tracking methods (for Screen Studio effects)
     startMouseTracking: (options) => {
@@ -140,14 +151,13 @@ const electronAPI = {
       // Validate channel name to prevent abuse
       const allowedChannels = [
         'mouse-move', 'mouse-click', 'recording-started',
-        'recording-stopped', 'recording-error'
+        'recording-stopped', 'recording-error', 'permission-status-changed'
       ]
       if (typeof channel === 'string' && allowedChannels.includes(channel)) {
         ipcRenderer.removeAllListeners(channel)
       }
     }
   }
-}
 
 // Expose the API using contextBridge for security
 try {

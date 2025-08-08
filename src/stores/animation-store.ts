@@ -13,7 +13,7 @@ interface AnimationStore {
   activeAnimations: Map<string, AnimationPlaybackControls>
   isPlaying: boolean
   currentTime: number
-  
+
   // Core actions
   addAnimation: (animation: Animation) => void
   removeAnimation: (id: string) => void
@@ -22,7 +22,7 @@ interface AnimationStore {
   pause: () => void
   stop: () => void
   seek: (time: number) => void
-  
+
   // Direct Framer Motion helpers
   animateElement: (selector: string, properties: any, options?: any) => void
   addSmoothZoom: (target: string, duration: number, endZoom: number) => void
@@ -36,13 +36,13 @@ export const useAnimationStore = create<AnimationStore>((set, get) => ({
   activeAnimations: new Map(),
   isPlaying: false,
   currentTime: 0,
-  
+
   addAnimation: (animation) => {
     set((state) => ({
       animations: [...state.animations, animation]
     }))
   },
-  
+
   removeAnimation: (id) => {
     const state = get()
     const controls = state.activeAnimations.get(id)
@@ -50,13 +50,13 @@ export const useAnimationStore = create<AnimationStore>((set, get) => ({
       controls.stop()
       state.activeAnimations.delete(id)
     }
-    
+
     set((state) => ({
       animations: state.animations.filter(anim => anim.id !== id),
       activeAnimations: new Map(state.activeAnimations)
     }))
   },
-  
+
   updateAnimation: (id, updates) => {
     set((state) => ({
       animations: state.animations.map(anim =>
@@ -64,32 +64,32 @@ export const useAnimationStore = create<AnimationStore>((set, get) => ({
       )
     }))
   },
-  
+
   play: () => {
     const state = get()
     state.activeAnimations.forEach(controls => controls.play())
     set({ isPlaying: true })
   },
-  
+
   pause: () => {
     const state = get()
     state.activeAnimations.forEach(controls => controls.pause())
     set({ isPlaying: false })
   },
-  
+
   stop: () => {
     const state = get()
     state.activeAnimations.forEach(controls => controls.stop())
     set({ isPlaying: false, currentTime: 0 })
   },
-  
+
   seek: (time) => {
     const state = get()
     const clampedTime = Math.max(0, time) // Clamp to 0 or higher
     state.activeAnimations.forEach(controls => controls.seek(clampedTime))
     set({ currentTime: clampedTime })
   },
-  
+
   // Direct Framer Motion helpers
   animateElement: (selector, properties, options = {}) => {
     // Basic implementation - can be enhanced with actual Framer Motion integration
@@ -101,7 +101,7 @@ export const useAnimationStore = create<AnimationStore>((set, get) => ({
       }
     }
   },
-  
+
   addSmoothZoom: (target, duration, endZoom) => {
     const animation: Animation = {
       id: `zoom-${Date.now()}`,
@@ -114,7 +114,7 @@ export const useAnimationStore = create<AnimationStore>((set, get) => ({
     }
     get().addAnimation(animation)
   },
-  
+
   addCursorHighlight: (duration) => {
     const animation: Animation = {
       id: `cursor-highlight-${Date.now()}`,
@@ -129,7 +129,7 @@ export const useAnimationStore = create<AnimationStore>((set, get) => ({
     }
     get().addAnimation(animation)
   },
-  
+
   addClickRipple: (target, duration) => {
     const animation: Animation = {
       id: `click-ripple-${Date.now()}`,
@@ -143,7 +143,7 @@ export const useAnimationStore = create<AnimationStore>((set, get) => ({
     }
     get().addAnimation(animation)
   },
-  
+
   addFadeTransition: (target, duration) => {
     const animation: Animation = {
       id: `fade-${Date.now()}`,

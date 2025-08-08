@@ -95,7 +95,7 @@ export class MetadataCollector {
       document.addEventListener('click', handleClick)
       document.addEventListener('keydown', handleKeyDown)
     }
-    
+
     if (typeof window !== 'undefined') {
       window.addEventListener('scroll', handleScroll)
     }

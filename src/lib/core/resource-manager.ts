@@ -7,7 +7,7 @@ export class ResourceManager {
   private namedCleanups = new Map<string, () => void>()
   private disposed = false
 
-  constructor(private onError?: (error: Error, id?: string) => void) {}
+  constructor(private onError?: (error: Error, id?: string) => void) { }
 
   register(cleanup: () => void, identifier?: string): () => void {
     if (this.disposed) {

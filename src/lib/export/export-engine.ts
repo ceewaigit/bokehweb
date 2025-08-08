@@ -21,7 +21,7 @@ export class ExportEngine {
 
     try {
       const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
-      
+
       await this.ffmpeg.load({
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
@@ -79,7 +79,7 @@ export class ExportEngine {
       // Clamp progress between 0 and 100 to prevent negative percentages
       const validProgress = Math.max(0, Math.min(100, progress || 0))
       const overallProgress = 40 + (validProgress * 0.01) * 50 // Maps 0-100% to 40-90%
-      
+
       onProgress?.({
         progress: Math.round(overallProgress),
         stage: 'encoding',
@@ -102,7 +102,7 @@ export class ExportEngine {
   }
 
   async exportAsGIF(
-    project: Project, 
+    project: Project,
     settings: ExportSettings,
     onProgress?: (progress: ExportProgress) => void
   ): Promise<Blob> {
@@ -132,7 +132,7 @@ export class ExportEngine {
             { name: 'All Files', extensions: ['*'] }
           ]
         })
-        
+
         if (!result.canceled && result.filePath) {
           // Convert blob to buffer and save via IPC
           const buffer = await blob.arrayBuffer()
@@ -140,7 +140,7 @@ export class ExportEngine {
             Array.from(new Uint8Array(buffer)),
             result.filePath
           )
-          
+
           if (saveResult.success) {
             console.log('✅ File saved via Electron:', result.filePath)
             return
@@ -152,7 +152,7 @@ export class ExportEngine {
         console.error('Failed to save via Electron, falling back to browser download:', error)
       }
     }
-    
+
     // Fallback to browser download
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -208,7 +208,7 @@ export class ExportEngine {
   }
 
   static isSupported(): boolean {
-    return typeof SharedArrayBuffer !== 'undefined' && 
-           typeof WebAssembly !== 'undefined'
+    return typeof SharedArrayBuffer !== 'undefined' &&
+      typeof WebAssembly !== 'undefined'
   }
 }
