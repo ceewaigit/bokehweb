@@ -303,6 +303,11 @@ app.whenReady().then(async () => {
       console.log('⚠️ Force showing record button (ready-to-show did not fire)')
       recordButton.show()
       recordButton.focus()
+      
+      // Open dev tools in production to see errors
+      if (!isDev) {
+        recordButton.webContents.openDevTools({ mode: 'detach' })
+      }
     }
   }, 2000)
   
@@ -313,6 +318,26 @@ app.whenReady().then(async () => {
   
   recordButton.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
     console.error('❌ Failed to load record button:', errorCode, errorDescription)
+  })
+  
+  // Handle renderer crashes
+  recordButton.webContents.on('render-process-gone', (event, details) => {
+    console.error('💥 Renderer process crashed:', details)
+    console.error('Crash reason:', details.reason)
+    
+    // Try to reload the window
+    setTimeout(() => {
+      console.log('🔄 Attempting to reload record button...')
+      recordButton.reload()
+    }, 1000)
+  })
+  
+  // Prevent navigation away from the app
+  recordButton.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('file://') && !url.startsWith('app://') && !url.startsWith('data:')) {
+      console.log('🚫 Preventing navigation to:', url)
+      event.preventDefault()
+    }
   })
 
   app.on('activate', () => {
