@@ -8,12 +8,44 @@ let mouseTrackingInterval = null
 let mouseEventSender = null
 let isMouseTracking = false
 
+// Create a floating record button overlay window
+function createRecordButton() {
+  const recordButton = new BrowserWindow({
+    width: 60,
+    height: 60,
+    x: screen.getPrimaryDisplay().workAreaSize.width - 80,
+    y: 20,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
+  })
+
+  recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  recordButton.setAlwaysOnTop(true, 'floating', 1)
+  recordButton.setIgnoreMouseEvents(false)
+  
+  return recordButton
+}
+
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 800,
+    show: false, // Start hidden, show when recording stops
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -33,7 +65,6 @@ function createWindow() {
       height: 40
     },
     frame: true,
-    show: false,
     trafficLightPosition: { x: 20, y: 20 }
   })
 
@@ -133,13 +164,55 @@ app.whenReady().then(async () => {
   
   // Mouse tracker will be initialized on demand when needed
   
+  // Create the main window (hidden initially)
   const mainWindow = createWindow()
+  global.mainWindow = mainWindow
+  
+  // Create the floating record button
+  const recordButton = createRecordButton()
+  global.recordButton = recordButton
+  
+  // Load the appropriate URLs
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:3000')
+    recordButton.loadURL('http://localhost:3000/record-button')
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '../out/index.html'))
+    recordButton.loadFile(path.join(__dirname, '../out/record-button.html'))
+  }
+  
+  // Show the record button immediately
+  recordButton.once('ready-to-show', () => {
+    recordButton.show()
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
+      createRecordButton()
     }
   })
+})
+
+// IPC handler to show/hide main window
+ipcMain.handle('show-main-window', () => {
+  if (global.mainWindow) {
+    global.mainWindow.show()
+    global.mainWindow.focus()
+  }
+})
+
+ipcMain.handle('hide-main-window', () => {
+  if (global.mainWindow) {
+    global.mainWindow.hide()
+  }
+})
+
+// IPC handler to toggle recording state
+ipcMain.handle('toggle-recording', () => {
+  if (global.mainWindow) {
+    global.mainWindow.webContents.send('toggle-recording')
+  }
 })
 
 // Enable Chrome logging for debugging

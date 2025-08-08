@@ -94,29 +94,14 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
         </>
       )}
       
-      {/* Recording Controls */}
+      {/* Recording Status Only (controls via floating button) */}
       <div className="flex items-center space-sm">
-        <Button
-          onClick={handleRecord}
-          variant={isRecording ? "destructive" : "default"}
-          size="sm"
-          className={cn(
-            "transition-all",
-            isRecording && "animate-pulse"
-          )}
-        >
-          <Monitor className="w-4 h-4 mr-2" />
-          {isRecording ? 'Stop Recording' : 'Record'}
-        </Button>
-        
-        {isRecording && (
-          <Button
-            onClick={handlePause}
-            variant="outline"
-            size="sm"
-          >
-            {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-          </Button>
+        {/* Show Screen Studio branding when idle */}
+        {status === 'idle' && !project?.clips.length && (
+          <div className="flex items-center space-x-2">
+            <Monitor className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">Screen Studio</span>
+          </div>
         )}
 
         {/* Recording Duration */}
@@ -130,9 +115,19 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
         {status !== 'idle' && (
           <Badge 
             variant={status === 'recording' ? 'destructive' : 'secondary'}
-            className="capitalize"
+            className={cn(
+              "capitalize",
+              status === 'recording' && "animate-pulse"
+            )}
           >
             {status === 'processing' ? 'Saving...' : status}
+          </Badge>
+        )}
+        
+        {/* Show clip count when not recording */}
+        {!isRecording && project?.clips.length > 0 && (
+          <Badge variant="outline">
+            {project.clips.length} clip{project.clips.length !== 1 ? 's' : ''}
           </Badge>
         )}
       </div>

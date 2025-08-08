@@ -72,6 +72,15 @@ const electronAPI = {
     // System information
     getPlatform: () => ipcRenderer.invoke('get-platform'),
     getScreens: () => ipcRenderer.invoke('get-screens'),
+    
+    // Main window control
+    showMainWindow: () => ipcRenderer.invoke('show-main-window'),
+    hideMainWindow: () => ipcRenderer.invoke('hide-main-window'),
+    toggleRecording: () => ipcRenderer.invoke('toggle-recording'),
+    onRecordingStateChanged: (callback) => {
+      ipcRenderer.on('recording-state-changed', callback)
+      return () => ipcRenderer.removeListener('recording-state-changed', callback)
+    },
 
     // File dialogs
     showSaveDialog: (options) => {

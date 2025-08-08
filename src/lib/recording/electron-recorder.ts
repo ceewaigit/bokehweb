@@ -67,8 +67,19 @@ export class ElectronRecorder {
         throw new Error('No screen sources available. Please check permissions.')
       }
 
-      // Use the primary display (first source)
-      const primarySource = sources[0]
+      // Find the "Entire screen" source - this is what Screen Studio uses
+      let primarySource = sources.find((s: any) => 
+        s.id.startsWith('screen:') || 
+        s.name.toLowerCase().includes('entire screen') ||
+        s.name.toLowerCase().includes('screen 1')
+      )
+      
+      // Fallback to last source (usually the entire screen)
+      if (!primarySource) {
+        console.warn('⚠️ Could not find entire screen source, using last available source')
+        primarySource = sources[sources.length - 1]
+      }
+      
       console.log(`📺 Using screen source: ${primarySource.name} (${primarySource.id})`)
 
       // Check and request screen recording permission first
