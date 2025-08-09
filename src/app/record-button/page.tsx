@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
 import { useRecordingStore } from '@/stores/recording-store'
-import styles from './record-button.module.css'
 import {
   Mic,
   MicOff,
@@ -33,7 +32,7 @@ export default function RecordingDock() {
 
   // Base window dimensions
   const BASE_WIDTH = 700
-  const BASE_HEIGHT = 100
+  const BASE_HEIGHT = 150
   const EXPANDED_HEIGHT = 250 // Height when dropdown is open
 
   // Use the centralized recording hook and store
@@ -175,12 +174,12 @@ export default function RecordingDock() {
             ${isRecording ? 'ring-2 ring-red-500/50' : ''}
           `}>
             {/* Drag Handle Area */}
-            <div className={`${styles.dragRegion} flex items-center justify-center py-2 cursor-move`}>
+            <div className={`drag-region flex items-center justify-center py-2 cursor-move`}>
               <GripHorizontal className="text-white/30" size={20} />
             </div>
 
             {/* Controls Container - Make buttons non-draggable */}
-            <div className={`${styles.noDragRegion} flex items-center gap-1 px-2 pb-1.5`}>
+            <div className={`no-drag flex items-center gap-1 px-2 pb-1.5`}>
               {!isRecording ? (
                 <>
                   {/* Settings Button */}

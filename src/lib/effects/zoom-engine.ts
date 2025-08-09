@@ -337,23 +337,32 @@ export class ZoomEngine {
 
   applyZoomToCanvas(
     ctx: CanvasRenderingContext2D,
-    video: HTMLVideoElement,
+    source: HTMLVideoElement | HTMLCanvasElement,
     zoom: { x: number; y: number; scale: number }
   ) {
     const { width, height } = ctx.canvas
+
+    // Determine source dimensions
+    const sourceWidth = source instanceof HTMLVideoElement ? source.videoWidth : source.width
+    const sourceHeight = source instanceof HTMLVideoElement ? source.videoHeight : source.height
+
+    if (!sourceWidth || !sourceHeight) {
+      // Nothing to draw yet
+      return
+    }
 
     // Calculate the zoomed region
     const zoomWidth = width / Math.max(zoom.scale, 1)
     const zoomHeight = height / Math.max(zoom.scale, 1)
 
-    // Calculate source coordinates (ensuring we stay within video bounds)
-    const sx = Math.max(0, Math.min(video.videoWidth - zoomWidth, zoom.x * video.videoWidth - zoomWidth / 2))
-    const sy = Math.max(0, Math.min(video.videoHeight - zoomHeight, zoom.y * video.videoHeight - zoomHeight / 2))
+    // Calculate source coordinates (ensuring we stay within bounds)
+    const sx = Math.max(0, Math.min(sourceWidth - zoomWidth, zoom.x * sourceWidth - zoomWidth / 2))
+    const sy = Math.max(0, Math.min(sourceHeight - zoomHeight, zoom.y * sourceHeight - zoomHeight / 2))
 
     // Clear and draw the zoomed portion
     ctx.clearRect(0, 0, width, height)
     ctx.drawImage(
-      video,
+      source as CanvasImageSource,
       sx, sy, zoomWidth, zoomHeight,  // Source rectangle
       0, 0, width, height              // Destination rectangle
     )
