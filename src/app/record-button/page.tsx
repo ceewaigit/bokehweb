@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
 import { useRecordingStore } from '@/stores/recording-store'
+import { formatTime } from '@/lib/utils'
 import {
   Mic,
   MicOff,
@@ -124,14 +125,7 @@ export default function RecordingDock() {
     await window.electronAPI?.openWorkspace?.()
   }
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-
-  // Convert duration from milliseconds to seconds for display
-  const displayDuration = Math.floor(duration / 1000)
+  // Duration is already in milliseconds, formatTime expects milliseconds
 
   return (
     <>
@@ -282,7 +276,7 @@ export default function RecordingDock() {
                   <div className="flex items-center gap-2 px-3">
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                     <span className="text-white font-medium tabular-nums">
-                      {formatDuration(displayDuration)}
+                      {formatTime(duration)}
                     </span>
                   </div>
 

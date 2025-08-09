@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Clip } from '@/types/project'
+import { VideoThumbnail } from './video-thumbnail'
 
 interface TimelineEditorProps {
   className?: string
@@ -510,8 +511,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         <div
           key={clip.id}
           className={cn(
-            "absolute top-1 bottom-1 rounded cursor-move transition-all",
-            trackType === 'video' ? "bg-blue-500" : "bg-green-500",
+            "absolute top-1 bottom-1 rounded cursor-move transition-all overflow-hidden",
+            trackType === 'video' ? "bg-blue-900/50" : "bg-green-900/50",
             isSelected && "ring-2 ring-primary ring-offset-1",
             isDragging && draggedClip === clip.id && "opacity-50"
           )}
@@ -532,9 +533,39 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           }}
           onContextMenu={(e) => handleContextMenu(e, clip.id)}
         >
-          <div className="px-2 py-1 text-xs text-white truncate">
-            {clip.id}
-          </div>
+          {trackType === 'video' ? (
+            <div className="relative w-full h-full">
+              {/* Video thumbnail strip */}
+              <div className="absolute inset-0 flex">
+                {/* Generate multiple thumbnails across the clip */}
+                {Array.from({ length: Math.min(5, Math.max(1, Math.floor(clipWidth / 60))) }).map((_, i, arr) => {
+                  const thumbTimestamp = clip.sourceIn + (clip.sourceOut - clip.sourceIn) * (i / arr.length)
+                  return (
+                    <div key={i} className="flex-1 h-full">
+                      <VideoThumbnail
+                        recordingId={clip.recordingId}
+                        width={Math.max(80, clipWidth / arr.length)}
+                        height={80}
+                        timestamp={thumbTimestamp}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Overlay with clip info */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+              <div className="absolute bottom-0 left-0 right-0 px-2 py-1">
+                <div className="text-xs text-white truncate font-medium">
+                  Clip {clip.id.slice(-4)}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="px-2 py-1 text-xs text-white truncate">
+              Audio {clip.id.slice(-4)}
+            </div>
+          )}
         </div>
       )
     })
@@ -673,25 +704,25 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       {/* Timeline Area */}
       <div
         ref={timelineRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative"
+        className="flex-1 overflow-x-auto overflow-y-auto relative min-h-0"
         onClick={handleTimelineClick}
       >
-        <div className="relative h-full" style={{ width: `${timelineWidth}px` }}>
+        <div className="relative min-h-full" style={{ width: `${Math.max(timelineWidth, 800)}px`, minWidth: '100%' }}>
           {/* Ruler */}
-          <div className="h-8 border-b border-border relative">
+          <div className="h-8 border-b border-border relative sticky top-0 bg-background z-10">
             {renderRuler()}
           </div>
 
           {/* Tracks */}
-          <div className="flex-1">
+          <div className="relative">
             {/* Video Track */}
             <div
-              className="h-20 border-b border-border relative bg-muted/20"
+              className="h-24 border-b border-border relative bg-muted/20"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleClipDrop(e, 0)}
             >
-              <div className="absolute left-0 top-0 bottom-0 w-20 bg-background border-r border-border flex items-center justify-center">
-                <span className="text-xs text-muted-foreground">Video</span>
+              <div className="absolute left-0 top-0 bottom-0 w-20 bg-background border-r border-border flex items-center justify-center sticky left-0 z-10">
+                <span className="text-xs text-muted-foreground font-medium">Video</span>
               </div>
               <div className="ml-20 relative h-full">
                 {renderTrackClips(0, 'video')}
@@ -701,17 +732,20 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
 
             {/* Audio Track */}
             <div
-              className="h-20 border-b border-border relative bg-muted/10"
+              className="h-16 border-b border-border relative bg-muted/10"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleClipDrop(e, 1)}
             >
-              <div className="absolute left-0 top-0 bottom-0 w-20 bg-background border-r border-border flex items-center justify-center">
-                <span className="text-xs text-muted-foreground">Audio</span>
+              <div className="absolute left-0 top-0 bottom-0 w-20 bg-background border-r border-border flex items-center justify-center sticky left-0 z-10">
+                <span className="text-xs text-muted-foreground font-medium">Audio</span>
               </div>
               <div className="ml-20 relative h-full">
                 {renderTrackClips(1, 'audio')}
               </div>
             </div>
+            
+            {/* Add more space for future tracks */}
+            <div className="h-12 bg-muted/5" />
           </div>
 
           {/* Playhead */}

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { Film, Play, Trash2, Edit3, Calendar, Clock, HardDrive, FileJson } from 'lucide-react'
 import { Button } from './ui/button'
 import { formatDistanceToNow } from 'date-fns'
-import { cn } from '@/lib/utils'
+import { cn, formatTime } from '@/lib/utils'
 import { loadProject, type Project } from '@/types/project'
 
 interface Recording {
@@ -84,10 +84,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     return '~50 MB'
   }
 
-  const formatDuration = (path: string) => {
-    // This would need actual duration from video metadata
-    return '2:34'
-  }
 
   if (loading) {
     return (
@@ -179,8 +175,8 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   {/* Duration badge */}
                   <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur-sm text-foreground text-xs px-2.5 py-1.5 rounded-md font-medium shadow-lg">
                     {recording.project?.timeline?.duration
-                      ? `${Math.floor(recording.project.timeline.duration / 60000)}:${String(Math.floor((recording.project.timeline.duration % 60000) / 1000)).padStart(2, '0')}`
-                      : formatDuration(recording.path)
+                      ? formatTime(recording.project.timeline.duration)
+                      : '0:00'
                     }
                   </div>
 
