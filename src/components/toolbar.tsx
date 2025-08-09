@@ -25,7 +25,6 @@ import { Separator } from './ui/separator'
 import { Badge } from './ui/badge'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useTimelineStore } from '@/stores/timeline-store'
-// Remove direct recording control - delegate to RecordingController
 import { cn, formatTime } from '@/lib/utils'
 
 interface ToolbarProps {

@@ -2,7 +2,6 @@ export interface ElectronAPI {
   // Desktop capture
   getDesktopSources: (options: any) => Promise<any[]>
   getDesktopStream?: (sourceId: string, hasAudio?: boolean) => Promise<any>
-  getSources?: () => Promise<any[]>
   
   // Permission checking
   checkScreenRecordingPermission: () => Promise<{ status: string; granted: boolean }>

@@ -1,19 +1,6 @@
 const { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen } = require('electron')
 
 function registerSourceHandlers() {
-  // Legacy handler
-  ipcMain.handle('get-sources', async () => {
-    try {
-      const sources = await desktopCapturer.getSources({
-        types: ['window', 'screen'],
-        thumbnailSize: { width: 300, height: 200 }
-      })
-      return sources
-    } catch (error) {
-      console.error('Error getting sources:', error)
-      return []
-    }
-  })
 
   // CRITICAL FIX: Return constraints that work with all Electron versions
   ipcMain.handle('get-desktop-stream', async (event, sourceId, hasAudio = false) => {

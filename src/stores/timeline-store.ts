@@ -195,43 +195,43 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
 
     splitClip: (clipId, splitTime) => set((state) => {
       if (!state.project) return state
-      
+
       const clip = state.project.clips.find(c => c.id === clipId)
       if (!clip) return state
-      
+
       // Ensure split time is within clip bounds
       if (splitTime <= clip.startTime || splitTime >= clip.startTime + clip.duration) {
         return state
       }
-      
+
       const splitPoint = splitTime - clip.startTime
-      
+
       // Create two new clips
       const firstClip: TimelineClip = {
         ...clip,
         id: `${clip.id}-split1-${Date.now()}`,
         duration: splitPoint
       }
-      
+
       const secondClip: TimelineClip = {
         ...clip,
         id: `${clip.id}-split2-${Date.now()}`,
         startTime: splitTime,
         duration: clip.duration - splitPoint
       }
-      
+
       // Remove original and add new clips
       const updatedClips = state.project.clips
         .filter(c => c.id !== clipId)
         .concat([firstClip, secondClip])
         .sort((a, b) => a.startTime - b.startTime)
-      
+
       const updatedProject = {
         ...state.project,
         clips: updatedClips,
         updatedAt: new Date()
       }
-      
+
       // Auto-save
       if (typeof window !== 'undefined') {
         const existingProjects = parseProjectData(localStorage.getItem('screenstudio-projects') || '[]')
@@ -241,8 +241,8 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
           localStorage.setItem('screenstudio-projects', JSON.stringify(existingProjects))
         }
       }
-      
-      return { 
+
+      return {
         project: updatedProject,
         selectedClips: [secondClip.id]
       }
@@ -250,29 +250,29 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
 
     trimClipStart: (clipId, newStartTime) => set((state) => {
       if (!state.project) return state
-      
+
       const clip = state.project.clips.find(c => c.id === clipId)
       if (!clip) return state
-      
+
       // Ensure new start time is valid
       if (newStartTime >= clip.startTime + clip.duration || newStartTime < 0) {
         return state
       }
-      
+
       const trimAmount = newStartTime - clip.startTime
-      
+
       const updatedClips = state.project.clips.map(c =>
         c.id === clipId
           ? { ...c, startTime: newStartTime, duration: c.duration - trimAmount }
           : c
       )
-      
+
       const updatedProject = {
         ...state.project,
         clips: updatedClips,
         updatedAt: new Date()
       }
-      
+
       // Auto-save
       if (typeof window !== 'undefined') {
         const existingProjects = parseProjectData(localStorage.getItem('screenstudio-projects') || '[]')
@@ -282,35 +282,35 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
           localStorage.setItem('screenstudio-projects', JSON.stringify(existingProjects))
         }
       }
-      
+
       return { project: updatedProject }
     }),
 
     trimClipEnd: (clipId, newEndTime) => set((state) => {
       if (!state.project) return state
-      
+
       const clip = state.project.clips.find(c => c.id === clipId)
       if (!clip) return state
-      
+
       // Ensure new end time is valid
       if (newEndTime <= clip.startTime || newEndTime < 0) {
         return state
       }
-      
+
       const newDuration = newEndTime - clip.startTime
-      
+
       const updatedClips = state.project.clips.map(c =>
         c.id === clipId
           ? { ...c, duration: newDuration }
           : c
       )
-      
+
       const updatedProject = {
         ...state.project,
         clips: updatedClips,
         updatedAt: new Date()
       }
-      
+
       // Auto-save
       if (typeof window !== 'undefined') {
         const existingProjects = parseProjectData(localStorage.getItem('screenstudio-projects') || '[]')
@@ -320,23 +320,23 @@ export const useTimelineStore = create<TimelineStore>((set, get) => {
           localStorage.setItem('screenstudio-projects', JSON.stringify(existingProjects))
         }
       }
-      
+
       return { project: updatedProject }
     }),
 
     duplicateClip: (clipId) => {
       const state = get()
       if (!state.project) return null
-      
+
       const clip = state.project.clips.find(c => c.id === clipId)
       if (!clip) return null
-      
+
       const newClip: TimelineClip = {
         ...clip,
         id: `${clip.id}-copy-${Date.now()}`,
         startTime: clip.startTime + clip.duration + 100 // Add small gap
       }
-      
+
       state.addClip(newClip)
       return newClip.id
     }
