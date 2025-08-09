@@ -184,7 +184,7 @@ export function PreviewArea() {
       zoomCanvas.style.maxHeight = '100%'
       zoomCanvas.style.borderRadius = '0.5rem'
       zoomCanvas.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-      containerRef.current.insertBefore(zoomCanvas, containerRef.current.firstChild)
+      containerRef.current.appendChild(zoomCanvas)
         // Store the reference using a mutable ref pattern
         ; (zoomCanvasRef as any).current = zoomCanvas
     }
@@ -355,7 +355,8 @@ export function PreviewArea() {
               
               <video
                 ref={videoRef}
-                className="relative max-w-full max-h-full rounded-xl shadow-2xl ring-1 ring-border/20 backdrop-blur-sm"
+                className="relative rounded-xl shadow-2xl ring-1 ring-border/20 backdrop-blur-sm"
+                style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }}
                 controls={false}
                 playsInline
                 onTimeUpdate={(e) => {
