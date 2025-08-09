@@ -125,6 +125,12 @@ Desktop.ini
 # Electron
 dist/
 out/
+electron/dist/
+
+# Electron Forge
+.webpack/
+out-*
+.forge/
 
 # Local settings
 .claude/settings.local.json

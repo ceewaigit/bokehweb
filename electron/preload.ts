@@ -54,18 +54,32 @@ interface OpenDialogOptions {
 }
 
 const electronAPI = {
-  // Desktop capture - with proper constraint format
+  // Desktop capture - properly use IPC with error handling
   getDesktopSources: async (options?: DesktopSourceOptions): Promise<DesktopSource[]> => {
-    // WORKAROUND: Skip IPC entirely to avoid Electron bug
-    // Return hardcoded screen source that will work with getUserMedia
-    console.log('🎥 Preload: Returning hardcoded screen source to avoid IPC bug')
-
-    // Just return a basic screen source - the actual capture happens via getUserMedia
-    return Promise.resolve([{
-      id: 'screen:1:0',
-      name: 'Entire screen',
-      display_id: 1
-    }])
+    try {
+      console.log('🎥 Preload: Requesting desktop sources via IPC')
+      const sources = await ipcRenderer.invoke('get-desktop-sources', options)
+      
+      if (!sources || sources.length === 0) {
+        console.warn('No desktop sources returned from main process')
+        // Fallback to a default screen source if IPC fails
+        return [{
+          id: 'screen:1:0',
+          name: 'Entire screen',
+          display_id: 1
+        }]
+      }
+      
+      return sources
+    } catch (error) {
+      console.error('Failed to get desktop sources:', error)
+      // Fallback to default screen source on error
+      return [{
+        id: 'screen:1:0',
+        name: 'Entire screen', 
+        display_id: 1
+      }]
+    }
   },
 
   getDesktopStream: (sourceId: string, hasAudio: boolean) => {

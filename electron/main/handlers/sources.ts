@@ -78,23 +78,52 @@ export function registerSourceHandlers(): void {
         }
       }
 
-      // WORKAROUND: Return hardcoded screen source to avoid desktopCapturer IPC bug
-      // The actual screen ID will be determined when getUserMedia is called
-      console.log('🎥 Bypassing desktopCapturer due to IPC bug - returning hardcoded screen source')
-
-      // Get the primary display info
-      const primaryDisplay = screen.getPrimaryDisplay()
-      const allDisplays = screen.getAllDisplays()
-
-      // Return hardcoded sources based on available displays
-      const mappedSources = allDisplays.map((display, index) => ({
-        id: `screen:${display.id}:0`,
-        name: index === 0 ? 'Entire screen' : `Screen ${index + 1}`,
-        display_id: display.id
-      }))
-
-      console.log('📺 Returning screen sources:', mappedSources.map(s => `${s.name} (${s.id})`))
-      return mappedSources
+      // Use desktopCapturer properly with error handling
+      console.log('🎥 Getting desktop sources via desktopCapturer')
+      
+      const types = options.types || ['screen', 'window']
+      const thumbnailSize = options.thumbnailSize || { width: 150, height: 150 }
+      
+      try {
+        const sources = await desktopCapturer.getSources({
+          types: types as any,
+          thumbnailSize: thumbnailSize,
+          fetchWindowIcons: false
+        })
+        
+        console.log(`📺 Found ${sources.length} sources`)
+        
+        // Map the sources to our format
+        const mappedSources = sources.map(source => ({
+          id: source.id,
+          name: source.name,
+          display_id: source.display_id,
+          thumbnail: source.thumbnail?.toDataURL() || undefined
+        }))
+        
+        // If no sources found, return at least the primary screen
+        if (mappedSources.length === 0) {
+          console.warn('No sources found, returning default screen')
+          const primaryDisplay = screen.getPrimaryDisplay()
+          return [{
+            id: `screen:${primaryDisplay.id}:0`,
+            name: 'Entire screen',
+            display_id: primaryDisplay.id
+          }]
+        }
+        
+        console.log('📺 Returning sources:', mappedSources.map(s => `${s.name} (${s.id})`))
+        return mappedSources
+      } catch (captureError) {
+        console.error('desktopCapturer failed:', captureError)
+        // Fallback to screen info if desktopCapturer fails
+        const allDisplays = screen.getAllDisplays()
+        return allDisplays.map((display, index) => ({
+          id: `screen:${display.id}:0`,
+          name: index === 0 ? 'Entire screen' : `Screen ${index + 1}`,
+          display_id: display.id
+        }))
+      }
 
     } catch (error: any) {
       console.error('❌ Error getting desktop sources:', error)
