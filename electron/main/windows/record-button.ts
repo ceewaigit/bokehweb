@@ -29,28 +29,31 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    width: 700,
-    height: 100,
-    x: Math.floor(display.workAreaSize.width / 2 - 300),
+    width: 800,
+    height: 80,
+    x: Math.floor(display.workAreaSize.width / 2 - 400),
     y: 20,
     frame: false,
-    transparent: !isDev,
+    transparent: true,
     alwaysOnTop: true,
     resizable: false,
     movable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    skipTaskbar: !isDev,
+    skipTaskbar: true,
     hasShadow: false,
     roundedCorners: true,
     show: false,
+    backgroundColor: '#00000000',
+    vibrancy: 'under-window',
+    visualEffectState: 'active',
     webPreferences: {
       nodeIntegration: isDev,
       contextIsolation: !isDev,
       preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
       webSecurity: false,
-      devTools: true,
+      devTools: isDev,
       backgroundThrottling: false
     }
   })
