@@ -3,32 +3,13 @@
 Build a complete 1:1 Screen Studio clone with all professional features.
 IMPORTANT: YOUR CODE SHOULD BE STREAMLINED BUT NOT OVERLY COMPLEX. AIM FOR A BALANCED APPROACH THAT PRIORITIZES FUNCTIONALITY AND USER EXPERIENCE. REMEMBER, THIS IS A PROFESSIONAL TOOL, SO IT SHOULD BE POLISHED AND EFFICIENT AND PRODUCTION READY. HOWEVER, DO NOT OVER-ENGINEER; KEEP IT SIMPLE AND EFFECTIVE.
 
-## ⚠️ CRITICAL: Electron Recording Constraints
-**MUST use `mandatory` format for getUserMedia or recording will crash:**
-```javascript
-// ✅ CORRECT - Use this format
-video: {
-  mandatory: {
-    chromeMediaSource: 'desktop',
-    chromeMediaSourceId: source.id
-  }
-}
-
-// ❌ WRONG - This crashes Electron
-video: {
-  deviceId: { exact: source.id },
-  mediaStreamSource: { exact: 'desktop' }
-}
-```
-**ALWAYS run `node test-constraints.js` after modifying recording code!**
-
-## Tech Stack
-- **Frontend**: Next.js 14 + React + TypeScript
-- **Desktop**: Electron for native capabilities  
-- **UI**: shadcn/ui + Tailwind CSS
-- **State**: Zustand
-- **Video**: FFmpeg.wasm + Canvas API + WebCodecs
-- **Effects**: WebGL for GPU acceleration
+## 🚨 PRODUCTION REQUIREMENTS
+**ALL code must work in PRODUCTION (packaged .dmg/.exe):**
+- NO external servers or localhost dependencies
+- Electron must serve the Next.js app internally via webpack
+- All assets must be bundled with the app
+- Test with `npm run make` to create distributable
+- NEVER assume dev server is running
 
 ## Required Features (ALL MUST WORK)
 
