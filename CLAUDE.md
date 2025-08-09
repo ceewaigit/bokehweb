@@ -10,6 +10,7 @@ IMPORTANT: YOUR CODE SHOULD BE STREAMLINED BUT NOT OVERLY COMPLEX. AIM FOR A BAL
 - All assets must be bundled with the app
 - Test with `npm run make` to create distributable
 - NEVER assume dev server is running
+- NO FALLBACKS that hide real issues - fix root causes
 
 ## ⚡ CRITICAL WEBPACK CONFIG
 - renderer.tsx routes components via URL hash (#/record-button)

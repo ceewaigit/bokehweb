@@ -42,8 +42,17 @@ export default function RecordingDock() {
     // Remove any background classes
     document.body.classList.remove('bg-background')
     
+    // Debug: Check if electronAPI is available
+    console.log('🔍 window.electronAPI available:', !!window.electronAPI)
+    
     // Check screen recording permission on macOS (disabled in production for now)
     const checkPermission = async () => {
+      // Skip permission check if electronAPI is not available
+      if (!window.electronAPI) {
+        console.warn('⚠️ electronAPI not available, skipping permission check')
+        return
+      }
+      
       // Skip permission check in production to avoid crash
       if (window.location.protocol === 'file:') {
         console.log('Skipping permission check in production mode')
@@ -109,9 +118,13 @@ export default function RecordingDock() {
 
   const actuallyStartRecording = async () => {
     try {
-      // Use Electron's desktop capture API instead of browser's getDisplayMedia
-      // Pass minimal options to avoid IPC issues
-      const sources = await window.electronAPI?.getDesktopSources({
+      // electronAPI MUST be available - no fallbacks
+      if (!window.electronAPI?.getDesktopSources) {
+        throw new Error('❌ electronAPI not available - preload script not loaded')
+      }
+      
+      // Use Electron's desktop capture API
+      const sources = await window.electronAPI.getDesktopSources({
         types: ['screen']
       })
 

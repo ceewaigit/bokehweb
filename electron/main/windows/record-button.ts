@@ -2,8 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import * as path from 'path'
 import { getAppURL } from '../config'
 
-// Webpack entry points (defined by electron-forge)
-declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string | undefined
+// Webpack entry points are set as environment variables by electron-forge
 
 export function createRecordButton(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
@@ -29,7 +28,7 @@ export function createRecordButton(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
+      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
       webSecurity: false,
       devTools: true
     }

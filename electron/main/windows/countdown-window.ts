@@ -1,8 +1,7 @@
 import { BrowserWindow, screen } from 'electron'
 import * as path from 'path'
 
-// Webpack entry points (defined by electron-forge)
-declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string | undefined
+// Webpack entry points are set as environment variables by electron-forge
 
 export function createCountdownWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
@@ -24,7 +23,7 @@ export function createCountdownWindow(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js')
+      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js')
     }
   })
 
