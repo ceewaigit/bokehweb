@@ -6,9 +6,10 @@ import { useProjectStore } from '@/stores/project-store'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { ZoomEngine } from '@/lib/effects/zoom-engine'
+import { WorkAreaCropper } from '@/lib/effects/work-area-cropper'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
-import { Play, Pause, RotateCcw, Eye, EyeOff, SkipBack, SkipForward, MousePointer, ZoomIn } from 'lucide-react'
+import { Play, Pause, RotateCcw, Eye, EyeOff, SkipBack, SkipForward, MousePointer, ZoomIn, Crop } from 'lucide-react'
 
 export function PreviewArea() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -17,10 +18,13 @@ export function PreviewArea() {
   const cursorRendererRef = useRef<CursorRenderer | null>(null)
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const zoomEngineRef = useRef<ZoomEngine | null>(null)
+  const workAreaCropperRef = useRef<WorkAreaCropper | null>(null)
+  const cropCanvasRef = useRef<HTMLCanvasElement>(null)
   const animationFrameRef = useRef<number | null>(null)
   const [showOriginal, setShowOriginal] = useState(false)
   const [showCursor, setShowCursor] = useState(true)
   const [showZoom, setShowZoom] = useState(true)
+  const [showCrop, setShowCrop] = useState(true)
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [videoError, setVideoError] = useState<string | null>(null)
   const { currentProject, currentTime, isPlaying, play, pause, seek, selectedClipId, getCurrentClip, getCurrentRecording } = useProjectStore()
@@ -154,6 +158,59 @@ export function PreviewArea() {
 
   }, [currentClip, showOriginal])
 
+  // Set up work area cropper when video loads
+  useEffect(() => {
+    if (!isVideoLoaded || !videoRef.current || !projectRecording) {
+      return
+    }
+
+    // Check if we have capture area info from the recording
+    const captureArea = projectRecording.captureArea
+    if (!captureArea || !showCrop) {
+      // Clean up cropper if disabled or no capture area
+      if (workAreaCropperRef.current) {
+        workAreaCropperRef.current.dispose()
+        workAreaCropperRef.current = null
+      }
+      if (cropCanvasRef.current) {
+        cropCanvasRef.current.style.display = 'none'
+      }
+      return
+    }
+
+    // Create work area cropper
+    const cropper = new WorkAreaCropper({ captureArea })
+    
+    // Only apply cropping if needed
+    if (cropper.needsCropping()) {
+      console.log('📐 Work area cropping enabled - excluding dock from video')
+      
+      // Create or update crop canvas
+      let cropCanvas = cropCanvasRef.current
+      if (!cropCanvas) {
+        cropCanvas = document.createElement('canvas')
+        cropCanvas.style.position = 'absolute'
+        cropCanvas.style.top = '0'
+        cropCanvas.style.left = '0'
+        cropCanvas.style.width = '100%'
+        cropCanvas.style.height = '100%'
+        cropCanvas.style.pointerEvents = 'none'
+        // Use mutable ref pattern to assign
+        ;(cropCanvasRef as any).current = cropCanvas
+      }
+      
+      cropper.initialize(cropCanvas)
+      workAreaCropperRef.current = cropper
+    }
+
+    return () => {
+      if (workAreaCropperRef.current) {
+        workAreaCropperRef.current.dispose()
+        workAreaCropperRef.current = null
+      }
+    }
+  }, [isVideoLoaded, showCrop, projectRecording])
+
   // Set up zoom effect when video loads
   useEffect(() => {
     if (!isVideoLoaded || !videoRef.current || !containerRef.current) {
@@ -227,9 +284,20 @@ export function PreviewArea() {
 
     // Helper to draw current frame even when paused
     const drawCurrentFrame = () => {
-      const tMs = isFinite(video.duration) ? (video.currentTime * 1000) : 0
+      const tMs = isFinite(video.duration) && video.currentTime > 0 ? (video.currentTime * 1000) : 0
       const zoom = engine.getZoomAtTime(tMs)
-      engine.applyZoomToCanvas(ctx, video, zoom)
+      
+      // Apply cropping first if needed
+      if (showCrop && workAreaCropperRef.current && workAreaCropperRef.current.needsCropping()) {
+        // Create a temporary canvas for cropped frame
+        const tempCanvas = document.createElement('canvas')
+        workAreaCropperRef.current.cropFrame(video, tempCanvas)
+        // Apply zoom to the cropped frame
+        engine.applyZoomToCanvas(ctx, tempCanvas as any, zoom)
+      } else {
+        // Apply zoom directly to video
+        engine.applyZoomToCanvas(ctx, video, zoom)
+      }
     }
 
     // Render loop (always draw to avoid black canvas when paused)
@@ -238,8 +306,15 @@ export function PreviewArea() {
       animationFrameRef.current = requestAnimationFrame(renderFrame)
     }
 
-    // Initial draw
-    drawCurrentFrame()
+    // Ensure we draw immediately on load, even at t=0
+    const initializeCanvas = () => {
+      // Set initial time to 0 to ensure we start with zoom effects
+      const initialZoom = engine.getZoomAtTime(0)
+      engine.applyZoomToCanvas(ctx, video, initialZoom)
+    }
+    
+    // Initial draw and start render loop
+    initializeCanvas()
     renderFrame()
 
     return () => {
@@ -247,7 +322,7 @@ export function PreviewArea() {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [isVideoLoaded, showZoom, getClipMetadata])
+  }, [isVideoLoaded, showZoom, getClipMetadata, projectRecording?.duration, showCrop])
 
   // Set up cursor rendering when video loads
   useEffect(() => {
@@ -497,6 +572,19 @@ export function PreviewArea() {
                   >
                     <MousePointer className="w-4 h-4" />
                   </Button>
+
+                  {/* Crop Toggle - only show if we have capture area info */}
+                  {projectRecording?.captureArea && (
+                    <Button
+                      variant={showCrop ? "default" : "ghost"}
+                      size="icon"
+                      className="w-8 h-8"
+                      onClick={() => setShowCrop(!showCrop)}
+                      title={showCrop ? "Show full screen (with dock)" : "Hide dock area"}
+                    >
+                      <Crop className="w-4 h-4" />
+                    </Button>
+                  )}
 
                   {/* Enhancement Toggle */}
                   {hasEnhancements && (

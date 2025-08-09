@@ -46,11 +46,27 @@ export function registerWindowControlHandlers(): void {
     }
   })
 
-  ipcMain.handle('resize-record-button', (_event: IpcMainInvokeEvent, height: number) => {
-    if (global.recordButton && typeof height === 'number' && height > 0) {
-      const [width] = global.recordButton.getSize()
-      global.recordButton.setSize(width, Math.round(height))
-      return { success: true }
+  ipcMain.handle('resize-record-button', (_event: IpcMainInvokeEvent, dimensions: { width?: number; height?: number } | number) => {
+    if (global.recordButton) {
+      const [currentWidth, currentHeight] = global.recordButton.getSize()
+      
+      // Support both old API (just height) and new API (width & height)
+      if (typeof dimensions === 'number') {
+        // Legacy: just height
+        if (dimensions > 0) {
+          global.recordButton.setSize(currentWidth, Math.round(dimensions))
+          return { success: true }
+        }
+      } else if (dimensions && typeof dimensions === 'object') {
+        // New: width and/or height
+        const newWidth = dimensions.width || currentWidth
+        const newHeight = dimensions.height || currentHeight
+        
+        if (newWidth > 0 && newHeight > 0) {
+          global.recordButton.setSize(Math.round(newWidth), Math.round(newHeight))
+          return { success: true }
+        }
+      }
     }
     return { success: false }
   })

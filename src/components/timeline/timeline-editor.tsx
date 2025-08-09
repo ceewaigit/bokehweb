@@ -52,13 +52,14 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
   const [draggedClip, setDraggedClip] = useState<string | null>(null)
   const [copiedClip, setCopiedClip] = useState<Clip | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
+  const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false)
   const timelineRef = useRef<HTMLDivElement>(null)
   const playheadRef = useRef<HTMLDivElement>(null)
 
   // Calculate duration from clips or use default
   const calculateDuration = () => {
     if (!currentProject?.timeline?.tracks) return 10000
-    
+
     let maxEndTime = 0
     for (const track of currentProject.timeline.tracks) {
       for (const clip of track.clips) {
@@ -66,15 +67,64 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         maxEndTime = Math.max(maxEndTime, endTime)
       }
     }
-    
+
     // Add some padding at the end
     return Math.max(10000, maxEndTime + 2000)
   }
-  
+
   const duration = calculateDuration()
 
   const pixelsPerMs = zoom * 0.05 // Zoom factor for timeline width (0.05 = 50px per second at zoom 1)
   const timelineWidth = duration * pixelsPerMs
+
+  // Render effect indicators (zoom and click events)
+  const renderEffectIndicators = () => {
+    if (!currentProject || !currentProject.recordings.length) return null
+
+    const indicators: JSX.Element[] = []
+
+    // Get metadata from the first recording
+    const recording = currentProject.recordings[0]
+    if (!recording.metadata) return null
+
+    // Render click indicators
+    recording.metadata.clickEvents?.forEach((click, index) => {
+      const x = timeToPixel(click.timestamp)
+      indicators.push(
+        <div
+          key={`click-${index}`}
+          className="absolute w-2 h-2 bg-orange-500 rounded-full opacity-80 z-10"
+          style={{ left: `${x - 4}px`, top: '50%', transform: 'translateY(-50%)' }}
+          title={`Click at ${(click.timestamp / 1000).toFixed(2)}s`}
+        >
+          <div className="absolute inset-0 bg-orange-500 rounded-full animate-ping opacity-75" />
+        </div>
+      )
+    })
+
+    // Render zoom activity indicators
+    const zoomSamples: number[] = []
+    for (let t = 0; t < duration; t += 1000) {
+      const hasActivity = recording.metadata.mouseEvents?.some(
+        event => Math.abs(event.timestamp - t) < 500
+      )
+      if (hasActivity) zoomSamples.push(t)
+    }
+
+    zoomSamples.forEach((time, index) => {
+      const x = timeToPixel(time)
+      indicators.push(
+        <div
+          key={`zoom-${index}`}
+          className="absolute bottom-1 w-0.5 h-4 bg-blue-400 opacity-30"
+          style={{ left: `${x}px` }}
+          title={`Zoom activity`}
+        />
+      )
+    })
+
+    return <>{indicators}</>
+  }
 
   // Convert time to pixel position
   const timeToPixel = (time: number) => time * pixelsPerMs
@@ -104,7 +154,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
 
   // Handle timeline click for playhead positioning
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isDragging) return
+    if (isDragging || isDraggingPlayhead) return
 
     const rect = timelineRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -212,7 +262,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     e.preventDefault()
     e.stopPropagation()
     setContextMenu({ x: e.clientX, y: e.clientY, clipId })
-    
+
     // Select the clip if not already selected
     if (!selectedClips.includes(clipId)) {
       selectClip(clipId)
@@ -645,6 +695,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
               </div>
               <div className="ml-20 relative h-full">
                 {renderTrackClips(0, 'video')}
+                {renderEffectIndicators()}
               </div>
             </div>
 
@@ -666,9 +717,35 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           {/* Playhead */}
           <div
             ref={playheadRef}
-            className="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none z-30"
-            style={{ left: `${timeToPixel(currentTime)}px` }}
+            className="absolute top-0 bottom-0 z-30 cursor-col-resize"
+            style={{ left: `${timeToPixel(currentTime) - 6}px`, width: '12px' }}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              setIsDraggingPlayhead(true)
+
+              const startX = e.clientX
+              const startTime = currentTime
+
+              const handleMouseMove = (moveEvent: MouseEvent) => {
+                const deltaX = moveEvent.clientX - startX
+                const deltaTime = pixelToTime(deltaX)
+                const newTime = Math.max(0, Math.min(duration, startTime + deltaTime))
+                seek(newTime)
+              }
+
+              const handleMouseUp = () => {
+                setIsDraggingPlayhead(false)
+                document.removeEventListener('mousemove', handleMouseMove)
+                document.removeEventListener('mouseup', handleMouseUp)
+              }
+
+              document.addEventListener('mousemove', handleMouseMove)
+              document.addEventListener('mouseup', handleMouseUp)
+            }}
           >
+            {/* Playhead line */}
+            <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none" style={{ left: '6px' }} />
+            {/* Playhead handle */}
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-red-500 rotate-45" />
           </div>
         </div>

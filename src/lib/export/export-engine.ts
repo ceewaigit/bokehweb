@@ -133,7 +133,7 @@ export class ExportEngine {
 
       try {
         const videoData = await fetchFile(recording.filePath)
-        await this.ffmpeg.writeFile(`input_${i}.mp4`, new Uint8Array(videoData as ArrayBuffer))
+        await this.ffmpeg.writeFile(`input_${i}.mp4`, new Uint8Array(videoData as unknown as ArrayBuffer))
       } catch (error) {
         console.warn(`Failed to load clip ${clip.id}:`, error)
       }
@@ -167,7 +167,7 @@ export class ExportEngine {
     onProgress?.({ progress: 90, stage: 'finalizing', message: 'Creating output file...' })
 
     const data = await this.ffmpeg.readFile(outputFile)
-    const blob = new Blob([data], { type: `video/${settings.format}` })
+    const blob = new Blob([data as BlobPart], { type: `video/${settings.format}` })
 
     // Cleanup
     await this.ffmpeg.deleteFile(outputFile)
@@ -232,7 +232,7 @@ export class ExportEngine {
         videoBlob = await response.blob()
       } else if (recording.filePath) {
         const data = await fetchFile(recording.filePath)
-        videoBlob = new Blob([new Uint8Array(data as ArrayBuffer)], { type: 'video/webm' })
+        videoBlob = new Blob([data as BlobPart], { type: 'video/webm' })
       } else {
         throw new Error('No video source found')
       }
@@ -428,7 +428,7 @@ export class ExportEngine {
         ])
 
         const outputData = await this.ffmpeg.readFile(outputFile)
-        const convertedBlob = new Blob([outputData], { type: `video/${format}` })
+        const convertedBlob = new Blob([outputData as BlobPart], { type: `video/${format}` })
 
         // Cleanup
         await this.ffmpeg.deleteFile('input.webm')
@@ -479,7 +479,7 @@ export class ExportEngine {
     onProgress?.({ progress: 0, stage: 'preparing', message: 'Converting to GIF...' })
 
     const videoData = await fetchFile(videoBlob)
-    await this.ffmpeg.writeFile('input.webm', new Uint8Array(videoData as ArrayBuffer))
+    await this.ffmpeg.writeFile('input.webm', videoData as Uint8Array)
 
     await this.ffmpeg.exec([
       '-i', 'input.webm',
@@ -489,7 +489,7 @@ export class ExportEngine {
     ])
 
     const data = await this.ffmpeg.readFile('output.gif')
-    const blob = new Blob([data], { type: 'image/gif' })
+    const blob = new Blob([data as BlobPart], { type: 'image/gif' })
 
     await this.ffmpeg.deleteFile('input.webm')
     await this.ffmpeg.deleteFile('output.gif')

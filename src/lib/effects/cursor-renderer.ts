@@ -35,7 +35,7 @@ export class CursorRenderer {
       cursorStyle: 'macos',
       ...options
     }
-    
+
     // Create cursor image
     this.cursorImage = new Image()
     this.cursorImage.src = this.createCursorDataURL()
@@ -80,7 +80,7 @@ export class CursorRenderer {
       `
       return `data:image/svg+xml;base64,${btoa(svg)}`
     }
-    
+
     // Fallback to simple cursor
     const svg = `
       <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
@@ -149,10 +149,10 @@ export class CursorRenderer {
     // Add motion blur if enabled
     if (this.options.motionBlur && this.previousPosition) {
       const distance = Math.sqrt(
-        Math.pow(x - this.previousPosition.x, 2) + 
+        Math.pow(x - this.previousPosition.x, 2) +
         Math.pow(y - this.previousPosition.y, 2)
       )
-      
+
       if (distance > 5) {
         // Add to trail for motion blur
         this.cursorTrail.push({ x, y, opacity: 0.3 })
@@ -163,7 +163,7 @@ export class CursorRenderer {
         // Clear trail if not moving much
         this.cursorTrail = []
       }
-      
+
       // Render motion blur trail
       this.cursorTrail.forEach((point, index) => {
         const opacity = point.opacity * (index / this.cursorTrail.length)
@@ -179,22 +179,22 @@ export class CursorRenderer {
     // Render main cursor
     if (this.cursorImage.complete) {
       this.ctx.save()
-      
+
       // Add slight scale animation on click
       const activeClick = Array.from(this.clickAnimations.values())
         .find(anim => anim.opacity > 0.8)
-      
+
       if (activeClick) {
         const scale = 1 + (activeClick.scale - 1) * activeClick.opacity
         this.ctx.translate(x, y)
         this.ctx.scale(scale, scale)
         this.ctx.translate(-x, -y)
       }
-      
+
       this.ctx.drawImage(this.cursorImage, x - 2, y - 2)
       this.ctx.restore()
     }
-    
+
     // Update previous position
     this.previousPosition = { x, y, timestamp: currentTime }
   }
@@ -246,10 +246,10 @@ export class CursorRenderer {
 
   private updateClickAnimations() {
     this.clickAnimations.forEach((anim, id) => {
-      // Smoother animation with easing
-      anim.radius += 3 * anim.opacity // Slow down as it fades
-      anim.opacity -= 0.04
-      anim.scale = 1 + (anim.scale - 1) * 0.9 // Decay scale
+      // Slower, more visible animation
+      anim.radius += 2 * Math.pow(anim.opacity, 0.5) // Smooth easing
+      anim.opacity -= 0.025 // Much slower fade for better visibility
+      anim.scale = 1 + (anim.scale - 1) * 0.95 // Slower scale decay
 
       if (anim.opacity <= 0) {
         this.clickAnimations.delete(id)
@@ -264,13 +264,13 @@ export class CursorRenderer {
 
     this.clickAnimations.forEach(anim => {
       this.ctx!.save()
-      
+
       // Render multiple rings for a more sophisticated effect
       const rings = 2
       for (let i = 0; i < rings; i++) {
         const ringOpacity = anim.opacity * (1 - i * 0.3)
         const ringRadius = anim.radius + i * 10
-        
+
         this.ctx!.globalAlpha = ringOpacity
         this.ctx!.strokeStyle = clickColor
         this.ctx!.lineWidth = 2 - i * 0.5
@@ -278,7 +278,7 @@ export class CursorRenderer {
         this.ctx!.arc(anim.x, anim.y, ringRadius, 0, Math.PI * 2)
         this.ctx!.stroke()
       }
-      
+
       // Add a subtle filled circle at the center
       if (anim.opacity > 0.5) {
         this.ctx!.globalAlpha = (anim.opacity - 0.5) * 0.3
@@ -287,7 +287,7 @@ export class CursorRenderer {
         this.ctx!.arc(anim.x, anim.y, 5, 0, Math.PI * 2)
         this.ctx!.fill()
       }
-      
+
       this.ctx!.restore()
     })
   }

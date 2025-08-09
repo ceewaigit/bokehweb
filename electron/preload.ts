@@ -87,6 +87,10 @@ const electronAPI = {
     return ipcRenderer.invoke('get-desktop-stream', sourceId, hasAudio)
   },
 
+  getScreens: () => {
+    return ipcRenderer.invoke('get-screens')
+  },
+
   // Permission checking
   checkScreenRecordingPermission: () =>
     ipcRenderer.invoke('check-screen-recording-permission'),
@@ -163,9 +167,6 @@ const electronAPI = {
   getPlatform: (): Promise<NodeJS.Platform> =>
     ipcRenderer.invoke('get-platform'),
 
-  getScreens: () =>
-    ipcRenderer.invoke('get-screens'),
-
   // Recording and workspace control
   openWorkspace: () =>
     ipcRenderer.send('open-workspace'),
@@ -182,8 +183,8 @@ const electronAPI = {
   showRecordButton: () =>
     ipcRenderer.invoke('show-record-button'),
 
-  resizeRecordButton: (height: number) =>
-    ipcRenderer.invoke('resize-record-button', height),
+  resizeRecordButton: (dimensions: { width?: number; height?: number } | number) =>
+    ipcRenderer.invoke('resize-record-button', dimensions),
 
   // Dialog APIs
   showMessageBox: (options: MessageBoxOptions) =>

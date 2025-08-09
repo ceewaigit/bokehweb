@@ -33,6 +33,11 @@ export interface ElectronRecordingResult {
   effectsApplied: string[]
   processingTime: number
   filePath?: string
+  captureArea?: {
+    fullBounds: { x: number; y: number; width: number; height: number }
+    workArea: { x: number; y: number; width: number; height: number }
+    scaleFactor: number
+  }
 }
 
 export interface ElectronMetadata {
@@ -54,6 +59,7 @@ export class ElectronRecorder {
   private pausedDuration = 0
   private lastPauseTime = 0
   private metadata: ElectronMetadata[] = []
+  private captureArea: ElectronRecordingResult['captureArea'] = undefined
 
   constructor() {
     logger.debug('ElectronRecorder initialized')
@@ -106,6 +112,9 @@ export class ElectronRecorder {
       }
 
       logger.info(`Using screen source: ${primarySource.name} (${primarySource.id})`)
+
+      // Capture screen dimensions for dock exclusion
+      await this.captureScreenInfo(primarySource.id)
 
       // Check and request screen recording permission first
       await this.checkScreenRecordingPermission()
@@ -235,7 +244,7 @@ export class ElectronRecorder {
 
         // Use consolidated saving function
         let filePath: string | undefined
-        const saved = await saveRecordingWithProject(video, this.metadata)
+        const saved = await saveRecordingWithProject(video, this.metadata, undefined, this.captureArea)
         if (saved) {
           filePath = saved.projectPath
           logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
@@ -255,6 +264,7 @@ export class ElectronRecorder {
           duration,
           metadata: this.metadata,
           filePath,
+          captureArea: this.captureArea,
           effectsApplied,
           processingTime: 0 // Electron recorder has no post-processing
         })
@@ -357,6 +367,39 @@ export class ElectronRecorder {
     }
   }
 
+  private async captureScreenInfo(sourceId: string): Promise<void> {
+    try {
+      // Get screen information from Electron
+      if (window.electronAPI?.getScreens) {
+        const screens = await window.electronAPI.getScreens()
+        
+        // Find the screen that matches our source
+        // Source ID format is usually "screen:ID:0" 
+        const screenIdMatch = sourceId.match(/screen:(\d+):/)
+        if (screenIdMatch && screens.length > 0) {
+          const screenId = parseInt(screenIdMatch[1])
+          const screen = screens.find((s: any) => s.id === screenId) || screens[0]
+          
+          if (screen) {
+            this.captureArea = {
+              fullBounds: screen.bounds,
+              workArea: screen.workArea,
+              scaleFactor: screen.scaleFactor || 1
+            }
+            
+            logger.info('Screen info captured', {
+              fullBounds: this.captureArea.fullBounds,
+              workArea: this.captureArea.workArea,
+              dockHeight: this.captureArea.fullBounds.height - this.captureArea.workArea.height
+            })
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Could not capture screen info, dock exclusion will not be available', error)
+    }
+  }
+
   private async startMouseTracking(): Promise<void> {
     logger.debug('Starting native mouse tracking')
 
@@ -444,6 +487,7 @@ export class ElectronRecorder {
     this.mediaRecorder = null
     this.chunks = []
     this.metadata = []
+    this.captureArea = undefined
 
     logger.debug('ElectronRecorder cleaned up')
   }

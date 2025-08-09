@@ -2,6 +2,14 @@ export interface ElectronAPI {
   // Desktop capture
   getDesktopSources: (options: any) => Promise<any[]>
   getDesktopStream?: (sourceId: string, hasAudio?: boolean) => Promise<any>
+  getScreens?: () => Promise<Array<{
+    id: number
+    bounds: { x: number; y: number; width: number; height: number }
+    workArea: { x: number; y: number; width: number; height: number }
+    scaleFactor: number
+    rotation: number
+    internal: boolean
+  }>>
 
   // Permission checking
   checkScreenRecordingPermission: () => Promise<{ status: string; granted: boolean }>
@@ -47,7 +55,7 @@ export interface ElectronAPI {
   quit: () => void
   minimizeRecordButton?: () => void
   showRecordButton?: () => void
-  resizeRecordButton?: (height: number) => Promise<{ success: boolean }>
+  resizeRecordButton?: (dimensions: { width?: number; height?: number } | number) => Promise<{ success: boolean }>
 
   // Countdown window methods
   showCountdown?: (number: number) => Promise<{ success: boolean }>

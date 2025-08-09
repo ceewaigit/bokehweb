@@ -31,8 +31,30 @@ export interface Recording {
   height: number
   frameRate: number
   
+  // Capture area information
+  captureArea?: CaptureArea
+  
   // Captured metadata during recording
   metadata: RecordingMetadata
+}
+
+export interface CaptureArea {
+  // Full screen bounds (including dock)
+  fullBounds: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  // Work area bounds (excluding dock/taskbar)
+  workArea: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  // Display scale factor for HiDPI screens
+  scaleFactor: number
 }
 
 export interface RecordingMetadata {
@@ -296,7 +318,8 @@ export async function saveProject(project: Project, customPath?: string): Promis
 export async function saveRecordingWithProject(
   videoBlob: Blob,
   metadata: any[],
-  projectName?: string
+  projectName?: string,
+  captureArea?: CaptureArea
 ): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
   if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
     console.error('Electron API not available for saving')
@@ -369,6 +392,7 @@ export async function saveRecordingWithProject(
       width,
       height,
       frameRate: 60,
+      captureArea,
       metadata: {
         mouseEvents,
         keyboardEvents,
