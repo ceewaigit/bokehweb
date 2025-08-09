@@ -25,12 +25,13 @@ describe('Store Integration Tests', () => {
     })
 
     useTimelineStore.setState({
+      currentProject: null,
+      project: null,
       currentTime: 0,
-      duration: 0,
       isPlaying: false,
       zoom: 1,
-      selectedClips: [],
-      project: null
+      selectedClipId: null,
+      selectedClips: []
     })
 
     useAnimationStore.setState({
@@ -113,8 +114,8 @@ describe('Store Integration Tests', () => {
       
       expect(project).toBeTruthy()
       expect(project!.name).toBe('Test Project')
-      expect(project!.clips).toHaveLength(0)
-      expect(project!.animations).toHaveLength(0)
+      expect(project!.timeline.tracks[0].clips).toHaveLength(0)
+      expect(project!.recordings).toHaveLength(0)
     })
 
     test('should add and manage clips', () => {
@@ -137,8 +138,8 @@ describe('Store Integration Tests', () => {
       store.addClip(clip)
       const project = useTimelineStore.getState().project
       
-      expect(project!.clips).toHaveLength(1)
-      expect(project!.clips[0]).toEqual(clip)
+      expect(project!.timeline.tracks[0].clips).toHaveLength(1)
+      expect(project!.timeline.tracks[0].clips[0].id).toEqual(clip.id)
     })
 
     test('should not add clips without project', () => {

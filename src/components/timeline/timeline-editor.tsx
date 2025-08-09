@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useState, useRef, useEffect } from 'react'
-import { useTimelineStore } from '@/stores/timeline-store'
+import { useProjectStore } from '@/stores/project-store'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import {
@@ -14,10 +14,13 @@ import {
   ZoomOut,
   Trash2,
   Copy,
-  Clipboard
+  Clipboard,
+  ChevronsLeft,
+  ChevronsRight,
+  Layers
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { TimelineClip } from '@/types'
+import type { Clip } from '@/types/project'
 
 interface TimelineEditorProps {
   className?: string
@@ -25,7 +28,7 @@ interface TimelineEditorProps {
 
 export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
   const {
-    project,
+    currentProject,
     selectedClips,
     currentTime,
     isPlaying,
@@ -37,19 +40,21 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     removeClip,
     updateClip,
     addClip,
-    clearSelection
-  } = useTimelineStore()
+    clearSelection,
+    splitClip,
+    trimClipStart,
+    trimClipEnd,
+    duplicateClip
+  } = useProjectStore()
 
   const [isDragging, setIsDragging] = useState(false)
   const [draggedClip, setDraggedClip] = useState<string | null>(null)
-  const [copiedClip, setCopiedClip] = useState<TimelineClip | null>(null)
+  const [copiedClip, setCopiedClip] = useState<Clip | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
   const playheadRef = useRef<HTMLDivElement>(null)
 
-  const duration = project ? Math.max(
-    project.settings.duration,
-    ...project.clips.map(clip => clip.startTime + clip.duration)
-  ) : 0
+  const duration = currentProject?.timeline?.duration || 10000
 
   const pixelsPerMs = zoom * 0.1 // Zoom factor for timeline width
   const timelineWidth = duration * pixelsPerMs
@@ -59,6 +64,26 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
 
   // Convert pixel position to time
   const pixelToTime = (pixel: number) => pixel / pixelsPerMs
+
+  // Get all clips from all tracks
+  const getAllClips = useCallback(() => {
+    if (!currentProject) return []
+    const clips: Clip[] = []
+    for (const track of currentProject.timeline.tracks) {
+      clips.push(...track.clips)
+    }
+    return clips
+  }, [currentProject])
+
+  // Get clip by ID
+  const getClipById = useCallback((clipId: string) => {
+    if (!currentProject) return null
+    for (const track of currentProject.timeline.tracks) {
+      const clip = track.clips.find(c => c.id === clipId)
+      if (clip) return clip
+    }
+    return null
+  }, [currentProject])
 
   // Handle timeline click for playhead positioning
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -75,99 +100,39 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
   // Split clip at current time
   const handleSplitClip = useCallback(() => {
     if (selectedClips.length !== 1) return
-
     const clipId = selectedClips[0]
-    const clip = project?.clips.find(c => c.id === clipId)
-    if (!clip) return
-
-    // Check if playhead is within clip bounds
-    if (currentTime < clip.startTime || currentTime > clip.startTime + clip.duration) {
-      return
-    }
-
-    const splitPoint = currentTime - clip.startTime
-
-    // Create two new clips
-    const firstClip: TimelineClip = {
-      ...clip,
-      id: `${clip.id}-1-${Date.now()}`,
-      duration: splitPoint
-    }
-
-    const secondClip: TimelineClip = {
-      ...clip,
-      id: `${clip.id}-2-${Date.now()}`,
-      startTime: currentTime,
-      duration: clip.duration - splitPoint
-    }
-
-    // Remove original clip
-    removeClip(clip.id)
-
-    // Add new clips
-    addClip(firstClip)
-    addClip(secondClip)
-
-    // Select the second clip
-    selectClip(secondClip.id)
-  }, [selectedClips, project, currentTime, removeClip, addClip, selectClip])
+    splitClip(clipId, currentTime)
+  }, [selectedClips, currentTime, splitClip])
 
   // Trim clip start to current time
   const handleTrimStart = useCallback(() => {
     if (selectedClips.length !== 1) return
-
     const clipId = selectedClips[0]
-    const clip = project?.clips.find(c => c.id === clipId)
-    if (!clip) return
-
-    // Check if playhead is within clip bounds
-    if (currentTime <= clip.startTime || currentTime >= clip.startTime + clip.duration) {
-      return
-    }
-
-    const trimAmount = currentTime - clip.startTime
-
-    updateClip(clip.id, {
-      startTime: currentTime,
-      duration: clip.duration - trimAmount
-    })
-  }, [selectedClips, project, currentTime, updateClip])
+    trimClipStart(clipId, currentTime)
+  }, [selectedClips, currentTime, trimClipStart])
 
   // Trim clip end to current time
   const handleTrimEnd = useCallback(() => {
     if (selectedClips.length !== 1) return
-
     const clipId = selectedClips[0]
-    const clip = project?.clips.find(c => c.id === clipId)
-    if (!clip) return
-
-    // Check if playhead is within clip bounds
-    if (currentTime <= clip.startTime || currentTime >= clip.startTime + clip.duration) {
-      return
-    }
-
-    const newDuration = currentTime - clip.startTime
-
-    updateClip(clip.id, {
-      duration: newDuration
-    })
-  }, [selectedClips, project, currentTime, updateClip])
+    trimClipEnd(clipId, currentTime)
+  }, [selectedClips, currentTime, trimClipEnd])
 
   // Copy selected clip
   const handleCopyClip = useCallback(() => {
     if (selectedClips.length !== 1) return
-
-    const clip = project?.clips.find(c => c.id === selectedClips[0])
+    const clipId = selectedClips[0]
+    const clip = getClipById(clipId)
     if (clip) {
       setCopiedClip(clip)
     }
-  }, [selectedClips, project])
+  }, [selectedClips, getClipById])
 
-  // Paste copied clip
+  // Paste clip
   const handlePasteClip = useCallback(() => {
     if (!copiedClip) return
 
-    const newClip: TimelineClip = {
+    const newClip: Clip = {
       ...copiedClip,
       id: `${copiedClip.id}-copy-${Date.now()}`,
       startTime: currentTime
@@ -185,87 +150,353 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     clearSelection()
   }, [selectedClips, removeClip, clearSelection])
 
+  // Duplicate selected clip
+  const handleDuplicateClip = useCallback(() => {
+    if (selectedClips.length !== 1) return
+    const clipId = selectedClips[0]
+    const newClipId = duplicateClip(clipId)
+    if (newClipId) {
+      selectClip(newClipId)
+    }
+  }, [selectedClips, duplicateClip, selectClip])
+
+  // Handle clip drag start
+  const handleClipDragStart = (clipId: string) => {
+    setIsDragging(true)
+    setDraggedClip(clipId)
+  }
+
+  // Handle clip drag end
+  const handleClipDragEnd = () => {
+    setIsDragging(false)
+    setDraggedClip(null)
+  }
+
+  // Handle clip drop
+  const handleClipDrop = (e: React.DragEvent<HTMLDivElement>, trackIndex: number) => {
+    e.preventDefault()
+    if (!draggedClip) return
+
+    const rect = timelineRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const x = e.clientX - rect.left + (timelineRef.current?.scrollLeft || 0)
+    const newStartTime = pixelToTime(x)
+
+    updateClip(draggedClip, {
+      startTime: Math.max(0, newStartTime)
+    })
+
+    handleClipDragEnd()
+  }
+
+  // Handle context menu
+  const handleContextMenu = (e: React.MouseEvent, clipId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY, clipId })
+    
+    // Select the clip if not already selected
+    if (!selectedClips.includes(clipId)) {
+      selectClip(clipId)
+    }
+  }
+
+  // Close context menu
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null)
+  }, [])
+
+  // Handle context menu actions
+  const handleContextMenuAction = useCallback((action: string) => {
+    if (!contextMenu) return
+
+    const clipId = contextMenu.clipId
+
+    switch (action) {
+      case 'split':
+        splitClip(clipId, currentTime)
+        break
+      case 'trim-start':
+        trimClipStart(clipId, currentTime)
+        break
+      case 'trim-end':
+        trimClipEnd(clipId, currentTime)
+        break
+      case 'duplicate':
+        duplicateClip(clipId)
+        break
+      case 'copy':
+        const clip = getClipById(clipId)
+        if (clip) setCopiedClip(clip)
+        break
+      case 'delete':
+        removeClip(clipId)
+        break
+    }
+
+    closeContextMenu()
+  }, [contextMenu, currentTime, splitClip, trimClipStart, trimClipEnd, duplicateClip, removeClip, getClipById, closeContextMenu])
+
+  // Close context menu on click outside
+  useEffect(() => {
+    if (contextMenu) {
+      const handleClick = () => closeContextMenu()
+      window.addEventListener('click', handleClick)
+      return () => window.removeEventListener('click', handleClick)
+    }
+  }, [contextMenu, closeContextMenu])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent shortcuts when typing in inputs
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      // Check if we're not typing in an input field
+      if ((e.target as HTMLElement)?.tagName === 'INPUT' ||
+        (e.target as HTMLElement)?.tagName === 'TEXTAREA') {
         return
       }
 
-      if (e.key === ' ' && !e.shiftKey && !e.metaKey) {
-        e.preventDefault()
-        setPlaying(!isPlaying)
-      } else if (e.key === 's' && !e.metaKey) {
+      // Split at playhead (S)
+      if (e.key === 's' || e.key === 'S') {
         e.preventDefault()
         handleSplitClip()
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault()
-        handleDeleteClips()
-      } else if (e.key === 'c' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        handleCopyClip()
-      } else if (e.key === 'v' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        handlePasteClip()
-      } else if (e.key === '[') {
+      }
+      // Trim start to playhead (Q)
+      else if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault()
         handleTrimStart()
-      } else if (e.key === ']') {
+      }
+      // Trim end to playhead (W)
+      else if (e.key === 'w' || e.key === 'W') {
         e.preventDefault()
         handleTrimEnd()
+      }
+      // Delete selected clips (Delete or Backspace)
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        handleDeleteClips()
+      }
+      // Duplicate clip (Cmd/Ctrl+D)
+      else if ((e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault()
+        handleDuplicateClip()
+      }
+      // Copy clip (Cmd/Ctrl+C)
+      else if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault()
+        handleCopyClip()
+      }
+      // Paste clip (Cmd/Ctrl+V)
+      else if ((e.metaKey || e.ctrlKey) && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault()
+        handlePasteClip()
+      }
+      // Play/Pause (Space)
+      else if (e.key === ' ') {
+        e.preventDefault()
+        setPlaying(!isPlaying)
+      }
+      // Jump backward (Left Arrow)
+      else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          // Jump 5 seconds with shift
+          setCurrentTime(Math.max(0, currentTime - 5000))
+        } else {
+          // Jump 1 second
+          setCurrentTime(Math.max(0, currentTime - 1000))
+        }
+      }
+      // Jump forward (Right Arrow)
+      else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          // Jump 5 seconds with shift
+          setCurrentTime(Math.min(duration, currentTime + 5000))
+        } else {
+          // Jump 1 second
+          setCurrentTime(Math.min(duration, currentTime + 1000))
+        }
+      }
+      // Jump to start (Home)
+      else if (e.key === 'Home') {
+        e.preventDefault()
+        setCurrentTime(0)
+      }
+      // Jump to end (End)
+      else if (e.key === 'End') {
+        e.preventDefault()
+        setCurrentTime(duration)
+      }
+      // Zoom in (=)
+      else if (e.key === '=' || e.key === '+') {
+        e.preventDefault()
+        setZoom(Math.min(5, zoom + 0.2))
+      }
+      // Zoom out (-)
+      else if (e.key === '-' || e.key === '_') {
+        e.preventDefault()
+        setZoom(Math.max(0.1, zoom - 0.2))
+      }
+      // Clear selection (Escape)
+      else if (e.key === 'Escape') {
+        e.preventDefault()
+        clearSelection()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isPlaying, setPlaying, handleSplitClip, handleDeleteClips, handleCopyClip, handlePasteClip, handleTrimStart, handleTrimEnd])
+  }, [
+    currentTime,
+    duration,
+    isPlaying,
+    zoom,
+    handleSplitClip,
+    handleTrimStart,
+    handleTrimEnd,
+    handleDeleteClips,
+    handleDuplicateClip,
+    handleCopyClip,
+    handlePasteClip,
+    setCurrentTime,
+    setPlaying,
+    setZoom,
+    clearSelection
+  ])
 
-  // Early return for no project
-  if (!project) {
-    return (
-      <div className={cn("h-64 bg-background border rounded-lg overflow-hidden p-4", className)}>
-        <div className="text-center text-muted-foreground py-8">
-          No project loaded. Start recording to create clips.
+  // Scroll playhead into view
+  useEffect(() => {
+    if (!playheadRef.current || !timelineRef.current) return
+
+    const playheadX = timeToPixel(currentTime)
+    const container = timelineRef.current
+    const containerWidth = container.clientWidth
+    const scrollLeft = container.scrollLeft
+
+    // Auto-scroll to keep playhead visible
+    if (playheadX < scrollLeft + 50) {
+      container.scrollLeft = Math.max(0, playheadX - 50)
+    } else if (playheadX > scrollLeft + containerWidth - 50) {
+      container.scrollLeft = playheadX - containerWidth + 50
+    }
+  }, [currentTime, timeToPixel])
+
+  // Render timeline ruler
+  const renderRuler = () => {
+    const marks = []
+    const majorInterval = 1000 // 1 second
+    const minorInterval = 100 // 100ms
+
+    for (let time = 0; time <= duration; time += minorInterval) {
+      const isMajor = time % majorInterval === 0
+      const x = timeToPixel(time)
+
+      marks.push(
+        <div
+          key={time}
+          className={cn(
+            "absolute top-0",
+            isMajor ? "h-4 border-l-2 border-muted-foreground" : "h-2 border-l border-muted-foreground/50"
+          )}
+          style={{ left: `${x}px` }}
+        >
+          {isMajor && (
+            <span className="absolute -top-5 left-1 text-xs text-muted-foreground">
+              {(time / 1000).toFixed(0)}s
+            </span>
+          )}
         </div>
+      )
+    }
+    return marks
+  }
+
+  // Render clips for a track
+  const renderTrackClips = (trackIndex: number, trackType: 'video' | 'audio') => {
+    if (!currentProject) return null
+
+    const track = currentProject.timeline.tracks.find(t => t.type === trackType)
+    if (!track) return null
+
+    return track.clips.map((clip) => {
+      const clipX = timeToPixel(clip.startTime)
+      const clipWidth = timeToPixel(clip.duration)
+      const isSelected = selectedClips.includes(clip.id)
+
+      return (
+        <div
+          key={clip.id}
+          className={cn(
+            "absolute top-1 bottom-1 rounded cursor-move transition-all",
+            trackType === 'video' ? "bg-blue-500" : "bg-green-500",
+            isSelected && "ring-2 ring-primary ring-offset-1",
+            isDragging && draggedClip === clip.id && "opacity-50"
+          )}
+          style={{
+            left: `${clipX}px`,
+            width: `${clipWidth}px`
+          }}
+          draggable
+          onDragStart={() => handleClipDragStart(clip.id)}
+          onDragEnd={handleClipDragEnd}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (e.shiftKey) {
+              selectClip(clip.id, true)
+            } else {
+              selectClip(clip.id)
+            }
+          }}
+          onContextMenu={(e) => handleContextMenu(e, clip.id)}
+        >
+          <div className="px-2 py-1 text-xs text-white truncate">
+            {clip.id}
+          </div>
+        </div>
+      )
+    })
+  }
+
+  if (!currentProject) {
+    return (
+      <div className={cn("flex items-center justify-center bg-muted/50 rounded-lg", className)}>
+        <p className="text-muted-foreground">No project loaded</p>
       </div>
     )
   }
 
   return (
-    <div className={cn("bg-background border rounded-lg overflow-hidden", className)}>
+    <div className={cn("flex flex-col bg-background border border-border rounded-lg", className)}>
       {/* Timeline Controls */}
-      <div className="border-b p-3 flex items-center gap-2">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between p-2 border-b border-border">
+        <div className="flex items-center space-x-2">
+          {/* Playback Controls */}
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setCurrentTime(0)}
-            title="Go to start"
+            onClick={() => setCurrentTime(Math.max(0, currentTime - 1000))}
           >
-            <SkipBack className="h-4 w-4" />
+            <SkipBack className="w-4 h-4" />
           </Button>
           <Button
             size="sm"
             variant="ghost"
             onClick={() => setPlaying(!isPlaying)}
-            title={isPlaying ? "Pause" : "Play"}
           >
-            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setCurrentTime(duration)}
-            title="Go to end"
+            onClick={() => setCurrentTime(Math.min(duration, currentTime + 1000))}
           >
-            <SkipForward className="h-4 w-4" />
+            <SkipForward className="w-4 h-4" />
           </Button>
-        </div>
 
-        <div className="h-6 w-[1px] bg-border" />
+          <div className="w-px h-6 bg-border mx-2" />
 
-        <div className="flex items-center gap-1">
+          {/* Edit Controls */}
           <Button
             size="sm"
             variant="ghost"
@@ -273,187 +504,201 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
             disabled={selectedClips.length !== 1}
             title="Split at playhead (S)"
           >
-            <Scissors className="h-4 w-4" />
+            <Scissors className="w-4 h-4" />
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleCopyClip}
-            disabled={selectedClips.length !== 1}
-            title="Copy clip (Cmd+C)"
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handlePasteClip}
-            disabled={!copiedClip}
-            title="Paste clip (Cmd+V)"
-          >
-            <Clipboard className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleDeleteClips}
-            disabled={selectedClips.length === 0}
-            title="Delete selected (Delete)"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="h-6 w-[1px] bg-border" />
-
-        <div className="flex items-center gap-1">
           <Button
             size="sm"
             variant="ghost"
             onClick={handleTrimStart}
             disabled={selectedClips.length !== 1}
-            title="Trim start to playhead ([)"
+            title="Trim start to playhead (Q)"
           >
-            [
+            <ChevronsLeft className="w-4 h-4" />
           </Button>
           <Button
             size="sm"
             variant="ghost"
             onClick={handleTrimEnd}
             disabled={selectedClips.length !== 1}
-            title="Trim end to playhead (])"
+            title="Trim end to playhead (W)"
           >
-            ]
+            <ChevronsRight className="w-4 h-4" />
           </Button>
-        </div>
-
-        <div className="h-6 w-[1px] bg-border" />
-
-        <div className="flex items-center gap-2">
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setZoom(zoom * 0.8)}
-            title="Zoom out"
+            onClick={handleDeleteClips}
+            disabled={selectedClips.length === 0}
           >
-            <ZoomOut className="h-4 w-4" />
+            <Trash2 className="w-4 h-4" />
           </Button>
-          <div className="w-24">
-            <Slider
-              value={[zoom]}
-              onValueChange={([value]) => setZoom(value)}
-              min={0.1}
-              max={5}
-              step={0.1}
-              className="w-full"
-            />
-          </div>
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setZoom(zoom * 1.2)}
-            title="Zoom in"
+            onClick={handleCopyClip}
+            disabled={selectedClips.length !== 1}
           >
-            <ZoomIn className="h-4 w-4" />
+            <Copy className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handlePasteClip}
+            disabled={!copiedClip}
+          >
+            <Clipboard className="w-4 h-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleDuplicateClip}
+            disabled={selectedClips.length !== 1}
+            title="Duplicate (Cmd/Ctrl+D)"
+          >
+            <Layers className="w-4 h-4" />
           </Button>
         </div>
 
-        <div className="flex-1" />
-
-        <div className="text-sm text-muted-foreground">
-          {Math.floor(currentTime / 1000)}.{Math.floor((currentTime % 1000) / 100)}s / {Math.floor(duration / 1000)}s
+        {/* Zoom Controls */}
+        <div className="flex items-center space-x-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setZoom(Math.max(0.1, zoom - 0.2))}
+          >
+            <ZoomOut className="w-4 h-4" />
+          </Button>
+          <Slider
+            value={[zoom]}
+            onValueChange={([value]) => setZoom(value)}
+            min={0.1}
+            max={5}
+            step={0.1}
+            className="w-32"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setZoom(Math.min(5, zoom + 0.2))}
+          >
+            <ZoomIn className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
-      {/* Timeline Tracks */}
+      {/* Timeline Area */}
       <div
         ref={timelineRef}
-        className="relative h-48 overflow-x-auto overflow-y-hidden bg-muted/20"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative"
         onClick={handleTimelineClick}
       >
-        {/* Time ruler */}
-        <div className="absolute top-0 left-0 h-8 border-b bg-background" style={{ width: `${timelineWidth}px` }}>
-          {Array.from({ length: Math.ceil(duration / 1000) + 1 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute top-0 h-full flex items-center justify-center text-xs text-muted-foreground"
-              style={{ left: `${timeToPixel(i * 1000)}px`, width: '40px' }}
-            >
-              {i}s
-            </div>
-          ))}
-        </div>
+        <div className="relative h-full" style={{ width: `${timelineWidth}px` }}>
+          {/* Ruler */}
+          <div className="h-8 border-b border-border relative">
+            {renderRuler()}
+          </div>
 
-        {/* Video track */}
-        <div className="absolute top-12 left-0 h-20 border-b" style={{ width: `${timelineWidth}px` }}>
-          <div className="absolute left-2 top-1 text-xs text-muted-foreground">Video</div>
-          {project.clips.filter(c => c.type === 'video').map((clip) => (
+          {/* Tracks */}
+          <div className="flex-1">
+            {/* Video Track */}
             <div
-              key={clip.id}
-              className={cn(
-                "absolute top-6 h-12 bg-blue-500 rounded cursor-pointer transition-all",
-                selectedClips.includes(clip.id) ? "ring-2 ring-primary" : "hover:brightness-110"
-              )}
-              style={{
-                left: `${timeToPixel(clip.startTime)}px`,
-                width: `${timeToPixel(clip.duration)}px`
-              }}
-              onClick={(e) => {
-                e.stopPropagation()
-                selectClip(clip.id, e.shiftKey)
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation()
-                setIsDragging(true)
-                setDraggedClip(clip.id)
-              }}
+              className="h-20 border-b border-border relative bg-muted/20"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleClipDrop(e, 0)}
             >
-              <div className="px-1 text-xs text-white truncate">{clip.name}</div>
+              <div className="absolute left-0 top-0 bottom-0 w-20 bg-background border-r border-border flex items-center justify-center">
+                <span className="text-xs text-muted-foreground">Video</span>
+              </div>
+              <div className="ml-20 relative h-full">
+                {renderTrackClips(0, 'video')}
+              </div>
             </div>
-          ))}
-        </div>
 
-        {/* Audio track */}
-        <div className="absolute top-36 left-0 h-20 border-b" style={{ width: `${timelineWidth}px` }}>
-          <div className="absolute left-2 top-1 text-xs text-muted-foreground">Audio</div>
-          {project.clips.filter(c => c.type === 'audio').map((clip) => (
+            {/* Audio Track */}
             <div
-              key={clip.id}
-              className={cn(
-                "absolute top-6 h-12 bg-green-500 rounded cursor-pointer transition-all",
-                selectedClips.includes(clip.id) ? "ring-2 ring-primary" : "hover:brightness-110"
-              )}
-              style={{
-                left: `${timeToPixel(clip.startTime)}px`,
-                width: `${timeToPixel(clip.duration)}px`
-              }}
-              onClick={(e) => {
-                e.stopPropagation()
-                selectClip(clip.id, e.shiftKey)
-              }}
+              className="h-20 border-b border-border relative bg-muted/10"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleClipDrop(e, 1)}
             >
-              <div className="px-1 text-xs text-white truncate">{clip.name}</div>
+              <div className="absolute left-0 top-0 bottom-0 w-20 bg-background border-r border-border flex items-center justify-center">
+                <span className="text-xs text-muted-foreground">Audio</span>
+              </div>
+              <div className="ml-20 relative h-full">
+                {renderTrackClips(1, 'audio')}
+              </div>
             </div>
-          ))}
-        </div>
+          </div>
 
-        {/* Playhead */}
+          {/* Playhead */}
+          <div
+            ref={playheadRef}
+            className="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none z-10"
+            style={{ left: `${timeToPixel(currentTime)}px` }}
+          >
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-red-500 rotate-45" />
+          </div>
+        </div>
+      </div>
+
+      {/* Timeline Info */}
+      <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-muted-foreground">
+        <span>{selectedClips.length} clip(s) selected</span>
+        <span>{(currentTime / 1000).toFixed(2)}s / {(duration / 1000).toFixed(2)}s</span>
+      </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
         <div
-          ref={playheadRef}
-          className="absolute top-0 w-[2px] bg-red-500 z-10 pointer-events-none"
-          style={{
-            left: `${timeToPixel(currentTime)}px`,
-            height: '100%'
-          }}
+          className="fixed bg-popover border border-border rounded-md shadow-md p-1 z-50"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <div className="absolute -top-1 -left-2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-red-500" />
+          <button
+            className="flex items-center w-full px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
+            onClick={() => handleContextMenuAction('split')}
+          >
+            <Scissors className="w-4 h-4 mr-2" />
+            Split at Playhead
+          </button>
+          <button
+            className="flex items-center w-full px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
+            onClick={() => handleContextMenuAction('trim-start')}
+          >
+            <ChevronsLeft className="w-4 h-4 mr-2" />
+            Trim Start
+          </button>
+          <button
+            className="flex items-center w-full px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
+            onClick={() => handleContextMenuAction('trim-end')}
+          >
+            <ChevronsRight className="w-4 h-4 mr-2" />
+            Trim End
+          </button>
+          <div className="h-px bg-border my-1" />
+          <button
+            className="flex items-center w-full px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
+            onClick={() => handleContextMenuAction('duplicate')}
+          >
+            <Layers className="w-4 h-4 mr-2" />
+            Duplicate
+          </button>
+          <button
+            className="flex items-center w-full px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
+            onClick={() => handleContextMenuAction('copy')}
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            Copy
+          </button>
+          <div className="h-px bg-border my-1" />
+          <button
+            className="flex items-center w-full px-3 py-1.5 text-sm text-destructive hover:bg-destructive hover:text-destructive-foreground rounded-sm"
+            onClick={() => handleContextMenuAction('delete')}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete
+          </button>
         </div>
-      </div>
-
-      {/* Keyboard Shortcuts Help */}
-      <div className="p-2 border-t bg-muted/20 text-xs text-muted-foreground">
-        <span className="font-medium">Shortcuts:</span> Space (play/pause) • S (split) • [ ] (trim) • Delete • Cmd+C/V (copy/paste)
-      </div>
+      )}
     </div>
   )
 }

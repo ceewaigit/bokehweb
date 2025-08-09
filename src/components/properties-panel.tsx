@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { useRecordingStore } from '@/stores/recording-store'
+import { useProjectStore } from '@/stores/project-store'
+import { Slider } from './ui/slider'
+import { Switch } from './ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
 import { Badge } from './ui/badge'
@@ -19,8 +23,9 @@ export function PropertiesPanel() {
   const [activeTab, setActiveTab] = useState<'project' | 'clip' | 'effects' | 'audio'>('project')
   const { project, selectedClips } = useTimelineStore()
   const { settings, updateSettings } = useRecordingStore()
+  const { currentProject, getCurrentClip, updateClipEffects } = useProjectStore()
 
-  const selectedClip = project?.clips.find(clip => selectedClips.includes(clip.id))
+  const selectedClip = getCurrentClip()
 
   const tabs = [
     { id: 'project', label: 'Project', icon: Monitor },
@@ -53,6 +58,173 @@ export function PropertiesPanel() {
 
       {/* Tab Content */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
+        {activeTab === 'effects' && selectedClip && currentProject && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Zoom Effects</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs">Enable Zoom</label>
+                  <Switch
+                    checked={selectedClip.effects?.zoom?.enabled || false}
+                    onCheckedChange={(checked) => {
+                      updateClipEffects(selectedClip.id, {
+                        zoom: { ...selectedClip.effects?.zoom, enabled: checked }
+                      })
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs">Max Zoom</label>
+                  <Slider
+                    value={[selectedClip.effects?.zoom?.maxZoom || 2]}
+                    onValueChange={([value]) => {
+                      updateClipEffects(selectedClip.id, {
+                        zoom: { ...selectedClip.effects?.zoom, maxZoom: value }
+                      })
+                    }}
+                    min={1}
+                    max={4}
+                    step={0.1}
+                    className="mt-2"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Cursor</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs">Show Cursor</label>
+                  <Switch
+                    checked={selectedClip.effects?.cursor?.visible || false}
+                    onCheckedChange={(checked) => {
+                      updateClipEffects(selectedClip.id, {
+                        cursor: { ...selectedClip.effects?.cursor, visible: checked }
+                      })
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs">Cursor Style</label>
+                  <Select
+                    value={selectedClip.effects?.cursor?.style || 'default'}
+                    onValueChange={(value) => {
+                      updateClipEffects(selectedClip.id, {
+                        cursor: { ...selectedClip.effects?.cursor, style: value as any }
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="w-full mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default</SelectItem>
+                      <SelectItem value="macOS">macOS</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs">Motion Blur</label>
+                  <Switch
+                    checked={selectedClip.effects?.cursor?.motionBlur || false}
+                    onCheckedChange={(checked) => {
+                      updateClipEffects(selectedClip.id, {
+                        cursor: { ...selectedClip.effects?.cursor, motionBlur: checked }
+                      })
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Background</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs">Background Type</label>
+                  <Select
+                    value={selectedClip.effects?.background?.type || 'none'}
+                    onValueChange={(value) => {
+                      updateClipEffects(selectedClip.id, {
+                        background: { ...selectedClip.effects?.background, type: value as any }
+                      })
+                    }}
+                  >
+                    <SelectTrigger className="w-full mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="color">Solid Color</SelectItem>
+                      <SelectItem value="gradient">Gradient</SelectItem>
+                      <SelectItem value="blur">Blur</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs">Padding</label>
+                  <Slider
+                    value={[selectedClip.effects?.background?.padding || 0]}
+                    onValueChange={([value]) => {
+                      updateClipEffects(selectedClip.id, {
+                        background: { ...selectedClip.effects?.background, padding: value }
+                      })
+                    }}
+                    min={0}
+                    max={100}
+                    step={5}
+                    className="mt-2"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Video Style</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs">Corner Radius</label>
+                  <Slider
+                    value={[selectedClip.effects?.video?.cornerRadius || 0]}
+                    onValueChange={([value]) => {
+                      updateClipEffects(selectedClip.id, {
+                        video: { ...selectedClip.effects?.video, cornerRadius: value }
+                      })
+                    }}
+                    min={0}
+                    max={30}
+                    step={1}
+                    className="mt-2"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs">Drop Shadow</label>
+                  <Switch
+                    checked={selectedClip.effects?.video?.shadow?.enabled || false}
+                    onCheckedChange={(checked) => {
+                      updateClipEffects(selectedClip.id, {
+                        video: {
+                          ...selectedClip.effects?.video,
+                          shadow: { ...selectedClip.effects?.video?.shadow, enabled: checked }
+                        }
+                      })
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'project' && (
           <div className="space-y-4">
             <div>
@@ -65,15 +237,15 @@ export function PropertiesPanel() {
                   </div>
                   <div className="flex justify-between text-xs">
                     <span>Frame Rate:</span>
-                    <span>{project.settings.framerate} fps</span>
+                    <span>{currentProject?.settings?.frameRate || 60} fps</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span>Duration:</span>
-                    <span>{project.settings.duration.toFixed(1)}s</span>
+                    <span>{currentProject?.timeline?.duration ? (currentProject.timeline.duration / 1000).toFixed(1) : '0.0'}s</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span>Clips:</span>
-                    <span>{project.clips.length}</span>
+                    <span>{currentProject?.timeline?.tracks?.[0]?.clips?.length || 0}</span>
                   </div>
                 </div>
               ) : (
@@ -106,7 +278,7 @@ export function PropertiesPanel() {
                 </div>
                 <div className="flex justify-between text-xs">
                   <span>Frame Rate:</span>
-                  <span>{settings.framerate} fps</span>
+                  <span>{settings.framerate || 60} fps</span>
                 </div>
               </div>
             </div>
@@ -120,26 +292,16 @@ export function PropertiesPanel() {
               {selectedClip ? (
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
-                    <span>Name:</span>
-                    <span className="truncate ml-2">{selectedClip.name}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span>Type:</span>
-                    <Badge variant="outline" className="text-xs">
-                      {selectedClip.type}
-                    </Badge>
+                    <span>Clip ID:</span>
+                    <span className="truncate ml-2">{selectedClip.id}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span>Start Time:</span>
-                    <span>{selectedClip.startTime.toFixed(1)}s</span>
+                    <span>{(selectedClip.startTime / 1000).toFixed(2)}s</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span>Duration:</span>
-                    <span>{selectedClip.duration.toFixed(1)}s</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span>Track:</span>
-                    <span>{selectedClip.trackIndex + 1}</span>
+                    <span>{(selectedClip.duration / 1000).toFixed(2)}s</span>
                   </div>
                 </div>
               ) : (
@@ -223,7 +385,7 @@ export function PropertiesPanel() {
                 </div>
                 <div className="flex justify-between text-xs">
                   <span>Sample Rate:</span>
-                  <span>{project?.settings.audioSampleRate || 48000} Hz</span>
+                  <span>48000 Hz</span>
                 </div>
               </div>
             </div>

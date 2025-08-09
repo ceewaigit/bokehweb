@@ -12,6 +12,7 @@ import { RecordingController } from './recording-controller'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { cn } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import type { Recording } from '@/types/project'
 
 export function WorkspaceManager() {
   const { project, createNewProject } = useTimelineStore()
@@ -45,40 +46,133 @@ export function WorkspaceManager() {
         <RecordingsLibrary
           onSelectRecording={async (recording) => {
             console.log('🔍 Selected recording:', recording.name)
-            // Create a new project with the recording
-            createNewProject(recording.name)
-            // Load the video file
-            try {
-              const result = await window.electronAPI?.readLocalFile?.(recording.path)
-              if (!result || !result.success) {
-                throw new Error(result?.error || 'Failed to read local file')
-              }
-              const arrayBuffer: ArrayBuffer = result.data as ArrayBuffer
-              const blob = new Blob([arrayBuffer], { type: 'video/webm' })
-              // Add to timeline
-              const url = globalBlobManager.create(blob, 'loaded-recording')
-              const clipId = `clip-${Date.now()}`
-              useTimelineStore.getState().addClip({
-                id: clipId,
-                type: 'video',
-                name: recording.name,
-                source: url,
-                startTime: 0,
-                duration: 10000, // Default 10 seconds, will be updated when video loads
-                trackIndex: 0,
-                thumbnail: ''
-              })
 
-              // Link previously captured cursor metadata (saved during recording) to this clip
-              try {
-                const metaKey = `recording-metadata-${recording.path}`
-                const existing = localStorage.getItem(metaKey)
-                if (existing) {
-                  localStorage.setItem(`clip-metadata-${clipId}`, existing)
+            // Check if it's a project file
+            if (recording.isProject && recording.project) {
+              const project = recording.project
+              console.log('📁 Loading project:', project.name)
+
+              // Create a new timeline project
+              createNewProject(project.name)
+
+              // Load each recording from the project
+              for (const rec of project.recordings) {
+                if (rec.filePath) {
+                  try {
+                    // Load the video file
+                    const result = await window.electronAPI?.readLocalFile?.(rec.filePath)
+                    if (!result || !result.success) {
+                      console.error('Failed to load video:', rec.filePath)
+                      continue
+                    }
+
+                    const arrayBuffer: ArrayBuffer = result.data as ArrayBuffer
+                    const blob = new Blob([arrayBuffer], { type: 'video/webm' })
+                    const url = globalBlobManager.create(blob, 'project-recording')
+
+                    // Add clips from the project timeline
+                    for (const track of project.timeline.tracks) {
+                      for (const clip of track.clips) {
+                        if (clip.recordingId === rec.id) {
+                          const clipId = clip.id
+
+                          // Store blob URL for the recording
+                          localStorage.setItem(`recording-blob-${rec.id}`, url)
+
+                          // Add recording to project store
+                          useTimelineStore.getState().addRecording(rec, blob)
+
+                          // Save metadata for effects rendering
+                          if (rec.metadata) {
+                            // Convert project metadata format to ElectronMetadata format
+                            const metadata: any[] = rec.metadata.mouseEvents.map(e => ({
+                              timestamp: e.timestamp,
+                              mouseX: e.x,
+                              mouseY: e.y,
+                              eventType: 'mouse' as const
+                            }))
+
+                            // Add click events
+                            rec.metadata.clickEvents.forEach(e => {
+                              metadata.push({
+                                timestamp: e.timestamp,
+                                mouseX: e.x,
+                                mouseY: e.y,
+                                eventType: 'click' as const
+                              })
+                            })
+
+                            // Add keyboard events
+                            rec.metadata.keyboardEvents.forEach(e => {
+                              metadata.push({
+                                timestamp: e.timestamp,
+                                mouseX: 0,
+                                mouseY: 0,
+                                eventType: 'keypress' as const,
+                                key: e.key
+                              })
+                            })
+
+                            localStorage.setItem(`recording-metadata-${rec.id}`, JSON.stringify(metadata))
+                            console.log(`✅ Loaded ${metadata.length} metadata events for recording ${rec.id}`)
+                          }
+
+                          // Store clip effects from project for later use
+                          localStorage.setItem(`clip-effects-${clipId}`, JSON.stringify(clip.effects))
+                        }
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Failed to load recording from project:', error)
+                  }
                 }
-              } catch {}
-            } catch (error) {
-              console.error('Failed to load recording:', error)
+              }
+            } else {
+              // Legacy: Load raw video file
+              createNewProject(recording.name)
+              try {
+                const result = await window.electronAPI?.readLocalFile?.(recording.path)
+                if (!result || !result.success) {
+                  throw new Error(result?.error || 'Failed to read local file')
+                }
+                const arrayBuffer: ArrayBuffer = result.data as ArrayBuffer
+                const blob = new Blob([arrayBuffer], { type: 'video/webm' })
+                const url = globalBlobManager.create(blob, 'loaded-recording')
+                const recordingId = `recording-${Date.now()}`
+
+                // Store blob URL for preview
+                localStorage.setItem(`recording-blob-${recordingId}`, url)
+
+                // Create a Recording object
+                const rec: Recording = {
+                  id: recordingId,
+                  filePath: recording.path,
+                  duration: 10000, // Default 10 seconds
+                  width: typeof window !== 'undefined' ? window.screen.width : 1920,
+                  height: typeof window !== 'undefined' ? window.screen.height : 1080,
+                  frameRate: 60,
+                  metadata: {
+                    mouseEvents: [],
+                    keyboardEvents: [],
+                    clickEvents: [],
+                    screenEvents: []
+                  }
+                }
+
+                // Add recording to project store
+                useTimelineStore.getState().addRecording(rec, blob)
+
+                // Try to load metadata if it exists
+                try {
+                  const metaKey = `recording-metadata-${recording.path}`
+                  const existing = localStorage.getItem(metaKey)
+                  if (existing) {
+                    localStorage.setItem(`recording-metadata-${recordingId}`, existing)
+                  }
+                } catch { }
+              } catch (error) {
+                console.error('Failed to load recording:', error)
+              }
             }
           }}
         />
@@ -87,33 +181,45 @@ export function WorkspaceManager() {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background">
-      {/* Top Toolbar */}
-      <Toolbar
-        onToggleProperties={handleToggleProperties}
-        onExport={handleExport}
-      />
+    <div className="h-screen w-screen flex flex-col bg-background overflow-hidden">
+      {/* Top Toolbar - Refined with better spacing */}
+      <div className="h-14 border-b bg-card/50 backdrop-blur-sm">
+        <Toolbar
+          onToggleProperties={handleToggleProperties}
+          onExport={handleExport}
+        />
+      </div>
 
-      {/* Main Content Area */}
+      {/* Main Content Area - Better structured layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Preview and Timeline Area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <PreviewArea />
-          <TimelineEditor />
+        {/* Main Editor Section */}
+        <div className="flex-1 flex flex-col bg-background">
+          {/* Preview Area - Takes up most space */}
+          <div className="flex-1 min-h-0 bg-card/30">
+            <PreviewArea />
+          </div>
+
+          {/* Timeline Section - Fixed height with better border */}
+          <div className="h-64 border-t bg-card/50 backdrop-blur-sm">
+            <TimelineEditor className="h-full" />
+          </div>
         </div>
 
-        {/* Properties Panel */}
+        {/* Properties Panel - Better animation and styling */}
         <div className={cn(
-          "transition-all duration-300 ease-smooth border-l border-border",
-          isPropertiesOpen ? "w-80" : "w-0 overflow-hidden"
+          "transition-all duration-300 ease-in-out bg-card border-l",
+          "shadow-xl",
+          isPropertiesOpen ? "w-80" : "w-0"
         )}>
-          {isPropertiesOpen && <PropertiesPanel />}
+          {isPropertiesOpen && (
+            <div className="h-full overflow-hidden">
+              <PropertiesPanel />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Animation Overlay */}
-
-      {/* Recording Controller */}
+      {/* Recording Controller - Floating overlay */}
       <RecordingController />
 
       {/* Dialogs and Modals */}

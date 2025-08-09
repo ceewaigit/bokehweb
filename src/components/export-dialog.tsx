@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useExportStore } from '@/stores/export-store'
 import { useTimelineStore } from '@/stores/timeline-store'
+import { useProjectStore } from '@/stores/project-store'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
 import { Progress } from './ui/progress'
@@ -39,6 +40,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   } = useExportStore()
 
   const { project } = useTimelineStore()
+  const { currentProject, getCurrentClip } = useProjectStore()
 
   const presets = [
     { id: 'youtube-1080p', name: 'YouTube 1080p', desc: '1920×1080, 60fps, MP4' },
@@ -50,14 +52,16 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   ]
 
   const handleExport = async () => {
-    if (!project) return
+    // Use new project format if available
+    const projectToExport = currentProject || project
+    if (!projectToExport) return
 
     reset()
 
     if (exportSettings.format === 'gif') {
-      await exportAsGIF(project)
+      await exportAsGIF(projectToExport)
     } else {
-      await exportProject(project)
+      await exportProject(projectToExport)
     }
   }
 
@@ -183,9 +187,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
             {project && (
               <>
                 <FileVideo className="w-3 h-3" />
-                <span>{project.clips.length} clips</span>
+                <span>{currentProject?.timeline?.tracks?.[0]?.clips?.length || 0} clips</span>
                 <span>•</span>
-                <span>{project.settings.duration.toFixed(1)}s</span>
+                <span>{currentProject?.timeline?.duration ? (currentProject.timeline.duration / 1000).toFixed(1) : '0.0'}s</span>
               </>
             )}
           </div>

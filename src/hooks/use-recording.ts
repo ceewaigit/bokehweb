@@ -6,6 +6,8 @@ import { useTimelineStore } from '@/stores/timeline-store'
 import { ScreenRecorder, type RecordingResult } from '@/lib/recording/screen-recorder'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
+import { createProject, type Recording, type MouseEvent as ProjectMouseEvent } from '@/types/project'
+import type { EnhancementSettings } from '@/lib/recording/screen-recorder'
 // Processing progress type
 interface ProcessingProgress {
   progress: number
@@ -39,7 +41,7 @@ export function useRecording() {
     setStatus 
   } = useRecordingStore()
 
-  const { addClip, project, createNewProject } = useTimelineStore()
+  const { project, createNewProject } = useTimelineStore()
 
   // Simple duration validation - no longer needed with proper MediaRecorder
   const validateResult = useCallback((result: RecordingResult): boolean => {
@@ -145,7 +147,7 @@ export function useRecording() {
     }
   }, [setDuration, isRecording, isTimerSynced]) // Include all dependencies
 
-  const startRecording = useCallback(async (sourceId?: string, enhancementSettings?: any) => {
+  const startRecording = useCallback(async (_sourceId?: string, enhancementSettings?: EnhancementSettings) => {
     if (!recorderRef.current || isRecording) {
       if (isRecording) {
         logger.debug('Recording already in progress')
@@ -157,15 +159,8 @@ export function useRecording() {
       setStatus('preparing')
       setIsTimerSynced(false)
       
-      // Enable enhancements if provided
-      if (enhancementSettings) {
-        logger.info('Enabling Screen Studio effects:', enhancementSettings)
-        recorderRef.current.enableEnhancements(enhancementSettings)
-        
-      }
-      
-      // Start recording with simplified approach
-      await recorderRef.current.startRecording(settings, sourceId)
+      // Start recording with enhancements if provided
+      await recorderRef.current.startRecording(settings, enhancementSettings)
 
       setRecording(true)
       setStatus('recording')
@@ -249,55 +244,163 @@ export function useRecording() {
         (window as any).__screenRecorderActive = false
       }
 
-      // Add to timeline
+      // Create and save project file with recording
       if (result.video) {
-        let currentProject = project
+        const recordingId = `recording-${Date.now()}`
+        const projectName = `Recording ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`
         
+        // First save the raw video file
+        let videoFilePath: string | undefined
+        if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
+          try {
+            const recordingsDir = await window.electronAPI.getRecordingsDirectory()
+            const videoFileName = `${recordingId}.webm`
+            videoFilePath = `${recordingsDir}/${videoFileName}`
+            const buffer = await result.video.arrayBuffer()
+            await window.electronAPI.saveRecording(videoFilePath, buffer)
+            logger.info(`Video saved to: ${videoFilePath}`)
+          } catch (error) {
+            logger.error('Failed to save video file:', error)
+          }
+        }
+        
+        // Create a new project in our custom format
+        const newProject = createProject(projectName)
+        
+        // Get actual screen dimensions
+        const screenWidth = typeof window !== 'undefined' ? window.screen.width : 1920
+        const screenHeight = typeof window !== 'undefined' ? window.screen.height : 1080
+        
+        // Convert metadata to project format
+        const mouseEvents: ProjectMouseEvent[] = result.metadata
+          .filter(m => m.eventType === 'mouse')
+          .map(m => ({
+            timestamp: m.timestamp,
+            x: m.mouseX,
+            y: m.mouseY,
+            screenWidth,
+            screenHeight
+          }))
+        
+        // Add recording to project
+        const recording: Recording = {
+          id: recordingId,
+          filePath: videoFilePath || '',
+          duration: result.duration,
+          width: screenWidth,
+          height: screenHeight,
+          frameRate: settings.framerate || 60,
+          metadata: {
+            mouseEvents,
+            keyboardEvents: result.metadata
+              .filter(m => m.eventType === 'keypress')
+              .map(m => ({
+                timestamp: m.timestamp,
+                key: m.key || '',
+                modifiers: []
+              })),
+            clickEvents: result.metadata
+              .filter(m => m.eventType === 'click')
+              .map(m => ({
+                timestamp: m.timestamp,
+                x: m.mouseX,
+                y: m.mouseY,
+                button: 'left' as const
+              })),
+            screenEvents: []
+          }
+        }
+        
+        newProject.recordings.push(recording)
+        
+        // Add clip to timeline with default effects
+        newProject.timeline.tracks[0].clips.push({
+          id: `clip-${Date.now()}`,
+          recordingId,
+          startTime: 0,
+          duration: result.duration,
+          sourceIn: 0,
+          sourceOut: result.duration,
+          effects: {
+            zoom: {
+              enabled: true,
+              keyframes: [],
+              sensitivity: 1.0,
+              maxZoom: 2.0,
+              smoothing: 0.1
+            },
+            cursor: {
+              visible: true,
+              style: 'macOS',
+              size: 1.2,
+              color: '#ffffff',
+              clickEffects: true,
+              motionBlur: true
+            },
+            background: {
+              type: 'gradient',
+              gradient: {
+                colors: ['#1a1a2e', '#0f0f1e'],
+                angle: 135
+              },
+              padding: 40
+            },
+            video: {
+              cornerRadius: 12,
+              shadow: {
+                enabled: true,
+                blur: 40,
+                color: '#000000',
+                offset: { x: 0, y: 20 }
+              }
+            },
+            annotations: []
+          }
+        })
+        
+        // Update timeline duration
+        newProject.timeline.duration = result.duration
+        
+        // Save the project as .ssproj file
+        if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
+          try {
+            const recordingsDir = await window.electronAPI.getRecordingsDirectory()
+            const projectFileName = `${recordingId}.ssproj`
+            const projectFilePath = `${recordingsDir}/${projectFileName}`
+            const projectData = JSON.stringify(newProject, null, 2)
+            
+            // Save as text file with our custom extension
+            await window.electronAPI.saveRecording(
+              projectFilePath,
+              new TextEncoder().encode(projectData).buffer
+            )
+            logger.info(`Project saved to: ${projectFilePath}`)
+            
+            // Also save to localStorage for quick access
+            localStorage.setItem(`project-${newProject.id}`, projectData)
+          } catch (error) {
+            logger.error('Failed to save project file:', error)
+          }
+        }
+        
+        // For backwards compatibility, also update the timeline store
+        let currentProject = project
         if (!currentProject) {
-          createNewProject(`Recording ${new Date().toLocaleDateString()}`)
+          createNewProject(projectName)
           currentProject = useTimelineStore.getState().project
         }
         
-        if (currentProject) {
-          const clipId = `recording-${Date.now()}`
-          // Use enhanced video if available, otherwise use original
-          const videoToUse = result.enhancedVideo || result.video
-          const videoUrl = globalBlobManager.create(videoToUse)
+        if (currentProject && result.video) {
+          // Store the video blob for preview
+          const videoUrl = globalBlobManager.create(result.video)
+          localStorage.setItem(`recording-blob-${recordingId}`, videoUrl)
           
-          // Also store original video for backup
-          const originalVideoUrl = globalBlobManager.create(result.video)
+          // Save metadata for preview rendering
+          localStorage.setItem(`recording-metadata-${recordingId}`, JSON.stringify(result.metadata))
           
-          // Save metadata to localStorage for cursor rendering
-          if (result.metadata && result.metadata.length > 0) {
-            try {
-              localStorage.setItem(`clip-metadata-${clipId}`, JSON.stringify(result.metadata))
-              logger.debug(`Saved ${result.metadata.length} metadata events for clip ${clipId}`)
-            } catch (e) {
-              logger.error('Failed to save metadata:', e)
-            }
-          }
-          
-          const clipName = result.enhancedVideo 
-            ? `Enhanced Recording ${new Date().toLocaleTimeString()}`
-            : `Recording ${new Date().toLocaleTimeString()}`
-          
-          addClip({
-            id: clipId,
-            name: clipName,
-            type: 'video',
-            source: videoUrl,
-            startTime: 0,
-            duration: result.duration,
-            trackIndex: 0,
-            thumbnail: '',
-            originalSource: originalVideoUrl,
-          })
-          
-          if (result.enhancedVideo) {
-            logger.info('Enhanced clip added to timeline')
-          } else {
-            logger.info('Clip added to timeline')
-          }
+          // Add the recording to the project
+          const projectStore = useTimelineStore.getState()
+          projectStore.addRecording(recording, result.video)
         }
       }
 
@@ -324,7 +427,7 @@ export function useRecording() {
       
       return null
     }
-  }, [project, setRecording, setPaused, setStatus, addClip, createNewProject, validateResult])
+  }, [project, setRecording, setPaused, setStatus, createNewProject, validateResult])
 
   const pauseRecording = useCallback(() => {
     if (recorderRef.current && isRecording) {

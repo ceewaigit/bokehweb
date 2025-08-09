@@ -1,6 +1,7 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { toBlobURL, fetchFile } from '@ffmpeg/util'
-import type { ExportSettings, Project } from '@/types'
+import type { ExportSettings } from '@/types'
+import type { Project } from '@/types/project'
 import { globalBlobManager } from '../security/blob-url-manager'
 
 export interface ExportProgress {
@@ -44,7 +45,11 @@ export class ExportEngine {
   ): Promise<Blob> {
     if (!this.isLoaded) await this.initialize()
 
-    const videoClips = project.clips.filter(clip => clip.type === 'video')
+    // Get all video clips from all tracks
+    const videoClips = project.timeline.tracks
+      .filter(track => track.type === 'video')
+      .flatMap(track => track.clips)
+
     if (videoClips.length === 0) {
       throw new Error('No video clips to export')
     }
@@ -54,11 +59,17 @@ export class ExportEngine {
     // Load clips into FFmpeg
     for (let i = 0; i < videoClips.length; i++) {
       const clip = videoClips[i]
+      const recording = project.recordings.find(r => r.id === clip.recordingId)
+      if (!recording) {
+        console.warn(`Recording not found for clip ${clip.id}`)
+        continue
+      }
       try {
-        const videoData = await fetchFile(clip.source)
+        // Use file path from recording
+        const videoData = await fetchFile(recording.filePath)
         await this.ffmpeg.writeFile(`input_${i}.mp4`, videoData)
       } catch (error) {
-        console.warn(`Failed to load ${clip.name}:`, error)
+        console.warn(`Failed to load clip ${clip.id}:`, error)
       }
     }
 

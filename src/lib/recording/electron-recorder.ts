@@ -14,6 +14,7 @@ export interface ElectronRecordingResult {
   metadata: ElectronMetadata[]
   effectsApplied: string[]
   processingTime: number
+  filePath?: string
 }
 
 export interface ElectronMetadata {
@@ -206,12 +207,37 @@ export class ElectronRecorder {
 
     logger.info('Stopping screen recording')
 
-    return new Promise((resolve, reject) => {
-      this.mediaRecorder!.onstop = () => {
+    return new Promise(async (resolve, reject) => {
+      this.mediaRecorder!.onstop = async () => {
         const duration = Date.now() - this.startTime
         const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
 
         logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
+
+        // Save the recording to file
+        let filePath: string | undefined
+        if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
+          try {
+            const recordingsDir = await window.electronAPI.getRecordingsDirectory()
+            const fileName = `Recording_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`
+            filePath = `${recordingsDir}/${fileName}`
+            const buffer = await video.arrayBuffer()
+            await window.electronAPI.saveRecording(filePath, buffer)
+            logger.info(`Recording saved to: ${filePath}`)
+
+            // Save metadata linked to the file path for later retrieval
+            if (this.metadata.length > 0 && filePath) {
+              try {
+                localStorage.setItem(`recording-metadata-${filePath}`, JSON.stringify(this.metadata))
+                logger.info(`Saved ${this.metadata.length} metadata events for file ${filePath}`)
+              } catch (e) {
+                logger.error('Failed to save metadata to localStorage:', e)
+              }
+            }
+          } catch (error) {
+            logger.error('Failed to save recording to file:', error)
+          }
+        }
 
         this.cleanup()
 
@@ -224,6 +250,7 @@ export class ElectronRecorder {
           video,
           duration,
           metadata: this.metadata,
+          filePath,
           effectsApplied,
           processingTime: 0 // Electron recorder has no post-processing
         })

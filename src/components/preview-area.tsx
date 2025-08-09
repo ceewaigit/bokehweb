@@ -3,10 +3,12 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useTimelineStore } from '@/stores/timeline-store'
 import { useRecordingStore } from '@/stores/recording-store'
+import { useProjectStore } from '@/stores/project-store'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { ZoomEngine } from '@/lib/effects/zoom-engine'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
+import { Separator } from './ui/separator'
 import { Play, Pause, RotateCcw, Eye, EyeOff, SkipBack, SkipForward, MousePointer, ZoomIn } from 'lucide-react'
 
 export function PreviewArea() {
@@ -24,13 +26,59 @@ export function PreviewArea() {
   const [videoError, setVideoError] = useState<string | null>(null)
   const { project, currentTime, isPlaying, setPlaying, setCurrentTime } = useTimelineStore()
   const { isRecording } = useRecordingStore()
+  const { currentProject, selectedClipId, getCurrentClip, getCurrentRecording } = useProjectStore()
 
-  // Get the current clip (first clip for now)
-  const currentClip = project?.clips[0]
+  // Get the current clip from project store
+  const projectClip = getCurrentClip()
+  const projectRecording = getCurrentRecording()
+  
+  // Create a simplified clip object for the preview
+  const currentClip = projectClip ? {
+    id: projectClip.id,
+    source: localStorage.getItem(`recording-blob-${projectClip.recordingId}`) || '',
+    originalSource: ''
+  } : null
+  
   const hasEnhancements = currentClip?.originalSource && currentClip?.source !== currentClip?.originalSource
 
-  // Get metadata from localStorage if available
+  // Get metadata from project or localStorage
   const getClipMetadata = useCallback(() => {
+    // First try project store
+    if (projectRecording?.metadata) {
+      // Convert to preview format
+      const metadata: any[] = []
+      
+      projectRecording.metadata.mouseEvents?.forEach(e => {
+        metadata.push({
+          timestamp: e.timestamp,
+          mouseX: e.x,
+          mouseY: e.y,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: e.screenWidth,
+          windowHeight: e.screenHeight,
+          eventType: 'mouse'
+        })
+      })
+      
+      projectRecording.metadata.clickEvents?.forEach(e => {
+        metadata.push({
+          timestamp: e.timestamp,
+          mouseX: e.x,
+          mouseY: e.y,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: projectRecording.width,
+          windowHeight: projectRecording.height,
+          eventType: 'click',
+          data: { button: e.button }
+        })
+      })
+      
+      return metadata
+    }
+    
+    // Fall back to localStorage
     if (!currentClip?.id) return null
     try {
       const stored = localStorage.getItem(`clip-metadata-${currentClip.id}`)
@@ -38,7 +86,7 @@ export function PreviewArea() {
     } catch {
       return null
     }
-  }, [currentClip?.id])
+  }, [currentClip?.id, projectRecording])
 
   // Load video when clip changes
   useEffect(() => {
@@ -277,15 +325,21 @@ export function PreviewArea() {
   }
 
   return (
-    <div className="flex-1 bg-black relative flex items-center justify-center overflow-hidden">
+    <div className="flex-1 relative flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-primary/5 overflow-hidden">
       {isRecording ? (
-        // Recording state
-        <div className="text-center text-white">
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse mr-2" />
-            <span className="text-lg font-medium">Recording...</span>
+        // Recording state - improved design
+        <div className="text-center">
+          <div className="relative mb-8">
+            <div className="w-32 h-32 bg-red-500/10 rounded-full flex items-center justify-center">
+              <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50" />
+              </div>
+            </div>
           </div>
-          <p className="text-muted-foreground">Screen Studio effects are being applied</p>
+          <h3 className="text-2xl font-bold mb-3 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+            Recording in Progress
+          </h3>
+          <p className="text-muted-foreground text-lg">Screen Studio effects are being captured</p>
         </div>
       ) : currentClip ? (
         // Video preview
@@ -296,10 +350,13 @@ export function PreviewArea() {
           </div>
         ) : (
           <>
-            <div ref={containerRef} className="relative max-w-full max-h-full">
+            <div ref={containerRef} className="relative max-w-full max-h-full p-8">
+              {/* Decorative background glow */}
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-primary/10 blur-3xl opacity-50" />
+              
               <video
                 ref={videoRef}
-                className="max-w-full max-h-full rounded-lg shadow-2xl"
+                className="relative max-w-full max-h-full rounded-xl shadow-2xl ring-1 ring-border/20 backdrop-blur-sm"
                 controls={false}
                 playsInline
                 onTimeUpdate={(e) => {
@@ -335,13 +392,14 @@ export function PreviewArea() {
               />
             </div>
 
-            {/* Video Controls Overlay */}
+            {/* Floating Video Controls - Screen Studio style */}
             {isVideoLoaded && (
-              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/50 backdrop-blur-sm rounded-lg p-2">
-                <div className="flex items-center space-x-2">
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-background/95 backdrop-blur-md rounded-xl border border-border/50 shadow-2xl p-3 flex items-center space-x-3">
+                <div className="flex items-center space-x-1">
                   <Button
-                    variant="secondary"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
+                    className="w-8 h-8 hover:bg-primary/10"
                     onClick={handleSkipBack}
                     disabled={!isVideoLoaded}
                   >
@@ -349,17 +407,19 @@ export function PreviewArea() {
                   </Button>
 
                   <Button
-                    variant="secondary"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
+                    className="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20"
                     onClick={handlePlayPause}
                     disabled={!isVideoLoaded}
                   >
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    {isPlaying ? <Pause className="w-5 h-5 text-primary" /> : <Play className="w-5 h-5 text-primary ml-0.5" />}
                   </Button>
 
                   <Button
-                    variant="secondary"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
+                    className="w-8 h-8 hover:bg-primary/10"
                     onClick={handleSkipForward}
                     disabled={!isVideoLoaded}
                   >
@@ -367,8 +427,9 @@ export function PreviewArea() {
                   </Button>
 
                   <Button
-                    variant="secondary"
-                    size="sm"
+                    variant="ghost"
+                    size="icon"
+                    className="w-8 h-8 hover:bg-primary/10"
                     onClick={handleRestart}
                     disabled={!isVideoLoaded}
                   >
@@ -376,41 +437,44 @@ export function PreviewArea() {
                   </Button>
                 </div>
 
+                <Separator orientation="vertical" className="h-8" />
+                
                 {/* Effect Toggles */}
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1">
                   {/* Zoom Toggle */}
                   <Button
-                    variant="secondary"
-                    size="sm"
+                    variant={showZoom ? "default" : "ghost"}
+                    size="icon"
+                    className="w-8 h-8"
                     onClick={() => setShowZoom(!showZoom)}
                     title={showZoom ? "Disable zoom" : "Enable zoom"}
                   >
-                    <ZoomIn className={`w-4 h-4 ${showZoom ? '' : 'opacity-50'}`} />
+                    <ZoomIn className="w-4 h-4" />
                   </Button>
 
                   {/* Cursor Toggle */}
                   <Button
-                    variant="secondary"
-                    size="sm"
+                    variant={showCursor ? "default" : "ghost"}
+                    size="icon"
+                    className="w-8 h-8"
                     onClick={() => setShowCursor(!showCursor)}
                     title={showCursor ? "Hide cursor" : "Show cursor"}
                   >
-                    <MousePointer className={`w-4 h-4 ${showCursor ? '' : 'opacity-50'}`} />
+                    <MousePointer className="w-4 h-4" />
                   </Button>
 
                   {/* Enhancement Toggle */}
                   {hasEnhancements && (
                     <>
-                      <Badge variant={showOriginal ? "outline" : "default"}>
-                        {showOriginal ? "Original" : "Enhanced"}
-                      </Badge>
+                      <Separator orientation="vertical" className="h-8" />
                       <Button
-                        variant="secondary"
-                        size="sm"
+                        variant={showOriginal ? "ghost" : "default"}
+                        size="icon"
+                        className="w-8 h-8"
                         onClick={() => setShowOriginal(!showOriginal)}
+                        title={showOriginal ? "Show enhanced" : "Show original"}
                       >
-                        {showOriginal ? <Eye className="w-4 h-4 mr-1" /> : <EyeOff className="w-4 h-4 mr-1" />}
-                        {showOriginal ? "Show Enhanced" : "Show Original"}
+                        {showOriginal ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
                     </>
                   )}
@@ -420,10 +484,13 @@ export function PreviewArea() {
           </>
         )
       ) : (
-        // Empty state
-        <div className="text-center text-muted-foreground">
-          <p className="text-lg mb-2">No video loaded</p>
-          <p>Record your screen to see the preview</p>
+        // Empty state - improved design
+        <div className="text-center">
+          <div className="w-32 h-32 bg-gradient-to-br from-muted/50 to-muted/30 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
+            <Play className="w-16 h-16 text-muted-foreground/50" />
+          </div>
+          <h3 className="text-xl font-semibold mb-3">No Recording Loaded</h3>
+          <p className="text-muted-foreground">Start recording or open a saved project to begin editing</p>
         </div>
       )}
     </div>

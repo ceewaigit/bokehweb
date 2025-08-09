@@ -75,8 +75,10 @@ export const useExportStore = create<ExportStore>((set, get) => {
       set({ isExporting: true, progress: null, lastExport: null })
 
       try {
-        // Get the first video clip
-        const videoClip = project.clips.find(c => c.type === 'video')
+        // Get the first video clip from all tracks
+        const videoClip = project.timeline.tracks
+          .filter(track => track.type === 'video')
+          .flatMap(track => track.clips)[0]
 
         if (!videoClip) {
           throw new Error('No video clips found in project')
@@ -84,16 +86,31 @@ export const useExportStore = create<ExportStore>((set, get) => {
 
         // Check if we should use effects export
         const hasMetadata = typeof window !== 'undefined' &&
-          localStorage.getItem(`clip-metadata-${videoClip.id}`)
+          localStorage.getItem(`recording-metadata-${videoClip.recordingId}`)
 
         if (hasMetadata) {
           // Use effects export engine
           const effectsEngine = getEffectsEngine()
-          const metadata = JSON.parse(localStorage.getItem(`clip-metadata-${videoClip.id}`) || '[]')
+          const metadata = JSON.parse(localStorage.getItem(`recording-metadata-${videoClip.recordingId}`) || '[]')
 
-          // Fetch video blob
-          const videoResponse = await fetch(videoClip.source)
-          const videoBlob = await videoResponse.blob()
+          // Fetch video blob from recording
+          const recording = project.recordings.find(r => r.id === videoClip.recordingId)
+          if (!recording) {
+            throw new Error('Recording not found for clip')
+          }
+
+          // Try to get blob URL from localStorage first, otherwise use file path
+          let videoBlob: Blob
+          const blobUrl = localStorage.getItem(`recording-blob-${recording.id}`)
+          if (blobUrl) {
+            const videoResponse = await fetch(blobUrl)
+            videoBlob = await videoResponse.blob()
+          } else if (recording.filePath) {
+            const videoResponse = await fetch(recording.filePath)
+            videoBlob = await videoResponse.blob()
+          } else {
+            throw new Error('No video source found for recording')
+          }
 
           const exportOptions: ExportOptions = {
             format: exportSettings.format as 'mp4' | 'webm' | 'gif' | 'mov',

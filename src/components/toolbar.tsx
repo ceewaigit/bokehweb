@@ -4,40 +4,36 @@ import { useState } from 'react'
 import {
   Play,
   Pause,
-  Square,
   SkipBack,
   SkipForward,
   Settings,
   Folder,
   Save,
   Download,
-  Monitor,
   Mic,
   MicOff,
   Volume2,
   VolumeX,
-  Settings2,
-  ArrowLeft,
-  Home
+  FolderOpen,
+  FileVideo,
+  PanelRightClose,
+  PanelRight
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
-import { Badge } from './ui/badge'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useTimelineStore } from '@/stores/timeline-store'
+import { useProjectStore } from '@/stores/project-store'
 import { cn, formatTime } from '@/lib/utils'
 
 interface ToolbarProps {
   onToggleProperties: () => void
   onExport: () => void
-  showBackButton?: boolean
-  onBack?: () => void
 }
 
-export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }: ToolbarProps) {
+export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
   const {
     isRecording,
-    isPaused,
     duration,
     status,
     settings
@@ -46,180 +42,243 @@ export function Toolbar({ onToggleProperties, onExport, showBackButton, onBack }
   const {
     currentTime,
     isPlaying,
-    project,
     setPlaying,
     setCurrentTime
   } = useTimelineStore()
+  
+  const {
+    currentProject,
+    saveCurrentProject,
+    newProject
+  } = useProjectStore()
 
-  // Recording control is handled by RecordingController
-  // Toolbar only shows status and delegates actions through events
-  const handleRecord = () => {
-    // Dispatch custom event that RecordingController will listen to
-    const event = isRecording ? 'stop-recording' : 'start-recording'
-    window.dispatchEvent(new CustomEvent(event))
-  }
-
-  const handlePause = () => {
-    window.dispatchEvent(new CustomEvent('pause-recording'))
-  }
+  const [propertiesOpen, setPropertiesOpen] = useState(true)
 
   const handlePlay = () => {
     setPlaying(!isPlaying)
   }
 
   const handleRewind = () => {
-    setCurrentTime(Math.max(0, currentTime - 5))
+    setCurrentTime(Math.max(0, currentTime - 5000))
   }
 
   const handleForward = () => {
-    setCurrentTime(currentTime + 5)
+    const duration = currentProject?.timeline?.duration || 0
+    setCurrentTime(Math.min(duration, currentTime + 5000))
+  }
+
+  const handleToggleProperties = () => {
+    setPropertiesOpen(!propertiesOpen)
+    onToggleProperties()
   }
 
   return (
-    <div className="h-16 bg-card border-b border-border flex items-center px-4 space-sm">
-      {/* Back Button */}
-      {showBackButton && (
-        <>
-          <Button
-            onClick={onBack}
-            variant="ghost"
-            size="sm"
-            className="mr-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-          <Separator orientation="vertical" className="h-8 mr-4" />
-        </>
-      )}
+    <div className="h-14 flex items-center px-4 space-x-1">
+      {/* Left Section - Project Controls */}
+      <div className="flex items-center space-x-1">
+        {/* Logo/Brand */}
+        <div className="flex items-center px-3 py-1 mr-2">
+          <FileVideo className="w-5 h-5 text-primary mr-2" />
+          <span className="font-semibold text-sm bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+            Screen Studio
+          </span>
+        </div>
+        
+        <Separator orientation="vertical" className="h-8 mx-2" />
+        
+        {/* Project Actions */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => newProject('New Project')}
+          className="text-xs"
+        >
+          <Folder className="w-4 h-4 mr-1" />
+          New
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={async () => {
+            if (window.electronAPI?.showOpenDialog) {
+              try {
+                const result = await window.electronAPI.showOpenDialog({
+                  properties: ['openFile'],
+                  filters: [
+                    { name: 'Screen Studio Projects', extensions: ['ssproj'] },
+                    { name: 'All Files', extensions: ['*'] }
+                  ]
+                })
+                
+                if (!result.canceled && result.filePaths?.length > 0) {
+                  const projectPath = result.filePaths[0]
+                  const openProject = useProjectStore.getState().openProject
+                  await openProject(projectPath)
+                }
+              } catch (error) {
+                console.error('Failed to open project:', error)
+              }
+            } else {
+              console.log('File dialog not available in browser')
+            }
+          }}
+          className="text-xs"
+        >
+          <FolderOpen className="w-4 h-4 mr-1" />
+          Open
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={saveCurrentProject}
+          disabled={!currentProject}
+          className="text-xs"
+        >
+          <Save className="w-4 h-4 mr-1" />
+          Save
+        </Button>
+      </div>
 
-      {/* Recording Status Only (controls via floating button) */}
-      <div className="flex items-center space-sm">
-        {/* Show Screen Studio branding when idle */}
-        {status === 'idle' && !project?.clips.length && (
-          <div className="flex items-center space-x-2">
-            <Monitor className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Screen Studio</span>
-          </div>
-        )}
+      {/* Center Section - Playback Controls */}
+      <div className="flex-1 flex items-center justify-center space-x-1">
+        {currentProject && (
+          <>
+            <Button
+              onClick={handleRewind}
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8"
+            >
+              <SkipBack className="w-4 h-4" />
+            </Button>
 
-        {/* Recording Duration */}
-        {(isRecording || duration > 0) && (
-          <Badge variant="outline" className="font-mono">
-            {formatTime(duration / 1000)}
-          </Badge>
+            <Button
+              onClick={handlePlay}
+              variant="ghost"
+              size="icon"
+              className="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20"
+            >
+              {isPlaying ? 
+                <Pause className="w-5 h-5 text-primary" /> : 
+                <Play className="w-5 h-5 text-primary ml-0.5" />
+              }
+            </Button>
+
+            <Button
+              onClick={handleForward}
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8"
+            >
+              <SkipForward className="w-4 h-4" />
+            </Button>
+
+            {/* Time Display */}
+            <div className="ml-3 flex items-center space-x-1 text-xs">
+              <span className="font-mono font-medium text-foreground">
+                {formatTime(currentTime / 1000)}
+              </span>
+              <span className="text-muted-foreground">/</span>
+              <span className="font-mono text-muted-foreground">
+                {formatTime((currentProject?.timeline?.duration || 0) / 1000)}
+              </span>
+            </div>
+          </>
         )}
 
         {/* Recording Status */}
         {status !== 'idle' && (
-          <Badge
-            variant={status === 'recording' ? 'destructive' : 'secondary'}
+          <div className="ml-6 flex items-center space-x-2">
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              status === 'recording' && "bg-red-500 animate-pulse",
+              status === 'processing' && "bg-yellow-500 animate-pulse",
+              status === 'preparing' && "bg-blue-500 animate-pulse"
+            )} />
+            <span className="text-xs font-medium capitalize">
+              {status === 'processing' ? 'Saving...' : status}
+            </span>
+            {isRecording && (
+              <span className="font-mono text-xs text-muted-foreground">
+                {formatTime(duration / 1000)}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Right Section - Export and Settings */}
+      <div className="flex items-center space-x-1">
+        {/* Audio Controls */}
+        <div className="flex items-center mr-2">
+          <Button 
+            variant="ghost" 
+            size="icon"
             className={cn(
-              "capitalize",
-              status === 'recording' && "animate-pulse"
+              "w-8 h-8",
+              settings.audioInput === 'system' || settings.audioInput === 'both' 
+                ? "text-primary" 
+                : "text-muted-foreground"
             )}
           >
-            {status === 'processing' ? 'Saving...' : status}
-          </Badge>
-        )}
+            {settings.audioInput === 'none' ?
+              <VolumeX className="w-4 h-4" /> :
+              <Volume2 className="w-4 h-4" />
+            }
+          </Button>
 
-        {/* Show clip count when not recording */}
-        {!isRecording && project?.clips && project.clips.length > 0 && (
-          <Badge variant="outline">
-            {project.clips.length} clip{project.clips.length !== 1 ? 's' : ''}
-          </Badge>
-        )}
-      </div>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            className={cn(
+              "w-8 h-8",
+              settings.audioInput === 'microphone' || settings.audioInput === 'both' 
+                ? "text-primary" 
+                : "text-muted-foreground"
+            )}
+          >
+            {settings.audioInput === 'microphone' || settings.audioInput === 'both' ?
+              <Mic className="w-4 h-4" /> :
+              <MicOff className="w-4 h-4" />
+            }
+          </Button>
+        </div>
 
-      <Separator orientation="vertical" className="h-8" />
+        <Separator orientation="vertical" className="h-8 mx-2" />
 
-      {/* Playback Controls */}
-      <div className="flex items-center space-sm">
-        <Button
-          onClick={handleRewind}
-          variant="ghost"
-          size="sm"
-          disabled={!project}
+        {/* Export Button */}
+        <Button 
+          variant="default" 
+          size="sm" 
+          disabled={!currentProject || !currentProject.timeline.tracks[0]?.clips?.length}
+          onClick={onExport}
+          className="text-xs font-medium"
         >
-          <SkipBack className="w-4 h-4" />
-        </Button>
-
-        <Button
-          onClick={handlePlay}
-          variant="ghost"
-          size="sm"
-          disabled={!project}
-        >
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-        </Button>
-
-        <Button
-          onClick={handleForward}
-          variant="ghost"
-          size="sm"
-          disabled={!project}
-        >
-          <SkipForward className="w-4 h-4" />
-        </Button>
-
-        {/* Current Time */}
-        {project && (
-          <Badge variant="outline" className="font-mono">
-            {formatTime(currentTime)}
-          </Badge>
-        )}
-      </div>
-
-      <Separator orientation="vertical" className="h-8" />
-
-      {/* Audio Controls */}
-      <div className="flex items-center space-sm">
-        <Button variant="ghost" size="sm">
-          {settings.audioInput === 'none' ?
-            <VolumeX className="w-4 h-4" /> :
-            <Volume2 className="w-4 h-4" />
-          }
-        </Button>
-
-        <Button variant="ghost" size="sm">
-          {settings.audioInput === 'microphone' || settings.audioInput === 'both' ?
-            <Mic className="w-4 h-4" /> :
-            <MicOff className="w-4 h-4" />
-          }
-        </Button>
-      </div>
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* File Controls */}
-      <div className="flex items-center space-sm">
-        <Button variant="ghost" size="sm">
-          <Folder className="w-4 h-4 mr-2" />
-          Open
-        </Button>
-
-        <Button variant="ghost" size="sm" disabled={!project}>
-          <Save className="w-4 h-4 mr-2" />
-          Save
-        </Button>
-
-        <Button variant="ghost" size="sm" disabled={!project} onClick={onExport}>
-          <Download className="w-4 h-4 mr-2" />
+          <Download className="w-4 h-4 mr-1" />
           Export
         </Button>
 
-        <Separator orientation="vertical" className="h-8" />
-
+        {/* Properties Toggle */}
         <Button
           variant="ghost"
-          size="sm"
-          onClick={onToggleProperties}
+          size="icon"
+          onClick={handleToggleProperties}
+          className="w-8 h-8"
         >
-          <Settings2 className="w-4 h-4" />
+          {propertiesOpen ? 
+            <PanelRightClose className="w-4 h-4" /> : 
+            <PanelRight className="w-4 h-4" />
+          }
         </Button>
 
-        <Button variant="ghost" size="sm">
+        {/* Settings */}
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className="w-8 h-8"
+        >
           <Settings className="w-4 h-4" />
         </Button>
       </div>
