@@ -4,6 +4,24 @@ import { getAppURL } from '../config'
 
 // Webpack entry points are set as environment variables by electron-forge
 
+function setupSecurityPolicy(window: BrowserWindow): void {
+  window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: https://unpkg.com; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com blob:; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          "img-src 'self' data: blob: file:; " +
+          "media-src 'self' data: blob: file:; " +
+          "connect-src 'self' file: data: blob: ws://localhost:3001 http://localhost:3001 https://unpkg.com; " +
+          "worker-src 'self' blob:; " +
+          "frame-src 'none';"
+      }
+    })
+  })
+}
+
 export function createRecordButton(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
   console.log('🖥️ Creating record button for display:', display.bounds)
@@ -16,14 +34,14 @@ export function createRecordButton(): BrowserWindow {
     x: Math.floor(display.workAreaSize.width / 2 - 300),
     y: 20,
     frame: false,
-    transparent: true,
+    transparent: !isDev,
     alwaysOnTop: true,
     resizable: false,
     movable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    skipTaskbar: true,
+    skipTaskbar: !isDev,
     hasShadow: false,
     roundedCorners: true,
     show: false,
@@ -32,13 +50,21 @@ export function createRecordButton(): BrowserWindow {
       contextIsolation: !isDev,
       preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
       webSecurity: false,
-      devTools: true
+      devTools: true,
+      backgroundThrottling: false
     }
   })
 
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
   recordButton.setIgnoreMouseEvents(false)
+
+  // Apply CSP so blob: media URLs are allowed
+  setupSecurityPolicy(recordButton)
+
+  if (isDev) {
+    recordButton.webContents.openDevTools({ mode: 'detach' })
+  }
 
   recordButton.on('unresponsive', () => {
     console.error('❌ Record button window became unresponsive')

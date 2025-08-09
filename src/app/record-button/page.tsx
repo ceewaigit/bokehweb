@@ -1,6 +1,5 @@
 'use client'
 
-import './page.css'
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
@@ -33,12 +32,12 @@ export default function RecordingDock() {
     pauseRecording,
     resumeRecording
   } = useRecording()
-  
-  const { 
-    isRecording, 
-    isPaused, 
+
+  const {
+    isRecording,
+    isPaused,
     duration,
-    updateSettings 
+    updateSettings
   } = useRecordingStore()
 
   useEffect(() => {
@@ -84,7 +83,7 @@ export default function RecordingDock() {
 
         // Show dock again and start recording
         await window.electronAPI?.showRecordButton?.()
-        
+
         // Use the centralized recording hook
         await startRecording()
         setIsExpanded(false)
@@ -115,14 +114,14 @@ export default function RecordingDock() {
   const displayDuration = Math.floor(duration / 1000)
 
   return (
-    <div className="recording-dock-container">
+    <div className="fixed inset-x-0 top-3 flex justify-center items-start pointer-events-auto z-[2147483647]">
       <AnimatePresence>
         {countdown !== null && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="countdown-overlay"
+            className="fixed inset-0 grid place-items-center bg-slate-900/25 z-[2147483647]"
           >
             <motion.div
               key={countdown}
@@ -130,7 +129,7 @@ export default function RecordingDock() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 1.5, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="countdown-number"
+              className="text-[144px] leading-none font-extrabold text-white drop-shadow-[0_12px_32px_rgba(0,0,0,0.35)]"
             >
               {countdown === 0 ? 'Go!' : countdown}
             </motion.div>
@@ -139,17 +138,17 @@ export default function RecordingDock() {
       </AnimatePresence>
 
       <motion.div
-        className={`recording-dock ${isRecording ? 'recording' : ''} ${isExpanded ? 'expanded' : ''}`}
+        className={`text-slate-900 bg-white/90 backdrop-blur-xl backdrop-saturate-150 rounded-2xl border border-slate-900/10 px-3 py-2 w-[640px] max-w-[calc(100vw-24px)] shadow-[0_10px_25px_rgba(2,6,23,0.18),0_4px_8px_rgba(2,6,23,0.12)] ${isRecording ? 'border-red-600/30 shadow-[0_12px_28px_rgba(220,38,38,0.18),0_4px_10px_rgba(220,38,38,0.14)]' : ''} ${isExpanded ? '' : ''}`}
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', damping: 20 }}
       >
-        <div className="dock-content">
-          <div className="main-controls">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
             {!isRecording ? (
               <>
                 <button
-                  className="control-button expand-button"
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-900/5 text-slate-900 hover:bg-slate-900/10"
                   onClick={() => setIsExpanded(!isExpanded)}
                   title="Options"
                 >
@@ -157,7 +156,7 @@ export default function RecordingDock() {
                 </button>
 
                 <button
-                  className="record-button"
+                  className="inline-flex items-center justify-center w-[52px] h-[52px] rounded-full bg-red-500 text-white shadow-[inset_0_0_0_4px_rgba(255,255,255,0.6),0_8px_16px_rgba(239,68,68,0.35)] hover:bg-red-600"
                   onClick={handleStartRecording}
                   title="Start Recording"
                 >
@@ -165,7 +164,7 @@ export default function RecordingDock() {
                 </button>
 
                 <button
-                  className="control-button"
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-900/5 text-slate-900 hover:bg-slate-900/10"
                   onClick={() => window.electronAPI?.openWorkspace?.()}
                   title="Open Workspace"
                 >
@@ -174,14 +173,14 @@ export default function RecordingDock() {
               </>
             ) : (
               <>
-                <div className="duration-display">
+                <div className="font-semibold tabular-nums min-w-[60px] text-center">
                   {formatDuration(displayDuration)}
                 </div>
 
-                <div className="recording-controls">
+                <div className="flex items-center gap-2.5">
                   {!isPaused ? (
                     <button
-                      className="control-button pause-button"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-900/5 text-slate-900 hover:bg-slate-900/10"
                       onClick={pauseRecording}
                       title="Pause Recording"
                     >
@@ -189,7 +188,7 @@ export default function RecordingDock() {
                     </button>
                   ) : (
                     <button
-                      className="control-button resume-button"
+                      className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-900/5 text-slate-900 hover:bg-slate-900/10"
                       onClick={resumeRecording}
                       title="Resume Recording"
                     >
@@ -198,7 +197,7 @@ export default function RecordingDock() {
                   )}
 
                   <button
-                    className="stop-button"
+                    className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-red-500 text-white hover:bg-red-600"
                     onClick={handleStopRecording}
                     title="Stop Recording"
                   >
@@ -207,7 +206,7 @@ export default function RecordingDock() {
                 </div>
 
                 <button
-                  className="control-button close-button"
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-900/5 text-slate-900 hover:bg-slate-900/10"
                   onClick={() => window.electronAPI?.minimizeRecordButton?.()}
                   title="Minimize"
                 >
@@ -220,15 +219,15 @@ export default function RecordingDock() {
           <AnimatePresence>
             {isExpanded && !isRecording && (
               <motion.div
-                className="expanded-controls"
+                className="mt-2 pt-2 border-t border-slate-900/10"
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="control-row">
+                <div className="flex items-center gap-2">
                   <button
-                    className={`option-button ${micEnabled ? 'active' : ''}`}
+                    className={`inline-flex items-center justify-center gap-2 h-9 px-3 rounded-xl bg-slate-900/5 text-slate-900 hover:bg-slate-900/10 ${micEnabled ? 'bg-slate-900/10' : ''}`}
                     onClick={() => setMicEnabled(!micEnabled)}
                   >
                     {micEnabled ? <Mic size={18} /> : <MicOff size={18} />}
@@ -236,14 +235,14 @@ export default function RecordingDock() {
                   </button>
 
                   <button
-                    className={`option-button ${cameraEnabled ? 'active' : ''}`}
+                    className={`inline-flex items-center justify-center gap-2 h-9 px-3 rounded-xl bg-slate-900/5 text-slate-900 hover:bg-slate-900/10 ${cameraEnabled ? 'bg-slate-900/10' : ''}`}
                     onClick={() => setCameraEnabled(!cameraEnabled)}
                   >
                     {cameraEnabled ? <Camera size={18} /> : <CameraOff size={18} />}
                     <span>Camera</span>
                   </button>
 
-                  <button className="option-button active">
+                  <button className="inline-flex items-center justify-center gap-2 h-9 px-3 rounded-xl bg-slate-900/10 text-slate-900">
                     <Monitor size={18} />
                     <span>Full Screen</span>
                   </button>
