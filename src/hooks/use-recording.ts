@@ -3,11 +3,11 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useProjectStore } from '@/stores/project-store'
-import { ScreenRecorder, type RecordingResult } from '@/lib/recording/screen-recorder'
+import { ScreenRecorder, type RecordingResult } from '@/lib/recording'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
 import { createProject, type Recording, type MouseEvent as ProjectMouseEvent } from '@/types/project'
-import type { EnhancementSettings } from '@/lib/recording/screen-recorder'
+import type { EnhancementSettings } from '@/lib/recording'
 // Processing progress type
 interface ProcessingProgress {
   progress: number
@@ -30,15 +30,15 @@ export function useRecording() {
   const startTimeRef = useRef<number>(0)
   const [isTimerSynced, setIsTimerSynced] = useState(false)
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null)
-  
-  const { 
-    isRecording, 
-    isPaused, 
-    settings, 
-    setRecording, 
-    setPaused, 
-    setDuration, 
-    setStatus 
+
+  const {
+    isRecording,
+    isPaused,
+    settings,
+    setRecording,
+    setPaused,
+    setDuration,
+    setStatus
   } = useRecordingStore()
 
   const { project, createNewProject } = useProjectStore()
@@ -52,13 +52,13 @@ export function useRecording() {
   // Better error handling - replace alerts with logging for now
   const handleRecordingError = useCallback((error: unknown) => {
     logger.error('Recording error:', error)
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const isPermissionError = errorMessage.toLowerCase().includes('permission')
-    
+
     if (isPermissionError) {
       logger.warn('Permission error detected')
-      
+
       // Check if it's our special permission required message
       if (errorMessage.startsWith('PERMISSION_REQUIRED:')) {
         // Extract the actual message after the prefix
@@ -90,9 +90,9 @@ export function useRecording() {
     if (typeof window !== 'undefined' && (window as any).__screenRecorder) {
       logger.debug('Reusing existing ScreenRecorder instance (hot reload protection)')
       recorderRef.current = (window as any).__screenRecorder
-      
+
       // CRITICAL: If the existing recorder is actively recording, don't allow any new setup
-      if (recorderRef.current?.isRecording()) {
+      if (recorderRef.current?.isCurrentlyRecording()) {
         logger.debug('Existing recorder is actively recording - blocking any new initialization')
         return
       }
@@ -102,7 +102,7 @@ export function useRecording() {
         logger.debug('Recording active globally, preventing new ScreenRecorder creation')
         return
       }
-      
+
       try {
         recorderRef.current = new ScreenRecorder()
         // Store globally to persist across hot reloads
@@ -115,30 +115,30 @@ export function useRecording() {
         recorderRef.current = null
       }
     }
-    
+
     // Debug: Check if we're in the middle of a recording when component reinitializes
     if (isRecording) {
       logger.debug('Component reinitialized while recording - preserving existing recording state')
       logger.debug('Current duration:', useRecordingStore.getState().duration, 'ms')
-      
+
       // If we have an active recording but no timer, we need to restore it
       if (!durationIntervalRef.current && !isTimerSynced) {
         logger.debug('Restoring timer for ongoing recording')
         const currentDuration = useRecordingStore.getState().duration
         startTimeRef.current = Date.now() - currentDuration
         setIsTimerSynced(true)
-        
+
         durationIntervalRef.current = setInterval(() => {
           const elapsed = Date.now() - startTimeRef.current
           setDuration(elapsed)
           logger.debug(`Timer tick (restored): ${Math.floor(elapsed / 1000)}s (${elapsed}ms)`)
         }, RECORDING_CONSTANTS.TIMER_INTERVAL)
-        
+
         logger.debug('Timer restored for ongoing recording')
       }
     }
-    
-      // Cleanup on unmount
+
+    // Cleanup on unmount
     return () => {
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current)
@@ -158,13 +158,13 @@ export function useRecording() {
     try {
       setStatus('preparing')
       setIsTimerSynced(false)
-      
+
       // Start recording with enhancements if provided
       await recorderRef.current.startRecording(settings, enhancementSettings)
 
       setRecording(true)
       setStatus('recording')
-      
+
       // Start duration timer
       startTimeRef.current = Date.now()
       setDuration(0) // Reset duration to 0
@@ -174,14 +174,14 @@ export function useRecording() {
         logger.debug(`Timer tick: ${Math.floor(elapsed / 1000)}s (${elapsed}ms)`)
       }, RECORDING_CONSTANTS.TIMER_INTERVAL)
       setIsTimerSynced(true)
-      
+
       // Mark recording as globally active
       if (typeof window !== 'undefined') {
         (window as any).__screenRecorderActive = true
       }
 
       logger.info('Recording started successfully with timer')
-      
+
     } catch (error) {
       handleRecordingError(error)
       setStatus('idle')
@@ -192,27 +192,27 @@ export function useRecording() {
 
   const stopRecording = useCallback(async () => {
     logger.debug('useRecording.stopRecording called')
-    
+
     // Check store state first to prevent double-stops
     const currentState = useRecordingStore.getState()
     if (!currentState.isRecording) {
       logger.debug('useRecording: Not currently recording according to store - ignoring stop call')
       return null
     }
-    
+
     const recorder = recorderRef.current
-    if (!recorder?.isRecording()) {
+    if (!recorder?.isCurrentlyRecording()) {
       logger.debug('useRecording: Recorder not in recording state - ignoring stop call')
       return null
     }
 
     try {
       logger.info('Stopping recording...')
-      
+
       // Immediately update state to prevent double-stops
       setRecording(false)
       setStatus('processing')
-      
+
       // Stop duration timer
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current)
@@ -229,16 +229,17 @@ export function useRecording() {
       setProcessingProgress(null)
 
       logger.info(`Recording complete: ${result.duration}ms, ${result.video.size} bytes, ${result.metadata.length} events`)
-      
-      if (result.enhancedVideo) {
-        logger.info(`Enhanced video available: ${result.enhancedVideo.size} bytes, effects: ${result.effectsApplied?.join(', ')}, processing: ${result.processingTime?.toFixed(2)}ms`)
+
+      // Electron recorder has no post-processed enhanced video
+      if (result.effectsApplied?.length) {
+        logger.info(`Effects applied: ${result.effectsApplied.join(', ')}, processing: ${result.processingTime?.toFixed(2)}ms`)
       }
 
       // Reset remaining state (recording already set to false above)
       setPaused(false)
       setStatus('idle')
       setIsTimerSynced(false)
-      
+
       // Clear global recording state
       if (typeof window !== 'undefined') {
         (window as any).__screenRecorderActive = false
@@ -248,7 +249,7 @@ export function useRecording() {
       if (result.video) {
         const recordingId = `recording-${Date.now()}`
         const projectName = `Recording ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`
-        
+
         // First save the raw video file
         let videoFilePath: string | undefined
         if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
@@ -263,14 +264,14 @@ export function useRecording() {
             logger.error('Failed to save video file:', error)
           }
         }
-        
+
         // Create a new project in our custom format
         const newProject = createProject(projectName)
-        
+
         // Get actual screen dimensions
         const screenWidth = typeof window !== 'undefined' ? window.screen.width : 1920
         const screenHeight = typeof window !== 'undefined' ? window.screen.height : 1080
-        
+
         // Convert metadata to project format
         const mouseEvents: ProjectMouseEvent[] = result.metadata
           .filter(m => m.eventType === 'mouse')
@@ -281,7 +282,7 @@ export function useRecording() {
             screenWidth,
             screenHeight
           }))
-        
+
         // Add recording to project
         const recording: Recording = {
           id: recordingId,
@@ -310,9 +311,9 @@ export function useRecording() {
             screenEvents: []
           }
         }
-        
+
         newProject.recordings.push(recording)
-        
+
         // Add clip to timeline with default effects
         newProject.timeline.tracks[0].clips.push({
           id: `clip-${Date.now()}`,
@@ -357,10 +358,10 @@ export function useRecording() {
             annotations: []
           }
         })
-        
+
         // Update timeline duration
         newProject.timeline.duration = result.duration
-        
+
         // Save the project as .ssproj file
         if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
           try {
@@ -368,48 +369,48 @@ export function useRecording() {
             const projectFileName = `${recordingId}.ssproj`
             const projectFilePath = `${recordingsDir}/${projectFileName}`
             const projectData = JSON.stringify(newProject, null, 2)
-            
+
             // Save as text file with our custom extension
             await window.electronAPI.saveRecording(
               projectFilePath,
               new TextEncoder().encode(projectData).buffer
             )
             logger.info(`Project saved to: ${projectFilePath}`)
-            
+
             // Also save to localStorage for quick access
             localStorage.setItem(`project-${newProject.id}`, projectData)
           } catch (error) {
             logger.error('Failed to save project file:', error)
           }
         }
-        
+
         // Update the project store with the new recording
         let currentProject = project
         if (!currentProject) {
           createNewProject(projectName)
           currentProject = useProjectStore.getState().project
         }
-        
+
         if (currentProject && result.video) {
           // Store the video blob for preview
           const videoUrl = globalBlobManager.create(result.video)
           localStorage.setItem(`recording-blob-${recordingId}`, videoUrl)
-          
+
           // Save metadata for preview rendering
           localStorage.setItem(`recording-metadata-${recordingId}`, JSON.stringify(result.metadata))
-          
+
           // Add the recording to the project with all metadata
           const projectStore = useProjectStore.getState()
           projectStore.addRecording(recording, result.video)
-          
-          logger.info(`Added recording ${recordingId} to project with ${mouseEvents.length} mouse events`)  
+
+          logger.info(`Added recording ${recordingId} to project with ${mouseEvents.length} mouse events`)
         }
       }
 
       return result
     } catch (error) {
       logger.error('Failed to stop recording:', error)
-      
+
       // Reset state on error
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current)
@@ -419,14 +420,14 @@ export function useRecording() {
       setPaused(false)
       setStatus('idle')
       setIsTimerSynced(false)
-      
+
       if (typeof window !== 'undefined') {
         (window as any).__screenRecorderActive = false
       }
-      
+
       // Clear processing progress on error
       setProcessingProgress(null)
-      
+
       return null
     }
   }, [project, setRecording, setPaused, setStatus, createNewProject, validateResult])
@@ -435,7 +436,7 @@ export function useRecording() {
     if (recorderRef.current && isRecording) {
       recorderRef.current.pauseRecording()
       setPaused(true)
-      
+
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current)
         durationIntervalRef.current = null
@@ -447,11 +448,11 @@ export function useRecording() {
     if (recorderRef.current && isPaused) {
       recorderRef.current.resumeRecording()
       setPaused(false)
-      
+
       // Resume duration timer from current duration
       const currentDurationMs = useRecordingStore.getState().duration
       startTimeRef.current = Date.now() - currentDurationMs
-      
+
       durationIntervalRef.current = setInterval(() => {
         const elapsed = Date.now() - startTimeRef.current
         setDuration(elapsed)
@@ -477,9 +478,9 @@ export function useRecording() {
     isPaused,
     processingProgress,
     screenRecorder: recorderRef.current,
-    isSupported: typeof navigator !== 'undefined' && 
-                 typeof navigator.mediaDevices !== 'undefined' &&
-                 typeof navigator.mediaDevices.getDisplayMedia === 'function',
+    isSupported: typeof navigator !== 'undefined' &&
+      typeof navigator.mediaDevices !== 'undefined' &&
+      typeof navigator.mediaDevices.getDisplayMedia === 'function',
     getAvailableSources: async () => [
       { id: 'screen', name: 'Screen', type: 'screen' },
       { id: 'window', name: 'Window', type: 'window' }
