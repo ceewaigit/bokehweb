@@ -31,7 +31,10 @@ export class ElectronRecorder {
   private stream: MediaStream | null = null
   private chunks: Blob[] = []
   private isRecording = false
+  private isPaused = false
   private startTime = 0
+  private pausedDuration = 0
+  private lastPauseTime = 0
   private metadata: ElectronMetadata[] = []
 
   constructor() {
