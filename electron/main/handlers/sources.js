@@ -75,39 +75,26 @@ function registerSourceHandlers() {
         }
       }
 
-      // Sanitize options to prevent IPC errors
-      const defaultOptions = {
-        types: ['screen', 'window'],
-        thumbnailSize: { width: 150, height: 150 },
-        fetchWindowIcons: true
-      }
-
+      // Simplified options - minimal to prevent IPC errors
       const sanitizedOptions = {
         types: Array.isArray(options.types) 
           ? options.types.filter(t => ['screen', 'window'].includes(t))
-          : defaultOptions.types,
-        thumbnailSize: (options.thumbnailSize && typeof options.thumbnailSize === 'object') 
-          ? {
-              width: Math.max(50, Math.min(300, parseInt(options.thumbnailSize.width) || 150)),
-              height: Math.max(50, Math.min(300, parseInt(options.thumbnailSize.height) || 150))
-            } 
-          : defaultOptions.thumbnailSize,
-        fetchWindowIcons: typeof options.fetchWindowIcons === 'boolean' 
-          ? options.fetchWindowIcons 
-          : defaultOptions.fetchWindowIcons
+          : ['screen'],
+        thumbnailSize: { width: 1, height: 1 }, // Minimal size since we don't use thumbnails
+        fetchWindowIcons: false // Don't fetch icons to avoid IPC issues
       }
 
       console.log('🎥 Requesting desktop sources with sanitized options:', JSON.stringify(sanitizedOptions))
       const sources = await desktopCapturer.getSources(sanitizedOptions)
       console.log(`📺 Found ${sources.length} desktop sources`)
 
-      // Map sources and log them
+      // Map sources - SIMPLIFIED to avoid IPC issues
+      // Don't send thumbnail data as it can be too large and cause IPC errors
       const mappedSources = sources.map(source => ({
         id: source.id,
         name: source.name,
-        thumbnail: source.thumbnail.toDataURL(),
-        display_id: source.display_id,
-        appIcon: source.appIcon?.toDataURL()
+        display_id: source.display_id
+        // Removed thumbnail and appIcon to prevent IPC message size issues
       }))
 
       console.log('📺 Mapped sources:', mappedSources.map(s => `${s.name} (${s.id})`))
