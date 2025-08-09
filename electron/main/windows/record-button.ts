@@ -26,8 +26,8 @@ export function createRecordButton(): BrowserWindow {
     roundedCorners: true,
     show: false,
     webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
+      nodeIntegration: process.env.NODE_ENV === 'development',
+      contextIsolation: process.env.NODE_ENV !== 'development',
       preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
       webSecurity: false,
       devTools: true

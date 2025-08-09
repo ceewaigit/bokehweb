@@ -59,7 +59,7 @@ const electronAPI = {
     try {
       console.log('🎥 Preload: Requesting desktop sources via IPC')
       const sources = await ipcRenderer.invoke('get-desktop-sources', options)
-      
+
       if (!sources || sources.length === 0) {
         console.warn('No desktop sources returned from main process')
         // Fallback to a default screen source if IPC fails
@@ -69,14 +69,14 @@ const electronAPI = {
           display_id: 1
         }]
       }
-      
+
       return sources
     } catch (error) {
       console.error('Failed to get desktop sources:', error)
       // Fallback to default screen source on error
       return [{
         id: 'screen:1:0',
-        name: 'Entire screen', 
+        name: 'Entire screen',
         display_id: 1
       }]
     }
