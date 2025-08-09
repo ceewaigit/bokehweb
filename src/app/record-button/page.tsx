@@ -1,8 +1,10 @@
 'use client'
 
 import './page.css'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useRecording } from '@/hooks/use-recording'
+import { useRecordingStore } from '@/stores/recording-store'
 import {
   Mic,
   MicOff,
@@ -19,22 +21,25 @@ import {
 } from 'lucide-react'
 
 export default function RecordingDock() {
-  const [isRecording, setIsRecording] = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
-  const [duration, setDuration] = useState(0)
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
 
-  const startTimeRef = useRef<number>(0)
-  const pausedTimeRef = useRef<number>(0)
-  const timerRef = useRef<NodeJS.Timeout>()
-  const recorderRef = useRef<any>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const mouseEventsRef = useRef<any[]>([])
-  const recordingStartTsRef = useRef<number>(0)
-  const removeMouseListenersRef = useRef<(() => void) | null>(null)
+  // Use the centralized recording hook and store
+  const {
+    startRecording,
+    stopRecording,
+    pauseRecording,
+    resumeRecording
+  } = useRecording()
+  
+  const { 
+    isRecording, 
+    isPaused, 
+    duration,
+    updateSettings 
+  } = useRecordingStore()
 
   useEffect(() => {
     // Force transparent background for this component
@@ -46,43 +51,14 @@ export default function RecordingDock() {
     // Remove any background classes
     document.body.classList.remove('bg-background')
 
-    // Debug: Check if electronAPI is available
-    console.log('🔍 window.electronAPI available:', !!window.electronAPI)
+    // Update recording settings
+    updateSettings({
+      audioInput: micEnabled ? 'system' : 'none'
+    })
+  }, [micEnabled, updateSettings])
 
-    // Check screen recording permission on macOS (disabled in production for now)
-    const checkPermission = async () => {
-      // Skip permission check if electronAPI is not available
-      if (!window.electronAPI) {
-        console.warn('⚠️ electronAPI not available, skipping permission check')
-        return
-      }
-
-      // Skip permission check in production to avoid crash
-      if (window.location.protocol === 'file:') {
-        console.log('Skipping permission check in production mode')
-        return
-      }
-
-      try {
-        const result = await window.electronAPI?.checkScreenRecordingPermission()
-        if (result && !result.granted && result.status !== 'not-applicable') {
-          console.warn('Screen recording permission not granted:', result.status)
-        }
-      } catch (error) {
-        console.error('Error checking screen recording permission:', error)
-      }
-    }
-    checkPermission()
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
-      }
-    }
-  }, [])
-
-  const startCountdown = async () => {
+  const handleStartRecording = async () => {
+    // Show countdown
     let count = 3
     setCountdown(count)
 
@@ -108,7 +84,10 @@ export default function RecordingDock() {
 
         // Show dock again and start recording
         await window.electronAPI?.showRecordButton?.()
-        actuallyStartRecording()
+        
+        // Use the centralized recording hook
+        await startRecording()
+        setIsExpanded(false)
       } else {
         setCountdown(count)
 
@@ -120,588 +99,159 @@ export default function RecordingDock() {
     }, 1000)
   }
 
-  const actuallyStartRecording = async () => {
-    try {
-      // electronAPI MUST be available - no fallbacks
-      if (!window.electronAPI?.getDesktopSources) {
-        throw new Error('❌ electronAPI not available - preload script not loaded')
-      }
-
-      // Use Electron's desktop capture API
-      const sources = await window.electronAPI.getDesktopSources({
-        types: ['screen']
-      })
-
-      if (!sources || sources.length === 0) {
-        throw new Error('No screen sources available')
-      }
-
-      // Use the first screen (primary display)
-      const source = sources[0]
-      console.log('Using screen source:', source.name)
-
-      // Start native mouse tracking for effects metadata
-      try {
-        recordingStartTsRef.current = Date.now()
-        mouseEventsRef.current = []
-        await window.electronAPI?.startMouseTracking?.({ intervalMs: 16 })
-        const offMove = window.electronAPI?.onMouseMove?.((
-          _e: any,
-          pos: { x: number; y: number; timestamp?: number }
-        ) => {
-          mouseEventsRef.current.push({
-            t: Date.now() - recordingStartTsRef.current,
-            x: pos.x,
-            y: pos.y,
-            type: 'move'
-          })
-        })
-        const offClick = window.electronAPI?.onMouseClick?.((
-          _e: any,
-          pos: { x: number; y: number; timestamp?: number }
-        ) => {
-          mouseEventsRef.current.push({
-            t: Date.now() - recordingStartTsRef.current,
-            x: pos.x,
-            y: pos.y,
-            type: 'click'
-          })
-        })
-        removeMouseListenersRef.current = () => {
-          if (typeof offMove === 'function') offMove()
-          if (typeof offClick === 'function') offClick()
-          window.electronAPI?.stopMouseTracking?.()
-        }
-      } catch (e) {
-        console.warn('Mouse tracking unavailable:', e)
-      }
-
-      // Get the stream with proper constraints for Electron
-      // Must use mandatory constraints for Electron desktop capture
-      const videoOnlyStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          // @ts-ignore - Electron-specific mandatory constraints
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: source.id
-          }
-        } as any
-      })
-
-      // Optionally add microphone audio in a separate request to avoid desktop capture IPC crash
-      if (micEnabled) {
-        try {
-          const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-          const micTrack = micStream.getAudioTracks()[0]
-          if (micTrack) {
-            videoOnlyStream.addTrack(micTrack)
-          }
-        } catch (audioErr) {
-          console.warn('Microphone not available or permission denied:', audioErr)
-        }
-      }
-
-      const stream = videoOnlyStream
-      streamRef.current = stream
-
-      const recorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
-        videoBitsPerSecond: 8000000
-      })
-
-      const chunks: Blob[] = []
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data)
-      }
-
-      recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: 'video/webm' })
-        const recordingsDir = await window.electronAPI?.getRecordingsDirectory?.()
-
-        if (recordingsDir) {
-          const baseName = `Recording_${new Date().toISOString().replace(/[:.]/g, '-')}`
-          const rawVideoPath = `${recordingsDir}/${baseName}.webm`
-          const buffer = await blob.arrayBuffer()
-          await window.electronAPI?.saveRecording?.(rawVideoPath, buffer)
-
-          // Derive stream settings for dimensions and fps
-          const vTrack = stream.getVideoTracks?.()[0]
-          const s = (vTrack && typeof (vTrack as any).getSettings === 'function') ? (vTrack as any).getSettings() as MediaTrackSettings : {}
-          const width = (s.width as number) || window.screen.width
-          const height = (s.height as number) || window.screen.height
-          const frameRate = (s.frameRate as number) || 60
-
-          // Normalize mouse events to project schema
-          const mouseEvents = (mouseEventsRef.current || [])
-            .filter((e: any) => e.type === 'move')
-            .map((e: any) => ({ timestamp: e.t, x: e.x, y: e.y, screenWidth: width, screenHeight: height }))
-          const clickEvents = (mouseEventsRef.current || [])
-            .filter((e: any) => e.type === 'click')
-            .map((e: any) => ({ timestamp: e.t, x: e.x, y: e.y, button: 'left' as const }))
-
-          const projectId = `project-${Date.now()}`
-          const recordingId = `recording-${Date.now()}`
-          const clipId = `clip-${Date.now()}`
-          const project = {
-            version: '1.0.0',
-            id: projectId,
-            name: baseName,
-            createdAt: new Date().toISOString(),
-            modifiedAt: new Date().toISOString(),
-            recordings: [
-              {
-                id: recordingId,
-                filePath: rawVideoPath,
-                duration: Date.now() - recordingStartTsRef.current,
-                width,
-                height,
-                frameRate,
-                metadata: {
-                  mouseEvents,
-                  keyboardEvents: [],
-                  clickEvents,
-                  screenEvents: []
-                }
-              }
-            ],
-            timeline: {
-              tracks: [
-                {
-                  id: 'video-1',
-                  name: 'Video',
-                  type: 'video',
-                  muted: false,
-                  locked: false,
-                  clips: [
-                    {
-                      id: clipId,
-                      recordingId,
-                      startTime: 0,
-                      duration: Date.now() - recordingStartTsRef.current,
-                      sourceIn: 0,
-                      sourceOut: Date.now() - recordingStartTsRef.current,
-                      effects: {
-                        zoom: { enabled: true, keyframes: [], sensitivity: 1.0, maxZoom: 2.0, smoothing: 0.1 },
-                        cursor: { visible: true, style: 'macOS', size: 1.2, color: '#ffffff', clickEffects: true, motionBlur: true },
-                        background: { type: 'gradient', gradient: { colors: ['#1a1a2e', '#0f0f1e'], angle: 135 }, padding: 40 },
-                        video: { cornerRadius: 12, shadow: { enabled: true, blur: 40, color: '#000000', offset: { x: 0, y: 20 } } },
-                        annotations: []
-                      }
-                    }
-                  ]
-                },
-                { id: 'audio-1', name: 'Audio', type: 'audio', muted: false, locked: false, clips: [] }
-              ],
-              duration: Date.now() - recordingStartTsRef.current
-            },
-            settings: { resolution: { width, height }, frameRate, backgroundColor: '#000000' },
-            exportPresets: []
-          }
-
-          const ssprojPath = `${recordingsDir}/${baseName}.ssproj`
-          await window.electronAPI?.saveRecording?.(
-            ssprojPath,
-            new TextEncoder().encode(JSON.stringify(project, null, 2)).buffer
-          )
-
-          // Persist raw metadata keyed by video file path for compatibility
-          try {
-            localStorage.setItem(`recording-metadata-${rawVideoPath}`, JSON.stringify(mouseEventsRef.current || []))
-          } catch (e) {
-            console.warn('Failed to save recording metadata:', e)
-          }
-
-          await window.electronAPI?.openWorkspace?.()
-        }
-
-        // Cleanup mouse listeners
-        removeMouseListenersRef.current?.()
-      }
-
-      recorderRef.current = recorder
-      recorder.start(1000)
-
-      startTimeRef.current = Date.now()
-      timerRef.current = setInterval(() => {
-        if (!isPaused) {
-          setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000))
-        }
-      }, 100)
-
-      setIsRecording(true)
-      setIsExpanded(false)
-    } catch (error) {
-      console.error('Failed to start recording:', error)
-      setCountdown(null)
-    }
+  const handleStopRecording = async () => {
+    await stopRecording()
+    // Open workspace after recording stops
+    await window.electronAPI?.openWorkspace?.()
   }
 
-  const startRecording = () => {
-    startCountdown()
-  }
-
-  const pauseRecording = () => {
-    if (recorderRef.current && recorderRef.current.state === 'recording') {
-      recorderRef.current.pause()
-      pausedTimeRef.current = Date.now()
-      setIsPaused(true)
-    }
-  }
-
-  const resumeRecording = () => {
-    if (recorderRef.current && recorderRef.current.state === 'paused') {
-      recorderRef.current.resume()
-      // Calculate total paused duration
-      const pauseDuration = Date.now() - pausedTimeRef.current
-      startTimeRef.current += pauseDuration
-      pausedTimeRef.current = 0
-      setIsPaused(false)
-    }
-  }
-
-  const stopRecording = () => {
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop()
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
-      streamRef.current = null
-    }
-
-    // Cleanup mouse tracking if still running
-    removeMouseListenersRef.current?.()
-
-    if (timerRef.current) clearInterval(timerRef.current)
-
-    setIsRecording(false)
-    setIsPaused(false)
-    setDuration(0)
-    setIsExpanded(false)
-    pausedTimeRef.current = 0
-  }
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600)
-    const mins = Math.floor((seconds % 3600) / 60)
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
-
-    if (hours > 0) {
-      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Show prominent control panel during recording
-  if (isRecording) {
-    return (
-      <div
-        className="fixed top-6 left-1/2 -translate-x-1/2 z-50"
-        style={{ WebkitAppRegion: 'no-drag' } as any}
-      >
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0, y: -20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ type: "spring", damping: 20 }}
-          className="flex items-center gap-3 px-5 py-3 bg-gradient-to-r from-gray-900 to-gray-800 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-600"
-        >
-          {/* Recording indicator */}
-          <div className="flex items-center gap-2">
-            <motion.div
-              className="w-3 h-3 bg-red-500 rounded-full shadow-lg shadow-red-500/50"
-              animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-            <span className="text-white text-sm font-semibold">Recording</span>
-          </div>
-
-          {/* Timer display */}
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-black/30 rounded-lg">
-            <span className="text-white font-mono text-base font-medium">{formatTime(duration)}</span>
-          </div>
-
-          {/* Pause/Resume button */}
-          <motion.button
-            onClick={isPaused ? resumeRecording : pauseRecording}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-2.5 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
-            title={isPaused ? "Resume recording" : "Pause recording"}
-          >
-            {isPaused ? (
-              <Play className="w-4 h-4 text-white group-hover:text-green-400 transition-colors" />
-            ) : (
-              <Pause className="w-4 h-4 text-white group-hover:text-yellow-400 transition-colors" />
-            )}
-          </motion.button>
-
-          {/* Stop button */}
-          <motion.button
-            onClick={stopRecording}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-2.5 bg-red-600 hover:bg-red-500 rounded-lg transition-colors group shadow-lg shadow-red-600/30"
-            title="Stop recording"
-          >
-            <Square className="w-4 h-4 text-white fill-white" />
-          </motion.button>
-
-          {/* Optional: Quick settings */}
-          <div className="flex items-center gap-1 ml-2 pl-3 border-l border-gray-600">
-            <button
-              className={`p-2 rounded-lg transition-colors ${micEnabled ? 'bg-gray-700 text-white' : 'bg-gray-800 text-gray-500'}`}
-              onClick={() => {/* Toggle mic during recording */ }}
-              title={micEnabled ? "Microphone on" : "Microphone off"}
-            >
-              {micEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    )
-  }
+  // Convert duration from milliseconds to seconds for display
+  const displayDuration = Math.floor(duration / 1000)
 
   return (
-    <div
-      className="fixed top-4 left-1/2 -translate-x-1/2 z-40"
-      data-record-dock-root
-    >
-      <motion.div
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className={`
-            bg-gradient-to-b from-gray-900 to-gray-800 
-            backdrop-blur-xl 
-            rounded-2xl 
-            shadow-2xl 
-            border border-gray-700
-            overflow-hidden
-          `}
-        style={{
-          // @ts-ignore
-          WebkitAppRegion: 'drag',
-          WebkitUserSelect: 'none',
-          userSelect: 'none'
-        }}
-      >
-        <div className="flex items-center p-3 gap-2">
-          {/* Main Record Button */}
-          {!isRecording ? (
-            <motion.button
-              onClick={startRecording}
-              className="relative group"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              style={{
-                // @ts-ignore
-                WebkitAppRegion: 'no-drag'
-              }}
-            >
-              <div className="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 transition-colors">
-                <Circle className="w-4 h-4 text-white fill-white" />
-                <span className="text-white font-medium text-sm">Start Recording</span>
-              </div>
-            </motion.button>
-          ) : (
-            <div className="flex items-center gap-2">
-              {/* Stop Button */}
-              <motion.button
-                onClick={stopRecording}
-                className="relative group"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <div className="relative flex items-center gap-2 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 transition-colors">
-                  <Square className="w-4 h-4 text-white fill-white" />
-                </div>
-              </motion.button>
-
-              {/* Pause/Resume Button */}
-              <motion.button
-                onClick={isPaused ? resumeRecording : pauseRecording}
-                className="relative group"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <div className="relative flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 transition-colors">
-                  {isPaused ? (
-                    <Play className="w-4 h-4 text-white fill-white" />
-                  ) : (
-                    <Pause className="w-4 h-4 text-white fill-white" />
-                  )}
-                </div>
-              </motion.button>
-
-              {/* Timer Display */}
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-700/50">
-                <motion.div
-                  className="w-2 h-2 bg-red-500 rounded-full"
-                  animate={isPaused ? {} : { scale: [1, 1.2, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                />
-                <span className="text-white font-mono text-sm">
-                  {formatTime(duration)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Open Library */}
-          <motion.button
-            onClick={() => window.electronAPI?.openWorkspace?.()}
-            className="relative group"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            style={{
-              // @ts-ignore
-              WebkitAppRegion: 'no-drag'
-            }}
+    <div className="recording-dock-container">
+      <AnimatePresence>
+        {countdown !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="countdown-overlay"
           >
-            <div className="relative flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 text-white transition-colors">
-              <Folder className="w-4 h-4" />
-              <span className="text-white font-medium text-sm">Open Library</span>
-            </div>
-          </motion.button>
-
-          {/* Divider */}
-          <div className="w-px h-8 bg-gray-600 mx-1" />
-
-          {/* Quick Controls */}
-          <div className="flex items-center gap-1" style={{
-            // @ts-ignore
-            WebkitAppRegion: 'no-drag'
-          }}>
-            {/* Microphone Toggle */}
-            <motion.button
-              onClick={() => setMicEnabled(!micEnabled)}
-              className={`
-                  p-2 rounded-lg transition-colors
-                  ${micEnabled
-                  ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                  : 'bg-gray-800 hover:bg-gray-700 text-gray-400'}
-                `}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <motion.div
+              key={countdown}
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.5, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="countdown-number"
             >
-              {micEnabled ? (
-                <Mic className="w-4 h-4" />
-              ) : (
-                <MicOff className="w-4 h-4" />
-              )}
-            </motion.button>
+              {countdown === 0 ? 'Go!' : countdown}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-            {/* Camera Toggle */}
-            <motion.button
-              onClick={() => setCameraEnabled(!cameraEnabled)}
-              className={`
-                  p-2 rounded-lg transition-colors
-                  ${cameraEnabled
-                  ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                  : 'bg-gray-800 hover:bg-gray-700 text-gray-400'}
-                `}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {cameraEnabled ? (
-                <Camera className="w-4 h-4" />
-              ) : (
-                <CameraOff className="w-4 h-4" />
-              )}
-            </motion.button>
+      <motion.div
+        className={`recording-dock ${isRecording ? 'recording' : ''} ${isExpanded ? 'expanded' : ''}`}
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', damping: 20 }}
+      >
+        <div className="dock-content">
+          <div className="main-controls">
+            {!isRecording ? (
+              <>
+                <button
+                  className="control-button expand-button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  title="Options"
+                >
+                  <Settings size={20} />
+                </button>
 
-            {/* Screen Source */}
-            <motion.button
-              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Monitor className="w-4 h-4" />
-            </motion.button>
+                <button
+                  className="record-button"
+                  onClick={handleStartRecording}
+                  title="Start Recording"
+                >
+                  <Circle size={24} />
+                </button>
 
-            {/* Settings */}
-            <motion.button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <Settings className="w-4 h-4" />
-            </motion.button>
+                <button
+                  className="control-button"
+                  onClick={() => window.electronAPI?.openWorkspace?.()}
+                  title="Open Workspace"
+                >
+                  <Folder size={20} />
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="duration-display">
+                  {formatDuration(displayDuration)}
+                </div>
+
+                <div className="recording-controls">
+                  {!isPaused ? (
+                    <button
+                      className="control-button pause-button"
+                      onClick={pauseRecording}
+                      title="Pause Recording"
+                    >
+                      <Pause size={20} />
+                    </button>
+                  ) : (
+                    <button
+                      className="control-button resume-button"
+                      onClick={resumeRecording}
+                      title="Resume Recording"
+                    >
+                      <Play size={20} />
+                    </button>
+                  )}
+
+                  <button
+                    className="stop-button"
+                    onClick={handleStopRecording}
+                    title="Stop Recording"
+                  >
+                    <Square size={20} />
+                  </button>
+                </div>
+
+                <button
+                  className="control-button close-button"
+                  onClick={() => window.electronAPI?.minimizeRecordButton?.()}
+                  title="Minimize"
+                >
+                  <X size={16} />
+                </button>
+              </>
+            )}
           </div>
 
-          {/* Minimize Button */}
-          <motion.button
-            onClick={() => window.electronAPI?.minimizeRecordButton?.()}
-            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white transition-colors ml-2"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            style={{
-              // @ts-ignore
-              WebkitAppRegion: 'no-drag'
-            }}
-          >
-            <X className="w-4 h-4" />
-          </motion.button>
+          <AnimatePresence>
+            {isExpanded && !isRecording && (
+              <motion.div
+                className="expanded-controls"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="control-row">
+                  <button
+                    className={`option-button ${micEnabled ? 'active' : ''}`}
+                    onClick={() => setMicEnabled(!micEnabled)}
+                  >
+                    {micEnabled ? <Mic size={18} /> : <MicOff size={18} />}
+                    <span>Microphone</span>
+                  </button>
+
+                  <button
+                    className={`option-button ${cameraEnabled ? 'active' : ''}`}
+                    onClick={() => setCameraEnabled(!cameraEnabled)}
+                  >
+                    {cameraEnabled ? <Camera size={18} /> : <CameraOff size={18} />}
+                    <span>Camera</span>
+                  </button>
+
+                  <button className="option-button active">
+                    <Monitor size={18} />
+                    <span>Full Screen</span>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-
-        {/* Expanded Settings Panel */}
-        <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="border-t border-gray-700"
-              onAnimationComplete={async () => {
-                // After expand/collapse, resize the window to fit content so dropdowns are visible
-                const container = document.querySelector('[data-record-dock-root]') as HTMLElement | null
-                const rect = container?.getBoundingClientRect()
-                if (rect) {
-                  await window.electronAPI?.resizeRecordButton?.(rect.height + 16)
-                }
-              }}
-            >
-              <div className="p-4 space-y-3">
-                <div className="text-xs text-gray-400 uppercase tracking-wider">Recording Settings</div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-gray-400">Quality</label>
-                    <select className="w-full px-2 py-1 rounded bg-gray-700 text-white text-sm border border-gray-600 focus:border-blue-500 outline-none">
-                      <option>4K 60fps</option>
-                      <option>1080p 60fps</option>
-                      <option>1080p 30fps</option>
-                      <option>720p 30fps</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs text-gray-400">Audio Source</label>
-                    <select className="w-full px-2 py-1 rounded bg-gray-700 text-white text-sm border border-gray-600 focus:border-blue-500 outline-none">
-                      <option>System + Mic</option>
-                      <option>System Only</option>
-                      <option>Microphone Only</option>
-                      <option>No Audio</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label className="text-xs text-gray-400">Show Cursor</label>
-                  <input type="checkbox" defaultChecked className="rounded" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label className="text-xs text-gray-400">Show Clicks</label>
-                  <input type="checkbox" defaultChecked className="rounded" />
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
     </div>
   )

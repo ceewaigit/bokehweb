@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 // Recording logic handled by RecordingController component
 import { Toolbar } from '../toolbar'
 import { PreviewArea } from '../preview-area'
@@ -10,36 +10,43 @@ import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
 import { RecordingController } from './recording-controller'
 import { useProjectStore } from '@/stores/project-store'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 import { cn } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 import type { Recording } from '@/types/project'
 
 export function WorkspaceManager() {
-  const { project, createNewProject } = useProjectStore()
-  // Recording is handled by RecordingController
-  const [isPropertiesOpen, setIsPropertiesOpen] = useState(true)
-  const [isExportOpen, setIsExportOpen] = useState(false)
+  const { currentProject, newProject } = useProjectStore()
+  const {
+    isPropertiesOpen,
+    isExportOpen,
+    propertiesPanelWidth,
+    timelineHeight,
+    toggleProperties,
+    setExportOpen
+  } = useWorkspaceStore()
 
   // Debug: Track project changes
   useEffect(() => {
-    console.log('🔍 WorkspaceManager: Project changed:', project?.name || 'null')
-  }, [project])
+    console.log('🔍 WorkspaceManager: Project changed:', currentProject?.name || 'null')
+  }, [currentProject])
 
   const handleToggleProperties = useCallback(() => {
-    setIsPropertiesOpen(!isPropertiesOpen)
-  }, [isPropertiesOpen])
+    toggleProperties()
+  }, [toggleProperties])
 
   const handleExport = useCallback(() => {
-    setIsExportOpen(true)
-  }, [])
+    setExportOpen(true)
+  }, [setExportOpen])
 
   const handleCloseExport = useCallback(() => {
-    setIsExportOpen(false)
-  }, [])
+    setExportOpen(false)
+  }, [setExportOpen])
 
 
   // Show recordings library when no active project
-  if (!project) {
+  if (!currentProject) {
     console.log('🔍 WorkspaceManager: Showing recordings library')
     return (
       <div className="h-screen w-screen flex flex-col bg-background">
@@ -53,7 +60,7 @@ export function WorkspaceManager() {
               console.log('📁 Loading project:', project.name)
 
               // Create a new timeline project
-              createNewProject(project.name)
+              newProject(project.name)
 
               // Load each recording from the project
               for (const rec of project.recordings) {
@@ -77,7 +84,7 @@ export function WorkspaceManager() {
                           const clipId = clip.id
 
                           // Store blob URL for the recording
-                          localStorage.setItem(`recording-blob-${rec.id}`, url)
+                          RecordingStorage.setBlobUrl(rec.id, url)
 
                           // Add recording to project store
                           useProjectStore.getState().addRecording(rec, blob)
@@ -113,12 +120,12 @@ export function WorkspaceManager() {
                               })
                             })
 
-                            localStorage.setItem(`recording-metadata-${rec.id}`, JSON.stringify(metadata))
+                            RecordingStorage.setMetadata(rec.id, metadata)
                             console.log(`✅ Loaded ${metadata.length} metadata events for recording ${rec.id}`)
                           }
 
                           // Store clip effects from project for later use
-                          localStorage.setItem(`clip-effects-${clipId}`, JSON.stringify(clip.effects))
+                          RecordingStorage.setClipEffects(clipId, clip.effects)
                         }
                       }
                     }
@@ -129,7 +136,7 @@ export function WorkspaceManager() {
               }
             } else {
               // Legacy: Load raw video file
-              createNewProject(recording.name)
+              newProject(recording.name)
               try {
                 const result = await window.electronAPI?.readLocalFile?.(recording.path)
                 if (!result || !result.success) {
@@ -141,16 +148,16 @@ export function WorkspaceManager() {
                 const recordingId = `recording-${Date.now()}`
 
                 // Store blob URL for preview (by id and by path for robustness)
-                localStorage.setItem(`recording-blob-${recordingId}`, url)
-                localStorage.setItem(`recording-blob-${recording.path}`, url)
+                RecordingStorage.setBlobUrl(recordingId, url)
+                RecordingStorage.setBlobUrl(recording.path, url)
 
                 // Create a Recording object
                 const rec: Recording = {
                   id: recordingId,
                   filePath: recording.path,
-                  duration: 10000, // Default 10 seconds
-                  width: typeof window !== 'undefined' ? window.screen.width : 1920,
-                  height: typeof window !== 'undefined' ? window.screen.height : 1080,
+                  duration: 10000, // Will be updated when video loads
+                  width: 1920,
+                  height: 1080,
                   frameRate: 60,
                   metadata: {
                     mouseEvents: [],
@@ -165,10 +172,9 @@ export function WorkspaceManager() {
 
                 // Try to load metadata if it exists
                 try {
-                  const metaKeyPath = `recording-metadata-${recording.path}`
-                  const metaByPath = localStorage.getItem(metaKeyPath)
+                  const metaByPath = RecordingStorage.getMetadata(recording.path)
                   if (metaByPath) {
-                    localStorage.setItem(`recording-metadata-${recordingId}`, metaByPath)
+                    RecordingStorage.setMetadata(recordingId, metaByPath)
                   }
                 } catch { }
               } catch (error) {
@@ -200,18 +206,23 @@ export function WorkspaceManager() {
             <PreviewArea />
           </div>
 
-          {/* Timeline Section - Fixed height with better border */}
-          <div className="h-64 border-t bg-card/50 backdrop-blur-sm relative z-20">
+          {/* Timeline Section - Dynamic height from store */}
+          <div
+            className="border-t bg-card/50 backdrop-blur-sm relative z-20"
+            style={{ height: `${timelineHeight}px` }}
+          >
             <TimelineEditor className="h-full" />
           </div>
         </div>
 
-        {/* Properties Panel - Better animation and styling */}
-        <div className={cn(
-          "transition-all duration-300 ease-in-out bg-card border-l",
-          "shadow-xl",
-          isPropertiesOpen ? "w-80" : "w-0"
-        )}>
+        {/* Properties Panel - Dynamic width from store */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out bg-card border-l shadow-xl",
+            !isPropertiesOpen && "w-0"
+          )}
+          style={{ width: isPropertiesOpen ? `${propertiesPanelWidth}px` : 0 }}
+        >
           {isPropertiesOpen && (
             <div className="h-full overflow-hidden">
               <PropertiesPanel />

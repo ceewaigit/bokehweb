@@ -10,6 +10,7 @@ import { ZoomEngine } from '../effects/zoom-engine'
 import { BackgroundRenderer } from '../effects/background-renderer'
 import { FFmpegConverter } from './ffmpeg-converter'
 import { globalBlobManager } from '../security/blob-url-manager'
+import { RecordingStorage } from '../storage/recording-storage'
 import type { ExportSettings } from '@/types'
 import type { Project } from '@/types/project'
 
@@ -225,7 +226,7 @@ export class ExportEngine {
 
       // Get video blob from localStorage or file
       let videoBlob: Blob
-      const blobUrl = localStorage.getItem(`recording-blob-${recording.id}`)
+      const blobUrl = RecordingStorage.getBlobUrl(recording.id)
       if (blobUrl) {
         const response = await fetch(blobUrl)
         videoBlob = await response.blob()

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { ExportEngine, type ExportProgress, type ExportOptions } from '@/lib/export'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 import type { ExportSettings, Project } from '@/types'
 
 interface ExportStore {
@@ -76,11 +77,11 @@ export const useExportStore = create<ExportStore>((set, get) => {
         const associatedRecording = project.recordings.find(r => r.id === videoClip.recordingId)
 
         // Check if we should use effects export. We support both id- and path-based keys.
-        const idKey = typeof window !== 'undefined' ?
-          localStorage.getItem(`recording-metadata-${videoClip.recordingId}`) : null
-        const pathKey = typeof window !== 'undefined' && associatedRecording?.filePath ?
-          localStorage.getItem(`recording-metadata-${associatedRecording.filePath}`) : null
-        const hasMetadata = !!(idKey || pathKey)
+        const idMetadata = typeof window !== 'undefined' ?
+          RecordingStorage.getMetadata(videoClip.recordingId) : null
+        const pathMetadata = typeof window !== 'undefined' && associatedRecording?.filePath ?
+          RecordingStorage.getMetadata(associatedRecording.filePath) : null
+        const hasMetadata = !!(idMetadata || pathMetadata)
 
         // Use unified export engine with appropriate options
         const engine = getEngine()
@@ -152,7 +153,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
 
         // Get video blob
         let videoBlob: Blob
-        const blobUrl = localStorage.getItem(`recording-blob-${recording.id}`)
+        const blobUrl = RecordingStorage.getBlobUrl(recording.id)
         if (blobUrl) {
           const response = await fetch(blobUrl)
           videoBlob = await response.blob()

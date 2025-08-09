@@ -21,7 +21,7 @@ import {
 export function PropertiesPanel() {
   const [activeTab, setActiveTab] = useState<'project' | 'clip' | 'effects' | 'audio'>('project')
   const { settings, updateSettings } = useRecordingStore()
-  const { currentProject, project, selectedClips, getCurrentClip, updateClipEffects } = useProjectStore()
+  const { currentProject, selectedClips, getCurrentClip, updateClipEffects } = useProjectStore()
 
   const selectedClip = getCurrentClip()
 
@@ -227,11 +227,11 @@ export function PropertiesPanel() {
           <div className="space-y-4">
             <div>
               <h3 className="text-sm font-semibold mb-2">Project Settings</h3>
-              {project ? (
+              {currentProject ? (
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span>Resolution:</span>
-                    <span>{project.settings.resolution.width}×{project.settings.resolution.height}</span>
+                    <span>{currentProject.settings.resolution.width}×{currentProject.settings.resolution.height}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span>Frame Rate:</span>

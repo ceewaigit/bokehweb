@@ -255,16 +255,18 @@ export function createProject(name: string): Project {
   }
 }
 
+import { RecordingStorage } from '@/lib/storage/recording-storage'
+
 // Save/load functions
-export async function saveProject(project: Project): Promise<void> {
+export async function saveProject(project: Project, customPath?: string): Promise<string | null> {
   const projectData = JSON.stringify(project, null, 2)
   
   // Check if running in Electron environment
   if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
     try {
       const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-      const projectFileName = `${project.id}.ssproj`
-      const projectFilePath = `${recordingsDir}/${projectFileName}`
+      const projectFileName = customPath || `${project.id}.ssproj`
+      const projectFilePath = projectFileName.startsWith('/') ? projectFileName : `${recordingsDir}/${projectFileName}`
       
       // Save as text file with our custom extension
       await window.electronAPI.saveRecording(
@@ -273,18 +275,178 @@ export async function saveProject(project: Project): Promise<void> {
       )
       
       // Also save to localStorage for quick access
-      localStorage.setItem(`project-${project.id}`, projectData)
-      localStorage.setItem(`project-path-${project.id}`, projectFilePath)
+      RecordingStorage.setProject(project.id, projectData)
+      RecordingStorage.setProjectPath(project.id, projectFilePath)
       
       console.log(`Project saved to: ${projectFilePath}`)
+      return projectFilePath
     } catch (error) {
       console.error('Failed to save project file:', error)
       // Fallback to localStorage only
-      localStorage.setItem(`project-${project.id}`, projectData)
+      RecordingStorage.setProject(project.id, projectData)
+      return null
     }
   } else {
     // Fallback to localStorage if not in Electron
-    localStorage.setItem(`project-${project.id}`, projectData)
+    RecordingStorage.setProject(project.id, projectData)
+    return null
+  }
+}
+
+export async function saveRecordingWithProject(
+  videoBlob: Blob,
+  metadata: any[],
+  projectName?: string
+): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
+  if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
+    console.error('Electron API not available for saving')
+    return null
+  }
+
+  try {
+    const recordingsDir = await window.electronAPI.getRecordingsDirectory()
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const baseName = projectName || `Recording_${timestamp}`
+    const recordingId = `recording-${Date.now()}`
+    
+    // Save video file
+    const videoFileName = `${baseName}.webm`
+    const videoFilePath = `${recordingsDir}/${videoFileName}`
+    const buffer = await videoBlob.arrayBuffer()
+    await window.electronAPI.saveRecording(videoFilePath, buffer)
+    
+    // Get video metadata
+    const videoUrl = URL.createObjectURL(videoBlob)
+    const video = document.createElement('video')
+    video.src = videoUrl
+    
+    await new Promise((resolve) => {
+      video.onloadedmetadata = resolve
+    })
+    
+    const duration = video.duration * 1000 // Convert to milliseconds
+    const width = video.videoWidth || window.screen.width
+    const height = video.videoHeight || window.screen.height
+    
+    URL.revokeObjectURL(videoUrl)
+    
+    // Create project with recording
+    const project = createProject(baseName)
+    
+    // Process metadata into proper format
+    const mouseEvents = metadata
+      .filter(m => m.eventType === 'mouse' || m.type === 'move')
+      .map(m => ({
+        timestamp: m.timestamp || m.t || 0,
+        x: m.mouseX || m.x || 0,
+        y: m.mouseY || m.y || 0,
+        screenWidth: width,
+        screenHeight: height
+      }))
+    
+    const clickEvents = metadata
+      .filter(m => m.eventType === 'click' || m.type === 'click')
+      .map(m => ({
+        timestamp: m.timestamp || m.t || 0,
+        x: m.mouseX || m.x || 0,
+        y: m.mouseY || m.y || 0,
+        button: 'left' as const
+      }))
+    
+    const keyboardEvents = metadata
+      .filter(m => m.eventType === 'keypress')
+      .map(m => ({
+        timestamp: m.timestamp || m.t || 0,
+        key: m.key || '',
+        modifiers: []
+      }))
+    
+    // Add recording to project
+    const recording: Recording = {
+      id: recordingId,
+      filePath: videoFilePath,
+      duration,
+      width,
+      height,
+      frameRate: 60,
+      metadata: {
+        mouseEvents,
+        keyboardEvents,
+        clickEvents,
+        screenEvents: []
+      }
+    }
+    
+    project.recordings.push(recording)
+    
+    // Add clip to timeline with default effects
+    const clip: Clip = {
+      id: `clip-${Date.now()}`,
+      recordingId,
+      startTime: 0,
+      duration,
+      sourceIn: 0,
+      sourceOut: duration,
+      effects: {
+        zoom: {
+          enabled: true,
+          keyframes: [],
+          sensitivity: 1.0,
+          maxZoom: 2.0,
+          smoothing: 0.1
+        },
+        cursor: {
+          visible: true,
+          style: 'macOS',
+          size: 1.2,
+          color: '#ffffff',
+          clickEffects: true,
+          motionBlur: true
+        },
+        background: {
+          type: 'gradient',
+          gradient: {
+            colors: ['#1a1a2e', '#0f0f1e'],
+            angle: 135
+          },
+          padding: 40
+        },
+        video: {
+          cornerRadius: 12,
+          shadow: {
+            enabled: true,
+            blur: 40,
+            color: '#000000',
+            offset: { x: 0, y: 20 }
+          }
+        },
+        annotations: []
+      }
+    }
+    
+    // Add to video track
+    const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
+    if (videoTrack) {
+      videoTrack.clips.push(clip)
+    }
+    
+    project.timeline.duration = duration
+    
+    // Save project file
+    const projectFileName = `${baseName}.ssproj`
+    const projectPath = await saveProject(project, projectFileName)
+    
+    // Store metadata with recording ID only (single source of truth)
+    RecordingStorage.setMetadata(recordingId, recording.metadata)
+    
+    return {
+      project,
+      videoPath: videoFilePath,
+      projectPath: projectPath || `${recordingsDir}/${projectFileName}`
+    }
+  } catch (error) {
+    console.error('Failed to save recording with project:', error)
+    return null
   }
 }
 

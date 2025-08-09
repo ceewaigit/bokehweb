@@ -6,6 +6,7 @@
 import type { RecordingSettings } from '@/types'
 import { logger } from '@/lib/utils/logger'
 import { PermissionError, ElectronError } from '@/lib/core/errors'
+import { saveRecordingWithProject } from '@/types/project'
 
 // Enhancement settings moved here from screen-recorder
 export interface EnhancementSettings {
@@ -234,108 +235,14 @@ export class ElectronRecorder {
 
         logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
 
-        // Save the recording to file
+        // Use consolidated saving function
         let filePath: string | undefined
-        if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
-          try {
-            const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-            const baseName = `Recording_${new Date().toISOString().replace(/[:.]/g, '-')}`
-            const rawVideoPath = `${recordingsDir}/${baseName}.webm`
-            const buffer = await video.arrayBuffer()
-            await window.electronAPI.saveRecording(rawVideoPath, buffer)
-            logger.info(`Recording saved to: ${rawVideoPath}`)
-
-            // Build minimal project and save as .ssproj
-            const projectName = baseName
-            const videoTrack = this.stream?.getVideoTracks()?.[0]
-            const settings = (videoTrack && typeof videoTrack.getSettings === 'function') ? videoTrack.getSettings() as MediaTrackSettings : {}
-            const width = (settings.width as number) || (typeof window !== 'undefined' ? window.screen.width : 1920)
-            const height = (settings.height as number) || (typeof window !== 'undefined' ? window.screen.height : 1080)
-            const frameRate = (settings.frameRate as number) || 60
-
-            const projectData = {
-              version: '1.0.0',
-              id: `project-${Date.now()}`,
-              name: projectName,
-              createdAt: new Date().toISOString(),
-              modifiedAt: new Date().toISOString(),
-              recordings: [
-                {
-                  id: `recording-${Date.now()}`,
-                  filePath: rawVideoPath,
-                  duration: duration,
-                  width,
-                  height,
-                  frameRate,
-                  metadata: {
-                    mouseEvents: this.metadata.filter(m => m.eventType === 'mouse').map(m => ({
-                      timestamp: m.timestamp,
-                      x: m.mouseX,
-                      y: m.mouseY,
-                      screenWidth: width,
-                      screenHeight: height
-                    })),
-                    keyboardEvents: this.metadata.filter(m => m.eventType === 'keypress').map(m => ({
-                      timestamp: m.timestamp,
-                      key: m.key || '',
-                      modifiers: []
-                    })),
-                    clickEvents: this.metadata.filter(m => m.eventType === 'click').map(m => ({
-                      timestamp: m.timestamp,
-                      x: m.mouseX,
-                      y: m.mouseY,
-                      button: 'left' as const
-                    })),
-                    screenEvents: []
-                  }
-                }
-              ],
-              timeline: {
-                tracks: [
-                  { id: 'video-1', name: 'Video', type: 'video', muted: false, locked: false, clips: [
-                    {
-                      id: `clip-${Date.now()}`,
-                      recordingId: `recording-${Date.now()}`,
-                      startTime: 0,
-                      duration: duration,
-                      sourceIn: 0,
-                      sourceOut: duration,
-                      effects: {
-                        zoom: { enabled: true, keyframes: [], sensitivity: 1.0, maxZoom: 2.0, smoothing: 0.1 },
-                        cursor: { visible: true, style: 'macOS', size: 1.2, color: '#ffffff', clickEffects: true, motionBlur: true },
-                        background: { type: 'gradient', gradient: { colors: ['#1a1a2e', '#0f0f1e'], angle: 135 }, padding: 40 },
-                        video: { cornerRadius: 12, shadow: { enabled: true, blur: 40, color: '#000000', offset: { x: 0, y: 20 } } },
-                        annotations: []
-                      }
-                    }
-                  ]},
-                  { id: 'audio-1', name: 'Audio', type: 'audio', muted: false, locked: false, clips: [] }
-                ],
-                duration: duration
-              },
-              settings: { resolution: { width, height }, frameRate, backgroundColor: '#000000' },
-              exportPresets: []
-            }
-
-            const ssprojPath = `${recordingsDir}/${baseName}.ssproj`
-            await window.electronAPI.saveRecording(
-              ssprojPath,
-              new TextEncoder().encode(JSON.stringify(projectData, null, 2)).buffer
-            )
-            logger.info(`Project saved to: ${ssprojPath}`)
-
-            // Save metadata linked to the file path for later retrieval
-            try {
-              localStorage.setItem(`recording-metadata-${rawVideoPath}`, JSON.stringify(this.metadata))
-              logger.info(`Saved ${this.metadata.length} metadata events for file ${rawVideoPath}`)
-            } catch (e) {
-              logger.error('Failed to save metadata to localStorage:', e)
-            }
-            filePath = ssprojPath
-
-          } catch (error) {
-            logger.error('Failed to save recording to file:', error)
-          }
+        const saved = await saveRecordingWithProject(video, this.metadata)
+        if (saved) {
+          filePath = saved.projectPath
+          logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
+        } else {
+          logger.error('Failed to save recording with project')
         }
 
         this.cleanup()

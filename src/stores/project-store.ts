@@ -11,11 +11,12 @@ import {
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { convertMetadataToEvents } from '@/lib/metadata/metadata-converter'
 
 interface ProjectStore {
   // Current project
   currentProject: Project | null
-  project: Project | null // Alias for backward compatibility
   
   // Playback state
   currentTime: number
@@ -28,7 +29,6 @@ interface ProjectStore {
   
   // Actions - Core
   newProject: (name: string) => void
-  createNewProject: (name: string) => void // Alias for backward compatibility
   openProject: (projectPath: string) => Promise<void>
   saveCurrentProject: () => Promise<void>
   setProject: (project: Project) => void
@@ -51,9 +51,7 @@ interface ProjectStore {
   // Playback controls
   play: () => void
   pause: () => void
-  setPlaying: (isPlaying: boolean) => void // Alias
   seek: (time: number) => void
-  setCurrentTime: (time: number) => void // Alias
   setZoom: (zoom: number) => void
   
   // Get current clip and recording
@@ -64,33 +62,25 @@ interface ProjectStore {
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   currentProject: null,
-  project: null, // Alias
   currentTime: 0,
   isPlaying: false,
-  zoom: 1,
+  zoom: 0.5, // Start at 0.5 zoom for better overview
   selectedClipId: null,
   selectedClips: [],
   
   newProject: (name) => {
     const project = createProject(name)
     set({ 
-      currentProject: project, 
-      project: project, // Keep in sync
+      currentProject: project,
       selectedClipId: null,
       selectedClips: []
     })
     logger.info(`Created new project: ${name}`)
   },
   
-  // Alias for backward compatibility
-  createNewProject: (name) => {
-    get().newProject(name)
-  },
-  
   setProject: (project) => {
     set({ 
       currentProject: project,
-      project: project, // Keep in sync
       selectedClipId: null,
       selectedClips: []
     })
@@ -114,20 +104,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     try {
       currentProject.modifiedAt = new Date().toISOString()
       await saveProject(currentProject)
-      
-      // Also save as .ssproj file if we have Electron
-      if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
-        const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-        const fileName = `${currentProject.id}.ssproj`
-        const filePath = `${recordingsDir}/${fileName}`
-        const projectData = JSON.stringify(currentProject, null, 2)
-        
-        await window.electronAPI.saveRecording(
-          filePath,
-          new TextEncoder().encode(projectData).buffer
-        )
-        logger.info(`Project saved to: ${filePath}`)
-      }
     } catch (error) {
       logger.error('Failed to save project:', error)
       throw error
@@ -214,30 +190,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       
       // Store video blob URL for preview
       const blobUrl = globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
-      localStorage.setItem(`recording-blob-${completeRecording.id}`, blobUrl)
+      RecordingStorage.setBlobUrl(completeRecording.id, blobUrl)
       
-      // Store metadata for effects rendering in multiple formats for backward compatibility
+      // Store metadata with recording ID only (single source of truth)
       if (completeRecording.metadata) {
-        // Store with recording ID
-        localStorage.setItem(
-          `recording-metadata-${completeRecording.id}`, 
-          JSON.stringify(completeRecording.metadata)
-        )
-        
-        // Also store with clip ID for direct access
-        localStorage.setItem(
-          `clip-metadata-${clip.id}`, 
-          JSON.stringify(completeRecording.metadata)
-        )
-        
-        logger.info(`Stored metadata for recording ${completeRecording.id} and clip ${clip.id}`)
+        RecordingStorage.setMetadata(completeRecording.id, completeRecording.metadata)
+        logger.info(`Stored metadata for recording ${completeRecording.id}`)
       }
       
       project.modifiedAt = new Date().toISOString()
       
       return { 
         currentProject: project,
-        project: project, // Keep alias in sync
         selectedClipId: clip.id
       }
     })
@@ -433,7 +397,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }))
       project.modifiedAt = new Date().toISOString()
       
-      return { currentProject: project, project: project }
+      return { currentProject: project }
     })
   },
   
@@ -496,7 +460,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       
       return {
         currentProject: project,
-        project: project,
         selectedClipId: secondClip.id,
         selectedClips: [secondClip.id]
       }
@@ -538,7 +501,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }))
       
       project.modifiedAt = new Date().toISOString()
-      return { currentProject: project, project: project }
+      return { currentProject: project }
     })
   },
   
@@ -576,7 +539,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       }))
       
       project.modifiedAt = new Date().toISOString()
-      return { currentProject: project, project: project }
+      return { currentProject: project }
     })
   },
   
@@ -617,16 +580,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({ isPlaying: false })
   },
   
-  // Aliases for backward compatibility
-  setPlaying: (isPlaying) => {
-    set({ isPlaying })
-  },
-  
   seek: (time) => {
-    set({ currentTime: Math.max(0, time) })
-  },
-  
-  setCurrentTime: (time) => {
     set({ currentTime: Math.max(0, time) })
   },
   
@@ -673,52 +627,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const recording = currentProject.recordings.find(r => r.id === targetClip.recordingId)
     if (!recording) return null
     
-    // Normalize metadata into a flat array of events for the renderer
-    const meta = recording.metadata
-    if (!meta) return []
-    
-    const events: Array<any> = []
-    
-    // Mouse move events
-    if (Array.isArray(meta.mouseEvents)) {
-      for (const e of meta.mouseEvents) {
-        events.push({
-          timestamp: e.timestamp,
-          mouseX: e.x,
-          mouseY: e.y,
-          eventType: 'mouse' as const
-        })
-      }
-    }
-    
-    // Click events
-    if (Array.isArray(meta.clickEvents)) {
-      for (const e of meta.clickEvents) {
-        events.push({
-          timestamp: e.timestamp,
-          mouseX: e.x,
-          mouseY: e.y,
-          eventType: 'click' as const
-        })
-      }
-    }
-    
-    // Keyboard events (cursor renderer ignores position)
-    if (Array.isArray(meta.keyboardEvents)) {
-      for (const e of meta.keyboardEvents) {
-        events.push({
-          timestamp: e.timestamp,
-          mouseX: 0,
-          mouseY: 0,
-          eventType: 'keypress' as const,
-          key: e.key
-        })
-      }
-    }
-    
-    // Sort by timestamp to ensure correct playback
-    events.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-    
-    return events
+    // Use the centralized metadata converter
+    return convertMetadataToEvents(recording.metadata)
   }
 }))

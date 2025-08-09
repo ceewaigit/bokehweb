@@ -6,37 +6,16 @@ import { ProcessingIndicator } from '../processing-indicator'
 import { CountdownTimer } from '../countdown-timer'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useRecording } from '@/hooks/use-recording'
+import { useConfigStore } from '@/stores/config-store'
 import { logger } from '@/lib/utils/logger'
-import type { RecordingEnhancementSettings } from '@/types/effects'
 
 export function RecordingController() {
   // Modal State
   const [showCountdown, setShowCountdown] = useState(false)
-  const [countdownSeconds] = useState(3)
-
-  // Enhancement Settings for Screen Studio effects
-  const [enhancementSettings] = useState<RecordingEnhancementSettings | null>({
-    // Enable Screen Studio effects by default
-    enableAutoZoom: true,
-    zoomSensitivity: 1.0,
-    maxZoom: 2.5,
-    zoomSpeed: 1.0,
-    showCursor: true,
-    cursorSize: 1.5,
-    cursorColor: '#ffffff',
-    showClickEffects: true,
-    clickEffectSize: 1.0,
-    clickEffectColor: '#3b82f6',
-    showCursorHighlight: false,
-    highlightColor: '#3b82f6',
-    motionSensitivity: 1.0,
-    enableSmartPanning: true,
-    panSpeed: 1.0,
-    enableSmoothAnimations: true,
-    animationQuality: 'balanced',
-    showKeystrokes: false,
-    keystrokePosition: 'bottom-right',
-  })
+  
+  // Get settings from config store
+  const { enhancementSettings, defaultCountdown } = useConfigStore()
+  const countdownSeconds = defaultCountdown
 
   // Hooks
   const { isRecording, isPaused } = useRecordingStore()
@@ -54,7 +33,7 @@ export function RecordingController() {
     setShowCountdown(false)
     try {
       logger.info('Starting recording with Screen Studio effects:', enhancementSettings)
-      await startRecording(undefined, enhancementSettings ?? undefined) // Pass enhancement settings
+      await startRecording(undefined, enhancementSettings) // Pass enhancement settings
     } catch (error) {
       logger.error('Failed to start recording:', error)
       // Reset recording state on start failure

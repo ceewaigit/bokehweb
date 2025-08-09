@@ -33,8 +33,9 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     currentTime,
     isPlaying,
     zoom,
-    setCurrentTime,
-    setPlaying,
+    seek,
+    play,
+    pause,
     setZoom,
     selectClip,
     removeClip,
@@ -72,7 +73,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
   
   const duration = calculateDuration()
 
-  const pixelsPerMs = zoom * 0.1 // Zoom factor for timeline width
+  const pixelsPerMs = zoom * 0.05 // Zoom factor for timeline width (0.05 = 50px per second at zoom 1)
   const timelineWidth = duration * pixelsPerMs
 
   // Convert time to pixel position
@@ -110,7 +111,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
 
     const x = e.clientX - rect.left + (timelineRef.current?.scrollLeft || 0)
     const time = pixelToTime(x)
-    setCurrentTime(Math.max(0, Math.min(duration, time)))
+    seek(Math.max(0, Math.min(duration, time)))
   }
 
   // Split clip at current time
@@ -310,17 +311,17 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       // Play/Pause (Space)
       else if (e.key === ' ') {
         e.preventDefault()
-        setPlaying(!isPlaying)
+        isPlaying ? pause() : play()
       }
       // Jump backward (Left Arrow)
       else if (e.key === 'ArrowLeft') {
         e.preventDefault()
         if (e.shiftKey) {
           // Jump 5 seconds with shift
-          setCurrentTime(Math.max(0, currentTime - 5000))
+          seek(Math.max(0, currentTime - 5000))
         } else {
           // Jump 1 second
-          setCurrentTime(Math.max(0, currentTime - 1000))
+          seek(Math.max(0, currentTime - 1000))
         }
       }
       // Jump forward (Right Arrow)
@@ -328,31 +329,31 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         e.preventDefault()
         if (e.shiftKey) {
           // Jump 5 seconds with shift
-          setCurrentTime(Math.min(duration, currentTime + 5000))
+          seek(Math.min(duration, currentTime + 5000))
         } else {
           // Jump 1 second
-          setCurrentTime(Math.min(duration, currentTime + 1000))
+          seek(Math.min(duration, currentTime + 1000))
         }
       }
       // Jump to start (Home)
       else if (e.key === 'Home') {
         e.preventDefault()
-        setCurrentTime(0)
+        seek(0)
       }
       // Jump to end (End)
       else if (e.key === 'End') {
         e.preventDefault()
-        setCurrentTime(duration)
+        seek(duration)
       }
       // Zoom in (=)
       else if (e.key === '=' || e.key === '+') {
         e.preventDefault()
-        setZoom(Math.min(5, zoom + 0.2))
+        setZoom(Math.min(3, zoom + 0.1))
       }
       // Zoom out (-)
       else if (e.key === '-' || e.key === '_') {
         e.preventDefault()
-        setZoom(Math.max(0.1, zoom - 0.2))
+        setZoom(Math.max(0.1, zoom - 0.1))
       }
       // Clear selection (Escape)
       else if (e.key === 'Escape') {
@@ -375,8 +376,9 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     handleDuplicateClip,
     handleCopyClip,
     handlePasteClip,
-    setCurrentTime,
-    setPlaying,
+    seek,
+    play,
+    pause,
     setZoom,
     clearSelection
   ])
@@ -505,21 +507,21 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setCurrentTime(Math.max(0, currentTime - 1000))}
+            onClick={() => seek(Math.max(0, currentTime - 1000))}
           >
             <SkipBack className="w-4 h-4" />
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setPlaying(!isPlaying)}
+            onClick={() => isPlaying ? pause() : play()}
           >
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setCurrentTime(Math.min(duration, currentTime + 1000))}
+            onClick={() => seek(Math.min(duration, currentTime + 1000))}
           >
             <SkipForward className="w-4 h-4" />
           </Button>
@@ -594,7 +596,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setZoom(Math.max(0.1, zoom - 0.2))}
+            onClick={() => setZoom(Math.max(0.1, zoom - 0.1))}
           >
             <ZoomOut className="w-4 h-4" />
           </Button>
@@ -603,15 +605,15 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
               value={[zoom]}
               onValueChange={([value]) => setZoom(value)}
               min={0.1}
-              max={5}
-              step={0.1}
+              max={3}
+              step={0.05}
               className="w-32"
             />
           </div>
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setZoom(Math.min(5, zoom + 0.2))}
+            onClick={() => setZoom(Math.min(3, zoom + 0.1))}
           >
             <ZoomIn className="w-4 h-4" />
           </Button>

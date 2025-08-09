@@ -42,8 +42,9 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
     currentProject,
     currentTime,
     isPlaying,
-    setPlaying,
-    setCurrentTime,
+    play,
+    pause,
+    seek,
     saveCurrentProject,
     newProject
   } = useProjectStore()
@@ -51,16 +52,16 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
   const [propertiesOpen, setPropertiesOpen] = useState(true)
 
   const handlePlay = () => {
-    setPlaying(!isPlaying)
+    isPlaying ? pause() : play()
   }
 
   const handleRewind = () => {
-    setCurrentTime(Math.max(0, currentTime - 5000))
+    seek(Math.max(0, currentTime - 5000))
   }
 
   const handleForward = () => {
     const duration = currentProject?.timeline?.duration || 0
-    setCurrentTime(Math.min(duration, currentTime + 5000))
+    seek(Math.min(duration, currentTime + 5000))
   }
 
   const handleToggleProperties = () => {

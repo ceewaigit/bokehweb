@@ -6,7 +6,8 @@ import { useProjectStore } from '@/stores/project-store'
 import { ScreenRecorder, type RecordingResult } from '@/lib/recording'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
-import { createProject, type Recording, type MouseEvent as ProjectMouseEvent } from '@/types/project'
+import { saveRecordingWithProject } from '@/types/project'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 import type { EnhancementSettings } from '@/lib/recording'
 // Processing progress type
 interface ProcessingProgress {
@@ -41,7 +42,7 @@ export function useRecording() {
     setStatus
   } = useRecordingStore()
 
-  const { project, createNewProject } = useProjectStore()
+  const { currentProject, newProject } = useProjectStore()
 
   // Simple duration validation - no longer needed with proper MediaRecorder
   const validateResult = useCallback((result: RecordingResult): boolean => {
@@ -245,165 +246,30 @@ export function useRecording() {
         (window as any).__screenRecorderActive = false
       }
 
-      // Create and save project file with recording
+      // Use consolidated project saving
       if (result.video) {
-        const recordingId = `recording-${Date.now()}`
         const projectName = `Recording ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`
-
-        // First save the raw video file
-        let videoFilePath: string | undefined
-        if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
-          try {
-            const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-            const videoFileName = `${recordingId}.webm`
-            videoFilePath = `${recordingsDir}/${videoFileName}`
-            const buffer = await result.video.arrayBuffer()
-            await window.electronAPI.saveRecording(videoFilePath, buffer)
-            logger.info(`Video saved to: ${videoFilePath}`)
-          } catch (error) {
-            logger.error('Failed to save video file:', error)
-          }
-        }
-
-        // Create a new project in our custom format
-        const newProject = createProject(projectName)
-
-        // Get actual screen dimensions
-        const screenWidth = typeof window !== 'undefined' ? window.screen.width : 1920
-        const screenHeight = typeof window !== 'undefined' ? window.screen.height : 1080
-
-        // Convert metadata to project format
-        const mouseEvents: ProjectMouseEvent[] = result.metadata
-          .filter(m => m.eventType === 'mouse')
-          .map(m => ({
-            timestamp: m.timestamp,
-            x: m.mouseX,
-            y: m.mouseY,
-            screenWidth,
-            screenHeight
-          }))
-
-        // Add recording to project
-        const recording: Recording = {
-          id: recordingId,
-          filePath: videoFilePath || '',
-          duration: result.duration,
-          width: screenWidth,
-          height: screenHeight,
-          frameRate: settings.framerate || 60,
-          metadata: {
-            mouseEvents,
-            keyboardEvents: result.metadata
-              .filter(m => m.eventType === 'keypress')
-              .map(m => ({
-                timestamp: m.timestamp,
-                key: m.key || '',
-                modifiers: []
-              })),
-            clickEvents: result.metadata
-              .filter(m => m.eventType === 'click')
-              .map(m => ({
-                timestamp: m.timestamp,
-                x: m.mouseX,
-                y: m.mouseY,
-                button: 'left' as const
-              })),
-            screenEvents: []
-          }
-        }
-
-        newProject.recordings.push(recording)
-
-        // Add clip to timeline with default effects
-        newProject.timeline.tracks[0].clips.push({
-          id: `clip-${Date.now()}`,
-          recordingId,
-          startTime: 0,
-          duration: result.duration,
-          sourceIn: 0,
-          sourceOut: result.duration,
-          effects: {
-            zoom: {
-              enabled: true,
-              keyframes: [],
-              sensitivity: 1.0,
-              maxZoom: 2.0,
-              smoothing: 0.1
-            },
-            cursor: {
-              visible: true,
-              style: 'macOS',
-              size: 1.2,
-              color: '#ffffff',
-              clickEffects: true,
-              motionBlur: true
-            },
-            background: {
-              type: 'gradient',
-              gradient: {
-                colors: ['#1a1a2e', '#0f0f1e'],
-                angle: 135
-              },
-              padding: 40
-            },
-            video: {
-              cornerRadius: 12,
-              shadow: {
-                enabled: true,
-                blur: 40,
-                color: '#000000',
-                offset: { x: 0, y: 20 }
-              }
-            },
-            annotations: []
-          }
-        })
-
-        // Update timeline duration
-        newProject.timeline.duration = result.duration
-
-        // Save the project as .ssproj file
-        if (window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
-          try {
-            const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-            const projectFileName = `${recordingId}.ssproj`
-            const projectFilePath = `${recordingsDir}/${projectFileName}`
-            const projectData = JSON.stringify(newProject, null, 2)
-
-            // Save as text file with our custom extension
-            await window.electronAPI.saveRecording(
-              projectFilePath,
-              new TextEncoder().encode(projectData).buffer
-            )
-            logger.info(`Project saved to: ${projectFilePath}`)
-
-            // Also save to localStorage for quick access
-            localStorage.setItem(`project-${newProject.id}`, projectData)
-          } catch (error) {
-            logger.error('Failed to save project file:', error)
-          }
-        }
-
-        // Update the project store with the new recording
-        let currentProject = project
-        if (!currentProject) {
-          createNewProject(projectName)
-          currentProject = useProjectStore.getState().project
-        }
-
-        if (currentProject && result.video) {
-          // Store the video blob for preview
-          const videoUrl = globalBlobManager.create(result.video)
-          localStorage.setItem(`recording-blob-${recordingId}`, videoUrl)
-
-          // Save metadata for preview rendering
-          localStorage.setItem(`recording-metadata-${recordingId}`, JSON.stringify(result.metadata))
-
-          // Add the recording to the project with all metadata
+        
+        // Save recording with project using consolidated function
+        const saved = await saveRecordingWithProject(result.video, result.metadata, projectName)
+        
+        if (saved) {
+          logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
+          
+          // Update the project store
           const projectStore = useProjectStore.getState()
-          projectStore.addRecording(recording, result.video)
-
-          logger.info(`Added recording ${recordingId} to project with ${mouseEvents.length} mouse events`)
+          if (!projectStore.currentProject) {
+            projectStore.setProject(saved.project)
+          } else {
+            // Add to existing project
+            const recording = saved.project.recordings[0]
+            projectStore.addRecording(recording, result.video)
+          }
+          
+          // Store video blob for preview
+          const recordingId = saved.project.recordings[0].id
+          const videoUrl = globalBlobManager.create(result.video)
+          RecordingStorage.setBlobUrl(recordingId, videoUrl)
         }
       }
 
@@ -430,7 +296,7 @@ export function useRecording() {
 
       return null
     }
-  }, [project, setRecording, setPaused, setStatus, createNewProject, validateResult])
+  }, [currentProject, setRecording, setPaused, setStatus, newProject, validateResult])
 
   const pauseRecording = useCallback(() => {
     if (recorderRef.current && isRecording) {

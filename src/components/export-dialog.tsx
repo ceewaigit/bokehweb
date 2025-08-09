@@ -38,7 +38,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     reset
   } = useExportStore()
 
-  const { currentProject, project, getCurrentClip } = useProjectStore()
+  const { currentProject, getCurrentClip } = useProjectStore()
 
   const presets = [
     { id: 'youtube-1080p', name: 'YouTube 1080p', desc: '1920×1080, 60fps, MP4' },
@@ -50,16 +50,14 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   ]
 
   const handleExport = async () => {
-    // Use new project format if available
-    const projectToExport = currentProject || project
-    if (!projectToExport) return
+    if (!currentProject) return
 
     reset()
 
     if (exportSettings.format === 'gif') {
-      await exportAsGIF(projectToExport)
+      await exportAsGIF(currentProject)
     } else {
-      await exportProject(projectToExport)
+      await exportProject(currentProject)
     }
   }
 
@@ -71,7 +69,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   const handleSave = async () => {
     if (lastExport) {
       const extension = exportSettings.format === 'gif' ? 'gif' : exportSettings.format
-      const filename = `${project?.name || 'export'}.${extension}`
+      const filename = `${currentProject?.name || 'export'}.${extension}`
       await saveLastExport(filename)
     }
   }
@@ -182,7 +180,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
         {/* Footer */}
         <div className="flex items-center justify-between p-4 border-t border-border">
           <div className="flex items-center space-x-2 text-xs text-muted-foreground">
-            {project && (
+            {currentProject && (
               <>
                 <FileVideo className="w-3 h-3" />
                 <span>{currentProject?.timeline?.tracks?.[0]?.clips?.length || 0} clips</span>
@@ -201,7 +199,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
             ) : (
               <Button
                 onClick={handleExport}
-                disabled={!project || isExporting}
+                disabled={!currentProject || isExporting}
                 size="sm"
               >
                 {isExporting ? (

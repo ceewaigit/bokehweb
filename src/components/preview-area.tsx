@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useProjectStore } from '@/stores/project-store'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { ZoomEngine } from '@/lib/effects/zoom-engine'
 import { Button } from './ui/button'
@@ -22,9 +23,8 @@ export function PreviewArea() {
   const [showZoom, setShowZoom] = useState(true)
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [videoError, setVideoError] = useState<string | null>(null)
-  const { project, currentTime, isPlaying, setPlaying, setCurrentTime } = useProjectStore()
+  const { currentProject, currentTime, isPlaying, play, pause, seek, selectedClipId, getCurrentClip, getCurrentRecording } = useProjectStore()
   const { isRecording } = useRecordingStore()
-  const { currentProject, selectedClipId, getCurrentClip, getCurrentRecording } = useProjectStore()
 
   // Get the current clip from project store
   const projectClip = getCurrentClip()
@@ -33,7 +33,7 @@ export function PreviewArea() {
   // Create a simplified clip object for the preview
   const currentClip = projectClip ? {
     id: projectClip.id,
-    source: localStorage.getItem(`recording-blob-${projectClip.recordingId}`) || '',
+    source: RecordingStorage.getBlobUrl(projectClip.recordingId) || '',
     originalSource: ''
   } : null
 
@@ -307,12 +307,12 @@ export function PreviewArea() {
     if (isPlaying) {
       video.play().catch(err => {
         console.error('Failed to play video:', err)
-        setPlaying(false)
+        pause()
       })
     } else {
       video.pause()
     }
-  }, [isPlaying, isVideoLoaded, setPlaying])
+  }, [isPlaying, isVideoLoaded, pause])
 
   // Sync video time with timeline (convert from ms to seconds)
   useEffect(() => {
@@ -326,19 +326,19 @@ export function PreviewArea() {
   }, [currentTime, isVideoLoaded])
 
   const handlePlayPause = () => {
-    setPlaying(!isPlaying)
+    isPlaying ? pause() : play()
   }
 
   const handleRestart = () => {
-    setCurrentTime(0)
-    setPlaying(false)
+    seek(0)
+    pause()
   }
 
   const handleSkipBack = () => {
     const video = videoRef.current
     if (video && isVideoLoaded) {
       video.currentTime = Math.max(0, video.currentTime - 5)
-      setCurrentTime(video.currentTime * 1000)
+      seek(video.currentTime * 1000)
     }
   }
 
@@ -346,7 +346,7 @@ export function PreviewArea() {
     const video = videoRef.current
     if (video && isVideoLoaded) {
       video.currentTime = Math.min(video.duration, video.currentTime + 5)
-      setCurrentTime(video.currentTime * 1000)
+      seek(video.currentTime * 1000)
     }
   }
 
@@ -390,7 +390,7 @@ export function PreviewArea() {
                   const video = e.target as HTMLVideoElement
                   const timeInMs = video.currentTime * 1000
                   if (!isNaN(video.currentTime) && Math.abs(timeInMs - currentTime) > 100) {
-                    setCurrentTime(timeInMs)
+                    seek(timeInMs)
                   }
                 }}
                 onLoadedMetadata={(e) => {
@@ -421,7 +421,7 @@ export function PreviewArea() {
                   setVideoError(errorMessage)
                   setIsVideoLoaded(false)
                 }}
-                onEnded={() => setPlaying(false)}
+                onEnded={() => pause()}
               />
             </div>
 
