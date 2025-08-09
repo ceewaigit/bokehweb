@@ -12,8 +12,8 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 800,
     show: false,
     webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
+      nodeIntegration: isDev,
+      contextIsolation: !isDev,
       preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
       webSecurity: true,
       allowRunningInsecureContent: false,

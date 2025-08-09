@@ -8,6 +8,8 @@ export function createRecordButton(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
   console.log('🖥️ Creating record button for display:', display.bounds)
 
+  const isDev = process.env.NODE_ENV === 'development'
+
   const recordButton = new BrowserWindow({
     width: 700,
     height: 100,
@@ -26,8 +28,8 @@ export function createRecordButton(): BrowserWindow {
     roundedCorners: true,
     show: false,
     webPreferences: {
-      nodeIntegration: process.env.NODE_ENV === 'development',
-      contextIsolation: process.env.NODE_ENV !== 'development',
+      nodeIntegration: isDev,
+      contextIsolation: !isDev,
       preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
       webSecurity: false,
       devTools: true

@@ -49,8 +49,12 @@ export function WorkspaceManager() {
             createNewProject(recording.name)
             // Load the video file
             try {
-              const response = await fetch(`file://${recording.path}`)
-              const blob = await response.blob()
+              const result = await window.electronAPI?.readLocalFile?.(recording.path)
+              if (!result || !result.success) {
+                throw new Error(result?.error || 'Failed to read local file')
+              }
+              const arrayBuffer: ArrayBuffer = result.data as ArrayBuffer
+              const blob = new Blob([arrayBuffer], { type: 'video/webm' })
               // Add to timeline
               const url = globalBlobManager.create(blob, 'loaded-recording')
               useTimelineStore.getState().addClip({

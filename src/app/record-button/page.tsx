@@ -138,12 +138,8 @@ export default function RecordingDock() {
 
       // Get the stream with proper constraints for Electron
       // Must use mandatory constraints for Electron desktop capture
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: micEnabled ? {
-          echoCancellation: { ideal: true },
-          noiseSuppression: { ideal: true },
-          autoGainControl: { ideal: true }
-        } : false,
+      const videoOnlyStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
         video: {
           // @ts-ignore - Electron-specific mandatory constraints
           mandatory: {
@@ -153,6 +149,20 @@ export default function RecordingDock() {
         } as any
       })
 
+      // Optionally add microphone audio in a separate request to avoid desktop capture IPC crash
+      if (micEnabled) {
+        try {
+          const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+          const micTrack = micStream.getAudioTracks()[0]
+          if (micTrack) {
+            videoOnlyStream.addTrack(micTrack)
+          }
+        } catch (audioErr) {
+          console.warn('Microphone not available or permission denied:', audioErr)
+        }
+      }
+
+      const stream = videoOnlyStream
       streamRef.current = stream
 
       const recorder = new MediaRecorder(stream, {

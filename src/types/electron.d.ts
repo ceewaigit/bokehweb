@@ -29,6 +29,7 @@ export interface ElectronAPI {
     path: string
     timestamp: string | Date
   }>>
+  readLocalFile?: (absolutePath: string) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>
   onToggleRecording?: (callback: () => void) => void
 
   // Dialog APIs

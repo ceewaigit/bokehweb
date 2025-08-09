@@ -37,4 +37,17 @@ export function registerFileOperationHandlers(): void {
       return { success: false, error: error.message }
     }
   })
+
+  // Read an arbitrary local file by absolute path and return its ArrayBuffer
+  ipcMain.handle('read-local-file', async (_event: IpcMainInvokeEvent, absolutePath: string) => {
+    try {
+      const data = await fs.readFile(absolutePath)
+      // Return a proper ArrayBuffer slice
+      const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+      return { success: true, data: arrayBuffer }
+    } catch (error: any) {
+      console.error('Error reading local file:', error)
+      return { success: false, error: error.message }
+    }
+  })
 }

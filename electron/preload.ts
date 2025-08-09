@@ -216,6 +216,19 @@ const electronAPI = {
   openFile: (filename: string) =>
     ipcRenderer.invoke('open-file', filename),
 
+  // Recording file helpers
+  getRecordingsDirectory: () =>
+    ipcRenderer.invoke('get-recordings-directory'),
+
+  saveRecording: (filePath: string, buffer: ArrayBuffer) =>
+    ipcRenderer.invoke('save-recording', filePath, buffer),
+
+  loadRecordings: () =>
+    ipcRenderer.invoke('load-recordings'),
+
+  readLocalFile: (absolutePath: string) =>
+    ipcRenderer.invoke('read-local-file', absolutePath),
+
   // Recording events
   onRecordingStarted: (callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on('recording-started', callback)
@@ -239,7 +252,12 @@ const electronAPI = {
 }
 
 // Expose the API to the renderer process
-contextBridge.exposeInMainWorld('electronAPI', electronAPI)
+if ((process as any).contextIsolated) {
+  contextBridge.exposeInMainWorld('electronAPI', electronAPI)
+} else {
+  // Development fallback when contextIsolation is disabled
+  ; (globalThis as any).electronAPI = electronAPI
+}
 
 // Export types for TypeScript support
 export type ElectronAPI = typeof electronAPI
