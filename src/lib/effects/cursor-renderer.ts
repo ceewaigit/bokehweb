@@ -17,26 +17,58 @@ interface CursorOptions {
   hideDelay?: number // ms before hiding cursor when idle
 }
 
+interface InterpolatedPosition {
+  x: number
+  y: number
+  vx: number // velocity x
+  vy: number // velocity y
+  visible: boolean
+}
+
 export class CursorRenderer {
   private canvas: HTMLCanvasElement | null = null
   private ctx: CanvasRenderingContext2D | null = null
   private cursorImage: HTMLImageElement
   private events: CursorEvent[] = []
   private currentIndex = 0
-  private clickAnimations: Map<string, { x: number; y: number; radius: number; opacity: number; scale: number }> = new Map()
-  private previousPosition: { x: number; y: number; timestamp: number } | null = null
-  private cursorTrail: Array<{ x: number; y: number; opacity: number }> = []
+  private clickAnimations: Map<string, { 
+    x: number
+    y: number
+    radius: number
+    opacity: number
+    scale: number
+    startTime: number
+  }> = new Map()
+  
+  private currentPosition: InterpolatedPosition = {
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    visible: true
+  }
+  
+  private targetPosition = { x: 0, y: 0 }
+  private cursorTrail: Array<{ x: number; y: number; opacity: number; age: number }> = []
+  private lastMovementTime = 0
+  private lastClickTime = 0
+  
+  // Spring physics for ultra-smooth cursor movement
+  private readonly SPRING_STIFFNESS = 0.15
+  private readonly SPRING_DAMPING = 0.85
+  private readonly TRAIL_LENGTH = 5
+  private readonly TRAIL_FADE_SPEED = 0.15
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
-      size: 1.5, // Bigger cursor like Screen Studio
+      size: 1.8, // Bigger cursor like Screen Studio
       color: '#000000',
       clickColor: '#007AFF',
       smoothing: true,
       motionBlur: true,
       cursorStyle: 'macos',
       autoHide: true,
-      hideDelay: 500, // Hide after 500ms of no movement
+      hideDelay: 600, // Hide after 600ms of no movement
       ...options
     }
 
@@ -46,46 +78,57 @@ export class CursorRenderer {
   }
 
   private createCursorDataURL(): string {
-    const size = (this.options.size || 1.5) * 28 // Bigger base size
+    const size = (this.options.size || 1.8) * 24 // Scale base size
     const color = this.options.color || '#000000'
 
     if (this.options.cursorStyle === 'macos') {
-      // macOS-style cursor with better proportions and shadow
+      // High-quality macOS-style cursor
       const svg = `
         <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
           <defs>
+            <!-- Sophisticated shadow filter -->
             <filter id="cursor-shadow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur in="SourceAlpha" stdDeviation="1.5"/>
-              <feOffset dx="0" dy="1" result="offsetblur"/>
-              <feFlood flood-color="#000000" flood-opacity="0.25"/>
+              <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+              <feOffset dx="0" dy="2" result="offsetblur"/>
+              <feFlood flood-color="#000000" flood-opacity="0.3"/>
               <feComposite in2="offsetblur" operator="in"/>
               <feMerge>
                 <feMergeNode/>
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
+            
+            <!-- Gradient for depth -->
             <linearGradient id="cursor-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:${color};stop-opacity:1" />
-              <stop offset="100%" style="stop-color:${color};stop-opacity:0.9" />
+              <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+              <stop offset="50%" style="stop-color:#f8f8f8;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#e0e0e0;stop-opacity:1" />
+            </linearGradient>
+            
+            <!-- Dark gradient for arrow -->
+            <linearGradient id="arrow-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:${color};stop-opacity:0.95" />
+              <stop offset="100%" style="stop-color:${color};stop-opacity:0.85" />
             </linearGradient>
           </defs>
           
-          <!-- Outer white border for visibility -->
-          <path d="M2,2 L2,17 L5.5,14 L8.5,20.5 L11,19.5 L8,13 L14,13 Z" 
-                fill="white" 
-                filter="url(#cursor-shadow)"/>
-          
-          <!-- Main cursor shape -->
-          <path d="M3,3 L3,15 L5.5,13 L8,18.5 L9.5,18 L7.5,12.5 L12,12.5 Z" 
+          <!-- White background for visibility -->
+          <path d="M3,3 L3,16 L6,13.5 L9,19 L11.5,18 L8.5,12.5 L13.5,12.5 Z" 
                 fill="url(#cursor-gradient)" 
-                stroke="rgba(255,255,255,0.8)" 
-                stroke-width="0.5"/>
+                filter="url(#cursor-shadow)"
+                stroke="${color}" 
+                stroke-width="0.5"
+                stroke-opacity="0.3"/>
+          
+          <!-- Inner arrow shape -->
+          <path d="M4.5,5 L4.5,13 L6.5,11.5 L8.5,16 L9.5,15.5 L7.5,11 L11,11 Z" 
+                fill="url(#arrow-gradient)"/>
         </svg>
       `
       return `data:image/svg+xml;base64,${btoa(svg)}`
     }
 
-    // Fallback to simple cursor
+    // Fallback cursor
     const svg = `
       <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
         <path d="M0,0 L0,16 L4,12 L7,18 L10,17 L7,11 L12,11 Z" 
@@ -115,7 +158,13 @@ export class CursorRenderer {
       if (this.canvas && video.videoWidth && video.videoHeight) {
         this.canvas.width = video.videoWidth
         this.canvas.height = video.videoHeight
-        this.ctx = this.canvas.getContext('2d')
+        this.ctx = this.canvas.getContext('2d', { alpha: true })
+        
+        // Set up context for smooth rendering
+        if (this.ctx) {
+          this.ctx.imageSmoothingEnabled = true
+          this.ctx.imageSmoothingQuality = 'high'
+        }
       }
     }
 
@@ -131,166 +180,230 @@ export class CursorRenderer {
   private render(currentTime: number) {
     if (!this.ctx || !this.canvas) return
 
-    // Clear canvas
+    // Clear canvas with slight fade for motion blur effect
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
-    // Find the current cursor position
-    const event = this.getCurrentEvent(currentTime)
-    if (!event) return
+    // Get target position from events
+    const targetEvent = this.getEventAtTime(currentTime)
+    if (!targetEvent) return
     
-    // Check if cursor should be hidden (idle detection)
-    if (this.options.autoHide) {
-      // Find the last movement time
-      let lastMovementTime = 0
-      let lastX = event.mouseX
-      let lastY = event.mouseY
-      
-      // Look for recent movement
-      for (let i = this.events.length - 1; i >= 0; i--) {
-        const e = this.events[i]
-        if (e.timestamp > currentTime) continue
-        
-        const distance = Math.sqrt(
-          Math.pow(e.mouseX - lastX, 2) + 
-          Math.pow(e.mouseY - lastY, 2)
-        )
-        
-        if (distance > 5) { // Movement threshold
-          lastMovementTime = e.timestamp
-          break
-        }
-        
-        lastX = e.mouseX
-        lastY = e.mouseY
-      }
-      
-      // Hide cursor if idle for too long
-      const idleTime = currentTime - lastMovementTime
-      if (idleTime > (this.options.hideDelay || 500)) {
-        return // Don't render cursor when idle
-      }
+    // Update target position
+    this.targetPosition = {
+      x: targetEvent.mouseX,
+      y: targetEvent.mouseY
     }
-
-    // Update and render click animations
-    this.updateClickAnimations()
+    
+    // Check for clicks
+    if (targetEvent.eventType === 'click') {
+      this.addClickAnimation(targetEvent.mouseX, targetEvent.mouseY, currentTime)
+      this.lastClickTime = currentTime
+    }
+    
+    // Check if mouse is moving
+    const isMoving = Math.abs(this.targetPosition.x - this.currentPosition.x) > 1 ||
+                     Math.abs(this.targetPosition.y - this.currentPosition.y) > 1
+    
+    if (isMoving) {
+      this.lastMovementTime = currentTime
+    }
+    
+    // Auto-hide cursor when idle
+    const idleTime = currentTime - this.lastMovementTime
+    const fadeOutStart = this.options.hideDelay || 600
+    const fadeOutDuration = 200
+    
+    let cursorOpacity = 1
+    if (this.options.autoHide && idleTime > fadeOutStart) {
+      const fadeProgress = Math.min((idleTime - fadeOutStart) / fadeOutDuration, 1)
+      cursorOpacity = 1 - fadeProgress
+      this.currentPosition.visible = cursorOpacity > 0
+    } else {
+      this.currentPosition.visible = true
+    }
+    
+    // Apply spring physics for smooth interpolation
+    this.updateCursorPosition()
+    
+    // Update and render effects
+    this.updateClickAnimations(currentTime)
     this.renderClickAnimations()
-
-    // Check for new clicks
-    if (event.eventType === 'click') {
-      this.addClickAnimation(event.mouseX, event.mouseY)
+    
+    // Update motion trail
+    if (this.options.motionBlur && isMoving) {
+      this.updateMotionTrail()
+      this.renderMotionTrail()
     }
+    
+    // Render cursor if visible
+    if (this.currentPosition.visible && cursorOpacity > 0) {
+      this.renderCursor(cursorOpacity)
+    }
+  }
 
-    const x = event.mouseX
-    const y = event.mouseY
+  private updateCursorPosition() {
+    // Spring physics for ultra-smooth movement
+    const dx = this.targetPosition.x - this.currentPosition.x
+    const dy = this.targetPosition.y - this.currentPosition.y
+    
+    // Apply spring force
+    this.currentPosition.vx += dx * this.SPRING_STIFFNESS
+    this.currentPosition.vy += dy * this.SPRING_STIFFNESS
+    
+    // Apply damping
+    this.currentPosition.vx *= this.SPRING_DAMPING
+    this.currentPosition.vy *= this.SPRING_DAMPING
+    
+    // Update position
+    this.currentPosition.x += this.currentPosition.vx
+    this.currentPosition.y += this.currentPosition.vy
+    
+    // Clamp very small movements to prevent jitter
+    if (Math.abs(this.currentPosition.vx) < 0.01) this.currentPosition.vx = 0
+    if (Math.abs(this.currentPosition.vy) < 0.01) this.currentPosition.vy = 0
+  }
 
-    // Add motion blur if enabled
-    if (this.options.motionBlur && this.previousPosition) {
-      const distance = Math.sqrt(
-        Math.pow(x - this.previousPosition.x, 2) +
-        Math.pow(y - this.previousPosition.y, 2)
-      )
-
-      if (distance > 5) {
-        // Add to trail for motion blur
-        this.cursorTrail.push({ x, y, opacity: 0.3 })
-        if (this.cursorTrail.length > 3) {
-          this.cursorTrail.shift()
-        }
-      } else {
-        // Clear trail if not moving much
-        this.cursorTrail = []
-      }
-
-      // Render motion blur trail
-      this.cursorTrail.forEach((point, index) => {
-        const opacity = point.opacity * (index / this.cursorTrail.length)
-        this.ctx!.save()
-        this.ctx!.globalAlpha = opacity
-        if (this.cursorImage.complete) {
-          this.ctx!.drawImage(this.cursorImage, point.x - 2, point.y - 2)
-        }
-        this.ctx!.restore()
+  private updateMotionTrail() {
+    const speed = Math.sqrt(this.currentPosition.vx ** 2 + this.currentPosition.vy ** 2)
+    
+    // Only add to trail if moving fast enough
+    if (speed > 2) {
+      this.cursorTrail.push({
+        x: this.currentPosition.x,
+        y: this.currentPosition.y,
+        opacity: Math.min(0.4, speed * 0.05),
+        age: 0
       })
-    }
-
-    // Render main cursor
-    if (this.cursorImage.complete) {
-      this.ctx.save()
-
-      // Add slight scale animation on click
-      const activeClick = Array.from(this.clickAnimations.values())
-        .find(anim => anim.opacity > 0.8)
-
-      if (activeClick) {
-        const scale = 1 + (activeClick.scale - 1) * activeClick.opacity
-        this.ctx.translate(x, y)
-        this.ctx.scale(scale, scale)
-        this.ctx.translate(-x, -y)
+      
+      // Limit trail length
+      if (this.cursorTrail.length > this.TRAIL_LENGTH) {
+        this.cursorTrail.shift()
       }
-
-      this.ctx.drawImage(this.cursorImage, x - 2, y - 2)
-      this.ctx.restore()
     }
-
-    // Update previous position
-    this.previousPosition = { x, y, timestamp: currentTime }
+    
+    // Update trail aging
+    this.cursorTrail = this.cursorTrail.filter(point => {
+      point.age += 1
+      point.opacity -= this.TRAIL_FADE_SPEED
+      return point.opacity > 0
+    })
   }
 
-  private getCurrentEvent(currentTime: number): CursorEvent | null {
-    // Find the event closest to current time
-    let closestEvent = null
-    let minDiff = Infinity
+  private renderMotionTrail() {
+    if (!this.ctx || !this.cursorImage.complete) return
+    
+    this.cursorTrail.forEach((point, index) => {
+      const trailOpacity = point.opacity * (index / this.cursorTrail.length)
+      
+      this.ctx!.save()
+      this.ctx!.globalAlpha = trailOpacity
+      
+      // Slightly smaller cursor for trail
+      const scale = 0.8 + (index / this.cursorTrail.length) * 0.2
+      this.ctx!.translate(point.x, point.y)
+      this.ctx!.scale(scale, scale)
+      this.ctx!.translate(-point.x, -point.y)
+      
+      this.ctx!.drawImage(this.cursorImage, point.x - 2, point.y - 2)
+      this.ctx!.restore()
+    })
+  }
 
-    for (const event of this.events) {
-      const diff = Math.abs(event.timestamp - currentTime)
-      if (diff < minDiff) {
-        minDiff = diff
-        closestEvent = event
-      }
-
-      // If we've passed this timestamp, we can stop searching
-      if (event.timestamp > currentTime) break
+  private renderCursor(opacity: number) {
+    if (!this.ctx || !this.cursorImage.complete) return
+    
+    this.ctx.save()
+    this.ctx.globalAlpha = opacity
+    
+    // Check for recent click to add subtle pulse
+    const timeSinceClick = Date.now() - this.lastClickTime
+    let scale = 1
+    
+    if (timeSinceClick < 200) {
+      // Subtle pulse on click
+      const pulseProgress = timeSinceClick / 200
+      scale = 1 + Math.sin(pulseProgress * Math.PI) * 0.1
+      
+      this.ctx.translate(this.currentPosition.x, this.currentPosition.y)
+      this.ctx.scale(scale, scale)
+      this.ctx.translate(-this.currentPosition.x, -this.currentPosition.y)
     }
+    
+    // Draw cursor with sub-pixel precision
+    this.ctx.drawImage(
+      this.cursorImage,
+      Math.round(this.currentPosition.x - 2),
+      Math.round(this.currentPosition.y - 2)
+    )
+    
+    this.ctx.restore()
+  }
 
+  private getEventAtTime(currentTime: number): CursorEvent | null {
+    // Find events around current time
+    let before: CursorEvent | null = null
+    let after: CursorEvent | null = null
+    
+    for (let i = 0; i < this.events.length; i++) {
+      const event = this.events[i]
+      
+      if (event.timestamp <= currentTime) {
+        before = event
+      } else if (!after) {
+        after = event
+        break
+      }
+    }
+    
+    if (!before) return null
+    if (!after || !this.options.smoothing) return before
+    
     // Interpolate between events for smooth movement
-    if (this.options.smoothing !== false && closestEvent) {
-      const nextEvent = this.events.find(e => e.timestamp > currentTime)
-      if (nextEvent && closestEvent !== nextEvent) {
-        const progress = (currentTime - closestEvent.timestamp) /
-          (nextEvent.timestamp - closestEvent.timestamp)
-
-        return {
-          ...closestEvent,
-          mouseX: closestEvent.mouseX + (nextEvent.mouseX - closestEvent.mouseX) * progress,
-          mouseY: closestEvent.mouseY + (nextEvent.mouseY - closestEvent.mouseY) * progress
-        }
-      }
+    const progress = (currentTime - before.timestamp) / (after.timestamp - before.timestamp)
+    const easedProgress = this.easeInOutCubic(Math.min(1, Math.max(0, progress)))
+    
+    return {
+      ...before,
+      mouseX: before.mouseX + (after.mouseX - before.mouseX) * easedProgress,
+      mouseY: before.mouseY + (after.mouseY - before.mouseY) * easedProgress
     }
-
-    return closestEvent
   }
 
-  private addClickAnimation(x: number, y: number) {
-    const id = `${x}-${y}-${Date.now()}`
+  private easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+  }
+
+  private addClickAnimation(x: number, y: number, timestamp: number) {
+    const id = `click-${timestamp}-${Math.random()}`
     this.clickAnimations.set(id, {
       x,
       y,
       radius: 0,
       opacity: 1,
-      scale: 1.2
+      scale: 1.3,
+      startTime: timestamp
     })
   }
 
-  private updateClickAnimations() {
+  private updateClickAnimations(currentTime: number) {
     this.clickAnimations.forEach((anim, id) => {
-      // Slower, more visible animation
-      anim.radius += 2 * Math.pow(anim.opacity, 0.5) // Smooth easing
-      anim.opacity -= 0.025 // Much slower fade for better visibility
-      anim.scale = 1 + (anim.scale - 1) * 0.95 // Slower scale decay
-
-      if (anim.opacity <= 0) {
+      const age = currentTime - anim.startTime
+      const maxAge = 500 // Animation duration in ms
+      
+      if (age > maxAge) {
         this.clickAnimations.delete(id)
+        return
       }
+      
+      const progress = age / maxAge
+      
+      // Smooth expansion with easing
+      anim.radius = this.easeOutCubic(progress) * 30
+      
+      // Fade out with acceleration at the end
+      anim.opacity = 1 - this.easeInQuad(progress)
+      
+      // Scale down as it expands
+      anim.scale = 1.3 - progress * 0.3
     })
   }
 
@@ -302,31 +415,51 @@ export class CursorRenderer {
     this.clickAnimations.forEach(anim => {
       this.ctx!.save()
 
-      // Render multiple rings for a more sophisticated effect
-      const rings = 2
-      for (let i = 0; i < rings; i++) {
-        const ringOpacity = anim.opacity * (1 - i * 0.3)
-        const ringRadius = anim.radius + i * 10
-
-        this.ctx!.globalAlpha = ringOpacity
-        this.ctx!.strokeStyle = clickColor
-        this.ctx!.lineWidth = 2 - i * 0.5
-        this.ctx!.beginPath()
-        this.ctx!.arc(anim.x, anim.y, ringRadius, 0, Math.PI * 2)
-        this.ctx!.stroke()
-      }
-
-      // Add a subtle filled circle at the center
-      if (anim.opacity > 0.5) {
-        this.ctx!.globalAlpha = (anim.opacity - 0.5) * 0.3
-        this.ctx!.fillStyle = clickColor
-        this.ctx!.beginPath()
-        this.ctx!.arc(anim.x, anim.y, 5, 0, Math.PI * 2)
-        this.ctx!.fill()
+      // Render multiple rings for sophisticated effect
+      for (let i = 0; i < 2; i++) {
+        const ringDelay = i * 50 // Stagger the rings
+        const ringProgress = Math.max(0, (anim.radius - ringDelay) / 30)
+        
+        if (ringProgress > 0) {
+          const ringOpacity = anim.opacity * (1 - i * 0.4) * (1 - ringProgress * 0.5)
+          const ringRadius = anim.radius - ringDelay
+          
+          // Outer ring
+          this.ctx!.globalAlpha = ringOpacity
+          this.ctx!.strokeStyle = clickColor
+          this.ctx!.lineWidth = 2.5 - i * 0.5
+          this.ctx!.beginPath()
+          this.ctx!.arc(anim.x, anim.y, ringRadius, 0, Math.PI * 2)
+          this.ctx!.stroke()
+          
+          // Inner glow
+          if (i === 0 && anim.opacity > 0.5) {
+            const glowGradient = this.ctx!.createRadialGradient(
+              anim.x, anim.y, 0,
+              anim.x, anim.y, ringRadius * 0.5
+            )
+            glowGradient.addColorStop(0, `${clickColor}33`)
+            glowGradient.addColorStop(1, `${clickColor}00`)
+            
+            this.ctx!.globalAlpha = (anim.opacity - 0.5) * 0.6
+            this.ctx!.fillStyle = glowGradient
+            this.ctx!.beginPath()
+            this.ctx!.arc(anim.x, anim.y, ringRadius * 0.5, 0, Math.PI * 2)
+            this.ctx!.fill()
+          }
+        }
       }
 
       this.ctx!.restore()
     })
+  }
+
+  private easeOutCubic(t: number): number {
+    return 1 - Math.pow(1 - t, 3)
+  }
+
+  private easeInQuad(t: number): number {
+    return t * t
   }
 
   dispose() {
@@ -334,5 +467,6 @@ export class CursorRenderer {
     this.ctx = null
     this.events = []
     this.clickAnimations.clear()
+    this.cursorTrail = []
   }
 }

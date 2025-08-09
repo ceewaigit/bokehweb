@@ -62,6 +62,18 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     if (!currentProject?.timeline?.tracks) return 10000
 
     let maxEndTime = 0
+    
+    // Find the actual video duration from recordings
+    if (currentProject.recordings && currentProject.recordings.length > 0) {
+      // Get the longest recording duration
+      for (const recording of currentProject.recordings) {
+        if (recording.duration) {
+          maxEndTime = Math.max(maxEndTime, recording.duration)
+        }
+      }
+    }
+    
+    // Also check clips to ensure we show all content
     for (const track of currentProject.timeline.tracks) {
       for (const clip of track.clips) {
         const endTime = clip.startTime + clip.duration
@@ -69,13 +81,14 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       }
     }
 
-    // Add some padding at the end
-    return Math.max(10000, maxEndTime + 2000)
+    // Add minimal padding (500ms) instead of 2000ms
+    // This ensures the track goes all the way to the end
+    return Math.max(10000, maxEndTime + 500)
   }
 
   const duration = calculateDuration()
 
-  const pixelsPerMs = zoom * 0.05 // Zoom factor for timeline width (0.05 = 50px per second at zoom 1)
+  const pixelsPerMs = zoom * 0.1 // Zoom factor for timeline width (0.1 = 100px per second at zoom 1)
   const timelineWidth = duration * pixelsPerMs
 
   // Render zoom track (like Screen Studio)
@@ -554,7 +567,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           )}
           style={{
             left: `${clipX}px`,
-            width: `${clipWidth}px`
+            width: `${clipWidth}px`,
+            minWidth: '20px' // Ensure clips are always visible
           }}
           draggable
           onDragStart={() => handleClipDragStart(clip.id)}
@@ -743,7 +757,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         className="flex-1 overflow-x-auto overflow-y-auto relative min-h-0"
         onClick={handleTimelineClick}
       >
-        <div className="relative min-h-full" style={{ width: `${Math.max(timelineWidth, 800)}px`, minWidth: '100%' }}>
+        <div className="relative min-h-full" style={{ width: `${timelineWidth}px`, minWidth: '100%' }}>
           {/* Ruler */}
           <div className="h-8 border-b border-border relative sticky top-0 bg-background z-10">
             {renderRuler()}
