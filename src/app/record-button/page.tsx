@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
 import { useRecordingStore } from '@/stores/recording-store'
+import styles from './record-button.module.css'
 import {
   Mic,
   MicOff,
@@ -159,16 +160,6 @@ export default function RecordingDock() {
 
       {/* Main Dock */}
       <div className="fixed inset-x-0 top-4 flex justify-center pointer-events-none z-[2147483647] bg-transparent">
-        <style jsx>{`
-          .drag-region {
-            -webkit-app-region: drag;
-            app-region: drag;
-          }
-          .no-drag-region {
-            -webkit-app-region: no-drag;
-            app-region: no-drag;
-          }
-        `}</style>
         <motion.div
           className="pointer-events-auto"
           initial={{ y: -100, opacity: 0 }}
@@ -184,12 +175,12 @@ export default function RecordingDock() {
             ${isRecording ? 'ring-2 ring-red-500/50' : ''}
           `}>
             {/* Drag Handle Area */}
-            <div className="drag-region flex items-center justify-center py-2 cursor-move">
+            <div className={`${styles.dragRegion} flex items-center justify-center py-2 cursor-move`}>
               <GripHorizontal className="text-white/30" size={20} />
             </div>
 
             {/* Controls Container - Make buttons non-draggable */}
-            <div className="no-drag-region flex items-center gap-1 px-2 pb-1.5">
+            <div className={`${styles.noDragRegion} flex items-center gap-1 px-2 pb-1.5`}>
               {!isRecording ? (
                 <>
                   {/* Settings Button */}
