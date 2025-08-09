@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import RecordButton from './app/record-button/page';
-import './styles/globals.css';
+import './app/globals.css';
 
 // Check if we're loading the record button based on the URL hash
 const isRecordButton = window.location.hash === '#/record-button';
