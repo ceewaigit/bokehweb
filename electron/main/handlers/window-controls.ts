@@ -20,6 +20,20 @@ export function registerWindowControlHandlers(): void {
     }
   })
 
+  ipcMain.on('open-workspace', () => {
+    if (!global.mainWindow) {
+      global.mainWindow = createMainWindow()
+      global.mainWindow.loadURL(getAppURL())
+      global.mainWindow.once('ready-to-show', () => {
+        global.mainWindow!.show()
+        global.mainWindow!.focus()
+      })
+    } else {
+      global.mainWindow.show()
+      global.mainWindow.focus()
+    }
+  })
+
   ipcMain.handle('minimize-record-button', () => {
     if (global.recordButton) {
       global.recordButton.hide()

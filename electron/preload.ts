@@ -168,7 +168,7 @@ const electronAPI = {
 
   // Recording and workspace control
   openWorkspace: () =>
-    ipcRenderer.invoke('open-workspace'),
+    ipcRenderer.send('open-workspace'),
 
   startRecording: () =>
     ipcRenderer.invoke('start-recording'),
