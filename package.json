@@ -4,7 +4,7 @@
   "description": "Professional screen recording and editing app built with Electron and Next.js",
   "author": "Screen Studio Team",
   "private": true,
-  "main": "electron/dist/main/index.js",
+  "main": ".webpack/main",
   "homepage": "./",
   "config": {
     "forge": "./forge.config.simple.js"
