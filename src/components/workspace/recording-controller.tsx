@@ -54,7 +54,7 @@ export function RecordingController() {
     setShowCountdown(false)
     try {
       logger.info('Starting recording with Screen Studio effects:', enhancementSettings)
-      await startRecording(undefined, enhancementSettings) // Pass enhancement settings
+      await startRecording(undefined, enhancementSettings ?? undefined) // Pass enhancement settings
     } catch (error) {
       logger.error('Failed to start recording:', error)
       // Reset recording state on start failure

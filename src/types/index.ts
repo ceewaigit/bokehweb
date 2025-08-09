@@ -19,7 +19,6 @@ export type {
   Recording,
   Clip as TimelineClip, // Alias for backward compatibility
   ProjectSettings,
-  Animation,
   KeyboardEvent,
   MouseEvent,
   ClickEvent,

@@ -30,15 +30,18 @@ export function registerRecordingHandlers(): void {
   ipcMain.handle('load-recordings', async () => {
     try {
       const recordingsDir = getRecordingsDirectory()
+      console.log(`[Library] Scanning recordings dir: ${recordingsDir}`)
       const files = await fs.readdir(recordingsDir)
+      console.log(`[Library] Found files:`, files)
       const recordings = files
-        .filter(f => f.endsWith('.webm') || f.endsWith('.mp4') || f.endsWith('.ssproj'))
+        .filter(f => f.endsWith('.ssproj'))
         .map(f => ({
           name: f,
           path: path.join(recordingsDir, f),
           timestamp: fsSync.statSync(path.join(recordingsDir, f)).mtime
         }))
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      console.log(`[Library] Returning ${recordings.length} project(s)`)
       return recordings
     } catch (error) {
       console.error('Failed to load recordings:', error)

@@ -221,15 +221,94 @@ export default function RecordingDock() {
         const recordingsDir = await window.electronAPI?.getRecordingsDirectory?.()
 
         if (recordingsDir) {
-          const fileName = `Recording_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`
-          const filePath = `${recordingsDir}/${fileName}`
+          const baseName = `Recording_${new Date().toISOString().replace(/[:.]/g, '-')}`
+          const rawVideoPath = `${recordingsDir}/${baseName}.webm`
           const buffer = await blob.arrayBuffer()
-          await window.electronAPI?.saveRecording?.(filePath, buffer)
+          await window.electronAPI?.saveRecording?.(rawVideoPath, buffer)
 
-          // Persist mouse metadata for effects, keyed by file path
+          // Derive stream settings for dimensions and fps
+          const vTrack = stream.getVideoTracks?.()[0]
+          const s = (vTrack && typeof (vTrack as any).getSettings === 'function') ? (vTrack as any).getSettings() as MediaTrackSettings : {}
+          const width = (s.width as number) || window.screen.width
+          const height = (s.height as number) || window.screen.height
+          const frameRate = (s.frameRate as number) || 60
+
+          // Normalize mouse events to project schema
+          const mouseEvents = (mouseEventsRef.current || [])
+            .filter((e: any) => e.type === 'move')
+            .map((e: any) => ({ timestamp: e.t, x: e.x, y: e.y, screenWidth: width, screenHeight: height }))
+          const clickEvents = (mouseEventsRef.current || [])
+            .filter((e: any) => e.type === 'click')
+            .map((e: any) => ({ timestamp: e.t, x: e.x, y: e.y, button: 'left' as const }))
+
+          const projectId = `project-${Date.now()}`
+          const recordingId = `recording-${Date.now()}`
+          const clipId = `clip-${Date.now()}`
+          const project = {
+            version: '1.0.0',
+            id: projectId,
+            name: baseName,
+            createdAt: new Date().toISOString(),
+            modifiedAt: new Date().toISOString(),
+            recordings: [
+              {
+                id: recordingId,
+                filePath: rawVideoPath,
+                duration: Date.now() - recordingStartTsRef.current,
+                width,
+                height,
+                frameRate,
+                metadata: {
+                  mouseEvents,
+                  keyboardEvents: [],
+                  clickEvents,
+                  screenEvents: []
+                }
+              }
+            ],
+            timeline: {
+              tracks: [
+                {
+                  id: 'video-1',
+                  name: 'Video',
+                  type: 'video',
+                  muted: false,
+                  locked: false,
+                  clips: [
+                    {
+                      id: clipId,
+                      recordingId,
+                      startTime: 0,
+                      duration: Date.now() - recordingStartTsRef.current,
+                      sourceIn: 0,
+                      sourceOut: Date.now() - recordingStartTsRef.current,
+                      effects: {
+                        zoom: { enabled: true, keyframes: [], sensitivity: 1.0, maxZoom: 2.0, smoothing: 0.1 },
+                        cursor: { visible: true, style: 'macOS', size: 1.2, color: '#ffffff', clickEffects: true, motionBlur: true },
+                        background: { type: 'gradient', gradient: { colors: ['#1a1a2e', '#0f0f1e'], angle: 135 }, padding: 40 },
+                        video: { cornerRadius: 12, shadow: { enabled: true, blur: 40, color: '#000000', offset: { x: 0, y: 20 } } },
+                        annotations: []
+                      }
+                    }
+                  ]
+                },
+                { id: 'audio-1', name: 'Audio', type: 'audio', muted: false, locked: false, clips: [] }
+              ],
+              duration: Date.now() - recordingStartTsRef.current
+            },
+            settings: { resolution: { width, height }, frameRate, backgroundColor: '#000000' },
+            exportPresets: []
+          }
+
+          const ssprojPath = `${recordingsDir}/${baseName}.ssproj`
+          await window.electronAPI?.saveRecording?.(
+            ssprojPath,
+            new TextEncoder().encode(JSON.stringify(project, null, 2)).buffer
+          )
+
+          // Persist raw metadata keyed by video file path for compatibility
           try {
-            const events = mouseEventsRef.current || []
-            localStorage.setItem(`recording-metadata-${filePath}`, JSON.stringify(events))
+            localStorage.setItem(`recording-metadata-${rawVideoPath}`, JSON.stringify(mouseEventsRef.current || []))
           } catch (e) {
             console.warn('Failed to save recording metadata:', e)
           }

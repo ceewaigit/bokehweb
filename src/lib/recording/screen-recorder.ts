@@ -65,9 +65,9 @@ export class ScreenRecorder {
   async stopRecording(): Promise<RecordingResult | null> {
     logger.info('Stopping recording via ScreenRecorder -> ElectronRecorder')
     const result = await this.electronRecorder.stopRecording()
-    
+
     if (!result) return null
-    
+
     // Convert ElectronRecordingResult to RecordingResult for backward compatibility
     return {
       ...result,
@@ -76,22 +76,23 @@ export class ScreenRecorder {
   }
 
   pauseRecording(): void {
-    this.electronRecorder.pauseRecording()
+    // MediaRecorder pause is not exposed; this is a no-op in current ElectronRecorder
   }
 
   resumeRecording(): void {
-    this.electronRecorder.resumeRecording()
+    // MediaRecorder resume is not exposed; this is a no-op in current ElectronRecorder
   }
 
   isRecording(): boolean {
-    return this.electronRecorder.isRecording()
+    return this.electronRecorder.isCurrentlyRecording()
   }
 
   getState(): 'idle' | 'recording' | 'paused' {
-    return this.electronRecorder.getState()
+    return this.electronRecorder.isCurrentlyRecording() ? 'recording' : 'idle'
   }
 
   getDuration(): number {
-    return this.electronRecorder.getDuration()
+    // Duration is tracked in useRecording store; return 0 here
+    return 0
   }
 }

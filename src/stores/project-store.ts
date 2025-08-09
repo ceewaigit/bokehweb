@@ -649,7 +649,52 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const recording = currentProject.recordings.find(r => r.id === targetClip.recordingId)
     if (!recording) return null
     
-    // Return the metadata
-    return recording.metadata
+    // Normalize metadata into a flat array of events for the renderer
+    const meta = recording.metadata
+    if (!meta) return []
+    
+    const events: Array<any> = []
+    
+    // Mouse move events
+    if (Array.isArray(meta.mouseEvents)) {
+      for (const e of meta.mouseEvents) {
+        events.push({
+          timestamp: e.timestamp,
+          mouseX: e.x,
+          mouseY: e.y,
+          eventType: 'mouse' as const
+        })
+      }
+    }
+    
+    // Click events
+    if (Array.isArray(meta.clickEvents)) {
+      for (const e of meta.clickEvents) {
+        events.push({
+          timestamp: e.timestamp,
+          mouseX: e.x,
+          mouseY: e.y,
+          eventType: 'click' as const
+        })
+      }
+    }
+    
+    // Keyboard events (cursor renderer ignores position)
+    if (Array.isArray(meta.keyboardEvents)) {
+      for (const e of meta.keyboardEvents) {
+        events.push({
+          timestamp: e.timestamp,
+          mouseX: 0,
+          mouseY: 0,
+          eventType: 'keypress' as const,
+          key: e.key
+        })
+      }
+    }
+    
+    // Sort by timestamp to ensure correct playback
+    events.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+    
+    return events
   }
 }))

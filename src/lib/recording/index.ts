@@ -4,4 +4,4 @@
  */
 
 export { ScreenRecorder } from './screen-recorder'
-export type { RecordingSource } from './screen-recorder'
+// Note: RecordingSource is not used in the current implementation
