@@ -32,7 +32,7 @@ export function registerRecordingHandlers(): void {
       const recordingsDir = getRecordingsDirectory()
       const files = await fs.readdir(recordingsDir)
       const recordings = files
-        .filter(f => f.endsWith('.webm') || f.endsWith('.mp4'))
+        .filter(f => f.endsWith('.webm') || f.endsWith('.mp4') || f.endsWith('.ssproj'))
         .map(f => ({
           name: f,
           path: path.join(recordingsDir, f),

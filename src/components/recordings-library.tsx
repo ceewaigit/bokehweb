@@ -17,7 +17,7 @@ interface Recording {
 }
 
 interface RecordingsLibraryProps {
-  onSelectRecording: (recording: Recording) => void
+  onSelectRecording: (recording: Recording) => void | Promise<void>
 }
 
 export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps) {

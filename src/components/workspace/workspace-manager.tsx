@@ -140,8 +140,9 @@ export function WorkspaceManager() {
                 const url = globalBlobManager.create(blob, 'loaded-recording')
                 const recordingId = `recording-${Date.now()}`
 
-                // Store blob URL for preview
+                // Store blob URL for preview (by id and by path for robustness)
                 localStorage.setItem(`recording-blob-${recordingId}`, url)
+                localStorage.setItem(`recording-blob-${recording.path}`, url)
 
                 // Create a Recording object
                 const rec: Recording = {
@@ -164,10 +165,10 @@ export function WorkspaceManager() {
 
                 // Try to load metadata if it exists
                 try {
-                  const metaKey = `recording-metadata-${recording.path}`
-                  const existing = localStorage.getItem(metaKey)
-                  if (existing) {
-                    localStorage.setItem(`recording-metadata-${recordingId}`, existing)
+                  const metaKeyPath = `recording-metadata-${recording.path}`
+                  const metaByPath = localStorage.getItem(metaKeyPath)
+                  if (metaByPath) {
+                    localStorage.setItem(`recording-metadata-${recordingId}`, metaByPath)
                   }
                 } catch { }
               } catch (error) {

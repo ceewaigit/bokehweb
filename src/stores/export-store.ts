@@ -84,29 +84,44 @@ export const useExportStore = create<ExportStore>((set, get) => {
           throw new Error('No video clips found in project')
         }
 
-        // Check if we should use effects export
-        const hasMetadata = typeof window !== 'undefined' &&
-          localStorage.getItem(`recording-metadata-${videoClip.recordingId}`)
+        // Find the associated recording up front so we can reference its filePath
+        const associatedRecording = project.recordings.find(r => r.id === videoClip.recordingId)
+
+        // Check if we should use effects export. We support both id- and path-based keys.
+        const idKey = typeof window !== 'undefined' ?
+          localStorage.getItem(`recording-metadata-${videoClip.recordingId}`) : null
+        const pathKey = typeof window !== 'undefined' && associatedRecording?.filePath ?
+          localStorage.getItem(`recording-metadata-${associatedRecording.filePath}`) : null
+        const hasMetadata = !!(idKey || pathKey)
 
         if (hasMetadata) {
           // Use effects export engine
           const effectsEngine = getEffectsEngine()
-          const metadata = JSON.parse(localStorage.getItem(`recording-metadata-${videoClip.recordingId}`) || '[]')
+          const metadataRaw = idKey || pathKey || '[]'
+          const metadata = JSON.parse(metadataRaw)
 
           // Fetch video blob from recording
-          const recording = project.recordings.find(r => r.id === videoClip.recordingId)
-          if (!recording) {
+          if (!associatedRecording) {
             throw new Error('Recording not found for clip')
           }
 
-          // Try to get blob URL from localStorage first, otherwise use file path
+          // Try to get blob URL variants first, otherwise use file path
           let videoBlob: Blob
-          const blobUrl = localStorage.getItem(`recording-blob-${recording.id}`)
-          if (blobUrl) {
-            const videoResponse = await fetch(blobUrl)
+          const blobUrlById = typeof window !== 'undefined'
+            ? localStorage.getItem(`recording-blob-${associatedRecording.id}`)
+            : null
+          const blobUrlByPath = typeof window !== 'undefined' && associatedRecording.filePath
+            ? localStorage.getItem(`recording-blob-${associatedRecording.filePath}`)
+            : null
+
+          if (blobUrlById) {
+            const videoResponse = await fetch(blobUrlById)
             videoBlob = await videoResponse.blob()
-          } else if (recording.filePath) {
-            const videoResponse = await fetch(recording.filePath)
+          } else if (blobUrlByPath) {
+            const videoResponse = await fetch(blobUrlByPath)
+            videoBlob = await videoResponse.blob()
+          } else if (associatedRecording.filePath) {
+            const videoResponse = await fetch(associatedRecording.filePath)
             videoBlob = await videoResponse.blob()
           } else {
             throw new Error('No video source found for recording')

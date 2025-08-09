@@ -5,7 +5,16 @@ import { promises as fs } from 'fs'
 export function registerFileOperationHandlers(): void {
   ipcMain.handle('save-file', async (event: IpcMainInvokeEvent, data: any, filepath?: string) => {
     try {
-      const finalPath = filepath || path.join(app.getPath('downloads'), 'recording.webm')
+      // Determine final save path. If a path is provided but has no extension, default to mp4.
+      let finalPath = filepath
+      if (!finalPath) {
+        finalPath = path.join(app.getPath('downloads'), 'recording.mp4')
+      } else {
+        const ext = path.extname(finalPath)
+        if (!ext) {
+          finalPath = `${finalPath}.mp4`
+        }
+      }
 
       let buffer: Buffer
       if (Buffer.isBuffer(data)) {
