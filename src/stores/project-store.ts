@@ -186,7 +186,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }
       }
       
-      project.timeline.tracks[0].clips.push(clip)
+      // Add to video track (first track should be video)
+      const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
+      if (videoTrack) {
+        videoTrack.clips.push(clip)
+      } else {
+        console.error('No video track found in project')
+      }
       project.timeline.duration = Math.max(
         project.timeline.duration,
         clip.startTime + clip.duration
@@ -288,7 +294,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }
       }
       
-      project.timeline.tracks[0].clips.push(clip)
+      // Add to video track (first track should be video)
+      const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
+      if (videoTrack) {
+        videoTrack.clips.push(clip)
+      } else {
+        console.error('No video track found in project')
+      }
       project.timeline.duration = Math.max(
         project.timeline.duration,
         clip.startTime + clip.duration

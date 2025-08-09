@@ -179,12 +179,11 @@ export function PreviewArea() {
     let zoomCanvas = zoomCanvasRef.current
     if (!zoomCanvas) {
       zoomCanvas = document.createElement('canvas')
-      zoomCanvas.style.position = 'absolute'
-      zoomCanvas.style.top = '0'
-      zoomCanvas.style.left = '0'
-      zoomCanvas.style.width = '100%'
-      zoomCanvas.style.height = '100%'
+      zoomCanvas.style.position = 'relative'
+      zoomCanvas.style.maxWidth = '100%'
+      zoomCanvas.style.maxHeight = '100%'
       zoomCanvas.style.borderRadius = '0.5rem'
+      zoomCanvas.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
       containerRef.current.insertBefore(zoomCanvas, containerRef.current.firstChild)
         // Store the reference using a mutable ref pattern
         ; (zoomCanvasRef as any).current = zoomCanvas
@@ -350,9 +349,9 @@ export function PreviewArea() {
           </div>
         ) : (
           <>
-            <div ref={containerRef} className="relative max-w-full max-h-full p-8">
+            <div ref={containerRef} className="relative max-w-full max-h-full p-8 flex items-center justify-center">
               {/* Decorative background glow */}
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-primary/10 blur-3xl opacity-50" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-primary/10 blur-3xl opacity-50 pointer-events-none" />
               
               <video
                 ref={videoRef}

@@ -224,6 +224,14 @@ export function createProject(name: string): Project {
           clips: [],
           muted: false,
           locked: false
+        },
+        {
+          id: 'audio-1',
+          name: 'Audio',
+          type: 'audio',
+          clips: [],
+          muted: false,
+          locked: false
         }
       ],
       duration: 0

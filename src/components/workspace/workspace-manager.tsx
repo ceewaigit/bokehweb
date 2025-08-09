@@ -195,12 +195,12 @@ export function WorkspaceManager() {
         {/* Main Editor Section */}
         <div className="flex-1 flex flex-col bg-background">
           {/* Preview Area - Takes up most space */}
-          <div className="flex-1 min-h-0 bg-card/30">
+          <div className="flex-1 min-h-0 bg-card/30 relative z-10">
             <PreviewArea />
           </div>
 
           {/* Timeline Section - Fixed height with better border */}
-          <div className="h-64 border-t bg-card/50 backdrop-blur-sm">
+          <div className="h-64 border-t bg-card/50 backdrop-blur-sm relative z-20">
             <TimelineEditor className="h-full" />
           </div>
         </div>

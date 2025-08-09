@@ -417,8 +417,12 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     if (!currentProject) return null
 
     const track = currentProject.timeline.tracks.find(t => t.type === trackType)
-    if (!track) return null
+    if (!track) {
+      console.log(`No ${trackType} track found in project`)
+      return null
+    }
 
+    console.log(`Rendering ${track.clips.length} clips for ${trackType} track`)
     return track.clips.map((clip) => {
       const clipX = timeToPixel(clip.startTime)
       const clipWidth = timeToPixel(clip.duration)
@@ -632,7 +636,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           {/* Playhead */}
           <div
             ref={playheadRef}
-            className="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none z-10"
+            className="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none z-30"
             style={{ left: `${timeToPixel(currentTime)}px` }}
           >
             <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-red-500 rotate-45" />
@@ -649,7 +653,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed bg-popover border border-border rounded-md shadow-md p-1 z-50"
+          className="fixed bg-popover border border-border rounded-md shadow-md p-1 z-[100]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
