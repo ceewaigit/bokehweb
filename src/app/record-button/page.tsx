@@ -110,9 +110,9 @@ export default function RecordingDock() {
   const actuallyStartRecording = async () => {
     try {
       // Use Electron's desktop capture API instead of browser's getDisplayMedia
+      // Pass minimal options to avoid IPC issues
       const sources = await window.electronAPI?.getDesktopSources({
-        types: ['screen'],
-        thumbnailSize: { width: 150, height: 150 }
+        types: ['screen']
       })
 
       if (!sources || sources.length === 0) {
