@@ -78,53 +78,85 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
   const pixelsPerMs = zoom * 0.05 // Zoom factor for timeline width (0.05 = 50px per second at zoom 1)
   const timelineWidth = duration * pixelsPerMs
 
-  // Render effect indicators (zoom and click events)
-  const renderEffectIndicators = () => {
-    if (!currentProject || !currentProject.recordings.length) return null
+  // Render zoom track (like Screen Studio)
+  const renderZoomTrack = () => {
+    if (!currentProject || !selectedClips.length) return null
 
-    const indicators: JSX.Element[] = []
+    // Get the first selected clip
+    const selectedClip = currentProject.timeline.tracks
+      .flatMap(t => t.clips)
+      .find(c => c.id === selectedClips[0])
+      
+    if (!selectedClip?.effects?.zoom?.enabled) return null
 
-    // Get metadata from the first recording
-    const recording = currentProject.recordings[0]
-    if (!recording.metadata) return null
+    // Get zoom keyframes from the clip effects or generate them
+    const recording = currentProject.recordings.find(r => r.id === selectedClip.recordingId)
+    if (!recording?.metadata) return null
 
-    // Render click indicators
-    recording.metadata.clickEvents?.forEach((click, index) => {
-      const x = timeToPixel(click.timestamp)
-      indicators.push(
-        <div
-          key={`click-${index}`}
-          className="absolute w-2 h-2 bg-orange-500 rounded-full opacity-80 z-10"
-          style={{ left: `${x - 4}px`, top: '50%', transform: 'translateY(-50%)' }}
-          title={`Click at ${(click.timestamp / 1000).toFixed(2)}s`}
-        >
-          <div className="absolute inset-0 bg-orange-500 rounded-full animate-ping opacity-75" />
-        </div>
-      )
+    // Create zoom blocks from metadata
+    const zoomBlocks: JSX.Element[] = []
+    let inZoom = false
+    let zoomStart = 0
+    
+    // Analyze click events and mouse activity to create zoom regions
+    const events = [
+      ...(recording.metadata.mouseEvents || []).map(e => ({ ...e, type: 'mouse' })),
+      ...(recording.metadata.clickEvents || []).map(e => ({ ...e, type: 'click', timestamp: e.timestamp }))
+    ].sort((a, b) => a.timestamp - b.timestamp)
+    
+    events.forEach((event, i) => {
+      if (event.type === 'click') {
+        // Start a zoom block on click
+        if (!inZoom) {
+          zoomStart = event.timestamp
+          inZoom = true
+        }
+      } else if (inZoom && i < events.length - 1) {
+        // Check if next event is far away (end zoom)
+        const nextEvent = events[i + 1]
+        if (nextEvent.timestamp - event.timestamp > 1000) {
+          // End the zoom block
+          const startX = timeToPixel(selectedClip.startTime + zoomStart)
+          const endX = timeToPixel(selectedClip.startTime + event.timestamp + 500)
+          zoomBlocks.push(
+            <div
+              key={`zoom-${zoomStart}`}
+              className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded"
+              style={{ 
+                left: `${startX}px`, 
+                width: `${endX - startX}px`,
+                top: 0
+              }}
+            />
+          )
+          inZoom = false
+        }
+      }
     })
-
-    // Render zoom activity indicators
-    const zoomSamples: number[] = []
-    for (let t = 0; t < duration; t += 1000) {
-      const hasActivity = recording.metadata.mouseEvents?.some(
-        event => Math.abs(event.timestamp - t) < 500
-      )
-      if (hasActivity) zoomSamples.push(t)
-    }
-
-    zoomSamples.forEach((time, index) => {
-      const x = timeToPixel(time)
-      indicators.push(
+    
+    // Close any open zoom block
+    if (inZoom && events.length > 0) {
+      const startX = timeToPixel(selectedClip.startTime + zoomStart)
+      const endX = timeToPixel(selectedClip.startTime + events[events.length - 1].timestamp + 500)
+      zoomBlocks.push(
         <div
-          key={`zoom-${index}`}
-          className="absolute bottom-1 w-0.5 h-4 bg-blue-400 opacity-30"
-          style={{ left: `${x}px` }}
-          title={`Zoom activity`}
+          key={`zoom-${zoomStart}-end`}
+          className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded"
+          style={{ 
+            left: `${startX}px`, 
+            width: `${endX - startX}px`,
+            top: 0
+          }}
         />
       )
-    })
+    }
 
-    return <>{indicators}</>
+    return <>{zoomBlocks}</>
+  }
+
+  // Render effect indicators (simplified to just show on timeline)
+  const renderEffectIndicators = () => {
+    return null // Remove the old dot-based indicators
   }
 
   // Convert time to pixel position
@@ -729,6 +761,18 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
                 {renderEffectIndicators()}
               </div>
             </div>
+
+            {/* Zoom Track (like Screen Studio) */}
+            {selectedClips.length > 0 && (
+              <div className="h-12 border-b border-border relative bg-purple-900/10">
+                <div className="absolute left-0 top-0 bottom-0 w-20 bg-background border-r border-border flex items-center justify-center sticky left-0 z-10">
+                  <span className="text-xs text-purple-400 font-medium">Zoom</span>
+                </div>
+                <div className="ml-20 relative h-full">
+                  {renderZoomTrack()}
+                </div>
+              </div>
+            )}
 
             {/* Audio Track */}
             <div

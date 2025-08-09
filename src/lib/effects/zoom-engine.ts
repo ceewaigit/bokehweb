@@ -279,6 +279,11 @@ export class ZoomEngine {
     if (this.keyframes.length === 0) {
       return { x: 0.5, y: 0.5, scale: 1 }
     }
+    
+    // Debug first few calls
+    if (timestamp < 1000) {
+      console.log(`⏱️ getZoomAtTime(${timestamp}ms) with ${this.keyframes.length} keyframes`)
+    }
 
     // Find surrounding keyframes
     let before = this.keyframes[0]
@@ -357,6 +362,11 @@ export class ZoomEngine {
     if (!sourceWidth || !sourceHeight) {
       // Nothing to draw yet
       return
+    }
+    
+    // Debug zoom application
+    if (zoom.scale > 1.01) {
+      console.log(`🎬 Applying zoom: scale=${zoom.scale.toFixed(2)}, center=(${zoom.x.toFixed(2)}, ${zoom.y.toFixed(2)})`)
     }
 
     // Calculate the zoomed region

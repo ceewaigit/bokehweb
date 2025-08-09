@@ -169,7 +169,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       
       return { 
         currentProject: project,
-        selectedClipId: clip.id
+        selectedClipId: clip.id,
+        selectedClips: [clip.id]
       }
     })
   },
@@ -234,7 +235,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       
       return { 
         currentProject: project,
-        selectedClipId: clip.id
+        selectedClipId: clip.id,
+        selectedClips: [clip.id]
       }
     })
   },
