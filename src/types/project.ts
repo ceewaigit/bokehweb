@@ -3,6 +3,9 @@
  * Keeps original recordings separate from effects metadata
  */
 
+import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
+
 export interface Project {
   version: string
   id: string
@@ -277,8 +280,6 @@ export function createProject(name: string): Project {
   }
 }
 
-import { RecordingStorage } from '@/lib/storage/recording-storage'
-
 // Save/load functions
 export async function saveProject(project: Project, customPath?: string): Promise<string | null> {
   const projectData = JSON.stringify(project, null, 2)
@@ -339,7 +340,7 @@ export async function saveRecordingWithProject(
     await window.electronAPI.saveRecording(videoFilePath, buffer)
     
     // Get video metadata
-    const videoUrl = URL.createObjectURL(videoBlob)
+    const videoUrl = globalBlobManager.create(videoBlob, 'video-preview')
     const video = document.createElement('video')
     video.src = videoUrl
     
@@ -351,7 +352,7 @@ export async function saveRecordingWithProject(
     const width = video.videoWidth || window.screen.width
     const height = video.videoHeight || window.screen.height
     
-    URL.revokeObjectURL(videoUrl)
+    globalBlobManager.revoke(videoUrl)
     
     // Create project with recording
     const project = createProject(baseName)
@@ -484,9 +485,9 @@ export async function loadProject(filePath: string): Promise<Project> {
         const projectData = decoder.decode(result.data as ArrayBuffer)
         const project = JSON.parse(projectData) as Project
         
-        // Cache in localStorage for quick access
-        localStorage.setItem(`project-${project.id}`, projectData)
-        localStorage.setItem(`project-path-${project.id}`, filePath)
+        // Cache in RecordingStorage for quick access
+        RecordingStorage.setProject(project.id, projectData)
+        RecordingStorage.setProjectPath(project.id, filePath)
         
         return project
       }
@@ -495,8 +496,8 @@ export async function loadProject(filePath: string): Promise<Project> {
     }
   }
   
-  // Fallback to localStorage
-  const data = localStorage.getItem(filePath)
+  // Fallback to RecordingStorage
+  const data = RecordingStorage.getProject(filePath)
   if (!data) throw new Error('Project not found')
   return JSON.parse(data)
 }

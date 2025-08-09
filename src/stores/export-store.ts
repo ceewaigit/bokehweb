@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { ExportEngine, type ExportProgress, type ExportOptions } from '@/lib/export'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import type { ExportSettings, Project } from '@/types'
 
 interface ExportStore {
@@ -201,12 +202,12 @@ export const useExportStore = create<ExportStore>((set, get) => {
         await window.electronAPI.saveRecording(filename, buffer)
       } else if (lastExport) {
         // Browser download
-        const url = URL.createObjectURL(lastExport)
+        const url = globalBlobManager.create(lastExport, `export-${filename}`)
         const a = document.createElement('a')
         a.href = url
         a.download = filename
         a.click()
-        URL.revokeObjectURL(url)
+        globalBlobManager.revoke(url)
       }
     },
 
