@@ -8,14 +8,14 @@ export interface ElectronAPI {
   requestScreenRecordingPermission: () => Promise<{ opened: boolean; status: string; granted: boolean }>
   startPermissionMonitoring?: () => Promise<void>
   stopPermissionMonitoring?: () => Promise<void>
-  onPermissionStatusChanged?: (callback: (event: any, data: { status: string; granted: boolean }) => void) => void
+  onPermissionStatusChanged?: (callback: (event: any, data: { status: string; granted: boolean }) => void) => () => void
 
   // Mouse tracking
   startMouseTracking: (options: any) => Promise<any>
   stopMouseTracking: () => Promise<any>
   isNativeMouseTrackingAvailable: () => Promise<{ available: boolean; tracker: boolean }>
-  onMouseMove: (callback: any) => void
-  onMouseClick: (callback: any) => void
+  onMouseMove: (callback: any) => () => void
+  onMouseClick: (callback: any) => () => void
   removeAllMouseListeners: () => void
 
   // Recording and workspace control
@@ -47,15 +47,16 @@ export interface ElectronAPI {
   quit: () => void
   minimizeRecordButton?: () => void
   showRecordButton?: () => void
+  resizeRecordButton?: (height: number) => Promise<{ success: boolean }>
 
   // Countdown window methods
   showCountdown?: (number: number) => Promise<{ success: boolean }>
   hideCountdown?: () => Promise<{ success: boolean }>
 
   // Recording events
-  onRecordingStarted: (callback: () => void) => void
-  onRecordingStopped: (callback: () => void) => void
-  onRecordingError: (callback: (error: string) => void) => void
+  onRecordingStarted: (callback: () => void) => () => void
+  onRecordingStopped: (callback: () => void) => () => void
+  onRecordingError: (callback: (error: string) => void) => () => void
   removeAllListeners: (channel: string) => void
 }
 

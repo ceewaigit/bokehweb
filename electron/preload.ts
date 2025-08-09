@@ -182,6 +182,9 @@ const electronAPI = {
   showRecordButton: () =>
     ipcRenderer.invoke('show-record-button'),
 
+  resizeRecordButton: (height: number) =>
+    ipcRenderer.invoke('resize-record-button', height),
+
   // Dialog APIs
   showMessageBox: (options: MessageBoxOptions) =>
     ipcRenderer.invoke('show-message-box', options),

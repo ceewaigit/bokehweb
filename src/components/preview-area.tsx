@@ -71,6 +71,20 @@ export function PreviewArea() {
     video.src = sourceUrl
     video.load()
 
+    // Nudge playback briefly to force first frame render, then pause
+    const onLoadedMeta = async () => {
+      try {
+        await video.play()
+        // Seek to just after 0 to ensure a frame is available
+        video.currentTime = 0.001
+        await new Promise(r => setTimeout(r, 30))
+        video.pause()
+      } catch {
+        // ignore autoplay errors
+      }
+    }
+    video.addEventListener('loadedmetadata', onLoadedMeta, { once: true })
+
   }, [currentClip, showOriginal])
 
   // Set up zoom effect when video loads
@@ -139,15 +153,21 @@ export function PreviewArea() {
     const ctx = zoomCanvas.getContext('2d')
     if (!ctx) return
 
-    // Render loop
+    // Helper to draw current frame even when paused
+    const drawCurrentFrame = () => {
+      const tMs = isFinite(video.duration) ? (video.currentTime * 1000) : 0
+      const zoom = engine.getZoomAtTime(tMs)
+      engine.applyZoomToCanvas(ctx, video, zoom)
+    }
+
+    // Render loop (always draw to avoid black canvas when paused)
     const renderFrame = () => {
-      if (!video.paused && !video.ended && engine && ctx) {
-        const zoom = engine.getZoomAtTime(video.currentTime * 1000)
-        engine.applyZoomToCanvas(ctx, video, zoom)
-      }
+      drawCurrentFrame()
       animationFrameRef.current = requestAnimationFrame(renderFrame)
     }
 
+    // Initial draw
+    drawCurrentFrame()
     renderFrame()
 
     return () => {
@@ -294,6 +314,13 @@ export function PreviewArea() {
                     duration: video.duration,
                     dimensions: `${video.videoWidth}x${video.videoHeight}`
                   })
+                  // Treat live/infinite streams as having a fallback duration
+                  if (!isFinite(video.duration)) {
+                    // Default to 10 minutes if unknown
+                    const fallbackMs = 10 * 60 * 1000
+                    // Update timeline max duration via store if needed
+                    // No direct project.settings mutation here; timeline computes from clips
+                  }
                   setIsVideoLoaded(true)
                   setVideoError(null)
                 }}

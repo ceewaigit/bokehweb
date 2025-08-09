@@ -32,6 +32,15 @@ export function registerWindowControlHandlers(): void {
     }
   })
 
+  ipcMain.handle('resize-record-button', (_event: IpcMainInvokeEvent, height: number) => {
+    if (global.recordButton && typeof height === 'number' && height > 0) {
+      const [width] = global.recordButton.getSize()
+      global.recordButton.setSize(width, Math.round(height))
+      return { success: true }
+    }
+    return { success: false }
+  })
+
   ipcMain.handle('show-countdown', async (event: IpcMainInvokeEvent, number: number) => {
     if (countdownWindow) {
       countdownWindow.close()

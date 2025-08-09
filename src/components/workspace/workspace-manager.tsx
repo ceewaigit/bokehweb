@@ -57,8 +57,9 @@ export function WorkspaceManager() {
               const blob = new Blob([arrayBuffer], { type: 'video/webm' })
               // Add to timeline
               const url = globalBlobManager.create(blob, 'loaded-recording')
+              const clipId = `clip-${Date.now()}`
               useTimelineStore.getState().addClip({
-                id: `clip-${Date.now()}`,
+                id: clipId,
                 type: 'video',
                 name: recording.name,
                 source: url,
@@ -67,6 +68,15 @@ export function WorkspaceManager() {
                 trackIndex: 0,
                 thumbnail: ''
               })
+
+              // Link previously captured cursor metadata (saved during recording) to this clip
+              try {
+                const metaKey = `recording-metadata-${recording.path}`
+                const existing = localStorage.getItem(metaKey)
+                if (existing) {
+                  localStorage.setItem(`clip-metadata-${clipId}`, existing)
+                }
+              } catch {}
             } catch (error) {
               console.error('Failed to load recording:', error)
             }
