@@ -62,29 +62,22 @@ function registerSourceHandlers() {
         }
       }
 
-      // Simplified options - minimal to prevent IPC errors
-      const sanitizedOptions = {
-        types: Array.isArray(options.types) 
-          ? options.types.filter(t => ['screen', 'window'].includes(t))
-          : ['screen'],
-        thumbnailSize: { width: 1, height: 1 }, // Minimal size since we don't use thumbnails
-        fetchWindowIcons: false // Don't fetch icons to avoid IPC issues
-      }
-
-      console.log('🎥 Requesting desktop sources with sanitized options:', JSON.stringify(sanitizedOptions))
-      const sources = await desktopCapturer.getSources(sanitizedOptions)
-      console.log(`📺 Found ${sources.length} desktop sources`)
-
-      // Map sources - SIMPLIFIED to avoid IPC issues
-      // Don't send thumbnail data as it can be too large and cause IPC errors
-      const mappedSources = sources.map(source => ({
-        id: source.id,
-        name: source.name,
-        display_id: source.display_id
-        // Removed thumbnail and appIcon to prevent IPC message size issues
+      // WORKAROUND: Return hardcoded screen source to avoid desktopCapturer IPC bug
+      // The actual screen ID will be determined when getUserMedia is called
+      console.log('🎥 Bypassing desktopCapturer due to IPC bug - returning hardcoded screen source')
+      
+      // Get the primary display info
+      const primaryDisplay = screen.getPrimaryDisplay()
+      const allDisplays = screen.getAllDisplays()
+      
+      // Return hardcoded sources based on available displays
+      const mappedSources = allDisplays.map((display, index) => ({
+        id: `screen:${display.id}:0`,
+        name: index === 0 ? 'Entire screen' : `Screen ${index + 1}`,
+        display_id: display.id
       }))
 
-      console.log('📺 Mapped sources:', mappedSources.map(s => `${s.name} (${s.id})`))
+      console.log('📺 Returning screen sources:', mappedSources.map(s => `${s.name} (${s.id})`))
       return mappedSources
       
     } catch (error) {
