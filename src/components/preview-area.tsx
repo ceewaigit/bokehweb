@@ -245,7 +245,12 @@ export function PreviewArea() {
       panSpeed: 0.08
     })
 
-    const totalDurationMs = Number.isFinite(video.duration) ? (video.duration * 1000) : (projectRecording?.duration || 0)
+    // Use a reasonable duration fallback for zoom calculation
+    const totalDurationMs = Number.isFinite(video.duration) && video.duration > 0 
+      ? (video.duration * 1000) 
+      : (projectRecording?.duration || metadata[metadata.length - 1]?.timestamp || 10000)
+
+    console.log(`🔍 Zoom engine input: duration=${totalDurationMs}ms, events=${metadata.length}, clicks=${metadata.filter((e: any) => e.eventType === 'click').length}`)
 
     const keyframes = engine.generateKeyframes(
       metadata,
@@ -254,7 +259,7 @@ export function PreviewArea() {
       video.videoHeight || 1080
     )
 
-    console.log(`🔍 Generated ${keyframes.length} zoom keyframes`)
+    console.log(`🔍 Generated ${keyframes.length} zoom keyframes:`, keyframes.map(kf => ({ time: kf.timestamp, scale: kf.scale, reason: kf.reason })))
     zoomEngineRef.current = engine
 
     // Create or update zoom canvas

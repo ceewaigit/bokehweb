@@ -47,7 +47,10 @@ export class ZoomEngine {
   }
 
   generateKeyframes(events: MouseEvent[], videoDuration: number, videoWidth: number, videoHeight: number): ZoomKeyframe[] {
+    console.log(`🎯 ZoomEngine.generateKeyframes: enabled=${this.options.enabled}, events=${events.length}, duration=${videoDuration}ms`)
+    
     if (!this.options.enabled || events.length === 0 || videoDuration <= 0) {
+      console.log('⚠️ Returning default keyframe due to:', { enabled: this.options.enabled, eventsLength: events.length, duration: videoDuration })
       return [{ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'default' }]
     }
 
@@ -68,6 +71,10 @@ export class ZoomEngine {
     this.keyframes.push({ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'default' })
 
     let lastKFTime = 0
+    
+    // Count click events for debugging
+    const clickEvents = events.filter(e => e.eventType === 'click')
+    console.log(`🖱️ Found ${clickEvents.length} click events in zoom engine`)
 
     // Analyze events for zoom opportunities
     for (let i = 0; i < events.length; i++) {
@@ -77,6 +84,7 @@ export class ZoomEngine {
 
       // Check for click events (zoom in on clicks)
       if (event.eventType === 'click' && this.options.clickZoom) {
+        console.log(`💥 Processing click at ${event.timestamp}ms: (${normalizedX.toFixed(2)}, ${normalizedY.toFixed(2)})`)
         // Track double clicks
         if (event.timestamp - lastClickTime < 500) {
           clickCount++
