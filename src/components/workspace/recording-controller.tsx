@@ -7,7 +7,9 @@ import { CountdownTimer } from '../countdown-timer'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useRecording } from '@/hooks/use-recording'
 import { useConfigStore } from '@/stores/config-store'
+import { useEventListener, useDocumentEvent } from '@/hooks/use-event-listener'
 import { logger } from '@/lib/utils/logger'
+import { safeResetRecording } from '@/lib/utils/recording-helpers'
 
 export function RecordingController() {
   // Modal State
@@ -37,11 +39,7 @@ export function RecordingController() {
     } catch (error) {
       logger.error('Failed to start recording:', error)
       // Reset recording state on start failure
-      try {
-        useRecordingStore.getState().reset()
-      } catch (resetError) {
-        logger.error('Failed to reset recording state after start failure:', resetError)
-      }
+      safeResetRecording()
     }
   }, [startRecording, enhancementSettings])
 
@@ -66,16 +64,12 @@ export function RecordingController() {
       } else {
         // If no result returned, something went wrong
         logger.error('Stop recording returned null - resetting state')
-        useRecordingStore.getState().reset()
+        safeResetRecording()
       }
     } catch (error) {
       logger.error('Failed to stop recording:', error)
       // Reset recording state on error
-      try {
-        useRecordingStore.getState().reset()
-      } catch (resetError) {
-        logger.error('Failed to reset recording state:', resetError)
-      }
+      safeResetRecording()
     }
   }, [stopRecording])
 
@@ -88,60 +82,41 @@ export function RecordingController() {
   }, [resumeRecording])
 
   // Listen for recording events from other components
-  useEffect(() => {
-    const handleStartEvent = () => handleStartRecording()
-    const handleStopEvent = () => handleStopRecording()
-    const handlePauseEvent = () => handlePauseRecording()
-    const handleResumeEvent = () => handleResumeRecording()
-
-    window.addEventListener('start-recording', handleStartEvent)
-    window.addEventListener('stop-recording', handleStopEvent)
-    window.addEventListener('pause-recording', handlePauseEvent)
-    window.addEventListener('resume-recording', handleResumeEvent)
-
-    return () => {
-      window.removeEventListener('start-recording', handleStartEvent)
-      window.removeEventListener('stop-recording', handleStopEvent)
-      window.removeEventListener('pause-recording', handlePauseEvent)
-      window.removeEventListener('resume-recording', handleResumeEvent)
-    }
-  }, [handleStartRecording, handleStopRecording, handlePauseRecording, handleResumeRecording])
+  useEventListener('start-recording' as any, handleStartRecording)
+  useEventListener('stop-recording' as any, handleStopRecording)
+  useEventListener('pause-recording' as any, handlePauseRecording)
+  useEventListener('resume-recording' as any, handleResumeRecording)
 
   // Keyboard shortcuts for recording
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Command/Ctrl key combinations
-      if (e.metaKey || e.ctrlKey) {
-        switch (e.key) {
-          case 'r':
-            e.preventDefault()
-            if (!isRecording) {
-              handleStartRecording()
+  useDocumentEvent('keydown', useCallback((e: KeyboardEvent) => {
+    // Command/Ctrl key combinations
+    if (e.metaKey || e.ctrlKey) {
+      switch (e.key) {
+        case 'r':
+          e.preventDefault()
+          if (!isRecording) {
+            handleStartRecording()
+          }
+          break
+        case ' ':
+          e.preventDefault()
+          if (isRecording) {
+            if (isPaused) {
+              handleResumeRecording()
+            } else {
+              handlePauseRecording()
             }
-            break
-          case ' ':
-            e.preventDefault()
-            if (isRecording) {
-              if (isPaused) {
-                handleResumeRecording()
-              } else {
-                handlePauseRecording()
-              }
-            }
-            break
-          case 's':
-            e.preventDefault()
-            if (isRecording) {
-              handleStopRecording()
-            }
-            break
-        }
+          }
+          break
+        case 's':
+          e.preventDefault()
+          if (isRecording) {
+            handleStopRecording()
+          }
+          break
       }
     }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isRecording, isPaused, handleStartRecording, handlePauseRecording, handleResumeRecording, handleStopRecording])
+  }, [isRecording, isPaused, handleStartRecording, handlePauseRecording, handleResumeRecording, handleStopRecording]))
 
   return (
     <>

@@ -73,15 +73,10 @@ export const useExportStore = create<ExportStore>((set, get) => {
           throw new Error('No video clips found in project')
         }
 
-        // Find the associated recording up front so we can reference its filePath
-        const associatedRecording = project.recordings.find(r => r.id === videoClip.recordingId)
-
-        // Check if we should use effects export. We support both id- and path-based keys.
-        const idMetadata = typeof window !== 'undefined' ?
+        // Check if we should use effects export by checking for metadata
+        const metadata = typeof window !== 'undefined' ?
           RecordingStorage.getMetadata(videoClip.recordingId) : null
-        const pathMetadata = typeof window !== 'undefined' && associatedRecording?.filePath ?
-          RecordingStorage.getMetadata(associatedRecording.filePath) : null
-        const hasMetadata = !!(idMetadata || pathMetadata)
+        const hasMetadata = !!metadata
 
         // Use unified export engine with appropriate options
         const engine = getEngine()

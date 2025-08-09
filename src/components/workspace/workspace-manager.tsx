@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import type { Recording } from '@/types/project'
+import { convertElectronMetadataToProject } from '@/lib/metadata/metadata-converter'
 
 export function WorkspaceManager() {
   const { currentProject, newProject } = useProjectStore()
@@ -91,37 +92,14 @@ export function WorkspaceManager() {
 
                           // Save metadata for effects rendering
                           if (rec.metadata) {
-                            // Convert project metadata format to ElectronMetadata format
-                            const metadata: any[] = rec.metadata.mouseEvents.map(e => ({
-                              timestamp: e.timestamp,
-                              mouseX: e.x,
-                              mouseY: e.y,
-                              eventType: 'mouse' as const
-                            }))
-
-                            // Add click events
-                            rec.metadata.clickEvents.forEach(e => {
-                              metadata.push({
-                                timestamp: e.timestamp,
-                                mouseX: e.x,
-                                mouseY: e.y,
-                                eventType: 'click' as const
-                              })
-                            })
-
-                            // Add keyboard events
-                            rec.metadata.keyboardEvents.forEach(e => {
-                              metadata.push({
-                                timestamp: e.timestamp,
-                                mouseX: 0,
-                                mouseY: 0,
-                                eventType: 'keypress' as const,
-                                key: e.key
-                              })
-                            })
-
-                            RecordingStorage.setMetadata(rec.id, metadata)
-                            console.log(`✅ Loaded ${metadata.length} metadata events for recording ${rec.id}`)
+                            // Store the metadata directly - it's already in the correct project format
+                            RecordingStorage.setMetadata(rec.id, rec.metadata)
+                            
+                            const totalEvents = 
+                              (rec.metadata.mouseEvents?.length || 0) +
+                              (rec.metadata.clickEvents?.length || 0) +
+                              (rec.metadata.keyboardEvents?.length || 0)
+                            console.log(`✅ Loaded ${totalEvents} metadata events for recording ${rec.id}`)
                           }
 
                           // Store clip effects from project for later use
@@ -147,9 +125,8 @@ export function WorkspaceManager() {
                 const url = globalBlobManager.create(blob, 'loaded-recording')
                 const recordingId = `recording-${Date.now()}`
 
-                // Store blob URL for preview (by id and by path for robustness)
+                // Store blob URL for preview (by id only)
                 RecordingStorage.setBlobUrl(recordingId, url)
-                RecordingStorage.setBlobUrl(recording.path, url)
 
                 // Create a Recording object
                 const rec: Recording = {
@@ -169,14 +146,6 @@ export function WorkspaceManager() {
 
                 // Add recording to project store
                 useProjectStore.getState().addRecording(rec, blob)
-
-                // Try to load metadata if it exists
-                try {
-                  const metaByPath = RecordingStorage.getMetadata(recording.path)
-                  if (metaByPath) {
-                    RecordingStorage.setMetadata(recordingId, metaByPath)
-                  }
-                } catch { }
               } catch (error) {
                 console.error('Failed to load recording:', error)
               }

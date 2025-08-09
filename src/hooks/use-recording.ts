@@ -8,6 +8,7 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
 import { saveRecordingWithProject } from '@/types/project'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { useRecordingTimer } from './use-recording-timer'
 import type { EnhancementSettings } from '@/lib/recording'
 // Processing progress type
 interface ProcessingProgress {
@@ -27,9 +28,6 @@ const RECORDING_CONSTANTS = {
 
 export function useRecording() {
   const recorderRef = useRef<ScreenRecorder | null>(null)
-  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const startTimeRef = useRef<number>(0)
-  const [isTimerSynced, setIsTimerSynced] = useState(false)
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null)
 
   const {
@@ -43,6 +41,12 @@ export function useRecording() {
   } = useRecordingStore()
 
   const { currentProject, newProject } = useProjectStore()
+  
+  // Use the recording timer hook
+  const timer = useRecordingTimer({
+    onTick: setDuration,
+    interval: RECORDING_CONSTANTS.TIMER_INTERVAL
+  })
 
   // Simple duration validation - no longer needed with proper MediaRecorder
   const validateResult = useCallback((result: RecordingResult): boolean => {
@@ -123,30 +127,14 @@ export function useRecording() {
       logger.debug('Current duration:', useRecordingStore.getState().duration, 'ms')
 
       // If we have an active recording but no timer, we need to restore it
-      if (!durationIntervalRef.current && !isTimerSynced) {
+      if (!timer.isRunning()) {
         logger.debug('Restoring timer for ongoing recording')
         const currentDuration = useRecordingStore.getState().duration
-        startTimeRef.current = Date.now() - currentDuration
-        setIsTimerSynced(true)
-
-        durationIntervalRef.current = setInterval(() => {
-          const elapsed = Date.now() - startTimeRef.current
-          setDuration(elapsed)
-          logger.debug(`Timer tick (restored): ${Math.floor(elapsed / 1000)}s (${elapsed}ms)`)
-        }, RECORDING_CONSTANTS.TIMER_INTERVAL)
-
+        timer.start(currentDuration)
         logger.debug('Timer restored for ongoing recording')
       }
     }
-
-    // Cleanup on unmount
-    return () => {
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current)
-        durationIntervalRef.current = null
-      }
-    }
-  }, [setDuration, isRecording, isTimerSynced]) // Include all dependencies
+  }, [setDuration, isRecording, timer]) // Include all dependencies
 
   const startRecording = useCallback(async (_sourceId?: string, enhancementSettings?: EnhancementSettings) => {
     if (!recorderRef.current || isRecording) {
@@ -158,7 +146,6 @@ export function useRecording() {
 
     try {
       setStatus('preparing')
-      setIsTimerSynced(false)
 
       // Start recording with enhancements if provided
       await recorderRef.current.startRecording(settings, enhancementSettings)
@@ -167,14 +154,9 @@ export function useRecording() {
       setStatus('recording')
 
       // Start duration timer
-      startTimeRef.current = Date.now()
       setDuration(0) // Reset duration to 0
-      durationIntervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTimeRef.current
-        setDuration(elapsed)
-        logger.debug(`Timer tick: ${Math.floor(elapsed / 1000)}s (${elapsed}ms)`)
-      }, RECORDING_CONSTANTS.TIMER_INTERVAL)
-      setIsTimerSynced(true)
+      timer.start(0)
+      logger.debug('Timer started for recording')
 
       // Mark recording as globally active
       if (typeof window !== 'undefined') {
@@ -187,9 +169,9 @@ export function useRecording() {
       handleRecordingError(error)
       setStatus('idle')
       setRecording(false)
-      setIsTimerSynced(false)
+      timer.stop()
     }
-  }, [isRecording, setRecording, setStatus, settings, handleRecordingError])
+  }, [isRecording, setRecording, setStatus, settings, handleRecordingError, timer, setDuration])
 
   const stopRecording = useCallback(async () => {
     logger.debug('useRecording.stopRecording called')
@@ -215,10 +197,7 @@ export function useRecording() {
       setStatus('processing')
 
       // Stop duration timer
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current)
-        durationIntervalRef.current = null
-      }
+      timer.stop()
 
       // Stop recording and get result
       const result = await recorder.stopRecording()
@@ -239,7 +218,6 @@ export function useRecording() {
       // Reset remaining state (recording already set to false above)
       setPaused(false)
       setStatus('idle')
-      setIsTimerSynced(false)
 
       // Clear global recording state
       if (typeof window !== 'undefined') {
@@ -278,14 +256,10 @@ export function useRecording() {
       logger.error('Failed to stop recording:', error)
 
       // Reset state on error
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current)
-        durationIntervalRef.current = null
-      }
+      timer.stop()
       setRecording(false)
       setPaused(false)
       setStatus('idle')
-      setIsTimerSynced(false)
 
       if (typeof window !== 'undefined') {
         (window as any).__screenRecorderActive = false
@@ -296,19 +270,15 @@ export function useRecording() {
 
       return null
     }
-  }, [currentProject, setRecording, setPaused, setStatus, newProject, validateResult])
+  }, [setRecording, setPaused, setStatus, validateResult, timer])
 
   const pauseRecording = useCallback(() => {
     if (recorderRef.current && isRecording) {
       recorderRef.current.pauseRecording()
       setPaused(true)
-
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current)
-        durationIntervalRef.current = null
-      }
+      timer.pause()
     }
-  }, [isRecording, setPaused])
+  }, [isRecording, setPaused, timer])
 
   const resumeRecording = useCallback(() => {
     if (recorderRef.current && isPaused) {
@@ -317,23 +287,10 @@ export function useRecording() {
 
       // Resume duration timer from current duration
       const currentDurationMs = useRecordingStore.getState().duration
-      startTimeRef.current = Date.now() - currentDurationMs
-
-      durationIntervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTimeRef.current
-        setDuration(elapsed)
-      }, RECORDING_CONSTANTS.TIMER_INTERVAL)
+      timer.resume(currentDurationMs)
     }
-  }, [isPaused, setPaused, setDuration])
+  }, [isPaused, setPaused, timer])
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current)
-      }
-    }
-  }, [])
 
   return {
     startRecording,

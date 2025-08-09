@@ -13,6 +13,7 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { convertMetadataToEvents } from '@/lib/metadata/metadata-converter'
+import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 
 interface ProjectStore {
   // Current project
@@ -139,41 +140,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         duration: recording.duration,
         sourceIn: 0,
         sourceOut: recording.duration,
-        effects: {
-          zoom: {
-            enabled: true,
-            keyframes: [],
-            sensitivity: 1.0,
-            maxZoom: 2.0,
-            smoothing: 0.1
-          },
-          cursor: {
-            visible: true,
-            style: 'macOS',
-            size: 1.2,
-            color: '#ffffff',
-            clickEffects: true,
-            motionBlur: true
-          },
-          background: {
-            type: 'gradient',
-            gradient: {
-              colors: ['#1a1a2e', '#0f0f1e'],
-              angle: 135
-            },
-            padding: 40
-          },
-          video: {
-            cornerRadius: 12,
-            shadow: {
-              enabled: true,
-              blur: 40,
-              color: '#000000',
-              offset: { x: 0, y: 20 }
-            }
-          },
-          annotations: []
-        }
+        effects: SCREEN_STUDIO_CLIP_EFFECTS
       }
       
       // Add to video track (first track should be video)
@@ -249,37 +216,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         duration: recording.duration,
         sourceIn: 0,
         sourceOut: recording.duration,
-        effects: {
-          zoom: {
-            enabled: false,
-            keyframes: [],
-            sensitivity: 1.0,
-            maxZoom: 2.0,
-            smoothing: 0.1
-          },
-          cursor: {
-            visible: true,
-            style: 'default',
-            size: 1.0,
-            color: '#ffffff',
-            clickEffects: false,
-            motionBlur: false
-          },
-          background: {
-            type: 'none',
-            padding: 0
-          },
-          video: {
-            cornerRadius: 0,
-            shadow: {
-              enabled: false,
-              blur: 0,
-              color: '#000000',
-              offset: { x: 0, y: 0 }
-            }
-          },
-          annotations: []
-        }
+        effects: DEFAULT_CLIP_EFFECTS
       }
       
       // Add to video track (first track should be video)
