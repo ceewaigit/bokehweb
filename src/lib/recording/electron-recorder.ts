@@ -32,7 +32,6 @@ export class ElectronRecorder {
   private isRecording = false
   private startTime = 0
   private metadata: ElectronMetadata[] = []
-  private mouseTracker: NodeJS.Timeout | null = null
 
   constructor() {
     logger.debug('ElectronRecorder initialized')
@@ -95,16 +94,6 @@ export class ElectronRecorder {
         audio: hasAudio,
         sourceId: primarySource.id
       })
-
-      // Add timeout to getUserMedia call to prevent hanging
-      const getUserMediaWithTimeout = (constraints: any, timeoutMs = 10000) => {
-        return Promise.race([
-          navigator.mediaDevices.getUserMedia(constraints),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Screen recording permission timeout - please grant access in System Preferences')), timeoutMs)
-          )
-        ])
-      }
 
       // ALWAYS use the mandatory format - this is what works universally
       // Cast to 'any' because Electron extends the standard MediaStreamConstraints

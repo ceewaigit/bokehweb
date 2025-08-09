@@ -11,6 +11,11 @@ module.exports = {
           loader: 'ts-loader',
           options: {
             transpileOnly: true,
+            compilerOptions: {
+              jsx: 'react-jsx',
+              module: 'esnext',
+              target: 'es2015'
+            }
           },
         },
         exclude: /node_modules/,
