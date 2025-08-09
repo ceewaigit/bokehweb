@@ -14,7 +14,6 @@ const electronAPI = {
         // Simple pass-through - let main process handle it
         return electron_1.ipcRenderer.invoke('get-desktop-stream', sourceId, hasAudio);
     },
-    getSources: () => electron_1.ipcRenderer.invoke('get-sources'),
     // Permission checking
     checkScreenRecordingPermission: () => electron_1.ipcRenderer.invoke('check-screen-recording-permission'),
     requestScreenRecordingPermission: () => electron_1.ipcRenderer.invoke('request-screen-recording-permission'),
