@@ -144,7 +144,7 @@ export default function RecordingDock() {
       </AnimatePresence>
 
       {/* Main Dock */}
-      <div className="fixed inset-x-0 top-4 flex justify-center pointer-events-none z-[2147483647]">
+      <div className="fixed inset-x-0 top-4 flex justify-center pointer-events-none z-[2147483647] bg-transparent">
         <motion.div
           className="pointer-events-auto"
           initial={{ y: -100, opacity: 0 }}

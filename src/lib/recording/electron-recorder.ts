@@ -203,10 +203,8 @@ export class ElectronRecorder {
         logger.error('MediaRecorder error:', event)
       }
 
-      // Start mouse tracking if effects are enabled
-      if (enhancementSettings) {
-        await this.startMouseTracking()
-      }
+      // Always capture mouse metadata to power effects
+      await this.startMouseTracking()
 
       // Start recording
       this.mediaRecorder.start(1000)

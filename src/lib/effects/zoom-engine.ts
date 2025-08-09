@@ -47,7 +47,7 @@ export class ZoomEngine {
   }
 
   generateKeyframes(events: MouseEvent[], videoDuration: number, videoWidth: number, videoHeight: number): ZoomKeyframe[] {
-    if (!this.options.enabled || events.length === 0) {
+    if (!this.options.enabled || events.length === 0 || videoDuration <= 0) {
       return [{ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'default' }]
     }
 
@@ -58,8 +58,16 @@ export class ZoomEngine {
     let lastClickTime = 0
     let clickCount = 0
 
+    // More permissive thresholds for non-click sessions
+    const movePanThreshold = 0.008 * (this.options.sensitivity || 1) // was 0.02
+    const hoverStableTime = 300 // ms, was 500
+    const inactivityZoomOut = 900 // ms, was 1500
+    const minKeyframeGap = 90 // ms between generated KFs
+
     // Add initial keyframe
     this.keyframes.push({ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'default' })
+
+    let lastKFTime = 0
 
     // Analyze events for zoom opportunities
     for (let i = 0; i < events.length; i++) {
@@ -101,10 +109,11 @@ export class ZoomEngine {
           isZoomed = true
           zoomCenter = { x: normalizedX, y: normalizedY }
           lastActivity = event.timestamp
+          lastKFTime = event.timestamp + 150
         }
       }
 
-      // Check for mouse movement patterns
+      // Mouse movement handling
       if (event.eventType === 'mouse' && i > 0) {
         const prevEvent = events[i - 1]
         const distance = Math.sqrt(
@@ -112,21 +121,37 @@ export class ZoomEngine {
           Math.pow((event.mouseY - prevEvent.mouseY) / videoHeight, 2)
         )
 
+        // Auto-zoom on activity if not zoomed yet
+        if (!isZoomed && distance > movePanThreshold && (event.timestamp - lastKFTime) > minKeyframeGap) {
+          const zoomLevel = this.options.maxZoom! * 0.5
+          this.keyframes.push({
+            timestamp: event.timestamp,
+            x: normalizedX,
+            y: normalizedY,
+            scale: zoomLevel,
+            reason: 'activity-zoom'
+          })
+          isZoomed = true
+          zoomCenter = { x: normalizedX, y: normalizedY }
+          lastActivity = event.timestamp
+          lastKFTime = event.timestamp
+          continue
+        }
+
         // If mouse moved significantly while zoomed, smoothly pan to follow
-        if (isZoomed && distance > 0.02 * this.options.sensitivity!) {
-          // Use exponential smoothing for pan
-          const smoothFactor = 0.15
+        if (isZoomed && distance > movePanThreshold) {
+          // Exponential smoothing for pan
+          const smoothFactor = 0.18
           const panX = zoomCenter.x * (1 - smoothFactor) + normalizedX * smoothFactor
           const panY = zoomCenter.y * (1 - smoothFactor) + normalizedY * smoothFactor
 
-          // Only add keyframe if we've moved enough
           const lastKeyframe = this.keyframes[this.keyframes.length - 1]
           const panDistance = Math.sqrt(
             Math.pow(panX - lastKeyframe.x, 2) +
             Math.pow(panY - lastKeyframe.y, 2)
           )
 
-          if (panDistance > 0.01 && event.timestamp - lastKeyframe.timestamp > 100) {
+          if (panDistance > 0.006 && event.timestamp - lastKFTime > minKeyframeGap) {
             this.keyframes.push({
               timestamp: event.timestamp,
               x: panX,
@@ -136,15 +161,15 @@ export class ZoomEngine {
             })
             zoomCenter = { x: panX, y: panY }
             lastActivity = event.timestamp
+            lastKFTime = event.timestamp
           }
         }
 
-        // Intelligent hover detection
-        if (!isZoomed && distance < 0.005 * this.options.sensitivity! && i > 20) {
-          // Check if mouse has been stable for at least 500ms
-          const stableTime = 500
+        // Intelligent hover detection (more permissive)
+        if (!isZoomed && distance < 0.003 * (this.options.sensitivity || 1) && i > 12) {
+          // Check if mouse has been stable for at least hoverStableTime
           const recentEvents = events.filter(e =>
-            e.timestamp >= event.timestamp - stableTime &&
+            e.timestamp >= event.timestamp - hoverStableTime &&
             e.timestamp <= event.timestamp
           )
 
@@ -157,13 +182,13 @@ export class ZoomEngine {
                 Math.pow((e.mouseX - avgX) / videoWidth, 2) +
                 Math.pow((e.mouseY - avgY) / videoHeight, 2)
               )
-              return d < 0.015
+              return d < 0.012
             })
 
-            if (isStable && event.timestamp - lastActivity > 1000) {
+            if (isStable && event.timestamp - lastActivity > 400 && (event.timestamp - lastKFTime) > minKeyframeGap) {
               // Smooth transition before hover zoom
               this.keyframes.push({
-                timestamp: event.timestamp - 200,
+                timestamp: event.timestamp - 120,
                 x: 0.5,
                 y: 0.5,
                 scale: 1,
@@ -171,25 +196,24 @@ export class ZoomEngine {
               })
 
               this.keyframes.push({
-                timestamp: event.timestamp + 300,
+                timestamp: event.timestamp + 240,
                 x: normalizedX,
                 y: normalizedY,
-                scale: this.options.maxZoom! * 0.4, // Subtle zoom for hover
+                scale: this.options.maxZoom! * 0.45,
                 reason: 'hover'
               })
               isZoomed = true
               zoomCenter = { x: normalizedX, y: normalizedY }
               lastActivity = event.timestamp
+              lastKFTime = event.timestamp + 240
             }
           }
         }
       }
 
       // Smart zoom out after inactivity
-      if (isZoomed && event.timestamp - lastActivity > 1500) {
-        // Smooth transition out
+      if (isZoomed && event.timestamp - lastActivity > inactivityZoomOut && event.timestamp - lastKFTime > minKeyframeGap) {
         const lastKeyframe = this.keyframes[this.keyframes.length - 1]
-
         this.keyframes.push({
           timestamp: event.timestamp,
           x: lastKeyframe.x,
@@ -199,7 +223,7 @@ export class ZoomEngine {
         })
 
         this.keyframes.push({
-          timestamp: event.timestamp + 800,
+          timestamp: event.timestamp + 600,
           x: 0.5,
           y: 0.5,
           scale: 1,
@@ -207,13 +231,15 @@ export class ZoomEngine {
         })
         isZoomed = false
         lastActivity = event.timestamp
+        lastKFTime = event.timestamp + 600
       }
     }
 
     // Add final keyframe to return to normal
     if (isZoomed) {
+      const endTime = Math.max(videoDuration, events[events.length - 1]?.timestamp || videoDuration)
       this.keyframes.push({
-        timestamp: videoDuration,
+        timestamp: endTime,
         x: 0.5,
         y: 0.5,
         scale: 1,
@@ -221,9 +247,11 @@ export class ZoomEngine {
       })
     }
 
-    // Ensure we have at least start and end keyframes
-    if (this.keyframes.length === 0) {
-      this.keyframes.push({ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'default' })
+    // Ensure we have a useful set of keyframes
+    if (this.keyframes.length < 3) {
+      const mid = Math.min(videoDuration * 0.4, (events[events.length - 1]?.timestamp || videoDuration) * 0.6)
+      this.keyframes.push({ timestamp: mid, x: 0.5, y: 0.5, scale: this.options.maxZoom! * 0.45, reason: 'fallback-zoom' })
+      this.keyframes.push({ timestamp: Math.min(videoDuration, mid + 600), x: 0.5, y: 0.5, scale: 1, reason: 'fallback-out' })
     }
 
     if (this.keyframes[this.keyframes.length - 1].timestamp < videoDuration) {
@@ -315,8 +343,8 @@ export class ZoomEngine {
     const { width, height } = ctx.canvas
 
     // Calculate the zoomed region
-    const zoomWidth = width / zoom.scale
-    const zoomHeight = height / zoom.scale
+    const zoomWidth = width / Math.max(zoom.scale, 1)
+    const zoomHeight = height / Math.max(zoom.scale, 1)
 
     // Calculate source coordinates (ensuring we stay within video bounds)
     const sx = Math.max(0, Math.min(video.videoWidth - zoomWidth, zoom.x * video.videoWidth - zoomWidth / 2))
