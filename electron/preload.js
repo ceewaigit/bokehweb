@@ -4,11 +4,16 @@ const electron_1 = require("electron");
 const electronAPI = {
     // Desktop capture - with proper constraint format
     getDesktopSources: async (options) => {
-        // Validate and sanitize options to prevent IPC errors
-        if (options && typeof options !== 'object') {
-            return Promise.reject(new Error('Invalid options provided to getDesktopSources'));
-        }
-        return electron_1.ipcRenderer.invoke('get-desktop-sources', options);
+        // WORKAROUND: Skip IPC entirely to avoid Electron bug
+        // Return hardcoded screen source that will work with getUserMedia
+        console.log('🎥 Preload: Returning hardcoded screen source to avoid IPC bug');
+        
+        // Just return a basic screen source - the actual capture happens via getUserMedia
+        return Promise.resolve([{
+            id: 'screen:1:0',
+            name: 'Entire screen',
+            display_id: 1
+        }]);
     },
     getDesktopStream: (sourceId, hasAudio) => {
         // Simple pass-through - let main process handle it
