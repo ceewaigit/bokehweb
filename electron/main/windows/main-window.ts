@@ -2,6 +2,9 @@ import { BrowserWindow, WebContents } from 'electron'
 import * as path from 'path'
 import { getAppURL, isDev } from '../config'
 
+// Webpack entry points (defined by electron-forge)
+declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string | undefined
+
 export function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1400,
@@ -12,7 +15,7 @@ export function createMainWindow(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '../../preload.js'),
+      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
       webSecurity: true,
       allowRunningInsecureContent: false,
       experimentalFeatures: false,

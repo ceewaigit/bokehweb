@@ -11,6 +11,13 @@ IMPORTANT: YOUR CODE SHOULD BE STREAMLINED BUT NOT OVERLY COMPLEX. AIM FOR A BAL
 - Test with `npm run make` to create distributable
 - NEVER assume dev server is running
 
+## ⚡ CRITICAL WEBPACK CONFIG
+- renderer.tsx routes components via URL hash (#/record-button)
+- Preload uses MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY variable
+- Record button component lives in src/app/record-button/page.tsx
+- Dev: DEV_SERVER_URL env var overrides localhost:3000
+- Prod: webpack bundles everything, no Next.js server needed
+
 ## Required Features (ALL MUST WORK)
 
 ### 1. Recording
@@ -169,13 +176,14 @@ tests/
 - No post-processing after recording - keeps original video
 - Zoom and cursor can be toggled on/off in preview
 
-## Quick Notes for Next Agent
-- Zoom now uses smoothStep/easeOutExpo not cubic - much smoother
-- Cursor is macOS style with motion blur - looks native
-- Export skips unchanged frames - 30-50% faster
-- Background system ready - just needs UI controls
-- Audio works but needs system audio capture permissions
-- Electron main.js updated with better source selection
-- Build passes but tests fail (not critical)
+## 🎯 QUICK REMINDERS
+- Zoom: smoothStep/easeOutExpo for native feel
+- Cursor: macOS style with motion blur implemented
+- Export: frame caching = 30-50% faster
+- Background: renderer ready, needs UI controls
+- Audio: works, needs system capture permissions
+- Timeline: basic only, NO editing yet
+- Webcam: NOT implemented
+- Export: WebM only, needs FFmpeg for MP4
 
 **Next Priority**: Timeline editing (cut/trim/split) + Webcam overlay + MP4 export

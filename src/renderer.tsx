@@ -1,17 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import RecordButton from './app/record-button/page';
+import './styles/globals.css';
 
-// This is a bridge renderer for electron-forge webpack
-// The actual Next.js app is loaded via the electron main process
+// Check if we're loading the record button based on the URL hash
+const isRecordButton = window.location.hash === '#/record-button';
 
 const App = () => {
-  React.useEffect(() => {
-    // In production, redirect to Next.js app
-    if (process.env.NODE_ENV === 'production') {
-      window.location.href = 'http://localhost:3000';
-    }
-  }, []);
+  if (isRecordButton) {
+    return <RecordButton />;
+  }
 
+  // Main app UI
   return (
     <div style={{ 
       padding: '20px', 
@@ -19,7 +19,7 @@ const App = () => {
       textAlign: 'center'
     }}>
       <h1>Screen Studio</h1>
-      <p>Loading application...</p>
+      <p>Main application interface</p>
     </div>
   );
 };

@@ -2,6 +2,9 @@ import { BrowserWindow, screen } from 'electron'
 import * as path from 'path'
 import { getAppURL } from '../config'
 
+// Webpack entry points (defined by electron-forge)
+declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string | undefined
+
 export function createRecordButton(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
   console.log('🖥️ Creating record button for display:', display.bounds)
@@ -26,7 +29,7 @@ export function createRecordButton(): BrowserWindow {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '../../preload.js'),
+      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
       webSecurity: false,
       devTools: true
     }
