@@ -188,9 +188,11 @@ export function PreviewArea() {
       panSpeed: 0.08
     })
 
+    const totalDurationMs = Number.isFinite(video.duration) ? (video.duration * 1000) : (projectRecording?.duration || 0)
+
     const keyframes = engine.generateKeyframes(
       metadata,
-      video.duration * 1000,
+      totalDurationMs,
       video.videoWidth || 1920,
       video.videoHeight || 1080
     )
