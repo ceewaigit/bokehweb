@@ -1,9 +1,10 @@
-const { ipcMain } = require('electron')
-const { getRecordingsDirectory } = require('../config')
-const path = require('path')
-const fs = require('fs').promises
+import { ipcMain, IpcMainInvokeEvent } from 'electron'
+import { getRecordingsDirectory } from '../config'
+import * as path from 'path'
+import { promises as fs } from 'fs'
+import * as fsSync from 'fs'
 
-function registerRecordingHandlers() {
+export function registerRecordingHandlers(): void {
   ipcMain.handle('start-recording', async () => {
     return { success: true, recordingsDir: getRecordingsDirectory() }
   })
@@ -16,11 +17,11 @@ function registerRecordingHandlers() {
     return getRecordingsDirectory()
   })
 
-  ipcMain.handle('save-recording', async (event, filePath, buffer) => {
+  ipcMain.handle('save-recording', async (event: IpcMainInvokeEvent, filePath: string, buffer: Buffer) => {
     try {
       await fs.writeFile(filePath, Buffer.from(buffer))
       return { success: true, filePath }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save recording:', error)
       return { success: false, error: error.message }
     }
@@ -35,9 +36,9 @@ function registerRecordingHandlers() {
         .map(f => ({
           name: f,
           path: path.join(recordingsDir, f),
-          timestamp: require('fs').statSync(path.join(recordingsDir, f)).mtime
+          timestamp: fsSync.statSync(path.join(recordingsDir, f)).mtime
         }))
-        .sort((a, b) => b.timestamp - a.timestamp)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       return recordings
     } catch (error) {
       console.error('Failed to load recordings:', error)
@@ -45,5 +46,3 @@ function registerRecordingHandlers() {
     }
   })
 }
-
-module.exports = { registerRecordingHandlers }

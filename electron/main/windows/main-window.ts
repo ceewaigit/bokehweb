@@ -1,8 +1,8 @@
-const { BrowserWindow } = require('electron')
-const path = require('path')
-const { getAppURL, isDev } = require('../config')
+import { BrowserWindow, WebContents } from 'electron'
+import * as path from 'path'
+import { getAppURL, isDev } from '../config'
 
-function createMainWindow() {
+export function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -12,7 +12,6 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      enableRemoteModule: false,
       preload: path.join(__dirname, '../../preload.js'),
       webSecurity: true,
       allowRunningInsecureContent: false,
@@ -46,8 +45,8 @@ function createMainWindow() {
   return mainWindow
 }
 
-function setupPermissions(window) {
-  window.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+function setupPermissions(window: BrowserWindow): void {
+  const permissionHandler = (webContents: WebContents, permission: string, callback: (granted: boolean) => void) => {
     console.log('🔐 Permission requested:', permission)
     if (permission === 'media' || permission === 'display-capture' || permission === 'screen') {
       console.log('✅ Granting permission for:', permission)
@@ -56,21 +55,22 @@ function setupPermissions(window) {
       console.log('❌ Denying permission for:', permission)
       callback(false)
     }
-  })
+  }
+  window.webContents.session.setPermissionRequestHandler(permissionHandler)
 
-  window.webContents.session.setPermissionCheckHandler((webContents, permission) => {
+  const permissionCheckHandler = (webContents: WebContents | null, permission: string) => {
     console.log('🔍 Permission check:', permission)
     return permission === 'media' || permission === 'display-capture' || permission === 'screen'
-  })
+  }
+  window.webContents.session.setPermissionCheckHandler(permissionCheckHandler)
 }
 
-function setupSecurityPolicy(window) {
+function setupSecurityPolicy(window: BrowserWindow): void {
   window.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: https://unpkg.com; " +
+        'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: https://unpkg.com; " +
           "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com blob:; " +
           "style-src 'self' 'unsafe-inline'; " +
           "img-src 'self' data: blob: file:; " +
@@ -78,10 +78,7 @@ function setupSecurityPolicy(window) {
           "connect-src 'self' file: data: blob: https://unpkg.com; " +
           "worker-src 'self' blob:; " +
           "frame-src 'none';"
-        ]
       }
     })
   })
 }
-
-module.exports = { createMainWindow }

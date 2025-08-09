@@ -1,7 +1,7 @@
-const { BrowserWindow, screen } = require('electron')
-const path = require('path')
+import { BrowserWindow, screen } from 'electron'
+import * as path from 'path'
 
-function createCountdownWindow() {
+export function createCountdownWindow(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
   const countdownWindow = new BrowserWindow({
     width: display.bounds.width,
@@ -32,7 +32,7 @@ function createCountdownWindow() {
   return countdownWindow
 }
 
-function showCountdown(countdownWindow, number) {
+export function showCountdown(countdownWindow: BrowserWindow, number: number): void {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -92,5 +92,3 @@ function showCountdown(countdownWindow, number) {
   countdownWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
   countdownWindow.show()
 }
-
-module.exports = { createCountdownWindow, showCountdown }

@@ -1,20 +1,21 @@
-const { app } = require('electron')
-const path = require('path')
+import { app } from 'electron'
+import * as path from 'path'
+import * as fs from 'fs'
 
-const isDev = process.env.NODE_ENV === 'development'
+export const isDev = process.env.NODE_ENV === 'development'
 
-function getAppURL(route = '') {
+export function getAppURL(route: string = ''): string {
   if (isDev) {
     return `http://localhost:3000${route}`
   }
-  
+
   const isPackaged = app.isPackaged
-  
+
   if (isPackaged) {
     const htmlFile = route === ''
       ? 'index.html'
       : `${route.replace('/', '')}/index.html`
-    
+
     console.log(`📦 Loading packaged app URL: app://${htmlFile}`)
     return `app://${htmlFile}`
   } else {
@@ -23,23 +24,16 @@ function getAppURL(route = '') {
       : path.join(__dirname, '../../out', route.replace('/', ''), 'index.html')
 
     console.log(`📁 Loading local production HTML: ${htmlPath}`)
-    console.log(`📁 File exists: ${require('fs').existsSync(htmlPath)}`)
+    console.log(`📁 File exists: ${fs.existsSync(htmlPath)}`)
 
     return `file://${htmlPath}`
   }
 }
 
-function getRecordingsDirectory() {
+export function getRecordingsDirectory(): string {
   const recordingsDir = path.join(app.getPath('documents'), 'ScreenStudio Recordings')
-  const fs = require('fs')
   if (!fs.existsSync(recordingsDir)) {
     fs.mkdirSync(recordingsDir, { recursive: true })
   }
   return recordingsDir
-}
-
-module.exports = {
-  isDev,
-  getAppURL,
-  getRecordingsDirectory
 }

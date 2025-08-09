@@ -1,18 +1,18 @@
-const { ipcMain, BrowserWindow } = require('electron')
-const { createMainWindow } = require('../windows/main-window')
-const { getAppURL } = require('../config')
-const { createCountdownWindow, showCountdown } = require('../windows/countdown-window')
+import { ipcMain, BrowserWindow, IpcMainInvokeEvent, IpcMainEvent, app } from 'electron'
+import { createMainWindow } from '../windows/main-window'
+import { getAppURL } from '../config'
+import { createCountdownWindow, showCountdown } from '../windows/countdown-window'
 
-let countdownWindow = null
+let countdownWindow: BrowserWindow | null = null
 
-function registerWindowControlHandlers() {
+export function registerWindowControlHandlers(): void {
   ipcMain.handle('open-workspace', () => {
     if (!global.mainWindow) {
       global.mainWindow = createMainWindow()
       global.mainWindow.loadURL(getAppURL())
       global.mainWindow.once('ready-to-show', () => {
-        global.mainWindow.show()
-        global.mainWindow.focus()
+        global.mainWindow!.show()
+        global.mainWindow!.focus()
       })
     } else {
       global.mainWindow.show()
@@ -32,7 +32,7 @@ function registerWindowControlHandlers() {
     }
   })
 
-  ipcMain.handle('show-countdown', async (event, number) => {
+  ipcMain.handle('show-countdown', async (event: IpcMainInvokeEvent, number: number) => {
     if (countdownWindow) {
       countdownWindow.close()
       countdownWindow = null
@@ -52,22 +52,24 @@ function registerWindowControlHandlers() {
   })
 
   ipcMain.on('app-quit', () => {
-    require('electron').app.quit()
+    app.quit()
   })
 
-  ipcMain.on('app-minimize', (event) => {
+  ipcMain.on('app-minimize', (event: IpcMainEvent) => {
     const window = BrowserWindow.fromWebContents(event.sender)
-    window.minimize()
+    if (window) {
+      window.minimize()
+    }
   })
 
-  ipcMain.on('app-maximize', (event) => {
+  ipcMain.on('app-maximize', (event: IpcMainEvent) => {
     const window = BrowserWindow.fromWebContents(event.sender)
-    if (window.isMaximized()) {
-      window.unmaximize()
-    } else {
-      window.maximize()
+    if (window) {
+      if (window.isMaximized()) {
+        window.unmaximize()
+      } else {
+        window.maximize()
+      }
     }
   })
 }
-
-module.exports = { registerWindowControlHandlers }

@@ -1,11 +1,21 @@
-const { ipcMain, screen } = require('electron')
+import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
 
-let mouseTrackingInterval = null
-let mouseEventSender = null
+let mouseTrackingInterval: NodeJS.Timeout | null = null
+let mouseEventSender: WebContents | null = null
 let isMouseTracking = false
 
-function registerMouseTrackingHandlers() {
-  ipcMain.handle('start-mouse-tracking', async (event, options = {}) => {
+interface MouseTrackingOptions {
+  intervalMs?: number
+}
+
+interface MousePosition {
+  x: number
+  y: number
+  timestamp?: number
+}
+
+export function registerMouseTrackingHandlers(): void {
+  ipcMain.handle('start-mouse-tracking', async (event: IpcMainInvokeEvent, options: MouseTrackingOptions = {}) => {
     try {
       if (mouseTrackingInterval) {
         clearInterval(mouseTrackingInterval)
@@ -15,12 +25,12 @@ function registerMouseTrackingHandlers() {
         options = {}
       }
 
-      const intervalMs = Math.max(8, Math.min(1000, parseInt(options.intervalMs) || 16))
+      const intervalMs = Math.max(8, Math.min(1000, parseInt(String(options.intervalMs)) || 16))
 
       mouseEventSender = event.sender
       isMouseTracking = true
 
-      let lastPosition = null
+      let lastPosition: Electron.Point | null = null
       mouseTrackingInterval = setInterval(() => {
         if (!isMouseTracking || !mouseEventSender) return
 
@@ -35,7 +45,7 @@ function registerMouseTrackingHandlers() {
               x: Math.round(currentPosition.x),
               y: Math.round(currentPosition.y),
               timestamp: Date.now()
-            })
+            } as MousePosition)
 
             lastPosition = currentPosition
           }
@@ -51,7 +61,7 @@ function registerMouseTrackingHandlers() {
         nativeTracking: true,
         fps: Math.round(1000 / intervalMs)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting mouse tracking:', error)
       return { success: false, error: error.message }
     }
@@ -69,7 +79,7 @@ function registerMouseTrackingHandlers() {
 
       console.log('🖱️ Mouse tracking stopped')
       return { success: true }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error stopping mouse tracking:', error)
       return { success: false, error: error.message }
     }
@@ -85,7 +95,7 @@ function registerMouseTrackingHandlers() {
           y: position.y
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error getting mouse position:', error)
       return { success: false, error: error.message }
     }
@@ -99,12 +109,10 @@ function registerMouseTrackingHandlers() {
   })
 }
 
-function cleanupMouseTracking() {
+export function cleanupMouseTracking(): void {
   if (mouseTrackingInterval) {
     clearInterval(mouseTrackingInterval)
     mouseTrackingInterval = null
     isMouseTracking = false
   }
 }
-
-module.exports = { registerMouseTrackingHandlers, cleanupMouseTracking }

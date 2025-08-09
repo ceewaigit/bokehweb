@@ -1,10 +1,10 @@
-const { ipcMain, dialog, BrowserWindow } = require('electron')
+import { ipcMain, dialog, BrowserWindow, IpcMainInvokeEvent, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'electron'
 
-function registerDialogHandlers() {
-  ipcMain.handle('show-message-box', async (event, options) => {
+export function registerDialogHandlers(): void {
+  ipcMain.handle('show-message-box', async (event: IpcMainInvokeEvent, options: MessageBoxOptions) => {
     try {
       const window = BrowserWindow.fromWebContents(event.sender)
-      const result = await dialog.showMessageBox(window, options)
+      const result = await dialog.showMessageBox(window!, options)
       return result
     } catch (error) {
       console.error('Error showing message box:', error)
@@ -12,7 +12,7 @@ function registerDialogHandlers() {
     }
   })
 
-  ipcMain.handle('show-save-dialog', async (event, options) => {
+  ipcMain.handle('show-save-dialog', async (event: IpcMainInvokeEvent, options: SaveDialogOptions) => {
     try {
       const result = await dialog.showSaveDialog(options)
       return result
@@ -22,7 +22,7 @@ function registerDialogHandlers() {
     }
   })
 
-  ipcMain.handle('show-open-dialog', async (event, options) => {
+  ipcMain.handle('show-open-dialog', async (event: IpcMainInvokeEvent, options: OpenDialogOptions) => {
     try {
       const result = await dialog.showOpenDialog(options)
       return result
@@ -32,5 +32,3 @@ function registerDialogHandlers() {
     }
   })
 }
-
-module.exports = { registerDialogHandlers }

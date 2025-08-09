@@ -1,26 +1,26 @@
-const { app, BrowserWindow, protocol } = require('electron')
-const path = require('path')
-const { isDev, getRecordingsDirectory } = require('./config')
-const { createRecordButton, setupRecordButton } = require('./windows/record-button')
-const { checkMediaPermissions } = require('./services/permissions')
-const { registerRecordingHandlers } = require('./handlers/recording')
-// Use compiled TypeScript version if available, else fall back to JS
-const { registerSourceHandlers } = (() => {
-  try {
-    return require('./handlers/sources')
-  } catch {
-    return require('../../dist/main/handlers/sources')
-  }
-})()
-const { registerPermissionHandlers } = require('./handlers/permissions')
-const { registerMouseTrackingHandlers, cleanupMouseTracking } = require('./handlers/mouse-tracking')
-const { registerFileOperationHandlers } = require('./handlers/file-operations')
-const { registerDialogHandlers } = require('./handlers/dialogs')
-const { registerWindowControlHandlers } = require('./handlers/window-controls')
+import { app, BrowserWindow, protocol } from 'electron'
+import * as path from 'path'
+import { isDev, getRecordingsDirectory } from './config'
+import { createRecordButton, setupRecordButton } from './windows/record-button'
+import { checkMediaPermissions } from './services/permissions'
+import { registerRecordingHandlers } from './handlers/recording'
+import { registerSourceHandlers } from './handlers/sources'
+import { registerPermissionHandlers } from './handlers/permissions'
+import { registerMouseTrackingHandlers, cleanupMouseTracking } from './handlers/mouse-tracking'
+import { registerFileOperationHandlers } from './handlers/file-operations'
+import { registerDialogHandlers } from './handlers/dialogs'
+import { registerWindowControlHandlers } from './handlers/window-controls'
+
+// Define global variables with proper types
+declare global {
+  var recordingsDirectory: string
+  var mainWindow: BrowserWindow | null
+  var recordButton: BrowserWindow | null
+}
 
 global.recordingsDirectory = getRecordingsDirectory()
 
-function registerProtocol() {
+function registerProtocol(): void {
   if (!isDev && app.isPackaged) {
     protocol.registerFileProtocol('app', (request, callback) => {
       const url = request.url.replace('app://', '')
@@ -35,7 +35,7 @@ function registerProtocol() {
   }
 }
 
-function registerAllHandlers() {
+function registerAllHandlers(): void {
   registerRecordingHandlers()
   registerSourceHandlers()
   registerPermissionHandlers()
@@ -45,7 +45,7 @@ function registerAllHandlers() {
   registerWindowControlHandlers()
 }
 
-async function initializeApp() {
+async function initializeApp(): Promise<void> {
   console.log('🚀 App ready - Electron version:', process.versions.electron)
   console.log('🌐 Chrome version:', process.versions.chrome)
   
@@ -82,10 +82,10 @@ app.on('window-all-closed', () => {
   }
 })
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', (error: Error) => {
   console.error('Uncaught Exception:', error)
 })
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason)
 })

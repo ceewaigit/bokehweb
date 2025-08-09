@@ -1,13 +1,13 @@
-const { ipcMain, app } = require('electron')
-const path = require('path')
-const fs = require('fs').promises
+import { ipcMain, app, IpcMainInvokeEvent } from 'electron'
+import * as path from 'path'
+import { promises as fs } from 'fs'
 
-function registerFileOperationHandlers() {
-  ipcMain.handle('save-file', async (event, data, filepath) => {
+export function registerFileOperationHandlers(): void {
+  ipcMain.handle('save-file', async (event: IpcMainInvokeEvent, data: any, filepath?: string) => {
     try {
       const finalPath = filepath || path.join(app.getPath('downloads'), 'recording.webm')
 
-      let buffer
+      let buffer: Buffer
       if (Buffer.isBuffer(data)) {
         buffer = data
       } else if (Array.isArray(data)) {
@@ -21,22 +21,20 @@ function registerFileOperationHandlers() {
       await fs.writeFile(finalPath, buffer)
       console.log(`✅ File saved: ${finalPath} (${buffer.length} bytes)`)
       return { success: true, path: finalPath }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving file:', error)
       return { success: false, error: error.message }
     }
   })
 
-  ipcMain.handle('open-file', async (event, filename) => {
+  ipcMain.handle('open-file', async (event: IpcMainInvokeEvent, filename: string) => {
     try {
       const filePath = path.join(app.getPath('downloads'), filename)
       const data = await fs.readFile(filePath)
       return { success: true, data }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error opening file:', error)
       return { success: false, error: error.message }
     }
   })
 }
-
-module.exports = { registerFileOperationHandlers }

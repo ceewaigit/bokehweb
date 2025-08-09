@@ -1,8 +1,9 @@
-const { ipcMain, systemPreferences } = require('electron')
+import { ipcMain, systemPreferences, IpcMainInvokeEvent } from 'electron'
+import { exec } from 'child_process'
 
-let permissionCheckInterval = null
+let permissionCheckInterval: NodeJS.Timeout | null = null
 
-function registerPermissionHandlers() {
+export function registerPermissionHandlers(): void {
   ipcMain.handle('check-screen-recording-permission', async () => {
     if (process.platform === 'darwin') {
       try {
@@ -17,7 +18,7 @@ function registerPermissionHandlers() {
     return { status: 'not-applicable', granted: true }
   })
 
-  ipcMain.handle('start-permission-monitoring', async (event) => {
+  ipcMain.handle('start-permission-monitoring', async (event: IpcMainInvokeEvent) => {
     if (process.platform !== 'darwin') return
 
     if (permissionCheckInterval) {
@@ -48,7 +49,7 @@ function registerPermissionHandlers() {
     if (process.platform === 'darwin') {
       try {
         console.log('🔐 Opening System Preferences for screen recording permission')
-        require('child_process').exec('open x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+        exec('open x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
 
         const status = systemPreferences.getMediaAccessStatus('screen')
         return { opened: true, status, granted: status === 'granted' }
@@ -60,5 +61,3 @@ function registerPermissionHandlers() {
     return { opened: false, status: 'not-applicable', granted: true }
   })
 }
-
-module.exports = { registerPermissionHandlers }

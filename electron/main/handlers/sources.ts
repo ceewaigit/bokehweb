@@ -1,14 +1,30 @@
-const { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen } = require('electron')
+import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen, IpcMainInvokeEvent } from 'electron'
+import { exec } from 'child_process'
 
-function registerSourceHandlers() {
+interface DesktopSourceOptions {
+  types?: string[]
+  thumbnailSize?: { width: number; height: number }
+}
+
+interface MediaConstraints {
+  audio: boolean | { mandatory: { chromeMediaSource: string } }
+  video: {
+    mandatory: {
+      chromeMediaSource: string
+      chromeMediaSourceId: string
+    }
+  }
+}
+
+export function registerSourceHandlers(): void {
 
   // CRITICAL FIX: Return constraints that work with all Electron versions
-  ipcMain.handle('get-desktop-stream', async (event, sourceId, hasAudio = false) => {
+  ipcMain.handle('get-desktop-stream', async (event: IpcMainInvokeEvent, sourceId: string, hasAudio: boolean = false): Promise<MediaConstraints> => {
     try {
       console.log('🎥 Creating desktop stream for source:', sourceId, 'with audio:', hasAudio)
-      
+
       // This format works universally across Electron versions
-      const constraints = {
+      const constraints: MediaConstraints = {
         audio: hasAudio ? {
           mandatory: {
             chromeMediaSource: 'desktop'
@@ -21,7 +37,7 @@ function registerSourceHandlers() {
           }
         }
       }
-      
+
       console.log('✅ Returning constraints:', JSON.stringify(constraints, null, 2))
       return constraints
     } catch (error) {
@@ -30,7 +46,7 @@ function registerSourceHandlers() {
     }
   })
 
-  ipcMain.handle('get-desktop-sources', async (event, options = {}) => {
+  ipcMain.handle('get-desktop-sources', async (event: IpcMainInvokeEvent, options: DesktopSourceOptions = {}) => {
     try {
       // Check permissions on macOS
       if (process.platform === 'darwin') {
@@ -39,7 +55,7 @@ function registerSourceHandlers() {
 
         if (status !== 'granted') {
           const parentWindow = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
-          
+
           if (parentWindow) {
             const result = await dialog.showMessageBox(parentWindow, {
               type: 'warning',
@@ -52,11 +68,11 @@ function registerSourceHandlers() {
             })
 
             if (result.response === 0) {
-              require('child_process').exec('open x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+              exec('open x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
             }
           }
 
-          const permissionError = new Error('Screen recording permission denied')
+          const permissionError: any = new Error('Screen recording permission denied')
           permissionError.code = 'PERMISSION_DENIED'
           throw permissionError
         }
@@ -65,11 +81,11 @@ function registerSourceHandlers() {
       // WORKAROUND: Return hardcoded screen source to avoid desktopCapturer IPC bug
       // The actual screen ID will be determined when getUserMedia is called
       console.log('🎥 Bypassing desktopCapturer due to IPC bug - returning hardcoded screen source')
-      
+
       // Get the primary display info
       const primaryDisplay = screen.getPrimaryDisplay()
       const allDisplays = screen.getAllDisplays()
-      
+
       // Return hardcoded sources based on available displays
       const mappedSources = allDisplays.map((display, index) => ({
         id: `screen:${display.id}:0`,
@@ -79,12 +95,12 @@ function registerSourceHandlers() {
 
       console.log('📺 Returning screen sources:', mappedSources.map(s => `${s.name} (${s.id})`))
       return mappedSources
-      
-    } catch (error) {
+
+    } catch (error: any) {
       console.error('❌ Error getting desktop sources:', error)
-      
+
       if (error?.message?.includes('Failed to get sources') || !error?.message) {
-        const permissionError = new Error(
+        const permissionError: any = new Error(
           'Screen recording permission required. Please go to System Preferences > Security & Privacy > Privacy > Screen Recording and enable access for this app.'
         )
         permissionError.code = 'PERMISSION_DENIED'
@@ -113,5 +129,3 @@ function registerSourceHandlers() {
     }
   })
 }
-
-module.exports = { registerSourceHandlers }

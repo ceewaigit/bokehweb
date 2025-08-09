@@ -1,6 +1,10 @@
-const { systemPreferences } = require('electron')
+import { systemPreferences } from 'electron'
 
-async function checkMediaPermissions() {
+declare global {
+  var screenRecordingPermission: string
+}
+
+export async function checkMediaPermissions(): Promise<void> {
   if (process.platform === 'darwin') {
     try {
       console.log('🔐 Checking macOS media permissions...')
@@ -19,7 +23,7 @@ async function checkMediaPermissions() {
       try {
         const microphoneStatus = await systemPreferences.askForMediaAccess('microphone')
         console.log('🎤 Microphone permission:', microphoneStatus ? 'granted' : 'denied')
-      } catch (e) {
+      } catch (e: any) {
         console.log('🎤 Microphone permission check skipped:', e.message)
       }
 
@@ -31,5 +35,3 @@ async function checkMediaPermissions() {
     global.screenRecordingPermission = 'granted'
   }
 }
-
-module.exports = { checkMediaPermissions }
