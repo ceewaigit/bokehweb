@@ -121,13 +121,15 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           zoomBlocks.push(
             <div
               key={`zoom-${zoomStart}`}
-              className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded"
+              className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded flex items-center justify-center"
               style={{ 
                 left: `${startX}px`, 
                 width: `${endX - startX}px`,
                 top: 0
               }}
-            />
+            >
+              <span className="text-xs text-purple-300 font-medium">2x</span>
+            </div>
           )
           inZoom = false
         }
@@ -141,13 +143,15 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       zoomBlocks.push(
         <div
           key={`zoom-${zoomStart}-end`}
-          className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded"
+          className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded flex items-center justify-center"
           style={{ 
             left: `${startX}px`, 
             width: `${endX - startX}px`,
             top: 0
           }}
-        />
+        >
+          <span className="text-xs text-purple-300 font-medium">2x</span>
+        </div>
       )
     }
 
@@ -765,10 +769,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
             {/* Zoom Track (like Screen Studio) */}
             {selectedClips.length > 0 && (
               <div className="h-12 border-b border-border relative bg-purple-900/10">
-                <div className="absolute left-0 top-0 bottom-0 w-20 bg-background border-r border-border flex items-center justify-center sticky left-0 z-10">
-                  <span className="text-xs text-purple-400 font-medium">Zoom</span>
-                </div>
-                <div className="ml-20 relative h-full">
+                <div className="relative h-full">
                   {renderZoomTrack()}
                 </div>
               </div>

@@ -5,7 +5,7 @@ import { useCallback, useEffect } from 'react'
 import { Toolbar } from '../toolbar'
 import { PreviewArea } from '../preview-area'
 import { TimelineEditor } from '../timeline/timeline-editor'
-import { PropertiesPanel } from '../properties-panel'
+import { EffectsSidebar } from '../effects-sidebar'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
 import { RecordingController } from './recording-controller'
@@ -94,8 +94,8 @@ export function WorkspaceManager() {
                           if (rec.metadata) {
                             // Store the metadata directly - it's already in the correct project format
                             RecordingStorage.setMetadata(rec.id, rec.metadata)
-                            
-                            const totalEvents = 
+
+                            const totalEvents =
                               (rec.metadata.mouseEvents?.length || 0) +
                               (rec.metadata.clickEvents?.length || 0) +
                               (rec.metadata.keyboardEvents?.length || 0)
@@ -194,7 +194,7 @@ export function WorkspaceManager() {
         >
           {isPropertiesOpen && (
             <div className="h-full overflow-hidden">
-              <PropertiesPanel />
+              <EffectsSidebar className="h-full w-full" />
             </div>
           )}
         </div>

@@ -164,30 +164,48 @@ function startClickDetection(): void {
   
   clickDetectionActive = true
   
-  // Enhanced click detection using velocity-based approach
-  if (clickDetectionInterval) {
-    clearInterval(clickDetectionInterval)
-  }
-  
-  clickDetectionInterval = setInterval(() => {
+  // Use a polling approach to detect mouse button state changes
+  // This is a workaround since Electron doesn't have native click detection
+  let lastButtonState = false
+  const clickCheckInterval = setInterval(() => {
     if (!isMouseTracking || !mouseEventSender) {
-      if (clickDetectionInterval) {
-        clearInterval(clickDetectionInterval)
-        clickDetectionInterval = null
-      }
+      clearInterval(clickCheckInterval)
       return
     }
-  }, 100)
+    
+    try {
+      // Check if we can detect button state (this is limited in Electron)
+      // For now, we'll emit synthetic click events based on user interaction
+      // This will be improved with native module in future
+    } catch (error) {
+      console.error('Error in click detection:', error)
+    }
+  }, 50)
   
-  console.log('🖱️ Click detection started (velocity-based)')
+  // Register global shortcut for mouse clicks (workaround)
+  // Note: This is limited and won't capture all clicks
+  try {
+    // Emit click events when certain conditions are met
+    // This is a placeholder for proper click detection
+    process.on('message', (msg: any) => {
+      if (msg.type === 'click' && mouseEventSender) {
+        const position = screen.getCursorScreenPoint()
+        mouseEventSender.send('mouse-click', {
+          x: Math.round(position.x),
+          y: Math.round(position.y),
+          timestamp: Date.now()
+        })
+      }
+    })
+  } catch (error) {
+    console.error('Error setting up click detection:', error)
+  }
+  
+  console.log('🖱️ Click detection started')
 }
 
 function stopClickDetection(): void {
   clickDetectionActive = false
-  if (clickDetectionInterval) {
-    clearInterval(clickDetectionInterval)
-    clickDetectionInterval = null
-  }
   console.log('🖱️ Click detection stopped')
 }
 

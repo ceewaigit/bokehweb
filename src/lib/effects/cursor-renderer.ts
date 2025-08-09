@@ -13,6 +13,8 @@ interface CursorOptions {
   smoothing?: boolean
   motionBlur?: boolean
   cursorStyle?: 'macos' | 'windows' | 'custom'
+  autoHide?: boolean
+  hideDelay?: number // ms before hiding cursor when idle
 }
 
 export class CursorRenderer {
@@ -27,12 +29,14 @@ export class CursorRenderer {
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
-      size: 1,
+      size: 1.5, // Bigger cursor like Screen Studio
       color: '#000000',
       clickColor: '#007AFF',
       smoothing: true,
       motionBlur: true,
       cursorStyle: 'macos',
+      autoHide: true,
+      hideDelay: 500, // Hide after 500ms of no movement
       ...options
     }
 
@@ -42,7 +46,7 @@ export class CursorRenderer {
   }
 
   private createCursorDataURL(): string {
-    const size = (this.options.size || 1) * 24
+    const size = (this.options.size || 1.5) * 28 // Bigger base size
     const color = this.options.color || '#000000'
 
     if (this.options.cursorStyle === 'macos') {
@@ -133,6 +137,39 @@ export class CursorRenderer {
     // Find the current cursor position
     const event = this.getCurrentEvent(currentTime)
     if (!event) return
+    
+    // Check if cursor should be hidden (idle detection)
+    if (this.options.autoHide) {
+      // Find the last movement time
+      let lastMovementTime = 0
+      let lastX = event.mouseX
+      let lastY = event.mouseY
+      
+      // Look for recent movement
+      for (let i = this.events.length - 1; i >= 0; i--) {
+        const e = this.events[i]
+        if (e.timestamp > currentTime) continue
+        
+        const distance = Math.sqrt(
+          Math.pow(e.mouseX - lastX, 2) + 
+          Math.pow(e.mouseY - lastY, 2)
+        )
+        
+        if (distance > 5) { // Movement threshold
+          lastMovementTime = e.timestamp
+          break
+        }
+        
+        lastX = e.mouseX
+        lastY = e.mouseY
+      }
+      
+      // Hide cursor if idle for too long
+      const idleTime = currentTime - lastMovementTime
+      if (idleTime > (this.options.hideDelay || 500)) {
+        return // Don't render cursor when idle
+      }
+    }
 
     // Update and render click animations
     this.updateClickAnimations()
