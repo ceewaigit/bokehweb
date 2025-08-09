@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useRecordingStore } from '@/stores/recording-store'
-import { useTimelineStore } from '@/stores/timeline-store'
+import { useProjectStore } from '@/stores/project-store'
 import { ScreenRecorder, type RecordingResult } from '@/lib/recording/screen-recorder'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
@@ -41,7 +41,7 @@ export function useRecording() {
     setStatus 
   } = useRecordingStore()
 
-  const { project, createNewProject } = useTimelineStore()
+  const { project, createNewProject } = useProjectStore()
 
   // Simple duration validation - no longer needed with proper MediaRecorder
   const validateResult = useCallback((result: RecordingResult): boolean => {
@@ -383,11 +383,11 @@ export function useRecording() {
           }
         }
         
-        // For backwards compatibility, also update the timeline store
+        // Update the project store with the new recording
         let currentProject = project
         if (!currentProject) {
           createNewProject(projectName)
-          currentProject = useTimelineStore.getState().project
+          currentProject = useProjectStore.getState().project
         }
         
         if (currentProject && result.video) {
@@ -398,9 +398,11 @@ export function useRecording() {
           // Save metadata for preview rendering
           localStorage.setItem(`recording-metadata-${recordingId}`, JSON.stringify(result.metadata))
           
-          // Add the recording to the project
-          const projectStore = useTimelineStore.getState()
+          // Add the recording to the project with all metadata
+          const projectStore = useProjectStore.getState()
           projectStore.addRecording(recording, result.video)
+          
+          logger.info(`Added recording ${recordingId} to project with ${mouseEvents.length} mouse events`)  
         }
       }
 

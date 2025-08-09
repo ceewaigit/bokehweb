@@ -22,7 +22,6 @@ import {
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
 import { useRecordingStore } from '@/stores/recording-store'
-import { useTimelineStore } from '@/stores/timeline-store'
 import { useProjectStore } from '@/stores/project-store'
 import { cn, formatTime } from '@/lib/utils'
 
@@ -40,14 +39,11 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
   } = useRecordingStore()
 
   const {
+    currentProject,
     currentTime,
     isPlaying,
     setPlaying,
-    setCurrentTime
-  } = useTimelineStore()
-  
-  const {
-    currentProject,
+    setCurrentTime,
     saveCurrentProject,
     newProject
   } = useProjectStore()

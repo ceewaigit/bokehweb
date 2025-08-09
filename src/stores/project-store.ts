@@ -139,12 +139,26 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       if (!state.currentProject) return state
       
       const project = { ...state.currentProject }
-      project.recordings.push(recording)
+      
+      // Ensure the recording has all necessary fields
+      const completeRecording = {
+        ...recording,
+        metadata: recording.metadata || {
+          mouseEvents: [],
+          keyboardEvents: [],
+          clickEvents: [],
+          screenEvents: []
+        }
+      }
+      
+      project.recordings.push(completeRecording)
+      
+      logger.info(`Adding recording to project: ${completeRecording.id} with ${completeRecording.metadata.mouseEvents?.length || 0} mouse events, ${completeRecording.metadata.clickEvents?.length || 0} click events`)
       
       // Automatically add a clip for the new recording
       const clip: Clip = {
         id: `clip-${Date.now()}`,
-        recordingId: recording.id,
+        recordingId: completeRecording.id,
         startTime: project.timeline.duration,
         duration: recording.duration,
         sourceIn: 0,
@@ -199,21 +213,31 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       )
       
       // Store video blob URL for preview
-      const blobUrl = globalBlobManager.create(videoBlob, `recording-${recording.id}`)
-      localStorage.setItem(`recording-blob-${recording.id}`, blobUrl)
+      const blobUrl = globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
+      localStorage.setItem(`recording-blob-${completeRecording.id}`, blobUrl)
       
-      // Store metadata for effects rendering
-      if (recording.metadata) {
+      // Store metadata for effects rendering in multiple formats for backward compatibility
+      if (completeRecording.metadata) {
+        // Store with recording ID
         localStorage.setItem(
-          `recording-metadata-${recording.id}`, 
-          JSON.stringify(recording.metadata)
+          `recording-metadata-${completeRecording.id}`, 
+          JSON.stringify(completeRecording.metadata)
         )
+        
+        // Also store with clip ID for direct access
+        localStorage.setItem(
+          `clip-metadata-${clip.id}`, 
+          JSON.stringify(completeRecording.metadata)
+        )
+        
+        logger.info(`Stored metadata for recording ${completeRecording.id} and clip ${clip.id}`)
       }
       
       project.modifiedAt = new Date().toISOString()
       
       return { 
         currentProject: project,
+        project: project, // Keep alias in sync
         selectedClipId: clip.id
       }
     })

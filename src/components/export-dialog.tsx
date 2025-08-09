@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useExportStore } from '@/stores/export-store'
-import { useTimelineStore } from '@/stores/timeline-store'
 import { useProjectStore } from '@/stores/project-store'
 import { Button } from './ui/button'
 import { Badge } from './ui/badge'
@@ -39,8 +38,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     reset
   } = useExportStore()
 
-  const { project } = useTimelineStore()
-  const { currentProject, getCurrentClip } = useProjectStore()
+  const { currentProject, project, getCurrentClip } = useProjectStore()
 
   const presets = [
     { id: 'youtube-1080p', name: 'YouTube 1080p', desc: '1920×1080, 60fps, MP4' },

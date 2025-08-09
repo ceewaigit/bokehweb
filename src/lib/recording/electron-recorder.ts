@@ -4,9 +4,26 @@
  */
 
 import type { RecordingSettings } from '@/types'
-import type { EnhancementSettings } from './screen-recorder'
 import { logger } from '@/lib/utils/logger'
 import { PermissionError, ElectronError } from '@/lib/core/errors'
+
+// Enhancement settings moved here from screen-recorder
+export interface EnhancementSettings {
+  enableAutoZoom: boolean
+  zoomSensitivity: number
+  maxZoom: number
+  zoomSpeed: number
+  showCursor: boolean
+  cursorSize: number
+  cursorColor: string
+  showClickEffects: boolean
+  clickEffectSize: number
+  clickEffectColor: string
+  enableSmartPanning: boolean
+  panSpeed: number
+  motionSensitivity: number
+  enableSmoothAnimations: boolean
+}
 
 export interface ElectronRecordingResult {
   video: Blob
@@ -528,6 +545,60 @@ export class ElectronRecorder {
 
   isCurrentlyRecording(): boolean {
     return this.isRecording
+  }
+
+  pauseRecording(): void {
+    if (!this.mediaRecorder || !this.isRecording || this.isPaused) {
+      logger.warn('Cannot pause: recorder not in recording state')
+      return
+    }
+
+    if (this.mediaRecorder.state === 'recording') {
+      this.mediaRecorder.pause()
+      this.isPaused = true
+      this.lastPauseTime = Date.now()
+      logger.info('Recording paused')
+    }
+  }
+
+  resumeRecording(): void {
+    if (!this.mediaRecorder || !this.isRecording || !this.isPaused) {
+      logger.warn('Cannot resume: recorder not in paused state')
+      return
+    }
+
+    if (this.mediaRecorder.state === 'paused') {
+      this.mediaRecorder.resume()
+      this.isPaused = false
+      
+      // Track total paused duration
+      if (this.lastPauseTime > 0) {
+        this.pausedDuration += Date.now() - this.lastPauseTime
+        this.lastPauseTime = 0
+      }
+      
+      logger.info('Recording resumed')
+    }
+  }
+
+  getDuration(): number {
+    if (!this.isRecording) return 0
+    
+    const now = Date.now()
+    let duration = now - this.startTime - this.pausedDuration
+    
+    // If currently paused, subtract time since pause
+    if (this.isPaused && this.lastPauseTime > 0) {
+      duration -= (now - this.lastPauseTime)
+    }
+    
+    return Math.max(0, duration)
+  }
+
+  getState(): 'idle' | 'recording' | 'paused' {
+    if (!this.isRecording) return 'idle'
+    if (this.isPaused) return 'paused'
+    return 'recording'
   }
 
   // Get available sources for source selection UI

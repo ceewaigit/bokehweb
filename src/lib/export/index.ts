@@ -3,4 +3,6 @@
  * Video export, encoding, and output management
  */
 
-export * from './export-engine'
+export { ExportEngine } from './export-engine'
+export type { ExportProgress, ExportOptions } from './export-engine'
+export { FFmpegConverter } from './ffmpeg-converter'

@@ -9,13 +9,13 @@ import { PropertiesPanel } from '../properties-panel'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
 import { RecordingController } from './recording-controller'
-import { useTimelineStore } from '@/stores/timeline-store'
+import { useProjectStore } from '@/stores/project-store'
 import { cn } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import type { Recording } from '@/types/project'
 
 export function WorkspaceManager() {
-  const { project, createNewProject } = useTimelineStore()
+  const { project, createNewProject } = useProjectStore()
   // Recording is handled by RecordingController
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(true)
   const [isExportOpen, setIsExportOpen] = useState(false)
@@ -80,7 +80,7 @@ export function WorkspaceManager() {
                           localStorage.setItem(`recording-blob-${rec.id}`, url)
 
                           // Add recording to project store
-                          useTimelineStore.getState().addRecording(rec, blob)
+                          useProjectStore.getState().addRecording(rec, blob)
 
                           // Save metadata for effects rendering
                           if (rec.metadata) {
@@ -161,7 +161,7 @@ export function WorkspaceManager() {
                 }
 
                 // Add recording to project store
-                useTimelineStore.getState().addRecording(rec, blob)
+                useProjectStore.getState().addRecording(rec, blob)
 
                 // Try to load metadata if it exists
                 try {

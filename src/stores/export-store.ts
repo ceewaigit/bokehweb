@@ -1,6 +1,5 @@
 import { create } from 'zustand'
-import { ExportEngine, type ExportProgress } from '@/lib/export'
-import { EffectsExportEngine, type ExportOptions } from '@/lib/export/effects-export-engine'
+import { ExportEngine, type ExportProgress, type ExportOptions } from '@/lib/export'
 import type { ExportSettings, Project } from '@/types'
 
 interface ExportStore {
@@ -32,7 +31,6 @@ const defaultSettings: ExportSettings = {
 
 export const useExportStore = create<ExportStore>((set, get) => {
   let engine: ExportEngine | null = null
-  let effectsEngine: EffectsExportEngine | null = null
 
   const getEngine = () => {
     if (!engine && typeof window !== 'undefined') {
@@ -42,16 +40,6 @@ export const useExportStore = create<ExportStore>((set, get) => {
       throw new Error('ExportEngine not available in SSR context')
     }
     return engine
-  }
-
-  const getEffectsEngine = () => {
-    if (!effectsEngine && typeof window !== 'undefined') {
-      effectsEngine = new EffectsExportEngine()
-    }
-    if (!effectsEngine) {
-      throw new Error('EffectsExportEngine not available in SSR context')
-    }
-    return effectsEngine
   }
 
   return {
@@ -94,95 +82,40 @@ export const useExportStore = create<ExportStore>((set, get) => {
           localStorage.getItem(`recording-metadata-${associatedRecording.filePath}`) : null
         const hasMetadata = !!(idKey || pathKey)
 
-        if (hasMetadata) {
-          // Use effects export engine
-          const effectsEngine = getEffectsEngine()
-          const metadataRaw = idKey || pathKey || '[]'
-          const metadata = JSON.parse(metadataRaw)
+        // Use unified export engine with appropriate options
+        const engine = getEngine()
 
-          // Fetch video blob from recording
-          if (!associatedRecording) {
-            throw new Error('Recording not found for clip')
-          }
-
-          // Try to get blob URL variants first, otherwise use file path
-          let videoBlob: Blob
-          const blobUrlById = typeof window !== 'undefined'
-            ? localStorage.getItem(`recording-blob-${associatedRecording.id}`)
-            : null
-          const blobUrlByPath = typeof window !== 'undefined' && associatedRecording.filePath
-            ? localStorage.getItem(`recording-blob-${associatedRecording.filePath}`)
-            : null
-
-          if (blobUrlById) {
-            const videoResponse = await fetch(blobUrlById)
-            videoBlob = await videoResponse.blob()
-          } else if (blobUrlByPath) {
-            const videoResponse = await fetch(blobUrlByPath)
-            videoBlob = await videoResponse.blob()
-          } else if (associatedRecording.filePath) {
-            const videoResponse = await fetch(associatedRecording.filePath)
-            videoBlob = await videoResponse.blob()
-          } else {
-            throw new Error('No video source found for recording')
-          }
-
-          const exportOptions: ExportOptions = {
-            format: exportSettings.format as 'mp4' | 'webm' | 'gif' | 'mov',
-            quality: exportSettings.quality as 'low' | 'medium' | 'high' | 'ultra',
-            framerate: exportSettings.framerate,
-            resolution: exportSettings.resolution,
-            enableCursor: true,
-            enableZoom: true,
-            enableEffects: true
-          }
-
-          const blob = await effectsEngine.exportWithEffects(
-            videoBlob,
-            metadata,
-            exportOptions,
-            (progress) => set({
-              progress: {
-                progress: Math.max(0, Math.min(100, progress.progress)),
-                stage: progress.phase as any, // Map phase to stage
-                message: progress.message || ''
-              }
-            })
-          )
-
-          set({
-            isExporting: false,
-            lastExport: blob,
-            progress: {
-              progress: 100,
-              stage: 'complete',
-              message: 'Export complete with effects!'
-            }
-          })
-        } else {
-          // Fallback to basic export
-          const engine = getEngine()
-          const blob = await engine.exportProject(
-            project,
-            exportSettings,
-            (progress) => set({
-              progress: {
-                ...progress,
-                progress: Math.max(0, Math.min(100, progress.progress))
-              }
-            })
-          )
-
-          set({
-            isExporting: false,
-            lastExport: blob,
-            progress: {
-              progress: 100,
-              stage: 'complete',
-              message: 'Export complete!'
-            }
-          })
+        const exportOptions: ExportOptions = {
+          format: exportSettings.format as 'mp4' | 'webm' | 'gif' | 'mov',
+          quality: exportSettings.quality as 'low' | 'medium' | 'high' | 'ultra',
+          framerate: exportSettings.framerate,
+          resolution: exportSettings.resolution,
+          enableCursor: hasMetadata,
+          enableZoom: hasMetadata,
+          enableEffects: hasMetadata
         }
+
+        const blob = await engine.exportProject(
+          project,
+          exportSettings,
+          exportOptions,
+          (progress) => set({
+            progress: {
+              ...progress,
+              progress: Math.max(0, Math.min(100, progress.progress))
+            }
+          })
+        )
+
+        set({
+          isExporting: false,
+          lastExport: blob,
+          progress: {
+            progress: 100,
+            stage: 'complete',
+            message: 'Export complete!'
+          }
+        })
 
       } catch (error) {
         set({
@@ -203,9 +136,37 @@ export const useExportStore = create<ExportStore>((set, get) => {
       set({ isExporting: true, progress: null, lastExport: null })
 
       try {
+        // Get first video clip
+        const videoClip = project.timeline.tracks
+          .filter(track => track.type === 'video')
+          .flatMap(track => track.clips)[0]
+
+        if (!videoClip) {
+          throw new Error('No video clips found')
+        }
+
+        const recording = project.recordings.find(r => r.id === videoClip.recordingId)
+        if (!recording) {
+          throw new Error('Recording not found')
+        }
+
+        // Get video blob
+        let videoBlob: Blob
+        const blobUrl = localStorage.getItem(`recording-blob-${recording.id}`)
+        if (blobUrl) {
+          const response = await fetch(blobUrl)
+          videoBlob = await response.blob()
+        } else {
+          throw new Error('No video source found')
+        }
+
         const blob = await engine.exportAsGIF(
-          project,
-          { ...exportSettings, format: 'gif' },
+          videoBlob,
+          {
+            width: exportSettings.resolution.width,
+            height: exportSettings.resolution.height,
+            fps: 10
+          },
           (progress) => set({
             progress: {
               ...progress,
@@ -238,16 +199,60 @@ export const useExportStore = create<ExportStore>((set, get) => {
 
     saveLastExport: async (filename) => {
       const { lastExport } = get()
-      const engine = getEngine()
-      if (lastExport) {
-        await engine.saveFile(lastExport, filename)
+      if (lastExport && window.electronAPI?.saveRecording) {
+        // Use Electron API to save file
+        const buffer = await lastExport.arrayBuffer()
+        await window.electronAPI.saveRecording(filename, buffer)
+      } else if (lastExport) {
+        // Browser download
+        const url = URL.createObjectURL(lastExport)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        a.click()
+        URL.revokeObjectURL(url)
       }
     },
 
     setPreset: (preset) => {
-      const engine = getEngine()
-      const presetSettings = engine.getPresetSettings(preset)
-      get().updateSettings(presetSettings)
+      // Define preset settings
+      const presets: Record<string, Partial<ExportSettings>> = {
+        'youtube-1080p': {
+          format: 'mp4',
+          quality: 'high',
+          resolution: { width: 1920, height: 1080 },
+          framerate: 60
+        },
+        'youtube-720p': {
+          format: 'mp4',
+          quality: 'medium',
+          resolution: { width: 1280, height: 720 },
+          framerate: 60
+        },
+        'twitter': {
+          format: 'mp4',
+          quality: 'medium',
+          resolution: { width: 1280, height: 720 },
+          framerate: 30
+        },
+        'instagram': {
+          format: 'mp4',
+          quality: 'medium',
+          resolution: { width: 1080, height: 1080 },
+          framerate: 30
+        },
+        'gif': {
+          format: 'gif',
+          quality: 'low',
+          resolution: { width: 640, height: 360 },
+          framerate: 10
+        }
+      }
+
+      const presetSettings = presets[preset]
+      if (presetSettings) {
+        get().updateSettings(presetSettings)
+      }
     },
 
     reset: () => {

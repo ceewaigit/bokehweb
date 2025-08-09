@@ -1,13 +1,11 @@
 "use client"
 
 import { useRef, useEffect, useState, useCallback } from 'react'
-import { useTimelineStore } from '@/stores/timeline-store'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useProjectStore } from '@/stores/project-store'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { ZoomEngine } from '@/lib/effects/zoom-engine'
 import { Button } from './ui/button'
-import { Badge } from './ui/badge'
 import { Separator } from './ui/separator'
 import { Play, Pause, RotateCcw, Eye, EyeOff, SkipBack, SkipForward, MousePointer, ZoomIn } from 'lucide-react'
 
@@ -24,30 +22,36 @@ export function PreviewArea() {
   const [showZoom, setShowZoom] = useState(true)
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [videoError, setVideoError] = useState<string | null>(null)
-  const { project, currentTime, isPlaying, setPlaying, setCurrentTime } = useTimelineStore()
+  const { project, currentTime, isPlaying, setPlaying, setCurrentTime } = useProjectStore()
   const { isRecording } = useRecordingStore()
   const { currentProject, selectedClipId, getCurrentClip, getCurrentRecording } = useProjectStore()
 
   // Get the current clip from project store
   const projectClip = getCurrentClip()
   const projectRecording = getCurrentRecording()
-  
+
   // Create a simplified clip object for the preview
   const currentClip = projectClip ? {
     id: projectClip.id,
     source: localStorage.getItem(`recording-blob-${projectClip.recordingId}`) || '',
     originalSource: ''
   } : null
-  
+
   const hasEnhancements = currentClip?.originalSource && currentClip?.source !== currentClip?.originalSource
 
   // Get metadata from project or localStorage
   const getClipMetadata = useCallback(() => {
     // First try project store
     if (projectRecording?.metadata) {
+      console.log('📊 Found metadata in project recording:', {
+        mouseEvents: projectRecording.metadata.mouseEvents?.length || 0,
+        clickEvents: projectRecording.metadata.clickEvents?.length || 0,
+        keyboardEvents: projectRecording.metadata.keyboardEvents?.length || 0
+      })
+
       // Convert to preview format
       const metadata: any[] = []
-      
+
       projectRecording.metadata.mouseEvents?.forEach(e => {
         metadata.push({
           timestamp: e.timestamp,
@@ -55,12 +59,12 @@ export function PreviewArea() {
           mouseY: e.y,
           scrollX: 0,
           scrollY: 0,
-          windowWidth: e.screenWidth,
-          windowHeight: e.screenHeight,
+          windowWidth: e.screenWidth || projectRecording.width,
+          windowHeight: e.screenHeight || projectRecording.height,
           eventType: 'mouse'
         })
       })
-      
+
       projectRecording.metadata.clickEvents?.forEach(e => {
         metadata.push({
           timestamp: e.timestamp,
@@ -74,19 +78,34 @@ export function PreviewArea() {
           data: { button: e.button }
         })
       })
-      
-      return metadata
+
+      console.log(`✅ Converted ${metadata.length} metadata events for preview`)
+      return metadata.length > 0 ? metadata : null
     }
-    
-    // Fall back to localStorage
-    if (!currentClip?.id) return null
-    try {
-      const stored = localStorage.getItem(`clip-metadata-${currentClip.id}`)
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
+
+    // Try multiple localStorage keys
+    const keysToTry = [
+      `clip-metadata-${currentClip?.id}`,
+      `recording-metadata-${projectClip?.recordingId}`,
+      projectRecording?.filePath ? `recording-metadata-${projectRecording.filePath}` : null
+    ].filter(Boolean)
+
+    for (const key of keysToTry) {
+      try {
+        const stored = localStorage.getItem(key!)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          console.log(`📦 Found metadata in localStorage with key ${key}: ${parsed.length} events`)
+          return parsed
+        }
+      } catch (e) {
+        console.warn(`Failed to parse metadata from ${key}:`, e)
+      }
     }
-  }, [currentClip?.id, projectRecording])
+
+    console.log('❌ No metadata found for current clip')
+    return null
+  }, [currentClip?.id, projectClip?.recordingId, projectRecording])
 
   // Load video when clip changes
   useEffect(() => {
@@ -138,10 +157,13 @@ export function PreviewArea() {
   // Set up zoom effect when video loads
   useEffect(() => {
     if (!isVideoLoaded || !videoRef.current || !containerRef.current) {
+      console.log('🔍 Zoom setup: Video not ready yet')
       return
     }
 
     const metadata = getClipMetadata()
+    console.log(`🔍 Zoom setup: showZoom=${showZoom}, metadata=${metadata?.length || 0} events`)
+
     if (!metadata || metadata.length === 0 || !showZoom) {
       // Hide zoom canvas if disabled
       if (zoomCanvasRef.current) {
@@ -151,6 +173,7 @@ export function PreviewArea() {
       if (videoRef.current) {
         videoRef.current.style.display = 'block'
       }
+      console.log('🔍 Zoom disabled or no metadata - showing video directly')
       return
     }
 
@@ -227,6 +250,7 @@ export function PreviewArea() {
   // Set up cursor rendering when video loads
   useEffect(() => {
     if (!isVideoLoaded || !videoRef.current || !containerRef.current || !showCursor) {
+      console.log('🖱️ Cursor setup: Not ready or cursor disabled')
       // Clean up old cursor
       if (cursorCanvasRef.current) {
         cursorCanvasRef.current.remove()
@@ -240,8 +264,10 @@ export function PreviewArea() {
     }
 
     const metadata = getClipMetadata()
+    console.log(`🖱️ Cursor setup: showCursor=${showCursor}, metadata=${metadata?.length || 0} events`)
+
     if (!metadata || metadata.length === 0) {
-      console.log('No cursor metadata available for this clip')
+      console.log('🖱️ No cursor metadata available for this clip')
       return
     }
 
@@ -288,13 +314,14 @@ export function PreviewArea() {
     }
   }, [isPlaying, isVideoLoaded, setPlaying])
 
-  // Sync video time with timeline
+  // Sync video time with timeline (convert from ms to seconds)
   useEffect(() => {
     const video = videoRef.current
     if (!video || !isVideoLoaded) return
 
-    if (Math.abs(video.currentTime - currentTime) > 0.1) {
-      video.currentTime = currentTime
+    const timeInSeconds = currentTime / 1000
+    if (Math.abs(video.currentTime - timeInSeconds) > 0.01) {
+      video.currentTime = timeInSeconds
     }
   }, [currentTime, isVideoLoaded])
 
@@ -311,7 +338,7 @@ export function PreviewArea() {
     const video = videoRef.current
     if (video && isVideoLoaded) {
       video.currentTime = Math.max(0, video.currentTime - 5)
-      setCurrentTime(video.currentTime)
+      setCurrentTime(video.currentTime * 1000)
     }
   }
 
@@ -319,7 +346,7 @@ export function PreviewArea() {
     const video = videoRef.current
     if (video && isVideoLoaded) {
       video.currentTime = Math.min(video.duration, video.currentTime + 5)
-      setCurrentTime(video.currentTime)
+      setCurrentTime(video.currentTime * 1000)
     }
   }
 
@@ -352,7 +379,7 @@ export function PreviewArea() {
             <div ref={containerRef} className="relative max-w-full max-h-full p-8 flex items-center justify-center">
               {/* Decorative background glow */}
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-primary/10 blur-3xl opacity-50 pointer-events-none" />
-              
+
               <video
                 ref={videoRef}
                 className="relative rounded-xl shadow-2xl ring-1 ring-border/20 backdrop-blur-sm"
@@ -361,8 +388,9 @@ export function PreviewArea() {
                 playsInline
                 onTimeUpdate={(e) => {
                   const video = e.target as HTMLVideoElement
-                  if (!isNaN(video.currentTime) && Math.abs(video.currentTime - currentTime) > 0.1) {
-                    setCurrentTime(video.currentTime)
+                  const timeInMs = video.currentTime * 1000
+                  if (!isNaN(video.currentTime) && Math.abs(timeInMs - currentTime) > 100) {
+                    setCurrentTime(timeInMs)
                   }
                 }}
                 onLoadedMetadata={(e) => {
@@ -371,13 +399,18 @@ export function PreviewArea() {
                     duration: video.duration,
                     dimensions: `${video.videoWidth}x${video.videoHeight}`
                   })
-                  // Treat live/infinite streams as having a fallback duration
-                  if (!isFinite(video.duration)) {
-                    // Default to 10 minutes if unknown
-                    const fallbackMs = 10 * 60 * 1000
-                    // Update timeline max duration via store if needed
-                    // No direct project.settings mutation here; timeline computes from clips
+
+                  // Update the clip duration if we have a valid duration
+                  if (isFinite(video.duration) && projectClip) {
+                    const durationMs = video.duration * 1000
+                    // Update clip duration if it's different
+                    if (Math.abs(projectClip.duration - durationMs) > 100) {
+                      currentProject && useProjectStore.getState().updateClip(projectClip.id, {
+                        duration: durationMs
+                      })
+                    }
                   }
+
                   setIsVideoLoaded(true)
                   setVideoError(null)
                 }}
@@ -438,7 +471,7 @@ export function PreviewArea() {
                 </div>
 
                 <Separator orientation="vertical" className="h-8" />
-                
+
                 {/* Effect Toggles */}
                 <div className="flex items-center space-x-1">
                   {/* Zoom Toggle */}

@@ -35,18 +35,18 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
       if (window.electronAPI?.loadRecordings) {
         const files = await window.electronAPI.loadRecordings()
         const recordingsList: Recording[] = []
-        
+
         for (const file of files) {
           const recording: Recording = {
             name: file.name,
             path: file.path,
             timestamp: new Date(file.timestamp)
           }
-          
+
           // Check if it's a project file
           if (file.path.endsWith('.ssproj')) {
             recording.isProject = true
-            
+
             // Try to load the project data
             try {
               if (window.electronAPI?.readLocalFile) {
@@ -64,10 +64,10 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               console.error('Failed to load project data:', e)
             }
           }
-          
+
           recordingsList.push(recording)
         }
-        
+
         // Sort by timestamp, newest first
         recordingsList.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         setRecordings(recordingsList)
@@ -149,11 +149,11 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 "relative rounded-xl overflow-hidden transition-all cursor-pointer group",
                 "bg-gradient-to-b from-card to-card/50 backdrop-blur-sm",
                 "border border-border/50",
-                hoveredIndex === index 
-                  ? "shadow-2xl scale-[1.02] border-primary/50 ring-2 ring-primary/20" 
+                hoveredIndex === index
+                  ? "shadow-2xl scale-[1.02] border-primary/50 ring-2 ring-primary/20"
                   : "hover:shadow-xl"
               )}
-              onClick={() => onSelectRecording(recording)}
+                onClick={() => onSelectRecording(recording)}
               >
                 {/* Thumbnail placeholder */}
                 <div className="aspect-video bg-gradient-to-br from-primary/20 via-primary/10 to-background relative overflow-hidden">
@@ -164,10 +164,10 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                       <Film className="w-16 h-16 text-primary/20" />
                     )}
                   </div>
-                  
+
                   {/* Animated gradient overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
-                  
+
                   {/* Project badge for .ssproj files */}
                   {recording.isProject && (
                     <div className="absolute top-3 left-3 bg-primary/90 backdrop-blur-sm text-primary-foreground text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1.5 font-medium shadow-lg">
@@ -175,10 +175,10 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                       <span>Project</span>
                     </div>
                   )}
-                  
+
                   {/* Duration badge */}
                   <div className="absolute bottom-3 right-3 bg-background/90 backdrop-blur-sm text-foreground text-xs px-2.5 py-1.5 rounded-md font-medium shadow-lg">
-                    {recording.project?.timeline?.duration 
+                    {recording.project?.timeline?.duration
                       ? `${Math.floor(recording.project.timeline.duration / 60000)}:${String(Math.floor((recording.project.timeline.duration % 60000) / 1000)).padStart(2, '0')}`
                       : formatDuration(recording.path)
                     }
@@ -202,7 +202,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 {/* Recording info */}
                 <div className="p-5">
                   <h3 className="font-semibold text-lg mb-2 truncate">
-                    {recording.isProject && recording.project?.name 
+                    {recording.isProject && recording.project?.name
                       ? recording.project.name
                       : recording.name.replace(/^Recording_/, '').replace(/\.(webm|mp4|ssproj)$/, '')
                     }

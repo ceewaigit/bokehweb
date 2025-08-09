@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from 'react'
-import { useTimelineStore } from '@/stores/timeline-store'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useProjectStore } from '@/stores/project-store'
 import { Slider } from './ui/slider'
@@ -21,9 +20,8 @@ import {
 
 export function PropertiesPanel() {
   const [activeTab, setActiveTab] = useState<'project' | 'clip' | 'effects' | 'audio'>('project')
-  const { project, selectedClips } = useTimelineStore()
   const { settings, updateSettings } = useRecordingStore()
-  const { currentProject, getCurrentClip, updateClipEffects } = useProjectStore()
+  const { currentProject, project, selectedClips, getCurrentClip, updateClipEffects } = useProjectStore()
 
   const selectedClip = getCurrentClip()
 

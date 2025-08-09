@@ -54,7 +54,23 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
   const timelineRef = useRef<HTMLDivElement>(null)
   const playheadRef = useRef<HTMLDivElement>(null)
 
-  const duration = currentProject?.timeline?.duration || 10000
+  // Calculate duration from clips or use default
+  const calculateDuration = () => {
+    if (!currentProject?.timeline?.tracks) return 10000
+    
+    let maxEndTime = 0
+    for (const track of currentProject.timeline.tracks) {
+      for (const clip of track.clips) {
+        const endTime = clip.startTime + clip.duration
+        maxEndTime = Math.max(maxEndTime, endTime)
+      }
+    }
+    
+    // Add some padding at the end
+    return Math.max(10000, maxEndTime + 2000)
+  }
+  
+  const duration = calculateDuration()
 
   const pixelsPerMs = zoom * 0.1 // Zoom factor for timeline width
   const timelineWidth = duration * pixelsPerMs
@@ -365,7 +381,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     clearSelection
   ])
 
-  // Scroll playhead into view
+  // Scroll playhead into view and update during playback
   useEffect(() => {
     if (!playheadRef.current || !timelineRef.current) return
 
@@ -375,12 +391,22 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     const scrollLeft = container.scrollLeft
 
     // Auto-scroll to keep playhead visible
-    if (playheadX < scrollLeft + 50) {
-      container.scrollLeft = Math.max(0, playheadX - 50)
-    } else if (playheadX > scrollLeft + containerWidth - 50) {
-      container.scrollLeft = playheadX - containerWidth + 50
+    if (isPlaying) {
+      // During playback, smoothly follow the playhead
+      if (playheadX > scrollLeft + containerWidth - 100) {
+        container.scrollLeft = playheadX - 100
+      } else if (playheadX < scrollLeft + 50) {
+        container.scrollLeft = Math.max(0, playheadX - 50)
+      }
+    } else {
+      // When not playing, only scroll if playhead is out of view
+      if (playheadX < scrollLeft + 50) {
+        container.scrollLeft = Math.max(0, playheadX - 50)
+      } else if (playheadX > scrollLeft + containerWidth - 50) {
+        container.scrollLeft = playheadX - containerWidth + 50
+      }
     }
-  }, [currentTime, timeToPixel])
+  }, [currentTime, isPlaying, timeToPixel])
 
   // Render timeline ruler
   const renderRuler = () => {
@@ -564,7 +590,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         </div>
 
         {/* Zoom Controls */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
           <Button
             size="sm"
             variant="ghost"
@@ -572,14 +598,16 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           >
             <ZoomOut className="w-4 h-4" />
           </Button>
-          <Slider
-            value={[zoom]}
-            onValueChange={([value]) => setZoom(value)}
-            min={0.1}
-            max={5}
-            step={0.1}
-            className="w-32"
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <Slider
+              value={[zoom]}
+              onValueChange={([value]) => setZoom(value)}
+              min={0.1}
+              max={5}
+              step={0.1}
+              className="w-32"
+            />
+          </div>
           <Button
             size="sm"
             variant="ghost"
