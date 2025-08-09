@@ -49,6 +49,16 @@ jspm_packages/
 # TypeScript cache
 *.tsbuildinfo
 
+# Source maps (we don't need them)
+*.js.map
+*.ts.map
+*.map
+
+# TypeScript declaration files (except the ones we need)
+*.d.ts
+!next-env.d.ts
+!src/types/*.d.ts
+
 # Optional npm cache directory
 .npm
 

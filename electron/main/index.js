@@ -4,7 +4,14 @@ const { isDev, getRecordingsDirectory } = require('./config')
 const { createRecordButton, setupRecordButton } = require('./windows/record-button')
 const { checkMediaPermissions } = require('./services/permissions')
 const { registerRecordingHandlers } = require('./handlers/recording')
-const { registerSourceHandlers } = require('./handlers/sources')
+// Use compiled TypeScript version if available, else fall back to JS
+const { registerSourceHandlers } = (() => {
+  try {
+    return require('./handlers/sources')
+  } catch {
+    return require('../../dist/main/handlers/sources')
+  }
+})()
 const { registerPermissionHandlers } = require('./handlers/permissions')
 const { registerMouseTrackingHandlers, cleanupMouseTracking } = require('./handlers/mouse-tracking')
 const { registerFileOperationHandlers } = require('./handlers/file-operations')

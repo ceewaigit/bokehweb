@@ -72,18 +72,18 @@ export class ElectronRecorder {
       }
 
       // Find the "Entire screen" source - this is what Screen Studio uses
-      let primarySource = sources.find((s: any) => 
-        s.id.startsWith('screen:') || 
+      let primarySource = sources.find((s: any) =>
+        s.id.startsWith('screen:') ||
         s.name.toLowerCase().includes('entire screen') ||
         s.name.toLowerCase().includes('screen 1')
       )
-      
+
       // Fallback to last source (usually the entire screen)
       if (!primarySource) {
         logger.warn('Could not find entire screen source, using last available source')
         primarySource = sources[sources.length - 1]
       }
-      
+
       logger.info(`Using screen source: ${primarySource.name} (${primarySource.id})`)
 
       // Check and request screen recording permission first
@@ -106,8 +106,9 @@ export class ElectronRecorder {
         ])
       }
 
-      // Get the proper constraints from the main process
-      const constraints = await window.electronAPI?.getDesktopStream?.(primarySource.id, hasAudio) || {
+      // ALWAYS use the mandatory format - this is what works universally
+      // Cast to 'any' because Electron extends the standard MediaStreamConstraints
+      const constraints: any = {
         audio: hasAudio ? {
           mandatory: {
             chromeMediaSource: 'desktop'
@@ -116,31 +117,28 @@ export class ElectronRecorder {
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id,
-            minWidth: 1280,
-            maxWidth: 4096,
-            minHeight: 720,
-            maxHeight: 2160
+            chromeMediaSourceId: primarySource.id
           }
         }
       }
-      logger.debug('Got stream constraints', constraints)
+
+      logger.debug('Using universal Electron constraints', constraints)
 
       // Now use getUserMedia with the Electron-specific constraints
       logger.debug('Requesting media stream with Electron constraints')
-      
+
       try {
         // In Electron, we must use getUserMedia with the specific desktop constraints
         this.stream = await navigator.mediaDevices.getUserMedia(constraints) as MediaStream
         logger.info('Desktop capture stream acquired successfully')
-        
+
         // If audio was requested but not in the desktop stream, add microphone
         if (hasAudio && this.stream.getAudioTracks().length === 0) {
           logger.debug('Adding microphone audio track')
           try {
-            const audioStream = await navigator.mediaDevices.getUserMedia({ 
-              audio: true, 
-              video: false 
+            const audioStream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+              video: false
             })
             const audioTrack = audioStream.getAudioTracks()[0]
             if (audioTrack) {
@@ -153,28 +151,7 @@ export class ElectronRecorder {
         }
       } catch (error) {
         logger.error('getUserMedia failed:', error)
-        
-        // If that fails, try a different approach
-        // Some Electron versions require different constraint format
-        const fallbackConstraints = {
-          audio: hasAudio,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: primarySource.id
-            }
-          } as any
-        }
-        
-        logger.debug('Trying fallback constraints')
-        
-        try {
-          this.stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints) as MediaStream
-          logger.info('Stream acquired with fallback constraints')
-        } catch (fallbackError) {
-          logger.error('Fallback also failed:', fallbackError)
-          throw new ElectronError(`Failed to capture desktop: ${fallbackError}`, 'getUserMedia')
-        }
+        throw new ElectronError(`Failed to capture desktop: ${error}`, 'getUserMedia')
       }
 
       logger.debug('Desktop capture stream acquired', {
@@ -295,18 +272,19 @@ export class ElectronRecorder {
 
     try {
       // Try a test getUserMedia call to check if permission is already granted
-      const testStream = await Promise.race([
-        navigator.mediaDevices.getUserMedia({
-          video: {
-            // @ts-ignore - Electron-specific constraint
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              maxWidth: 1,
-              maxHeight: 1,
-              maxFrameRate: 1
-            }
+      const testConstraints: any = {
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            maxWidth: 1,
+            maxHeight: 1,
+            maxFrameRate: 1
           }
-        }),
+        }
+      }
+
+      const testStream = await Promise.race([
+        navigator.mediaDevices.getUserMedia(testConstraints),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error('timeout')), 3000)
         )
