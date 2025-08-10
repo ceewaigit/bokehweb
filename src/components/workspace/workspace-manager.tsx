@@ -50,7 +50,7 @@ export function WorkspaceManager() {
   if (!currentProject) {
     console.log('🔍 WorkspaceManager: Showing recordings library')
     return (
-      <div className="h-full w-full min-h-screen flex flex-col bg-background">
+      <div className="fixed inset-0 flex flex-col bg-background">
         <RecordingsLibrary
           onSelectRecording={async (recording) => {
             console.log('🔍 Selected recording:', recording.name)
@@ -157,47 +157,42 @@ export function WorkspaceManager() {
   }
 
   return (
-    <div className="h-full w-full min-h-screen flex flex-col bg-background overflow-hidden">
-      {/* Top Toolbar - Refined with better spacing */}
-      <div className="h-14 border-b bg-card/50 backdrop-blur-sm">
+    <div className="fixed inset-0 flex flex-col bg-background">
+      {/* Top Toolbar - Fixed height */}
+      <div className="h-14 flex-shrink-0 border-b bg-card/50">
         <Toolbar
           onToggleProperties={handleToggleProperties}
           onExport={handleExport}
         />
       </div>
 
-      {/* Main Content Area - Better structured layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main Content Area - Takes remaining space */}
+      <div className="flex-1 flex min-h-0">
         {/* Main Editor Section */}
-        <div className="flex-1 flex flex-col bg-background">
-          {/* Preview Area - Takes up most space */}
-          <div className="flex-1 min-h-0 bg-card/30 relative z-10">
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Preview Area - Takes up remaining space */}
+          <div className="flex-1 bg-muted/20 border-r">
             <PreviewArea />
           </div>
 
-          {/* Timeline Section - Dynamic height from store */}
+          {/* Timeline Section - Fixed height */}
           <div
-            className="border-t bg-card/50 backdrop-blur-sm relative z-20"
+            className="flex-shrink-0 border-t bg-card/50"
             style={{ height: `${timelineHeight}px` }}
           >
             <TimelineEditor className="h-full" />
           </div>
         </div>
 
-        {/* Properties Panel - Dynamic width from store */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out bg-card border-l shadow-xl",
-            !isPropertiesOpen && "w-0"
-          )}
-          style={{ width: isPropertiesOpen ? `${propertiesPanelWidth}px` : 0 }}
-        >
-          {isPropertiesOpen && (
-            <div className="h-full overflow-hidden">
-              <EffectsSidebar className="h-full w-full" />
-            </div>
-          )}
-        </div>
+        {/* Properties Panel - Fixed width when open */}
+        {isPropertiesOpen && (
+          <div
+            className="flex-shrink-0 bg-card border-l overflow-hidden"
+            style={{ width: `${propertiesPanelWidth}px` }}
+          >
+            <EffectsSidebar className="h-full w-full" />
+          </div>
+        )}
       </div>
 
       {/* Recording Controller - Floating overlay */}

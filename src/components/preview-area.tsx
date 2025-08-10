@@ -433,7 +433,7 @@ export function PreviewArea() {
   }
 
   return (
-    <div className="flex-1 relative flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-primary/5 overflow-hidden">
+    <div className="h-full w-full relative flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-primary/5 overflow-hidden">
       {isRecording ? (
         // Recording state - improved design
         <div className="text-center">

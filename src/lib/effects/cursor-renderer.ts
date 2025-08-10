@@ -1,5 +1,8 @@
-interface CursorEvent {
-  timestamp: number
+import type { MouseEvent } from '@/types/project'
+import { easeInOutCubic, easeOutCubic, easeInQuad } from '@/lib/utils/easing'
+
+// Extend MouseEvent for cursor-specific needs
+interface CursorEvent extends Omit<MouseEvent, 'x' | 'y' | 'screenWidth' | 'screenHeight'> {
   mouseX: number
   mouseY: number
   eventType: 'mouse' | 'click' | 'scroll' | 'key'
@@ -375,7 +378,7 @@ export class CursorRenderer {
 
     // Interpolate between events for smooth movement
     const progress = (currentTime - before.timestamp) / (after.timestamp - before.timestamp)
-    const easedProgress = this.easeInOutCubic(Math.min(1, Math.max(0, progress)))
+    const easedProgress = easeInOutCubic(Math.min(1, Math.max(0, progress)))
 
     return {
       ...before,
@@ -384,9 +387,6 @@ export class CursorRenderer {
     }
   }
 
-  private easeInOutCubic(t: number): number {
-    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-  }
 
   private addClickAnimation(x: number, y: number, timestamp: number) {
     const id = `click-${timestamp}-${Math.random()}`
@@ -413,10 +413,10 @@ export class CursorRenderer {
       const progress = age / maxAge
 
       // Smooth expansion with easing
-      anim.radius = this.easeOutCubic(progress) * 30
+      anim.radius = easeOutCubic(progress) * 30
 
       // Fade out with acceleration at the end
-      anim.opacity = 1 - this.easeInQuad(progress)
+      anim.opacity = 1 - easeInQuad(progress)
 
       // Scale down as it expands
       anim.scale = 1.3 - progress * 0.3
@@ -470,13 +470,6 @@ export class CursorRenderer {
     })
   }
 
-  private easeOutCubic(t: number): number {
-    return 1 - Math.pow(1 - t, 3)
-  }
-
-  private easeInQuad(t: number): number {
-    return t * t
-  }
 
   dispose() {
     this.canvas = null

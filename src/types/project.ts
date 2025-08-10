@@ -350,8 +350,13 @@ export async function saveRecordingWithProject(
     })
     
     const duration = video.duration * 1000 // Convert to milliseconds
-    const width = video.videoWidth || window.screen.width
-    const height = video.videoHeight || window.screen.height
+    const width = video.videoWidth || 1920 // Use standard HD as fallback
+    const height = video.videoHeight || 1080
+    
+    // Try to detect actual frame rate from video
+    // @ts-ignore - videoTracks may have getSettings
+    const videoStreamTrack = video.captureStream?.()?.getVideoTracks()?.[0]
+    const detectedFrameRate = videoStreamTrack?.getSettings?.()?.frameRate || 30 // Default to 30fps if unknown
     
     globalBlobManager.revoke(videoUrl)
     
@@ -393,7 +398,7 @@ export async function saveRecordingWithProject(
       duration,
       width,
       height,
-      frameRate: 60,
+      frameRate: detectedFrameRate,
       captureArea,
       metadata: {
         mouseEvents,
@@ -447,6 +452,10 @@ export async function saveRecordingWithProject(
     
     console.log(`📹 Generated ${zoomKeyframes.length} zoom keyframes from ${zoomEvents.length} events`)
     
+    // Detect cursor activity to set visibility intelligently
+    const hasCursorActivity = mouseEvents.length > 5 // Has meaningful mouse movement
+    const hasClicks = clickEvents.length > 0
+    
     // Add clip to timeline with generated effects
     const clip: Clip = {
       id: `clip-${Date.now()}`,
@@ -464,12 +473,12 @@ export async function saveRecordingWithProject(
           smoothing: 0.1
         },
         cursor: {
-          visible: true,
+          visible: hasCursorActivity, // Only show cursor if there was mouse activity
           style: 'macOS',
           size: 1.2,
           color: '#ffffff',
-          clickEffects: true,
-          motionBlur: true
+          clickEffects: hasClicks, // Only enable click effects if there were actual clicks
+          motionBlur: hasCursorActivity // Only enable motion blur if cursor was moving
         },
         background: {
           type: 'gradient',

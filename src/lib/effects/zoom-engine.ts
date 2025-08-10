@@ -1,5 +1,8 @@
-interface MouseEvent {
-  timestamp: number
+import type { MouseEvent as ProjectMouseEvent } from '@/types/project'
+import { easeInOutQuad, smoothStep, easeOutExpo } from '@/lib/utils/easing'
+
+// Extend the project MouseEvent for zoom engine needs
+interface ZoomMouseEvent extends Omit<ProjectMouseEvent, 'x' | 'y' | 'screenWidth' | 'screenHeight'> {
   mouseX: number
   mouseY: number
   eventType: 'mouse' | 'click' | 'scroll' | 'key'
@@ -56,7 +59,7 @@ export class ZoomEngine {
     }
   }
 
-  generateKeyframes(events: MouseEvent[], videoDuration: number, videoWidth: number, videoHeight: number): ZoomKeyframe[] {
+  generateKeyframes(events: ZoomMouseEvent[], videoDuration: number, videoWidth: number, videoHeight: number): ZoomKeyframe[] {
     console.log(`🎯 ZoomEngine.generateKeyframes: enabled=${this.options.enabled}, events=${events.length}`)
     
     if (!this.options.enabled || events.length === 0 || videoDuration <= 0) {
@@ -76,7 +79,7 @@ export class ZoomEngine {
     return this.keyframes
   }
 
-  private clusterIntoActivityZones(events: MouseEvent[], width: number, height: number): ActivityZone[] {
+  private clusterIntoActivityZones(events: ZoomMouseEvent[], width: number, height: number): ActivityZone[] {
     const zones: ActivityZone[] = []
     let currentZone: ActivityZone | null = null
 
@@ -277,7 +280,7 @@ export class ZoomEngine {
 
     // Simple smooth interpolation
     const progress = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
-    const eased = this.easeInOutQuad(progress)
+    const eased = easeInOutQuad(progress)
 
     return {
       x: before.x + (after.x - before.x) * eased,
@@ -286,10 +289,6 @@ export class ZoomEngine {
     }
   }
 
-  // Simple easing function
-  private easeInOutQuad(t: number): number {
-    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
-  }
 
   applyZoomToCanvas(
     ctx: CanvasRenderingContext2D,

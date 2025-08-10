@@ -61,36 +61,10 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
   const timelineRef = useRef<HTMLDivElement>(null)
   const playheadRef = useRef<HTMLDivElement>(null)
 
-  // Calculate duration from clips or use default
-  const calculateDuration = () => {
-    if (!currentProject?.timeline?.tracks) return 10000
-
-    let maxEndTime = 0
-
-    // Find the actual video duration from recordings
-    if (currentProject.recordings && currentProject.recordings.length > 0) {
-      // Get the longest recording duration
-      for (const recording of currentProject.recordings) {
-        if (recording.duration) {
-          maxEndTime = Math.max(maxEndTime, recording.duration)
-        }
-      }
-    }
-
-    // Also check clips to ensure we show all content
-    for (const track of currentProject.timeline.tracks) {
-      for (const clip of track.clips) {
-        const endTime = clip.startTime + clip.duration
-        maxEndTime = Math.max(maxEndTime, endTime)
-      }
-    }
-
-    // Add minimal padding (500ms) instead of 2000ms
-    // This ensures the track goes all the way to the end
-    return Math.max(10000, maxEndTime + 500)
-  }
-
-  const duration = calculateDuration()
+  // Use timeline duration directly, add padding for better UX
+  const duration = currentProject?.timeline?.duration 
+    ? Math.max(10000, currentProject.timeline.duration + 500) 
+    : 10000
 
   // Calculate pixels per millisecond - at zoom 1.0, we want 100px per second (0.1px per ms)
   // But that's too small, so let's use a more reasonable scale: 200px per second at zoom 1.0
@@ -160,90 +134,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     )
   }
 
-  // Render cursor track (like Screen Studio)
-  const renderCursorTrack = () => {
-    if (!currentProject || !selectedClips.length) return null
 
-    // Get the first selected clip
-    const selectedClip = currentProject.timeline.tracks
-      .flatMap(t => t.clips)
-      .find(c => c.id === selectedClips[0])
-
-    if (!selectedClip?.effects?.zoom?.enabled) return null
-
-    // Get zoom keyframes from the clip effects or generate them
-    const recording = currentProject.recordings.find(r => r.id === selectedClip.recordingId)
-    if (!recording?.metadata) return null
-
-    // Create zoom blocks from metadata
-    const zoomBlocks: JSX.Element[] = []
-    let inZoom = false
-    let zoomStart = 0
-
-    // Analyze click events and mouse activity to create zoom regions
-    const events = [
-      ...(recording.metadata.mouseEvents || []).map(e => ({ ...e, type: 'mouse' })),
-      ...(recording.metadata.clickEvents || []).map(e => ({ ...e, type: 'click', timestamp: e.timestamp }))
-    ].sort((a, b) => a.timestamp - b.timestamp)
-
-    events.forEach((event, i) => {
-      if (event.type === 'click') {
-        // Start a zoom block on click
-        if (!inZoom) {
-          zoomStart = event.timestamp
-          inZoom = true
-        }
-      } else if (inZoom && i < events.length - 1) {
-        // Check if next event is far away (end zoom)
-        const nextEvent = events[i + 1]
-        if (nextEvent.timestamp - event.timestamp > 1000) {
-          // End the zoom block
-          const startX = timeToPixel(selectedClip.startTime + zoomStart)
-          const endX = timeToPixel(selectedClip.startTime + event.timestamp + 500)
-          zoomBlocks.push(
-            <div
-              key={`zoom-${zoomStart}`}
-              className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded flex items-center justify-center"
-              style={{
-                left: `${startX}px`,
-                width: `${endX - startX}px`,
-                top: 0
-              }}
-            >
-              <span className="text-xs text-purple-300 font-medium">2x</span>
-            </div>
-          )
-          inZoom = false
-        }
-      }
-    })
-
-    // Close any open zoom block
-    if (inZoom && events.length > 0) {
-      const startX = timeToPixel(selectedClip.startTime + zoomStart)
-      const endX = timeToPixel(selectedClip.startTime + events[events.length - 1].timestamp + 500)
-      zoomBlocks.push(
-        <div
-          key={`zoom-${zoomStart}-end`}
-          className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded flex items-center justify-center"
-          style={{
-            left: `${startX}px`,
-            width: `${endX - startX}px`,
-            top: 0
-          }}
-        >
-          <span className="text-xs text-purple-300 font-medium">2x</span>
-        </div>
-      )
-    }
-
-    return <>{zoomBlocks}</>
-  }
-
-  // Render effect indicators (simplified to just show on timeline)
-  const renderEffectIndicators = () => {
-    return null // Remove the old dot-based indicators
-  }
 
   // Convert time to pixel position
   const timeToPixel = (time: number) => time * pixelsPerMs
@@ -889,7 +780,6 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
               </div>
               <div className="ml-20 relative h-full">
                 {renderTrackClips(0, 'video')}
-                {renderEffectIndicators()}
               </div>
             </div>
 
