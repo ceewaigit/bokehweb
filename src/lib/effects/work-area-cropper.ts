@@ -32,7 +32,7 @@ export class WorkAreaCropper {
       alpha: false,
       desynchronized: true
     })
-    
+
     if (!this.ctx) {
       throw new Error('Failed to get 2D context')
     }
@@ -42,9 +42,9 @@ export class WorkAreaCropper {
       const { workArea, scaleFactor } = this.options.captureArea
       canvas.width = workArea.width * scaleFactor
       canvas.height = workArea.height * scaleFactor
-      logger.debug('Canvas sized for work area', { 
-        width: canvas.width, 
-        height: canvas.height 
+      logger.debug('Canvas sized for work area', {
+        width: canvas.width,
+        height: canvas.height
       })
     }
   }
@@ -58,7 +58,7 @@ export class WorkAreaCropper {
   ): void {
     const targetCanvas = canvas || this.canvas
     const ctx = canvas ? canvas.getContext('2d') : this.ctx
-    
+
     if (!targetCanvas || !ctx || !this.options.captureArea) {
       // No cropping needed, just draw the full frame
       if (targetCanvas && ctx) {
@@ -70,7 +70,7 @@ export class WorkAreaCropper {
     }
 
     const { fullBounds, workArea, scaleFactor } = this.options.captureArea
-    
+
     // Calculate crop offsets (dock can be on any side)
     const cropX = (workArea.x - fullBounds.x) * scaleFactor
     const cropY = (workArea.y - fullBounds.y) * scaleFactor
@@ -108,7 +108,7 @@ export class WorkAreaCropper {
     }
 
     const { fullBounds, workArea, scaleFactor } = this.options.captureArea
-    
+
     return {
       x: (workArea.x - fullBounds.x) * scaleFactor,
       y: (workArea.y - fullBounds.y) * scaleFactor,
@@ -126,7 +126,7 @@ export class WorkAreaCropper {
     }
 
     const { fullBounds, workArea } = this.options.captureArea
-    
+
     // Check if work area is different from full bounds
     return (
       workArea.x !== fullBounds.x ||
@@ -141,14 +141,14 @@ export class WorkAreaCropper {
    */
   updateCaptureArea(captureArea: WorkAreaCropperOptions['captureArea']): void {
     this.options.captureArea = captureArea
-    
+
     // Resize canvas if initialized
     if (this.canvas && captureArea) {
       const { workArea, scaleFactor } = captureArea
       this.canvas.width = workArea.width * scaleFactor
       this.canvas.height = workArea.height * scaleFactor
     }
-    
+
     logger.debug('Capture area updated', captureArea)
   }
 

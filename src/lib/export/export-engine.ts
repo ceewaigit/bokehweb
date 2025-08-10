@@ -273,38 +273,63 @@ export class ExportEngine {
       this.processingCanvas.height = videoHeight
       this.processingCtx = this.processingCanvas.getContext('2d')!
 
-      // Initialize effects
+      // Initialize effects with proper configuration from clip
       let zoomEngine: ZoomEngine | null = null
       let cursorRenderer: CursorRenderer | null = null
       let backgroundRenderer: BackgroundRenderer | null = null
+      let zoomKeyframes: any[] = []
+
+      // Use clip effects or defaults
+      const clipEffects = firstClip.effects
 
       if (enableZoom && metadata.length > 0) {
         zoomEngine = new ZoomEngine({
-          enabled: true,
-          sensitivity: 1.0,
-          maxZoom: 2.0,
-          clickZoom: true
+          enabled: clipEffects?.zoom?.enabled ?? true,
+          sensitivity: clipEffects?.zoom?.sensitivity ?? 1.0,
+          maxZoom: clipEffects?.zoom?.maxZoom ?? 2.0,
+          clickZoom: true,
+          smoothing: true
         })
+        
+        // Generate zoom keyframes based on metadata
+        zoomKeyframes = zoomEngine.generateKeyframes(
+          metadata,
+          videoDuration * 1000,
+          videoWidth,
+          videoHeight
+        )
       }
 
       if (enableCursor && metadata.length > 0) {
         cursorRenderer = new CursorRenderer({
-          size: 1.2,
-          color: '#ffffff',
+          size: clipEffects?.cursor?.size ?? 1.2,
+          color: clipEffects?.cursor?.color ?? '#ffffff',
           clickColor: '#3b82f6',
-          smoothing: true
+          smoothing: true,
+          motionBlur: clipEffects?.cursor?.motionBlur ?? true,
+          cursorStyle: (clipEffects?.cursor?.style || 'macOS') as any
         })
       }
 
-      if (enableBackground && options.background) {
-        // BackgroundRenderer expects specific format
-        const bgOptions = {
-          type: options.background.type || 'gradient',
-          ...(options.background.color && { color: options.background.color }),
-          ...(options.background.gradient && { gradient: options.background.gradient }),
-          padding: options.background.padding || 0,
-          borderRadius: options.background.borderRadius || 0,
-          shadow: options.background.shadow || false
+      if (enableBackground) {
+        // Use Screen Studio preset by default
+        const bgOptions = clipEffects?.background || {
+          preset: 'screenStudio',
+          type: 'gradient',
+          gradient: {
+            type: 'linear',
+            colors: ['#0F172A', '#1E293B'],
+            angle: 135
+          },
+          padding: 60,
+          borderRadius: 16,
+          shadow: {
+            enabled: true,
+            color: 'rgba(0, 0, 0, 0.5)',
+            blur: 50,
+            offsetX: 0,
+            offsetY: 25
+          }
         }
         backgroundRenderer = new BackgroundRenderer(bgOptions as any)
       }
@@ -346,37 +371,108 @@ export class ExportEngine {
           video.onseeked = resolve
         })
 
-        // Clear canvas with background
+        // Apply effects in correct order (Screen Studio style)
+        
+        // 1. Clear canvas
+        this.processingCtx!.clearRect(0, 0, videoWidth, videoHeight)
+        
+        // 2. Apply background if enabled
         if (backgroundRenderer) {
-          // Draw background (BackgroundRenderer may not have render method)
-          this.processingCtx!.fillStyle = '#1a1a2e'
-          this.processingCtx!.fillRect(0, 0, videoWidth, videoHeight)
+          // Background renderer will handle the video frame with effects
+          if (zoomEngine) {
+            // Create temp canvas for zoomed video
+            const tempCanvas = document.createElement('canvas')
+            tempCanvas.width = videoWidth
+            tempCanvas.height = videoHeight
+            const tempCtx = tempCanvas.getContext('2d')!
+            
+            const zoom = zoomEngine.getZoomAtTime(timestamp)
+            zoomEngine.applyZoomToCanvas(tempCtx, video, zoom)
+            
+            // Apply background with zoomed video
+            backgroundRenderer.applyBackground(this.processingCtx!, tempCanvas)
+          } else {
+            // Apply background with original video
+            backgroundRenderer.applyBackground(this.processingCtx!, video)
+          }
         } else {
-          this.processingCtx!.clearRect(0, 0, videoWidth, videoHeight)
+          // No background - just apply zoom or draw video directly
+          if (zoomEngine) {
+            const zoom = zoomEngine.getZoomAtTime(timestamp)
+            zoomEngine.applyZoomToCanvas(this.processingCtx!, video, zoom)
+          } else {
+            this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
+          }
         }
 
-        // Apply zoom
-        if (zoomEngine) {
-          const zoom = zoomEngine.getZoomAtTime(timestamp)
-          zoomEngine.applyZoomToCanvas(this.processingCtx!, video, zoom)
-        } else {
-          this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
-        }
-
-        // Render cursor
-        if (cursorRenderer) {
-          const cursorEvents = metadata.filter(m =>
-            Math.abs(m.timestamp - timestamp) < (1000 / framerate)
-          )
-          if (cursorEvents.length > 0) {
-            const event = cursorEvents[0]
-            // Render cursor at position
-            const isClick = event.eventType === 'click'
+        // 3. Render cursor overlay (simplified approach)
+        if (cursorRenderer && metadata.length > 0) {
+          // Find the closest event to current timestamp
+          let closestEvent = metadata[0]
+          let minDiff = Math.abs(metadata[0].timestamp - timestamp)
+          
+          for (const event of metadata) {
+            const diff = Math.abs(event.timestamp - timestamp)
+            if (diff < minDiff) {
+              minDiff = diff
+              closestEvent = event
+            }
+          }
+          
+          // Only render if event is within reasonable time window (33ms = ~30fps)
+          if (minDiff < 33) {
+            // Calculate cursor position (account for zoom if applied)
+            let cursorX = closestEvent.mouseX
+            let cursorY = closestEvent.mouseY
+            
+            if (zoomEngine) {
+              const zoom = zoomEngine.getZoomAtTime(timestamp)
+              // Transform cursor coordinates based on zoom
+              const zoomCenterX = zoom.x * videoWidth
+              const zoomCenterY = zoom.y * videoHeight
+              
+              // Apply zoom transformation
+              cursorX = (cursorX - zoomCenterX) * zoom.scale + videoWidth / 2
+              cursorY = (cursorY - zoomCenterY) * zoom.scale + videoHeight / 2
+            }
+            
+            // Draw cursor with effects
             this.processingCtx!.save()
-            this.processingCtx!.fillStyle = isClick ? '#3b82f6' : '#ffffff'
+            
+            // Cursor shadow
+            this.processingCtx!.shadowColor = 'rgba(0, 0, 0, 0.4)'
+            this.processingCtx!.shadowBlur = 3
+            this.processingCtx!.shadowOffsetX = 1
+            this.processingCtx!.shadowOffsetY = 2
+            
+            // Click effect
+            if (closestEvent.eventType === 'click') {
+              this.processingCtx!.strokeStyle = '#3b82f6'
+              this.processingCtx!.lineWidth = 2.5
+              this.processingCtx!.globalAlpha = 0.6
+              this.processingCtx!.beginPath()
+              this.processingCtx!.arc(cursorX, cursorY, 15, 0, Math.PI * 2)
+              this.processingCtx!.stroke()
+              this.processingCtx!.globalAlpha = 1
+            }
+            
+            // Draw macOS-style cursor
+            this.processingCtx!.fillStyle = '#ffffff'
+            this.processingCtx!.strokeStyle = 'rgba(0, 0, 0, 0.5)'
+            this.processingCtx!.lineWidth = 0.5
             this.processingCtx!.beginPath()
-            this.processingCtx!.arc(event.mouseX, event.mouseY, isClick ? 12 : 8, 0, Math.PI * 2)
+            // Cursor arrow shape
+            this.processingCtx!.moveTo(cursorX, cursorY)
+            this.processingCtx!.lineTo(cursorX, cursorY + 14)
+            this.processingCtx!.lineTo(cursorX + 3, cursorY + 11)
+            this.processingCtx!.lineTo(cursorX + 6, cursorY + 17)
+            this.processingCtx!.lineTo(cursorX + 8, cursorY + 16)
+            this.processingCtx!.lineTo(cursorX + 5, cursorY + 10)
+            this.processingCtx!.lineTo(cursorX + 10, cursorY + 10)
+            this.processingCtx!.closePath()
             this.processingCtx!.fill()
+            this.processingCtx!.stroke()
+            
             this.processingCtx!.restore()
           }
         }

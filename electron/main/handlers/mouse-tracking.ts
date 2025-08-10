@@ -16,6 +16,8 @@ interface MousePosition {
   x: number
   y: number
   timestamp?: number
+  velocity?: { x: number; y: number }
+  acceleration?: { x: number; y: number }
 }
 
 export function registerMouseTrackingHandlers(): void {
@@ -29,7 +31,8 @@ export function registerMouseTrackingHandlers(): void {
         options = {}
       }
 
-      const intervalMs = Math.max(8, Math.min(1000, parseInt(String(options.intervalMs)) || 16))
+      // Use 8ms interval for 125Hz tracking (Screen Studio quality)
+      const intervalMs = Math.max(8, Math.min(1000, parseInt(String(options.intervalMs)) || 8))
 
       mouseEventSender = event.sender
       isMouseTracking = true
@@ -38,55 +41,91 @@ export function registerMouseTrackingHandlers(): void {
       startClickDetection()
 
       let lastPosition: Electron.Point | null = null
+      let lastVelocity = { x: 0, y: 0 }
+      let lastTime = Date.now()
+      
       mouseTrackingInterval = setInterval(() => {
         if (!isMouseTracking || !mouseEventSender) return
 
         try {
           const currentPosition = screen.getCursorScreenPoint()
           const now = Date.now()
+          const deltaTime = (now - lastTime) / 1000 // Convert to seconds
 
           if (!lastPosition ||
             lastPosition.x !== currentPosition.x ||
             lastPosition.y !== currentPosition.y) {
 
+            // Calculate velocity and acceleration for smooth interpolation
+            let velocity = { x: 0, y: 0 }
+            let acceleration = { x: 0, y: 0 }
+            
+            if (lastPosition && deltaTime > 0) {
+              // Calculate velocity (pixels per second)
+              velocity = {
+                x: (currentPosition.x - lastPosition.x) / deltaTime,
+                y: (currentPosition.y - lastPosition.y) / deltaTime
+              }
+              
+              // Calculate acceleration for motion blur
+              acceleration = {
+                x: (velocity.x - lastVelocity.x) / deltaTime,
+                y: (velocity.y - lastVelocity.y) / deltaTime
+              }
+              
+              // Smooth velocity with exponential moving average
+              velocity.x = lastVelocity.x * 0.3 + velocity.x * 0.7
+              velocity.y = lastVelocity.y * 0.3 + velocity.y * 0.7
+            }
+
             // Track mouse position for click detection
             const positionData = {
-              x: Math.round(currentPosition.x),
-              y: Math.round(currentPosition.y),
+              x: Math.round(currentPosition.x * 100) / 100, // Sub-pixel precision
+              y: Math.round(currentPosition.y * 100) / 100,
               time: now
             }
-            
+
             // Update mouse history for velocity analysis
             mouseHistory.push(positionData)
-            if (mouseHistory.length > 10) {
+            if (mouseHistory.length > 20) { // Keep more history for better analysis
               mouseHistory.shift()
             }
-            
-            // Detect potential clicks based on mouse stopping after movement
-            if (lastMousePosition && mouseHistory.length >= 3) {
-              const recentPositions = mouseHistory.slice(-3)
-              const wasMoving = Math.abs(recentPositions[0].x - recentPositions[1].x) > 2 ||
-                               Math.abs(recentPositions[0].y - recentPositions[1].y) > 2
-              const hasStopped = Math.abs(recentPositions[1].x - recentPositions[2].x) <= 1 &&
-                                Math.abs(recentPositions[1].y - recentPositions[2].y) <= 1
+
+            // Improved click detection based on velocity patterns
+            if (lastMousePosition && mouseHistory.length >= 5) {
+              const recentPositions = mouseHistory.slice(-5)
+              const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2)
+              const prevSpeed = Math.sqrt(lastVelocity.x ** 2 + lastVelocity.y ** 2)
               
-              if (wasMoving && hasStopped) {
+              // Detect sudden deceleration (characteristic of clicks)
+              const wasMovingFast = prevSpeed > 100
+              const hasStopped = speed < 10
+              const suddenStop = wasMovingFast && hasStopped && 
+                Math.abs(acceleration.x) > 500 || Math.abs(acceleration.y) > 500
+
+              if (suddenStop) {
                 // Likely a click occurred - emit click event
                 mouseEventSender.send('mouse-click', {
                   x: positionData.x,
                   y: positionData.y,
-                  timestamp: now
+                  timestamp: now,
+                  velocity: { x: 0, y: 0 }
                 })
-                console.log('🖱️ Click detected at', positionData.x, positionData.y)
+                console.log('🖱️ Click detected via deceleration at', positionData.x, positionData.y)
               }
             }
-            
-            lastMousePosition = positionData
 
+            lastMousePosition = positionData
+            lastVelocity = velocity
+            lastTime = now
+
+            // Send enhanced mouse data with velocity for smooth interpolation
             mouseEventSender.send('mouse-move', {
               x: positionData.x,
               y: positionData.y,
-              timestamp: now
+              timestamp: now,
+              velocity,
+              acceleration
             } as MousePosition)
 
             lastPosition = currentPosition
@@ -117,14 +156,14 @@ export function registerMouseTrackingHandlers(): void {
       }
 
       isMouseTracking = false
-      
+
       // Stop click detection
       stopClickDetection()
-      
+
       // Reset mouse history
       mouseHistory = []
       lastMousePosition = null
-      
+
       mouseEventSender = null
 
       console.log('🖱️ Mouse tracking stopped')
@@ -161,9 +200,9 @@ export function registerMouseTrackingHandlers(): void {
 
 function startClickDetection(): void {
   if (clickDetectionActive) return
-  
+
   clickDetectionActive = true
-  
+
   // Use a polling approach to detect mouse button state changes
   // This is a workaround since Electron doesn't have native click detection
   let lastButtonState = false
@@ -172,7 +211,7 @@ function startClickDetection(): void {
       clearInterval(clickCheckInterval)
       return
     }
-    
+
     try {
       // Check if we can detect button state (this is limited in Electron)
       // For now, we'll emit synthetic click events based on user interaction
@@ -181,7 +220,7 @@ function startClickDetection(): void {
       console.error('Error in click detection:', error)
     }
   }, 50)
-  
+
   // Register global shortcut for mouse clicks (workaround)
   // Note: This is limited and won't capture all clicks
   try {
@@ -200,7 +239,7 @@ function startClickDetection(): void {
   } catch (error) {
     console.error('Error setting up click detection:', error)
   }
-  
+
   console.log('🖱️ Click detection started')
 }
 

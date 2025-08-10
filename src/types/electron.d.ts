@@ -36,8 +36,11 @@ export interface ElectronAPI {
     name: string
     path: string
     timestamp: string | Date
+    size?: number
+    videoSize?: number
   }>>
   readLocalFile?: (absolutePath: string) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>
+  getFileSize?: (filePath: string) => Promise<{ success: boolean; size?: number; error?: string }>
   onToggleRecording?: (callback: () => void) => void
 
   // Dialog APIs

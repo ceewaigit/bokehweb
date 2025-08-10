@@ -233,6 +233,9 @@ const electronAPI = {
   readLocalFile: (absolutePath: string) =>
     ipcRenderer.invoke('read-local-file', absolutePath),
 
+  getFileSize: (filePath: string) =>
+    ipcRenderer.invoke('get-file-size', filePath),
+
   // Recording events
   onRecordingStarted: (callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on('recording-started', callback)

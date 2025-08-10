@@ -11,22 +11,116 @@ export interface BackgroundOptions {
   padding?: number
   borderRadius?: number
   shadow?: {
+    enabled: boolean
     color: string
     blur: number
     offsetX: number
     offsetY: number
+    spread?: number
   }
+  // Screen Studio-like presets
+  preset?: 'screenStudio' | 'minimal' | 'colorful' | 'dark' | 'light'
 }
 
 export class BackgroundRenderer {
   private backgroundImage: HTMLImageElement | null = null
   private gradientCanvas: HTMLCanvasElement | null = null
   private gradientCtx: CanvasRenderingContext2D | null = null
-  
+
+  // Screen Studio-like presets
+  private static readonly PRESETS = {
+    screenStudio: {
+      type: 'gradient' as const,
+      gradient: {
+        type: 'linear' as const,
+        colors: ['#0F172A', '#1E293B'], // Dark blue-gray gradient
+        angle: 135
+      },
+      padding: 60,
+      borderRadius: 16,
+      shadow: {
+        enabled: true,
+        color: 'rgba(0, 0, 0, 0.5)',
+        blur: 50,
+        offsetX: 0,
+        offsetY: 25,
+        spread: -10
+      }
+    },
+    minimal: {
+      type: 'solid' as const,
+      color: '#FAFAFA',
+      padding: 40,
+      borderRadius: 12,
+      shadow: {
+        enabled: true,
+        color: 'rgba(0, 0, 0, 0.15)',
+        blur: 30,
+        offsetX: 0,
+        offsetY: 10
+      }
+    },
+    colorful: {
+      type: 'gradient' as const,
+      gradient: {
+        type: 'linear' as const,
+        colors: ['#667eea', '#764ba2', '#f093fb'],
+        angle: 45
+      },
+      padding: 50,
+      borderRadius: 20,
+      shadow: {
+        enabled: true,
+        color: 'rgba(102, 126, 234, 0.4)',
+        blur: 60,
+        offsetX: 0,
+        offsetY: 30
+      }
+    },
+    dark: {
+      type: 'gradient' as const,
+      gradient: {
+        type: 'radial' as const,
+        colors: ['#1a1a1a', '#000000'],
+        angle: 0
+      },
+      padding: 45,
+      borderRadius: 14,
+      shadow: {
+        enabled: true,
+        color: 'rgba(0, 0, 0, 0.8)',
+        blur: 40,
+        offsetX: 0,
+        offsetY: 20
+      }
+    },
+    light: {
+      type: 'gradient' as const,
+      gradient: {
+        type: 'linear' as const,
+        colors: ['#ffffff', '#f0f0f0'],
+        angle: 180
+      },
+      padding: 50,
+      borderRadius: 16,
+      shadow: {
+        enabled: true,
+        color: 'rgba(0, 0, 0, 0.1)',
+        blur: 25,
+        offsetX: 0,
+        offsetY: 15
+      }
+    }
+  }
+
   constructor(private options: BackgroundOptions = { type: 'solid', color: '#000000' }) {
+    // Apply preset if specified
+    if (options.preset && BackgroundRenderer.PRESETS[options.preset]) {
+      this.options = { ...BackgroundRenderer.PRESETS[options.preset], ...options }
+    }
     this.initializeBackground()
   }
-  
+
   private async initializeBackground() {
     if (this.options.type === 'image' || this.options.type === 'wallpaper') {
       if (typeof this.options.image === 'string') {
@@ -39,18 +133,18 @@ export class BackgroundRenderer {
         this.backgroundImage = this.options.image
       }
     }
-    
+
     if (this.options.type === 'gradient') {
       this.createGradientCanvas()
     }
   }
-  
+
   private createGradientCanvas() {
     this.gradientCanvas = document.createElement('canvas')
     this.gradientCanvas.width = 1920
     this.gradientCanvas.height = 1080
     this.gradientCtx = this.gradientCanvas.getContext('2d')!
-    
+
     if (!this.options.gradient) {
       this.options.gradient = {
         type: 'linear',
@@ -58,21 +152,21 @@ export class BackgroundRenderer {
         angle: 45
       }
     }
-    
+
     const { type, colors, angle = 0 } = this.options.gradient
-    
+
     if (type === 'linear') {
       const angleRad = (angle * Math.PI) / 180
       const x1 = this.gradientCanvas.width / 2 - Math.cos(angleRad) * this.gradientCanvas.width
       const y1 = this.gradientCanvas.height / 2 - Math.sin(angleRad) * this.gradientCanvas.height
       const x2 = this.gradientCanvas.width / 2 + Math.cos(angleRad) * this.gradientCanvas.width
       const y2 = this.gradientCanvas.height / 2 + Math.sin(angleRad) * this.gradientCanvas.height
-      
+
       const gradient = this.gradientCtx.createLinearGradient(x1, y1, x2, y2)
       colors.forEach((color, index) => {
         gradient.addColorStop(index / (colors.length - 1), color)
       })
-      
+
       this.gradientCtx.fillStyle = gradient
       this.gradientCtx.fillRect(0, 0, this.gradientCanvas.width, this.gradientCanvas.height)
     } else if (type === 'radial') {
@@ -84,16 +178,16 @@ export class BackgroundRenderer {
         this.gradientCanvas.height / 2,
         Math.max(this.gradientCanvas.width, this.gradientCanvas.height) / 2
       )
-      
+
       colors.forEach((color, index) => {
         gradient.addColorStop(index / (colors.length - 1), color)
       })
-      
+
       this.gradientCtx.fillStyle = gradient
       this.gradientCtx.fillRect(0, 0, this.gradientCanvas.width, this.gradientCanvas.height)
     }
   }
-  
+
   applyBackground(
     ctx: CanvasRenderingContext2D,
     videoFrame?: HTMLVideoElement | HTMLCanvasElement,
@@ -104,23 +198,23 @@ export class BackgroundRenderer {
   ) {
     const { width, height } = ctx.canvas
     const padding = this.options.padding || 0
-    
+
     // Clear canvas
     ctx.clearRect(0, 0, width, height)
-    
+
     // Apply background
     switch (this.options.type) {
       case 'solid':
         ctx.fillStyle = this.options.color || '#000000'
         ctx.fillRect(0, 0, width, height)
         break
-        
+
       case 'gradient':
         if (this.gradientCanvas) {
           ctx.drawImage(this.gradientCanvas, 0, 0, width, height)
         }
         break
-        
+
       case 'image':
       case 'wallpaper':
         if (this.backgroundImage) {
@@ -141,7 +235,7 @@ export class BackgroundRenderer {
           }
         }
         break
-        
+
       case 'blur':
         if (videoFrame) {
           // Draw blurred background
@@ -149,44 +243,56 @@ export class BackgroundRenderer {
           ctx.filter = `blur(${this.options.blur || 20}px)`
           ctx.drawImage(videoFrame, 0, 0, width, height)
           ctx.restore()
-          
+
           // Add overlay to darken
           ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
           ctx.fillRect(0, 0, width, height)
         }
         break
     }
-    
+
     // Draw video frame with padding and effects
     if (videoFrame) {
       const frameX = videoX ?? padding
       const frameY = videoY ?? padding
       const frameWidth = videoWidth ?? (width - padding * 2)
       const frameHeight = videoHeight ?? (height - padding * 2)
-      
+
       ctx.save()
-      
+
       // Apply shadow if specified
-      if (this.options.shadow) {
+      if (this.options.shadow?.enabled) {
         ctx.shadowColor = this.options.shadow.color
         ctx.shadowBlur = this.options.shadow.blur
         ctx.shadowOffsetX = this.options.shadow.offsetX
         ctx.shadowOffsetY = this.options.shadow.offsetY
+
+        // Create a subtle inner shadow effect for more depth
+        if (this.options.shadow.spread) {
+          const spread = this.options.shadow.spread
+          ctx.save()
+          ctx.globalCompositeOperation = 'multiply'
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'
+          ctx.shadowBlur = Math.abs(spread)
+          ctx.shadowOffsetX = 0
+          ctx.shadowOffsetY = 0
+          ctx.restore()
+        }
       }
-      
+
       // Apply border radius if specified
       if (this.options.borderRadius && this.options.borderRadius > 0) {
         this.roundRect(ctx, frameX, frameY, frameWidth, frameHeight, this.options.borderRadius)
         ctx.clip()
       }
-      
+
       // Draw the video frame
       ctx.drawImage(videoFrame, frameX, frameY, frameWidth, frameHeight)
-      
+
       ctx.restore()
     }
   }
-  
+
   private roundRect(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -207,19 +313,19 @@ export class BackgroundRenderer {
     ctx.quadraticCurveTo(x, y, x + radius, y)
     ctx.closePath()
   }
-  
+
   updateOptions(options: Partial<BackgroundOptions>) {
     this.options = { ...this.options, ...options }
-    
+
     if (options.gradient || options.type === 'gradient') {
       this.createGradientCanvas()
     }
-    
+
     if (options.image || options.type === 'image' || options.type === 'wallpaper') {
       this.initializeBackground()
     }
   }
-  
+
   dispose() {
     this.backgroundImage = null
     this.gradientCanvas = null

@@ -17,7 +17,11 @@ import {
   Clipboard,
   ChevronsLeft,
   ChevronsRight,
-  Layers
+  Layers,
+  MousePointer,
+  Search,
+  Palette,
+  Sparkles
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Clip } from '@/types/project'
@@ -62,7 +66,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     if (!currentProject?.timeline?.tracks) return 10000
 
     let maxEndTime = 0
-    
+
     // Find the actual video duration from recordings
     if (currentProject.recordings && currentProject.recordings.length > 0) {
       // Get the longest recording duration
@@ -72,7 +76,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         }
       }
     }
-    
+
     // Also check clips to ensure we show all content
     for (const track of currentProject.timeline.tracks) {
       for (const clip of track.clips) {
@@ -88,8 +92,10 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
 
   const duration = calculateDuration()
 
-  const pixelsPerMs = zoom * 0.1 // Zoom factor for timeline width (0.1 = 100px per second at zoom 1)
-  const timelineWidth = duration * pixelsPerMs
+  // Calculate pixels per millisecond - at zoom 1.0, we want 100px per second (0.1px per ms)
+  // But that's too small, so let's use a more reasonable scale: 200px per second at zoom 1.0
+  const pixelsPerMs = zoom * 0.2 // At zoom 1: 200px/sec, zoom 2: 400px/sec, etc.
+  const timelineWidth = Math.max(duration * pixelsPerMs, 800) // Minimum width for usability
 
   // Render zoom track (like Screen Studio)
   const renderZoomTrack = () => {
@@ -98,8 +104,71 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     // Get the first selected clip
     const selectedClip = currentProject.timeline.tracks
       .flatMap(t => t.clips)
+      .find(c => selectedClips.includes(c.id))
+
+    if (!selectedClip || !selectedClip.effects?.zoom?.enabled) return null
+
+    const clipX = timeToPixel(selectedClip.startTime)
+    const clipWidth = timeToPixel(selectedClip.duration)
+
+    // Generate zoom visualization
+    const zoomKeyframes = selectedClip.effects.zoom.keyframes || []
+
+    return (
+      <div
+        className="absolute h-12 bg-blue-500/10 border border-blue-500/30 rounded"
+        style={{
+          left: `${clipX}px`,
+          width: `${clipWidth}px`,
+          top: '4px'
+        }}
+      >
+        <div className="absolute inset-0 overflow-hidden">
+          {/* Zoom level visualization */}
+          <svg className="w-full h-full">
+            <polyline
+              points={zoomKeyframes.map((kf, i) => {
+                const x = (kf.time / selectedClip.duration) * clipWidth
+                const y = 12 - (kf.zoom * 6) // Invert and scale
+                return `${x},${y}`
+              }).join(' ')}
+              fill="none"
+              stroke="rgb(59, 130, 246)"
+              strokeWidth="2"
+            />
+            {/* Keyframe dots */}
+            {zoomKeyframes.map((kf, i) => {
+              const x = (kf.time / selectedClip.duration) * clipWidth
+              const y = 12 - (kf.zoom * 6)
+              return (
+                <circle
+                  key={i}
+                  cx={x}
+                  cy={y}
+                  r="3"
+                  fill="rgb(59, 130, 246)"
+                  className="cursor-move hover:r-4"
+                />
+              )
+            })}
+          </svg>
+        </div>
+        <div className="absolute top-0 left-2 text-[10px] text-blue-500 font-medium">
+          Zoom
+        </div>
+      </div>
+    )
+  }
+
+  // Render cursor track (like Screen Studio)
+  const renderCursorTrack = () => {
+    if (!currentProject || !selectedClips.length) return null
+
+    // Get the first selected clip
+    const selectedClip = currentProject.timeline.tracks
+      .flatMap(t => t.clips)
       .find(c => c.id === selectedClips[0])
-      
+
     if (!selectedClip?.effects?.zoom?.enabled) return null
 
     // Get zoom keyframes from the clip effects or generate them
@@ -110,13 +179,13 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     const zoomBlocks: JSX.Element[] = []
     let inZoom = false
     let zoomStart = 0
-    
+
     // Analyze click events and mouse activity to create zoom regions
     const events = [
       ...(recording.metadata.mouseEvents || []).map(e => ({ ...e, type: 'mouse' })),
       ...(recording.metadata.clickEvents || []).map(e => ({ ...e, type: 'click', timestamp: e.timestamp }))
     ].sort((a, b) => a.timestamp - b.timestamp)
-    
+
     events.forEach((event, i) => {
       if (event.type === 'click') {
         // Start a zoom block on click
@@ -135,8 +204,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
             <div
               key={`zoom-${zoomStart}`}
               className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded flex items-center justify-center"
-              style={{ 
-                left: `${startX}px`, 
+              style={{
+                left: `${startX}px`,
                 width: `${endX - startX}px`,
                 top: 0
               }}
@@ -148,7 +217,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         }
       }
     })
-    
+
     // Close any open zoom block
     if (inZoom && events.length > 0) {
       const startX = timeToPixel(selectedClip.startTime + zoomStart)
@@ -157,8 +226,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         <div
           key={`zoom-${zoomStart}-end`}
           className="absolute h-full bg-purple-500/30 border border-purple-500/50 rounded flex items-center justify-center"
-          style={{ 
-            left: `${startX}px`, 
+          style={{
+            left: `${startX}px`,
             width: `${endX - startX}px`,
             top: 0
           }}
@@ -510,11 +579,26 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
     }
   }, [currentTime, isPlaying, timeToPixel])
 
-  // Render timeline ruler
+  // Render timeline ruler with dynamic intervals based on zoom
   const renderRuler = () => {
     const marks = []
-    const majorInterval = 1000 // 1 second
-    const minorInterval = 100 // 100ms
+
+    // Adjust interval based on zoom level for better visibility
+    let majorInterval = 1000 // 1 second
+    let minorInterval = 100 // 100ms
+
+    // At very low zoom, show fewer marks
+    if (zoom < 0.5) {
+      majorInterval = 5000 // 5 seconds
+      minorInterval = 1000 // 1 second
+    } else if (zoom < 1) {
+      majorInterval = 2000 // 2 seconds  
+      minorInterval = 500 // 500ms
+    } else if (zoom > 2) {
+      // At high zoom, show more detail
+      majorInterval = 1000 // 1 second
+      minorInterval = 50 // 50ms
+    }
 
     for (let time = 0; time <= duration; time += minorInterval) {
       const isMajor = time % majorInterval === 0
@@ -530,8 +614,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           style={{ left: `${x}px` }}
         >
           {isMajor && (
-            <span className="absolute -top-5 left-1 text-xs text-muted-foreground">
-              {(time / 1000).toFixed(0)}s
+            <span className="absolute -top-5 left-1 text-xs text-muted-foreground whitespace-nowrap">
+              {time < 1000 ? `${time}ms` : `${(time / 1000).toFixed(1)}s`}
             </span>
           )}
         </div>
@@ -567,8 +651,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           )}
           style={{
             left: `${clipX}px`,
-            width: `${clipWidth}px`,
-            minWidth: '20px' // Ensure clips are always visible
+            width: `${Math.max(clipWidth, 40)}px`, // Ensure minimum visible width
+            minWidth: '40px' // Ensure clips are always visible
           }}
           draggable
           onDragStart={() => handleClipDragStart(clip.id)}
@@ -605,6 +689,35 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
               </div>
               {/* Overlay with clip info */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+
+              {/* Effect indicators (Screen Studio style) */}
+              <div className="absolute top-1 left-1 flex gap-1">
+                {clip.effects?.zoom?.enabled && (
+                  <div className="bg-blue-500/80 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-0.5" title="Zoom enabled">
+                    <Search className="w-3 h-3 text-white" />
+                    <span className="text-[10px] text-white font-medium">Zoom</span>
+                  </div>
+                )}
+                {clip.effects?.cursor?.visible !== false && (
+                  <div className="bg-green-500/80 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-0.5" title="Cursor overlay">
+                    <MousePointer className="w-3 h-3 text-white" />
+                    <span className="text-[10px] text-white font-medium">Cursor</span>
+                  </div>
+                )}
+                {clip.effects?.background?.type && clip.effects.background.type !== 'none' && (
+                  <div className="bg-purple-500/80 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-0.5" title="Background effect">
+                    <Palette className="w-3 h-3 text-white" />
+                    <span className="text-[10px] text-white font-medium">BG</span>
+                  </div>
+                )}
+                {(clip.effects?.annotations?.length ?? 0) > 0 && (
+                  <div className="bg-orange-500/80 backdrop-blur-sm rounded px-1.5 py-0.5 flex items-center gap-0.5" title="Annotations">
+                    <Sparkles className="w-3 h-3 text-white" />
+                    <span className="text-[10px] text-white font-medium">{clip.effects.annotations!.length}</span>
+                  </div>
+                )}
+              </div>
+
               <div className="absolute bottom-0 left-0 right-0 px-2 py-1">
                 <div className="text-xs text-white truncate font-medium">
                   Clip {clip.id.slice(-4)}
@@ -802,7 +915,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
                 {renderTrackClips(1, 'audio')}
               </div>
             </div>
-            
+
             {/* Add more space for future tracks */}
             <div className="h-12 bg-muted/5" />
           </div>

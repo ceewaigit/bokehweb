@@ -35,17 +35,51 @@ export function registerRecordingHandlers(): void {
       console.log(`[Library] Found files:`, files)
       const recordings = files
         .filter(f => f.endsWith('.ssproj'))
-        .map(f => ({
-          name: f,
-          path: path.join(recordingsDir, f),
-          timestamp: fsSync.statSync(path.join(recordingsDir, f)).mtime
-        }))
+        .map(f => {
+          const filePath = path.join(recordingsDir, f)
+          const stats = fsSync.statSync(filePath)
+          
+          // Try to find associated video file
+          let videoSize = 0
+          const baseName = f.replace('.ssproj', '')
+          const possibleVideoFiles = [
+            `${baseName}.webm`,
+            `${baseName}.mp4`
+          ]
+          
+          for (const videoFile of possibleVideoFiles) {
+            const videoPath = path.join(recordingsDir, videoFile)
+            if (fsSync.existsSync(videoPath)) {
+              const videoStats = fsSync.statSync(videoPath)
+              videoSize = videoStats.size
+              break
+            }
+          }
+          
+          return {
+            name: f,
+            path: filePath,
+            timestamp: stats.mtime,
+            size: stats.size,
+            videoSize: videoSize
+          }
+        })
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       console.log(`[Library] Returning ${recordings.length} project(s)`)
       return recordings
     } catch (error) {
       console.error('Failed to load recordings:', error)
       return []
+    }
+  })
+  
+  ipcMain.handle('get-file-size', async (event: IpcMainInvokeEvent, filePath: string) => {
+    try {
+      const stats = await fs.stat(filePath)
+      return { success: true, size: stats.size }
+    } catch (error: any) {
+      console.error('Failed to get file size:', error)
+      return { success: false, error: error.message }
     }
   })
 }

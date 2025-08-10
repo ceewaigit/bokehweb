@@ -65,7 +65,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   currentProject: null,
   currentTime: 0,
   isPlaying: false,
-  zoom: 0.5, // Start at 0.5 zoom for better overview
+  zoom: 1.0, // Default zoom level for good visibility
   selectedClipId: null,
   selectedClips: [],
   

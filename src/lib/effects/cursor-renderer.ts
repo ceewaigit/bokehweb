@@ -3,6 +3,8 @@ interface CursorEvent {
   mouseX: number
   mouseY: number
   eventType: 'mouse' | 'click' | 'scroll' | 'key'
+  velocity?: { x: number; y: number }
+  acceleration?: { x: number; y: number }
 }
 
 interface CursorOptions {
@@ -31,7 +33,7 @@ export class CursorRenderer {
   private cursorImage: HTMLImageElement
   private events: CursorEvent[] = []
   private currentIndex = 0
-  private clickAnimations: Map<string, { 
+  private clickAnimations: Map<string, {
     x: number
     y: number
     radius: number
@@ -39,7 +41,7 @@ export class CursorRenderer {
     scale: number
     startTime: number
   }> = new Map()
-  
+
   private currentPosition: InterpolatedPosition = {
     x: 0,
     y: 0,
@@ -47,17 +49,18 @@ export class CursorRenderer {
     vy: 0,
     visible: true
   }
-  
+
   private targetPosition = { x: 0, y: 0 }
   private cursorTrail: Array<{ x: number; y: number; opacity: number; age: number }> = []
   private lastMovementTime = 0
   private lastClickTime = 0
-  
-  // Spring physics for ultra-smooth cursor movement
-  private readonly SPRING_STIFFNESS = 0.15
-  private readonly SPRING_DAMPING = 0.85
-  private readonly TRAIL_LENGTH = 5
-  private readonly TRAIL_FADE_SPEED = 0.15
+
+  // Spring physics for ultra-smooth cursor movement (Screen Studio quality)
+  private readonly SPRING_STIFFNESS = 0.12 // Smoother than before
+  private readonly SPRING_DAMPING = 0.88 // Less bouncy
+  private readonly TRAIL_LENGTH = 8 // Longer trail for fast movements
+  private readonly TRAIL_FADE_SPEED = 0.12 // Slower fade
+  private readonly VELOCITY_SMOOTHING = 0.25 // Blend factor for velocity
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
@@ -159,7 +162,7 @@ export class CursorRenderer {
         this.canvas.width = video.videoWidth
         this.canvas.height = video.videoHeight
         this.ctx = this.canvas.getContext('2d', { alpha: true })
-        
+
         // Set up context for smooth rendering
         if (this.ctx) {
           this.ctx.imageSmoothingEnabled = true
@@ -186,32 +189,32 @@ export class CursorRenderer {
     // Get target position from events
     const targetEvent = this.getEventAtTime(currentTime)
     if (!targetEvent) return
-    
+
     // Update target position
     this.targetPosition = {
       x: targetEvent.mouseX,
       y: targetEvent.mouseY
     }
-    
+
     // Check for clicks
     if (targetEvent.eventType === 'click') {
       this.addClickAnimation(targetEvent.mouseX, targetEvent.mouseY, currentTime)
       this.lastClickTime = currentTime
     }
-    
+
     // Check if mouse is moving
     const isMoving = Math.abs(this.targetPosition.x - this.currentPosition.x) > 1 ||
-                     Math.abs(this.targetPosition.y - this.currentPosition.y) > 1
-    
+      Math.abs(this.targetPosition.y - this.currentPosition.y) > 1
+
     if (isMoving) {
       this.lastMovementTime = currentTime
     }
-    
+
     // Auto-hide cursor when idle
     const idleTime = currentTime - this.lastMovementTime
     const fadeOutStart = this.options.hideDelay || 600
     const fadeOutDuration = 200
-    
+
     let cursorOpacity = 1
     if (this.options.autoHide && idleTime > fadeOutStart) {
       const fadeProgress = Math.min((idleTime - fadeOutStart) / fadeOutDuration, 1)
@@ -220,43 +223,56 @@ export class CursorRenderer {
     } else {
       this.currentPosition.visible = true
     }
-    
-    // Apply spring physics for smooth interpolation
-    this.updateCursorPosition()
-    
+
+    // Apply spring physics for smooth interpolation with velocity data
+    this.updateCursorPosition(targetEvent)
+
     // Update and render effects
     this.updateClickAnimations(currentTime)
     this.renderClickAnimations()
-    
+
     // Update motion trail
     if (this.options.motionBlur && isMoving) {
       this.updateMotionTrail()
       this.renderMotionTrail()
     }
-    
+
     // Render cursor if visible
     if (this.currentPosition.visible && cursorOpacity > 0) {
       this.renderCursor(cursorOpacity)
     }
   }
 
-  private updateCursorPosition() {
+  private updateCursorPosition(targetEvent?: CursorEvent) {
     // Spring physics for ultra-smooth movement
     const dx = this.targetPosition.x - this.currentPosition.x
     const dy = this.targetPosition.y - this.currentPosition.y
-    
-    // Apply spring force
-    this.currentPosition.vx += dx * this.SPRING_STIFFNESS
-    this.currentPosition.vy += dy * this.SPRING_STIFFNESS
-    
+
+    // If we have velocity data, use it for prediction
+    if (targetEvent?.velocity) {
+      // Blend recorded velocity with spring physics
+      const predictedVx = targetEvent.velocity.x * 0.001 // Convert to pixels per frame
+      const predictedVy = targetEvent.velocity.y * 0.001
+      
+      // Mix predicted velocity with spring physics
+      this.currentPosition.vx = this.currentPosition.vx * (1 - this.VELOCITY_SMOOTHING) + 
+                                (dx * this.SPRING_STIFFNESS + predictedVx) * this.VELOCITY_SMOOTHING
+      this.currentPosition.vy = this.currentPosition.vy * (1 - this.VELOCITY_SMOOTHING) + 
+                                (dy * this.SPRING_STIFFNESS + predictedVy) * this.VELOCITY_SMOOTHING
+    } else {
+      // Fallback to pure spring physics
+      this.currentPosition.vx += dx * this.SPRING_STIFFNESS
+      this.currentPosition.vy += dy * this.SPRING_STIFFNESS
+    }
+
     // Apply damping
     this.currentPosition.vx *= this.SPRING_DAMPING
     this.currentPosition.vy *= this.SPRING_DAMPING
-    
-    // Update position
+
+    // Update position with sub-pixel precision
     this.currentPosition.x += this.currentPosition.vx
     this.currentPosition.y += this.currentPosition.vy
-    
+
     // Clamp very small movements to prevent jitter
     if (Math.abs(this.currentPosition.vx) < 0.01) this.currentPosition.vx = 0
     if (Math.abs(this.currentPosition.vy) < 0.01) this.currentPosition.vy = 0
@@ -264,7 +280,7 @@ export class CursorRenderer {
 
   private updateMotionTrail() {
     const speed = Math.sqrt(this.currentPosition.vx ** 2 + this.currentPosition.vy ** 2)
-    
+
     // Only add to trail if moving fast enough
     if (speed > 2) {
       this.cursorTrail.push({
@@ -273,13 +289,13 @@ export class CursorRenderer {
         opacity: Math.min(0.4, speed * 0.05),
         age: 0
       })
-      
+
       // Limit trail length
       if (this.cursorTrail.length > this.TRAIL_LENGTH) {
         this.cursorTrail.shift()
       }
     }
-    
+
     // Update trail aging
     this.cursorTrail = this.cursorTrail.filter(point => {
       point.age += 1
@@ -290,19 +306,19 @@ export class CursorRenderer {
 
   private renderMotionTrail() {
     if (!this.ctx || !this.cursorImage.complete) return
-    
+
     this.cursorTrail.forEach((point, index) => {
       const trailOpacity = point.opacity * (index / this.cursorTrail.length)
-      
+
       this.ctx!.save()
       this.ctx!.globalAlpha = trailOpacity
-      
+
       // Slightly smaller cursor for trail
       const scale = 0.8 + (index / this.cursorTrail.length) * 0.2
       this.ctx!.translate(point.x, point.y)
       this.ctx!.scale(scale, scale)
       this.ctx!.translate(-point.x, -point.y)
-      
+
       this.ctx!.drawImage(this.cursorImage, point.x - 2, point.y - 2)
       this.ctx!.restore()
     })
@@ -310,31 +326,31 @@ export class CursorRenderer {
 
   private renderCursor(opacity: number) {
     if (!this.ctx || !this.cursorImage.complete) return
-    
+
     this.ctx.save()
     this.ctx.globalAlpha = opacity
-    
+
     // Check for recent click to add subtle pulse
     const timeSinceClick = Date.now() - this.lastClickTime
     let scale = 1
-    
+
     if (timeSinceClick < 200) {
       // Subtle pulse on click
       const pulseProgress = timeSinceClick / 200
       scale = 1 + Math.sin(pulseProgress * Math.PI) * 0.1
-      
+
       this.ctx.translate(this.currentPosition.x, this.currentPosition.y)
       this.ctx.scale(scale, scale)
       this.ctx.translate(-this.currentPosition.x, -this.currentPosition.y)
     }
-    
+
     // Draw cursor with sub-pixel precision
     this.ctx.drawImage(
       this.cursorImage,
       Math.round(this.currentPosition.x - 2),
       Math.round(this.currentPosition.y - 2)
     )
-    
+
     this.ctx.restore()
   }
 
@@ -342,10 +358,10 @@ export class CursorRenderer {
     // Find events around current time
     let before: CursorEvent | null = null
     let after: CursorEvent | null = null
-    
+
     for (let i = 0; i < this.events.length; i++) {
       const event = this.events[i]
-      
+
       if (event.timestamp <= currentTime) {
         before = event
       } else if (!after) {
@@ -353,14 +369,14 @@ export class CursorRenderer {
         break
       }
     }
-    
+
     if (!before) return null
     if (!after || !this.options.smoothing) return before
-    
+
     // Interpolate between events for smooth movement
     const progress = (currentTime - before.timestamp) / (after.timestamp - before.timestamp)
     const easedProgress = this.easeInOutCubic(Math.min(1, Math.max(0, progress)))
-    
+
     return {
       ...before,
       mouseX: before.mouseX + (after.mouseX - before.mouseX) * easedProgress,
@@ -388,20 +404,20 @@ export class CursorRenderer {
     this.clickAnimations.forEach((anim, id) => {
       const age = currentTime - anim.startTime
       const maxAge = 500 // Animation duration in ms
-      
+
       if (age > maxAge) {
         this.clickAnimations.delete(id)
         return
       }
-      
+
       const progress = age / maxAge
-      
+
       // Smooth expansion with easing
       anim.radius = this.easeOutCubic(progress) * 30
-      
+
       // Fade out with acceleration at the end
       anim.opacity = 1 - this.easeInQuad(progress)
-      
+
       // Scale down as it expands
       anim.scale = 1.3 - progress * 0.3
     })
@@ -419,11 +435,11 @@ export class CursorRenderer {
       for (let i = 0; i < 2; i++) {
         const ringDelay = i * 50 // Stagger the rings
         const ringProgress = Math.max(0, (anim.radius - ringDelay) / 30)
-        
+
         if (ringProgress > 0) {
           const ringOpacity = anim.opacity * (1 - i * 0.4) * (1 - ringProgress * 0.5)
           const ringRadius = anim.radius - ringDelay
-          
+
           // Outer ring
           this.ctx!.globalAlpha = ringOpacity
           this.ctx!.strokeStyle = clickColor
@@ -431,7 +447,7 @@ export class CursorRenderer {
           this.ctx!.beginPath()
           this.ctx!.arc(anim.x, anim.y, ringRadius, 0, Math.PI * 2)
           this.ctx!.stroke()
-          
+
           // Inner glow
           if (i === 0 && anim.opacity > 0.5) {
             const glowGradient = this.ctx!.createRadialGradient(
@@ -440,7 +456,7 @@ export class CursorRenderer {
             )
             glowGradient.addColorStop(0, `${clickColor}33`)
             glowGradient.addColorStop(1, `${clickColor}00`)
-            
+
             this.ctx!.globalAlpha = (anim.opacity - 0.5) * 0.6
             this.ctx!.fillStyle = glowGradient
             this.ctx!.beginPath()
