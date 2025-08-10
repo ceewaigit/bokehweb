@@ -91,29 +91,10 @@ export function registerMouseTrackingHandlers(): void {
               mouseHistory.shift()
             }
 
-            // Improved click detection based on velocity patterns
-            if (lastMousePosition && mouseHistory.length >= 5) {
-              const recentPositions = mouseHistory.slice(-5)
-              const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2)
-              const prevSpeed = Math.sqrt(lastVelocity.x ** 2 + lastVelocity.y ** 2)
-              
-              // Detect sudden deceleration (characteristic of clicks)
-              const wasMovingFast = prevSpeed > 100
-              const hasStopped = speed < 10
-              const suddenStop = wasMovingFast && hasStopped && 
-                Math.abs(acceleration.x) > 500 || Math.abs(acceleration.y) > 500
-
-              if (suddenStop) {
-                // Likely a click occurred - emit click event
-                mouseEventSender.send('mouse-click', {
-                  x: positionData.x,
-                  y: positionData.y,
-                  timestamp: now,
-                  velocity: { x: 0, y: 0 }
-                })
-                console.log('🖱️ Click detected via deceleration at', positionData.x, positionData.y)
-              }
-            }
+            // NOTE: Removed velocity-based click detection as it causes false positives
+            // Real click events should come from actual mouse button events
+            // This is a limitation of Electron's API - proper click detection requires
+            // native modules or system-level hooks
 
             lastMousePosition = positionData
             lastVelocity = velocity

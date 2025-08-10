@@ -6,6 +6,8 @@ interface ZoomMouseEvent extends Omit<ProjectMouseEvent, 'x' | 'y' | 'screenWidt
   mouseX: number
   mouseY: number
   eventType: 'mouse' | 'click' | 'scroll' | 'key'
+  windowWidth?: number  // The actual screen width when event was recorded
+  windowHeight?: number // The actual screen height when event was recorded
 }
 
 interface ZoomKeyframe {
@@ -37,6 +39,9 @@ interface ActivityZone {
 
 export class ZoomEngine {
   private keyframes: ZoomKeyframe[] = []
+  private allEvents: ZoomMouseEvent[] = [] // Store all events for continuous tracking
+  private videoWidth = 0
+  private videoHeight = 0
   
   // Simple thresholds - like Screen Studio
   private readonly ACTIVITY_WINDOW = 300 // ms - group events within this window
@@ -66,13 +71,37 @@ export class ZoomEngine {
       return [{ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'default' }]
     }
 
+    // Validate dimensions - use event dimensions if video dimensions are invalid
+    let actualWidth = videoWidth
+    let actualHeight = videoHeight
+    
+    if (!actualWidth || !actualHeight || actualWidth <= 0 || actualHeight <= 0) {
+      // Try to get dimensions from events
+      const firstEventWithDimensions = events.find(e => e.windowWidth && e.windowHeight)
+      if (firstEventWithDimensions && firstEventWithDimensions.windowWidth && firstEventWithDimensions.windowHeight) {
+        actualWidth = firstEventWithDimensions.windowWidth
+        actualHeight = firstEventWithDimensions.windowHeight
+        console.log(`📐 Using dimensions from events: ${actualWidth}x${actualHeight}`)
+      } else {
+        console.error('❌ No valid dimensions provided and events lack dimension info')
+        return [{ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'error-no-dimensions' }]
+      }
+    }
+
+    // Store dimensions for normalization
+    this.videoWidth = actualWidth
+    this.videoHeight = actualHeight
+
+    // Store all events for continuous mouse tracking
+    this.allEvents = events
+
     // Step 1: Cluster events into activity zones
-    const zones = this.clusterIntoActivityZones(events, videoWidth, videoHeight)
+    const zones = this.clusterIntoActivityZones(events, actualWidth, actualHeight)
     
     // Step 2: Merge nearby zones to prevent oscillation
     const mergedZones = this.mergeNearbyZones(zones)
     
-    // Step 3: Convert zones to simple keyframes
+    // Step 3: Convert zones to simple keyframes (just for zoom scale, not position)
     this.keyframes = this.zonesToKeyframes(mergedZones, videoDuration)
     
     console.log(`🔍 Generated ${this.keyframes.length} keyframes from ${mergedZones.length} activity zones`)
@@ -84,8 +113,11 @@ export class ZoomEngine {
     let currentZone: ActivityZone | null = null
 
     for (const event of events) {
-      const normalizedX = event.mouseX / width
-      const normalizedY = event.mouseY / height
+      // Use event's own dimensions if available, otherwise use video dimensions
+      const eventWidth = event.windowWidth || width
+      const eventHeight = event.windowHeight || height
+      const normalizedX = event.mouseX / eventWidth
+      const normalizedY = event.mouseY / eventHeight
 
       // Check if we should start a new zone
       if (!currentZone || event.timestamp - currentZone.endTime > this.ACTIVITY_WINDOW) {
@@ -178,22 +210,22 @@ export class ZoomEngine {
       // Only add zoom-in if we're not already zoomed
       const timeSinceLastZoomOut = zone.startTime - lastZoomOutTime
       if (timeSinceLastZoomOut > 500) { // Prevent immediate re-zoom
-        // Zoom in
+        // Zoom in (position will be determined by mouse tracking)
         keyframes.push({
           timestamp: zone.startTime,
-          x: zone.centerX,
-          y: zone.centerY,
+          x: 0.5, // Position will be overridden by mouse tracking
+          y: 0.5, // Position will be overridden by mouse tracking
           scale: zoomScale,
           reason: zone.hasClick ? 'click-zoom' : 'activity-zoom'
         })
       }
 
-      // Hold zoom position during activity
+      // Hold zoom during activity (position follows mouse)
       if (zone.endTime - zone.startTime > 200) {
         keyframes.push({
           timestamp: zone.endTime,
-          x: zone.centerX,
-          y: zone.centerY,
+          x: 0.5, // Position will be overridden by mouse tracking
+          y: 0.5, // Position will be overridden by mouse tracking
           scale: zoomScale,
           reason: 'hold'
         })
@@ -263,7 +295,7 @@ export class ZoomEngine {
       return { x: 0.5, y: 0.5, scale: 1 }
     }
 
-    // Find surrounding keyframes
+    // Find surrounding keyframes for zoom scale
     let before = this.keyframes[0]
     let after = this.keyframes[this.keyframes.length - 1]
 
@@ -275,18 +307,115 @@ export class ZoomEngine {
       }
     }
 
-    if (timestamp <= before.timestamp) return { x: before.x, y: before.y, scale: before.scale }
-    if (timestamp >= after.timestamp) return { x: after.x, y: after.y, scale: after.scale }
+    if (timestamp <= before.timestamp) {
+      return this.getZoomWithMouseTracking(timestamp, before.scale)
+    }
+    if (timestamp >= after.timestamp) {
+      return this.getZoomWithMouseTracking(timestamp, after.scale)
+    }
 
-    // Simple smooth interpolation
+    // Smooth interpolation for scale
     const progress = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
     const eased = easeInOutQuad(progress)
+    const interpolatedScale = before.scale + (after.scale - before.scale) * eased
+
+    // Get position from actual mouse events when zoomed
+    return this.getZoomWithMouseTracking(timestamp, interpolatedScale)
+  }
+
+  private getZoomWithMouseTracking(timestamp: number, scale: number): { x: number; y: number; scale: number } {
+    // If not zoomed, return center
+    if (scale <= 1.01) {
+      return { x: 0.5, y: 0.5, scale: 1 }
+    }
+
+    // Find the mouse position at this timestamp for continuous tracking
+    const mousePos = this.getMousePositionAtTime(timestamp)
+    
+    // Smooth the mouse position for less jarring movement
+    const smoothedX = this.smoothPosition(mousePos.x, 0.15)
+    const smoothedY = this.smoothPosition(mousePos.y, 0.15)
 
     return {
-      x: before.x + (after.x - before.x) * eased,
-      y: before.y + (after.y - before.y) * eased,
-      scale: before.scale + (after.scale - before.scale) * eased
+      x: smoothedX,
+      y: smoothedY,
+      scale: scale
     }
+  }
+
+  private getMousePositionAtTime(timestamp: number): { x: number; y: number } {
+    if (!this.allEvents || this.allEvents.length === 0) {
+      return { x: 0.5, y: 0.5 }
+    }
+
+    // Find the two events surrounding this timestamp for interpolation
+    let before: ZoomMouseEvent | null = null
+    let after: ZoomMouseEvent | null = null
+
+    for (let i = 0; i < this.allEvents.length; i++) {
+      const event = this.allEvents[i]
+      if (event.timestamp <= timestamp) {
+        before = event
+      } else {
+        after = event
+        break
+      }
+    }
+
+    // If we have both events, interpolate between them
+    if (before && after) {
+      const progress = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
+      const smoothProgress = easeInOutQuad(Math.min(1, Math.max(0, progress)))
+      
+      // Use the actual screen dimensions from the events if available
+      const beforeWidth = before.windowWidth || this.videoWidth
+      const beforeHeight = before.windowHeight || this.videoHeight
+      const afterWidth = after.windowWidth || this.videoWidth
+      const afterHeight = after.windowHeight || this.videoHeight
+      
+      // Normalize and interpolate
+      const beforeX = before.mouseX / beforeWidth
+      const beforeY = before.mouseY / beforeHeight
+      const afterX = after.mouseX / afterWidth
+      const afterY = after.mouseY / afterHeight
+      
+      return {
+        x: beforeX + (afterX - beforeX) * smoothProgress,
+        y: beforeY + (afterY - beforeY) * smoothProgress
+      }
+    }
+
+    // If we only have a before event, use it
+    if (before) {
+      const width = before.windowWidth || this.videoWidth
+      const height = before.windowHeight || this.videoHeight
+      return {
+        x: before.mouseX / width,
+        y: before.mouseY / height
+      }
+    }
+
+    // If we only have an after event (shouldn't happen), use it
+    if (after) {
+      const width = after.windowWidth || this.videoWidth
+      const height = after.windowHeight || this.videoHeight
+      return {
+        x: after.mouseX / width,
+        y: after.mouseY / height
+      }
+    }
+
+    // Fallback to center if no mouse data
+    return { x: 0.5, y: 0.5 }
+  }
+
+  private lastSmoothedX = 0.5
+  private lastSmoothedY = 0.5
+
+  private smoothPosition(target: number, factor: number): number {
+    // For now, return target directly - smoothing can cause lag in following
+    // Can be re-enabled if needed for less jarring movement
+    return target
   }
 
 

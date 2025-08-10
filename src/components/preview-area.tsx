@@ -255,8 +255,8 @@ export function PreviewArea() {
     const keyframes = engine.generateKeyframes(
       metadata,
       totalDurationMs,
-      video.videoWidth || 1920,
-      video.videoHeight || 1080
+      video.videoWidth || 0,  // Will be handled by zoom engine validation
+      video.videoHeight || 0  // Will be handled by zoom engine validation
     )
 
     console.log(`🔍 Generated ${keyframes.length} zoom keyframes:`, keyframes.map(kf => ({ time: kf.timestamp, scale: kf.scale, reason: kf.reason })))

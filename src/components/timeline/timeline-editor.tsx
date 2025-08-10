@@ -31,7 +31,7 @@ interface TimelineEditorProps {
   className?: string
 }
 
-export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
+export function TimelineEditor({ className = "h-[400px]" }: TimelineEditorProps) {
   const {
     currentProject,
     selectedClips,
@@ -171,7 +171,9 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
 
     const x = e.clientX - rect.left + (timelineRef.current?.scrollLeft || 0)
     const time = pixelToTime(x)
-    seek(Math.max(0, Math.min(duration, time)))
+    // Constrain to actual timeline duration, not the padded width
+    const maxTime = currentProject?.timeline?.duration || 0
+    seek(Math.max(0, Math.min(maxTime, time)))
   }
 
   // Split clip at current time
@@ -387,12 +389,13 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       // Jump forward (Right Arrow)
       else if (e.key === 'ArrowRight') {
         e.preventDefault()
+        const maxTime = currentProject?.timeline?.duration || 0
         if (e.shiftKey) {
           // Jump 5 seconds with shift
-          seek(Math.min(duration, currentTime + 5000))
+          seek(Math.min(maxTime, currentTime + 5000))
         } else {
           // Jump 1 second
-          seek(Math.min(duration, currentTime + 1000))
+          seek(Math.min(maxTime, currentTime + 1000))
         }
       }
       // Jump to start (Home)
@@ -403,7 +406,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       // Jump to end (End)
       else if (e.key === 'End') {
         e.preventDefault()
-        seek(duration)
+        const maxTime = currentProject?.timeline?.duration || 0
+        seek(maxTime)
       }
       // Zoom in (=)
       else if (e.key === '=' || e.key === '+') {
@@ -427,6 +431,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
   }, [
     currentTime,
     duration,
+    currentProject,
     isPlaying,
     zoom,
     handleSplitClip,
@@ -491,7 +496,9 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       minorInterval = 50 // 50ms
     }
 
-    for (let time = 0; time <= duration; time += minorInterval) {
+    // Only render ruler up to actual timeline duration, not padded duration
+    const maxRulerTime = currentProject?.timeline?.duration || 0
+    for (let time = 0; time <= maxRulerTime; time += minorInterval) {
       const isMajor = time % majorInterval === 0
       const x = timeToPixel(time)
 
@@ -535,8 +542,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         <div
           key={clip.id}
           className={cn(
-            "absolute top-1 bottom-1 rounded cursor-move transition-all overflow-hidden",
-            trackType === 'video' ? "bg-blue-900/50" : "bg-green-900/50",
+            "absolute rounded cursor-move transition-all overflow-hidden",
+            trackType === 'video' ? "bg-blue-900/50 top-2 bottom-2" : "bg-green-900/50 top-1 bottom-1",
             isSelected && "ring-2 ring-primary ring-offset-1",
             isDragging && draggedClip === clip.id && "opacity-50"
           )}
@@ -569,8 +576,8 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
                     <div key={i} className="flex-1 h-full">
                       <VideoThumbnail
                         recordingId={clip.recordingId}
-                        width={Math.max(80, clipWidth / arr.length)}
-                        height={80}
+                        width={Math.max(120, clipWidth / arr.length)}
+                        height={120}
                         timestamp={thumbTimestamp}
                         className="w-full h-full object-cover"
                       />
@@ -656,7 +663,10 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => seek(Math.min(duration, currentTime + 1000))}
+            onClick={() => {
+              const maxTime = currentProject?.timeline?.duration || 0
+              seek(Math.min(maxTime, currentTime + 1000))
+            }}
           >
             <SkipForward className="w-4 h-4" />
           </Button>
@@ -755,13 +765,14 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
         </div>
       </div>
 
-      {/* Timeline Area */}
+      {/* Timeline Area - now resizable */}
       <div
         ref={timelineRef}
-        className="flex-1 overflow-x-auto overflow-y-auto relative min-h-0"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative min-h-0"
         onClick={handleTimelineClick}
+        style={{ resize: 'vertical', overflow: 'auto', minHeight: '200px', maxHeight: '600px' }}
       >
-        <div className="relative min-h-full" style={{ width: `${timelineWidth}px`, minWidth: '100%' }}>
+        <div className="relative h-full" style={{ width: `${timelineWidth}px`, minWidth: '100%' }}>
           {/* Ruler */}
           <div className="h-8 border-b border-border relative sticky top-0 bg-background z-10">
             {renderRuler()}
@@ -769,9 +780,9 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
 
           {/* Tracks */}
           <div className="relative">
-            {/* Video Track */}
+            {/* Video Track - larger for better visibility */}
             <div
-              className="h-24 border-b border-border relative bg-muted/20"
+              className="h-32 border-b border-border relative bg-muted/20"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleClipDrop(e, 0)}
             >
@@ -794,7 +805,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
 
             {/* Audio Track */}
             <div
-              className="h-16 border-b border-border relative bg-muted/10"
+              className="h-20 border-b border-border relative bg-muted/10"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleClipDrop(e, 1)}
             >
@@ -825,7 +836,9 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
               const handleMouseMove = (moveEvent: MouseEvent) => {
                 const deltaX = moveEvent.clientX - startX
                 const deltaTime = pixelToTime(deltaX)
-                const newTime = Math.max(0, Math.min(duration, startTime + deltaTime))
+                // Constrain playhead to actual timeline duration, not the padded width
+                const maxTime = currentProject?.timeline?.duration || 0
+                const newTime = Math.max(0, Math.min(maxTime, startTime + deltaTime))
                 seek(newTime)
               }
 
@@ -850,7 +863,7 @@ export function TimelineEditor({ className = "h-80" }: TimelineEditorProps) {
       {/* Timeline Info */}
       <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-muted-foreground">
         <span>{selectedClips.length} clip(s) selected</span>
-        <span>{(currentTime / 1000).toFixed(2)}s / {(duration / 1000).toFixed(2)}s</span>
+        <span>{(currentTime / 1000).toFixed(2)}s / {((currentProject?.timeline?.duration || 0) / 1000).toFixed(2)}s</span>
       </div>
 
       {/* Context Menu */}
