@@ -50,7 +50,7 @@ export function WorkspaceManager() {
   if (!currentProject) {
     console.log('🔍 WorkspaceManager: Showing recordings library')
     return (
-      <div className="h-screen w-screen flex flex-col bg-background">
+      <div className="h-full w-full min-h-screen flex flex-col bg-background">
         <RecordingsLibrary
           onSelectRecording={async (recording) => {
             console.log('🔍 Selected recording:', recording.name)
@@ -157,7 +157,7 @@ export function WorkspaceManager() {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-full w-full min-h-screen flex flex-col bg-background overflow-hidden">
       {/* Top Toolbar - Refined with better spacing */}
       <div className="h-14 border-b bg-card/50 backdrop-blur-sm">
         <Toolbar

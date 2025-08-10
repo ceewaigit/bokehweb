@@ -101,11 +101,25 @@
     @apply border-border;
   }
   
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+  
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    height: 100%;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+  }
+  
+  #__next, main {
+    height: 100%;
+    width: 100%;
   }
 
   /* Custom scrollbars */

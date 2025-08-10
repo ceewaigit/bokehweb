@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.svg",
   },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
 }
 
 export default function RootLayout({
@@ -22,8 +28,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`}>
+    <html lang="en" suppressHydrationWarning className="h-full">
+      <body className={`${inter.variable} font-sans antialiased h-full overflow-hidden`}>
         <LayoutClient>
           {children}
         </LayoutClient>

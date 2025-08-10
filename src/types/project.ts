@@ -5,6 +5,7 @@
 
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { ZoomEngine } from '@/lib/effects/zoom-engine'
 
 export interface Project {
   version: string
@@ -404,7 +405,49 @@ export async function saveRecordingWithProject(
     
     project.recordings.push(recording)
     
-    // Add clip to timeline with default effects
+    // Generate zoom keyframes from mouse events using ZoomEngine
+    const zoomEngine = new ZoomEngine({
+      enabled: true,
+      sensitivity: 1.0,
+      maxZoom: 2.0,
+      smoothing: true
+    })
+    
+    // Convert mouse events to format expected by ZoomEngine
+    const zoomEvents = [
+      ...mouseEvents.map(e => ({
+        timestamp: e.timestamp,
+        mouseX: e.x * width,
+        mouseY: e.y * height,
+        eventType: 'mouse' as const
+      })),
+      ...clickEvents.map(e => ({
+        timestamp: e.timestamp,
+        mouseX: e.x,
+        mouseY: e.y,
+        eventType: 'click' as const
+      }))
+    ].sort((a, b) => a.timestamp - b.timestamp)
+    
+    const engineKeyframes = zoomEngine.generateKeyframes(
+      zoomEvents,
+      duration,
+      width,
+      height
+    )
+    
+    // Convert ZoomEngine keyframes to project format
+    const zoomKeyframes: ZoomKeyframe[] = engineKeyframes.map(kf => ({
+      time: kf.timestamp,
+      zoom: kf.scale,
+      x: kf.x,
+      y: kf.y,
+      easing: 'smoothStep' as const
+    }))
+    
+    console.log(`📹 Generated ${zoomKeyframes.length} zoom keyframes from ${zoomEvents.length} events`)
+    
+    // Add clip to timeline with generated effects
     const clip: Clip = {
       id: `clip-${Date.now()}`,
       recordingId,
@@ -415,7 +458,7 @@ export async function saveRecordingWithProject(
       effects: {
         zoom: {
           enabled: true,
-          keyframes: [],
+          keyframes: zoomKeyframes, // Use generated keyframes instead of empty array
           sensitivity: 1.0,
           maxZoom: 2.0,
           smoothing: 0.1
