@@ -304,7 +304,10 @@ export function PreviewArea() {
     const drawCurrentFrame = (forceTime?: number) => {
       // Use the ref to get the current engine
       const currentEngine = effectsEngineRef.current
-      if (!currentEngine) return
+      if (!currentEngine) {
+        console.log('⚠️ drawCurrentFrame: No effects engine!')
+        return
+      }
       
       // Use forced time if provided, otherwise use video.currentTime
       const tMs = forceTime !== undefined ? forceTime : 
