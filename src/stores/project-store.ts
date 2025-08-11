@@ -59,7 +59,6 @@ interface ProjectStore {
   // Get current clip and recording
   getCurrentClip: () => Clip | null
   getCurrentRecording: () => Recording | null
-  getClipMetadata: (clipId: string) => any | null
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -647,29 +646,5 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (!currentProject || !clip) return null
 
     return currentProject.recordings.find(r => r.id === clip.recordingId) || null
-  },
-
-  getClipMetadata: (clipId) => {
-    const { currentProject } = get()
-    if (!currentProject) return null
-
-    // Find the clip
-    let targetClip: Clip | null = null
-    for (const track of currentProject.timeline.tracks) {
-      const clip = track.clips.find(c => c.id === clipId)
-      if (clip) {
-        targetClip = clip
-        break
-      }
-    }
-
-    if (!targetClip) return null
-
-    // Find the recording
-    const recording = currentProject.recordings.find(r => r.id === targetClip.recordingId)
-    if (!recording) return null
-
-    // Use the centralized metadata converter
-    return convertMetadataToEvents(recording.metadata)
   }
 }))

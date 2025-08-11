@@ -43,73 +43,37 @@ export function PreviewArea() {
 
   const hasEnhancements = currentClip?.originalSource && currentClip?.source !== currentClip?.originalSource
 
-  // Get metadata from project or localStorage
-  const getClipMetadata = useCallback(() => {
-    // First try project store
-    if (projectRecording?.metadata) {
-      console.log('📊 Found metadata in project recording:', {
-        mouseEvents: projectRecording.metadata.mouseEvents?.length || 0,
-        clickEvents: projectRecording.metadata.clickEvents?.length || 0,
-        keyboardEvents: projectRecording.metadata.keyboardEvents?.length || 0
+  // Get metadata - simplified!
+  const getMetadata = useCallback(() => {
+    if (!projectRecording?.metadata) return []
+    
+    // Convert to format expected by effects engine
+    const metadata: any[] = []
+    
+    projectRecording.metadata.mouseEvents?.forEach(e => {
+      metadata.push({
+        timestamp: e.timestamp,
+        mouseX: e.x,
+        mouseY: e.y,
+        windowWidth: e.screenWidth || projectRecording.width,
+        windowHeight: e.screenHeight || projectRecording.height,
+        eventType: 'mouse'
       })
-
-      // Convert to preview format
-      const metadata: any[] = []
-
-      projectRecording.metadata.mouseEvents?.forEach(e => {
-        metadata.push({
-          timestamp: e.timestamp,
-          mouseX: e.x,
-          mouseY: e.y,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: e.screenWidth || projectRecording.width,
-          windowHeight: e.screenHeight || projectRecording.height,
-          eventType: 'mouse'
-        })
+    })
+    
+    projectRecording.metadata.clickEvents?.forEach(e => {
+      metadata.push({
+        timestamp: e.timestamp,
+        mouseX: e.x,
+        mouseY: e.y,
+        windowWidth: projectRecording.width,
+        windowHeight: projectRecording.height,
+        eventType: 'click'
       })
-
-      projectRecording.metadata.clickEvents?.forEach(e => {
-        metadata.push({
-          timestamp: e.timestamp,
-          mouseX: e.x,
-          mouseY: e.y,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: projectRecording.width,
-          windowHeight: projectRecording.height,
-          eventType: 'click',
-          data: { button: e.button }
-        })
-      })
-
-      console.log(`✅ Converted ${metadata.length} metadata events for preview`)
-      return metadata.length > 0 ? metadata : null
-    }
-
-    // Try multiple localStorage keys
-    const keysToTry = [
-      `clip-metadata-${currentClip?.id}`,
-      `recording-metadata-${projectClip?.recordingId}`,
-      projectRecording?.filePath ? `recording-metadata-${projectRecording.filePath}` : null
-    ].filter(Boolean)
-
-    for (const key of keysToTry) {
-      try {
-        const stored = localStorage.getItem(key!)
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          console.log(`📦 Found metadata in localStorage with key ${key}: ${parsed.length} events`)
-          return parsed
-        }
-      } catch (e) {
-        console.warn(`Failed to parse metadata from ${key}:`, e)
-      }
-    }
-
-    console.log('❌ No metadata found for current clip')
-    return null
-  }, [currentClip?.id, projectClip?.recordingId, projectRecording])
+    })
+    
+    return metadata
+  }, [projectRecording])
 
   // Load video when clip changes
   useEffect(() => {
@@ -218,7 +182,7 @@ export function PreviewArea() {
       return
     }
 
-    const metadata = getClipMetadata()
+    const metadata = getMetadata()
     console.log(`🔍 Zoom setup: showZoom=${showZoom}, metadata=${metadata?.length || 0} events`)
 
     if (!metadata || metadata.length === 0 || !showZoom) {
@@ -315,7 +279,7 @@ export function PreviewArea() {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [isVideoLoaded, showZoom, getClipMetadata, projectRecording?.duration, showCrop])
+  }, [isVideoLoaded, showZoom, getMetadata, projectRecording?.duration, showCrop])
 
   // Set up cursor rendering when video loads
   useEffect(() => {
@@ -333,7 +297,7 @@ export function PreviewArea() {
       return
     }
 
-    const metadata = getClipMetadata()
+    const metadata = getMetadata()
     console.log(`🖱️ Cursor setup: showCursor=${showCursor}, metadata=${metadata?.length || 0} events`)
 
     if (!metadata || metadata.length === 0) {
@@ -367,7 +331,7 @@ export function PreviewArea() {
         cursorRendererRef.current.dispose()
       }
     }
-  }, [isVideoLoaded, showCursor, showZoom, getClipMetadata])
+  }, [isVideoLoaded, showCursor, showZoom, getMetadata])
 
   // Handle playback state
   useEffect(() => {
