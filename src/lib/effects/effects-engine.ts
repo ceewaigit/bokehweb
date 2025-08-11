@@ -39,12 +39,16 @@ export class EffectsEngine {
   private videoHeight: number = 1080
   
   // Detection thresholds
-  private readonly LINGER_THRESHOLD = 500 // ms - cursor stays in area to trigger zoom
-  private readonly MOVEMENT_THRESHOLD = 100 // pixels - movement that breaks linger
-  private readonly ZOOM_SCALE = 1.8 // Default zoom level
-  private readonly INTRO_DURATION = 800 // ms
-  private readonly OUTRO_DURATION = 800 // ms
-  private readonly MIN_ZOOM_DURATION = 2000 // ms - minimum duration for a zoom effect
+  private readonly LINGER_THRESHOLD = 1500 // ms - cursor stays in area to trigger zoom (increased to reduce false triggers)
+  private readonly MOVEMENT_THRESHOLD = 150 // pixels - movement that breaks linger (increased for stability)
+  private readonly ZOOM_SCALE = 2.0 // Default zoom level (slightly increased for better effect)
+  private readonly INTRO_DURATION = 600 // ms (faster intro)
+  private readonly OUTRO_DURATION = 600 // ms (faster outro)
+  private readonly MIN_ZOOM_DURATION = 3000 // ms - minimum duration for a zoom effect (increased to reduce oscillation)
+  private readonly MIN_ZOOM_SPACING = 2000 // ms - minimum time between zoom effects
+  
+  // Debug mode
+  private debugMode = true // Enable extensive logging
   
   constructor() {}
   
@@ -176,10 +180,24 @@ export class EffectsEngine {
     this.videoWidth = videoWidth
     this.videoHeight = videoHeight
     
+    if (this.debugMode) {
+      console.log(`🔍 ZOOM DETECTION START:`, {
+        totalEvents: events.length,
+        videoDuration,
+        dimensions: `${videoWidth}x${videoHeight}`,
+        thresholds: {
+          linger: this.LINGER_THRESHOLD,
+          movement: this.MOVEMENT_THRESHOLD,
+          minDuration: this.MIN_ZOOM_DURATION
+        }
+      })
+    }
+    
     const zoomEffects: ZoomEffect[] = []
     let lingerStart = 0
     let lastLingerX = 0
     let lastLingerY = 0
+    let lastZoomEnd = -Infinity // Track when last zoom ended
     
     for (let i = 0; i < events.length; i++) {
       const event = events[i]
@@ -200,8 +218,18 @@ export class EffectsEngine {
       if (distance < this.MOVEMENT_THRESHOLD) {
         const lingerDuration = event.timestamp - lingerStart
         
-        // Create zoom effect if lingering long enough
-        if (lingerDuration > this.LINGER_THRESHOLD) {
+        // Create zoom effect if lingering long enough AND enough time has passed since last zoom
+        if (lingerDuration > this.LINGER_THRESHOLD && 
+            event.timestamp - lastZoomEnd > this.MIN_ZOOM_SPACING) {
+          
+          if (this.debugMode) {
+            console.log(`🎯 LINGER DETECTED at ${event.timestamp}ms:`, {
+              position: `(${event.x}, ${event.y})`,
+              normalized: `(${(event.x/videoWidth).toFixed(3)}, ${(event.y/videoHeight).toFixed(3)})`,
+              lingerDuration,
+              distance
+            })
+          }
           // Find when the linger ends
           let endTime = event.timestamp + this.MIN_ZOOM_DURATION
           for (let j = i + 1; j < events.length; j++) {
@@ -218,7 +246,7 @@ export class EffectsEngine {
           
           // Ensure minimum duration
           if (endTime - event.timestamp >= this.MIN_ZOOM_DURATION) {
-            zoomEffects.push({
+            const zoomEffect: ZoomEffect = {
               id: `zoom-${Date.now()}-${i}`,
               type: 'zoom',
               startTime: event.timestamp,
@@ -230,7 +258,20 @@ export class EffectsEngine {
                 introMs: this.INTRO_DURATION,
                 outroMs: this.OUTRO_DURATION
               }
-            })
+            }
+            
+            if (this.debugMode) {
+              console.log(`✅ ZOOM EFFECT CREATED:`, {
+                id: zoomEffect.id,
+                timeRange: `${zoomEffect.startTime}ms - ${zoomEffect.endTime}ms`,
+                duration: `${zoomEffect.endTime - zoomEffect.startTime}ms`,
+                target: `(${zoomEffect.params.targetX.toFixed(3)}, ${zoomEffect.params.targetY.toFixed(3)})`,
+                scale: zoomEffect.params.scale
+              })
+            }
+            
+            zoomEffects.push(zoomEffect)
+            lastZoomEnd = endTime
             
             // Skip ahead to avoid duplicate detections
             while (i < events.length && events[i].timestamp < endTime) {
@@ -247,7 +288,15 @@ export class EffectsEngine {
       }
       
       // Also detect clicks as instant zoom triggers
-      if ('type' in event && event.type === 'click') {
+      if ('type' in event && event.type === 'click' && 
+          event.timestamp - lastZoomEnd > this.MIN_ZOOM_SPACING) {
+        
+        if (this.debugMode) {
+          console.log(`🖱️ CLICK DETECTED at ${event.timestamp}ms:`, {
+            position: `(${event.x}, ${event.y})`,
+            normalized: `(${(event.x/videoWidth).toFixed(3)}, ${(event.y/videoHeight).toFixed(3)})`
+          })
+        }
         // Find end time (next click or significant movement)
         let endTime = event.timestamp + this.MIN_ZOOM_DURATION
         for (let j = i + 1; j < events.length; j++) {
@@ -262,7 +311,7 @@ export class EffectsEngine {
           }
         }
         
-        zoomEffects.push({
+        const clickZoom: ZoomEffect = {
           id: `zoom-click-${Date.now()}-${i}`,
           type: 'zoom',
           startTime: event.timestamp,
@@ -274,7 +323,18 @@ export class EffectsEngine {
             introMs: this.INTRO_DURATION,
             outroMs: this.OUTRO_DURATION
           }
-        })
+        }
+        
+        if (this.debugMode) {
+          console.log(`✅ CLICK ZOOM CREATED:`, {
+            id: clickZoom.id,
+            timeRange: `${clickZoom.startTime}ms - ${clickZoom.endTime}ms`,
+            target: `(${clickZoom.params.targetX.toFixed(3)}, ${clickZoom.params.targetY.toFixed(3)})`
+          })
+        }
+        
+        zoomEffects.push(clickZoom)
+        lastZoomEnd = endTime
         
         // Skip ahead
         while (i < events.length && events[i].timestamp < endTime) {
@@ -285,6 +345,17 @@ export class EffectsEngine {
     }
     
     this.effects = zoomEffects
+    
+    if (this.debugMode) {
+      console.log(`🔍 ZOOM DETECTION COMPLETE:`, {
+        totalEffectsDetected: zoomEffects.length,
+        effects: zoomEffects.map(e => ({
+          time: `${e.startTime}-${e.endTime}ms`,
+          target: `(${e.params.targetX.toFixed(2)}, ${e.params.targetY.toFixed(2)})`
+        }))
+      })
+    }
+    
     return zoomEffects
   }
   
@@ -303,6 +374,15 @@ export class EffectsEngine {
       return {
         zoom: { x: 0.5, y: 0.5, scale: 1.0 }
       }
+    }
+    
+    if (this.debugMode && timestamp % 1000 < 50) { // Log every second
+      console.log(`🎬 ACTIVE ZOOM at ${timestamp}ms:`, {
+        effectId: activeZoom.id,
+        phase: timestamp < activeZoom.startTime + activeZoom.params.introMs ? 'intro' :
+                timestamp > activeZoom.endTime - activeZoom.params.outroMs ? 'outro' : 'tracking',
+        target: `(${activeZoom.params.targetX.toFixed(3)}, ${activeZoom.params.targetY.toFixed(3)})`
+      })
     }
     
     // Calculate zoom animation phase
@@ -429,19 +509,33 @@ export class EffectsEngine {
     
     if (!sourceWidth || !sourceHeight) return
     
-    // Calculate the zoomed region
+    // Calculate the zoomed region dimensions
     const zoomWidth = sourceWidth / zoom.scale
     const zoomHeight = sourceHeight / zoom.scale
     
-    // Calculate source coordinates
+    // Calculate the center point in source coordinates
+    // zoom.x and zoom.y are normalized (0-1), convert to pixel coordinates
     const centerX = zoom.x * sourceWidth
     const centerY = zoom.y * sourceHeight
     
-    const halfWidth = zoomWidth / 2
-    const halfHeight = zoomHeight / 2
+    // Calculate the top-left corner of the region to extract
+    // We want to center the zoom on (centerX, centerY)
+    let sx = centerX - (zoomWidth / 2)
+    let sy = centerY - (zoomHeight / 2)
     
-    const sx = Math.max(0, Math.min(sourceWidth - zoomWidth, centerX - halfWidth))
-    const sy = Math.max(0, Math.min(sourceHeight - zoomHeight, centerY - halfHeight))
+    // Clamp to ensure we stay within source bounds
+    sx = Math.max(0, Math.min(sourceWidth - zoomWidth, sx))
+    sy = Math.max(0, Math.min(sourceHeight - zoomHeight, sy))
+    
+    if (this.debugMode && Math.random() < 0.02) { // Log occasionally
+      console.log(`📐 ZOOM RENDER:`, {
+        zoomParams: `x=${zoom.x.toFixed(3)}, y=${zoom.y.toFixed(3)}, scale=${zoom.scale.toFixed(2)}`,
+        sourceSize: `${sourceWidth}x${sourceHeight}`,
+        zoomRegion: `${zoomWidth.toFixed(0)}x${zoomHeight.toFixed(0)}`,
+        centerPoint: `(${centerX.toFixed(0)}, ${centerY.toFixed(0)})`,
+        extractRegion: `(${sx.toFixed(0)}, ${sy.toFixed(0)}) -> (${(sx+zoomWidth).toFixed(0)}, ${(sy+zoomHeight).toFixed(0)})`
+      })
+    }
     
     // Draw with high quality
     ctx.imageSmoothingEnabled = true
@@ -453,6 +547,37 @@ export class EffectsEngine {
       sx, sy, zoomWidth, zoomHeight,
       0, 0, width, height
     )
+    
+    // Draw debug crosshair at zoom center (optional)
+    if (this.debugMode && zoom.scale > 1.0) {
+      ctx.strokeStyle = 'red'
+      ctx.lineWidth = 2
+      ctx.globalAlpha = 0.5
+      
+      // Draw crosshair at center of canvas (where zoom point should be)
+      const canvasCenterX = width / 2
+      const canvasCenterY = height / 2
+      
+      // Horizontal line
+      ctx.beginPath()
+      ctx.moveTo(canvasCenterX - 20, canvasCenterY)
+      ctx.lineTo(canvasCenterX + 20, canvasCenterY)
+      ctx.stroke()
+      
+      // Vertical line
+      ctx.beginPath()
+      ctx.moveTo(canvasCenterX, canvasCenterY - 20)
+      ctx.lineTo(canvasCenterX, canvasCenterY + 20)
+      ctx.stroke()
+      
+      // Draw zoom info
+      ctx.globalAlpha = 1.0
+      ctx.fillStyle = 'red'
+      ctx.font = '14px monospace'
+      ctx.fillText(`Zoom: ${zoom.scale.toFixed(1)}x at (${zoom.x.toFixed(2)}, ${zoom.y.toFixed(2)})`, 10, 25)
+      
+      ctx.globalAlpha = 1.0
+    }
   }
   
   /**

@@ -232,7 +232,15 @@ export function PreviewArea() {
     engine.initializeFromMetadata(metadata, totalDurationMs, video.videoWidth || 1920, video.videoHeight || 1080)
     
     const effectCount = engine.getEffects().length
+    const effects = engine.getEffects()
     console.log(`🔍 Effects engine initialized with ${metadata.length} events, detected ${effectCount} zoom effects`)
+    if (effectCount > 0) {
+      console.log('📊 Zoom effects timeline:', effects.map((e: any) => ({
+        start: `${(e.startTime/1000).toFixed(1)}s`,
+        end: `${(e.endTime/1000).toFixed(1)}s`,
+        target: `(${e.params.targetX.toFixed(2)}, ${e.params.targetY.toFixed(2)})`
+      })))
+    }
     effectsEngineRef.current = engine
 
     // Create or update zoom canvas
@@ -261,9 +269,15 @@ export function PreviewArea() {
     if (!ctx) return
 
     // Helper to draw current frame even when paused
+    let frameCount = 0
     const drawCurrentFrame = () => {
       const tMs = isFinite(video.duration) && video.currentTime > 0 ? (video.currentTime * 1000) : 0
       const effectState = engine.getEffectState(tMs)
+      
+      // Log every 30 frames (about once per second at 30fps)
+      if (frameCount++ % 30 === 0 && effectState.zoom.scale > 1.0) {
+        console.log(`🎬 Frame ${frameCount}: t=${(tMs/1000).toFixed(1)}s, zoom=${effectState.zoom.scale.toFixed(2)}x at (${effectState.zoom.x.toFixed(2)}, ${effectState.zoom.y.toFixed(2)})`)
+      }
 
       // Apply cropping first if needed
       if (showCrop && workAreaCropperRef.current && workAreaCropperRef.current.needsCropping()) {

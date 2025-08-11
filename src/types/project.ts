@@ -345,11 +345,34 @@ export async function saveRecordingWithProject(
     const video = document.createElement('video')
     video.src = videoUrl
 
-    await new Promise((resolve) => {
-      video.onloadedmetadata = resolve
+    // Get proper video duration (blob URLs may show Infinity initially)
+    await new Promise<void>((resolve) => {
+      video.onloadedmetadata = () => {
+        console.log('Video metadata loaded, initial duration:', video.duration)
+        
+        // If duration is not finite, seek to get it
+        if (!isFinite(video.duration)) {
+          console.log('Duration is Infinity, seeking to end to get actual duration...')
+          video.currentTime = Number.MAX_SAFE_INTEGER
+          
+          video.onseeked = () => {
+            console.log('After seeking, duration is:', video.duration)
+            video.currentTime = 0 // Reset to start
+            resolve()
+          }
+        } else {
+          resolve()
+        }
+      }
     })
 
+    // Verify we have a valid duration
+    if (!isFinite(video.duration) || video.duration <= 0) {
+      throw new Error(`Cannot determine video duration: ${video.duration}`)
+    }
+
     const duration = video.duration * 1000 // Convert to milliseconds
+    console.log(`✅ Video duration detected: ${duration}ms (${(duration / 1000).toFixed(2)}s)`)
     const width = video.videoWidth || 1920 // Use standard HD as fallback
     const height = video.videoHeight || 1080
 

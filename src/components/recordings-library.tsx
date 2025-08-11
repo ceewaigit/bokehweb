@@ -39,34 +39,45 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         const recordingsList: Recording[] = []
 
         for (const file of files) {
+          // ONLY load .ssproj files
+          if (!file.path.endsWith('.ssproj')) {
+            continue
+          }
+
           const recording: Recording = {
             name: file.name,
             path: file.path,
             timestamp: new Date(file.timestamp),
             size: file.size,
-            videoSize: file.videoSize
+            videoSize: file.videoSize,
+            isProject: true
           }
 
-          // Check if it's a project file
-          if (file.path.endsWith('.ssproj')) {
-            recording.isProject = true
-
-            // Try to load the project data
-            try {
-              if (window.electronAPI?.readLocalFile) {
-                const result = await window.electronAPI.readLocalFile(file.path)
-                if (result?.success && result.data) {
-                  const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
-                  recording.project = JSON.parse(projectData)
-                  // Use project name if available
-                  if (recording.project?.name) {
-                    recording.name = recording.project.name
-                  }
+          // Try to load the project data
+          try {
+            if (window.electronAPI?.readLocalFile) {
+              const result = await window.electronAPI.readLocalFile(file.path)
+              if (result?.success && result.data) {
+                const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
+                recording.project = JSON.parse(projectData)
+                
+                // Use project name if available
+                if (recording.project?.name) {
+                  recording.name = recording.project.name
                 }
+                
+                // Log what we loaded for debugging
+                console.log('Loaded project:', {
+                  name: recording.project?.name,
+                  duration: recording.project?.timeline?.duration,
+                  recordings: recording.project?.recordings?.length,
+                  clips: recording.project?.timeline?.tracks?.reduce((acc: number, t: any) => acc + (t.clips?.length || 0), 0)
+                })
               }
-            } catch (e) {
-              console.error('Failed to load project data:', e)
             }
+          } catch (e) {
+            console.error('Failed to load project data:', e)
+            continue // Skip corrupted project files
           }
 
           recordingsList.push(recording)
@@ -220,6 +231,13 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         )}
                       </AnimatePresence>
 
+                      {/* Duration badge in bottom right */}
+                      {recording.project?.timeline?.duration && (
+                        <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded-md font-mono">
+                          {formatTime(recording.project.timeline.duration / 1000)}
+                        </div>
+                      )}
+
                       {/* Badges */}
                       <div className="absolute top-2 left-2 right-2 flex items-start justify-between">
                         {recording.isProject && (
@@ -260,27 +278,33 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                     {/* Compact info section */}
                     <div className="p-3">
                       <h3 className="font-medium text-sm truncate mb-1.5">
-                        {recording.isProject && recording.project?.name
-                          ? recording.project.name
-                          : recording.name.replace(/^Recording_/, '').replace(/\.(webm|mp4|ssproj)$/, '')
-                        }
+                        {recording.project?.name || recording.name.replace(/^Recording_/, '').replace(/\.ssproj$/, '')}
                       </h3>
                       <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          <span>{formatDistanceToNow(recording.timestamp, { addSuffix: true })}</span>
-                        </div>
-                        {(recording.videoSize || recording.size) && (
+                        {/* Duration */}
+                        {recording.project?.timeline?.duration && (
                           <div className="flex items-center gap-1">
-                            <HardDrive className="w-3 h-3" />
-                            <span>
-                              {recording.isProject && recording.videoSize 
-                                ? formatFileSize(recording.videoSize)
-                                : formatFileSize(recording.size)
-                              }
+                            <Film className="w-3 h-3" />
+                            <span className="font-mono">
+                              {formatTime(recording.project.timeline.duration / 1000)}
                             </span>
                           </div>
                         )}
+                        
+                        {/* Clips count */}
+                        {recording.project?.timeline?.tracks && (
+                          <div className="flex items-center gap-1">
+                            <span>
+                              {recording.project.timeline.tracks.reduce((acc: number, t: any) => acc + (t.clips?.length || 0), 0)} clips
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Timestamp */}
+                        <div className="flex items-center gap-1 ml-auto">
+                          <Calendar className="w-3 h-3" />
+                          <span>{formatDistanceToNow(recording.timestamp, { addSuffix: true })}</span>
+                        </div>
                       </div>
                     </div>
 

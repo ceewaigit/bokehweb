@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 // Recording logic handled by RecordingController component
 import { Toolbar } from '../toolbar'
 import { PreviewArea } from '../preview-area'
@@ -27,6 +27,9 @@ export function WorkspaceManager() {
     toggleProperties,
     setExportOpen
   } = useWorkspaceStore()
+  
+  const [isLoading, setIsLoading] = useState(false)
+  const [loadingMessage, setLoadingMessage] = useState('Loading...')
 
   // Debug: Track project changes
   useEffect(() => {
@@ -45,6 +48,35 @@ export function WorkspaceManager() {
     setExportOpen(false)
   }, [setExportOpen])
 
+  // Show loading screen when processing
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background z-50">
+        <div className="text-center space-y-6">
+          {/* Animated logo or spinner */}
+          <div className="relative">
+            <div className="w-24 h-24 border-4 border-primary/20 rounded-full animate-pulse" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-16 h-16 border-4 border-t-primary border-r-primary border-b-transparent border-l-transparent rounded-full animate-spin" />
+            </div>
+          </div>
+          
+          {/* Loading message */}
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold">{loadingMessage}</h3>
+            <p className="text-sm text-muted-foreground">Please wait while we set everything up...</p>
+          </div>
+          
+          {/* Progress dots */}
+          <div className="flex gap-2 justify-center">
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Show recordings library when no active project
   if (!currentProject) {
@@ -54,19 +86,28 @@ export function WorkspaceManager() {
         <RecordingsLibrary
           onSelectRecording={async (recording) => {
             console.log('🔍 Selected recording:', recording.name)
+            
+            // Start loading
+            setIsLoading(true)
+            setLoadingMessage('Loading recording...')
 
-            // Check if it's a project file
-            if (recording.isProject && recording.project) {
-              const project = recording.project
-              console.log('📁 Loading project:', project.name)
+            try {
+              // Check if it's a project file
+              if (recording.isProject && recording.project) {
+                const project = recording.project
+                console.log('📁 Loading project:', project.name)
 
-              // Create a new timeline project
-              newProject(project.name)
+                setLoadingMessage('Creating project...')
+                // Create a new timeline project
+                newProject(project.name)
 
-              // Load each recording from the project
-              for (const rec of project.recordings) {
-                if (rec.filePath) {
-                  try {
+                // Load each recording from the project
+                for (let i = 0; i < project.recordings.length; i++) {
+                  const rec = project.recordings[i]
+                  setLoadingMessage(`Loading video ${i + 1} of ${project.recordings.length}...`)
+                  
+                  if (rec.filePath) {
+                    try {
                     // Load the video file
                     const result = await window.electronAPI?.readLocalFile?.(rec.filePath)
                     if (!result || !result.success) {
@@ -80,6 +121,7 @@ export function WorkspaceManager() {
 
                     // Verify and fix recording duration if needed
                     if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
+                      setLoadingMessage('Detecting video duration...')
                       console.log('⚠️ Recording has invalid duration, detecting from video...')
                       
                       const tempVideo = document.createElement('video')
@@ -162,10 +204,12 @@ export function WorkspaceManager() {
                   }
                 }
               }
-            } else {
-              // Legacy: Load raw video file
-              newProject(recording.name)
-              try {
+              } else {
+                // Legacy: Load raw video file
+                setLoadingMessage('Creating new project...')
+                newProject(recording.name)
+                
+                setLoadingMessage('Loading video file...')
                 const result = await window.electronAPI?.readLocalFile?.(recording.path)
                 if (!result || !result.success) {
                   throw new Error(result?.error || 'Failed to read local file')
@@ -183,11 +227,13 @@ export function WorkspaceManager() {
                 tempVideo.src = url
                 
                 // For blob URLs, we need to seek to end to get duration
+                setLoadingMessage('Analyzing video...')
                 await new Promise<void>((resolve, reject) => {
                   let resolved = false
                   
                   tempVideo.addEventListener('loadedmetadata', () => {
                     console.log('Initial metadata loaded, duration:', tempVideo.duration)
+                    setLoadingMessage('Processing video metadata...')
                     
                     // If duration is not finite, we need to seek to get it
                     if (!isFinite(tempVideo.duration)) {
@@ -261,6 +307,7 @@ export function WorkspaceManager() {
                 }
 
                 // Add recording to project store
+                setLoadingMessage('Setting up timeline...')
                 console.log('📼 Adding recording to project store:', {
                   id: rec.id,
                   duration: `${(rec.duration / 1000).toFixed(2)}s`,
@@ -279,9 +326,21 @@ export function WorkspaceManager() {
                     clips: projectState.timeline.tracks.reduce((acc, t) => acc + t.clips.length, 0)
                   })
                 }
-              } catch (error) {
-                console.error('Failed to load recording:', error)
               }
+              
+              // Final setup message
+              setLoadingMessage('Finalizing setup...')
+              
+              // Small delay to ensure everything is fully rendered
+              await new Promise(resolve => setTimeout(resolve, 500))
+              
+              // Hide loading screen after everything is loaded
+              setIsLoading(false)
+              
+            } catch (error) {
+              console.error('Failed to load recording:', error)
+              setIsLoading(false)
+              // Optionally show an error message
             }
           }}
         />
