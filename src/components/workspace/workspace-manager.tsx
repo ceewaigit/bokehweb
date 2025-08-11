@@ -78,6 +78,50 @@ export function WorkspaceManager() {
                     const blob = new Blob([arrayBuffer], { type: 'video/webm' })
                     const url = globalBlobManager.create(blob, 'project-recording')
 
+                    // Verify and fix recording duration if needed
+                    if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
+                      console.log('⚠️ Recording has invalid duration, detecting from video...')
+                      
+                      const tempVideo = document.createElement('video')
+                      tempVideo.src = url
+                      
+                      await new Promise<void>((resolve) => {
+                        tempVideo.addEventListener('loadedmetadata', () => {
+                          console.log('Checking project video duration:', tempVideo.duration)
+                          
+                          if (!isFinite(tempVideo.duration)) {
+                            // Seek to end to get duration for blob URLs
+                            tempVideo.currentTime = Number.MAX_SAFE_INTEGER
+                            
+                            tempVideo.addEventListener('seeked', () => {
+                              if (isFinite(tempVideo.duration) && tempVideo.duration > 0) {
+                                rec.duration = tempVideo.duration * 1000
+                                console.log('✅ Fixed recording duration:', rec.duration, 'ms')
+                              }
+                              tempVideo.currentTime = 0
+                              resolve()
+                            }, { once: true })
+                          } else if (tempVideo.duration > 0) {
+                            rec.duration = tempVideo.duration * 1000
+                            console.log('✅ Fixed recording duration:', rec.duration, 'ms')
+                            resolve()
+                          } else {
+                            console.error('❌ Could not determine video duration')
+                            resolve()
+                          }
+                        }, { once: true })
+                        
+                        tempVideo.addEventListener('error', () => {
+                          console.error('Failed to load video for duration check')
+                          resolve()
+                        }, { once: true })
+                        
+                        tempVideo.load()
+                      })
+                      
+                      tempVideo.remove()
+                    }
+
                     // Add clips from the project timeline
                     for (const track of project.timeline.tracks) {
                       for (const clip of track.clips) {
@@ -87,6 +131,12 @@ export function WorkspaceManager() {
                           // Store blob URL for the recording
                           RecordingStorage.setBlobUrl(rec.id, url)
 
+                          // Fix clip duration if recording duration was updated
+                          if (rec.duration && rec.duration > 0) {
+                            clip.duration = Math.min(clip.duration, rec.duration)
+                            clip.sourceOut = Math.min(clip.sourceOut, rec.duration)
+                          }
+                          
                           // Add recording to project store
                           useProjectStore.getState().addRecording(rec, blob)
 
