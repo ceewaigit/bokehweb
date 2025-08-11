@@ -294,23 +294,17 @@ export function PreviewArea() {
         ; (zoomCanvasRef as any).current = zoomCanvas
     }
 
-    // Update canvas size to match container size for proper rendering
-    // Get the actual display dimensions of the container
-    const containerBounds = containerRef.current.getBoundingClientRect()
-    const videoAspectRatio = (video.videoWidth || 1920) / (video.videoHeight || 1080)
+    // Only update canvas size if it hasn't been set or video dimensions changed
+    const targetWidth = video.videoWidth || 1920
+    const targetHeight = video.videoHeight || 1080
     
-    // Calculate canvas size to fit within container while maintaining aspect ratio
-    let canvasWidth = containerBounds.width
-    let canvasHeight = containerBounds.width / videoAspectRatio
-    
-    if (canvasHeight > containerBounds.height) {
-      canvasHeight = containerBounds.height
-      canvasWidth = containerBounds.height * videoAspectRatio
+    // Check if canvas needs resizing (only on first setup or video change)
+    if (zoomCanvas.width !== targetWidth || zoomCanvas.height !== targetHeight) {
+      // Set canvas to match video size for 1:1 pixel mapping
+      // The CSS styling will handle fitting it to the container
+      zoomCanvas.width = targetWidth
+      zoomCanvas.height = targetHeight
     }
-    
-    // Set canvas to display size (not video size) to avoid scaling issues
-    zoomCanvas.width = Math.floor(canvasWidth)
-    zoomCanvas.height = Math.floor(canvasHeight)
 
     // Hide original video, show canvas
     video.style.display = 'none'
@@ -360,15 +354,9 @@ export function PreviewArea() {
     // Smart render loop - only render when playing or when time changes
     let lastRenderedTime = -1
     const renderFrame = () => {
-      // Skip frame if video time hasn't changed significantly (optimize for performance)
-      const currentTime = video.currentTime
-      const timeDelta = Math.abs(currentTime - lastRenderedTime)
-      
-      // Only render if time has changed by at least 1/60th of a second (16ms)
-      if (timeDelta >= 0.016) {
-        drawCurrentFrame()
-        lastRenderedTime = currentTime
-      }
+      // Always draw during playback for smooth animation
+      drawCurrentFrame()
+      lastRenderedTime = video.currentTime
       
       // Continue animation loop - will be canceled if video pauses
       animationFrameRef.current = requestAnimationFrame(renderFrame)
@@ -398,9 +386,12 @@ export function PreviewArea() {
     const handlePlay = () => {
       // Video started playing
       isCurrentlyPlaying = true
-      if (!animationFrameRef.current) {
-        renderFrame()
+      // Cancel any existing frame first to avoid duplicates
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
       }
+      renderFrame()
     }
     
     const handlePause = () => {
