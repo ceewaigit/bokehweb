@@ -48,7 +48,7 @@ export class EffectsEngine {
   private readonly MERGE_GAP = 1500 // ms - merge zooms if gap is less than this
 
   // Debug mode
-  private debugMode = false // Disable for production
+  private debugMode = true // Enable to see crosshair and debug info
 
   constructor() { }
 
@@ -439,13 +439,15 @@ export class EffectsEngine {
     else {
       scale = activeZoom.params.scale
       
-      // Follow mouse position directly - NO CLAMPING!
-      // We allow the camera to go outside bounds to always center on mouse
+      // Center the VIEW on the mouse position
+      // When zoomed in, the camera position equals the mouse position
+      // This makes the mouse appear at the center of the zoomed viewport
       x = mousePos.x
       y = mousePos.y
 
       if (this.debugMode && timestamp % 100 < 50) {
-        console.log(`  📍 TRACKING: mouse=(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)}) -> camera at (${x.toFixed(3)}, ${y.toFixed(3)})`)
+        console.log(`  📍 TRACKING: centering view on mouse=(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)}) -> camera at (${x.toFixed(3)}, ${y.toFixed(3)})`)
+        console.log(`     Scale: ${scale.toFixed(2)}x, View will be centered on (${x.toFixed(3)}, ${y.toFixed(3)})`)
       }
     }
 

@@ -22,6 +22,7 @@ export function PreviewArea() {
   const workAreaCropperRef = useRef<WorkAreaCropper | null>(null)
   const cropCanvasRef = useRef<HTMLCanvasElement>(null)
   const animationFrameRef = useRef<number | null>(null)
+  const currentTimeRef = useRef<number>(0) // Track current timeline time
   const [showOriginal, setShowOriginal] = useState(false)
   const [showCursor, setShowCursor] = useState(true)
   const [showZoom, setShowZoom] = useState(true)
@@ -30,6 +31,11 @@ export function PreviewArea() {
   const [videoError, setVideoError] = useState<string | null>(null)
   const { currentProject, currentTime, isPlaying, play, pause, seek, selectedClipId, getCurrentClip, getCurrentRecording } = useProjectStore()
   const { isRecording } = useRecordingStore()
+  
+  // Keep the ref updated with current time
+  useEffect(() => {
+    currentTimeRef.current = currentTime
+  }, [currentTime])
 
   // Get the current clip from project store
   const projectClip = getCurrentClip()
@@ -309,9 +315,12 @@ export function PreviewArea() {
         return
       }
       
-      // Use forced time if provided, otherwise use video.currentTime
-      const tMs = forceTime !== undefined ? forceTime : 
-                  (isFinite(video.duration) && video.currentTime > 0 ? (video.currentTime * 1000) : 0)
+      // Get the current time from the ref which is always up-to-date
+      // Don't use video.currentTime as it might be wrong during timeline playback
+      const timelineTimeMs = currentTimeRef.current
+      
+      // Use forced time if provided, otherwise use timeline time
+      const tMs = forceTime !== undefined ? forceTime : timelineTimeMs
       const effectState = currentEngine.getEffectState(tMs)
       
       // Log every 30 frames (about once per second at 30fps)
