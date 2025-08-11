@@ -294,9 +294,23 @@ export function PreviewArea() {
         ; (zoomCanvasRef as any).current = zoomCanvas
     }
 
-    // Update canvas size
-    zoomCanvas.width = video.videoWidth || 1920
-    zoomCanvas.height = video.videoHeight || 1080
+    // Update canvas size to match container size for proper rendering
+    // Get the actual display dimensions of the container
+    const containerBounds = containerRef.current.getBoundingClientRect()
+    const videoAspectRatio = (video.videoWidth || 1920) / (video.videoHeight || 1080)
+    
+    // Calculate canvas size to fit within container while maintaining aspect ratio
+    let canvasWidth = containerBounds.width
+    let canvasHeight = containerBounds.width / videoAspectRatio
+    
+    if (canvasHeight > containerBounds.height) {
+      canvasHeight = containerBounds.height
+      canvasWidth = containerBounds.height * videoAspectRatio
+    }
+    
+    // Set canvas to display size (not video size) to avoid scaling issues
+    zoomCanvas.width = Math.floor(canvasWidth)
+    zoomCanvas.height = Math.floor(canvasHeight)
 
     // Hide original video, show canvas
     video.style.display = 'none'
