@@ -40,14 +40,15 @@ export class EffectsEngine {
 
   // Detection thresholds - zoom on ACTIVITY (movement/clicks), zoom out on IDLE
   private readonly ACTIVITY_THRESHOLD = 30 // pixels - movement that triggers zoom
-  private readonly IDLE_TIMEOUT = 800 // ms - time without activity before zoom out (reduced)
+  private readonly IDLE_TIMEOUT = 2000 // ms - longer idle time to create continuous zooms
   private readonly ZOOM_SCALE = 1.8 // Default zoom level (slightly less aggressive)
-  private readonly INTRO_DURATION = 300 // ms (faster zoom in)
-  private readonly OUTRO_DURATION = 400 // ms (faster zoom out)  
-  private readonly MIN_ZOOM_DURATION = 1000 // ms - minimum duration (reduced to catch more zooms)
+  private readonly INTRO_DURATION = 200 // ms (very fast zoom in)
+  private readonly OUTRO_DURATION = 300 // ms (faster zoom out)  
+  private readonly MIN_ZOOM_DURATION = 500 // ms - shorter minimum to catch quick interactions
+  private readonly MERGE_GAP = 1500 // ms - merge zooms if gap is less than this
 
   // Debug mode
-  private debugMode = false // Disable for production
+  private debugMode = true // Enable detailed logging
 
   constructor() { }
 
@@ -167,7 +168,7 @@ export class EffectsEngine {
 
   /**
    * Analyze mouse events and detect where to add zoom effects
-   * NEW LOGIC: Zoom IN on activity (movement/clicks), zoom OUT on idle
+   * NEW LOGIC: Create CONTINUOUS zoom during activity, zoom out on extended idle
    */
   private detectZoomEffectsInternal(
     events: ProjectMouseEvent[],
@@ -181,15 +182,16 @@ export class EffectsEngine {
     this.videoHeight = videoHeight
 
     if (this.debugMode) {
-      console.log(`🔍 ZOOM DETECTION START (Activity-based):`, {
+      console.log(`🔍 ZOOM DETECTION START (Continuous):`, {
         totalEvents: events.length,
         videoDuration: `${(videoDuration / 1000).toFixed(1)}s`,
         dimensions: `${videoWidth}x${videoHeight}`,
-        logic: 'Zoom IN on movement/clicks, zoom OUT on idle',
+        logic: 'CONTINUOUS zoom during activity, zoom OUT on extended idle',
         thresholds: {
           activityPixels: this.ACTIVITY_THRESHOLD,
           idleTimeoutMs: this.IDLE_TIMEOUT,
-          minDurationMs: this.MIN_ZOOM_DURATION
+          minDurationMs: this.MIN_ZOOM_DURATION,
+          mergeGapMs: this.MERGE_GAP
         }
       })
     }
@@ -199,9 +201,8 @@ export class EffectsEngine {
     let lastActivityTime = 0
     let lastX = 0
     let lastY = 0
-    let activityCenterX = 0
-    let activityCenterY = 0
-    let activityPoints: { x: number, y: number, t: number }[] = []
+    let initialZoomX = 0
+    let initialZoomY = 0
 
     for (let i = 0; i < events.length; i++) {
       const event = events[i]
@@ -209,7 +210,6 @@ export class EffectsEngine {
       if (i === 0) {
         lastX = event.x
         lastY = event.y
-        lastActivityTime = event.timestamp
         continue
       }
 
@@ -219,57 +219,41 @@ export class EffectsEngine {
       )
 
       const isClick = 'type' in event && event.type === 'click'
-      const timeSinceActivity = event.timestamp - lastActivityTime
+      const timeSinceLastActivity = event.timestamp - lastActivityTime
 
       // Check for ACTIVITY (significant movement or click)
       if (distance > this.ACTIVITY_THRESHOLD || isClick) {
-
-        if (currentZoomStart === null) {
+        
+        // If we're resuming activity after a short break, continue the zoom
+        if (currentZoomStart !== null && timeSinceLastActivity < this.MERGE_GAP) {
+          // Continue existing zoom
+          if (this.debugMode && timeSinceLastActivity > 500) {
+            console.log(`📍 ACTIVITY RESUME at ${(event.timestamp / 1000).toFixed(1)}s:`, {
+              gapMs: timeSinceLastActivity,
+              trigger: isClick ? 'CLICK' : `MOVEMENT (${distance.toFixed(0)}px)`,
+              position: `(${event.x}, ${event.y})`
+            })
+          }
+        } else if (currentZoomStart === null) {
           // Start new zoom effect
           currentZoomStart = event.timestamp
-          activityPoints = [{ x: event.x, y: event.y, t: event.timestamp }]
-          activityCenterX = event.x
-          activityCenterY = event.y
+          initialZoomX = event.x
+          initialZoomY = event.y
 
           if (this.debugMode) {
-            console.log(`🎯 ACTIVITY START - Zoom IN at ${(event.timestamp / 1000).toFixed(1)}s:`, {
+            console.log(`🎯 ZOOM START at ${(event.timestamp / 1000).toFixed(1)}s:`, {
               trigger: isClick ? 'CLICK' : `MOVEMENT (${distance.toFixed(0)}px)`,
               position: `(${event.x}, ${event.y})`,
               normalized: `(${(event.x / videoWidth).toFixed(3)}, ${(event.y / videoHeight).toFixed(3)})`
             })
           }
-        } else {
-          // Continue activity - update center as weighted average of recent points
-          activityPoints.push({ x: event.x, y: event.y, t: event.timestamp })
-
-          // Keep only recent points (last 1 second)
-          const recentPoints = activityPoints.filter(p => event.timestamp - p.t < 1000)
-          activityPoints = recentPoints
-
-          // Calculate weighted center (more recent = more weight)
-          let totalWeight = 0
-          let weightedX = 0
-          let weightedY = 0
-
-          recentPoints.forEach(p => {
-            const age = event.timestamp - p.t
-            const weight = Math.max(0, 1 - age / 1000) // Linear decay over 1 second
-            weightedX += p.x * weight
-            weightedY += p.y * weight
-            totalWeight += weight
-          })
-
-          if (totalWeight > 0) {
-            activityCenterX = weightedX / totalWeight
-            activityCenterY = weightedY / totalWeight
-          }
         }
 
         lastActivityTime = event.timestamp
 
-      } else if (timeSinceActivity > this.IDLE_TIMEOUT && currentZoomStart !== null) {
-        // IDLE detected - create zoom effect and zoom out
-        const zoomEnd = lastActivityTime + 500 // Small buffer after last activity
+      } else if (currentZoomStart !== null && timeSinceLastActivity > this.IDLE_TIMEOUT) {
+        // Extended idle detected - end the zoom
+        const zoomEnd = lastActivityTime + 300 // Quick fade after last activity
 
         if (zoomEnd - currentZoomStart >= this.MIN_ZOOM_DURATION) {
           const zoomEffect: ZoomEffect = {
@@ -278,8 +262,8 @@ export class EffectsEngine {
             startTime: currentZoomStart,
             endTime: zoomEnd,
             params: {
-              targetX: activityCenterX / videoWidth,
-              targetY: activityCenterY / videoHeight,
+              targetX: initialZoomX / videoWidth,
+              targetY: initialZoomY / videoHeight,
               scale: this.ZOOM_SCALE,
               introMs: this.INTRO_DURATION,
               outroMs: this.OUTRO_DURATION
@@ -287,22 +271,20 @@ export class EffectsEngine {
           }
 
           if (this.debugMode) {
-            console.log(`✅ ZOOM EFFECT CREATED (idle detected):`, {
+            console.log(`✅ ZOOM EFFECT CREATED:`, {
               timeRange: `${(zoomEffect.startTime / 1000).toFixed(1)}s - ${(zoomEffect.endTime / 1000).toFixed(1)}s`,
               duration: `${((zoomEffect.endTime - zoomEffect.startTime) / 1000).toFixed(1)}s`,
-              center: `(${zoomEffect.params.targetX.toFixed(3)}, ${zoomEffect.params.targetY.toFixed(3)})`,
-              activityPoints: activityPoints.length
+              initialCenter: `(${zoomEffect.params.targetX.toFixed(3)}, ${zoomEffect.params.targetY.toFixed(3)})`,
+              reason: 'Extended idle detected'
             })
           }
 
           zoomEffects.push(zoomEffect)
-          currentZoomStart = null
-          activityPoints = []
         } else if (this.debugMode) {
           console.log(`⚠️ Zoom too short, discarding (${((zoomEnd - currentZoomStart) / 1000).toFixed(1)}s)`)
-          currentZoomStart = null
-          activityPoints = []
         }
+        
+        currentZoomStart = null
       }
 
       lastX = event.x
@@ -311,7 +293,8 @@ export class EffectsEngine {
 
     // Handle any remaining zoom at the end
     if (currentZoomStart !== null) {
-      const zoomEnd = Math.min(lastActivityTime + 500, videoDuration)
+      const zoomEnd = Math.min(lastActivityTime + 300, videoDuration)
+      
       if (zoomEnd - currentZoomStart >= this.MIN_ZOOM_DURATION) {
         const zoomEffect: ZoomEffect = {
           id: `zoom-final-${currentZoomStart}`,
@@ -319,8 +302,8 @@ export class EffectsEngine {
           startTime: currentZoomStart,
           endTime: zoomEnd,
           params: {
-            targetX: activityCenterX / videoWidth,
-            targetY: activityCenterY / videoHeight,
+            targetX: initialZoomX / videoWidth,
+            targetY: initialZoomY / videoHeight,
             scale: this.ZOOM_SCALE,
             introMs: this.INTRO_DURATION,
             outroMs: this.OUTRO_DURATION
@@ -330,7 +313,8 @@ export class EffectsEngine {
         if (this.debugMode) {
           console.log(`✅ FINAL ZOOM EFFECT:`, {
             timeRange: `${(zoomEffect.startTime / 1000).toFixed(1)}s - ${(zoomEffect.endTime / 1000).toFixed(1)}s`,
-            center: `(${zoomEffect.params.targetX.toFixed(3)}, ${zoomEffect.params.targetY.toFixed(3)})`
+            initialCenter: `(${zoomEffect.params.targetX.toFixed(3)}, ${zoomEffect.params.targetY.toFixed(3)})`,
+            reason: 'Video end'
           })
         }
 
@@ -338,19 +322,43 @@ export class EffectsEngine {
       }
     }
 
-    this.effects = zoomEffects
+    // Merge nearby zoom effects to create continuous zooms
+    const mergedEffects: ZoomEffect[] = []
+    let lastEffect: ZoomEffect | null = null
+
+    for (const effect of zoomEffects) {
+      if (lastEffect && effect.startTime - lastEffect.endTime < this.MERGE_GAP) {
+        // Merge with previous effect
+        lastEffect.endTime = effect.endTime
+        if (this.debugMode) {
+          console.log(`🔗 MERGED ZOOM:`, {
+            newRange: `${(lastEffect.startTime / 1000).toFixed(1)}s - ${(lastEffect.endTime / 1000).toFixed(1)}s`,
+            gapWas: `${((effect.startTime - lastEffect.endTime) / 1000).toFixed(1)}s`
+          })
+        }
+      } else {
+        // New separate effect
+        if (lastEffect) mergedEffects.push(lastEffect)
+        lastEffect = { ...effect }
+      }
+    }
+    if (lastEffect) mergedEffects.push(lastEffect)
+
+    this.effects = mergedEffects
 
     if (this.debugMode) {
       console.log(`🔍 ZOOM DETECTION COMPLETE:`, {
-        totalEffectsDetected: zoomEffects.length,
-        effects: zoomEffects.map(e => ({
+        originalEffects: zoomEffects.length,
+        mergedEffects: mergedEffects.length,
+        effects: mergedEffects.map(e => ({
           time: `${(e.startTime / 1000).toFixed(1)}-${(e.endTime / 1000).toFixed(1)}s`,
+          duration: `${((e.endTime - e.startTime) / 1000).toFixed(1)}s`,
           center: `(${e.params.targetX.toFixed(2)}, ${e.params.targetY.toFixed(2)})`
         }))
       })
     }
 
-    return zoomEffects
+    return mergedEffects
   }
 
   /**
@@ -370,12 +378,17 @@ export class EffectsEngine {
       }
     }
 
-    if (this.debugMode && timestamp % 5000 < 50) { // Log every 5 seconds
-      console.log(`🎬 ACTIVE ZOOM at ${(timestamp / 1000).toFixed(1)}s:`, {
+    // Get current mouse position
+    const mousePos = this.getInterpolatedMousePosition(timestamp)
+
+    // Log coordinates every 100ms for debugging
+    if (this.debugMode && timestamp % 100 < 50) {
+      console.log(`🎬 ZOOM STATE at ${(timestamp / 1000).toFixed(2)}s:`, {
         effectId: activeZoom.id,
-        phase: timestamp < activeZoom.startTime + activeZoom.params.introMs ? 'intro' :
-          timestamp > activeZoom.endTime - activeZoom.params.outroMs ? 'outro' : 'tracking',
-        target: `(${activeZoom.params.targetX.toFixed(3)}, ${activeZoom.params.targetY.toFixed(3)})`
+        mousePos: `(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)})`,
+        targetPos: `(${activeZoom.params.targetX.toFixed(3)}, ${activeZoom.params.targetY.toFixed(3)})`,
+        phase: timestamp < activeZoom.startTime + activeZoom.params.introMs ? 'INTRO' :
+          timestamp > activeZoom.endTime - activeZoom.params.outroMs ? 'OUTRO' : 'TRACKING'
       })
     }
 
@@ -387,16 +400,20 @@ export class EffectsEngine {
     let x: number
     let y: number
 
-    // Intro phase - zoom in to target
+    // Intro phase - zoom in FAST to mouse position
     if (elapsed < activeZoom.params.introMs) {
       const progress = elapsed / activeZoom.params.introMs
       const eased = easeOutExpo(progress)
 
       scale = 1.0 + (activeZoom.params.scale - 1.0) * eased
 
-      // Pan from center to target
-      x = 0.5 + (activeZoom.params.targetX - 0.5) * eased
-      y = 0.5 + (activeZoom.params.targetY - 0.5) * eased
+      // Immediately pan to mouse position
+      x = 0.5 + (mousePos.x - 0.5) * eased
+      y = 0.5 + (mousePos.y - 0.5) * eased
+
+      if (this.debugMode && elapsed % 50 < 10) {
+        console.log(`  📍 INTRO: progress=${progress.toFixed(2)}, eased=${eased.toFixed(2)}, scale=${scale.toFixed(2)}`)
+      }
     }
     // Outro phase - zoom out to center
     else if (elapsed > effectDuration - activeZoom.params.outroMs) {
@@ -406,24 +423,25 @@ export class EffectsEngine {
 
       scale = activeZoom.params.scale - (activeZoom.params.scale - 1.0) * eased
 
-      // Get current mouse position for smooth transition
-      const currentMouse = this.getInterpolatedMousePosition(timestamp)
-
       // Pan from current mouse position back to center
-      x = currentMouse.x + (0.5 - currentMouse.x) * eased
-      y = currentMouse.y + (0.5 - currentMouse.y) * eased
+      x = mousePos.x + (0.5 - mousePos.x) * eased
+      y = mousePos.y + (0.5 - mousePos.y) * eased
+
+      if (this.debugMode && outroElapsed % 50 < 10) {
+        console.log(`  📍 OUTRO: progress=${progress.toFixed(2)}, eased=${eased.toFixed(2)}, scale=${scale.toFixed(2)}`)
+      }
     }
-    // Middle phase - follow mouse smoothly
+    // Middle phase - TRACK MOUSE PRECISELY
     else {
       scale = activeZoom.params.scale
 
-      // Follow actual mouse position with smoothing
-      const mousePos = this.getInterpolatedMousePosition(timestamp)
+      // Follow mouse position directly
+      x = mousePos.x
+      y = mousePos.y
 
-      // Blend between target and current mouse position for smoother tracking
-      const blendFactor = 0.7 // How much to follow the mouse (0 = static, 1 = full follow)
-      x = activeZoom.params.targetX + (mousePos.x - activeZoom.params.targetX) * blendFactor
-      y = activeZoom.params.targetY + (mousePos.y - activeZoom.params.targetY) * blendFactor
+      if (this.debugMode && elapsed % 500 < 50) {
+        console.log(`  📍 TRACKING: following mouse at (${x.toFixed(3)}, ${y.toFixed(3)})`)
+      }
     }
 
     // Ensure we stay within bounds when zoomed
@@ -431,6 +449,11 @@ export class EffectsEngine {
     const margin = (1 - 1 / scale) / 2
     x = Math.max(margin, Math.min(1 - margin, x))
     y = Math.max(margin, Math.min(1 - margin, y))
+
+    // Log final camera position
+    if (this.debugMode && timestamp % 100 < 50) {
+      console.log(`  📷 CAMERA: pos=(${x.toFixed(3)}, ${y.toFixed(3)}), scale=${scale.toFixed(2)}, margin=${margin.toFixed(3)}`)
+    }
 
     return {
       zoom: { x, y, scale }
@@ -499,7 +522,8 @@ export class EffectsEngine {
   applyZoomToCanvas(
     ctx: CanvasRenderingContext2D,
     source: HTMLVideoElement | HTMLCanvasElement,
-    zoom: { x: number; y: number; scale: number }
+    zoom: { x: number; y: number; scale: number },
+    currentTime?: number
   ) {
     const { width, height } = ctx.canvas
     const sourceWidth = source instanceof HTMLVideoElement ? source.videoWidth : source.width
@@ -531,8 +555,8 @@ export class EffectsEngine {
     const centerErrorX = Math.abs(actualCenterX - centerX)
     const centerErrorY = Math.abs(actualCenterY - centerY)
 
-    if (this.debugMode && Math.random() < 0.001) { // Log very rarely
-      console.log(`📐 ZOOM RENDER:`, {
+    if (this.debugMode && Math.random() < 0.01) { // Log occasionally
+      console.log(`📐 CANVAS RENDER:`, {
         zoomParams: `(${zoom.x.toFixed(3)}, ${zoom.y.toFixed(3)}) @ ${zoom.scale.toFixed(2)}x`,
         sourceSize: `${sourceWidth}x${sourceHeight}`,
         zoomRegion: `${zoomWidth.toFixed(0)}x${zoomHeight.toFixed(0)}`,
@@ -560,7 +584,23 @@ export class EffectsEngine {
       // Save context state
       ctx.save()
 
-      // Draw crosshair at center of canvas (shows where zoom is centered)
+      // Get mouse position if we have timestamp
+      let mouseScreenX = width / 2
+      let mouseScreenY = height / 2
+      
+      if (currentTime !== undefined) {
+        const mousePos = this.getInterpolatedMousePosition(currentTime)
+        // Convert mouse position from normalized to screen coordinates
+        // Since we're zoomed, we need to calculate where the mouse appears on screen
+        const mouseSourceX = mousePos.x * sourceWidth
+        const mouseSourceY = mousePos.y * sourceHeight
+        
+        // Calculate where this point appears in our zoomed view
+        mouseScreenX = ((mouseSourceX - sx) / zoomWidth) * width
+        mouseScreenY = ((mouseSourceY - sy) / zoomHeight) * height
+      }
+
+      // Draw crosshair at center of canvas (shows where camera is centered)
       ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)'
       ctx.lineWidth = 2
 
@@ -584,11 +624,42 @@ export class EffectsEngine {
       ctx.arc(canvasCenterX, canvasCenterY, 40, 0, Math.PI * 2)
       ctx.stroke()
 
+      // Draw mouse position indicator (green)
+      if (mouseScreenX >= 0 && mouseScreenX <= width && mouseScreenY >= 0 && mouseScreenY <= height) {
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.3)'
+        ctx.lineWidth = 3
+        
+        // Draw mouse indicator
+        ctx.beginPath()
+        ctx.arc(mouseScreenX, mouseScreenY, 15, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        
+        // Draw line from center to mouse
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.3)'
+        ctx.lineWidth = 1
+        ctx.setLineDash([5, 5])
+        ctx.beginPath()
+        ctx.moveTo(canvasCenterX, canvasCenterY)
+        ctx.lineTo(mouseScreenX, mouseScreenY)
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+
       // Draw zoom info
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.8)'
-      ctx.font = 'bold 16px monospace'
-      ctx.fillText(`Zoom: ${zoom.scale.toFixed(1)}x`, 10, 30)
-      ctx.fillText(`Center: (${zoom.x.toFixed(2)}, ${zoom.y.toFixed(2)})`, 10, 50)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+      ctx.fillRect(5, 5, 250, 70)
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.9)'
+      ctx.font = 'bold 14px monospace'
+      ctx.fillText(`Zoom: ${zoom.scale.toFixed(1)}x`, 10, 25)
+      ctx.fillText(`Camera: (${zoom.x.toFixed(3)}, ${zoom.y.toFixed(3)})`, 10, 45)
+      
+      if (currentTime !== undefined) {
+        const mousePos = this.getInterpolatedMousePosition(currentTime)
+        ctx.fillText(`Mouse: (${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)})`, 10, 65)
+      }
 
       // Restore context state
       ctx.restore()

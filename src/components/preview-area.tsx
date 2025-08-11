@@ -300,11 +300,11 @@ export function PreviewArea() {
         // Create a temporary canvas for cropped frame
         const tempCanvas = document.createElement('canvas')
         workAreaCropperRef.current.cropFrame(video, tempCanvas)
-        // Apply zoom to the cropped frame
-        currentEngine.applyZoomToCanvas(ctx, tempCanvas as any, effectState.zoom)
+        // Apply zoom to the cropped frame with current time for mouse tracking
+        currentEngine.applyZoomToCanvas(ctx, tempCanvas as any, effectState.zoom, tMs)
       } else {
-        // Apply zoom directly to video
-        currentEngine.applyZoomToCanvas(ctx, video, effectState.zoom)
+        // Apply zoom directly to video with current time for mouse tracking
+        currentEngine.applyZoomToCanvas(ctx, video, effectState.zoom, tMs)
       }
     }
 
@@ -331,7 +331,7 @@ export function PreviewArea() {
       
       // Set initial time to 0 to ensure we start with zoom effects
       const initialState = currentEngine.getEffectState(0)
-      currentEngine.applyZoomToCanvas(ctx, video, initialState.zoom)
+      currentEngine.applyZoomToCanvas(ctx, video, initialState.zoom, 0)
     }
 
     // Initial draw

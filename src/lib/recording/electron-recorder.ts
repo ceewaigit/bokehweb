@@ -16,7 +16,6 @@ export interface ElectronRecordingResult {
   metadata: ElectronMetadata[]
   effectsApplied: string[]
   processingTime: number
-  filePath?: string
   captureArea?: {
     fullBounds: { x: number; y: number; width: number; height: number }
     workArea: { x: number; y: number; width: number; height: number }
@@ -237,16 +236,9 @@ export class ElectronRecorder {
 
         logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
 
-        // Use consolidated saving function
-        let filePath: string | undefined
-        const saved = await saveRecordingWithProject(video, this.metadata, undefined, this.captureArea)
-        if (saved) {
-          filePath = saved.projectPath
-          logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
-        } else {
-          logger.error('Failed to save recording with project')
-        }
-
+        // Don't save here - let the consumer (use-recording.ts) handle saving
+        // This was causing duplicate saves with different timestamp formats
+        
         this.cleanup()
 
         const effectsApplied = ['electron-desktop-capture']
@@ -258,7 +250,6 @@ export class ElectronRecorder {
           video,
           duration,
           metadata: this.metadata,
-          filePath,
           captureArea: this.captureArea,
           effectsApplied,
           processingTime: 0 // Electron recorder has no post-processing

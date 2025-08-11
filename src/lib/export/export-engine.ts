@@ -395,7 +395,7 @@ export class ExportEngine {
             const tempCtx = tempCanvas.getContext('2d')!
 
             const effectState = effectsEngine.getEffectState(timestamp)
-            effectsEngine.applyZoomToCanvas(tempCtx, video, effectState.zoom)
+            effectsEngine.applyZoomToCanvas(tempCtx, video, effectState.zoom, timestamp)
 
             // Apply background with zoomed video
             backgroundRenderer.applyBackground(this.processingCtx!, tempCanvas)
@@ -407,7 +407,7 @@ export class ExportEngine {
           // No background - just apply zoom or draw video directly
           if (effectsEngine) {
             const effectState = effectsEngine.getEffectState(timestamp)
-            effectsEngine.applyZoomToCanvas(this.processingCtx!, video, effectState.zoom)
+            effectsEngine.applyZoomToCanvas(this.processingCtx!, video, effectState.zoom, timestamp)
           } else {
             this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
           }
