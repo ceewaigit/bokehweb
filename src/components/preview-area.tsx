@@ -311,7 +311,7 @@ export function PreviewArea() {
       // Use the ref to get the current engine
       const currentEngine = effectsEngineRef.current
       if (!currentEngine) {
-        console.log('⚠️ drawCurrentFrame: No effects engine!')
+        // No effects engine available
         return
       }
       
@@ -323,8 +323,8 @@ export function PreviewArea() {
       const tMs = forceTime !== undefined ? forceTime : timelineTimeMs
       const effectState = currentEngine.getEffectState(tMs)
       
-      // Log every 30 frames (about once per second at 30fps)
-      if (frameCount++ % 30 === 0) {
+      // Only log in development
+      if (process.env.NODE_ENV === 'development' && frameCount++ % 120 === 0) {
         const effects = currentEngine.getEffects()
         const activeEffect = effects.find((e: any) => tMs >= e.startTime && tMs <= e.endTime)
         console.log(`🎬 Frame ${frameCount}: t=${(tMs/1000).toFixed(1)}s, zoom=${effectState.zoom.scale.toFixed(2)}x, active effect: ${activeEffect ? activeEffect.id : 'NONE'}`)
@@ -346,9 +346,15 @@ export function PreviewArea() {
     // Smart render loop - only render when playing or when time changes
     let lastRenderedTime = -1
     const renderFrame = () => {
-      // Always draw the current frame when called
-      drawCurrentFrame()
-      lastRenderedTime = video.currentTime
+      // Skip frame if video time hasn't changed significantly (optimize for performance)
+      const currentTime = video.currentTime
+      const timeDelta = Math.abs(currentTime - lastRenderedTime)
+      
+      // Only render if time has changed by at least 1/60th of a second (16ms)
+      if (timeDelta >= 0.016) {
+        drawCurrentFrame()
+        lastRenderedTime = currentTime
+      }
       
       // Continue animation loop - will be canceled if video pauses
       animationFrameRef.current = requestAnimationFrame(renderFrame)
@@ -365,7 +371,7 @@ export function PreviewArea() {
       const initialState = currentEngine.getEffectState(currentTimeMs)
       currentEngine.applyZoomToCanvas(ctx, video, initialState.zoom, currentTimeMs)
       
-      console.log(`🎨 Initial canvas draw at ${(currentTimeMs/1000).toFixed(1)}s, zoom=${initialState.zoom.scale.toFixed(2)}x`)
+      // Initial draw complete
     }
 
     // Initial draw
@@ -376,7 +382,7 @@ export function PreviewArea() {
     
     // Start/stop render loop based on video play state
     const handlePlay = () => {
-      console.log('📹 Video started playing - starting render loop')
+      // Video started playing
       isCurrentlyPlaying = true
       if (!animationFrameRef.current) {
         renderFrame()
@@ -384,7 +390,7 @@ export function PreviewArea() {
     }
     
     const handlePause = () => {
-      console.log('📹 Video paused - stopping render loop')
+      // Video paused
       isCurrentlyPlaying = false
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)

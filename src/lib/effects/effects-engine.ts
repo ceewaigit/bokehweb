@@ -48,7 +48,7 @@ export class EffectsEngine {
   private readonly MERGE_GAP = 1500 // ms - merge zooms if gap is less than this
 
   // Debug mode
-  private debugMode = true // Enable to see crosshair and debug info
+  private debugMode = false // Disable for production
 
   constructor() { }
 
@@ -75,9 +75,22 @@ export class EffectsEngine {
         x: e.mouseX || e.x,
         y: e.mouseY || e.y,
         type: e.eventType === 'click' ? 'click' : 'move',
-        screenWidth: e.windowWidth || width,
-        screenHeight: e.windowHeight || height
+        screenWidth: e.windowWidth || e.screenWidth || width,
+        screenHeight: e.windowHeight || e.screenHeight || height
       }))
+    
+    // Debug first few events to check screen dimensions
+    if (this.debugMode && events.length > 0) {
+      console.log(`🎯 Metadata initialization:`, {
+        videoSize: `${width}x${height}`,
+        firstEvent: events[0],
+        eventCount: events.length,
+        sampleEvents: events.slice(0, 3).map(e => ({
+          pos: `(${e.x}, ${e.y})`,
+          screen: `${e.screenWidth}x${e.screenHeight}`
+        }))
+      })
+    }
 
     const effects = this.detectZoomEffectsInternal(events, duration, width, height)
     this.setEffects(effects)
@@ -521,6 +534,16 @@ export class EffectsEngine {
       const beforeY = before.y / (before.screenHeight || this.videoHeight)
       const afterX = after.x / (after.screenWidth || this.videoWidth)
       const afterY = after.y / (after.screenHeight || this.videoHeight)
+      
+      // Debug log to check coordinate normalization
+      if (this.debugMode && Math.random() < 0.01) {
+        console.log(`🐭 Mouse interpolation:`, {
+          before: `(${before.x}, ${before.y}) in ${before.screenWidth}x${before.screenHeight}`,
+          after: `(${after.x}, ${after.y}) in ${after.screenWidth}x${after.screenHeight}`,
+          normalized: `(${beforeX.toFixed(3)}, ${beforeY.toFixed(3)}) -> (${afterX.toFixed(3)}, ${afterY.toFixed(3)})`,
+          videoSize: `${this.videoWidth}x${this.videoHeight}`
+        })
+      }
 
       return {
         x: beforeX + (afterX - beforeX) * smoothProgress,
@@ -583,10 +606,11 @@ export class EffectsEngine {
     const centerErrorX = Math.abs(actualCenterX - centerX)
     const centerErrorY = Math.abs(actualCenterY - centerY)
 
-    if (this.debugMode && Math.random() < 0.01) { // Log occasionally
-      console.log(`📐 CANVAS RENDER:`, {
+    if (this.debugMode && currentTime !== undefined && currentTime % 500 < 50) { // Log every 500ms
+      console.log(`📐 CANVAS RENDER at ${(currentTime/1000).toFixed(2)}s:`, {
         zoomParams: `(${zoom.x.toFixed(3)}, ${zoom.y.toFixed(3)}) @ ${zoom.scale.toFixed(2)}x`,
         sourceSize: `${sourceWidth}x${sourceHeight}`,
+        canvasSize: `${width}x${height}`,
         zoomRegion: `${zoomWidth.toFixed(0)}x${zoomHeight.toFixed(0)}`,
         targetCenter: `(${centerX.toFixed(0)}, ${centerY.toFixed(0)})`,
         actualCenter: `(${actualCenterX.toFixed(0)}, ${actualCenterY.toFixed(0)})`,
@@ -596,14 +620,14 @@ export class EffectsEngine {
       })
     }
 
-    // Clear canvas with background color (or transparent)
-    ctx.clearRect(0, 0, width, height)
-    
-    // If we're showing area outside the video, fill with a background
+    // Only fill background if we're showing area outside the video
     if (sx < 0 || sy < 0 || sx + zoomWidth > sourceWidth || sy + zoomHeight > sourceHeight) {
       // Fill with a dark background where video doesn't exist
       ctx.fillStyle = '#1a1a1a'
       ctx.fillRect(0, 0, width, height)
+    } else {
+      // Just clear for better performance when fully in bounds
+      ctx.clearRect(0, 0, width, height)
     }
     
     // Calculate the actual region to draw (clipped to source bounds)
@@ -618,9 +642,9 @@ export class EffectsEngine {
     let dWidth = (actualSWidth / zoomWidth) * width
     let dHeight = (actualSHeight / zoomHeight) * height
     
-    // Draw with high quality
+    // Use medium quality for better performance during playback
     ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
+    ctx.imageSmoothingQuality = 'medium'
     
     // Only draw if there's something to draw
     if (actualSWidth > 0 && actualSHeight > 0) {
