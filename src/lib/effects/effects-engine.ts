@@ -408,8 +408,8 @@ export class EffectsEngine {
     // Get current mouse position
     const mousePos = this.getInterpolatedMousePosition(timestamp)
 
-    // Log coordinates every 100ms for debugging
-    if (this.debugMode && timestamp % 100 < 50) {
+    // Log coordinates occasionally for debugging (reduced frequency)
+    if (this.debugMode && timestamp % 500 < 10) {  // Much less frequent
       console.log(`🎬 ZOOM STATE at ${(timestamp / 1000).toFixed(2)}s:`, {
         effectId: activeZoom.id,
         mousePos: `(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)})`,
@@ -467,7 +467,7 @@ export class EffectsEngine {
       x = mousePos.x
       y = mousePos.y
 
-      if (this.debugMode && timestamp % 100 < 50) {
+      if (this.debugMode && timestamp % 500 < 10) {  // Reduce log frequency
         console.log(`  📍 TRACKING: centering view on mouse=(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)}) -> camera at (${x.toFixed(3)}, ${y.toFixed(3)})`)
         console.log(`     Scale: ${scale.toFixed(2)}x, View will be centered on (${x.toFixed(3)}, ${y.toFixed(3)})`)
         console.log(`     ✅ Camera EXACTLY matches mouse position during tracking`)
@@ -675,14 +675,31 @@ export class EffectsEngine {
       
       if (currentTime !== undefined) {
         const mousePos = this.getInterpolatedMousePosition(currentTime)
-        // Convert mouse position from normalized to screen coordinates
-        // Since we're zoomed, we need to calculate where the mouse appears on screen
+        
+        // Convert mouse position from normalized to source pixel coordinates
         const mouseSourceX = mousePos.x * sourceWidth
         const mouseSourceY = mousePos.y * sourceHeight
         
-        // Calculate where this point appears in our zoomed view
-        mouseScreenX = ((mouseSourceX - sx) / zoomWidth) * width
-        mouseScreenY = ((mouseSourceY - sy) / zoomHeight) * height
+        // Calculate where this point appears in our zoomed/panned view
+        // sx, sy is the top-left corner of the extracted region
+        // The mouse position relative to this extraction region:
+        const mouseInExtractX = mouseSourceX - sx
+        const mouseInExtractY = mouseSourceY - sy
+        
+        // Scale to canvas coordinates
+        mouseScreenX = (mouseInExtractX / zoomWidth) * width
+        mouseScreenY = (mouseInExtractY / zoomHeight) * height
+        
+        // During perfect tracking, mouse should be at center
+        // Log if there's a discrepancy
+        const expectedCenterX = width / 2
+        const expectedCenterY = height / 2
+        const errorX = Math.abs(mouseScreenX - expectedCenterX)
+        const errorY = Math.abs(mouseScreenY - expectedCenterY)
+        
+        if (this.debugMode && errorX > 10 || errorY > 10) {
+          console.log(`🔴 Mouse position error: mouse at (${mouseScreenX.toFixed(0)}, ${mouseScreenY.toFixed(0)}) should be at center (${expectedCenterX}, ${expectedCenterY})`)
+        }
       }
 
       // Draw crosshair at center of canvas (shows where camera is centered)

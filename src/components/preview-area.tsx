@@ -294,14 +294,12 @@ export function PreviewArea() {
         ; (zoomCanvasRef as any).current = zoomCanvas
     }
 
-    // Only update canvas size if it hasn't been set or video dimensions changed
+    // Set canvas to match video dimensions
     const targetWidth = video.videoWidth || 1920
     const targetHeight = video.videoHeight || 1080
     
-    // Check if canvas needs resizing (only on first setup or video change)
+    // Only update if size changed to avoid clearing canvas
     if (zoomCanvas.width !== targetWidth || zoomCanvas.height !== targetHeight) {
-      // Set canvas to match video size for 1:1 pixel mapping
-      // The CSS styling will handle fitting it to the container
       zoomCanvas.width = targetWidth
       zoomCanvas.height = targetHeight
     }
@@ -354,9 +352,13 @@ export function PreviewArea() {
     // Smart render loop - only render when playing or when time changes
     let lastRenderedTime = -1
     const renderFrame = () => {
-      // Always draw during playback for smooth animation
-      drawCurrentFrame()
-      lastRenderedTime = video.currentTime
+      const currentTime = video.currentTime
+      
+      // Only draw if time has actually changed (avoid rendering same frame multiple times)
+      if (Math.abs(currentTime - lastRenderedTime) > 0.001) {  // 1ms threshold
+        drawCurrentFrame()
+        lastRenderedTime = currentTime
+      }
       
       // Continue animation loop - will be canceled if video pauses
       animationFrameRef.current = requestAnimationFrame(renderFrame)
