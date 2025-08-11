@@ -48,7 +48,7 @@ export class EffectsEngine {
   private readonly MERGE_GAP = 1500 // ms - merge zooms if gap is less than this
 
   // Debug mode
-  private debugMode = false // Disable detailed logging for production
+  private debugMode = true // Enable to debug camera tracking
 
   constructor() { }
 
@@ -439,34 +439,64 @@ export class EffectsEngine {
       x = mousePos.x
       y = mousePos.y
 
-      if (this.debugMode && elapsed % 500 < 50) {
-        console.log(`  📍 TRACKING: following mouse at (${x.toFixed(3)}, ${y.toFixed(3)})`)
+      if (this.debugMode && timestamp % 100 < 50) {
+        console.log(`  📍 TRACKING: mouse=(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)}) -> camera SHOULD BE at (${x.toFixed(3)}, ${y.toFixed(3)})`)
       }
     }
 
     // Ensure we stay within bounds when zoomed
-    // The visible area is 1/scale of the full image
-    // The center point can move within a range that keeps the view within bounds
-    const viewportWidthNorm = 1 / scale  // Normalized viewport width
-    const viewportHeightNorm = 1 / scale // Normalized viewport height
+    // When zoomed at scale S, we see 1/S of the image
+    // The center of our viewport can range from (viewport_size/2) to (1 - viewport_size/2)
+    // At scale 1.8, we see 1/1.8 = 0.556 of the image
+    // So the center can range from 0.278 to 0.722
     
-    // The center can move from half viewport to (1 - half viewport)
-    const minX = viewportWidthNorm / 2
-    const maxX = 1 - viewportWidthNorm / 2
-    const minY = viewportHeightNorm / 2
-    const maxY = 1 - viewportHeightNorm / 2
+    // BUT WAIT - we want to follow the mouse, not clamp to arbitrary bounds!
+    // Only clamp if the view would go outside the image
+    
+    const viewportWidth = 1 / scale   // How much of the image we see horizontally
+    const viewportHeight = 1 / scale  // How much of the image we see vertically
+    
+    // Calculate bounds - the center can move anywhere that keeps the viewport inside [0,1]
+    const halfViewportWidth = viewportWidth / 2
+    const halfViewportHeight = viewportHeight / 2
+    
+    const minX = halfViewportWidth     // Can't go further left than this
+    const maxX = 1 - halfViewportWidth  // Can't go further right than this
+    const minY = halfViewportHeight    // Can't go further up than this
+    const maxY = 1 - halfViewportHeight // Can't go further down than this
     
     const originalX = x
     const originalY = y
+    
+    // Only clamp if we would actually go outside the image bounds
     x = Math.max(minX, Math.min(maxX, x))
     y = Math.max(minY, Math.min(maxY, y))
 
     // Log final camera position
     if (this.debugMode && timestamp % 100 < 50) {
-      const wasClamped = (originalX !== x || originalY !== y)
-      console.log(`  📷 CAMERA: pos=(${x.toFixed(3)}, ${y.toFixed(3)}), scale=${scale.toFixed(2)}${wasClamped ? ` [CLAMPED from (${originalX.toFixed(3)}, ${originalY.toFixed(3)})]` : ''}`)
-      if (wasClamped) {
+      const wasClamped = (Math.abs(originalX - x) > 0.001 || Math.abs(originalY - y) > 0.001)
+      
+      if (!wasClamped) {
+        console.log(`  📷 CAMERA FINAL: pos=(${x.toFixed(3)}, ${y.toFixed(3)}), scale=${scale.toFixed(2)} ✅ NO CLAMPING`)
+      } else {
+        console.log(`  ⚠️ CAMERA CLAMPED!`)
+        console.log(`     Original: (${originalX.toFixed(3)}, ${originalY.toFixed(3)})`)
+        console.log(`     Clamped to: (${x.toFixed(3)}, ${y.toFixed(3)})`)
+        console.log(`     Viewport: ${viewportWidth.toFixed(3)} x ${viewportHeight.toFixed(3)} (${(viewportWidth*100).toFixed(1)}% of image)`)
         console.log(`     Bounds: X[${minX.toFixed(3)}-${maxX.toFixed(3)}] Y[${minY.toFixed(3)}-${maxY.toFixed(3)}]`)
+        
+        // Detailed analysis
+        if (originalX < minX) {
+          console.log(`     ❌ X too small: ${originalX.toFixed(3)} < ${minX.toFixed(3)} (would show left edge)`)
+        } else if (originalX > maxX) {
+          console.log(`     ❌ X too large: ${originalX.toFixed(3)} > ${maxX.toFixed(3)} (would show right edge)`)
+        }
+        
+        if (originalY < minY) {
+          console.log(`     ❌ Y too small: ${originalY.toFixed(3)} < ${minY.toFixed(3)} (would show above video)`)
+        } else if (originalY > maxY) {
+          console.log(`     ❌ Y too large: ${originalY.toFixed(3)} > ${maxY.toFixed(3)} (would show below video)`)
+        }
       }
     }
 

@@ -198,6 +198,14 @@ export function PreviewArea() {
 
   // Set up zoom effect when video loads
   useEffect(() => {
+    console.log('🔍 Zoom effect useEffect triggered', {
+      isVideoLoaded,
+      hasVideo: !!videoRef.current,
+      hasContainer: !!containerRef.current,
+      showZoom,
+      isPlaying
+    })
+    
     if (!isVideoLoaded || !videoRef.current || !containerRef.current) {
       console.log('🔍 Zoom setup: Video not ready yet')
       return
@@ -243,10 +251,21 @@ export function PreviewArea() {
       console.log(`✅ Effects engine initialized ONCE with ${metadata.length} events, detected ${effectCount} zoom effects`)
       if (effectCount > 0) {
         console.log('📊 Zoom effects timeline:', effects.map((e: any) => ({
+          id: e.id,
           start: `${(e.startTime/1000).toFixed(1)}s`,
           end: `${(e.endTime/1000).toFixed(1)}s`,
+          duration: `${((e.endTime - e.startTime)/1000).toFixed(1)}s`,
           target: `(${e.params.targetX.toFixed(2)}, ${e.params.targetY.toFixed(2)})`
         })))
+        
+        // Check what's happening at current time
+        const currentTimeMs = video.currentTime * 1000
+        const currentEffect = effects.find((e: any) => 
+          currentTimeMs >= e.startTime && currentTimeMs <= e.endTime
+        )
+        console.log(`🎯 At current time ${(currentTimeMs/1000).toFixed(1)}s: ${
+          currentEffect ? `Active effect ${currentEffect.id}` : 'NO ACTIVE EFFECT'
+        }`)
       }
       
       effectsEngineRef.current = engine
@@ -282,12 +301,14 @@ export function PreviewArea() {
 
     // Helper to draw current frame even when paused
     let frameCount = 0
-    const drawCurrentFrame = () => {
+    const drawCurrentFrame = (forceTime?: number) => {
       // Use the ref to get the current engine
       const currentEngine = effectsEngineRef.current
       if (!currentEngine) return
       
-      const tMs = isFinite(video.duration) && video.currentTime > 0 ? (video.currentTime * 1000) : 0
+      // Use forced time if provided, otherwise use video.currentTime
+      const tMs = forceTime !== undefined ? forceTime : 
+                  (isFinite(video.duration) && video.currentTime > 0 ? (video.currentTime * 1000) : 0)
       const effectState = currentEngine.getEffectState(tMs)
       
       // Log every 30 frames (about once per second at 30fps)
