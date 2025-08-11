@@ -462,15 +462,15 @@ export class EffectsEngine {
     else {
       scale = activeZoom.params.scale
       
-      // Center the VIEW on the mouse position
-      // When zoomed in, the camera position equals the mouse position
-      // This makes the mouse appear at the center of the zoomed viewport
+      // IMPORTANT: During tracking, the camera should follow the mouse exactly
+      // This centers the zoomed view on the mouse position
       x = mousePos.x
       y = mousePos.y
 
       if (this.debugMode && timestamp % 100 < 50) {
         console.log(`  📍 TRACKING: centering view on mouse=(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)}) -> camera at (${x.toFixed(3)}, ${y.toFixed(3)})`)
         console.log(`     Scale: ${scale.toFixed(2)}x, View will be centered on (${x.toFixed(3)}, ${y.toFixed(3)})`)
+        console.log(`     ✅ Camera EXACTLY matches mouse position during tracking`)
       }
     }
 
@@ -606,21 +606,27 @@ export class EffectsEngine {
     const centerErrorX = Math.abs(actualCenterX - centerX)
     const centerErrorY = Math.abs(actualCenterY - centerY)
 
-    if (this.debugMode && currentTime !== undefined && currentTime % 1000 < 50) { // Log every second
+    // Only log during tracking phase for clearer debugging
+    if (this.debugMode && currentTime !== undefined && zoom.scale > 1.0) {
       // Get the actual mouse position for comparison
       const mousePos = this.getInterpolatedMousePosition(currentTime)
       const mousePixelX = mousePos.x * sourceWidth
       const mousePixelY = mousePos.y * sourceHeight
       
-      console.log(`📐 CANVAS RENDER at ${(currentTime/1000).toFixed(2)}s:`, {
-        zoomCenter: `(${zoom.x.toFixed(3)}, ${zoom.y.toFixed(3)}) @ ${zoom.scale.toFixed(2)}x`,
-        mousePos: `(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)})`,
-        mousePx: `(${mousePixelX.toFixed(0)}, ${mousePixelY.toFixed(0)})`,
-        centerPx: `(${centerX.toFixed(0)}, ${centerY.toFixed(0)})`,
-        extractRegion: `(${sx.toFixed(0)}, ${sy.toFixed(0)}) size: ${zoomWidth.toFixed(0)}x${zoomHeight.toFixed(0)}`,
-        canvasVsSource: `canvas=${width}x${height}, source=${sourceWidth}x${sourceHeight}`,
-        mouseMatchesZoom: Math.abs(zoom.x - mousePos.x) < 0.01 && Math.abs(zoom.y - mousePos.y) < 0.01 ? '✅' : `❌ off by (${(zoom.x - mousePos.x).toFixed(3)}, ${(zoom.y - mousePos.y).toFixed(3)})`
-      })
+      // Only log occasionally to reduce spam
+      if (currentTime % 500 < 50) {
+        console.log(`📐 CANVAS RENDER at ${(currentTime/1000).toFixed(2)}s:`, {
+          zoomCenter: `(${zoom.x.toFixed(3)}, ${zoom.y.toFixed(3)}) @ ${zoom.scale.toFixed(2)}x`,
+          mousePos: `(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)})`,
+          mousePx: `(${mousePixelX.toFixed(0)}, ${mousePixelY.toFixed(0)})`,
+          centerPx: `(${centerX.toFixed(0)}, ${centerY.toFixed(0)})`,
+          extractRegion: `(${sx.toFixed(0)}, ${sy.toFixed(0)}) size: ${zoomWidth.toFixed(0)}x${zoomHeight.toFixed(0)}`,
+          canvasVsSource: `canvas=${width}x${height}, source=${sourceWidth}x${sourceHeight}`,
+          shouldMatch: Math.abs(zoom.x - mousePos.x) < 0.01 && Math.abs(zoom.y - mousePos.y) < 0.01 ? 
+            '✅ Camera centered on mouse' : 
+            `⚠️ Camera offset from mouse by (${(zoom.x - mousePos.x).toFixed(3)}, ${(zoom.y - mousePos.y).toFixed(3)})`
+        })
+      }
     }
 
     // Only fill background if we're showing area outside the video
