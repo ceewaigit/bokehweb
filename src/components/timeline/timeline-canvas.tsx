@@ -268,30 +268,36 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
     if (!currentProject) return null
 
     const clips: React.ReactNode[] = []
-    let yOffset = RULER_HEIGHT
+    
+    // Calculate track positions
+    const videoTrackY = RULER_HEIGHT
+    const zoomTrackY = videoTrackY + VIDEO_TRACK_HEIGHT
+    const audioTrackY = selectedClips.length > 0 && 
+      currentProject.timeline.tracks.find(t => t.type === 'video')?.clips.find(c => 
+        selectedClips.includes(c.id) && c.effects?.zoom?.enabled
+      ) ? zoomTrackY + ZOOM_TRACK_HEIGHT : videoTrackY + VIDEO_TRACK_HEIGHT
 
-    // Video track
+    // Video track clips
     const videoTrack = currentProject.timeline.tracks.find(t => t.type === 'video')
     if (videoTrack) {
       videoTrack.clips.forEach(clip => {
         const clipX = timeToPixel(clip.startTime) + TRACK_LABEL_WIDTH
         const clipWidth = Math.max(MIN_CLIP_WIDTH, timeToPixel(clip.duration))
         const isSelected = selectedClips.includes(clip.id)
+        const trackY = videoTrackY // Capture the correct Y position
 
-        // Main clip rectangle
         clips.push(
           <Group
             key={clip.id}
             x={clipX}
-            y={yOffset + TRACK_PADDING}
+            y={trackY + TRACK_PADDING}
             draggable
             dragBoundFunc={(pos) => {
-              // Constrain to track
               const newX = Math.max(TRACK_LABEL_WIDTH, pos.x)
               const newTime = snapToGrid(pixelToTime(newX - TRACK_LABEL_WIDTH))
               return {
                 x: timeToPixel(newTime) + TRACK_LABEL_WIDTH,
-                y: yOffset + TRACK_PADDING
+                y: trackY + TRACK_PADDING // Use captured Y position
               }
             }}
             onDragEnd={(e) => {
@@ -312,11 +318,14 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
             <Rect
               width={clipWidth}
               height={VIDEO_TRACK_HEIGHT - TRACK_PADDING * 2}
-              fill="#1e40af"
-              stroke={isSelected ? '#3b82f6' : '#1e3a8a'}
+              fill="#2563eb"
+              stroke={isSelected ? '#60a5fa' : '#1e40af'}
               strokeWidth={isSelected ? 3 : 1}
-              cornerRadius={4}
-              opacity={0.9}
+              cornerRadius={6}
+              shadowColor="black"
+              shadowBlur={5}
+              shadowOpacity={0.3}
+              shadowOffsetY={2}
             />
 
             {/* Clip label */}
@@ -329,18 +338,18 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
               fontStyle="bold"
             />
 
-            {/* Effect badges */}
+            {/* Effect badges with proper text centering */}
             {clip.effects?.zoom?.enabled && (
               <Group x={8} y={8}>
                 <Rect
                   width={50}
                   height={20}
-                  fill="rgba(59, 130, 246, 0.8)"
+                  fill="rgba(59, 130, 246, 0.9)"
                   cornerRadius={3}
                 />
                 <Text
                   x={4}
-                  y={4}
+                  y={5}  // Vertically center text
                   text="Zoom"
                   fontSize={10}
                   fill="white"
@@ -353,12 +362,12 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
                 <Rect
                   width={50}
                   height={20}
-                  fill="rgba(34, 197, 94, 0.8)"
+                  fill="rgba(34, 197, 94, 0.9)"
                   cornerRadius={3}
                 />
                 <Text
                   x={4}
-                  y={4}
+                  y={5}  // Vertically center text
                   text="Cursor"
                   fontSize={10}
                   fill="white"
@@ -371,12 +380,12 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
                 <Rect
                   width={35}
                   height={20}
-                  fill="rgba(168, 85, 247, 0.8)"
+                  fill="rgba(168, 85, 247, 0.9)"
                   cornerRadius={3}
                 />
                 <Text
                   x={4}
-                  y={4}
+                  y={5}  // Vertically center text
                   text="BG"
                   fontSize={10}
                   fill="white"
@@ -388,9 +397,7 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
       })
     }
 
-    yOffset += VIDEO_TRACK_HEIGHT
-
-    // Zoom track (when clip selected)
+    // Zoom track visualization (when clip selected)
     if (selectedClips.length > 0) {
       const selectedClip = videoTrack?.clips.find(c => selectedClips.includes(c.id))
       if (selectedClip?.effects?.zoom?.enabled && selectedClip.effects.zoom.keyframes.length > 0) {
@@ -405,7 +412,7 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
         })
 
         clips.push(
-          <Group key="zoom-track" x={clipX} y={yOffset}>
+          <Group key="zoom-track-viz" x={clipX} y={zoomTrackY}>
             <Rect
               width={clipWidth}
               height={ZOOM_TRACK_HEIGHT}
@@ -423,31 +430,30 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
             )}
           </Group>
         )
-
-        yOffset += ZOOM_TRACK_HEIGHT
       }
     }
 
-    // Audio track
+    // Audio track clips
     const audioTrack = currentProject.timeline.tracks.find(t => t.type === 'audio')
     if (audioTrack) {
       audioTrack.clips.forEach(clip => {
         const clipX = timeToPixel(clip.startTime) + TRACK_LABEL_WIDTH
         const clipWidth = Math.max(MIN_CLIP_WIDTH, timeToPixel(clip.duration))
         const isSelected = selectedClips.includes(clip.id)
+        const trackY = audioTrackY // Capture the correct Y position
 
         clips.push(
           <Group
             key={clip.id}
             x={clipX}
-            y={yOffset + TRACK_PADDING}
+            y={trackY + TRACK_PADDING}
             draggable
             dragBoundFunc={(pos) => {
               const newX = Math.max(TRACK_LABEL_WIDTH, pos.x)
               const newTime = snapToGrid(pixelToTime(newX - TRACK_LABEL_WIDTH))
               return {
                 x: timeToPixel(newTime) + TRACK_LABEL_WIDTH,
-                y: yOffset + TRACK_PADDING
+                y: trackY + TRACK_PADDING // Use captured Y position
               }
             }}
             onDragEnd={(e) => {
@@ -460,11 +466,14 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
             <Rect
               width={clipWidth}
               height={AUDIO_TRACK_HEIGHT - TRACK_PADDING * 2}
-              fill="#059669"
-              stroke={isSelected ? '#10b981' : '#047857'}
+              fill="#10b981"
+              stroke={isSelected ? '#34d399' : '#059669'}
               strokeWidth={isSelected ? 3 : 1}
               cornerRadius={4}
-              opacity={0.9}
+              shadowColor="black"
+              shadowBlur={3}
+              shadowOpacity={0.2}
+              shadowOffsetY={1}
             />
             <Text
               x={8}
@@ -494,22 +503,22 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
           y={yOffset}
           width={timelineWidth + TRACK_LABEL_WIDTH}
           height={VIDEO_TRACK_HEIGHT}
-          fill="#0f172a"
-          opacity={0.5}
+          fill="#0a0a0f"
+          opacity={0.8}
         />
         <Rect
           x={0}
           y={yOffset}
           width={TRACK_LABEL_WIDTH}
           height={VIDEO_TRACK_HEIGHT}
-          fill="#1e293b"
+          fill="#1a1a2e"
         />
         <Text
           x={10}
           y={yOffset + VIDEO_TRACK_HEIGHT / 2 - 6}
           text="Video"
           fontSize={12}
-          fill="#94a3b8"
+          fill="#e2e8f0"
         />
       </Group>
     )
@@ -524,21 +533,22 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
             y={yOffset}
             width={timelineWidth + TRACK_LABEL_WIDTH}
             height={ZOOM_TRACK_HEIGHT}
-            fill="rgba(59, 130, 246, 0.05)"
+            fill="rgba(59, 130, 246, 0.08)"
           />
           <Rect
             x={0}
             y={yOffset}
             width={TRACK_LABEL_WIDTH}
             height={ZOOM_TRACK_HEIGHT}
-            fill="#1e293b"
+            fill="#1a1a2e"
           />
           <Text
             x={10}
             y={yOffset + ZOOM_TRACK_HEIGHT / 2 - 6}
             text="Zoom"
-            fontSize={12}
-            fill="#3b82f6"
+            fontSize={11}
+            fill="#60a5fa"
+            fontStyle="italic"
           />
         </Group>
       )
@@ -553,22 +563,22 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
           y={yOffset}
           width={timelineWidth + TRACK_LABEL_WIDTH}
           height={AUDIO_TRACK_HEIGHT}
-          fill="#0f172a"
-          opacity={0.3}
+          fill="#0a0a0f"
+          opacity={0.6}
         />
         <Rect
           x={0}
           y={yOffset}
           width={TRACK_LABEL_WIDTH}
           height={AUDIO_TRACK_HEIGHT}
-          fill="#1e293b"
+          fill="#1a1a2e"
         />
         <Text
           x={10}
           y={yOffset + AUDIO_TRACK_HEIGHT / 2 - 6}
           text="Audio"
           fontSize={12}
-          fill="#94a3b8"
+          fill="#e2e8f0"
         />
       </Group>
     )
@@ -760,10 +770,10 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
               y={0}
               width={timelineWidth + TRACK_LABEL_WIDTH}
               height={RULER_HEIGHT}
-              fill="#1e293b"
+              fill="#0f0f23"
             />
 
-            {/* Track backgrounds */}
+            {/* Track backgrounds with darker colors */}
             {renderTracks}
           </Layer>
 
@@ -777,8 +787,21 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
             {renderClips()}
           </Layer>
 
-          {/* Playhead Layer */}
+          {/* Playhead Layer - On top for visibility */}
           <Layer>
+            {/* Playhead shadow for better visibility */}
+            <Line
+              points={[
+                timeToPixel(currentTime) + TRACK_LABEL_WIDTH + 1,
+                0,
+                timeToPixel(currentTime) + TRACK_LABEL_WIDTH + 1,
+                totalHeight
+              ]}
+              stroke="rgba(0, 0, 0, 0.5)"
+              strokeWidth={3}
+              listening={false}
+            />
+            {/* Main playhead line */}
             <Line
               ref={playheadRef}
               points={[
@@ -787,7 +810,7 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
                 timeToPixel(currentTime) + TRACK_LABEL_WIDTH,
                 totalHeight
               ]}
-              stroke="#ef4444"
+              stroke="#dc2626"
               strokeWidth={2}
               draggable
               dragBoundFunc={(pos) => {
@@ -804,14 +827,17 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
                 seek(Math.max(0, Math.min(maxTime, time)))
               }}
             />
-            {/* Playhead handle */}
+            {/* Playhead handle - diamond shape at top */}
             <Rect
-              x={timeToPixel(currentTime) + TRACK_LABEL_WIDTH - 6}
-              y={0}
-              width={12}
-              height={12}
-              fill="#ef4444"
+              x={timeToPixel(currentTime) + TRACK_LABEL_WIDTH - 7}
+              y={-2}
+              width={14}
+              height={14}
+              fill="#dc2626"
               rotation={45}
+              shadowColor="black"
+              shadowBlur={3}
+              shadowOpacity={0.5}
             />
           </Layer>
         </Stage>

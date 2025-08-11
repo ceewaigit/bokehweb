@@ -70,18 +70,18 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
   }
 
   return (
-    <div className="h-14 flex items-center px-4 space-x-1">
+    <div className="h-full w-full flex items-center px-4 gap-2 overflow-hidden">
       {/* Left Section - Project Controls */}
-      <div className="flex items-center space-x-1 flex-shrink-0">
+      <div className="flex items-center gap-1 flex-shrink-0">
         {/* Logo/Brand */}
-        <div className="flex items-center px-3 py-1 mr-2">
-          <FileVideo className="w-5 h-5 text-primary mr-2" />
-          <span className="font-semibold text-sm bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+        <div className="flex items-center px-2 py-1">
+          <FileVideo className="w-5 h-5 text-primary mr-2 flex-shrink-0" />
+          <span className="font-semibold text-sm bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent whitespace-nowrap">
             Screen Studio
           </span>
         </div>
         
-        <Separator orientation="vertical" className="h-8 mx-2" />
+        <Separator orientation="vertical" className="h-8" />
         
         {/* Project Actions */}
         <Button
@@ -90,8 +90,8 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
           onClick={() => newProject('New Project')}
           className="text-xs"
         >
-          <Folder className="w-4 h-4 mr-1" />
-          New
+          <Folder className="w-4 h-4 mr-1 flex-shrink-0" />
+          <span className="whitespace-nowrap">New</span>
         </Button>
         
         <Button
@@ -122,8 +122,8 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
           }}
           className="text-xs"
         >
-          <FolderOpen className="w-4 h-4 mr-1" />
-          Open
+          <FolderOpen className="w-4 h-4 mr-1 flex-shrink-0" />
+          <span className="whitespace-nowrap">Open</span>
         </Button>
         
         <Button
@@ -133,15 +133,15 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
           disabled={!currentProject}
           className="text-xs"
         >
-          <Save className="w-4 h-4 mr-1" />
-          Save
+          <Save className="w-4 h-4 mr-1 flex-shrink-0" />
+          <span className="whitespace-nowrap">Save</span>
         </Button>
       </div>
 
       {/* Center Section - Playback Controls */}
-      <div className="flex-1 flex items-center justify-center space-x-1 min-w-0">
+      <div className="flex-1 flex items-center justify-center gap-1 min-w-0 overflow-hidden">
         {currentProject && (
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <Button
               onClick={handleRewind}
               variant="ghost"
@@ -173,7 +173,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
             </Button>
 
             {/* Time Display */}
-            <div className="ml-3 flex items-center space-x-1 text-xs">
+            <div className="ml-2 flex items-center gap-1 text-xs flex-shrink-0">
               <span className="font-mono font-medium text-foreground">
                 {formatTime(currentTime / 1000)}
               </span>
@@ -187,7 +187,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
 
         {/* Recording Status */}
         {status !== 'idle' && (
-          <div className="ml-6 flex items-center space-x-2">
+          <div className="ml-4 flex items-center gap-2 flex-shrink-0">
             <div className={cn(
               "w-2 h-2 rounded-full",
               status === 'recording' && "bg-red-500 animate-pulse",
@@ -207,9 +207,9 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
       </div>
 
       {/* Right Section - Export and Settings */}
-      <div className="flex items-center space-x-1 flex-shrink-0">
+      <div className="flex items-center gap-1 flex-shrink-0">
         {/* Audio Controls */}
-        <div className="flex items-center mr-2">
+        <div className="flex items-center gap-1">
           <Button 
             variant="ghost" 
             size="icon"
@@ -243,7 +243,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
           </Button>
         </div>
 
-        <Separator orientation="vertical" className="h-8 mx-2" />
+        <Separator orientation="vertical" className="h-8" />
 
         {/* Export Button */}
         <Button 
@@ -253,8 +253,8 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
           onClick={onExport}
           className="text-xs font-medium"
         >
-          <Download className="w-4 h-4 mr-1" />
-          Export
+          <Download className="w-4 h-4 mr-1 flex-shrink-0" />
+          <span className="whitespace-nowrap">Export</span>
         </Button>
 
         {/* Properties Toggle */}

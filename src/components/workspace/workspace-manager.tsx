@@ -159,7 +159,7 @@ export function WorkspaceManager() {
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
       {/* Top Toolbar - Fixed height */}
-      <div className="h-14 flex-shrink-0 border-b bg-card/50">
+      <div className="h-14 flex-shrink-0 border-b bg-card/50 overflow-hidden">
         <Toolbar
           onToggleProperties={handleToggleProperties}
           onExport={handleExport}
