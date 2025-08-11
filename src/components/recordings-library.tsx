@@ -16,6 +16,7 @@ interface Recording {
   project?: Project
   size?: number
   videoSize?: number
+  thumbnailUrl?: string
 }
 
 interface RecordingsLibraryProps {
@@ -31,11 +32,73 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     loadRecordings()
   }, [])
 
+  const generateThumbnail = async (recording: Recording, videoPath: string) => {
+    try {
+      // Load the video file
+      const result = await window.electronAPI?.readLocalFile?.(videoPath)
+      if (!result || !result.success) {
+        console.error('Failed to read video file for thumbnail:', videoPath)
+        return
+      }
+
+      const arrayBuffer = result.data as ArrayBuffer
+      const blob = new Blob([arrayBuffer], { type: 'video/webm' })
+      const videoUrl = URL.createObjectURL(blob)
+
+      // Create video element to extract frame
+      const video = document.createElement('video')
+      video.src = videoUrl
+      video.crossOrigin = 'anonymous'
+      
+      await new Promise<void>((resolve, reject) => {
+        video.addEventListener('loadedmetadata', () => {
+          // Seek to 1 second or 10% of video, whichever is smaller
+          video.currentTime = Math.min(1, video.duration * 0.1)
+        }, { once: true })
+
+        video.addEventListener('seeked', () => {
+          // Create canvas and draw frame
+          const canvas = document.createElement('canvas')
+          canvas.width = 320 // Thumbnail width
+          canvas.height = 180 // 16:9 aspect ratio
+          
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'))
+            return
+          }
+
+          // Draw the video frame
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          
+          // Convert to data URL
+          recording.thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8)
+          
+          // Clean up
+          URL.revokeObjectURL(videoUrl)
+          video.remove()
+          resolve()
+        }, { once: true })
+
+        video.addEventListener('error', (e) => {
+          console.error('Video error:', e)
+          URL.revokeObjectURL(videoUrl)
+          reject(new Error('Failed to load video'))
+        }, { once: true })
+
+        video.load()
+      })
+    } catch (error) {
+      console.error('Failed to generate thumbnail:', error)
+    }
+  }
+
   const loadRecordings = async () => {
     try {
       setLoading(true)
       if (window.electronAPI?.loadRecordings) {
         const files = await window.electronAPI.loadRecordings()
+        console.log('📁 Files received from electron:', files)
         const recordingsList: Recording[] = []
 
         for (const file of files) {
@@ -86,6 +149,23 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         // Sort by timestamp, newest first
         recordingsList.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         setRecordings(recordingsList)
+        
+        // Generate thumbnails asynchronously and update state as they complete
+        recordingsList.forEach(async (recording, index) => {
+          if (recording.project?.recordings?.[0]?.filePath && !recording.thumbnailUrl) {
+            try {
+              await generateThumbnail(recording, recording.project.recordings[0].filePath)
+              // Update state with thumbnail
+              setRecordings(prev => {
+                const updated = [...prev]
+                updated[index] = { ...recording }
+                return updated
+              })
+            } catch (error) {
+              console.error('Failed to generate thumbnail for', recording.name, error)
+            }
+          }
+        })
       }
     } catch (error) {
       console.error('Failed to load recordings:', error)
@@ -94,15 +174,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     }
   }
 
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes || bytes === 0) return 'Unknown'
-
-    const sizes = ['B', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    const size = (bytes / Math.pow(1024, i)).toFixed(1)
-
-    return `${size} ${sizes[i]}`
-  }
 
   if (loading) {
     return (
@@ -206,14 +277,22 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   >
                     {/* Compact thumbnail */}
                     <div className="aspect-video relative bg-gradient-to-br from-primary/5 to-transparent">
-                      {/* Center icon */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        {recording.isProject ? (
-                          <FileJson className="w-8 h-8 text-white/10" />
-                        ) : (
-                          <Film className="w-8 h-8 text-white/10" />
-                        )}
-                      </div>
+                      {/* Show actual thumbnail or fallback icon */}
+                      {recording.thumbnailUrl ? (
+                        <img 
+                          src={recording.thumbnailUrl} 
+                          alt={recording.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          {recording.isProject ? (
+                            <FileJson className="w-8 h-8 text-white/10" />
+                          ) : (
+                            <Film className="w-8 h-8 text-white/10" />
+                          )}
+                        </div>
+                      )}
 
                       {/* Hover play button */}
                       <AnimatePresence>
