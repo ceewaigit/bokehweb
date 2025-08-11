@@ -8,23 +8,7 @@ import { logger } from '@/lib/utils/logger'
 import { PermissionError, ElectronError } from '@/lib/core/errors'
 import { saveRecordingWithProject } from '@/types/project'
 
-// Enhancement settings moved here from screen-recorder
-export interface EnhancementSettings {
-  enableAutoZoom: boolean
-  zoomSensitivity: number
-  maxZoom: number
-  zoomSpeed: number
-  showCursor: boolean
-  cursorSize: number
-  cursorColor: string
-  showClickEffects: boolean
-  clickEffectSize: number
-  clickEffectColor: string
-  enableSmartPanning: boolean
-  panSpeed: number
-  motionSensitivity: number
-  enableSmoothAnimations: boolean
-}
+// Note: Enhancement settings removed - effects are applied during export, not recording
 
 export interface ElectronRecordingResult {
   video: Blob
@@ -44,9 +28,11 @@ export interface ElectronMetadata {
   timestamp: number
   mouseX: number
   mouseY: number
-  eventType: 'mouse' | 'click' | 'keypress'
+  eventType: 'mouse' | 'click' | 'keypress' | 'scroll'
   key?: string
   screenId?: string
+  velocity?: { x: number; y: number } // pixels per second
+  scrollDelta?: { x: number; y: number }
 }
 
 export class ElectronRecorder {
@@ -60,12 +46,19 @@ export class ElectronRecorder {
   private lastPauseTime = 0
   private metadata: ElectronMetadata[] = []
   private captureArea: ElectronRecordingResult['captureArea'] = undefined
+  
+  // Mouse tracking optimization
+  private lastMouseX = -1
+  private lastMouseY = -1
+  private lastMouseTime = 0
+  private readonly POSITION_THRESHOLD = 3 // pixels - only log if movement exceeds this
+  private readonly TIME_THRESHOLD = 50 // ms - minimum time between events
 
   constructor() {
     logger.debug('ElectronRecorder initialized')
   }
 
-  async startRecording(recordingSettings: RecordingSettings, enhancementSettings?: EnhancementSettings): Promise<void> {
+  async startRecording(recordingSettings: RecordingSettings): Promise<void> {
     if (this.isRecording) {
       throw new Error('Already recording')
     }
@@ -419,22 +412,70 @@ export class ElectronRecorder {
     // Set up event listeners for native mouse events
     const handleMouseMove = (_event: any, data: any) => {
       if (this.isRecording) {
+        const now = Date.now()
+        const timestamp = now - this.startTime
+        
+        // Calculate distance from last position
+        const dx = this.lastMouseX >= 0 ? data.x - this.lastMouseX : 0
+        const dy = this.lastMouseY >= 0 ? data.y - this.lastMouseY : 0
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        
+        // Check thresholds - only log significant movements
+        const timeDelta = now - this.lastMouseTime
+        if (distance < this.POSITION_THRESHOLD && timeDelta < this.TIME_THRESHOLD) {
+          return // Skip this event, movement too small
+        }
+        
+        // Calculate velocity (pixels per second)
+        let velocity = undefined
+        if (this.lastMouseX >= 0 && timeDelta > 0) {
+          velocity = {
+            x: (dx / timeDelta) * 1000,
+            y: (dy / timeDelta) * 1000
+          }
+        }
+        
         this.metadata.push({
-          timestamp: Date.now() - this.startTime,
+          timestamp,
           mouseX: data.x,
           mouseY: data.y,
-          eventType: 'mouse'
+          eventType: 'mouse',
+          velocity
         })
+        
+        // Update last position
+        this.lastMouseX = data.x
+        this.lastMouseY = data.y
+        this.lastMouseTime = now
       }
     }
 
     const handleMouseClick = (_event: any, data: any) => {
       if (this.isRecording) {
+        const timestamp = Date.now() - this.startTime
+        
         this.metadata.push({
-          timestamp: Date.now() - this.startTime,
+          timestamp,
           mouseX: data.x,
           mouseY: data.y,
           eventType: 'click'
+        })
+        
+        // Update position on click (important events)
+        this.lastMouseX = data.x
+        this.lastMouseY = data.y
+        this.lastMouseTime = Date.now()
+      }
+    }
+    
+    const handleScroll = (_event: any, data: any) => {
+      if (this.isRecording && data.deltaX !== 0 || data.deltaY !== 0) {
+        this.metadata.push({
+          timestamp: Date.now() - this.startTime,
+          mouseX: data.x || this.lastMouseX,
+          mouseY: data.y || this.lastMouseY,
+          eventType: 'scroll',
+          scrollDelta: { x: data.deltaX || 0, y: data.deltaY || 0 }
         })
       }
     }
@@ -442,6 +483,11 @@ export class ElectronRecorder {
     // Register event listeners
     window.electronAPI.onMouseMove(handleMouseMove)
     window.electronAPI.onMouseClick(handleMouseClick)
+    
+    // Add scroll handler if available
+    if (window.electronAPI.onScroll) {
+      window.electronAPI.onScroll(handleScroll)
+    }
 
     // Start native tracking
     const result = await window.electronAPI.startMouseTracking({
@@ -488,6 +534,11 @@ export class ElectronRecorder {
     this.chunks = []
     this.metadata = []
     this.captureArea = undefined
+    
+    // Reset mouse tracking state
+    this.lastMouseX = -1
+    this.lastMouseY = -1
+    this.lastMouseTime = 0
 
     logger.debug('ElectronRecorder cleaned up')
   }

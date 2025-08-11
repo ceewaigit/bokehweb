@@ -16,7 +16,7 @@ export function RecordingController() {
   const [showCountdown, setShowCountdown] = useState(false)
   
   // Get settings from config store
-  const { enhancementSettings, defaultCountdown } = useConfigStore()
+  const { defaultCountdown } = useConfigStore()
   const countdownSeconds = defaultCountdown
 
   // Hooks
@@ -34,14 +34,14 @@ export function RecordingController() {
   const handleCountdownComplete = useCallback(async () => {
     setShowCountdown(false)
     try {
-      logger.info('Starting recording with Screen Studio effects:', enhancementSettings)
-      await startRecording(undefined, enhancementSettings) // Pass enhancement settings
+      logger.info('Starting recording')
+      await startRecording(undefined) // Effects are now applied during export
     } catch (error) {
       logger.error('Failed to start recording:', error)
       // Reset recording state on start failure
       safeResetRecording()
     }
-  }, [startRecording, enhancementSettings])
+  }, [startRecording])
 
   const handleCountdownCancel = useCallback(() => {
     setShowCountdown(false)

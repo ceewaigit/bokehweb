@@ -8,6 +8,7 @@ import { toBlobURL, fetchFile } from '@ffmpeg/util'
 import { CursorRenderer } from '../effects/cursor-renderer'
 import { ZoomEngine } from '../effects/zoom-engine'
 import { BackgroundRenderer } from '../effects/background-renderer'
+import { KeystrokeRenderer } from '../effects/keystroke-renderer'
 import { FFmpegConverter } from './ffmpeg-converter'
 import { globalBlobManager } from '../security/blob-url-manager'
 import { RecordingStorage } from '../storage/recording-storage'
@@ -31,6 +32,7 @@ export interface ExportOptions {
   enableZoom?: boolean
   enableEffects?: boolean
   enableBackground?: boolean
+  enableKeystrokes?: boolean
   background?: {
     type: 'solid' | 'gradient' | 'blur'
     color?: string
@@ -200,7 +202,8 @@ export class ExportEngine {
       resolution = settings.resolution,
       enableCursor = true,
       enableZoom = true,
-      enableBackground = false
+      enableBackground = false,
+      enableKeystrokes = false
     } = options
 
     try {
@@ -277,6 +280,7 @@ export class ExportEngine {
       let zoomEngine: ZoomEngine | null = null
       let cursorRenderer: CursorRenderer | null = null
       let backgroundRenderer: BackgroundRenderer | null = null
+      let keystrokeRenderer: KeystrokeRenderer | null = null
       let zoomKeyframes: any[] = []
 
       // Use clip effects or defaults
@@ -332,6 +336,23 @@ export class ExportEngine {
           }
         }
         backgroundRenderer = new BackgroundRenderer(bgOptions as any)
+      }
+
+      if (enableKeystrokes && recording.metadata?.keyboardEvents) {
+        keystrokeRenderer = new KeystrokeRenderer({
+          fontSize: 16,
+          position: 'bottom-center',
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          textColor: '#ffffff',
+          borderRadius: 8
+        })
+        
+        // Create a canvas for keystroke rendering
+        const keystrokeCanvas = document.createElement('canvas')
+        keystrokeCanvas.width = videoWidth
+        keystrokeCanvas.height = videoHeight
+        keystrokeRenderer.setCanvas(keystrokeCanvas)
+        keystrokeRenderer.setKeyboardEvents(recording.metadata.keyboardEvents)
       }
 
       // Process frames
@@ -405,7 +426,12 @@ export class ExportEngine {
           }
         }
 
-        // 3. Render cursor overlay (simplified approach)
+        // 3. Render keystroke overlay
+        if (keystrokeRenderer) {
+          keystrokeRenderer.render(timestamp, videoWidth, videoHeight)
+        }
+
+        // 4. Render cursor overlay (simplified approach)
         if (cursorRenderer && metadata.length > 0) {
           // Find the closest event to current timestamp
           let closestEvent = metadata[0]

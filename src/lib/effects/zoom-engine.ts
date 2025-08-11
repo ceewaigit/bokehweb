@@ -28,38 +28,49 @@ interface ZoomOptions {
   panSpeed?: number
 }
 
-interface ActivityZone {
-  startTime: number
-  endTime: number
-  centerX: number
-  centerY: number
-  eventCount: number
-  hasClick: boolean
+// Camera smoothing state for professional panning
+interface CameraState {
+  x: number
+  y: number
+  vx: number  // velocity x
+  vy: number  // velocity y
+  lastTime: number
 }
 
 export class ZoomEngine {
   private keyframes: ZoomKeyframe[] = []
-  private allEvents: ZoomMouseEvent[] = [] // Store all events for continuous tracking
+  private allEvents: ZoomMouseEvent[] = []
   private videoWidth = 0
   private videoHeight = 0
   
-  // Simple thresholds - like Screen Studio
-  private readonly ACTIVITY_WINDOW = 300 // ms - group events within this window
-  private readonly MIN_EVENTS_TO_ZOOM = 3 // Need activity to trigger zoom
-  private readonly ZOOM_OUT_DELAY = 1200 // ms - stay zoomed for a bit after activity stops
-  private readonly ZOOM_SCALE = 1.6 // Single zoom level for consistency
-  private readonly CLICK_BOOST_SCALE = 1.8 // Slightly more zoom for clicks
-  private readonly MERGE_DISTANCE = 2000 // ms - merge zones closer than this
+  // Simplified Screen Studio-style thresholds
+  private readonly LINGER_THRESHOLD = 500 // ms - cursor stays in area to trigger zoom
+  private readonly MOVEMENT_THRESHOLD = 100 // pixels - movement that breaks linger
+  private readonly ZOOM_OUT_DELAY = 800 // ms - delay before zooming out
+  private readonly ZOOM_SCALE = 1.6 // Fixed zoom level (Screen Studio uses ~1.5-2x)
+  private readonly DEAD_ZONE = 50 // pixels - ignore small movements within this radius
+
+  // Camera smoothing parameters
+  private cameraState: CameraState = {
+    x: 0.5,
+    y: 0.5,
+    vx: 0,
+    vy: 0,
+    lastTime: 0
+  }
+
+  // Smoothing constants for professional camera movement
+  private readonly BASE_SMOOTH_FACTOR = 0.08 // Base smoothing (lower = smoother)
+  private readonly VELOCITY_DAMPING = 0.85 // Velocity decay
+  private readonly PREDICTION_WEIGHT = 0.2 // How much to use velocity prediction
+  private readonly ZOOM_SMOOTH_BOOST = 1.5 // Increase responsiveness when zoomed
 
   constructor(private options: ZoomOptions = {}) {
     this.options = {
       enabled: true,
-      sensitivity: 1.0,
-      maxZoom: 2.0,
-      zoomSpeed: 0.1,
+      maxZoom: this.ZOOM_SCALE,
       smoothing: true,
       clickZoom: true,
-      panSpeed: 0.05,
       ...options
     }
   }
@@ -71,223 +82,106 @@ export class ZoomEngine {
       return [{ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'default' }]
     }
 
-    // Validate dimensions - use event dimensions if video dimensions are invalid
-    let actualWidth = videoWidth
-    let actualHeight = videoHeight
+    // Validate dimensions
+    let actualWidth = videoWidth || 1920
+    let actualHeight = videoHeight || 1080
     
-    if (!actualWidth || !actualHeight || actualWidth <= 0 || actualHeight <= 0) {
-      // Try to get dimensions from events
-      const firstEventWithDimensions = events.find(e => e.windowWidth && e.windowHeight)
-      if (firstEventWithDimensions && firstEventWithDimensions.windowWidth && firstEventWithDimensions.windowHeight) {
-        actualWidth = firstEventWithDimensions.windowWidth
-        actualHeight = firstEventWithDimensions.windowHeight
-        console.log(`📐 Using dimensions from events: ${actualWidth}x${actualHeight}`)
-      } else {
-        console.error('❌ No valid dimensions provided and events lack dimension info')
-        return [{ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'error-no-dimensions' }]
-      }
+    if (events.length > 0 && events[0].windowWidth && events[0].windowHeight) {
+      actualWidth = events[0].windowWidth
+      actualHeight = events[0].windowHeight
     }
 
-    // Store dimensions for normalization
     this.videoWidth = actualWidth
     this.videoHeight = actualHeight
-
-    // Store all events for continuous mouse tracking
     this.allEvents = events
 
-    // Step 1: Cluster events into activity zones
-    const zones = this.clusterIntoActivityZones(events, actualWidth, actualHeight)
-    
-    // Step 2: Merge nearby zones to prevent oscillation
-    const mergedZones = this.mergeNearbyZones(zones)
-    
-    // Step 3: Convert zones to simple keyframes (just for zoom scale, not position)
-    this.keyframes = this.zonesToKeyframes(mergedZones, videoDuration)
-    
-    console.log(`🔍 Generated ${this.keyframes.length} keyframes from ${mergedZones.length} activity zones`)
-    return this.keyframes
-  }
-
-  private clusterIntoActivityZones(events: ZoomMouseEvent[], width: number, height: number): ActivityZone[] {
-    const zones: ActivityZone[] = []
-    let currentZone: ActivityZone | null = null
-
-    for (const event of events) {
-      // Use event's own dimensions if available, otherwise use video dimensions
-      const eventWidth = event.windowWidth || width
-      const eventHeight = event.windowHeight || height
-      const normalizedX = event.mouseX / eventWidth
-      const normalizedY = event.mouseY / eventHeight
-
-      // Check if we should start a new zone
-      if (!currentZone || event.timestamp - currentZone.endTime > this.ACTIVITY_WINDOW) {
-        // Only create zone if previous zone has enough events
-        if (currentZone && currentZone.eventCount < this.MIN_EVENTS_TO_ZOOM && !currentZone.hasClick) {
-          zones.pop() // Remove zones with too little activity
-        }
-        
-        currentZone = {
-          startTime: event.timestamp,
-          endTime: event.timestamp,
-          centerX: normalizedX,
-          centerY: normalizedY,
-          eventCount: 1,
-          hasClick: event.eventType === 'click'
-        }
-        zones.push(currentZone)
-      } else {
-        // Update existing zone
-        currentZone.endTime = event.timestamp
-        currentZone.eventCount++
-        
-        // Weighted average for center position
-        const weight = 0.2 // Blend new positions slowly
-        currentZone.centerX = currentZone.centerX * (1 - weight) + normalizedX * weight
-        currentZone.centerY = currentZone.centerY * (1 - weight) + normalizedY * weight
-        
-        if (event.eventType === 'click') {
-          currentZone.hasClick = true
-          // Clicks immediately update center
-          currentZone.centerX = normalizedX
-          currentZone.centerY = normalizedY
-        }
-      }
-    }
-
-    // Filter out zones with insufficient activity (unless they have clicks)
-    return zones.filter(z => z.eventCount >= this.MIN_EVENTS_TO_ZOOM || z.hasClick)
-  }
-
-  private mergeNearbyZones(zones: ActivityZone[]): ActivityZone[] {
-    if (zones.length <= 1) return zones
-
-    const merged: ActivityZone[] = []
-    let current = zones[0]
-
-    for (let i = 1; i < zones.length; i++) {
-      const next = zones[i]
-      const gap = next.startTime - current.endTime
-      
-      // Merge if zones are close in time
-      if (gap < this.MERGE_DISTANCE) {
-        current = {
-          startTime: current.startTime,
-          endTime: next.endTime,
-          centerX: (current.centerX * current.eventCount + next.centerX * next.eventCount) / 
-                   (current.eventCount + next.eventCount),
-          centerY: (current.centerY * current.eventCount + next.centerY * next.eventCount) / 
-                   (current.eventCount + next.eventCount),
-          eventCount: current.eventCount + next.eventCount,
-          hasClick: current.hasClick || next.hasClick
-        }
-      } else {
-        merged.push(current)
-        current = next
-      }
-    }
-    merged.push(current)
-
-    return merged
-  }
-
-  private zonesToKeyframes(zones: ActivityZone[], videoDuration: number): ZoomKeyframe[] {
+    // Simple linger-based zoom detection
     const keyframes: ZoomKeyframe[] = []
+    let isZoomed = false
+    let lastZoomTime = -Infinity
+    let lingerStart = 0
     
-    // Start at center, no zoom
-    keyframes.push({ 
-      timestamp: 0, 
-      x: 0.5, 
-      y: 0.5, 
-      scale: 1, 
-      reason: 'start' 
-    })
-
-    let lastZoomOutTime = 0
-
-    for (const zone of zones) {
-      const zoomScale = zone.hasClick ? this.CLICK_BOOST_SCALE : this.ZOOM_SCALE
+    // Start with default state
+    keyframes.push({ timestamp: 0, x: 0.5, y: 0.5, scale: 1, reason: 'start' })
+    
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i]
+      const normalizedX = event.mouseX / actualWidth
+      const normalizedY = event.mouseY / actualHeight
       
-      // Only add zoom-in if we're not already zoomed
-      const timeSinceLastZoomOut = zone.startTime - lastZoomOutTime
-      if (timeSinceLastZoomOut > 500) { // Prevent immediate re-zoom
-        // Zoom in (position will be determined by mouse tracking)
-        keyframes.push({
-          timestamp: zone.startTime,
-          x: 0.5, // Position will be overridden by mouse tracking
-          y: 0.5, // Position will be overridden by mouse tracking
-          scale: zoomScale,
-          reason: zone.hasClick ? 'click-zoom' : 'activity-zoom'
-        })
+      if (i === 0) {
+        lingerStart = event.timestamp
+        continue
       }
-
-      // Hold zoom during activity (position follows mouse)
-      if (zone.endTime - zone.startTime > 200) {
-        keyframes.push({
-          timestamp: zone.endTime,
-          x: 0.5, // Position will be overridden by mouse tracking
-          y: 0.5, // Position will be overridden by mouse tracking
-          scale: zoomScale,
-          reason: 'hold'
-        })
+      
+      const prevEvent = events[i - 1]
+      const distance = Math.sqrt(
+        Math.pow((event.mouseX - prevEvent.mouseX), 2) + 
+        Math.pow((event.mouseY - prevEvent.mouseY), 2)
+      )
+      
+      // Check for linger (cursor staying in roughly same spot)
+      if (distance < this.DEAD_ZONE) {
+        const lingerDuration = event.timestamp - lingerStart
+        
+        // Zoom in if lingering and not already zoomed
+        if (!isZoomed && lingerDuration > this.LINGER_THRESHOLD) {
+          // Add zoom in keyframe
+          keyframes.push({
+            timestamp: event.timestamp,
+            x: normalizedX,
+            y: normalizedY,
+            scale: this.ZOOM_SCALE,
+            reason: 'linger-zoom'
+          })
+          isZoomed = true
+          lastZoomTime = event.timestamp
+        }
+      } else if (distance > this.MOVEMENT_THRESHOLD) {
+        // Large movement detected
+        lingerStart = event.timestamp
+        
+        // Zoom out if currently zoomed and enough time has passed
+        if (isZoomed && event.timestamp - lastZoomTime > this.ZOOM_OUT_DELAY) {
+          keyframes.push({
+            timestamp: event.timestamp,
+            x: 0.5,
+            y: 0.5,
+            scale: 1,
+            reason: 'movement-reset'
+          })
+          isZoomed = false
+        }
       }
-
-      // Zoom out after delay
-      const zoomOutTime = zone.endTime + this.ZOOM_OUT_DELAY
+      
+      // Handle clicks - instant zoom
+      if (event.eventType === 'click' && !isZoomed) {
+        keyframes.push({
+          timestamp: event.timestamp,
+          x: normalizedX,
+          y: normalizedY,
+          scale: this.ZOOM_SCALE,
+          reason: 'click-zoom'
+        })
+        isZoomed = true
+        lastZoomTime = event.timestamp
+      }
+    }
+    
+    // Ensure we end at default if still zoomed
+    if (isZoomed && keyframes[keyframes.length - 1].scale !== 1) {
       keyframes.push({
-        timestamp: zoomOutTime,
+        timestamp: videoDuration,
         x: 0.5,
         y: 0.5,
         scale: 1,
-        reason: 'zoom-out'
-      })
-      lastZoomOutTime = zoomOutTime
-    }
-
-    // Clean up redundant keyframes
-    const cleaned = this.cleanupKeyframes(keyframes)
-
-    // Ensure we end at video duration
-    const lastKf = cleaned[cleaned.length - 1]
-    if (lastKf.timestamp < videoDuration) {
-      cleaned.push({
-        timestamp: videoDuration,
-        x: lastKf.x,
-        y: lastKf.y,
-        scale: lastKf.scale,
-        reason: 'end'
+        reason: 'end-reset'
       })
     }
-
-    return cleaned
-  }
-
-  private cleanupKeyframes(keyframes: ZoomKeyframe[]): ZoomKeyframe[] {
-    if (keyframes.length <= 2) return keyframes
-
-    const cleaned: ZoomKeyframe[] = [keyframes[0]]
     
-    for (let i = 1; i < keyframes.length - 1; i++) {
-      const prev = cleaned[cleaned.length - 1]
-      const curr = keyframes[i]
-      const next = keyframes[i + 1]
-      
-      // Skip redundant keyframes (same position and scale)
-      const isSameAsPrev = Math.abs(curr.x - prev.x) < 0.01 && 
-                          Math.abs(curr.y - prev.y) < 0.01 && 
-                          Math.abs(curr.scale - prev.scale) < 0.01
-      
-      const isSameAsNext = Math.abs(curr.x - next.x) < 0.01 && 
-                          Math.abs(curr.y - next.y) < 0.01 && 
-                          Math.abs(curr.scale - next.scale) < 0.01
-      
-      // Keep keyframe if it represents a change
-      if (!isSameAsPrev || !isSameAsNext) {
-        cleaned.push(curr)
-      }
-    }
-    
-    cleaned.push(keyframes[keyframes.length - 1])
-    return cleaned
+    this.keyframes = keyframes
+    console.log(`🔍 Generated ${keyframes.length} keyframes using linger detection`)
+    return keyframes
   }
 
   getZoomAtTime(timestamp: number): { x: number; y: number; scale: number } {
@@ -326,24 +220,28 @@ export class ZoomEngine {
   private getZoomWithMouseTracking(timestamp: number, scale: number): { x: number; y: number; scale: number } {
     // If not zoomed, return center
     if (scale <= 1.01) {
+      // Reset camera state when not zoomed
+      this.cameraState.x = 0.5
+      this.cameraState.y = 0.5
+      this.cameraState.vx = 0
+      this.cameraState.vy = 0
       return { x: 0.5, y: 0.5, scale: 1 }
     }
 
-    // Find the mouse position at this timestamp for continuous tracking
-    const mousePos = this.getMousePositionAtTime(timestamp)
+    // Find the mouse position at this timestamp with interpolation
+    const mousePos = this.getInterpolatedMousePosition(timestamp)
     
-    // Smooth the mouse position for less jarring movement
-    const smoothedX = this.smoothPosition(mousePos.x, 0.15)
-    const smoothedY = this.smoothPosition(mousePos.y, 0.15)
+    // Apply low-pass filtering with zoom-aware smoothing
+    const smoothedPos = this.applyCameraSmoothing(mousePos, scale, timestamp)
 
     return {
-      x: smoothedX,
-      y: smoothedY,
+      x: smoothedPos.x,
+      y: smoothedPos.y,
       scale: scale
     }
   }
 
-  private getMousePositionAtTime(timestamp: number): { x: number; y: number } {
+  private getInterpolatedMousePosition(timestamp: number): { x: number; y: number } {
     if (!this.allEvents || this.allEvents.length === 0) {
       return { x: 0.5, y: 0.5 }
     }
@@ -409,15 +307,50 @@ export class ZoomEngine {
     return { x: 0.5, y: 0.5 }
   }
 
-  private lastSmoothedX = 0.5
-  private lastSmoothedY = 0.5
+  private applyCameraSmoothing(target: { x: number; y: number }, zoomScale: number, timestamp: number): { x: number; y: number } {
+    // Calculate time delta
+    const deltaTime = this.cameraState.lastTime > 0 
+      ? Math.min((timestamp - this.cameraState.lastTime) / 1000, 0.1) // Cap at 100ms to prevent jumps
+      : 0.016 // Default to 60fps
 
-  private smoothPosition(target: number, factor: number): number {
-    // For now, return target directly - smoothing can cause lag in following
-    // Can be re-enabled if needed for less jarring movement
-    return target
+    // Adjust smoothing factor based on zoom level
+    // More zoom = more responsive (less smoothing) to keep mouse in frame
+    const zoomFactor = Math.pow(zoomScale, 0.7) // Gentle scaling
+    const smoothFactor = this.BASE_SMOOTH_FACTOR * zoomFactor * this.ZOOM_SMOOTH_BOOST
+
+    // Calculate velocity for prediction
+    const newVx = (target.x - this.cameraState.x) / Math.max(deltaTime, 0.001)
+    const newVy = (target.y - this.cameraState.y) / Math.max(deltaTime, 0.001)
+
+    // Apply velocity damping and update
+    this.cameraState.vx = this.cameraState.vx * this.VELOCITY_DAMPING + newVx * (1 - this.VELOCITY_DAMPING)
+    this.cameraState.vy = this.cameraState.vy * this.VELOCITY_DAMPING + newVy * (1 - this.VELOCITY_DAMPING)
+
+    // Predict future position based on velocity
+    const predictedX = target.x + this.cameraState.vx * deltaTime * this.PREDICTION_WEIGHT
+    const predictedY = target.y + this.cameraState.vy * deltaTime * this.PREDICTION_WEIGHT
+
+    // Apply exponential moving average (low-pass filter) with prediction
+    const targetX = target.x * (1 - this.PREDICTION_WEIGHT) + predictedX * this.PREDICTION_WEIGHT
+    const targetY = target.y * (1 - this.PREDICTION_WEIGHT) + predictedY * this.PREDICTION_WEIGHT
+
+    // Smooth camera movement with adjusted factor
+    this.cameraState.x += (targetX - this.cameraState.x) * smoothFactor
+    this.cameraState.y += (targetY - this.cameraState.y) * smoothFactor
+
+    // Ensure we stay within bounds when zoomed
+    const margin = 0.5 / zoomScale // Keep some margin from edges
+    this.cameraState.x = Math.max(margin, Math.min(1 - margin, this.cameraState.x))
+    this.cameraState.y = Math.max(margin, Math.min(1 - margin, this.cameraState.y))
+
+    // Update last time
+    this.cameraState.lastTime = timestamp
+
+    return {
+      x: this.cameraState.x,
+      y: this.cameraState.y
+    }
   }
-
 
   applyZoomToCanvas(
     ctx: CanvasRenderingContext2D,
@@ -434,14 +367,18 @@ export class ZoomEngine {
     const zoomWidth = sourceWidth / zoom.scale
     const zoomHeight = sourceHeight / zoom.scale
 
-    // Calculate source coordinates with clamping
+    // Calculate source coordinates with improved clamping
     const centerX = zoom.x * sourceWidth
     const centerY = zoom.y * sourceHeight
     
-    const sx = Math.max(0, Math.min(sourceWidth - zoomWidth, centerX - zoomWidth / 2))
-    const sy = Math.max(0, Math.min(sourceHeight - zoomHeight, centerY - zoomHeight / 2))
+    // Ensure we don't go out of bounds
+    const halfWidth = zoomWidth / 2
+    const halfHeight = zoomHeight / 2
+    
+    const sx = Math.max(0, Math.min(sourceWidth - zoomWidth, centerX - halfWidth))
+    const sy = Math.max(0, Math.min(sourceHeight - zoomHeight, centerY - halfHeight))
 
-    // Draw
+    // Draw with high quality
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
     ctx.clearRect(0, 0, width, height)
@@ -455,5 +392,16 @@ export class ZoomEngine {
 
   getKeyframes(): ZoomKeyframe[] {
     return this.keyframes
+  }
+
+  // Reset camera state (useful when switching clips or restarting)
+  resetCameraState() {
+    this.cameraState = {
+      x: 0.5,
+      y: 0.5,
+      vx: 0,
+      vy: 0,
+      lastTime: 0
+    }
   }
 }

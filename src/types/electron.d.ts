@@ -24,6 +24,7 @@ export interface ElectronAPI {
   isNativeMouseTrackingAvailable: () => Promise<{ available: boolean; tracker: boolean }>
   onMouseMove: (callback: any) => () => void
   onMouseClick: (callback: any) => () => void
+  onScroll?: (callback: any) => () => void
   removeAllMouseListeners: () => void
 
   // Recording and workspace control

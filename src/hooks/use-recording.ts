@@ -9,7 +9,6 @@ import { logger } from '@/lib/utils/logger'
 import { saveRecordingWithProject } from '@/types/project'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useRecordingTimer } from './use-recording-timer'
-import type { EnhancementSettings } from '@/lib/recording'
 // Processing progress type
 interface ProcessingProgress {
   progress: number
@@ -136,7 +135,7 @@ export function useRecording() {
     }
   }, [setDuration, isRecording, timer]) // Include all dependencies
 
-  const startRecording = useCallback(async (_sourceId?: string, enhancementSettings?: EnhancementSettings) => {
+  const startRecording = useCallback(async (_sourceId?: string) => {
     if (!recorderRef.current || isRecording) {
       if (isRecording) {
         logger.debug('Recording already in progress')
@@ -147,8 +146,8 @@ export function useRecording() {
     try {
       setStatus('preparing')
 
-      // Start recording with enhancements if provided
-      await recorderRef.current.startRecording(settings, enhancementSettings)
+      // Start recording (enhancements are now applied during export, not recording)
+      await recorderRef.current.startRecording(settings)
 
       setRecording(true)
       setStatus('recording')
