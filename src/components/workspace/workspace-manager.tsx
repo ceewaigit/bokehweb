@@ -132,25 +132,59 @@ export function WorkspaceManager() {
                 const tempVideo = document.createElement('video')
                 tempVideo.src = url
                 
-                // Wait for metadata to load to get actual duration
+                // For blob URLs, we need to seek to end to get duration
                 await new Promise<void>((resolve, reject) => {
+                  let resolved = false
+                  
                   tempVideo.addEventListener('loadedmetadata', () => {
-                    resolve()
+                    console.log('Initial metadata loaded, duration:', tempVideo.duration)
+                    
+                    // If duration is not finite, we need to seek to get it
+                    if (!isFinite(tempVideo.duration)) {
+                      console.log('Duration is not finite, seeking to end...')
+                      tempVideo.currentTime = Number.MAX_SAFE_INTEGER
+                    } else if (tempVideo.duration > 0) {
+                      console.log('Valid duration found immediately:', tempVideo.duration)
+                      resolved = true
+                      resolve()
+                    }
                   }, { once: true })
                   
-                  tempVideo.addEventListener('error', () => {
+                  tempVideo.addEventListener('durationchange', () => {
+                    console.log('Duration changed to:', tempVideo.duration)
+                    if (!resolved && isFinite(tempVideo.duration) && tempVideo.duration > 0) {
+                      resolved = true
+                      resolve()
+                    }
+                  })
+                  
+                  tempVideo.addEventListener('seeked', () => {
+                    console.log('Seeked, duration is now:', tempVideo.duration)
+                    tempVideo.currentTime = 0 // Reset to start
+                    if (!resolved && isFinite(tempVideo.duration) && tempVideo.duration > 0) {
+                      resolved = true
+                      resolve()
+                    }
+                  })
+                  
+                  tempVideo.addEventListener('error', (e) => {
+                    console.error('Video error:', e)
                     reject(new Error('Failed to load video metadata'))
                   }, { once: true })
                   
                   tempVideo.load()
                 })
 
-                // Get actual video properties
+                // Get actual video properties - NO FALLBACKS
+                if (!tempVideo.duration || !isFinite(tempVideo.duration) || tempVideo.duration <= 0) {
+                  throw new Error(`Invalid video duration: ${tempVideo.duration}`)
+                }
+                
                 const duration = tempVideo.duration * 1000 // Convert to milliseconds
                 const width = tempVideo.videoWidth || 1920
                 const height = tempVideo.videoHeight || 1080
                 
-                console.log('📹 Video metadata loaded:', {
+                console.log('📹 Video metadata successfully loaded:', {
                   duration: `${(duration / 1000).toFixed(2)}s`,
                   durationMs: duration,
                   videoDuration: tempVideo.duration,
@@ -177,7 +211,24 @@ export function WorkspaceManager() {
                 }
 
                 // Add recording to project store
+                console.log('📼 Adding recording to project store:', {
+                  id: rec.id,
+                  duration: `${(rec.duration / 1000).toFixed(2)}s`,
+                  dimensions: `${rec.width}x${rec.height}`,
+                  hasMetadata: Object.keys(rec.metadata).length > 0
+                })
                 useProjectStore.getState().addRecording(rec, blob)
+                
+                // Log the project state after adding
+                const projectState = useProjectStore.getState().currentProject
+                if (projectState) {
+                  console.log('📊 Project state after adding recording:', {
+                    name: projectState.name,
+                    recordings: projectState.recordings.length,
+                    timelineDuration: `${(projectState.timeline.duration / 1000).toFixed(2)}s`,
+                    clips: projectState.timeline.tracks.reduce((acc, t) => acc + t.clips.length, 0)
+                  })
+                }
               } catch (error) {
                 console.error('Failed to load recording:', error)
               }

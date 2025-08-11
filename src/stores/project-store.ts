@@ -684,14 +684,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   play: () => {
     set({ isPlaying: true })
+    logger.info('▶️ Playback started')
   },
 
   pause: () => {
     set({ isPlaying: false })
+    logger.info('⏸️ Playback paused')
   },
 
   seek: (time) => {
-    set({ currentTime: Math.max(0, time) })
+    set((state) => {
+      const maxTime = state.currentProject?.timeline?.duration || 0
+      const clampedTime = Math.max(0, Math.min(maxTime, time))
+      logger.info(`⏭️ Seeking to ${(clampedTime / 1000).toFixed(2)}s / ${(maxTime / 1000).toFixed(2)}s`)
+      return { currentTime: clampedTime }
+    })
   },
 
   setZoom: (zoom) => {
@@ -700,23 +707,48 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   getCurrentClip: () => {
     const { currentProject, currentTime } = get()
-    if (!currentProject) return null
+    if (!currentProject) {
+      logger.debug('getCurrentClip: No project loaded')
+      return null
+    }
 
     // Find the clip at the current playhead position
     for (const track of currentProject.timeline.tracks) {
       const clip = track.clips.find(c =>
         currentTime >= c.startTime && currentTime < c.startTime + c.duration
       )
-      if (clip) return clip
+      if (clip) {
+        logger.debug(`🎯 Found clip at ${(currentTime / 1000).toFixed(2)}s:`, {
+          clipId: clip.id,
+          clipStart: `${(clip.startTime / 1000).toFixed(2)}s`,
+          clipEnd: `${((clip.startTime + clip.duration) / 1000).toFixed(2)}s`
+        })
+        return clip
+      }
     }
+    
+    logger.debug(`❌ No clip at current time: ${(currentTime / 1000).toFixed(2)}s`)
     return null
   },
 
   getCurrentRecording: () => {
     const { currentProject } = get()
     const clip = get().getCurrentClip()
-    if (!currentProject || !clip) return null
+    if (!currentProject || !clip) {
+      logger.debug('getCurrentRecording: No project or clip')
+      return null
+    }
 
-    return currentProject.recordings.find(r => r.id === clip.recordingId) || null
+    const recording = currentProject.recordings.find(r => r.id === clip.recordingId) || null
+    if (recording) {
+      logger.debug(`🎞️ Current recording:`, {
+        id: recording.id,
+        duration: `${(recording.duration / 1000).toFixed(2)}s`,
+        dimensions: `${recording.width}x${recording.height}`
+      })
+    } else {
+      logger.debug(`❌ Recording not found for clip: ${clip.recordingId}`)
+    }
+    return recording
   }
 }))
