@@ -128,13 +128,45 @@ export function WorkspaceManager() {
                 // Store blob URL for preview (by id only)
                 RecordingStorage.setBlobUrl(recordingId, url)
 
-                // Create a Recording object
+                // Create a temporary video element to get actual duration
+                const tempVideo = document.createElement('video')
+                tempVideo.src = url
+                
+                // Wait for metadata to load to get actual duration
+                await new Promise<void>((resolve, reject) => {
+                  tempVideo.addEventListener('loadedmetadata', () => {
+                    resolve()
+                  }, { once: true })
+                  
+                  tempVideo.addEventListener('error', () => {
+                    reject(new Error('Failed to load video metadata'))
+                  }, { once: true })
+                  
+                  tempVideo.load()
+                })
+
+                // Get actual video properties
+                const duration = tempVideo.duration * 1000 // Convert to milliseconds
+                const width = tempVideo.videoWidth || 1920
+                const height = tempVideo.videoHeight || 1080
+                
+                console.log('📹 Video metadata loaded:', {
+                  duration: `${(duration / 1000).toFixed(2)}s`,
+                  durationMs: duration,
+                  videoDuration: tempVideo.duration,
+                  dimensions: `${width}x${height}`
+                })
+
+                // Clean up temp video
+                tempVideo.remove()
+
+                // Create a Recording object with actual video properties
                 const rec: Recording = {
                   id: recordingId,
                   filePath: recording.path,
-                  duration: 10000, // Will be updated when video loads
-                  width: 1920,
-                  height: 1080,
+                  duration: duration,
+                  width: width,
+                  height: height,
                   frameRate: 60,
                   metadata: {
                     mouseEvents: [],

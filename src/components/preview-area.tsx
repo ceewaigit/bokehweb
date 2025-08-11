@@ -34,46 +34,60 @@ export function PreviewArea() {
   const projectClip = getCurrentClip()
   const projectRecording = getCurrentRecording()
 
+  // Check if we have any recordings even if no clip at current position
+  const hasRecordings = currentProject?.recordings && currentProject.recordings.length > 0
+  const firstRecording = hasRecordings ? currentProject.recordings[0] : null
+
   // Create a simplified clip object for the preview
+  // Always show the video if we have any clips in the timeline
+  const hasClips = currentProject?.timeline?.tracks?.some(track => track.clips.length > 0)
+  const firstClip = currentProject?.timeline?.tracks?.find(t => t.clips.length > 0)?.clips[0]
+  
   const currentClip = projectClip ? {
     id: projectClip.id,
     source: RecordingStorage.getBlobUrl(projectClip.recordingId) || '',
     originalSource: ''
-  } : null
+  } : (hasClips && firstClip ? {
+    id: 'preview-' + firstClip.id,
+    source: RecordingStorage.getBlobUrl(firstClip.recordingId) || '',
+    originalSource: ''
+  } : null)
 
   const hasEnhancements = currentClip?.originalSource && currentClip?.source !== currentClip?.originalSource
 
   // Get metadata - simplified!
   const getMetadata = useCallback(() => {
-    if (!projectRecording?.metadata) return []
+    // Use current recording or fallback to first recording
+    const recording = projectRecording || firstRecording
+    if (!recording?.metadata) return []
     
     // Convert to format expected by effects engine
     const metadata: any[] = []
     
-    projectRecording.metadata.mouseEvents?.forEach(e => {
+    recording.metadata.mouseEvents?.forEach(e => {
       metadata.push({
         timestamp: e.timestamp,
         mouseX: e.x,
         mouseY: e.y,
-        windowWidth: e.screenWidth || projectRecording.width,
-        windowHeight: e.screenHeight || projectRecording.height,
+        windowWidth: e.screenWidth || recording.width,
+        windowHeight: e.screenHeight || recording.height,
         eventType: 'mouse'
       })
     })
     
-    projectRecording.metadata.clickEvents?.forEach(e => {
+    recording.metadata.clickEvents?.forEach(e => {
       metadata.push({
         timestamp: e.timestamp,
         mouseX: e.x,
         mouseY: e.y,
-        windowWidth: projectRecording.width,
-        windowHeight: projectRecording.height,
+        windowWidth: recording.width,
+        windowHeight: recording.height,
         eventType: 'click'
       })
     })
     
     return metadata
-  }, [projectRecording])
+  }, [projectRecording, firstRecording])
 
   // Load video when clip changes
   useEffect(() => {
@@ -124,12 +138,18 @@ export function PreviewArea() {
 
   // Set up work area cropper when video loads
   useEffect(() => {
-    if (!isVideoLoaded || !videoRef.current || !projectRecording) {
+    if (!isVideoLoaded || !videoRef.current) {
+      return
+    }
+
+    // Use current recording or fallback to first recording
+    const recording = projectRecording || firstRecording
+    if (!recording) {
       return
     }
 
     // Check if we have capture area info from the recording
-    const captureArea = projectRecording.captureArea
+    const captureArea = recording.captureArea
     if (!captureArea || !showCrop) {
       // Clean up cropper if disabled or no capture area
       if (workAreaCropperRef.current) {
@@ -173,7 +193,7 @@ export function PreviewArea() {
         workAreaCropperRef.current = null
       }
     }
-  }, [isVideoLoaded, showCrop, projectRecording])
+  }, [isVideoLoaded, showCrop, projectRecording, firstRecording])
 
   // Set up zoom effect when video loads
   useEffect(() => {
@@ -203,9 +223,10 @@ export function PreviewArea() {
     const engine = new EffectsEngine()
 
     // Use a reasonable duration fallback for zoom calculation
+    const recording = projectRecording || firstRecording
     const totalDurationMs = Number.isFinite(video.duration) && video.duration > 0
       ? (video.duration * 1000)
-      : (projectRecording?.duration || metadata[metadata.length - 1]?.timestamp || 10000)
+      : (recording?.duration || metadata[metadata.length - 1]?.timestamp || 10000)
 
     // Initialize effects engine with metadata - one line!
     engine.initializeFromMetadata(metadata, totalDurationMs, video.videoWidth || 1920, video.videoHeight || 1080)
@@ -279,7 +300,7 @@ export function PreviewArea() {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [isVideoLoaded, showZoom, getMetadata, projectRecording?.duration, showCrop])
+  }, [isVideoLoaded, showZoom, getMetadata, projectRecording?.duration, firstRecording?.duration, showCrop])
 
   // Set up cursor rendering when video loads
   useEffect(() => {
@@ -576,7 +597,7 @@ export function PreviewArea() {
                   </Button>
 
                   {/* Crop Toggle - only show if we have capture area info */}
-                  {projectRecording?.captureArea && (
+                  {(projectRecording || firstRecording)?.captureArea && (
                     <Button
                       variant={showCrop ? "default" : "ghost"}
                       size="icon"
@@ -614,8 +635,14 @@ export function PreviewArea() {
           <div className="w-32 h-32 bg-gradient-to-br from-muted/50 to-muted/30 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
             <Play className="w-16 h-16 text-muted-foreground/50" />
           </div>
-          <h3 className="text-xl font-semibold mb-3">No Recording Loaded</h3>
-          <p className="text-muted-foreground">Start recording or open a saved project to begin editing</p>
+          <h3 className="text-xl font-semibold mb-3">
+            {hasRecordings ? 'Move playhead to preview' : 'No Recording Loaded'}
+          </h3>
+          <p className="text-muted-foreground">
+            {hasRecordings 
+              ? 'Position the playhead over a clip in the timeline to see the preview' 
+              : 'Start recording or open a saved project to begin editing'}
+          </p>
         </div>
       )}
     </div>

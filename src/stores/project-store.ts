@@ -77,6 +77,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selectedClips: []
     })
     logger.info(`Created new project: ${name}`)
+    logger.info(`Initial timeline state:`, {
+      duration: project.timeline.duration,
+      tracks: project.timeline.tracks.map(t => ({
+        id: t.id,
+        type: t.type,
+        clips: t.clips.length
+      }))
+    })
   },
 
   setProject: (project) => {
@@ -90,7 +98,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   openProject: async (projectPath) => {
     try {
       const project = await loadProject(projectPath)
-      
+
       // Load video files and create blob URLs for preview
       for (const recording of project.recordings) {
         if (recording.filePath && window.electronAPI?.readLocalFile) {
@@ -108,13 +116,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             logger.error(`Failed to load video file for recording ${recording.id}:`, error)
           }
         }
-        
+
         // Also restore metadata if available
         if (recording.metadata) {
           RecordingStorage.setMetadata(recording.id, recording.metadata)
         }
       }
-      
+
       set({ currentProject: project, selectedClipId: null })
       logger.info(`Opened project: ${project.name} with ${project.recordings.length} recordings`)
     } catch (error) {
@@ -140,7 +148,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => {
       if (!state.currentProject) return state
 
-      const project = { ...state.currentProject }
+      // Deep clone the project to ensure proper state updates
+      const project = {
+        ...state.currentProject,
+        recordings: [...state.currentProject.recordings],
+        timeline: {
+          ...state.currentProject.timeline,
+          tracks: state.currentProject.timeline.tracks.map(track => ({
+            ...track,
+            clips: [...track.clips]
+          }))
+        }
+      }
 
       // Ensure the recording has all necessary fields
       const completeRecording = {
@@ -155,22 +174,48 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
       project.recordings.push(completeRecording)
 
-      logger.info(`Adding recording to project: ${completeRecording.id} with ${completeRecording.metadata.mouseEvents?.length || 0} mouse events, ${completeRecording.metadata.clickEvents?.length || 0} click events`)
+      logger.info(`📹 Adding recording to project:`, {
+        id: completeRecording.id,
+        duration: `${(completeRecording.duration / 1000).toFixed(2)}s`,
+        durationMs: completeRecording.duration,
+        dimensions: `${completeRecording.width}x${completeRecording.height}`,
+        frameRate: completeRecording.frameRate
+      })
+      
+      logger.info(`📊 Metadata summary:`, {
+        mouseEvents: completeRecording.metadata.mouseEvents?.length || 0,
+        clickEvents: completeRecording.metadata.clickEvents?.length || 0,
+        keyboardEvents: completeRecording.metadata.keyboardEvents?.length || 0,
+        screenEvents: completeRecording.metadata.screenEvents?.length || 0
+      })
 
       // Detect zoom effects from metadata - one line!
       const effectsEngine = new EffectsEngine()
-      const clipEffects = { 
+      const clipEffects = {
         ...SCREEN_STUDIO_CLIP_EFFECTS,
         zoom: {
           ...SCREEN_STUDIO_CLIP_EFFECTS.zoom,
           keyframes: effectsEngine.getZoomKeyframes(completeRecording)
         }
       }
-      
+
       const zoomEffectCount = clipEffects.zoom.keyframes.length / 2 // Each effect creates 2 keyframes
-      if (zoomEffectCount > 0) {
-        logger.info(`Detected ${zoomEffectCount} zoom effects, created ${clipEffects.zoom.keyframes.length} keyframes`)
-      }
+      
+      logger.info(`🎬 Effects detected:`, {
+        zoom: {
+          enabled: clipEffects.zoom.enabled,
+          keyframes: clipEffects.zoom.keyframes.length,
+          effects: zoomEffectCount
+        },
+        cursor: {
+          visible: clipEffects.cursor.visible,
+          size: clipEffects.cursor.size
+        },
+        background: {
+          type: clipEffects.background.type,
+          blur: clipEffects.background.blur
+        }
+      })
 
       // Automatically add a clip for the new recording
       const clip: Clip = {
@@ -187,13 +232,30 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
       if (videoTrack) {
         videoTrack.clips.push(clip)
+        logger.info(`📌 Clip added to video track:`, {
+          clipId: clip.id,
+          recordingId: clip.recordingId,
+          startTime: `${(clip.startTime / 1000).toFixed(2)}s`,
+          duration: `${(clip.duration / 1000).toFixed(2)}s`,
+          sourceIn: clip.sourceIn,
+          sourceOut: clip.sourceOut,
+          trackClips: videoTrack.clips.length
+        })
       } else {
-        console.error('No video track found in project')
+        logger.error('❌ No video track found in project')
       }
+      
+      const oldDuration = project.timeline.duration
       project.timeline.duration = Math.max(
         project.timeline.duration,
         clip.startTime + clip.duration
       )
+
+      logger.info(`⏱️ Timeline duration updated:`, {
+        from: `${(oldDuration / 1000).toFixed(2)}s`,
+        to: `${(project.timeline.duration / 1000).toFixed(2)}s`,
+        clipEnd: `${((clip.startTime + clip.duration) / 1000).toFixed(2)}s`
+      })
 
       // Store video blob URL for preview
       const blobUrl = globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
@@ -207,11 +269,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
       project.modifiedAt = new Date().toISOString()
 
-      return {
+      const newState = {
         currentProject: project,
         selectedClipId: clip.id,
         selectedClips: [clip.id]
       }
+      
+      logger.info(`✅ Final state update:`, {
+        projectId: project.id,
+        recordings: project.recordings.length,
+        timelineDuration: `${(project.timeline.duration / 1000).toFixed(2)}s`,
+        totalClips: project.timeline.tracks.reduce((acc, track) => acc + track.clips.length, 0),
+        selectedClip: clip.id
+      })
+      
+      return newState
     })
   },
 
