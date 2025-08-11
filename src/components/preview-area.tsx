@@ -323,15 +323,18 @@ export function PreviewArea() {
       }
     }
 
-    // Ensure we draw immediately on load, even at t=0
+    // Ensure we draw immediately on load at current video time
     const initializeCanvas = () => {
       // Use the ref to get the current engine
       const currentEngine = effectsEngineRef.current
       if (!currentEngine) return
       
-      // Set initial time to 0 to ensure we start with zoom effects
-      const initialState = currentEngine.getEffectState(0)
-      currentEngine.applyZoomToCanvas(ctx, video, initialState.zoom, 0)
+      // Use current video time, not always 0
+      const currentTimeMs = video.currentTime * 1000
+      const initialState = currentEngine.getEffectState(currentTimeMs)
+      currentEngine.applyZoomToCanvas(ctx, video, initialState.zoom, currentTimeMs)
+      
+      console.log(`🎨 Initial canvas draw at ${(currentTimeMs/1000).toFixed(1)}s, zoom=${initialState.zoom.scale.toFixed(2)}x`)
     }
 
     // Initial draw
@@ -344,12 +347,20 @@ export function PreviewArea() {
     
     // Listen for time updates to render on seek
     const handleTimeUpdate = () => {
-      if (!isPlaying) {
-        drawCurrentFrame()
-      }
+      // Always draw on time update, whether playing or not
+      drawCurrentFrame()
     }
+    
+    // Also handle loadedmetadata to ensure we draw when video is ready
+    const handleMetadataLoaded = () => {
+      console.log('📹 Video metadata loaded, drawing initial frame')
+      drawCurrentFrame()
+    }
+    
     video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('seeked', handleTimeUpdate)
+    video.addEventListener('loadedmetadata', handleMetadataLoaded)
+    video.addEventListener('loadeddata', handleMetadataLoaded)
 
     return () => {
       if (animationFrameRef.current) {
@@ -357,6 +368,8 @@ export function PreviewArea() {
       }
       video.removeEventListener('timeupdate', handleTimeUpdate)
       video.removeEventListener('seeked', handleTimeUpdate)
+      video.removeEventListener('loadedmetadata', handleMetadataLoaded)
+      video.removeEventListener('loadeddata', handleMetadataLoaded)
     }
   }, [isVideoLoaded, showZoom, getMetadata, projectRecording?.duration, firstRecording?.duration, showCrop, isPlaying])
 

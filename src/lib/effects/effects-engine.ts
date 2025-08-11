@@ -48,7 +48,7 @@ export class EffectsEngine {
   private readonly MERGE_GAP = 1500 // ms - merge zooms if gap is less than this
 
   // Debug mode
-  private debugMode = true // Enable detailed logging
+  private debugMode = false // Disable detailed logging for production
 
   constructor() { }
 
@@ -446,13 +446,28 @@ export class EffectsEngine {
 
     // Ensure we stay within bounds when zoomed
     // The visible area is 1/scale of the full image
-    const margin = (1 - 1 / scale) / 2
-    x = Math.max(margin, Math.min(1 - margin, x))
-    y = Math.max(margin, Math.min(1 - margin, y))
+    // The center point can move within a range that keeps the view within bounds
+    const viewportWidthNorm = 1 / scale  // Normalized viewport width
+    const viewportHeightNorm = 1 / scale // Normalized viewport height
+    
+    // The center can move from half viewport to (1 - half viewport)
+    const minX = viewportWidthNorm / 2
+    const maxX = 1 - viewportWidthNorm / 2
+    const minY = viewportHeightNorm / 2
+    const maxY = 1 - viewportHeightNorm / 2
+    
+    const originalX = x
+    const originalY = y
+    x = Math.max(minX, Math.min(maxX, x))
+    y = Math.max(minY, Math.min(maxY, y))
 
     // Log final camera position
     if (this.debugMode && timestamp % 100 < 50) {
-      console.log(`  📷 CAMERA: pos=(${x.toFixed(3)}, ${y.toFixed(3)}), scale=${scale.toFixed(2)}, margin=${margin.toFixed(3)}`)
+      const wasClamped = (originalX !== x || originalY !== y)
+      console.log(`  📷 CAMERA: pos=(${x.toFixed(3)}, ${y.toFixed(3)}), scale=${scale.toFixed(2)}${wasClamped ? ` [CLAMPED from (${originalX.toFixed(3)}, ${originalY.toFixed(3)})]` : ''}`)
+      if (wasClamped) {
+        console.log(`     Bounds: X[${minX.toFixed(3)}-${maxX.toFixed(3)}] Y[${minY.toFixed(3)}-${maxY.toFixed(3)}]`)
+      }
     }
 
     return {
