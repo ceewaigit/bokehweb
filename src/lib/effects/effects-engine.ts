@@ -256,14 +256,19 @@ export class EffectsEngine {
         const zoomEnd = lastActivityTime + 300 // Quick fade after last activity
 
         if (zoomEnd - currentZoomStart >= this.MIN_ZOOM_DURATION) {
+          // Find the event that started this zoom to get its screen dimensions
+          const startEvent = events.find(e => e.timestamp === currentZoomStart) || events[i]
+          const screenW = startEvent.screenWidth || videoWidth
+          const screenH = startEvent.screenHeight || videoHeight
+          
           const zoomEffect: ZoomEffect = {
             id: `zoom-${currentZoomStart}`,
             type: 'zoom',
             startTime: currentZoomStart,
             endTime: zoomEnd,
             params: {
-              targetX: initialZoomX / videoWidth,
-              targetY: initialZoomY / videoHeight,
+              targetX: initialZoomX / screenW,
+              targetY: initialZoomY / screenH,
               scale: this.ZOOM_SCALE,
               introMs: this.INTRO_DURATION,
               outroMs: this.OUTRO_DURATION
@@ -296,14 +301,19 @@ export class EffectsEngine {
       const zoomEnd = Math.min(lastActivityTime + 300, videoDuration)
       
       if (zoomEnd - currentZoomStart >= this.MIN_ZOOM_DURATION) {
+        // Find the event that started this zoom to get its screen dimensions
+        const startEvent = events.find(e => e.timestamp === currentZoomStart) || events[events.length - 1]
+        const screenW = startEvent.screenWidth || videoWidth
+        const screenH = startEvent.screenHeight || videoHeight
+        
         const zoomEffect: ZoomEffect = {
           id: `zoom-final-${currentZoomStart}`,
           type: 'zoom',
           startTime: currentZoomStart,
           endTime: zoomEnd,
           params: {
-            targetX: initialZoomX / videoWidth,
-            targetY: initialZoomY / videoHeight,
+            targetX: initialZoomX / screenW,
+            targetY: initialZoomY / screenH,
             scale: this.ZOOM_SCALE,
             introMs: this.INTRO_DURATION,
             outroMs: this.OUTRO_DURATION
@@ -505,10 +515,12 @@ export class EffectsEngine {
       const progress = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
       const smoothProgress = easeInOutQuad(Math.min(1, Math.max(0, progress)))
 
-      const beforeX = before.x / this.videoWidth
-      const beforeY = before.y / this.videoHeight
-      const afterX = after.x / this.videoWidth
-      const afterY = after.y / this.videoHeight
+      // Normalize using the screen dimensions from the recording, not video dimensions
+      // This ensures correct mapping when screen resolution differs from video output
+      const beforeX = before.x / (before.screenWidth || this.videoWidth)
+      const beforeY = before.y / (before.screenHeight || this.videoHeight)
+      const afterX = after.x / (after.screenWidth || this.videoWidth)
+      const afterY = after.y / (after.screenHeight || this.videoHeight)
 
       return {
         x: beforeX + (afterX - beforeX) * smoothProgress,
@@ -519,15 +531,15 @@ export class EffectsEngine {
     // Use nearest event
     if (before) {
       return {
-        x: before.x / this.videoWidth,
-        y: before.y / this.videoHeight
+        x: before.x / (before.screenWidth || this.videoWidth),
+        y: before.y / (before.screenHeight || this.videoHeight)
       }
     }
 
     if (after) {
       return {
-        x: after.x / this.videoWidth,
-        y: after.y / this.videoHeight
+        x: after.x / (after.screenWidth || this.videoWidth),
+        y: after.y / (after.screenHeight || this.videoHeight)
       }
     }
 
