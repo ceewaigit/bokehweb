@@ -46,7 +46,7 @@ export class ElectronRecorder {
   private lastPauseTime = 0
   private metadata: ElectronMetadata[] = []
   private captureArea: ElectronRecordingResult['captureArea'] = undefined
-  
+
   // Mouse tracking optimization
   private lastMouseX = -1
   private lastMouseY = -1
@@ -367,21 +367,21 @@ export class ElectronRecorder {
       // Get screen information from Electron
       if (window.electronAPI?.getScreens) {
         const screens = await window.electronAPI.getScreens()
-        
+
         // Find the screen that matches our source
         // Source ID format is usually "screen:ID:0" 
         const screenIdMatch = sourceId.match(/screen:(\d+):/)
         if (screenIdMatch && screens.length > 0) {
           const screenId = parseInt(screenIdMatch[1])
           const screen = screens.find((s: any) => s.id === screenId) || screens[0]
-          
+
           if (screen) {
             this.captureArea = {
               fullBounds: screen.bounds,
               workArea: screen.workArea,
               scaleFactor: screen.scaleFactor || 1
             }
-            
+
             logger.info('Screen info captured', {
               fullBounds: this.captureArea.fullBounds,
               workArea: this.captureArea.workArea,
@@ -411,23 +411,44 @@ export class ElectronRecorder {
       // Continue anyway - the NativeMouseTracker uses Electron's screen API as fallback
     }
 
+    // Add document-level click listener to capture clicks
+    const captureClick = (event: MouseEvent) => {
+      if (this.isRecording) {
+        // Send click event to main process
+        if (window.electronAPI?.send) {
+          window.electronAPI.send('detected-click', {
+            x: event.screenX,
+            y: event.screenY,
+            button: event.button === 0 ? 'left' : event.button === 2 ? 'right' : 'middle'
+          })
+        }
+      }
+    }
+
+    // Listen for clicks on document
+    document.addEventListener('click', captureClick, true);
+    document.addEventListener('mousedown', captureClick, true);
+
+    // Store for cleanup
+    (this as any).clickListener = captureClick;
+
     // Set up event listeners for native mouse events
     const handleMouseMove = (_event: any, data: any) => {
       if (this.isRecording) {
         const now = Date.now()
         const timestamp = now - this.startTime
-        
+
         // Calculate distance from last position
         const dx = this.lastMouseX >= 0 ? data.x - this.lastMouseX : 0
         const dy = this.lastMouseY >= 0 ? data.y - this.lastMouseY : 0
         const distance = Math.sqrt(dx * dx + dy * dy)
-        
+
         // Check thresholds - only log significant movements
         const timeDelta = now - this.lastMouseTime
         if (distance < this.POSITION_THRESHOLD && timeDelta < this.TIME_THRESHOLD) {
           return // Skip this event, movement too small
         }
-        
+
         // Calculate velocity (pixels per second)
         let velocity = undefined
         if (this.lastMouseX >= 0 && timeDelta > 0) {
@@ -436,7 +457,7 @@ export class ElectronRecorder {
             y: (dy / timeDelta) * 1000
           }
         }
-        
+
         this.metadata.push({
           timestamp,
           mouseX: data.x,
@@ -444,7 +465,7 @@ export class ElectronRecorder {
           eventType: 'mouse',
           velocity
         })
-        
+
         // Update last position
         this.lastMouseX = data.x
         this.lastMouseY = data.y
@@ -455,21 +476,21 @@ export class ElectronRecorder {
     const handleMouseClick = (_event: any, data: any) => {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
-        
+
         this.metadata.push({
           timestamp,
           mouseX: data.x,
           mouseY: data.y,
           eventType: 'click'
         })
-        
+
         // Update position on click (important events)
         this.lastMouseX = data.x
         this.lastMouseY = data.y
         this.lastMouseTime = Date.now()
       }
     }
-    
+
     const handleScroll = (_event: any, data: any) => {
       if (this.isRecording && data.deltaX !== 0 || data.deltaY !== 0) {
         this.metadata.push({
@@ -485,7 +506,7 @@ export class ElectronRecorder {
     // Register event listeners
     window.electronAPI.onMouseMove(handleMouseMove)
     window.electronAPI.onMouseClick(handleMouseClick)
-    
+
     // Add scroll handler if available
     if (window.electronAPI.onScroll) {
       window.electronAPI.onScroll(handleScroll)
@@ -520,6 +541,14 @@ export class ElectronRecorder {
       await this.mouseTrackingCleanup()
       this.mouseTrackingCleanup = null
     }
+
+    // Remove click listener
+    if ((this as any).clickListener) {
+      document.removeEventListener('click', (this as any).clickListener, true)
+      document.removeEventListener('mousedown', (this as any).clickListener, true)
+      delete (this as any).clickListener
+    }
+
     logger.debug('Mouse tracking stopped')
   }
 
@@ -536,7 +565,7 @@ export class ElectronRecorder {
     this.chunks = []
     this.metadata = []
     this.captureArea = undefined
-    
+
     // Reset mouse tracking state
     this.lastMouseX = -1
     this.lastMouseY = -1
@@ -572,28 +601,28 @@ export class ElectronRecorder {
     if (this.mediaRecorder.state === 'paused') {
       this.mediaRecorder.resume()
       this.isPaused = false
-      
+
       // Track total paused duration
       if (this.lastPauseTime > 0) {
         this.pausedDuration += Date.now() - this.lastPauseTime
         this.lastPauseTime = 0
       }
-      
+
       logger.info('Recording resumed')
     }
   }
 
   getDuration(): number {
     if (!this.isRecording) return 0
-    
+
     const now = Date.now()
     let duration = now - this.startTime - this.pausedDuration
-    
+
     // If currently paused, subtract time since pause
     if (this.isPaused && this.lastPauseTime > 0) {
       duration -= (now - this.lastPauseTime)
     }
-    
+
     return Math.max(0, duration)
   }
 

@@ -1,14 +1,11 @@
-import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
-import { uIOhook } from 'uiohook-napi'
+import { ipcMain, screen, IpcMainInvokeEvent, WebContents, BrowserWindow } from 'electron'
 
 let mouseTrackingInterval: NodeJS.Timeout | null = null
 let mouseEventSender: WebContents | null = null
 let isMouseTracking = false
 let clickDetectionActive = false
-let clickDetectionInterval: NodeJS.Timeout | null = null
 let lastMousePosition: { x: number; y: number; time: number } | null = null
 let mouseHistory: Array<{ x: number; y: number; time: number }> = []
-let uiohookStarted = false
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -186,62 +183,28 @@ function startClickDetection(): void {
 
   clickDetectionActive = true
 
-  // Start uIOhook if not already started
-  if (!uiohookStarted) {
-    uIOhook.start()
-    uiohookStarted = true
-    console.log('🖱️ uIOhook started for native click detection')
-  }
-
-  // Register mouse click event handler
-  const handleMouseClick = (e: any) => {
+  // Register IPC handler for click events from renderer
+  ipcMain.on('detected-click', (_event, data) => {
     if (!isMouseTracking || !mouseEventSender) return
+    
+    mouseEventSender.send('mouse-click', {
+      x: Math.round(data.x),
+      y: Math.round(data.y),
+      timestamp: Date.now(),
+      button: data.button || 'left'
+    })
+    console.log(`🖱️ Click detected at (${data.x}, ${data.y})`)
+  })
 
-    // Mouse button codes: 1 = left, 2 = right, 3 = middle
-    if (e.button === 1 || e.button === 2 || e.button === 3) {
-      const position = screen.getCursorScreenPoint()
-      mouseEventSender.send('mouse-click', {
-        x: Math.round(position.x),
-        y: Math.round(position.y),
-        timestamp: Date.now(),
-        button: e.button === 1 ? 'left' : e.button === 2 ? 'right' : 'middle'
-      })
-      console.log(`🖱️ Click detected: button=${e.button} at (${position.x}, ${position.y})`)
-    }
-  }
-
-  // Listen for mouse down events (click)
-  uIOhook.on('mousedown', handleMouseClick);
-
-  // Also detect mouse up for complete click tracking
-  uIOhook.on('mouseup', (e: any) => {
-    // Can be used for click duration tracking if needed
-  });
-
-  // Store the handler for cleanup
-  (global as any).mouseClickHandler = handleMouseClick
-
-  console.log('🖱️ Click detection started')
+  console.log('🖱️ Click detection started (renderer-based)')
 }
 
 function stopClickDetection(): void {
   clickDetectionActive = false
-
-  // Stop uIOhook and remove listeners
-  if (uiohookStarted) {
-    // Remove event listeners
-    if ((global as any).mouseClickHandler) {
-      uIOhook.off('mousedown', (global as any).mouseClickHandler)
-      delete (global as any).mouseClickHandler
-    }
-    uIOhook.removeAllListeners('mouseup')
-
-    // Stop uIOhook
-    uIOhook.stop()
-    uiohookStarted = false
-    console.log('🖱️ uIOhook stopped')
-  }
-
+  
+  // Remove IPC listener
+  ipcMain.removeAllListeners('detected-click')
+  
   console.log('🖱️ Click detection stopped')
 }
 

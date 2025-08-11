@@ -53,6 +53,9 @@ export interface ElectronAPI {
   saveFile: (data: any, filepath?: string) => Promise<{ success: boolean; path?: string; error?: string }>
   openFile: (filename: string) => Promise<{ success: boolean; data?: any; error?: string }>
 
+  // IPC communication
+  send: (channel: string, ...args: any[]) => void
+
   // Window controls
   minimize: () => void
   maximize: () => void

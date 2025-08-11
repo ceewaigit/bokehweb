@@ -196,6 +196,10 @@ const electronAPI = {
   showOpenDialog: (options: OpenDialogOptions) =>
     ipcRenderer.invoke('show-open-dialog', options),
 
+  // Generic send method for IPC
+  send: (channel: string, ...args: any[]) =>
+    ipcRenderer.send(channel, ...args),
+
   // Window controls
   minimize: () =>
     ipcRenderer.send('minimize'),
