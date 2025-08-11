@@ -48,7 +48,7 @@ export class EffectsEngine {
   private readonly MERGE_GAP = 1500 // ms - merge zooms if gap is less than this
 
   // Debug mode
-  private debugMode = true // Enable to debug camera tracking
+  private debugMode = false // Disable for production
 
   constructor() { }
 
@@ -373,6 +373,10 @@ export class EffectsEngine {
     ) as ZoomEffect | undefined
 
     if (!activeZoom) {
+      // Log when we can't find an effect (but only occasionally)
+      if (this.debugMode && timestamp % 1000 < 50) {
+        console.log(`  🔍 No effect at ${(timestamp/1000).toFixed(1)}s (have ${this.effects.length} effects)`)
+      }
       return {
         zoom: { x: 0.5, y: 0.5, scale: 1.0 }
       }
@@ -434,69 +438,36 @@ export class EffectsEngine {
     // Middle phase - TRACK MOUSE PRECISELY
     else {
       scale = activeZoom.params.scale
-
-      // Follow mouse position directly
+      
+      // Follow mouse position directly - NO CLAMPING!
+      // We allow the camera to go outside bounds to always center on mouse
       x = mousePos.x
       y = mousePos.y
 
       if (this.debugMode && timestamp % 100 < 50) {
-        console.log(`  📍 TRACKING: mouse=(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)}) -> camera SHOULD BE at (${x.toFixed(3)}, ${y.toFixed(3)})`)
+        console.log(`  📍 TRACKING: mouse=(${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)}) -> camera at (${x.toFixed(3)}, ${y.toFixed(3)})`)
       }
     }
 
-    // Ensure we stay within bounds when zoomed
-    // When zoomed at scale S, we see 1/S of the image
-    // The center of our viewport can range from (viewport_size/2) to (1 - viewport_size/2)
-    // At scale 1.8, we see 1/1.8 = 0.556 of the image
-    // So the center can range from 0.278 to 0.722
+    // NO CLAMPING! Allow camera to go outside video bounds
+    // This lets us always center on the mouse, showing background when needed
     
-    // BUT WAIT - we want to follow the mouse, not clamp to arbitrary bounds!
-    // Only clamp if the view would go outside the image
-    
-    const viewportWidth = 1 / scale   // How much of the image we see horizontally
-    const viewportHeight = 1 / scale  // How much of the image we see vertically
-    
-    // Calculate bounds - the center can move anywhere that keeps the viewport inside [0,1]
-    const halfViewportWidth = viewportWidth / 2
-    const halfViewportHeight = viewportHeight / 2
-    
-    const minX = halfViewportWidth     // Can't go further left than this
-    const maxX = 1 - halfViewportWidth  // Can't go further right than this
-    const minY = halfViewportHeight    // Can't go further up than this
-    const maxY = 1 - halfViewportHeight // Can't go further down than this
-    
-    const originalX = x
-    const originalY = y
-    
-    // Only clamp if we would actually go outside the image bounds
-    x = Math.max(minX, Math.min(maxX, x))
-    y = Math.max(minY, Math.min(maxY, y))
-
-    // Log final camera position
     if (this.debugMode && timestamp % 100 < 50) {
-      const wasClamped = (Math.abs(originalX - x) > 0.001 || Math.abs(originalY - y) > 0.001)
+      const viewportSize = 1 / scale
+      console.log(`  📷 CAMERA: pos=(${x.toFixed(3)}, ${y.toFixed(3)}), scale=${scale.toFixed(2)}`)
       
-      if (!wasClamped) {
-        console.log(`  📷 CAMERA FINAL: pos=(${x.toFixed(3)}, ${y.toFixed(3)}), scale=${scale.toFixed(2)} ✅ NO CLAMPING`)
-      } else {
-        console.log(`  ⚠️ CAMERA CLAMPED!`)
-        console.log(`     Original: (${originalX.toFixed(3)}, ${originalY.toFixed(3)})`)
-        console.log(`     Clamped to: (${x.toFixed(3)}, ${y.toFixed(3)})`)
-        console.log(`     Viewport: ${viewportWidth.toFixed(3)} x ${viewportHeight.toFixed(3)} (${(viewportWidth*100).toFixed(1)}% of image)`)
-        console.log(`     Bounds: X[${minX.toFixed(3)}-${maxX.toFixed(3)}] Y[${minY.toFixed(3)}-${maxY.toFixed(3)}]`)
-        
-        // Detailed analysis
-        if (originalX < minX) {
-          console.log(`     ❌ X too small: ${originalX.toFixed(3)} < ${minX.toFixed(3)} (would show left edge)`)
-        } else if (originalX > maxX) {
-          console.log(`     ❌ X too large: ${originalX.toFixed(3)} > ${maxX.toFixed(3)} (would show right edge)`)
-        }
-        
-        if (originalY < minY) {
-          console.log(`     ❌ Y too small: ${originalY.toFixed(3)} < ${minY.toFixed(3)} (would show above video)`)
-        } else if (originalY > maxY) {
-          console.log(`     ❌ Y too large: ${originalY.toFixed(3)} > ${maxY.toFixed(3)} (would show below video)`)
-        }
+      // Check if we're showing area outside the video
+      const halfViewport = viewportSize / 2
+      const showingLeftEdge = x - halfViewport < 0
+      const showingRightEdge = x + halfViewport > 1
+      const showingTopEdge = y - halfViewport < 0
+      const showingBottomEdge = y + halfViewport > 1
+      
+      if (showingLeftEdge || showingRightEdge || showingTopEdge || showingBottomEdge) {
+        console.log(`     🖼️ Showing background: ${
+          [showingLeftEdge && 'LEFT', showingRightEdge && 'RIGHT', 
+           showingTopEdge && 'TOP', showingBottomEdge && 'BOTTOM'].filter(Boolean).join(', ')
+        }`)
       }
     }
 
@@ -590,9 +561,7 @@ export class EffectsEngine {
     let sx = centerX - (zoomWidth / 2)
     let sy = centerY - (zoomHeight / 2)
 
-    // Clamp to ensure we stay within source bounds
-    sx = Math.max(0, Math.min(sourceWidth - zoomWidth, sx))
-    sy = Math.max(0, Math.min(sourceHeight - zoomHeight, sy))
+    // DON'T clamp! Allow showing outside bounds (will be handled in drawing)
 
     // Verify centering accuracy
     const actualCenterX = sx + (zoomWidth / 2)
@@ -613,16 +582,40 @@ export class EffectsEngine {
       })
     }
 
+    // Clear canvas with background color (or transparent)
+    ctx.clearRect(0, 0, width, height)
+    
+    // If we're showing area outside the video, fill with a background
+    if (sx < 0 || sy < 0 || sx + zoomWidth > sourceWidth || sy + zoomHeight > sourceHeight) {
+      // Fill with a dark background where video doesn't exist
+      ctx.fillStyle = '#1a1a1a'
+      ctx.fillRect(0, 0, width, height)
+    }
+    
+    // Calculate the actual region to draw (clipped to source bounds)
+    let actualSx = Math.max(0, sx)
+    let actualSy = Math.max(0, sy)
+    let actualSWidth = Math.min(sourceWidth - actualSx, zoomWidth - (actualSx - sx))
+    let actualSHeight = Math.min(sourceHeight - actualSy, zoomHeight - (actualSy - sy))
+    
+    // Calculate where to draw on the destination canvas
+    let dx = sx < 0 ? (-sx / zoomWidth) * width : 0
+    let dy = sy < 0 ? (-sy / zoomHeight) * height : 0
+    let dWidth = (actualSWidth / zoomWidth) * width
+    let dHeight = (actualSHeight / zoomHeight) * height
+    
     // Draw with high quality
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
-    ctx.clearRect(0, 0, width, height)
-
-    ctx.drawImage(
-      source as CanvasImageSource,
-      sx, sy, zoomWidth, zoomHeight,
-      0, 0, width, height
-    )
+    
+    // Only draw if there's something to draw
+    if (actualSWidth > 0 && actualSHeight > 0) {
+      ctx.drawImage(
+        source as CanvasImageSource,
+        actualSx, actualSy, actualSWidth, actualSHeight,
+        dx, dy, dWidth, dHeight
+      )
+    }
 
     // Draw debug overlay if zoom is active
     if (this.debugMode && zoom.scale > 1.0) {

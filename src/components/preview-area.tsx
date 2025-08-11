@@ -315,8 +315,10 @@ export function PreviewArea() {
       const effectState = currentEngine.getEffectState(tMs)
       
       // Log every 30 frames (about once per second at 30fps)
-      if (frameCount++ % 30 === 0 && effectState.zoom.scale > 1.0) {
-        console.log(`🎬 Frame ${frameCount}: t=${(tMs/1000).toFixed(1)}s, zoom=${effectState.zoom.scale.toFixed(2)}x at (${effectState.zoom.x.toFixed(2)}, ${effectState.zoom.y.toFixed(2)})`)
+      if (frameCount++ % 30 === 0) {
+        const effects = currentEngine.getEffects()
+        const activeEffect = effects.find((e: any) => tMs >= e.startTime && tMs <= e.endTime)
+        console.log(`🎬 Frame ${frameCount}: t=${(tMs/1000).toFixed(1)}s, zoom=${effectState.zoom.scale.toFixed(2)}x, active effect: ${activeEffect ? activeEffect.id : 'NONE'}`)
       }
 
       // Apply cropping first if needed
@@ -335,16 +337,12 @@ export function PreviewArea() {
     // Smart render loop - only render when playing or when time changes
     let lastRenderedTime = -1
     const renderFrame = () => {
-      // Only render if playing OR if time changed
-      if (isPlaying || video.currentTime !== lastRenderedTime) {
-        drawCurrentFrame()
-        lastRenderedTime = video.currentTime
-      }
+      // Always draw the current frame when called
+      drawCurrentFrame()
+      lastRenderedTime = video.currentTime
       
-      // Only continue loop if playing
-      if (isPlaying) {
-        animationFrameRef.current = requestAnimationFrame(renderFrame)
-      }
+      // Continue animation loop - will be canceled if video pauses
+      animationFrameRef.current = requestAnimationFrame(renderFrame)
     }
 
     // Ensure we draw immediately on load at current video time
@@ -364,15 +362,35 @@ export function PreviewArea() {
     // Initial draw
     initializeCanvas()
     
-    // Start render loop only if playing
-    if (isPlaying) {
-      renderFrame()
+    // Create a variable to track play state
+    let isCurrentlyPlaying = false
+    
+    // Start/stop render loop based on video play state
+    const handlePlay = () => {
+      console.log('📹 Video started playing - starting render loop')
+      isCurrentlyPlaying = true
+      if (!animationFrameRef.current) {
+        renderFrame()
+      }
+    }
+    
+    const handlePause = () => {
+      console.log('📹 Video paused - stopping render loop')
+      isCurrentlyPlaying = false
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+      }
+      // Draw one final frame when paused
+      drawCurrentFrame()
     }
     
     // Listen for time updates to render on seek
     const handleTimeUpdate = () => {
-      // Always draw on time update, whether playing or not
-      drawCurrentFrame()
+      // Always draw on time update when not playing
+      if (!isCurrentlyPlaying) {
+        drawCurrentFrame()
+      }
     }
     
     // Also handle loadedmetadata to ensure we draw when video is ready
@@ -381,6 +399,8 @@ export function PreviewArea() {
       drawCurrentFrame()
     }
     
+    video.addEventListener('play', handlePlay)
+    video.addEventListener('pause', handlePause)
     video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('seeked', handleTimeUpdate)
     video.addEventListener('loadedmetadata', handleMetadataLoaded)
@@ -390,6 +410,8 @@ export function PreviewArea() {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
       }
+      video.removeEventListener('play', handlePlay)
+      video.removeEventListener('pause', handlePause)
       video.removeEventListener('timeupdate', handleTimeUpdate)
       video.removeEventListener('seeked', handleTimeUpdate)
       video.removeEventListener('loadedmetadata', handleMetadataLoaded)
