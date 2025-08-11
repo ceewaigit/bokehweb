@@ -6,7 +6,7 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { toBlobURL, fetchFile } from '@ffmpeg/util'
 import { CursorRenderer } from '../effects/cursor-renderer'
-import { ZoomEngine } from '../effects/zoom-engine'
+import { EffectsEngine } from '../effects/effects-engine'
 import { BackgroundRenderer } from '../effects/background-renderer'
 import { KeystrokeRenderer } from '../effects/keystroke-renderer'
 import { FFmpegConverter } from './ffmpeg-converter'
@@ -277,31 +277,18 @@ export class ExportEngine {
       this.processingCtx = this.processingCanvas.getContext('2d')!
 
       // Initialize effects with proper configuration from clip
-      let zoomEngine: ZoomEngine | null = null
+      let effectsEngine: EffectsEngine | null = null
       let cursorRenderer: CursorRenderer | null = null
       let backgroundRenderer: BackgroundRenderer | null = null
       let keystrokeRenderer: KeystrokeRenderer | null = null
-      let zoomKeyframes: any[] = []
 
       // Use clip effects or defaults
       const clipEffects = firstClip.effects
 
       if (enableZoom && metadata.length > 0) {
-        zoomEngine = new ZoomEngine({
-          enabled: clipEffects?.zoom?.enabled ?? true,
-          sensitivity: clipEffects?.zoom?.sensitivity ?? 1.0,
-          maxZoom: clipEffects?.zoom?.maxZoom ?? 2.0,
-          clickZoom: true,
-          smoothing: true
-        })
-        
-        // Generate zoom keyframes based on metadata
-        zoomKeyframes = zoomEngine.generateKeyframes(
-          metadata,
-          videoDuration * 1000,
-          videoWidth,
-          videoHeight
-        )
+        effectsEngine = new EffectsEngine()
+        // Initialize with metadata - clean and simple!
+        effectsEngine.initializeFromMetadata(metadata, videoDuration * 1000, videoWidth, videoHeight)
       }
 
       if (enableCursor && metadata.length > 0) {
@@ -346,7 +333,7 @@ export class ExportEngine {
           textColor: '#ffffff',
           borderRadius: 8
         })
-        
+
         // Create a canvas for keystroke rendering
         const keystrokeCanvas = document.createElement('canvas')
         keystrokeCanvas.width = videoWidth
@@ -393,23 +380,23 @@ export class ExportEngine {
         })
 
         // Apply effects in correct order (Screen Studio style)
-        
+
         // 1. Clear canvas
         this.processingCtx!.clearRect(0, 0, videoWidth, videoHeight)
-        
+
         // 2. Apply background if enabled
         if (backgroundRenderer) {
           // Background renderer will handle the video frame with effects
-          if (zoomEngine) {
+          if (effectsEngine) {
             // Create temp canvas for zoomed video
             const tempCanvas = document.createElement('canvas')
             tempCanvas.width = videoWidth
             tempCanvas.height = videoHeight
             const tempCtx = tempCanvas.getContext('2d')!
-            
-            const zoom = zoomEngine.getZoomAtTime(timestamp)
-            zoomEngine.applyZoomToCanvas(tempCtx, video, zoom)
-            
+
+            const effectState = effectsEngine.getEffectState(timestamp)
+            effectsEngine.applyZoomToCanvas(tempCtx, video, effectState.zoom)
+
             // Apply background with zoomed video
             backgroundRenderer.applyBackground(this.processingCtx!, tempCanvas)
           } else {
@@ -418,9 +405,9 @@ export class ExportEngine {
           }
         } else {
           // No background - just apply zoom or draw video directly
-          if (zoomEngine) {
-            const zoom = zoomEngine.getZoomAtTime(timestamp)
-            zoomEngine.applyZoomToCanvas(this.processingCtx!, video, zoom)
+          if (effectsEngine) {
+            const effectState = effectsEngine.getEffectState(timestamp)
+            effectsEngine.applyZoomToCanvas(this.processingCtx!, video, effectState.zoom)
           } else {
             this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
           }
@@ -436,7 +423,7 @@ export class ExportEngine {
           // Find the closest event to current timestamp
           let closestEvent = metadata[0]
           let minDiff = Math.abs(metadata[0].timestamp - timestamp)
-          
+
           for (const event of metadata) {
             const diff = Math.abs(event.timestamp - timestamp)
             if (diff < minDiff) {
@@ -444,33 +431,34 @@ export class ExportEngine {
               closestEvent = event
             }
           }
-          
+
           // Only render if event is within reasonable time window (33ms = ~30fps)
           if (minDiff < 33) {
             // Calculate cursor position (account for zoom if applied)
             let cursorX = closestEvent.mouseX
             let cursorY = closestEvent.mouseY
-            
-            if (zoomEngine) {
-              const zoom = zoomEngine.getZoomAtTime(timestamp)
+
+            if (effectsEngine) {
+              const effectState = effectsEngine.getEffectState(timestamp)
+              const zoom = effectState.zoom
               // Transform cursor coordinates based on zoom
               const zoomCenterX = zoom.x * videoWidth
               const zoomCenterY = zoom.y * videoHeight
-              
+
               // Apply zoom transformation
               cursorX = (cursorX - zoomCenterX) * zoom.scale + videoWidth / 2
               cursorY = (cursorY - zoomCenterY) * zoom.scale + videoHeight / 2
             }
-            
+
             // Draw cursor with effects
             this.processingCtx!.save()
-            
+
             // Cursor shadow
             this.processingCtx!.shadowColor = 'rgba(0, 0, 0, 0.4)'
             this.processingCtx!.shadowBlur = 3
             this.processingCtx!.shadowOffsetX = 1
             this.processingCtx!.shadowOffsetY = 2
-            
+
             // Click effect
             if (closestEvent.eventType === 'click') {
               this.processingCtx!.strokeStyle = '#3b82f6'
@@ -481,7 +469,7 @@ export class ExportEngine {
               this.processingCtx!.stroke()
               this.processingCtx!.globalAlpha = 1
             }
-            
+
             // Draw macOS-style cursor
             this.processingCtx!.fillStyle = '#ffffff'
             this.processingCtx!.strokeStyle = 'rgba(0, 0, 0, 0.5)'
@@ -498,7 +486,7 @@ export class ExportEngine {
             this.processingCtx!.closePath()
             this.processingCtx!.fill()
             this.processingCtx!.stroke()
-            
+
             this.processingCtx!.restore()
           }
         }

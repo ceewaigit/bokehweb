@@ -64,7 +64,6 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
 
   const [stageSize, setStageSize] = useState({ width: 800, height: 400 })
   const [scrollLeft, setScrollLeft] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
   const [copiedClip, setCopiedClip] = useState<Clip | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
   const [thumbnailCache, setThumbnailCache] = useState<Map<string, HTMLImageElement>>(new Map())
@@ -78,7 +77,10 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
     ? Math.max(10000, currentProject.timeline.duration + 500)
     : 10000
 
-  const pixelsPerMs = zoom * 0.2 // At zoom 1: 200px/sec
+  // Improved scaling: At zoom 1.0, show 10 seconds in viewport width
+  // This gives much better default visibility for clips
+  const basePixelsPerMs = (stageSize.width - TRACK_LABEL_WIDTH) / 10000 // pixels per ms for 10 second view
+  const pixelsPerMs = basePixelsPerMs * zoom
   const timelineWidth = Math.max(duration * pixelsPerMs, stageSize.width - TRACK_LABEL_WIDTH)
 
   // Convert time to pixel position
@@ -268,12 +270,12 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
     if (!currentProject) return null
 
     const clips: React.ReactNode[] = []
-    
+
     // Calculate track positions
     const videoTrackY = RULER_HEIGHT
     const zoomTrackY = videoTrackY + VIDEO_TRACK_HEIGHT
-    const audioTrackY = selectedClips.length > 0 && 
-      currentProject.timeline.tracks.find(t => t.type === 'video')?.clips.find(c => 
+    const audioTrackY = selectedClips.length > 0 &&
+      currentProject.timeline.tracks.find(t => t.type === 'video')?.clips.find(c =>
         selectedClips.includes(c.id) && c.effects?.zoom?.enabled
       ) ? zoomTrackY + ZOOM_TRACK_HEIGHT : videoTrackY + VIDEO_TRACK_HEIGHT
 
@@ -397,39 +399,51 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
       })
     }
 
-    // Zoom track visualization (when clip selected)
+    // Zoom track visualization - show zoom regions as rectangles
     if (selectedClips.length > 0) {
       const selectedClip = videoTrack?.clips.find(c => selectedClips.includes(c.id))
       if (selectedClip?.effects?.zoom?.enabled && selectedClip.effects.zoom.keyframes.length > 0) {
         const clipX = timeToPixel(selectedClip.startTime) + TRACK_LABEL_WIDTH
-        const clipWidth = timeToPixel(selectedClip.duration)
+        const keyframes = selectedClip.effects.zoom.keyframes
 
-        const points: number[] = []
-        selectedClip.effects.zoom.keyframes.forEach(kf => {
-          const x = (kf.time / selectedClip.duration) * clipWidth
-          const y = ZOOM_TRACK_HEIGHT / 2 - (kf.zoom - 1) * 20
-          points.push(x, y)
-        })
+        // Create zoom regions between keyframes
+        for (let i = 0; i < keyframes.length - 1; i++) {
+          const startKf = keyframes[i]
+          const endKf = keyframes[i + 1]
 
-        clips.push(
-          <Group key="zoom-track-viz" x={clipX} y={zoomTrackY}>
-            <Rect
-              width={clipWidth}
-              height={ZOOM_TRACK_HEIGHT}
-              fill="rgba(59, 130, 246, 0.1)"
-              stroke="rgba(59, 130, 246, 0.3)"
-              strokeWidth={1}
-            />
-            {points.length >= 4 && (
-              <Line
-                points={points}
-                stroke="rgb(59, 130, 246)"
-                strokeWidth={2}
-                tension={0.5}
-              />
-            )}
-          </Group>
-        )
+          // Only show rectangles for zoomed-in regions (zoom > 1)
+          if (startKf.zoom > 1 || endKf.zoom > 1) {
+            const startX = timeToPixel(selectedClip.startTime + startKf.time) + TRACK_LABEL_WIDTH
+            const endX = timeToPixel(selectedClip.startTime + endKf.time) + TRACK_LABEL_WIDTH
+            const width = endX - startX
+
+            // Calculate average zoom level for opacity
+            const avgZoom = (startKf.zoom + endKf.zoom) / 2
+            const opacity = Math.min(0.6, (avgZoom - 1) * 0.3 + 0.2)
+
+            clips.push(
+              <Group key={`zoom-region-${i}`}>
+                <Rect
+                  x={startX}
+                  y={zoomTrackY + 4}
+                  width={width}
+                  height={ZOOM_TRACK_HEIGHT - 8}
+                  fill="rgba(59, 130, 246, 0.8)"
+                  opacity={opacity}
+                  cornerRadius={4}
+                />
+                <Text
+                  x={startX + 4}
+                  y={zoomTrackY + ZOOM_TRACK_HEIGHT / 2 - 6}
+                  text={`${avgZoom.toFixed(1)}x`}
+                  fontSize={10}
+                  fill="white"
+                  opacity={0.9}
+                />
+              </Group>
+            )
+          }
+        }
       }
     }
 
@@ -789,56 +803,53 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
 
           {/* Playhead Layer - On top for visibility */}
           <Layer>
-            {/* Playhead shadow for better visibility */}
-            <Line
-              points={[
-                timeToPixel(currentTime) + TRACK_LABEL_WIDTH + 1,
-                0,
-                timeToPixel(currentTime) + TRACK_LABEL_WIDTH + 1,
-                totalHeight
-              ]}
-              stroke="rgba(0, 0, 0, 0.5)"
-              strokeWidth={3}
-              listening={false}
-            />
-            {/* Main playhead line */}
-            <Line
-              ref={playheadRef}
-              points={[
-                timeToPixel(currentTime) + TRACK_LABEL_WIDTH,
-                0,
-                timeToPixel(currentTime) + TRACK_LABEL_WIDTH,
-                totalHeight
-              ]}
-              stroke="#dc2626"
-              strokeWidth={2}
+            {/* Draggable group for entire playhead */}
+            <Group
+              x={timeToPixel(currentTime) + TRACK_LABEL_WIDTH}
+              y={0}
               draggable
               dragBoundFunc={(pos) => {
-                const newX = Math.max(TRACK_LABEL_WIDTH, pos.x)
+                const newX = Math.max(TRACK_LABEL_WIDTH, Math.min(timelineWidth + TRACK_LABEL_WIDTH, pos.x))
                 return {
                   x: newX,
                   y: 0
                 }
               }}
-              onDragEnd={(e) => {
+              onDragMove={(e) => {
                 const newX = e.target.x() - TRACK_LABEL_WIDTH
                 const time = pixelToTime(newX)
                 const maxTime = currentProject?.timeline?.duration || 0
                 seek(Math.max(0, Math.min(maxTime, time)))
               }}
-            />
-            {/* Playhead handle - diamond shape at top */}
-            <Rect
-              x={timeToPixel(currentTime) + TRACK_LABEL_WIDTH - 7}
-              y={-2}
-              width={14}
-              height={14}
-              fill="#dc2626"
-              rotation={45}
-              shadowColor="black"
-              shadowBlur={3}
-              shadowOpacity={0.5}
-            />
+            >
+              {/* Playhead shadow for better visibility */}
+              <Line
+                points={[1, 0, 1, totalHeight]}
+                stroke="rgba(0, 0, 0, 0.5)"
+                strokeWidth={3}
+                listening={false}
+              />
+              {/* Main playhead line */}
+              <Line
+                ref={playheadRef}
+                points={[0, 0, 0, totalHeight]}
+                stroke="#dc2626"
+                strokeWidth={2}
+                hitStrokeWidth={10} // Larger hit area for easier dragging
+              />
+              {/* Playhead handle - diamond shape at top */}
+              <Rect
+                x={-7}
+                y={-2}
+                width={14}
+                height={14}
+                fill="#dc2626"
+                rotation={45}
+                shadowColor="black"
+                shadowBlur={3}
+                shadowOpacity={0.5}
+              />
+            </Group>
           </Layer>
         </Stage>
       </div>

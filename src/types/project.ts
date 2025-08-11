@@ -5,7 +5,7 @@
 
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { ZoomEngine } from '@/lib/effects/zoom-engine'
+import { EffectsEngine } from '@/lib/effects/effects-engine'
 
 export interface Project {
   version: string
@@ -13,16 +13,16 @@ export interface Project {
   name: string
   createdAt: string
   modifiedAt: string
-  
+
   // Raw recording references
   recordings: Recording[]
-  
+
   // Timeline with clips referencing recordings
   timeline: Timeline
-  
+
   // Global project settings
   settings: ProjectSettings
-  
+
   // Export presets
   exportPresets: ExportPreset[]
 }
@@ -34,10 +34,10 @@ export interface Recording {
   width: number
   height: number
   frameRate: number
-  
+
   // Capture area information
   captureArea?: CaptureArea
-  
+
   // Captured metadata during recording
   metadata: RecordingMetadata
 }
@@ -64,16 +64,16 @@ export interface CaptureArea {
 export interface RecordingMetadata {
   // Mouse/cursor events
   mouseEvents: MouseEvent[]
-  
+
   // Keyboard events for overlay
   keyboardEvents: KeyboardEvent[]
-  
+
   // Click events for ripples
   clickEvents: ClickEvent[]
-  
+
   // Screen dimensions changes
   screenEvents: ScreenEvent[]
-  
+
   // Audio levels for waveform
   audioLevels?: number[]
 }
@@ -122,18 +122,18 @@ export interface Track {
 export interface Clip {
   id: string
   recordingId: string  // References Recording.id
-  
+
   // Timeline position
   startTime: number    // Position on timeline
   duration: number     // Clip duration
-  
+
   // Source trimming
   sourceIn: number     // Start point in source recording
   sourceOut: number    // End point in source recording
-  
+
   // Applied effects (non-destructive)
   effects: ClipEffects
-  
+
   // Transitions
   transitionIn?: Transition
   transitionOut?: Transition
@@ -148,7 +148,7 @@ export interface ClipEffects {
     maxZoom: number
     smoothing: number
   }
-  
+
   // Cursor styling
   cursor: {
     visible: boolean
@@ -158,7 +158,7 @@ export interface ClipEffects {
     clickEffects: boolean
     motionBlur: boolean
   }
-  
+
   // Background
   background: {
     type: 'none' | 'color' | 'gradient' | 'image' | 'blur'
@@ -171,7 +171,7 @@ export interface ClipEffects {
     blur?: number
     padding: number
   }
-  
+
   // Video styling
   video: {
     cornerRadius: number
@@ -182,7 +182,7 @@ export interface ClipEffects {
       offset: { x: number; y: number }
     }
   }
-  
+
   // Annotations
   annotations: Annotation[]
 }
@@ -284,24 +284,24 @@ export function createProject(name: string): Project {
 // Save/load functions
 export async function saveProject(project: Project, customPath?: string): Promise<string | null> {
   const projectData = JSON.stringify(project, null, 2)
-  
+
   // Check if running in Electron environment
   if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
     try {
       const recordingsDir = await window.electronAPI.getRecordingsDirectory()
       const projectFileName = customPath || `${project.id}.ssproj`
       const projectFilePath = projectFileName.startsWith('/') ? projectFileName : `${recordingsDir}/${projectFileName}`
-      
+
       // Save as text file with our custom extension
       await window.electronAPI.saveRecording(
         projectFilePath,
         new TextEncoder().encode(projectData).buffer
       )
-      
+
       // Also save to localStorage for quick access
       RecordingStorage.setProject(project.id, projectData)
       RecordingStorage.setProjectPath(project.id, projectFilePath)
-      
+
       console.log(`Project saved to: ${projectFilePath}`)
       return projectFilePath
     } catch (error) {
@@ -333,36 +333,36 @@ export async function saveRecordingWithProject(
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
     const baseName = projectName || `Recording_${timestamp}`
     const recordingId = `recording-${Date.now()}`
-    
+
     // Save video file
     const videoFileName = `${baseName}.webm`
     const videoFilePath = `${recordingsDir}/${videoFileName}`
     const buffer = await videoBlob.arrayBuffer()
     await window.electronAPI.saveRecording(videoFilePath, buffer)
-    
+
     // Get video metadata
     const videoUrl = globalBlobManager.create(videoBlob, 'video-preview')
     const video = document.createElement('video')
     video.src = videoUrl
-    
+
     await new Promise((resolve) => {
       video.onloadedmetadata = resolve
     })
-    
+
     const duration = video.duration * 1000 // Convert to milliseconds
     const width = video.videoWidth || 1920 // Use standard HD as fallback
     const height = video.videoHeight || 1080
-    
+
     // Try to detect actual frame rate from video
     // @ts-ignore - videoTracks may have getSettings
     const videoStreamTrack = video.captureStream?.()?.getVideoTracks()?.[0]
     const detectedFrameRate = videoStreamTrack?.getSettings?.()?.frameRate || 30 // Default to 30fps if unknown
-    
+
     globalBlobManager.revoke(videoUrl)
-    
+
     // Create project with recording
     const project = createProject(baseName)
-    
+
     // Process metadata into proper format
     const mouseEvents = metadata
       .filter(m => m.eventType === 'mouse' || m.type === 'move')
@@ -373,7 +373,7 @@ export async function saveRecordingWithProject(
         screenWidth: width,
         screenHeight: height
       }))
-    
+
     const clickEvents = metadata
       .filter(m => m.eventType === 'click' || m.type === 'click')
       .map(m => ({
@@ -382,7 +382,7 @@ export async function saveRecordingWithProject(
         y: m.mouseY || m.y || 0,
         button: 'left' as const
       }))
-    
+
     const keyboardEvents = metadata
       .filter(m => m.eventType === 'keypress')
       .map(m => ({
@@ -390,7 +390,7 @@ export async function saveRecordingWithProject(
         key: m.key || '',
         modifiers: []
       }))
-    
+
     // Add recording to project
     const recording: Recording = {
       id: recordingId,
@@ -407,55 +407,40 @@ export async function saveRecordingWithProject(
         screenEvents: []
       }
     }
-    
+
     project.recordings.push(recording)
-    
-    // Generate zoom keyframes from mouse events using ZoomEngine
-    const zoomEngine = new ZoomEngine({
-      enabled: true,
-      sensitivity: 1.0,
-      maxZoom: 2.0,
-      smoothing: true
-    })
-    
-    // Convert mouse events to format expected by ZoomEngine
-    const zoomEvents = [
-      ...mouseEvents.map(e => ({
-        timestamp: e.timestamp,
-        mouseX: e.x * width,
-        mouseY: e.y * height,
-        eventType: 'mouse' as const
-      })),
-      ...clickEvents.map(e => ({
-        timestamp: e.timestamp,
-        mouseX: e.x,
-        mouseY: e.y,
-        eventType: 'click' as const
-      }))
-    ].sort((a, b) => a.timestamp - b.timestamp)
-    
-    const engineKeyframes = zoomEngine.generateKeyframes(
-      zoomEvents,
+
+    // Generate zoom effects using EffectsEngine - clean and simple!
+    const effectsEngine = new EffectsEngine()
+
+    // Create a mock recording object with the data we have
+    const mockRecording = {
       duration,
       width,
-      height
-    )
-    
-    // Convert ZoomEngine keyframes to project format
-    const zoomKeyframes: ZoomKeyframe[] = engineKeyframes.map(kf => ({
-      time: kf.timestamp,
-      zoom: kf.scale,
-      x: kf.x,
-      y: kf.y,
-      easing: 'smoothStep' as const
-    }))
-    
-    console.log(`📹 Generated ${zoomKeyframes.length} zoom keyframes from ${zoomEvents.length} events`)
-    
+      height,
+      metadata: {
+        mouseEvents: mouseEvents.map(e => ({
+          timestamp: e.timestamp,
+          x: e.x * width,
+          y: e.y * height,
+          screenWidth: width,
+          screenHeight: height
+        })),
+        clickEvents: clickEvents,
+        keyboardEvents: keyboardEvents,
+        screenEvents: []
+      }
+    }
+
+    // Use the engine's public method
+    const zoomKeyframes = effectsEngine.getZoomKeyframes(mockRecording)
+
+    console.log(`📹 Generated ${zoomKeyframes.length} zoom keyframes`)
+
     // Detect cursor activity to set visibility intelligently
     const hasCursorActivity = mouseEvents.length > 5 // Has meaningful mouse movement
     const hasClicks = clickEvents.length > 0
-    
+
     // Add clip to timeline with generated effects
     const clip: Clip = {
       id: `clip-${Date.now()}`,
@@ -500,22 +485,22 @@ export async function saveRecordingWithProject(
         annotations: []
       }
     }
-    
+
     // Add to video track
     const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
     if (videoTrack) {
       videoTrack.clips.push(clip)
     }
-    
+
     project.timeline.duration = duration
-    
+
     // Save project file
     const projectFileName = `${baseName}.ssproj`
     const projectPath = await saveProject(project, projectFileName)
-    
+
     // Store metadata with recording ID only (single source of truth)
     RecordingStorage.setMetadata(recordingId, recording.metadata)
-    
+
     return {
       project,
       videoPath: videoFilePath,
@@ -536,18 +521,18 @@ export async function loadProject(filePath: string): Promise<Project> {
         const decoder = new TextDecoder()
         const projectData = decoder.decode(result.data as ArrayBuffer)
         const project = JSON.parse(projectData) as Project
-        
+
         // Cache in RecordingStorage for quick access
         RecordingStorage.setProject(project.id, projectData)
         RecordingStorage.setProjectPath(project.id, filePath)
-        
+
         return project
       }
     } catch (error) {
       console.error('Failed to load project file:', error)
     }
   }
-  
+
   // Fallback to RecordingStorage
   const data = RecordingStorage.getProject(filePath)
   if (!data) throw new Error('Project not found')

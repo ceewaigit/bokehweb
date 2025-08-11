@@ -21,9 +21,14 @@ import {
 export function PropertiesPanel() {
   const [activeTab, setActiveTab] = useState<'project' | 'clip' | 'effects' | 'audio'>('project')
   const { settings, updateSettings } = useRecordingStore()
-  const { currentProject, selectedClips, getCurrentClip, updateClipEffects } = useProjectStore()
+  const { currentProject, selectedClips, updateClipEffects } = useProjectStore()
 
-  const selectedClip = getCurrentClip()
+  // Get the first selected clip for editing (multi-select shows first clip's properties)
+  const selectedClip = selectedClips.length > 0 && currentProject
+    ? currentProject.timeline.tracks
+        .flatMap(t => t.clips)
+        .find(c => c.id === selectedClips[0])
+    : null
 
   const tabs = [
     { id: 'project', label: 'Project', icon: Monitor },

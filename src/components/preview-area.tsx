@@ -5,7 +5,7 @@ import { useRecordingStore } from '@/stores/recording-store'
 import { useProjectStore } from '@/stores/project-store'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
-import { ZoomEngine } from '@/lib/effects/zoom-engine'
+import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { WorkAreaCropper } from '@/lib/effects/work-area-cropper'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
@@ -17,7 +17,7 @@ export function PreviewArea() {
   const zoomCanvasRef = useRef<HTMLCanvasElement>(null)
   const cursorRendererRef = useRef<CursorRenderer | null>(null)
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const zoomEngineRef = useRef<ZoomEngine | null>(null)
+  const effectsEngineRef = useRef<EffectsEngine | null>(null)
   const workAreaCropperRef = useRef<WorkAreaCropper | null>(null)
   const cropCanvasRef = useRef<HTMLCanvasElement>(null)
   const animationFrameRef = useRef<number | null>(null)
@@ -180,11 +180,11 @@ export function PreviewArea() {
 
     // Create work area cropper
     const cropper = new WorkAreaCropper({ captureArea })
-    
+
     // Only apply cropping if needed
     if (cropper.needsCropping()) {
       console.log('📐 Work area cropping enabled - excluding dock from video')
-      
+
       // Create or update crop canvas
       let cropCanvas = cropCanvasRef.current
       if (!cropCanvas) {
@@ -195,10 +195,10 @@ export function PreviewArea() {
         cropCanvas.style.width = '100%'
         cropCanvas.style.height = '100%'
         cropCanvas.style.pointerEvents = 'none'
-        // Use mutable ref pattern to assign
-        ;(cropCanvasRef as any).current = cropCanvas
+          // Use mutable ref pattern to assign
+          ; (cropCanvasRef as any).current = cropCanvas
       }
-      
+
       cropper.initialize(cropCanvas)
       workAreaCropperRef.current = cropper
     }
@@ -236,31 +236,19 @@ export function PreviewArea() {
 
     // Create zoom engine and generate keyframes
     const video = videoRef.current
-    const engine = new ZoomEngine({
-      enabled: true,
-      sensitivity: 1.0,
-      maxZoom: 2.0,
-      zoomSpeed: 0.1,
-      clickZoom: true,
-      panSpeed: 0.08
-    })
+    const engine = new EffectsEngine()
 
     // Use a reasonable duration fallback for zoom calculation
-    const totalDurationMs = Number.isFinite(video.duration) && video.duration > 0 
-      ? (video.duration * 1000) 
+    const totalDurationMs = Number.isFinite(video.duration) && video.duration > 0
+      ? (video.duration * 1000)
       : (projectRecording?.duration || metadata[metadata.length - 1]?.timestamp || 10000)
 
-    console.log(`🔍 Zoom engine input: duration=${totalDurationMs}ms, events=${metadata.length}, clicks=${metadata.filter((e: any) => e.eventType === 'click').length}`)
-
-    const keyframes = engine.generateKeyframes(
-      metadata,
-      totalDurationMs,
-      video.videoWidth || 0,  // Will be handled by zoom engine validation
-      video.videoHeight || 0  // Will be handled by zoom engine validation
-    )
-
-    console.log(`🔍 Generated ${keyframes.length} zoom keyframes:`, keyframes.map(kf => ({ time: kf.timestamp, scale: kf.scale, reason: kf.reason })))
-    zoomEngineRef.current = engine
+    // Initialize effects engine with metadata - one line!
+    engine.initializeFromMetadata(metadata, totalDurationMs, video.videoWidth || 1920, video.videoHeight || 1080)
+    
+    const effectCount = engine.getEffects().length
+    console.log(`🔍 Effects engine initialized with ${metadata.length} events, detected ${effectCount} zoom effects`)
+    effectsEngineRef.current = engine
 
     // Create or update zoom canvas
     let zoomCanvas = zoomCanvasRef.current
@@ -290,18 +278,18 @@ export function PreviewArea() {
     // Helper to draw current frame even when paused
     const drawCurrentFrame = () => {
       const tMs = isFinite(video.duration) && video.currentTime > 0 ? (video.currentTime * 1000) : 0
-      const zoom = engine.getZoomAtTime(tMs)
-      
+      const effectState = engine.getEffectState(tMs)
+
       // Apply cropping first if needed
       if (showCrop && workAreaCropperRef.current && workAreaCropperRef.current.needsCropping()) {
         // Create a temporary canvas for cropped frame
         const tempCanvas = document.createElement('canvas')
         workAreaCropperRef.current.cropFrame(video, tempCanvas)
         // Apply zoom to the cropped frame
-        engine.applyZoomToCanvas(ctx, tempCanvas as any, zoom)
+        engine.applyZoomToCanvas(ctx, tempCanvas as any, effectState.zoom)
       } else {
         // Apply zoom directly to video
-        engine.applyZoomToCanvas(ctx, video, zoom)
+        engine.applyZoomToCanvas(ctx, video, effectState.zoom)
       }
     }
 
@@ -314,10 +302,10 @@ export function PreviewArea() {
     // Ensure we draw immediately on load, even at t=0
     const initializeCanvas = () => {
       // Set initial time to 0 to ensure we start with zoom effects
-      const initialZoom = engine.getZoomAtTime(0)
-      engine.applyZoomToCanvas(ctx, video, initialZoom)
+      const initialState = engine.getEffectState(0)
+      engine.applyZoomToCanvas(ctx, video, initialState.zoom)
     }
-    
+
     // Initial draw and start render loop
     initializeCanvas()
     renderFrame()
@@ -399,13 +387,43 @@ export function PreviewArea() {
   // Sync video time with timeline (convert from ms to seconds)
   useEffect(() => {
     const video = videoRef.current
+    const clip = getCurrentClip()
+
     if (!video || !isVideoLoaded) return
 
-    const timeInSeconds = currentTime / 1000
-    if (Math.abs(video.currentTime - timeInSeconds) > 0.01) {
-      video.currentTime = timeInSeconds
+    // If no clip at current position, hide the video
+    if (!clip) {
+      video.style.opacity = '0'
+      video.pause()
+      return
     }
-  }, [currentTime, isVideoLoaded])
+
+    // Show the video since we have a clip
+    video.style.opacity = '1'
+
+    // Calculate the correct video timestamp based on:
+    // 1. Where we are on the timeline (currentTime)
+    // 2. Where the clip starts on timeline (clip.startTime)
+    // 3. Where the clip's source starts (clip.sourceIn)
+    const timelineOffset = currentTime - clip.startTime // How far into the clip we are
+    const videoTime = (clip.sourceIn + timelineOffset) / 1000 // Convert to seconds
+
+    // Ensure we're within this clip's bounds
+    if (timelineOffset >= 0 && timelineOffset <= clip.duration) {
+      if (Math.abs(video.currentTime - videoTime) > 0.01) {
+        video.currentTime = videoTime
+      }
+
+      // Resume playing if timeline is playing
+      if (isPlaying && video.paused) {
+        video.play().catch(err => console.log('Playback failed:', err))
+      }
+    } else {
+      // We're outside clip bounds - shouldn't happen with getCurrentClip logic
+      video.style.opacity = '0'
+      video.pause()
+    }
+  }, [currentTime, isVideoLoaded, getCurrentClip, isPlaying])
 
   const handlePlayPause = () => {
     isPlaying ? pause() : play()
@@ -417,20 +435,18 @@ export function PreviewArea() {
   }
 
   const handleSkipBack = () => {
-    const video = videoRef.current
-    if (video && isVideoLoaded) {
-      video.currentTime = Math.max(0, video.currentTime - 5)
-      seek(video.currentTime * 1000)
-    }
+    // Skip back 5 seconds on the timeline
+    seek(Math.max(0, currentTime - 5000))
   }
 
   const handleSkipForward = () => {
-    const video = videoRef.current
-    if (video && isVideoLoaded) {
-      video.currentTime = Math.min(video.duration, video.currentTime + 5)
-      seek(video.currentTime * 1000)
-    }
+    // Skip forward 5 seconds on the timeline
+    const maxTime = currentProject?.timeline?.duration || 0
+    seek(Math.min(maxTime, currentTime + 5000))
   }
+
+  // Check if we have a clip at current position
+  const hasClipAtPosition = getCurrentClip() !== null
 
   return (
     <div className="h-full w-full relative flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-primary/5 overflow-hidden">
@@ -462,6 +478,16 @@ export function PreviewArea() {
               {/* Decorative background glow */}
               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-primary/10 blur-3xl opacity-50 pointer-events-none" />
 
+              {/* Show "No Clip" message when playhead is not over any clip */}
+              {!hasClipAtPosition && (
+                <div className="absolute inset-0 flex items-center justify-center z-20 bg-background/80 rounded-xl">
+                  <div className="text-center">
+                    <div className="text-muted-foreground text-lg mb-2">No clip at current position</div>
+                    <div className="text-muted-foreground/60 text-sm">Move the playhead over a clip to see preview</div>
+                  </div>
+                </div>
+              )}
+              
               <video
                 ref={videoRef}
                 className="relative rounded-xl shadow-2xl ring-1 ring-border/20 backdrop-blur-sm"
@@ -470,9 +496,16 @@ export function PreviewArea() {
                 playsInline
                 onTimeUpdate={(e) => {
                   const video = e.target as HTMLVideoElement
-                  const timeInMs = video.currentTime * 1000
-                  if (!isNaN(video.currentTime) && Math.abs(timeInMs - currentTime) > 100) {
-                    seek(timeInMs)
+                  const clip = getCurrentClip()
+                  if (!clip) return
+
+                  // Convert video time back to timeline time
+                  // video.currentTime is in seconds, we need to map it back to timeline position
+                  const videoTimeMs = video.currentTime * 1000
+                  const timelineTime = clip.startTime + (videoTimeMs - clip.sourceIn)
+
+                  if (!isNaN(video.currentTime) && Math.abs(timelineTime - currentTime) > 100) {
+                    seek(timelineTime)
                   }
                 }}
                 onLoadedMetadata={(e) => {
