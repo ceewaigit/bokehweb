@@ -1,4 +1,5 @@
 import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
+import { uIOhook } from 'uiohook-napi'
 
 let mouseTrackingInterval: NodeJS.Timeout | null = null
 let mouseEventSender: WebContents | null = null
@@ -7,6 +8,7 @@ let clickDetectionActive = false
 let clickDetectionInterval: NodeJS.Timeout | null = null
 let lastMousePosition: { x: number; y: number; time: number } | null = null
 let mouseHistory: Array<{ x: number; y: number; time: number }> = []
+let uiohookStarted = false
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -43,7 +45,7 @@ export function registerMouseTrackingHandlers(): void {
       let lastPosition: Electron.Point | null = null
       let lastVelocity = { x: 0, y: 0 }
       let lastTime = Date.now()
-      
+
       mouseTrackingInterval = setInterval(() => {
         if (!isMouseTracking || !mouseEventSender) return
 
@@ -59,20 +61,20 @@ export function registerMouseTrackingHandlers(): void {
             // Calculate velocity and acceleration for smooth interpolation
             let velocity = { x: 0, y: 0 }
             let acceleration = { x: 0, y: 0 }
-            
+
             if (lastPosition && deltaTime > 0) {
               // Calculate velocity (pixels per second)
               velocity = {
                 x: (currentPosition.x - lastPosition.x) / deltaTime,
                 y: (currentPosition.y - lastPosition.y) / deltaTime
               }
-              
+
               // Calculate acceleration for motion blur
               acceleration = {
                 x: (velocity.x - lastVelocity.x) / deltaTime,
                 y: (velocity.y - lastVelocity.y) / deltaTime
               }
-              
+
               // Smooth velocity with exponential moving average
               velocity.x = lastVelocity.x * 0.3 + velocity.x * 0.7
               velocity.y = lastVelocity.y * 0.3 + velocity.y * 0.7
@@ -184,48 +186,62 @@ function startClickDetection(): void {
 
   clickDetectionActive = true
 
-  // Use a polling approach to detect mouse button state changes
-  // This is a workaround since Electron doesn't have native click detection
-  let lastButtonState = false
-  const clickCheckInterval = setInterval(() => {
-    if (!isMouseTracking || !mouseEventSender) {
-      clearInterval(clickCheckInterval)
-      return
-    }
-
-    try {
-      // Check if we can detect button state (this is limited in Electron)
-      // For now, we'll emit synthetic click events based on user interaction
-      // This will be improved with native module in future
-    } catch (error) {
-      console.error('Error in click detection:', error)
-    }
-  }, 50)
-
-  // Register global shortcut for mouse clicks (workaround)
-  // Note: This is limited and won't capture all clicks
-  try {
-    // Emit click events when certain conditions are met
-    // This is a placeholder for proper click detection
-    process.on('message', (msg: any) => {
-      if (msg.type === 'click' && mouseEventSender) {
-        const position = screen.getCursorScreenPoint()
-        mouseEventSender.send('mouse-click', {
-          x: Math.round(position.x),
-          y: Math.round(position.y),
-          timestamp: Date.now()
-        })
-      }
-    })
-  } catch (error) {
-    console.error('Error setting up click detection:', error)
+  // Start uIOhook if not already started
+  if (!uiohookStarted) {
+    uIOhook.start()
+    uiohookStarted = true
+    console.log('🖱️ uIOhook started for native click detection')
   }
+
+  // Register mouse click event handler
+  const handleMouseClick = (e: any) => {
+    if (!isMouseTracking || !mouseEventSender) return
+
+    // Mouse button codes: 1 = left, 2 = right, 3 = middle
+    if (e.button === 1 || e.button === 2 || e.button === 3) {
+      const position = screen.getCursorScreenPoint()
+      mouseEventSender.send('mouse-click', {
+        x: Math.round(position.x),
+        y: Math.round(position.y),
+        timestamp: Date.now(),
+        button: e.button === 1 ? 'left' : e.button === 2 ? 'right' : 'middle'
+      })
+      console.log(`🖱️ Click detected: button=${e.button} at (${position.x}, ${position.y})`)
+    }
+  }
+
+  // Listen for mouse down events (click)
+  uIOhook.on('mousedown', handleMouseClick);
+
+  // Also detect mouse up for complete click tracking
+  uIOhook.on('mouseup', (e: any) => {
+    // Can be used for click duration tracking if needed
+  });
+
+  // Store the handler for cleanup
+  (global as any).mouseClickHandler = handleMouseClick
 
   console.log('🖱️ Click detection started')
 }
 
 function stopClickDetection(): void {
   clickDetectionActive = false
+
+  // Stop uIOhook and remove listeners
+  if (uiohookStarted) {
+    // Remove event listeners
+    if ((global as any).mouseClickHandler) {
+      uIOhook.off('mousedown', (global as any).mouseClickHandler)
+      delete (global as any).mouseClickHandler
+    }
+    uIOhook.removeAllListeners('mouseup')
+
+    // Stop uIOhook
+    uIOhook.stop()
+    uiohookStarted = false
+    console.log('🖱️ uIOhook stopped')
+  }
+
   console.log('🖱️ Click detection stopped')
 }
 

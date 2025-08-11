@@ -91,8 +91,33 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   openProject: async (projectPath) => {
     try {
       const project = await loadProject(projectPath)
+      
+      // Load video files and create blob URLs for preview
+      for (const recording of project.recordings) {
+        if (recording.filePath && window.electronAPI?.readLocalFile) {
+          try {
+            // Read the video file
+            const result = await window.electronAPI.readLocalFile(recording.filePath)
+            if (result && result.success && result.data) {
+              // Create a blob from the file data
+              const videoBlob = new Blob([result.data], { type: 'video/webm' })
+              const blobUrl = globalBlobManager.create(videoBlob, `recording-${recording.id}`)
+              RecordingStorage.setBlobUrl(recording.id, blobUrl)
+              logger.info(`Created blob URL for recording ${recording.id}`)
+            }
+          } catch (error) {
+            logger.error(`Failed to load video file for recording ${recording.id}:`, error)
+          }
+        }
+        
+        // Also restore metadata if available
+        if (recording.metadata) {
+          RecordingStorage.setMetadata(recording.id, recording.metadata)
+        }
+      }
+      
       set({ currentProject: project, selectedClipId: null })
-      logger.info(`Opened project: ${project.name}`)
+      logger.info(`Opened project: ${project.name} with ${project.recordings.length} recordings`)
     } catch (error) {
       logger.error('Failed to open project:', error)
       throw error
