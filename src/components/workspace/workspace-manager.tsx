@@ -4,7 +4,7 @@ import { useCallback, useEffect } from 'react'
 // Recording logic handled by RecordingController component
 import { Toolbar } from '../toolbar'
 import { PreviewArea } from '../preview-area'
-import { TimelineEditor } from '../timeline/timeline-editor'
+import { TimelineCanvas } from '../timeline/timeline-canvas'
 import { EffectsSidebar } from '../effects-sidebar'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
@@ -180,7 +180,7 @@ export function WorkspaceManager() {
             className="flex-shrink-0 border-t bg-card/50"
             style={{ height: `${timelineHeight}px` }}
           >
-            <TimelineEditor className="h-full" />
+            <TimelineCanvas className="h-full" />
           </div>
         </div>
 

@@ -130,7 +130,9 @@ export class ElectronRecorder {
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id
+            chromeMediaSourceId: primarySource.id,
+            // Hide cursor so we can overlay our own custom cursor
+            cursorSize: 0
           }
         }
       }

@@ -72,7 +72,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
   return (
     <div className="h-14 flex items-center px-4 space-x-1">
       {/* Left Section - Project Controls */}
-      <div className="flex items-center space-x-1">
+      <div className="flex items-center space-x-1 flex-shrink-0">
         {/* Logo/Brand */}
         <div className="flex items-center px-3 py-1 mr-2">
           <FileVideo className="w-5 h-5 text-primary mr-2" />
@@ -139,9 +139,9 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
       </div>
 
       {/* Center Section - Playback Controls */}
-      <div className="flex-1 flex items-center justify-center space-x-1">
+      <div className="flex-1 flex items-center justify-center space-x-1 min-w-0">
         {currentProject && (
-          <>
+          <div className="flex items-center space-x-1">
             <Button
               onClick={handleRewind}
               variant="ghost"
@@ -182,7 +182,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
                 {formatTime((currentProject?.timeline?.duration || 0) / 1000)}
               </span>
             </div>
-          </>
+          </div>
         )}
 
         {/* Recording Status */}
@@ -207,7 +207,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
       </div>
 
       {/* Right Section - Export and Settings */}
-      <div className="flex items-center space-x-1">
+      <div className="flex items-center space-x-1 flex-shrink-0">
         {/* Audio Controls */}
         <div className="flex items-center mr-2">
           <Button 

@@ -46,7 +46,7 @@ export class ZoomEngine {
   // Simplified Screen Studio-style thresholds
   private readonly LINGER_THRESHOLD = 500 // ms - cursor stays in area to trigger zoom
   private readonly MOVEMENT_THRESHOLD = 100 // pixels - movement that breaks linger
-  private readonly ZOOM_OUT_DELAY = 800 // ms - delay before zooming out
+  private readonly ZOOM_OUT_DELAY = 400 // ms - faster zoom out when idle
   private readonly ZOOM_SCALE = 1.6 // Fixed zoom level (Screen Studio uses ~1.5-2x)
   private readonly DEAD_ZONE = 50 // pixels - ignore small movements within this radius
 
@@ -60,10 +60,10 @@ export class ZoomEngine {
   }
 
   // Smoothing constants for professional camera movement
-  private readonly BASE_SMOOTH_FACTOR = 0.08 // Base smoothing (lower = smoother)
-  private readonly VELOCITY_DAMPING = 0.85 // Velocity decay
-  private readonly PREDICTION_WEIGHT = 0.2 // How much to use velocity prediction
-  private readonly ZOOM_SMOOTH_BOOST = 1.5 // Increase responsiveness when zoomed
+  private readonly BASE_SMOOTH_FACTOR = 0.12 // Increased for more responsive tracking
+  private readonly VELOCITY_DAMPING = 0.9 // Higher damping for smoother movement
+  private readonly PREDICTION_WEIGHT = 0.15 // Slightly less prediction to avoid overshooting
+  private readonly ZOOM_SMOOTH_BOOST = 2.0 // More responsive when zoomed to keep mouse in view
 
   constructor(private options: ZoomOptions = {}) {
     this.options = {
@@ -228,15 +228,17 @@ export class ZoomEngine {
       return { x: 0.5, y: 0.5, scale: 1 }
     }
 
-    // Find the mouse position at this timestamp with interpolation
+    // CRITICAL FIX: Always follow the actual mouse position when zoomed
+    // This is what makes the camera track the mouse properly
     const mousePos = this.getInterpolatedMousePosition(timestamp)
     
-    // Apply low-pass filtering with zoom-aware smoothing
+    // Apply smoothing for professional camera movement
+    // The smoothing prevents jarring movements while keeping the mouse in view
     const smoothedPos = this.applyCameraSmoothing(mousePos, scale, timestamp)
 
     return {
-      x: smoothedPos.x,
-      y: smoothedPos.y,
+      x: smoothedPos.x,  // Follow the actual smoothed mouse position
+      y: smoothedPos.y,  // Not a fixed keyframe position
       scale: scale
     }
   }
