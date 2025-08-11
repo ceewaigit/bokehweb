@@ -395,7 +395,7 @@ export function PreviewArea() {
       video.removeEventListener('loadedmetadata', handleMetadataLoaded)
       video.removeEventListener('loadeddata', handleMetadataLoaded)
     }
-  }, [isVideoLoaded, showZoom, getMetadata, projectRecording?.duration, firstRecording?.duration, showCrop, isPlaying])
+  }, [isVideoLoaded, showZoom, getMetadata, projectRecording?.duration, firstRecording?.duration, showCrop])
 
   // Set up cursor rendering when video loads
   useEffect(() => {
