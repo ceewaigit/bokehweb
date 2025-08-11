@@ -146,20 +146,46 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           recordingsList.push(recording)
         }
 
+        // Remove duplicates - files with same timestamp (within 2 seconds) are considered duplicates
+        // Prefer the one with simpler name (without ISO format)
+        console.log(`📋 Found ${recordingsList.length} total projects, checking for duplicates...`)
+        const uniqueRecordings = recordingsList.reduce((acc: Recording[], current) => {
+          const duplicate = acc.find(r => 
+            Math.abs(r.timestamp.getTime() - current.timestamp.getTime()) < 2000 && // Within 2 seconds
+            r.project?.recordings?.[0]?.filePath === current.project?.recordings?.[0]?.filePath // Same video file
+          )
+          
+          if (!duplicate) {
+            acc.push(current)
+          } else if (duplicate.name.includes('T') && !current.name.includes('T')) {
+            // Replace ISO format with simpler format
+            const index = acc.indexOf(duplicate)
+            acc[index] = current
+          }
+          
+          return acc
+        }, [])
+
+        console.log(`✅ After deduplication: ${uniqueRecordings.length} unique projects`)
+
         // Sort by timestamp, newest first
-        recordingsList.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-        setRecordings(recordingsList)
+        uniqueRecordings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        setRecordings(uniqueRecordings)
         
         // Generate thumbnails asynchronously and update state as they complete
-        recordingsList.forEach(async (recording, index) => {
+        uniqueRecordings.forEach(async (recording) => {
           if (recording.project?.recordings?.[0]?.filePath && !recording.thumbnailUrl) {
             try {
               await generateThumbnail(recording, recording.project.recordings[0].filePath)
               // Update state with thumbnail
               setRecordings(prev => {
-                const updated = [...prev]
-                updated[index] = { ...recording }
-                return updated
+                const index = prev.findIndex(r => r.path === recording.path)
+                if (index !== -1) {
+                  const updated = [...prev]
+                  updated[index] = { ...recording }
+                  return updated
+                }
+                return prev
               })
             } catch (error) {
               console.error('Failed to generate thumbnail for', recording.name, error)

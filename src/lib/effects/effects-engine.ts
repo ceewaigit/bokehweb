@@ -39,15 +39,15 @@ export class EffectsEngine {
   private videoHeight: number = 1080
 
   // Detection thresholds - zoom on ACTIVITY (movement/clicks), zoom out on IDLE
-  private readonly ACTIVITY_THRESHOLD = 40 // pixels - movement that triggers zoom
-  private readonly IDLE_TIMEOUT = 1500 // ms - time without activity before zoom out
-  private readonly ZOOM_SCALE = 2.0 // Default zoom level
-  private readonly INTRO_DURATION = 400 // ms (smooth zoom in)
-  private readonly OUTRO_DURATION = 600 // ms (smooth zoom out)  
-  private readonly MIN_ZOOM_DURATION = 2000 // ms - minimum duration for a zoom effect
+  private readonly ACTIVITY_THRESHOLD = 30 // pixels - movement that triggers zoom
+  private readonly IDLE_TIMEOUT = 800 // ms - time without activity before zoom out (reduced)
+  private readonly ZOOM_SCALE = 1.8 // Default zoom level (slightly less aggressive)
+  private readonly INTRO_DURATION = 300 // ms (faster zoom in)
+  private readonly OUTRO_DURATION = 400 // ms (faster zoom out)  
+  private readonly MIN_ZOOM_DURATION = 1000 // ms - minimum duration (reduced to catch more zooms)
 
   // Debug mode
-  private debugMode = true // Enable extensive logging
+  private debugMode = false // Disable for production
 
   constructor() { }
 
@@ -370,7 +370,7 @@ export class EffectsEngine {
       }
     }
 
-    if (this.debugMode && timestamp % 1000 < 50) { // Log every second
+    if (this.debugMode && timestamp % 5000 < 50) { // Log every 5 seconds
       console.log(`🎬 ACTIVE ZOOM at ${(timestamp / 1000).toFixed(1)}s:`, {
         effectId: activeZoom.id,
         phase: timestamp < activeZoom.startTime + activeZoom.params.introMs ? 'intro' :
@@ -531,7 +531,7 @@ export class EffectsEngine {
     const centerErrorX = Math.abs(actualCenterX - centerX)
     const centerErrorY = Math.abs(actualCenterY - centerY)
 
-    if (this.debugMode && Math.random() < 0.02) { // Log occasionally
+    if (this.debugMode && Math.random() < 0.001) { // Log very rarely
       console.log(`📐 ZOOM RENDER:`, {
         zoomParams: `(${zoom.x.toFixed(3)}, ${zoom.y.toFixed(3)}) @ ${zoom.scale.toFixed(2)}x`,
         sourceSize: `${sourceWidth}x${sourceHeight}`,

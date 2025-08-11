@@ -18,6 +18,7 @@ export function PreviewArea() {
   const cursorRendererRef = useRef<CursorRenderer | null>(null)
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const effectsEngineRef = useRef<EffectsEngine | null>(null)
+  const effectsInitializedRef = useRef<string | null>(null) // Track what we initialized with
   const workAreaCropperRef = useRef<WorkAreaCropper | null>(null)
   const cropCanvasRef = useRef<HTMLCanvasElement>(null)
   const animationFrameRef = useRef<number | null>(null)
@@ -215,33 +216,44 @@ export function PreviewArea() {
         videoRef.current.style.display = 'block'
       }
       console.log('🔍 Zoom disabled or no metadata - showing video directly')
+      effectsEngineRef.current = null
+      effectsInitializedRef.current = null
       return
     }
 
-    // Create zoom engine and generate keyframes
     const video = videoRef.current
-    const engine = new EffectsEngine()
-
-    // Use a reasonable duration fallback for zoom calculation
     const recording = projectRecording || firstRecording
     const totalDurationMs = Number.isFinite(video.duration) && video.duration > 0
       ? (video.duration * 1000)
       : (recording?.duration || metadata[metadata.length - 1]?.timestamp || 10000)
 
-    // Initialize effects engine with metadata - one line!
-    engine.initializeFromMetadata(metadata, totalDurationMs, video.videoWidth || 1920, video.videoHeight || 1080)
+    // Create a unique key for this configuration
+    const configKey = `${metadata.length}-${totalDurationMs}-${video.videoWidth}x${video.videoHeight}`
     
-    const effectCount = engine.getEffects().length
-    const effects = engine.getEffects()
-    console.log(`🔍 Effects engine initialized with ${metadata.length} events, detected ${effectCount} zoom effects`)
-    if (effectCount > 0) {
-      console.log('📊 Zoom effects timeline:', effects.map((e: any) => ({
-        start: `${(e.startTime/1000).toFixed(1)}s`,
-        end: `${(e.endTime/1000).toFixed(1)}s`,
-        target: `(${e.params.targetX.toFixed(2)}, ${e.params.targetY.toFixed(2)})`
-      })))
+    // Only re-initialize if configuration changed
+    if (effectsInitializedRef.current !== configKey) {
+      console.log('🔍 Initializing effects engine (config changed)...')
+      const engine = new EffectsEngine()
+      
+      // This is expensive - only do it once per video/metadata combination!
+      engine.initializeFromMetadata(metadata, totalDurationMs, video.videoWidth || 1920, video.videoHeight || 1080)
+      
+      const effectCount = engine.getEffects().length
+      const effects = engine.getEffects()
+      console.log(`✅ Effects engine initialized ONCE with ${metadata.length} events, detected ${effectCount} zoom effects`)
+      if (effectCount > 0) {
+        console.log('📊 Zoom effects timeline:', effects.map((e: any) => ({
+          start: `${(e.startTime/1000).toFixed(1)}s`,
+          end: `${(e.endTime/1000).toFixed(1)}s`,
+          target: `(${e.params.targetX.toFixed(2)}, ${e.params.targetY.toFixed(2)})`
+        })))
+      }
+      
+      effectsEngineRef.current = engine
+      effectsInitializedRef.current = configKey
+    } else {
+      console.log('🔍 Effects engine already initialized, reusing...')
     }
-    effectsEngineRef.current = engine
 
     // Create or update zoom canvas
     let zoomCanvas = zoomCanvasRef.current
@@ -271,8 +283,12 @@ export function PreviewArea() {
     // Helper to draw current frame even when paused
     let frameCount = 0
     const drawCurrentFrame = () => {
+      // Use the ref to get the current engine
+      const currentEngine = effectsEngineRef.current
+      if (!currentEngine) return
+      
       const tMs = isFinite(video.duration) && video.currentTime > 0 ? (video.currentTime * 1000) : 0
-      const effectState = engine.getEffectState(tMs)
+      const effectState = currentEngine.getEffectState(tMs)
       
       // Log every 30 frames (about once per second at 30fps)
       if (frameCount++ % 30 === 0 && effectState.zoom.scale > 1.0) {
@@ -285,36 +301,64 @@ export function PreviewArea() {
         const tempCanvas = document.createElement('canvas')
         workAreaCropperRef.current.cropFrame(video, tempCanvas)
         // Apply zoom to the cropped frame
-        engine.applyZoomToCanvas(ctx, tempCanvas as any, effectState.zoom)
+        currentEngine.applyZoomToCanvas(ctx, tempCanvas as any, effectState.zoom)
       } else {
         // Apply zoom directly to video
-        engine.applyZoomToCanvas(ctx, video, effectState.zoom)
+        currentEngine.applyZoomToCanvas(ctx, video, effectState.zoom)
       }
     }
 
-    // Render loop (always draw to avoid black canvas when paused)
+    // Smart render loop - only render when playing or when time changes
+    let lastRenderedTime = -1
     const renderFrame = () => {
-      drawCurrentFrame()
-      animationFrameRef.current = requestAnimationFrame(renderFrame)
+      // Only render if playing OR if time changed
+      if (isPlaying || video.currentTime !== lastRenderedTime) {
+        drawCurrentFrame()
+        lastRenderedTime = video.currentTime
+      }
+      
+      // Only continue loop if playing
+      if (isPlaying) {
+        animationFrameRef.current = requestAnimationFrame(renderFrame)
+      }
     }
 
     // Ensure we draw immediately on load, even at t=0
     const initializeCanvas = () => {
+      // Use the ref to get the current engine
+      const currentEngine = effectsEngineRef.current
+      if (!currentEngine) return
+      
       // Set initial time to 0 to ensure we start with zoom effects
-      const initialState = engine.getEffectState(0)
-      engine.applyZoomToCanvas(ctx, video, initialState.zoom)
+      const initialState = currentEngine.getEffectState(0)
+      currentEngine.applyZoomToCanvas(ctx, video, initialState.zoom)
     }
 
-    // Initial draw and start render loop
+    // Initial draw
     initializeCanvas()
-    renderFrame()
+    
+    // Start render loop only if playing
+    if (isPlaying) {
+      renderFrame()
+    }
+    
+    // Listen for time updates to render on seek
+    const handleTimeUpdate = () => {
+      if (!isPlaying) {
+        drawCurrentFrame()
+      }
+    }
+    video.addEventListener('timeupdate', handleTimeUpdate)
+    video.addEventListener('seeked', handleTimeUpdate)
 
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
       }
+      video.removeEventListener('timeupdate', handleTimeUpdate)
+      video.removeEventListener('seeked', handleTimeUpdate)
     }
-  }, [isVideoLoaded, showZoom, getMetadata, projectRecording?.duration, firstRecording?.duration, showCrop])
+  }, [isVideoLoaded, showZoom, getMetadata, projectRecording?.duration, firstRecording?.duration, showCrop, isPlaying])
 
   // Set up cursor rendering when video loads
   useEffect(() => {
