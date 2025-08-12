@@ -269,10 +269,8 @@ export class EffectsEngine {
         const zoomEnd = lastActivityTime + 300 // Quick fade after last activity
 
         if (zoomEnd - currentZoomStart >= this.MIN_ZOOM_DURATION) {
-          // Find the event that started this zoom to get its screen dimensions
-          const startEvent = events.find(e => e.timestamp === currentZoomStart) || events[i]
-          const screenW = startEvent.screenWidth || videoWidth
-          const screenH = startEvent.screenHeight || videoHeight
+          // Mouse coordinates are in video space, so normalize using video dimensions
+          // NOT screen dimensions (which might be different)
           
           const zoomEffect: ZoomEffect = {
             id: `zoom-${currentZoomStart}`,
@@ -280,8 +278,8 @@ export class EffectsEngine {
             startTime: currentZoomStart,
             endTime: zoomEnd,
             params: {
-              targetX: initialZoomX / screenW,
-              targetY: initialZoomY / screenH,
+              targetX: initialZoomX / videoWidth,
+              targetY: initialZoomY / videoHeight,
               scale: this.ZOOM_SCALE,
               introMs: this.INTRO_DURATION,
               outroMs: this.OUTRO_DURATION
@@ -314,10 +312,7 @@ export class EffectsEngine {
       const zoomEnd = Math.min(lastActivityTime + 300, videoDuration)
       
       if (zoomEnd - currentZoomStart >= this.MIN_ZOOM_DURATION) {
-        // Find the event that started this zoom to get its screen dimensions
-        const startEvent = events.find(e => e.timestamp === currentZoomStart) || events[events.length - 1]
-        const screenW = startEvent.screenWidth || videoWidth
-        const screenH = startEvent.screenHeight || videoHeight
+        // Mouse coordinates are in video space, so normalize using video dimensions
         
         const zoomEffect: ZoomEffect = {
           id: `zoom-final-${currentZoomStart}`,
@@ -325,8 +320,8 @@ export class EffectsEngine {
           startTime: currentZoomStart,
           endTime: zoomEnd,
           params: {
-            targetX: initialZoomX / screenW,
-            targetY: initialZoomY / screenH,
+            targetX: initialZoomX / videoWidth,
+            targetY: initialZoomY / videoHeight,
             scale: this.ZOOM_SCALE,
             introMs: this.INTRO_DURATION,
             outroMs: this.OUTRO_DURATION
@@ -440,6 +435,9 @@ export class EffectsEngine {
 
       if (this.debugMode && elapsed % 50 < 10) {
         console.log(`  📍 INTRO: progress=${progress.toFixed(2)}, eased=${eased.toFixed(2)}, scale=${scale.toFixed(2)}`)
+        console.log(`     Zooming TO target: (${activeZoom.params.targetX.toFixed(3)}, ${activeZoom.params.targetY.toFixed(3)})`)
+        console.log(`     Current camera: (${x.toFixed(3)}, ${y.toFixed(3)})`)
+        console.log(`     Current mouse: (${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)})`)
       }
     }
     // Outro phase - zoom out to center
@@ -690,15 +688,21 @@ export class EffectsEngine {
         mouseScreenX = (mouseInExtractX / zoomWidth) * width
         mouseScreenY = (mouseInExtractY / zoomHeight) * height
         
-        // During perfect tracking, mouse should be at center
-        // Log if there's a discrepancy
+        // During zoom, check if mouse is where we expect
+        // During TRACKING, mouse should be at center
+        // During INTRO/OUTRO, it might not be
         const expectedCenterX = width / 2
         const expectedCenterY = height / 2
+        
+        // Only expect mouse at center if zoom center matches mouse position
+        const zoomMatchesMouse = Math.abs(zoom.x - mousePos.x) < 0.01 && Math.abs(zoom.y - mousePos.y) < 0.01
+        
         const errorX = Math.abs(mouseScreenX - expectedCenterX)
         const errorY = Math.abs(mouseScreenY - expectedCenterY)
         
-        if (this.debugMode && errorX > 10 || errorY > 10) {
+        if (this.debugMode && zoomMatchesMouse && (errorX > 10 || errorY > 10)) {
           console.log(`🔴 Mouse position error: mouse at (${mouseScreenX.toFixed(0)}, ${mouseScreenY.toFixed(0)}) should be at center (${expectedCenterX}, ${expectedCenterY})`)
+          console.log(`   Zoom center: (${zoom.x.toFixed(3)}, ${zoom.y.toFixed(3)}), Mouse: (${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)})`)
         }
       }
 
