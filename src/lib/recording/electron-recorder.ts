@@ -454,7 +454,10 @@ export class ElectronRecorder {
           mouseX: data.x,
           mouseY: data.y,
           eventType: 'mouse',
-          velocity
+          velocity,
+          // Add screen dimensions for proper coordinate normalization
+          screenWidth: this.captureArea?.fullBounds?.width || screen.width,
+          screenHeight: this.captureArea?.fullBounds?.height || screen.height
         })
 
         // Update last position
@@ -472,7 +475,10 @@ export class ElectronRecorder {
           timestamp,
           mouseX: data.x,
           mouseY: data.y,
-          eventType: 'click'
+          eventType: 'click',
+          // Add screen dimensions for proper coordinate normalization
+          screenWidth: this.captureArea?.fullBounds?.width || screen.width,
+          screenHeight: this.captureArea?.fullBounds?.height || screen.height
         })
 
         // Update position on click (important events)
@@ -489,7 +495,10 @@ export class ElectronRecorder {
           mouseX: data.x || this.lastMouseX,
           mouseY: data.y || this.lastMouseY,
           eventType: 'scroll',
-          scrollDelta: { x: data.deltaX || 0, y: data.deltaY || 0 }
+          scrollDelta: { x: data.deltaX || 0, y: data.deltaY || 0 },
+          // Add screen dimensions for proper coordinate normalization
+          screenWidth: this.captureArea?.fullBounds?.width || screen.width,
+          screenHeight: this.captureArea?.fullBounds?.height || screen.height
         })
       }
     }
