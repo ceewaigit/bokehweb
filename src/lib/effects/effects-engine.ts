@@ -48,7 +48,7 @@ export class EffectsEngine {
   private readonly MERGE_GAP = 1500 // ms - merge zooms if gap is less than this
 
   // Debug mode
-  private debugMode = false // Disable for production
+  private debugMode = true // Disable for production
 
   constructor() { }
 
@@ -474,18 +474,26 @@ export class EffectsEngine {
       }
     }
 
-    // Clamp camera position to keep video content visible
-    // This prevents showing empty space outside the video
-    const viewportSize = 1 / scale
-    const halfViewport = viewportSize / 2
-    
-    // Ensure we don't go beyond video bounds
-    x = Math.max(halfViewport, Math.min(1 - halfViewport, x))
-    y = Math.max(halfViewport, Math.min(1 - halfViewport, y))
+    // NO CLAMPING! Allow camera to go outside video bounds
+    // This lets us always center on the mouse, showing background when needed
     
     if (this.debugMode && timestamp % 100 < 50) {
+      const viewportSize = 1 / scale
       console.log(`  📷 CAMERA: pos=(${x.toFixed(3)}, ${y.toFixed(3)}), scale=${scale.toFixed(2)}`)
-      console.log(`     Viewport: ${viewportSize.toFixed(3)}, bounds: [${halfViewport.toFixed(3)}, ${(1-halfViewport).toFixed(3)}]`)
+      
+      // Check if we're showing area outside the video
+      const halfViewport = viewportSize / 2
+      const showingLeftEdge = x - halfViewport < 0
+      const showingRightEdge = x + halfViewport > 1
+      const showingTopEdge = y - halfViewport < 0
+      const showingBottomEdge = y + halfViewport > 1
+      
+      if (showingLeftEdge || showingRightEdge || showingTopEdge || showingBottomEdge) {
+        console.log(`     🖼️ Showing background: ${
+          [showingLeftEdge && 'LEFT', showingRightEdge && 'RIGHT', 
+           showingTopEdge && 'TOP', showingBottomEdge && 'BOTTOM'].filter(Boolean).join(', ')
+        }`)
+      }
     }
 
     return {
@@ -520,12 +528,12 @@ export class EffectsEngine {
       const progress = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
       const smoothProgress = easeInOutQuad(Math.min(1, Math.max(0, progress)))
 
-      // Normalize using the screen dimensions from the recording, not video dimensions
-      // This ensures correct mapping when screen resolution differs from video output
-      const beforeX = before.x / (before.screenWidth || this.videoWidth)
-      const beforeY = before.y / (before.screenHeight || this.videoHeight)
-      const afterX = after.x / (after.screenWidth || this.videoWidth)
-      const afterY = after.y / (after.screenHeight || this.videoHeight)
+      // ALWAYS normalize using video dimensions for consistent coordinate space
+      // The mouse coordinates are in video pixel space, not screen space
+      const beforeX = before.x / this.videoWidth
+      const beforeY = before.y / this.videoHeight
+      const afterX = after.x / this.videoWidth
+      const afterY = after.y / this.videoHeight
       
       // Debug log to check coordinate normalization
       if (this.debugMode && Math.random() < 0.01) {
@@ -546,15 +554,15 @@ export class EffectsEngine {
     // Use nearest event
     if (before) {
       return {
-        x: before.x / (before.screenWidth || this.videoWidth),
-        y: before.y / (before.screenHeight || this.videoHeight)
+        x: before.x / this.videoWidth,
+        y: before.y / this.videoHeight
       }
     }
 
     if (after) {
       return {
-        x: after.x / (after.screenWidth || this.videoWidth),
-        y: after.y / (after.screenHeight || this.videoHeight)
+        x: after.x / this.videoWidth,
+        y: after.y / this.videoHeight
       }
     }
 
@@ -590,9 +598,7 @@ export class EffectsEngine {
     let sx = centerX - (zoomWidth / 2)
     let sy = centerY - (zoomHeight / 2)
 
-    // Clamp to ensure we stay within video bounds
-    sx = Math.max(0, Math.min(sourceWidth - zoomWidth, sx))
-    sy = Math.max(0, Math.min(sourceHeight - zoomHeight, sy))
+    // DON'T clamp! Allow showing outside bounds (will be handled in drawing)
 
     // Verify centering accuracy
     const actualCenterX = sx + (zoomWidth / 2)
@@ -623,19 +629,40 @@ export class EffectsEngine {
       }
     }
 
-    // Clear the canvas
-    ctx.clearRect(0, 0, width, height)
+    // Only fill background if we're showing area outside the video
+    if (sx < 0 || sy < 0 || sx + zoomWidth > sourceWidth || sy + zoomHeight > sourceHeight) {
+      // Fill with a dark background where video doesn't exist
+      ctx.fillStyle = '#1a1a1a'
+      ctx.fillRect(0, 0, width, height)
+    } else {
+      // Just clear for better performance when fully in bounds
+      ctx.clearRect(0, 0, width, height)
+    }
+    
+    // Calculate the actual region to draw (clipped to source bounds)
+    let actualSx = Math.max(0, sx)
+    let actualSy = Math.max(0, sy)
+    let actualSWidth = Math.min(sourceWidth - actualSx, zoomWidth - (actualSx - sx))
+    let actualSHeight = Math.min(sourceHeight - actualSy, zoomHeight - (actualSy - sy))
+    
+    // Calculate where to draw on the destination canvas
+    let dx = sx < 0 ? (-sx / zoomWidth) * width : 0
+    let dy = sy < 0 ? (-sy / zoomHeight) * height : 0
+    let dWidth = (actualSWidth / zoomWidth) * width
+    let dHeight = (actualSHeight / zoomHeight) * height
     
     // Use medium quality for better performance during playback
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'medium'
     
-    // Draw the zoomed region to fill the entire canvas
-    ctx.drawImage(
-      source as CanvasImageSource,
-      sx, sy, zoomWidth, zoomHeight,  // Source rectangle
-      0, 0, width, height              // Destination (full canvas)
-    )
+    // Only draw if there's something to draw
+    if (actualSWidth > 0 && actualSHeight > 0) {
+      ctx.drawImage(
+        source as CanvasImageSource,
+        actualSx, actualSy, actualSWidth, actualSHeight,
+        dx, dy, dWidth, dHeight
+      )
+    }
 
     // Draw debug overlay if zoom is active
     if (this.debugMode && zoom.scale > 1.0) {
