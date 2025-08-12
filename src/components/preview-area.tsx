@@ -321,19 +321,34 @@ export function PreviewArea() {
         return
       }
       
+      // Get the current clip to calculate proper video time
+      const clip = getCurrentClip()
+      
       // Get the current time from the ref which is always up-to-date
-      // Don't use video.currentTime as it might be wrong during timeline playback
       const timelineTimeMs = currentTimeRef.current
       
-      // Use forced time if provided, otherwise use timeline time
-      const tMs = forceTime !== undefined ? forceTime : timelineTimeMs
-      const effectState = currentEngine.getEffectState(tMs)
+      // Convert timeline time to video time for proper mouse event alignment
+      let videoTimeMs: number
+      if (forceTime !== undefined) {
+        // Use forced time directly (already in video time)
+        videoTimeMs = forceTime
+      } else if (clip) {
+        // Calculate video time from timeline position
+        // This ensures mouse events align with the actual video position
+        const timelineOffset = timelineTimeMs - clip.startTime
+        videoTimeMs = clip.sourceIn + timelineOffset
+      } else {
+        // No clip, use timeline time as fallback
+        videoTimeMs = timelineTimeMs
+      }
+      
+      const effectState = currentEngine.getEffectState(videoTimeMs)
       
       // Only log in development
       if (process.env.NODE_ENV === 'development' && frameCount++ % 120 === 0) {
         const effects = currentEngine.getEffects()
-        const activeEffect = effects.find((e: any) => tMs >= e.startTime && tMs <= e.endTime)
-        console.log(`🎬 Frame ${frameCount}: t=${(tMs/1000).toFixed(1)}s, zoom=${effectState.zoom.scale.toFixed(2)}x, active effect: ${activeEffect ? activeEffect.id : 'NONE'}`)
+        const activeEffect = effects.find((e: any) => videoTimeMs >= e.startTime && videoTimeMs <= e.endTime)
+        console.log(`🎬 Frame ${frameCount}: t=${(videoTimeMs/1000).toFixed(1)}s (timeline=${(timelineTimeMs/1000).toFixed(1)}s), zoom=${effectState.zoom.scale.toFixed(2)}x, active effect: ${activeEffect ? activeEffect.id : 'NONE'}`)
       }
 
       // Apply cropping first if needed
@@ -341,11 +356,11 @@ export function PreviewArea() {
         // Create a temporary canvas for cropped frame
         const tempCanvas = document.createElement('canvas')
         workAreaCropperRef.current.cropFrame(video, tempCanvas)
-        // Apply zoom to the cropped frame with current time for mouse tracking
-        currentEngine.applyZoomToCanvas(ctx, tempCanvas as any, effectState.zoom, tMs)
+        // Apply zoom to the cropped frame with correct video time for mouse tracking
+        currentEngine.applyZoomToCanvas(ctx, tempCanvas as any, effectState.zoom, videoTimeMs)
       } else {
-        // Apply zoom directly to video with current time for mouse tracking
-        currentEngine.applyZoomToCanvas(ctx, video, effectState.zoom, tMs)
+        // Apply zoom directly to video with correct video time for mouse tracking
+        currentEngine.applyZoomToCanvas(ctx, video, effectState.zoom, videoTimeMs)
       }
     }
 
@@ -356,7 +371,8 @@ export function PreviewArea() {
       
       // Only draw if time has actually changed (avoid rendering same frame multiple times)
       if (Math.abs(currentTime - lastRenderedTime) > 0.001) {  // 1ms threshold
-        drawCurrentFrame()
+        // Pass the actual video time in milliseconds  
+        drawCurrentFrame(currentTime * 1000)
         lastRenderedTime = currentTime
       }
       
@@ -370,10 +386,10 @@ export function PreviewArea() {
       const currentEngine = effectsEngineRef.current
       if (!currentEngine) return
       
-      // Use current video time, not always 0
-      const currentTimeMs = video.currentTime * 1000
-      const initialState = currentEngine.getEffectState(currentTimeMs)
-      currentEngine.applyZoomToCanvas(ctx, video, initialState.zoom, currentTimeMs)
+      // Use current video time directly (video.currentTime is already correct here)
+      const currentVideoTimeMs = video.currentTime * 1000
+      const initialState = currentEngine.getEffectState(currentVideoTimeMs)
+      currentEngine.applyZoomToCanvas(ctx, video, initialState.zoom, currentVideoTimeMs)
       
       // Initial draw complete
     }
@@ -403,22 +419,24 @@ export function PreviewArea() {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
       }
-      // Draw one final frame when paused
-      drawCurrentFrame()
+      // Draw one final frame when paused with current video time
+      drawCurrentFrame(video.currentTime * 1000)
     }
     
     // Listen for time updates to render on seek
     const handleTimeUpdate = () => {
       // Always draw on time update when not playing
       if (!isCurrentlyPlaying) {
-        drawCurrentFrame()
+        // Pass the actual video time in milliseconds
+        drawCurrentFrame(video.currentTime * 1000)
       }
     }
     
     // Also handle loadedmetadata to ensure we draw when video is ready
     const handleMetadataLoaded = () => {
       console.log('📹 Video metadata loaded, drawing initial frame')
-      drawCurrentFrame()
+      // Pass the actual video time in milliseconds
+      drawCurrentFrame(video.currentTime * 1000)
     }
     
     video.addEventListener('play', handlePlay)
