@@ -449,20 +449,37 @@ export class ElectronRecorder {
           }
         }
 
+        // Transform logical pixels to video coordinate space
+        // data.x/y are in logical pixels, we need to map to video space
+        let transformedX = data.x
+        let transformedY = data.y
+        
+        // If we have display bounds from the mouse event, use them
+        if (data.displayBounds && data.scaleFactor) {
+          // Convert logical pixels to physical pixels
+          transformedX = data.x * data.scaleFactor
+          transformedY = data.y * data.scaleFactor
+        } else if (this.captureArea?.scaleFactor) {
+          // Fallback to capture area scale factor
+          transformedX = data.x * this.captureArea.scaleFactor
+          transformedY = data.y * this.captureArea.scaleFactor
+        }
+        
         this.metadata.push({
           timestamp,
-          mouseX: data.x,
-          mouseY: data.y,
+          mouseX: transformedX,
+          mouseY: transformedY,
           eventType: 'mouse',
           velocity,
-          // Add screen dimensions for proper coordinate normalization
-          screenWidth: this.captureArea?.fullBounds?.width || screen.width,
-          screenHeight: this.captureArea?.fullBounds?.height || screen.height
+          // Store the logical screen dimensions for reference
+          screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
+          screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
+          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
-        // Update last position
-        this.lastMouseX = data.x
-        this.lastMouseY = data.y
+        // Update last position (use transformed coordinates for consistency)
+        this.lastMouseX = transformedX
+        this.lastMouseY = transformedY
         this.lastMouseTime = now
       }
     }
@@ -471,19 +488,32 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
+        // Transform logical pixels to video coordinate space
+        let transformedX = data.x
+        let transformedY = data.y
+        
+        if (data.displayBounds && data.scaleFactor) {
+          transformedX = data.x * data.scaleFactor
+          transformedY = data.y * data.scaleFactor
+        } else if (this.captureArea?.scaleFactor) {
+          transformedX = data.x * this.captureArea.scaleFactor
+          transformedY = data.y * this.captureArea.scaleFactor
+        }
+        
         this.metadata.push({
           timestamp,
-          mouseX: data.x,
-          mouseY: data.y,
+          mouseX: transformedX,
+          mouseY: transformedY,
           eventType: 'click',
-          // Add screen dimensions for proper coordinate normalization
-          screenWidth: this.captureArea?.fullBounds?.width || screen.width,
-          screenHeight: this.captureArea?.fullBounds?.height || screen.height
+          // Store the logical screen dimensions for reference
+          screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
+          screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
+          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
-        // Update position on click (important events)
-        this.lastMouseX = data.x
-        this.lastMouseY = data.y
+        // Update position on click (use transformed coordinates)
+        this.lastMouseX = transformedX
+        this.lastMouseY = transformedY
         this.lastMouseTime = Date.now()
       }
     }

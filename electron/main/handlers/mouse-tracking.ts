@@ -55,6 +55,10 @@ export function registerMouseTrackingHandlers(): void {
             lastPosition.x !== currentPosition.x ||
             lastPosition.y !== currentPosition.y) {
 
+            // Get the display to find out the screen bounds
+            const currentDisplay = screen.getDisplayNearestPoint(currentPosition)
+            const scaleFactor = currentDisplay.scaleFactor || 1
+            
             // Calculate velocity and acceleration for smooth interpolation
             let velocity = { x: 0, y: 0 }
             let acceleration = { x: 0, y: 0 }
@@ -77,11 +81,15 @@ export function registerMouseTrackingHandlers(): void {
               velocity.y = lastVelocity.y * 0.3 + velocity.y * 0.7
             }
 
-            // Track mouse position for click detection
+            // Send position in LOGICAL pixels with scale factor
+            // The recording side will decide how to transform based on video resolution
             const positionData = {
               x: Math.round(currentPosition.x * 100) / 100, // Sub-pixel precision
               y: Math.round(currentPosition.y * 100) / 100,
-              time: now
+              time: now,
+              // Include display info for proper coordinate transformation
+              displayBounds: currentDisplay.bounds,
+              scaleFactor: scaleFactor
             }
 
             // Update mouse history for velocity analysis
@@ -105,7 +113,9 @@ export function registerMouseTrackingHandlers(): void {
               y: positionData.y,
               timestamp: now,
               velocity,
-              acceleration
+              acceleration,
+              displayBounds: positionData.displayBounds,
+              scaleFactor: positionData.scaleFactor
             } as MousePosition)
 
             lastPosition = currentPosition
