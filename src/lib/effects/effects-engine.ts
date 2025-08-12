@@ -427,16 +427,16 @@ export class EffectsEngine {
     let x: number
     let y: number
 
-    // Intro phase - zoom in FAST to mouse position
+    // Intro phase - zoom in FAST to TARGET position (not current mouse)
     if (elapsed < activeZoom.params.introMs) {
       const progress = elapsed / activeZoom.params.introMs
       const eased = easeOutExpo(progress)
 
       scale = 1.0 + (activeZoom.params.scale - 1.0) * eased
 
-      // Immediately pan to mouse position
-      x = 0.5 + (mousePos.x - 0.5) * eased
-      y = 0.5 + (mousePos.y - 0.5) * eased
+      // Pan from center to the TARGET position (where zoom was triggered)
+      x = 0.5 + (activeZoom.params.targetX - 0.5) * eased
+      y = 0.5 + (activeZoom.params.targetY - 0.5) * eased
 
       if (this.debugMode && elapsed % 50 < 10) {
         console.log(`  📍 INTRO: progress=${progress.toFixed(2)}, eased=${eased.toFixed(2)}, scale=${scale.toFixed(2)}`)
@@ -528,12 +528,12 @@ export class EffectsEngine {
       const progress = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
       const smoothProgress = easeInOutQuad(Math.min(1, Math.max(0, progress)))
 
-      // Normalize using the actual screen dimensions from the recording
-      // Mouse coordinates are in screen space, normalize to 0-1 range
-      const beforeX = before.x / (before.screenWidth || this.videoWidth)
-      const beforeY = before.y / (before.screenHeight || this.videoHeight)
-      const afterX = after.x / (after.screenWidth || this.videoWidth)
-      const afterY = after.y / (after.screenHeight || this.videoHeight)
+      // Mouse coordinates are already in video space, normalize using video dimensions
+      // The coordinates come pre-transformed to match video resolution
+      const beforeX = before.x / this.videoWidth
+      const beforeY = before.y / this.videoHeight
+      const afterX = after.x / this.videoWidth
+      const afterY = after.y / this.videoHeight
       
       // Debug log to check coordinate normalization
       if (this.debugMode && Math.random() < 0.01) {
@@ -554,15 +554,15 @@ export class EffectsEngine {
     // Use nearest event
     if (before) {
       return {
-        x: before.x / (before.screenWidth || this.videoWidth),
-        y: before.y / (before.screenHeight || this.videoHeight)
+        x: before.x / this.videoWidth,
+        y: before.y / this.videoHeight
       }
     }
 
     if (after) {
       return {
-        x: after.x / (after.screenWidth || this.videoWidth),
-        y: after.y / (after.screenHeight || this.videoHeight)
+        x: after.x / this.videoWidth,
+        y: after.y / this.videoHeight
       }
     }
 
