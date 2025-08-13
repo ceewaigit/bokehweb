@@ -73,7 +73,7 @@ export function PreviewArea() {
         colors: selectedClip?.effects?.background?.gradient?.colors || ['#667eea', '#764ba2'],
         angle: selectedClip?.effects?.background?.gradient?.angle || 135
       },
-      padding: selectedClip?.effects?.background?.padding || 60,
+      padding: selectedClip?.effects?.background?.padding || 120,  // Increased padding for better background visibility
       borderRadius: selectedClip?.effects?.video?.cornerRadius || 16,
       shadow: {
         enabled: true,
@@ -161,18 +161,44 @@ export function PreviewArea() {
     video.src = videoSource
     video.load()
 
-    const handleLoadedData = () => {
+    const handleLoadedData = async () => {
       setIsVideoLoaded(true)
       // Initialize canvas
       if (canvasRef.current && video.videoWidth && video.videoHeight) {
         canvasRef.current.width = video.videoWidth
         canvasRef.current.height = video.videoHeight
       }
+      
+      // Force render first frame immediately
+      try {
+        // Seek to first frame
+        video.currentTime = 0.001
+        await new Promise(r => setTimeout(r, 50))
+        
+        // Trigger initial render
+        if (renderFrame) {
+          renderFrame(0)
+        }
+      } catch (err) {
+        console.log('Could not render initial frame:', err)
+      }
+    }
+    
+    const handleLoadedMetadata = () => {
+      // Also trigger on metadata load as a backup
+      if (video.videoWidth && video.videoHeight) {
+        handleLoadedData()
+      }
     }
 
     video.addEventListener('loadeddata', handleLoadedData)
-    return () => video.removeEventListener('loadeddata', handleLoadedData)
-  }, [videoSource])
+    video.addEventListener('loadedmetadata', handleLoadedMetadata)
+    
+    return () => {
+      video.removeEventListener('loadeddata', handleLoadedData)
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+    }
+  }, [videoSource, renderFrame])
 
   // Initialize effects when video loads or settings change
   useEffect(() => {
@@ -192,7 +218,7 @@ export function PreviewArea() {
           colors: selectedClip.effects?.background?.gradient?.colors || ['#667eea', '#764ba2'],
           angle: selectedClip.effects?.background?.gradient?.angle || 135
         },
-        padding: selectedClip.effects?.background?.padding || 60,
+        padding: selectedClip.effects?.background?.padding || 120,  // Increased padding for better background visibility
         borderRadius: selectedClip.effects?.video?.cornerRadius || 16,
         shadow: {
           enabled: true,
@@ -249,8 +275,8 @@ export function PreviewArea() {
 
   return (
     <div className="h-full bg-card border-b border-border flex flex-col">
-      {/* Preview Container */}
-      <div ref={containerRef} className="flex-1 relative bg-muted/20 flex items-center justify-center overflow-hidden">
+      {/* Preview Container - constrained height */}
+      <div ref={containerRef} className="h-[400px] relative bg-muted/20 flex items-center justify-center overflow-hidden">
         {videoSource ? (
           <>
             <video
@@ -261,8 +287,12 @@ export function PreviewArea() {
             />
             <canvas
               ref={canvasRef}
-              className="max-w-full max-h-full rounded-lg shadow-2xl"
-              style={{ display: isVideoLoaded ? 'block' : 'none' }}
+              className="w-auto h-full object-contain"
+              style={{ 
+                display: isVideoLoaded ? 'block' : 'none',
+                maxWidth: '90%',
+                maxHeight: '90%'
+              }}
             />
             {!isVideoLoaded && (
               <div className="text-sm text-muted-foreground">Loading video...</div>

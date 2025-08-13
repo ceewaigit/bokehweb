@@ -67,6 +67,13 @@ export class EffectsEngine {
   initializeFromRecording(recording: any): void {
     if (!recording) return
 
+    console.log('[EffectsEngine] Initializing from recording:', {
+      duration: recording.duration,
+      hasMetadata: !!recording.metadata,
+      mouseEvents: recording.metadata?.mouseEvents?.length || 0,
+      clickEvents: recording.metadata?.clickEvents?.length || 0
+    })
+
     // Create context
     this.context = {
       duration: recording.duration || 0,
@@ -78,6 +85,8 @@ export class EffectsEngine {
 
     // Convert metadata to events
     this.events = this.convertMetadataToEvents(recording.metadata, this.context.width, this.context.height)
+    
+    console.log(`[EffectsEngine] Converted to ${this.events.length} events`)
 
     // Detect effects using all registered detectors
     this.detectAllEffects()

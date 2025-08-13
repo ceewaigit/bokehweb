@@ -53,10 +53,25 @@ export class ZoomEffectDetector implements EffectDetector {
   }
   
   detectEffects(events: ProjectEvent[], context: RecordingContext): ZoomEffect[] {
+    console.log(`[ZoomDetector] Processing ${events.length} events`)
+    
+    // If no events, create some demo zoom effects for testing
+    if (events.length === 0 && context.duration > 0) {
+      console.log('[ZoomDetector] No events found, creating demo zoom effects')
+      return this.createDemoZoomEffects(context)
+    }
+    
+    // Count event types
+    const moveEvents = events.filter(e => e.type === 'move').length
+    const clickEvents = events.filter(e => e.type === 'click').length
+    console.log(`[ZoomDetector] Events: ${moveEvents} moves, ${clickEvents} clicks`)
+    
     // Detect different trigger types
     const clickTriggers = this.detectClickBasedZooms(events, context)
     const dwellTriggers = this.detectDwellZooms(events, context)
     const interactionTriggers = this.detectInteractionClusters(events, context)
+    
+    console.log(`[ZoomDetector] Triggers found: ${clickTriggers.length} clicks, ${dwellTriggers.length} dwells, ${interactionTriggers.length} interactions`)
     
     // Combine and score all triggers
     const allTriggers = [...clickTriggers, ...dwellTriggers, ...interactionTriggers]
@@ -65,8 +80,76 @@ export class ZoomEffectDetector implements EffectDetector {
     // Convert high-scoring triggers to zoom effects
     const zoomEffects = this.triggersToZoomEffects(allTriggers, context)
     
+    console.log(`[ZoomDetector] Created ${zoomEffects.length} zoom effects`)
+    
     // Merge overlapping or nearby effects
-    return this.mergeNearbyEffects(zoomEffects)
+    const merged = this.mergeNearbyEffects(zoomEffects)
+    console.log(`[ZoomDetector] After merging: ${merged.length} zoom effects`)
+    
+    return merged
+  }
+  
+  /**
+   * Create demo zoom effects when no metadata is available
+   */
+  private createDemoZoomEffects(context: RecordingContext): ZoomEffect[] {
+    const effects: ZoomEffect[] = []
+    const duration = context.duration
+    
+    // Create 2-3 zoom effects throughout the video
+    if (duration > 3000) {
+      // First zoom at 2 seconds
+      effects.push({
+        id: 'zoom-demo-1',
+        type: 'zoom',
+        startTime: 2000,
+        endTime: Math.min(5000, duration - 1000),
+        params: {
+          targetX: 0.7,
+          targetY: 0.3,
+          scale: 2.0,
+          introMs: 300,
+          outroMs: 300
+        }
+      })
+    }
+    
+    if (duration > 8000) {
+      // Second zoom at 7 seconds
+      effects.push({
+        id: 'zoom-demo-2',
+        type: 'zoom',
+        startTime: 7000,
+        endTime: Math.min(10000, duration - 1000),
+        params: {
+          targetX: 0.3,
+          targetY: 0.6,
+          scale: 2.2,
+          introMs: 250,
+          outroMs: 350
+        }
+      })
+    }
+    
+    if (duration > 13000) {
+      // Third zoom at 12 seconds
+      effects.push({
+        id: 'zoom-demo-3',
+        type: 'zoom',
+        startTime: 12000,
+        endTime: Math.min(14500, duration - 500),
+        params: {
+          targetX: 0.5,
+          targetY: 0.5,
+          scale: 1.8,
+          introMs: 200,
+          outroMs: 300
+        }
+      })
+    }
+    
+    console.log(`[ZoomDetector] Created ${effects.length} demo zoom effects`)
+    return effects
   }
   
   /**

@@ -2,8 +2,8 @@
 export const TIMELINE_LAYOUT = {
   RULER_HEIGHT: 32,
   TRACK_LABEL_WIDTH: 80,
-  VIDEO_TRACK_HEIGHT: 180,  // Increased from 120 for better visibility
-  AUDIO_TRACK_HEIGHT: 80,   // Increased from 60 for better visibility
+  VIDEO_TRACK_HEIGHT: 120,
+  AUDIO_TRACK_HEIGHT: 80,
   ZOOM_TRACK_HEIGHT: 48,
   TRACK_PADDING: 4,
   MIN_CLIP_WIDTH: 40,

@@ -289,7 +289,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
             <div className="space-y-2">
               <label className="text-sm font-medium">Padding</label>
               <Slider
-                value={[effects.background.padding]}
+                value={[effects.background.padding || 120]}
                 onValueChange={([value]) => updateEffect('background', { padding: value })}
                 min={0}
                 max={200}

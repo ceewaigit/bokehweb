@@ -36,7 +36,7 @@ export class BackgroundRenderer {
         colors: ['#0F172A', '#1E293B'], // Dark blue-gray gradient
         angle: 135
       },
-      padding: 60,
+      padding: 120,
       borderRadius: 16,
       shadow: {
         enabled: true,
