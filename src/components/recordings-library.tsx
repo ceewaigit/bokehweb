@@ -49,7 +49,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
       const video = document.createElement('video')
       video.src = videoUrl
       video.crossOrigin = 'anonymous'
-      
+
       await new Promise<void>((resolve, reject) => {
         video.addEventListener('loadedmetadata', () => {
           // Seek to 1 second or 10% of video, whichever is smaller
@@ -61,7 +61,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           const canvas = document.createElement('canvas')
           canvas.width = 320 // Thumbnail width
           canvas.height = 180 // 16:9 aspect ratio
-          
+
           const ctx = canvas.getContext('2d')
           if (!ctx) {
             reject(new Error('Failed to get canvas context'))
@@ -70,10 +70,10 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
           // Draw the video frame
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-          
+
           // Convert to data URL
           recording.thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8)
-          
+
           // Clean up
           URL.revokeObjectURL(videoUrl)
           video.remove()
@@ -123,12 +123,12 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               if (result?.success && result.data) {
                 const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
                 recording.project = JSON.parse(projectData)
-                
+
                 // Use project name if available
                 if (recording.project?.name) {
                   recording.name = recording.project.name
                 }
-                
+
                 // Log what we loaded for debugging
                 console.log('Loaded project:', {
                   name: recording.project?.name,
@@ -150,11 +150,11 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         // Prefer the one with simpler name (without ISO format)
         console.log(`📋 Found ${recordingsList.length} total projects, checking for duplicates...`)
         const uniqueRecordings = recordingsList.reduce((acc: Recording[], current) => {
-          const duplicate = acc.find(r => 
+          const duplicate = acc.find(r =>
             Math.abs(r.timestamp.getTime() - current.timestamp.getTime()) < 2000 && // Within 2 seconds
             r.project?.recordings?.[0]?.filePath === current.project?.recordings?.[0]?.filePath // Same video file
           )
-          
+
           if (!duplicate) {
             acc.push(current)
           } else if (duplicate.name.includes('T') && !current.name.includes('T')) {
@@ -162,7 +162,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
             const index = acc.indexOf(duplicate)
             acc[index] = current
           }
-          
+
           return acc
         }, [])
 
@@ -171,7 +171,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         // Sort by timestamp, newest first
         uniqueRecordings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         setRecordings(uniqueRecordings)
-        
+
         // Generate thumbnails asynchronously and update state as they complete
         uniqueRecordings.forEach(async (recording) => {
           if (recording.project?.recordings?.[0]?.filePath && !recording.thumbnailUrl) {
@@ -204,7 +204,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-background">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
@@ -222,7 +222,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   if (recordings.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-background via-background/95 to-background p-8">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center max-w-sm"
@@ -282,7 +282,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ 
+                  transition={{
                     delay: index * 0.02,
                     duration: 0.2,
                     layout: { type: "spring", stiffness: 300, damping: 30 }
@@ -291,7 +291,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   onMouseEnter={() => setHoveredIndex(index)}
                   onMouseLeave={() => setHoveredIndex(null)}
                 >
-                  <div 
+                  <div
                     className={cn(
                       "relative rounded-xl overflow-hidden cursor-pointer transition-all duration-200",
                       "bg-white/5 backdrop-blur-sm border border-white/10",
@@ -305,8 +305,8 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                     <div className="aspect-video relative bg-gradient-to-br from-primary/5 to-transparent">
                       {/* Show actual thumbnail or fallback icon */}
                       {recording.thumbnailUrl ? (
-                        <img 
-                          src={recording.thumbnailUrl} 
+                        <img
+                          src={recording.thumbnailUrl}
                           alt={recording.name}
                           className="w-full h-full object-cover"
                         />
@@ -395,7 +395,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                             </span>
                           </div>
                         )}
-                        
+
                         {/* Clips count */}
                         {recording.project?.timeline?.tracks && (
                           <div className="flex items-center gap-1">
@@ -404,7 +404,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                             </span>
                           </div>
                         )}
-                        
+
                         {/* Timestamp */}
                         <div className="flex items-center gap-1 ml-auto">
                           <Calendar className="w-3 h-3" />

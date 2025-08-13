@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from 'react'
 // Recording logic handled by RecordingController component
 import { Toolbar } from '../toolbar'
 import { PreviewArea } from '../preview-area'
-import { TimelineCanvas } from '../timeline/timeline-canvas'
+import dynamic from 'next/dynamic'
+
+const TimelineCanvas = dynamic(
+  () => import('../timeline/timeline-canvas').then(mod => mod.TimelineCanvas),
+  { ssr: false }
+)
 import { EffectsSidebar } from '../effects-sidebar'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'

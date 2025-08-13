@@ -5,16 +5,15 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     config.externals = [...config.externals, 'electron'];
     
-    // Fix Konva node/browser issue
-    if (!isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'konva/lib/index-node.js': 'konva/lib/index.js',
-      };
-    }
+    // Completely ignore canvas for both server and client
+    config.plugins.push(
+      new webpack.IgnorePlugin({
+        resourceRegExp: /^canvas$/
+      })
+    );
     
     return config;
   },

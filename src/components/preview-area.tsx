@@ -162,7 +162,9 @@ export function PreviewArea() {
     video.load()
 
     const handleLoadedData = async () => {
+      console.log('Video loaded, initializing...')
       setIsVideoLoaded(true)
+      
       // Initialize canvas
       if (canvasRef.current && video.videoWidth && video.videoHeight) {
         canvasRef.current.width = video.videoWidth
@@ -173,9 +175,38 @@ export function PreviewArea() {
       try {
         // Seek to first frame
         video.currentTime = 0.001
-        await new Promise(r => setTimeout(r, 50))
+        await new Promise(r => setTimeout(r, 100))
         
-        // Trigger initial render
+        // Initialize effects first
+        if (!effectsEngineRef.current && currentRecording) {
+          const engine = new EffectsEngine()
+          engine.initializeFromRecording(currentRecording)
+          effectsEngineRef.current = engine
+        }
+        
+        // Initialize background
+        if (!backgroundRendererRef.current) {
+          const bgOptions = {
+            type: 'gradient' as const,
+            gradient: {
+              type: 'linear' as const,
+              colors: ['#667eea', '#764ba2'],
+              angle: 135
+            },
+            padding: 120,
+            borderRadius: 16,
+            shadow: {
+              enabled: true,
+              color: 'rgba(0, 0, 0, 0.3)',
+              blur: 40,
+              offsetX: 0,
+              offsetY: 20
+            }
+          }
+          backgroundRendererRef.current = new BackgroundRenderer(bgOptions)
+        }
+        
+        // Trigger initial render with effects
         if (renderFrame) {
           renderFrame(0)
         }
@@ -198,7 +229,7 @@ export function PreviewArea() {
       video.removeEventListener('loadeddata', handleLoadedData)
       video.removeEventListener('loadedmetadata', handleLoadedMetadata)
     }
-  }, [videoSource, renderFrame])
+  }, [videoSource, renderFrame, currentRecording])
 
   // Initialize effects when video loads or settings change
   useEffect(() => {

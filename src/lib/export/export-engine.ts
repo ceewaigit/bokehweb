@@ -395,7 +395,11 @@ export class ExportEngine {
             const tempCtx = tempCanvas.getContext('2d')!
 
             const effectState = effectsEngine.getEffectState(timestamp)
-            effectsEngine.applyZoomToCanvas(tempCtx, video, effectState.zoom, timestamp)
+            if (effectState?.zoom) {
+              effectsEngine.applyZoomToCanvas(tempCtx, video, effectState.zoom, timestamp)
+            } else {
+              tempCtx.drawImage(video, 0, 0, videoWidth, videoHeight)
+            }
 
             // Apply background with zoomed video
             backgroundRenderer.applyBackground(this.processingCtx!, tempCanvas)
@@ -407,7 +411,11 @@ export class ExportEngine {
           // No background - just apply zoom or draw video directly
           if (effectsEngine) {
             const effectState = effectsEngine.getEffectState(timestamp)
-            effectsEngine.applyZoomToCanvas(this.processingCtx!, video, effectState.zoom, timestamp)
+            if (effectState?.zoom) {
+              effectsEngine.applyZoomToCanvas(this.processingCtx!, video, effectState.zoom, timestamp)
+            } else {
+              this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
+            }
           } else {
             this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
           }
@@ -441,13 +449,15 @@ export class ExportEngine {
             if (effectsEngine) {
               const effectState = effectsEngine.getEffectState(timestamp)
               const zoom = effectState.zoom
-              // Transform cursor coordinates based on zoom
-              const zoomCenterX = zoom.x * videoWidth
-              const zoomCenterY = zoom.y * videoHeight
+              if (zoom) {
+                // Transform cursor coordinates based on zoom
+                const zoomCenterX = zoom.x * videoWidth
+                const zoomCenterY = zoom.y * videoHeight
 
-              // Apply zoom transformation
-              cursorX = (cursorX - zoomCenterX) * zoom.scale + videoWidth / 2
-              cursorY = (cursorY - zoomCenterY) * zoom.scale + videoHeight / 2
+                // Apply zoom transformation
+                cursorX = (cursorX - zoomCenterX) * zoom.scale + videoWidth / 2
+                cursorY = (cursorY - zoomCenterY) * zoom.scale + videoHeight / 2
+              }
             }
 
             // Draw cursor with effects

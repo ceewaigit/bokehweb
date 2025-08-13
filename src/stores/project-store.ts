@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { immer } from 'zustand/middleware/immer'
 import {
   type Project,
   type Clip,
@@ -10,36 +11,30 @@ import {
   loadProject
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { logger } from '@/lib/utils/logger'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { convertMetadataToEvents } from '@/lib/metadata/metadata-converter'
 import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
 
 interface ProjectStore {
-  // Current project
+  // State
   currentProject: Project | null
-
-  // Playback state
   currentTime: number
   isPlaying: boolean
   zoom: number
-
-  // Selection
   selectedClipId: string | null
-  selectedClips: string[] // For multi-selection
+  selectedClips: string[]
 
-  // Actions - Core
+  // Core Actions
   newProject: (name: string) => void
   openProject: (projectPath: string) => Promise<void>
   saveCurrentProject: () => Promise<void>
   setProject: (project: Project) => void
 
-  // Recording management
+  // Recording
   addRecording: (recording: Recording, videoBlob: Blob) => void
 
-  // Clip management - Enhanced
-  addClip: (clip: Clip | string, startTime?: number) => void // Accept both Clip object or recordingId
+  // Clip Management
+  addClip: (clip: Clip | string, startTime?: number) => void
   removeClip: (clipId: string) => void
   updateClip: (clipId: string, updates: Partial<Clip>) => void
   updateClipEffects: (clipId: string, effects: Partial<ClipEffects>) => void
@@ -50,705 +45,442 @@ interface ProjectStore {
   trimClipEnd: (clipId: string, newEndTime: number) => void
   duplicateClip: (clipId: string) => string | null
 
-  // Playback controls
+  // Playback
   play: () => void
   pause: () => void
   seek: (time: number) => void
   setZoom: (zoom: number) => void
 
-  // Get current clip and recording
+  // Getters
   getCurrentClip: () => Clip | null
   getCurrentRecording: () => Recording | null
 }
 
-export const useProjectStore = create<ProjectStore>((set, get) => ({
-  currentProject: null,
-  currentTime: 0,
-  isPlaying: false,
-  zoom: 1.0, // Default zoom level for good visibility
-  selectedClipId: null,
-  selectedClips: [],
-
-  newProject: (name) => {
-    const project = createProject(name)
-    set({
-      currentProject: project,
-      selectedClipId: null,
-      selectedClips: []
-    })
-    logger.info(`Created new project: ${name}`)
-    logger.info(`Initial timeline state:`, {
-      duration: project.timeline.duration,
-      tracks: project.timeline.tracks.map(t => ({
-        id: t.id,
-        type: t.type,
-        clips: t.clips.length
-      }))
-    })
-  },
-
-  setProject: (project) => {
-    set({
-      currentProject: project,
-      selectedClipId: null,
-      selectedClips: []
-    })
-  },
-
-  openProject: async (projectPath) => {
-    try {
-      const project = await loadProject(projectPath)
-
-      // Load video files and create blob URLs for preview
-      for (const recording of project.recordings) {
-        if (recording.filePath && window.electronAPI?.readLocalFile) {
-          try {
-            // Read the video file
-            const result = await window.electronAPI.readLocalFile(recording.filePath)
-            if (result && result.success && result.data) {
-              // Create a blob from the file data
-              const videoBlob = new Blob([result.data], { type: 'video/webm' })
-              const blobUrl = globalBlobManager.create(videoBlob, `recording-${recording.id}`)
-              RecordingStorage.setBlobUrl(recording.id, blobUrl)
-              logger.info(`Created blob URL for recording ${recording.id}`)
-            }
-          } catch (error) {
-            logger.error(`Failed to load video file for recording ${recording.id}:`, error)
-          }
-        }
-
-        // Also restore metadata if available
-        if (recording.metadata) {
-          RecordingStorage.setMetadata(recording.id, recording.metadata)
-        }
-      }
-
-      set({ currentProject: project, selectedClipId: null })
-      logger.info(`Opened project: ${project.name} with ${project.recordings.length} recordings`)
-    } catch (error) {
-      logger.error('Failed to open project:', error)
-      throw error
-    }
-  },
-
-  saveCurrentProject: async () => {
-    const { currentProject } = get()
-    if (!currentProject) return
-
-    try {
-      currentProject.modifiedAt = new Date().toISOString()
-      await saveProject(currentProject)
-    } catch (error) {
-      logger.error('Failed to save project:', error)
-      throw error
-    }
-  },
-
-  addRecording: (recording, videoBlob) => {
-    set((state) => {
-      if (!state.currentProject) return state
-
-      // Deep clone the project to ensure proper state updates
-      const project = {
-        ...state.currentProject,
-        recordings: [...state.currentProject.recordings],
-        timeline: {
-          ...state.currentProject.timeline,
-          tracks: state.currentProject.timeline.tracks.map(track => ({
-            ...track,
-            clips: [...track.clips]
-          }))
-        }
-      }
-
-      // Ensure the recording has all necessary fields
-      const completeRecording = {
-        ...recording,
-        metadata: recording.metadata || {
-          mouseEvents: [],
-          keyboardEvents: [],
-          clickEvents: [],
-          screenEvents: []
-        }
-      }
-
-      project.recordings.push(completeRecording)
-
-      logger.info(`📹 Adding recording to project:`, {
-        id: completeRecording.id,
-        duration: `${(completeRecording.duration / 1000).toFixed(2)}s`,
-        durationMs: completeRecording.duration,
-        dimensions: `${completeRecording.width}x${completeRecording.height}`,
-        frameRate: completeRecording.frameRate
-      })
-      
-      logger.info(`📊 Metadata summary:`, {
-        mouseEvents: completeRecording.metadata.mouseEvents?.length || 0,
-        clickEvents: completeRecording.metadata.clickEvents?.length || 0,
-        keyboardEvents: completeRecording.metadata.keyboardEvents?.length || 0,
-        screenEvents: completeRecording.metadata.screenEvents?.length || 0
-      })
-
-      // Detect zoom effects from metadata - one line!
-      const effectsEngine = new EffectsEngine()
-      const clipEffects = {
-        ...SCREEN_STUDIO_CLIP_EFFECTS,
-        zoom: {
-          ...SCREEN_STUDIO_CLIP_EFFECTS.zoom,
-          keyframes: effectsEngine.getZoomKeyframes(completeRecording)
-        }
-      }
-
-      const zoomEffectCount = clipEffects.zoom.keyframes.length / 2 // Each effect creates 2 keyframes
-      
-      logger.info(`🎬 Effects detected:`, {
-        zoom: {
-          enabled: clipEffects.zoom.enabled,
-          keyframes: clipEffects.zoom.keyframes.length,
-          effects: zoomEffectCount
-        },
-        cursor: {
-          visible: clipEffects.cursor.visible,
-          size: clipEffects.cursor.size
-        },
-        background: {
-          type: clipEffects.background.type,
-          blur: clipEffects.background.blur
-        }
-      })
-
-      // Automatically add a clip for the new recording
-      const clip: Clip = {
-        id: `clip-${Date.now()}`,
-        recordingId: completeRecording.id,
-        startTime: project.timeline.duration,
-        duration: recording.duration,
-        sourceIn: 0,
-        sourceOut: recording.duration,
-        effects: clipEffects
-      }
-
-      // Add to video track (first track should be video)
-      const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
-      if (videoTrack) {
-        videoTrack.clips.push(clip)
-        logger.info(`📌 Clip added to video track:`, {
-          clipId: clip.id,
-          recordingId: clip.recordingId,
-          startTime: `${(clip.startTime / 1000).toFixed(2)}s`,
-          duration: `${(clip.duration / 1000).toFixed(2)}s`,
-          sourceIn: clip.sourceIn,
-          sourceOut: clip.sourceOut,
-          trackClips: videoTrack.clips.length
-        })
-      } else {
-        logger.error('❌ No video track found in project')
-      }
-      
-      const oldDuration = project.timeline.duration
-      project.timeline.duration = Math.max(
-        project.timeline.duration,
-        clip.startTime + clip.duration
-      )
-
-      logger.info(`⏱️ Timeline duration updated:`, {
-        from: `${(oldDuration / 1000).toFixed(2)}s`,
-        to: `${(project.timeline.duration / 1000).toFixed(2)}s`,
-        clipEnd: `${((clip.startTime + clip.duration) / 1000).toFixed(2)}s`
-      })
-
-      // Store video blob URL for preview
-      const blobUrl = globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
-      RecordingStorage.setBlobUrl(completeRecording.id, blobUrl)
-
-      // Store metadata with recording ID only (single source of truth)
-      if (completeRecording.metadata) {
-        RecordingStorage.setMetadata(completeRecording.id, completeRecording.metadata)
-        logger.info(`Stored metadata for recording ${completeRecording.id}`)
-      }
-
-      project.modifiedAt = new Date().toISOString()
-
-      const newState = {
-        currentProject: project,
-        selectedClipId: clip.id,
-        selectedClips: [clip.id]
-      }
-      
-      logger.info(`✅ Final state update:`, {
-        projectId: project.id,
-        recordings: project.recordings.length,
-        timelineDuration: `${(project.timeline.duration / 1000).toFixed(2)}s`,
-        totalClips: project.timeline.tracks.reduce((acc, track) => acc + track.clips.length, 0),
-        selectedClip: clip.id
-      })
-      
-      return newState
-    })
-  },
-
-  addClip: (clipOrRecordingId, startTime) => {
-    set((state) => {
-      if (!state.currentProject) return state
-
-      // Handle both Clip object and recordingId string
-      if (typeof clipOrRecordingId === 'object') {
-        // It's a Clip object, add it directly
-        const clip = clipOrRecordingId as Clip
-        const project = { ...state.currentProject }
-
-        // Find the right track (default to first video track)
-        const track = project.timeline.tracks.find(t => t.type === 'video') || project.timeline.tracks[0]
-        if (track) {
-          track.clips.push(clip)
-          project.timeline.duration = Math.max(
-            project.timeline.duration,
-            clip.startTime + clip.duration
-          )
-          project.modifiedAt = new Date().toISOString()
-        }
-
-        return {
-          currentProject: project,
-          project: project,
-          selectedClipId: clip.id,
-          selectedClips: [clip.id]
-        }
-      }
-
-      // It's a recordingId string, create a new clip
-      const recordingId = clipOrRecordingId as string
-      const recording = state.currentProject.recordings.find(r => r.id === recordingId)
-      if (!recording) return state
-
-      const project = { ...state.currentProject }
-      const clip: Clip = {
-        id: `clip-${Date.now()}`,
-        recordingId,
-        startTime: startTime ?? project.timeline.duration,
-        duration: recording.duration,
-        sourceIn: 0,
-        sourceOut: recording.duration,
-        effects: DEFAULT_CLIP_EFFECTS
-      }
-
-      // Add to video track (first track should be video)
-      const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
-      if (videoTrack) {
-        videoTrack.clips.push(clip)
-      } else {
-        console.error('No video track found in project')
-      }
-      project.timeline.duration = Math.max(
-        project.timeline.duration,
-        clip.startTime + clip.duration
-      )
-      project.modifiedAt = new Date().toISOString()
-
-      return {
-        currentProject: project,
-        selectedClipId: clip.id,
-        selectedClips: [clip.id]
-      }
-    })
-  },
-
-  removeClip: (clipId) => {
-    set((state) => {
-      if (!state.currentProject) return state
-
-      const project = { ...state.currentProject }
-      project.timeline.tracks = project.timeline.tracks.map(track => ({
-        ...track,
-        clips: track.clips.filter(clip => clip.id !== clipId)
-      }))
-
-      // Recalculate timeline duration
-      let maxEndTime = 0
-      project.timeline.tracks.forEach(track => {
-        track.clips.forEach(clip => {
-          maxEndTime = Math.max(maxEndTime, clip.startTime + clip.duration)
-        })
-      })
-      project.timeline.duration = maxEndTime
-      project.modifiedAt = new Date().toISOString()
-
-      return {
-        currentProject: project,
-        selectedClipId: state.selectedClipId === clipId ? null : state.selectedClipId
-      }
-    })
-  },
-
-  updateClipEffects: (clipId, effects) => {
-    set((state) => {
-      if (!state.currentProject) return state
-
-      const project = { ...state.currentProject }
-      project.timeline.tracks = project.timeline.tracks.map(track => ({
-        ...track,
-        clips: track.clips.map(clip => {
-          if (clip.id === clipId) {
-            return {
-              ...clip,
-              effects: {
-                ...clip.effects,
-                ...effects
-              }
-            }
-          }
-          return clip
-        })
-      }))
-      project.modifiedAt = new Date().toISOString()
-
-      return { currentProject: project }
-    })
-  },
-
-  selectClip: (clipId, multi = false) => {
-    set((state) => {
-      if (!clipId) {
-        return { selectedClipId: null, selectedClips: [] }
-      }
-
-      if (multi) {
-        const isSelected = state.selectedClips.includes(clipId)
-        const newSelection = isSelected
-          ? state.selectedClips.filter(id => id !== clipId)
-          : [...state.selectedClips, clipId]
-
-        return {
-          selectedClipId: newSelection[newSelection.length - 1] || null,
-          selectedClips: newSelection
-        }
-      }
-
-      return {
-        selectedClipId: clipId,
-        selectedClips: [clipId]
-      }
-    })
-  },
-
-  clearSelection: () => {
-    set({ selectedClipId: null, selectedClips: [] })
-  },
-
-  updateClip: (clipId, updates) => {
-    set((state) => {
-      if (!state.currentProject) return state
-
-      const project = { ...state.currentProject }
-
-      // Find the clip and its track
-      let targetClip: Clip | undefined
-      let targetTrack: Track | undefined
-
-      for (const track of project.timeline.tracks) {
-        const clip = track.clips.find(c => c.id === clipId)
-        if (clip) {
-          targetClip = clip
-          targetTrack = track
-          break
-        }
-      }
-
-      if (!targetClip || !targetTrack) return state
-
-      // Check for overlaps if position is being updated
-      if (updates.startTime !== undefined) {
-        const newStartTime = updates.startTime
-        const newEndTime = newStartTime + (updates.duration || targetClip.duration)
-
-        // Check for overlaps with other clips on the same track
-        const hasOverlap = targetTrack.clips.some(clip => {
-          if (clip.id === clipId) return false // Skip self
-          const clipEnd = clip.startTime + clip.duration
-          // Check if new position would overlap
-          return (newStartTime < clipEnd && newEndTime > clip.startTime)
-        })
-
-        if (hasOverlap) {
-          // Find nearest valid position (snap to end of previous clip or start of next)
-          let validPosition = newStartTime
-          const otherClips = targetTrack.clips
-            .filter(c => c.id !== clipId)
-            .sort((a, b) => a.startTime - b.startTime)
-
-          for (const clip of otherClips) {
-            const clipEnd = clip.startTime + clip.duration
-            if (newStartTime < clipEnd && newEndTime > clip.startTime) {
-              // Overlapping - snap to end of this clip
-              validPosition = clipEnd + 1 // 1ms gap
-              break
-            }
-          }
-
-          updates.startTime = validPosition
-        }
-      }
-
-      // Apply updates
-      project.timeline.tracks = project.timeline.tracks.map(track => ({
-        ...track,
-        clips: track.clips.map(clip =>
-          clip.id === clipId ? { ...clip, ...updates } : clip
-        )
-      }))
-
-      // Recalculate timeline duration after clip update
-      let maxEndTime = 0
-      project.timeline.tracks.forEach(track => {
-        track.clips.forEach(clip => {
-          maxEndTime = Math.max(maxEndTime, clip.startTime + clip.duration)
-        })
-      })
-      project.timeline.duration = maxEndTime
-      project.modifiedAt = new Date().toISOString()
-
-      return { currentProject: project }
-    })
-  },
-
-  splitClip: (clipId, splitTime) => {
-    set((state) => {
-      if (!state.currentProject) return state
-
-      let targetClip: Clip | undefined
-      let targetTrack: Track | undefined
-
-      for (const track of state.currentProject.timeline.tracks) {
-        const clip = track.clips.find(c => c.id === clipId)
-        if (clip) {
-          targetClip = clip
-          targetTrack = track
-          break
-        }
-      }
-
-      if (!targetClip || !targetTrack) return state
-
-      // Ensure split time is within clip bounds
-      if (splitTime <= targetClip.startTime || splitTime >= targetClip.startTime + targetClip.duration) {
-        return state
-      }
-
-      const splitPoint = splitTime - targetClip.startTime
-
-      // Create two new clips
-      const firstClip: Clip = {
-        ...targetClip,
-        id: `${targetClip.id}-split1-${Date.now()}`,
-        duration: splitPoint,
-        sourceOut: targetClip.sourceIn + splitPoint
-      }
-
-      const secondClip: Clip = {
-        ...targetClip,
-        id: `${targetClip.id}-split2-${Date.now()}`,
-        startTime: splitTime,
-        duration: targetClip.duration - splitPoint,
-        sourceIn: targetClip.sourceIn + splitPoint
-      }
-
-      const project = { ...state.currentProject }
-      project.timeline.tracks = project.timeline.tracks.map(track => {
-        if (track.id === targetTrack.id) {
-          return {
-            ...track,
-            clips: track.clips
-              .filter(c => c.id !== clipId)
-              .concat([firstClip, secondClip])
-              .sort((a, b) => a.startTime - b.startTime)
-          }
-        }
-        return track
-      })
-
-      project.modifiedAt = new Date().toISOString()
-
-      return {
-        currentProject: project,
-        selectedClipId: secondClip.id,
-        selectedClips: [secondClip.id]
-      }
-    })
-  },
-
-  trimClipStart: (clipId, newStartTime) => {
-    set((state) => {
-      if (!state.currentProject) return state
-
-      let targetClip: Clip | undefined
-      for (const track of state.currentProject.timeline.tracks) {
-        targetClip = track.clips.find(c => c.id === clipId)
-        if (targetClip) break
-      }
-
-      if (!targetClip) return state
-
-      // Ensure new start time is valid
-      if (newStartTime >= targetClip.startTime + targetClip.duration || newStartTime < 0) {
-        return state
-      }
-
-      const trimAmount = newStartTime - targetClip.startTime
-
-      const project = { ...state.currentProject }
-      project.timeline.tracks = project.timeline.tracks.map(track => ({
-        ...track,
-        clips: track.clips.map(c =>
-          c.id === clipId
-            ? {
-              ...c,
-              startTime: newStartTime,
-              duration: c.duration - trimAmount,
-              sourceIn: c.sourceIn + trimAmount
-            }
-            : c
-        )
-      }))
-
-      project.modifiedAt = new Date().toISOString()
-      return { currentProject: project }
-    })
-  },
-
-  trimClipEnd: (clipId, newEndTime) => {
-    set((state) => {
-      if (!state.currentProject) return state
-
-      let targetClip: Clip | undefined
-      for (const track of state.currentProject.timeline.tracks) {
-        targetClip = track.clips.find(c => c.id === clipId)
-        if (targetClip) break
-      }
-
-      if (!targetClip) return state
-
-      // Ensure new end time is valid
-      if (newEndTime <= targetClip.startTime || newEndTime < 0) {
-        return state
-      }
-
-      const newDuration = newEndTime - targetClip.startTime
-
-      const project = { ...state.currentProject }
-      project.timeline.tracks = project.timeline.tracks.map(track => ({
-        ...track,
-        clips: track.clips.map(c =>
-          c.id === clipId
-            ? {
-              ...c,
-              duration: newDuration,
-              sourceOut: c.sourceIn + newDuration
-            }
-            : c
-        )
-      }))
-
-      project.modifiedAt = new Date().toISOString()
-      return { currentProject: project }
-    })
-  },
-
-  duplicateClip: (clipId) => {
-    const state = get()
-    if (!state.currentProject) return null
-
-    let targetClip: Clip | undefined
-    let targetTrack: Track | undefined
-
-    for (const track of state.currentProject.timeline.tracks) {
-      const clip = track.clips.find(c => c.id === clipId)
-      if (clip) {
-        targetClip = clip
-        targetTrack = track
-        break
-      }
-    }
-
-    if (!targetClip || !targetTrack) return null
-
-    const newClip: Clip = {
-      ...targetClip,
-      id: `${targetClip.id}-copy-${Date.now()}`,
-      startTime: targetClip.startTime + targetClip.duration + 0.1 // Add small gap
-    }
-
-    // Add the duplicated clip
-    state.addClip(newClip)
-    return newClip.id
-  },
-
-  play: () => {
-    set({ isPlaying: true })
-    logger.info('▶️ Playback started')
-  },
-
-  pause: () => {
-    set({ isPlaying: false })
-    logger.info('⏸️ Playback paused')
-  },
-
-  seek: (time) => {
-    set((state) => {
-      const maxTime = state.currentProject?.timeline?.duration || 0
-      const clampedTime = Math.max(0, Math.min(maxTime, time))
-      logger.info(`⏭️ Seeking to ${(clampedTime / 1000).toFixed(2)}s / ${(maxTime / 1000).toFixed(2)}s`)
-      return { currentTime: clampedTime }
-    })
-  },
-
-  setZoom: (zoom) => {
-    set({ zoom: Math.max(0.1, Math.min(10, zoom)) })
-  },
-
-  getCurrentClip: () => {
-    const { currentProject, currentTime } = get()
-    if (!currentProject) {
-      logger.debug('getCurrentClip: No project loaded')
-      return null
-    }
-
-    // Find the clip at the current playhead position
-    for (const track of currentProject.timeline.tracks) {
-      const clip = track.clips.find(c =>
-        currentTime >= c.startTime && currentTime < c.startTime + c.duration
-      )
-      if (clip) {
-        logger.debug(`🎯 Found clip at ${(currentTime / 1000).toFixed(2)}s:`, {
-          clipId: clip.id,
-          clipStart: `${(clip.startTime / 1000).toFixed(2)}s`,
-          clipEnd: `${((clip.startTime + clip.duration) / 1000).toFixed(2)}s`
-        })
-        return clip
-      }
-    }
-    
-    logger.debug(`❌ No clip at current time: ${(currentTime / 1000).toFixed(2)}s`)
-    return null
-  },
-
-  getCurrentRecording: () => {
-    const { currentProject } = get()
-    const clip = get().getCurrentClip()
-    if (!currentProject || !clip) {
-      logger.debug('getCurrentRecording: No project or clip')
-      return null
-    }
-
-    const recording = currentProject.recordings.find(r => r.id === clip.recordingId) || null
-    if (recording) {
-      logger.debug(`🎞️ Current recording:`, {
-        id: recording.id,
-        duration: `${(recording.duration / 1000).toFixed(2)}s`,
-        dimensions: `${recording.width}x${recording.height}`
-      })
-    } else {
-      logger.debug(`❌ Recording not found for clip: ${clip.recordingId}`)
-    }
-    return recording
+// Inline helper functions
+const findClipById = (project: Project, clipId: string): { clip: Clip; track: Track } | null => {
+  for (const track of project.timeline.tracks) {
+    const clip = track.clips.find(c => c.id === clipId)
+    if (clip) return { clip, track }
   }
-}))
+  return null
+}
+
+const calculateTimelineDuration = (project: Project): number => {
+  let maxEndTime = 0
+  for (const track of project.timeline.tracks) {
+    for (const clip of track.clips) {
+      maxEndTime = Math.max(maxEndTime, clip.startTime + clip.duration)
+    }
+  }
+  return maxEndTime
+}
+
+const hasClipOverlap = (track: Track, clipId: string, startTime: number, duration: number): boolean => {
+  return track.clips.some(clip => {
+    if (clip.id === clipId) return false
+    const clipEnd = clip.startTime + clip.duration
+    return startTime < clipEnd && (startTime + duration) > clip.startTime
+  })
+}
+
+const findNextValidPosition = (track: Track, clipId: string, desiredStart: number, duration: number): number => {
+  const otherClips = track.clips
+    .filter(c => c.id !== clipId)
+    .sort((a, b) => a.startTime - b.startTime)
+
+  for (const clip of otherClips) {
+    const clipEnd = clip.startTime + clip.duration
+    if (desiredStart < clipEnd && (desiredStart + duration) > clip.startTime) {
+      return clipEnd + 1
+    }
+  }
+  return desiredStart
+}
+
+export const useProjectStore = create<ProjectStore>()(
+  immer((set, get) => ({
+    currentProject: null,
+    currentTime: 0,
+    isPlaying: false,
+    zoom: 1.0,
+    selectedClipId: null,
+    selectedClips: [],
+
+    newProject: (name) => {
+      set((state) => {
+        state.currentProject = createProject(name)
+        state.selectedClipId = null
+        state.selectedClips = []
+      })
+    },
+
+    setProject: (project) => {
+      set((state) => {
+        state.currentProject = project
+        state.selectedClipId = null
+        state.selectedClips = []
+      })
+    },
+
+    openProject: async (projectPath) => {
+      try {
+        const project = await loadProject(projectPath)
+
+        // Load video files for preview
+        for (const recording of project.recordings) {
+          if (recording.filePath && window.electronAPI?.readLocalFile) {
+            try {
+              const result = await window.electronAPI.readLocalFile(recording.filePath)
+              if (result?.success && result.data) {
+                const videoBlob = new Blob([result.data], { type: 'video/webm' })
+                const blobUrl = globalBlobManager.create(videoBlob, `recording-${recording.id}`)
+                RecordingStorage.setBlobUrl(recording.id, blobUrl)
+              }
+            } catch (error) {
+              console.error(`Failed to load video: ${recording.id}`, error)
+            }
+          }
+          if (recording.metadata) {
+            RecordingStorage.setMetadata(recording.id, recording.metadata)
+          }
+        }
+
+        set((state) => {
+          state.currentProject = project
+          state.selectedClipId = null
+        })
+      } catch (error) {
+        console.error('Failed to open project:', error)
+        throw error
+      }
+    },
+
+    saveCurrentProject: async () => {
+      const { currentProject } = get()
+      if (!currentProject) return
+
+      try {
+        currentProject.modifiedAt = new Date().toISOString()
+        await saveProject(currentProject)
+      } catch (error) {
+        console.error('Failed to save project:', error)
+        throw error
+      }
+    },
+
+    addRecording: (recording, videoBlob) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        // Ensure complete recording
+        const completeRecording = {
+          ...recording,
+          metadata: recording.metadata || {
+            mouseEvents: [],
+            keyboardEvents: [],
+            clickEvents: [],
+            screenEvents: []
+          }
+        }
+
+        state.currentProject.recordings.push(completeRecording)
+
+        // Generate effects
+        const effectsEngine = new EffectsEngine()
+        const clipEffects = {
+          ...SCREEN_STUDIO_CLIP_EFFECTS,
+          zoom: {
+            ...SCREEN_STUDIO_CLIP_EFFECTS.zoom,
+            keyframes: effectsEngine.getZoomKeyframes(completeRecording)
+          }
+        }
+
+        // Create and add clip
+        const clip: Clip = {
+          id: `clip-${Date.now()}`,
+          recordingId: completeRecording.id,
+          startTime: state.currentProject.timeline.duration,
+          duration: recording.duration,
+          sourceIn: 0,
+          sourceOut: recording.duration,
+          effects: clipEffects
+        }
+
+        const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
+        if (videoTrack) {
+          videoTrack.clips.push(clip)
+        }
+
+        state.currentProject.timeline.duration = Math.max(
+          state.currentProject.timeline.duration,
+          clip.startTime + clip.duration
+        )
+
+        // Store blob and metadata
+        const blobUrl = globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
+        RecordingStorage.setBlobUrl(completeRecording.id, blobUrl)
+        if (completeRecording.metadata) {
+          RecordingStorage.setMetadata(completeRecording.id, completeRecording.metadata)
+        }
+
+        state.currentProject.modifiedAt = new Date().toISOString()
+        state.selectedClipId = clip.id
+        state.selectedClips = [clip.id]
+      })
+    },
+
+    addClip: (clipOrRecordingId, startTime) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        let clip: Clip
+        
+        if (typeof clipOrRecordingId === 'object') {
+          clip = clipOrRecordingId
+        } else {
+          const recording = state.currentProject.recordings.find(r => r.id === clipOrRecordingId)
+          if (!recording) return
+
+          clip = {
+            id: `clip-${Date.now()}`,
+            recordingId: clipOrRecordingId,
+            startTime: startTime ?? state.currentProject.timeline.duration,
+            duration: recording.duration,
+            sourceIn: 0,
+            sourceOut: recording.duration,
+            effects: DEFAULT_CLIP_EFFECTS
+          }
+        }
+
+        const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
+        if (videoTrack) {
+          videoTrack.clips.push(clip)
+        }
+
+        state.currentProject.timeline.duration = Math.max(
+          state.currentProject.timeline.duration,
+          clip.startTime + clip.duration
+        )
+        state.currentProject.modifiedAt = new Date().toISOString()
+        state.selectedClipId = clip.id
+        state.selectedClips = [clip.id]
+      })
+    },
+
+    removeClip: (clipId) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        for (const track of state.currentProject.timeline.tracks) {
+          const index = track.clips.findIndex(c => c.id === clipId)
+          if (index !== -1) {
+            track.clips.splice(index, 1)
+            break
+          }
+        }
+
+        state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+        state.currentProject.modifiedAt = new Date().toISOString()
+
+        if (state.selectedClipId === clipId) {
+          state.selectedClipId = null
+        }
+        state.selectedClips = state.selectedClips.filter(id => id !== clipId)
+      })
+    },
+
+    updateClip: (clipId, updates) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        const result = findClipById(state.currentProject, clipId)
+        if (!result) return
+
+        const { clip, track } = result
+
+        // Check for overlaps if position is changing
+        if (updates.startTime !== undefined) {
+          const duration = updates.duration || clip.duration
+          if (hasClipOverlap(track, clipId, updates.startTime, duration)) {
+            updates.startTime = findNextValidPosition(track, clipId, updates.startTime, duration)
+          }
+        }
+
+        Object.assign(clip, updates)
+        state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
+    },
+
+    updateClipEffects: (clipId, effects) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        const result = findClipById(state.currentProject, clipId)
+        if (!result) return
+
+        Object.assign(result.clip.effects, effects)
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
+    },
+
+    selectClip: (clipId, multi = false) => {
+      set((state) => {
+        if (!clipId) {
+          state.selectedClipId = null
+          state.selectedClips = []
+          return
+        }
+
+        if (multi) {
+          const index = state.selectedClips.indexOf(clipId)
+          if (index !== -1) {
+            state.selectedClips.splice(index, 1)
+          } else {
+            state.selectedClips.push(clipId)
+          }
+          state.selectedClipId = state.selectedClips[state.selectedClips.length - 1] || null
+        } else {
+          state.selectedClipId = clipId
+          state.selectedClips = [clipId]
+        }
+      })
+    },
+
+    clearSelection: () => {
+      set((state) => {
+        state.selectedClipId = null
+        state.selectedClips = []
+      })
+    },
+
+    splitClip: (clipId, splitTime) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        const result = findClipById(state.currentProject, clipId)
+        if (!result) return
+
+        const { clip, track } = result
+
+        if (splitTime <= clip.startTime || splitTime >= clip.startTime + clip.duration) return
+
+        const splitPoint = splitTime - clip.startTime
+
+        const firstClip: Clip = {
+          ...clip,
+          id: `${clip.id}-split1-${Date.now()}`,
+          duration: splitPoint,
+          sourceOut: clip.sourceIn + splitPoint
+        }
+
+        const secondClip: Clip = {
+          ...clip,
+          id: `${clip.id}-split2-${Date.now()}`,
+          startTime: splitTime,
+          duration: clip.duration - splitPoint,
+          sourceIn: clip.sourceIn + splitPoint
+        }
+
+        const clipIndex = track.clips.findIndex(c => c.id === clipId)
+        track.clips.splice(clipIndex, 1, firstClip, secondClip)
+
+        state.currentProject.modifiedAt = new Date().toISOString()
+        state.selectedClipId = secondClip.id
+        state.selectedClips = [secondClip.id]
+      })
+    },
+
+    trimClipStart: (clipId, newStartTime) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        const result = findClipById(state.currentProject, clipId)
+        if (!result) return
+
+        const { clip } = result
+
+        if (newStartTime >= clip.startTime + clip.duration || newStartTime < 0) return
+
+        const trimAmount = newStartTime - clip.startTime
+        clip.startTime = newStartTime
+        clip.duration -= trimAmount
+        clip.sourceIn += trimAmount
+
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
+    },
+
+    trimClipEnd: (clipId, newEndTime) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        const result = findClipById(state.currentProject, clipId)
+        if (!result) return
+
+        const { clip } = result
+
+        if (newEndTime <= clip.startTime || newEndTime < 0) return
+
+        clip.duration = newEndTime - clip.startTime
+        clip.sourceOut = clip.sourceIn + clip.duration
+
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
+    },
+
+    duplicateClip: (clipId) => {
+      const state = get()
+      if (!state.currentProject) return null
+
+      const result = findClipById(state.currentProject, clipId)
+      if (!result) return null
+
+      const { clip } = result
+      const newClip: Clip = {
+        ...clip,
+        id: `${clip.id}-copy-${Date.now()}`,
+        startTime: clip.startTime + clip.duration + 0.1
+      }
+
+      state.addClip(newClip)
+      return newClip.id
+    },
+
+    play: () => set({ isPlaying: true }),
+    pause: () => set({ isPlaying: false }),
+
+    seek: (time) => {
+      set((state) => {
+        const maxTime = state.currentProject?.timeline?.duration || 0
+        state.currentTime = Math.max(0, Math.min(maxTime, time))
+      })
+    },
+
+    setZoom: (zoom) => {
+      set((state) => {
+        state.zoom = Math.max(0.1, Math.min(10, zoom))
+      })
+    },
+
+    getCurrentClip: () => {
+      const { currentProject, currentTime } = get()
+      if (!currentProject) return null
+      
+      for (const track of currentProject.timeline.tracks) {
+        const clip = track.clips.find(c =>
+          currentTime >= c.startTime && currentTime < c.startTime + c.duration
+        )
+        if (clip) return clip
+      }
+      return null
+    },
+
+    getCurrentRecording: () => {
+      const { currentProject } = get()
+      const clip = get().getCurrentClip()
+      if (!currentProject || !clip) return null
+      return currentProject.recordings.find(r => r.id === clip.recordingId) || null
+    }
+  }))
+)

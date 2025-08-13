@@ -14,8 +14,8 @@ export interface RecordingSettings {
 }
 
 // Re-export from project.ts to avoid duplication
-export type { 
-  Project, 
+export type {
+  Project,
   Recording,
   Clip as TimelineClip, // Alias for backward compatibility
   ProjectSettings,

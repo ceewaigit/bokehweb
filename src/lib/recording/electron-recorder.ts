@@ -32,6 +32,9 @@ export interface ElectronMetadata {
   screenId?: string
   velocity?: { x: number; y: number } // pixels per second
   scrollDelta?: { x: number; y: number }
+  screenWidth?: number
+  screenHeight?: number
+  scaleFactor?: number
 }
 
 export class ElectronRecorder {
