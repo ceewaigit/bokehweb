@@ -308,8 +308,8 @@ export function PreviewArea() {
   }
 
   return (
-    <div className="h-full bg-card border-b border-border flex flex-col">
-      {/* Preview Container - constrained height */}
+    <div className="bg-card border-b border-border flex flex-col">
+      {/* Preview Container - fixed height, not flex */}
       <div ref={containerRef} className="h-[300px] relative bg-muted/20 flex items-center justify-center overflow-hidden">
         {videoSource ? (
           <>
