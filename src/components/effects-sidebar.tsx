@@ -287,46 +287,25 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
         {activeTab === 'shape' && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Video Size</label>
+              <label className="text-sm font-medium">Padding</label>
               <Slider
-                value={[(effects.video.scale ?? 1.0) * 100]}
-                onValueChange={([value]) => updateEffect('video', { 
-                  ...effects.video,
-                  scale: value / 100 
+                value={[effects.background.padding ?? 80]}
+                onValueChange={([value]) => updateEffect('background', { 
+                  ...effects.background,
+                  padding: value 
                 })}
-                min={30}
-                max={100}
+                min={0}
+                max={200}
                 step={5}
                 className="w-full"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{Math.round((effects.video.scale ?? 1.0) * 100)}%</span>
+                <span>{effects.background.padding ?? 80}px</span>
                 <button
-                  onClick={() => updateEffect('video', { 
-                    ...effects.video,
-                    scale: 0.8 
+                  onClick={() => updateEffect('background', { 
+                    ...effects.background,
+                    padding: 80 
                   })}
-                  className="text-primary hover:underline"
-                >
-                  Default (80%)
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Padding</label>
-              <Slider
-                value={[effects.background.padding || 120]}
-                onValueChange={([value]) => updateEffect('background', { padding: value })}
-                min={0}
-                max={200}
-                step={10}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{effects.background.padding}px</span>
-                <button
-                  onClick={() => updateEffect('background', { padding: 120 })}
                   className="text-primary hover:underline"
                 >
                   Reset

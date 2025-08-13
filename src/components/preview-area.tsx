@@ -58,14 +58,13 @@ export function PreviewArea() {
       return
     }
 
-    // Get video scale and padding from clip effects
-    const videoScale = selectedClip?.effects?.video?.scale ?? 0.85
-    const padding = selectedClip?.effects?.background?.padding ?? 60
+    // Get padding from clip effects
+    const padding = selectedClip?.effects?.background?.padding ?? 80
 
-    // Initialize effects engine with video scale and padding
+    // Initialize effects engine with padding
     if (!effectsEngineRef.current) {
       const engine = new EffectsEngine()
-      engine.initializeFromRecording(currentRecording, videoScale, padding)
+      engine.initializeFromRecording(currentRecording, undefined, padding)
       effectsEngineRef.current = engine
     }
 
@@ -77,7 +76,7 @@ export function PreviewArea() {
         colors: selectedClip?.effects?.background?.gradient?.colors || ['#1e293b', '#0f172a'],
         angle: selectedClip?.effects?.background?.gradient?.angle || 135
       },
-      padding: selectedClip?.effects?.background?.padding ?? 60,
+      padding: selectedClip?.effects?.background?.padding ?? 80,
       borderRadius: selectedClip?.effects?.video?.cornerRadius ?? 24,
       shadow: {
         enabled: selectedClip?.effects?.video?.shadow?.enabled ?? true,
@@ -107,9 +106,6 @@ export function PreviewArea() {
     const timeMs = forceTime !== undefined ? forceTime : video.currentTime * 1000
 
     if (showEffects && effectsEngineRef.current && backgroundRendererRef.current) {
-      // Get video scale from clip effects
-      const videoScale = selectedClip?.effects?.video?.scale ?? 0.85
-      
       // Get effect state
       const effectState = effectsEngineRef.current.getEffectState(timeMs)
 
@@ -123,14 +119,14 @@ export function PreviewArea() {
         // Apply zoom to temp canvas
         effectsEngineRef.current.applyZoomToCanvas(tempCtx, video, effectState.zoom, timeMs)
 
-        // Clear main canvas and apply background with video (with video scale)
+        // Clear main canvas and apply background with video
         ctx.clearRect(0, 0, canvas.width, canvas.height)
-        backgroundRendererRef.current.applyBackground(ctx, tempCanvas, undefined, undefined, undefined, undefined, videoScale)
+        backgroundRendererRef.current.applyBackground(ctx, tempCanvas)
       } else if (tempCtx) {
         // No zoom effect, just draw video normally
         tempCtx.drawImage(video, 0, 0, canvas.width, canvas.height)
         ctx.clearRect(0, 0, canvas.width, canvas.height)
-        backgroundRendererRef.current.applyBackground(ctx, tempCanvas, undefined, undefined, undefined, undefined, videoScale)
+        backgroundRendererRef.current.applyBackground(ctx, tempCanvas)
       }
     } else {
       // No effects - draw video directly
@@ -186,12 +182,11 @@ export function PreviewArea() {
         
         // Initialize effects first
         if (!effectsEngineRef.current && currentRecording) {
-          // Get video scale and padding from clip effects
-          const videoScale = selectedClip?.effects?.video?.scale ?? 0.85
-          const padding = selectedClip?.effects?.background?.padding ?? 60
+          // Get padding from clip effects
+          const padding = selectedClip?.effects?.background?.padding ?? 80
           
           const engine = new EffectsEngine()
-          engine.initializeFromRecording(currentRecording, videoScale, padding)
+          engine.initializeFromRecording(currentRecording, undefined, padding)
           effectsEngineRef.current = engine
         }
         
@@ -204,7 +199,7 @@ export function PreviewArea() {
               colors: ['#1e293b', '#0f172a'],
               angle: 135
             },
-            padding: 60,
+            padding: 80,
             borderRadius: 24,
             shadow: {
               enabled: true,
@@ -266,7 +261,7 @@ export function PreviewArea() {
           colors: selectedClip.effects?.background?.gradient?.colors || ['#1e293b', '#0f172a'],
           angle: selectedClip.effects?.background?.gradient?.angle || 135
         },
-        padding: selectedClip.effects?.background?.padding ?? 60,
+        padding: selectedClip.effects?.background?.padding ?? 80,
         borderRadius: selectedClip.effects?.video?.cornerRadius ?? 24,
         shadow: {
           enabled: selectedClip.effects?.video?.shadow?.enabled ?? true,
@@ -279,18 +274,16 @@ export function PreviewArea() {
       backgroundRendererRef.current.updateOptions(bgOptions)
     }
     
-    // Re-initialize effects engine with new video scale
+    // Re-initialize effects engine with new padding
     if (effectsEngineRef.current && currentRecording) {
-      const videoScale = selectedClip.effects?.video?.scale ?? 0.85
-      const padding = selectedClip.effects?.background?.padding ?? 60
-      effectsEngineRef.current.initializeFromRecording(currentRecording, videoScale, padding)
+      const padding = selectedClip.effects?.background?.padding ?? 80
+      effectsEngineRef.current.initializeFromRecording(currentRecording, undefined, padding)
     }
     
     // Force re-render
     renderFrame()
   }, [
     selectedClip?.effects?.background,
-    selectedClip?.effects?.video?.scale,
     selectedClip?.effects?.video?.cornerRadius,
     selectedClip?.effects?.video?.shadow,
     isPlaying, 

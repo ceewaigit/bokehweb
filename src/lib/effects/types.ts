@@ -50,7 +50,6 @@ export interface RecordingContext {
   height: number
   frameRate: number
   metadata: any
-  videoScale?: number  // Scale of video relative to canvas (0.3 - 1.0)
   padding?: number     // Padding around video
 }
 

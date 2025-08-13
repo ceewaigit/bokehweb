@@ -22,7 +22,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
       colors: ['#1e293b', '#0f172a'],
       angle: 135
     },
-    padding: 60
+    padding: 80  // Reasonable padding around video
   },
   video: {
     cornerRadius: 24,
@@ -31,8 +31,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
       blur: 60,
       color: 'rgba(0, 0, 0, 0.5)',
       offset: { x: 0, y: 25 }
-    },
-    scale: 0.85  // 85% size by default for better framing
+    }
   },
   annotations: []
 }
@@ -59,7 +58,7 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
       colors: ['#1a1a2e', '#0f0f1e'],
       angle: 135
     },
-    padding: 40
+    padding: 120  // More padding for Screen Studio style
   },
   video: {
     cornerRadius: 24,
@@ -68,8 +67,7 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
       blur: 80,
       color: 'rgba(0, 0, 0, 0.6)',
       offset: { x: 0, y: 30 }
-    },
-    scale: 0.75  // 75% size for Screen Studio style with more background visible
+    }
   },
   annotations: []
 }

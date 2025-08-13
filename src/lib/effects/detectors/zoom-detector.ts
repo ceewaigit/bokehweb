@@ -160,7 +160,7 @@ export class ZoomEffectDetector implements EffectDetector {
   /**
    * Detect zooms based on click events
    */
-  private detectClickBasedZooms(events: ProjectEvent[], context: RecordingContext): ZoomTrigger[] {
+  private detectClickBasedZooms(events: ProjectEvent[], context: RecordingContext | undefined = undefined): ZoomTrigger[] {
     const triggers: ZoomTrigger[] = []
     const clickEvents = events.filter(e => e.type === 'click')
     
@@ -175,11 +175,11 @@ export class ZoomEffectDetector implements EffectDetector {
       
       const trigger = {
         timestamp: preClickTime,
-        score: 85, // Clicks are high priority
+        score: 95, // Clicks are highest priority
         reason: 'click' as const,
         x: mouseBeforeClick?.x || click.x,
         y: mouseBeforeClick?.y || click.y,
-        confidence: 0.9
+        confidence: 0.95
       }
       
       console.log(`[ZoomDetector] Created click trigger: timestamp=${trigger.timestamp}, x=${trigger.x}, y=${trigger.y}`)
@@ -193,7 +193,7 @@ export class ZoomEffectDetector implements EffectDetector {
    * Detect clicks by analyzing velocity patterns
    * A click is likely when: fast movement → sudden stop → small movement
    */
-  private detectVelocityBasedClicks(events: ProjectEvent[], context: RecordingContext): ZoomTrigger[] {
+  private detectVelocityBasedClicks(events: ProjectEvent[], context: RecordingContext | undefined = undefined): ZoomTrigger[] {
     const triggers: ZoomTrigger[] = []
     const moveEvents = events.filter(e => e.type === 'move')
     
@@ -237,7 +237,7 @@ export class ZoomEffectDetector implements EffectDetector {
   /**
    * Detect zooms based on dwelling (hovering in one area)
    */
-  private detectDwellZooms(events: ProjectEvent[], context: RecordingContext): ZoomTrigger[] {
+  private detectDwellZooms(events: ProjectEvent[], context: RecordingContext | undefined = undefined): ZoomTrigger[] {
     const triggers: ZoomTrigger[] = []
     let dwellStart: number | null = null
     let dwellCenter = { x: 0, y: 0 }
@@ -270,14 +270,18 @@ export class ZoomEffectDetector implements EffectDetector {
             const avgX = dwellEvents.reduce((sum, e) => sum + e.x, 0) / dwellEvents.length
             const avgY = dwellEvents.reduce((sum, e) => sum + e.y, 0) / dwellEvents.length
             
-            triggers.push({
-              timestamp: dwellStart,
-              score: 70, // Dwelling is medium priority
-              reason: 'dwell',
-              x: avgX,
-              y: avgY,
-              confidence: 0.7
-            })
+            // Only create trigger for significant dwells
+            const dwellDuration = event.timestamp - dwellStart
+            if (dwellDuration >= this.config.DWELL_TIME_THRESHOLD) {
+              triggers.push({
+                timestamp: dwellStart,
+                score: 80, // Long dwells are high priority
+                reason: 'dwell',
+                x: avgX,
+                y: avgY,
+                confidence: 0.8
+              })
+            }
             
             // Reset for next dwell
             dwellStart = null
@@ -298,7 +302,7 @@ export class ZoomEffectDetector implements EffectDetector {
   /**
    * Detect interaction clusters (multiple clicks/actions in same area)
    */
-  private detectInteractionClusters(events: ProjectEvent[], context: RecordingContext): ZoomTrigger[] {
+  private detectInteractionClusters(events: ProjectEvent[], context: RecordingContext | undefined = undefined): ZoomTrigger[] {
     const triggers: ZoomTrigger[] = []
     const clusters: InteractionCluster[] = []
     
@@ -365,7 +369,7 @@ export class ZoomEffectDetector implements EffectDetector {
   /**
    * Detect activity bursts - periods of high mouse activity
    */
-  private detectActivityBursts(events: ProjectEvent[], context: RecordingContext): ZoomTrigger[] {
+  private detectActivityBursts(events: ProjectEvent[], context: RecordingContext | undefined = undefined): ZoomTrigger[] {
     const triggers: ZoomTrigger[] = []
     const moveEvents = events.filter(e => e.type === 'move')
     
@@ -512,35 +516,32 @@ export class ZoomEffectDetector implements EffectDetector {
       console.log(`[ZoomDetector] Zoom timing: start=${startTime}, end=${endTime}, duration=${endTime - startTime}, minDuration=${minDuration}`)
       
       if (endTime - startTime >= minDuration) {
-        // Account for video scale and padding when calculating zoom targets
+        // Account for padding when calculating zoom targets
         let normalizedX = trigger.x / context.width
         let normalizedY = trigger.y / context.height
         
-        // If video is scaled, we need to transform coordinates
-        if (context.videoScale && context.videoScale < 1.0) {
-          const padding = context.padding || 0
-          const scale = context.videoScale
+        // If there's padding, we need to transform coordinates
+        if (context.padding && context.padding > 0) {
+          const padding = context.padding
           
           // Calculate actual video bounds
-          const availableWidth = context.width - padding * 2
-          const availableHeight = context.height - padding * 2
-          const scaledWidth = availableWidth * scale
-          const scaledHeight = availableHeight * scale
-          const videoX = padding + (availableWidth - scaledWidth) / 2
-          const videoY = padding + (availableHeight - scaledHeight) / 2
+          const videoWidth = context.width - padding * 2
+          const videoHeight = context.height - padding * 2
+          const videoX = padding
+          const videoY = padding
           
           // Transform coordinates to be relative to the actual video area
           // First, check if the trigger is within the video bounds
-          if (trigger.x >= videoX && trigger.x <= videoX + scaledWidth &&
-              trigger.y >= videoY && trigger.y <= videoY + scaledHeight) {
+          if (trigger.x >= videoX && trigger.x <= videoX + videoWidth &&
+              trigger.y >= videoY && trigger.y <= videoY + videoHeight) {
             // Calculate position relative to video
-            normalizedX = (trigger.x - videoX) / scaledWidth
-            normalizedY = (trigger.y - videoY) / scaledHeight
+            normalizedX = (trigger.x - videoX) / videoWidth
+            normalizedY = (trigger.y - videoY) / videoHeight
           }
           // If outside video bounds, clamp to edges
           else {
-            normalizedX = Math.max(0, Math.min(1, (trigger.x - videoX) / scaledWidth))
-            normalizedY = Math.max(0, Math.min(1, (trigger.y - videoY) / scaledHeight))
+            normalizedX = Math.max(0, Math.min(1, (trigger.x - videoX) / videoWidth))
+            normalizedY = Math.max(0, Math.min(1, (trigger.y - videoY) / videoHeight))
           }
         }
         

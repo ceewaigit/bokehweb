@@ -72,7 +72,6 @@ export class EffectsEngine {
       hasMetadata: !!recording.metadata,
       mouseEvents: recording.metadata?.mouseEvents?.length || 0,
       clickEvents: recording.metadata?.clickEvents?.length || 0,
-      videoScale,
       padding
     })
 
@@ -83,7 +82,6 @@ export class EffectsEngine {
       height: recording.height || 1080,
       frameRate: recording.frameRate || 60,
       metadata: recording.metadata || {},
-      videoScale: videoScale,
       padding: padding
     }
 
@@ -107,7 +105,6 @@ export class EffectsEngine {
       height,
       frameRate: 60,
       metadata,
-      videoScale: videoScale,
       padding: padding
     }
 

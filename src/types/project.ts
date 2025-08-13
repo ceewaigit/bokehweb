@@ -181,7 +181,6 @@ export interface ClipEffects {
       color: string
       offset: { x: number; y: number }
     }
-    scale?: number  // Scale of the video relative to canvas (0.3 - 1.0, default 0.8)
   }
 
   // Annotations
