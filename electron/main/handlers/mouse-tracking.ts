@@ -1,4 +1,5 @@
 import { ipcMain, screen, IpcMainInvokeEvent, WebContents, BrowserWindow } from 'electron'
+import { uIOhook, UiohookKey, UiohookMouseEvent } from 'uiohook-napi'
 
 let mouseTrackingInterval: NodeJS.Timeout | null = null
 let mouseEventSender: WebContents | null = null
@@ -6,6 +7,7 @@ let isMouseTracking = false
 let clickDetectionActive = false
 let lastMousePosition: { x: number; y: number; time: number } | null = null
 let mouseHistory: Array<{ x: number; y: number; time: number }> = []
+let uiohookStarted = false
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -193,27 +195,69 @@ function startClickDetection(): void {
 
   clickDetectionActive = true
 
-  // Register IPC handler for click events from renderer
-  ipcMain.on('detected-click', (_event, data) => {
-    if (!isMouseTracking || !mouseEventSender) return
-    
-    mouseEventSender.send('mouse-click', {
-      x: Math.round(data.x),
-      y: Math.round(data.y),
-      timestamp: Date.now(),
-      button: data.button || 'left'
-    })
-    console.log(`🖱️ Click detected at (${data.x}, ${data.y})`)
-  })
+  try {
+    // Start uiohook if not already started
+    if (!uiohookStarted) {
+      uIOhook.start()
+      uiohookStarted = true
+      console.log('🖱️ uiohook started for global mouse tracking')
+    }
 
-  console.log('🖱️ Click detection started (renderer-based)')
+    // Register global mouse click handler
+    const handleMouseDown = (event: UiohookMouseEvent) => {
+      if (!isMouseTracking || !mouseEventSender) return
+
+      // Get current display info for coordinate transformation
+      const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
+      const scaleFactor = currentDisplay.scaleFactor || 1
+
+      // Send click event with proper coordinates
+      mouseEventSender.send('mouse-click', {
+        x: event.x,
+        y: event.y,
+        timestamp: Date.now(),
+        button: event.button === 1 ? 'left' : event.button === 2 ? 'right' : 'middle',
+        displayBounds: currentDisplay.bounds,
+        scaleFactor: scaleFactor
+      })
+      
+      console.log(`🖱️ Global click detected at (${event.x}, ${event.y}), button: ${event.button}`)
+    }
+
+    // Register the mouse down event listener
+    // @ts-ignore - uiohook-napi type definitions may be incomplete
+    uIOhook.on('mousedown', handleMouseDown)
+
+    // Store the handler for cleanup
+    (global as any).uiohookMouseHandler = handleMouseDown
+
+    console.log('🖱️ Click detection started (global mouse hooks enabled)')
+  } catch (error) {
+    console.error('❌ Failed to start global click detection:', error)
+    clickDetectionActive = false
+  }
 }
 
 function stopClickDetection(): void {
   clickDetectionActive = false
   
-  // Remove IPC listener
-  ipcMain.removeAllListeners('detected-click')
+  try {
+    // Remove the mouse handler if it exists
+    if ((global as any).uiohookMouseHandler) {
+      // @ts-ignore - uiohook-napi type definitions may be incomplete
+      uIOhook.off('mousedown', (global as any).uiohookMouseHandler)
+      delete (global as any).uiohookMouseHandler
+    }
+
+    // Stop uiohook if no longer needed
+    if (uiohookStarted) {
+      uIOhook.stop()
+      uiohookStarted = false
+      console.log('🖱️ uiohook stopped')
+    }
+  } catch (error) {
+    console.error('❌ Error stopping click detection:', error)
+  }
   
   console.log('🖱️ Click detection stopped')
 }
@@ -225,4 +269,14 @@ export function cleanupMouseTracking(): void {
     isMouseTracking = false
   }
   stopClickDetection()
+  
+  // Ensure uiohook is fully cleaned up
+  if (uiohookStarted) {
+    try {
+      uIOhook.stop()
+      uiohookStarted = false
+    } catch (error) {
+      console.error('Error in cleanup:', error)
+    }
+  }
 }

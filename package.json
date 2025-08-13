@@ -61,6 +61,7 @@
     "styled-jsx": "^5.1.7",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
+    "uiohook-napi": "^1.5.4",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

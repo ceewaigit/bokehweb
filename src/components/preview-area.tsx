@@ -58,10 +58,14 @@ export function PreviewArea() {
       return
     }
 
-    // Initialize effects engine
+    // Get video scale and padding from clip effects
+    const videoScale = selectedClip?.effects?.video?.scale ?? 1.0
+    const padding = selectedClip?.effects?.background?.padding || 120
+
+    // Initialize effects engine with video scale and padding
     if (!effectsEngineRef.current) {
       const engine = new EffectsEngine()
-      engine.initializeFromRecording(currentRecording)
+      engine.initializeFromRecording(currentRecording, videoScale, padding)
       effectsEngineRef.current = engine
     }
 
@@ -103,6 +107,9 @@ export function PreviewArea() {
     const timeMs = forceTime !== undefined ? forceTime : video.currentTime * 1000
 
     if (showEffects && effectsEngineRef.current && backgroundRendererRef.current) {
+      // Get video scale from clip effects
+      const videoScale = selectedClip?.effects?.video?.scale ?? 1.0
+      
       // Get effect state
       const effectState = effectsEngineRef.current.getEffectState(timeMs)
 
@@ -116,14 +123,14 @@ export function PreviewArea() {
         // Apply zoom to temp canvas
         effectsEngineRef.current.applyZoomToCanvas(tempCtx, video, effectState.zoom, timeMs)
 
-        // Clear main canvas and apply background with video
+        // Clear main canvas and apply background with video (with video scale)
         ctx.clearRect(0, 0, canvas.width, canvas.height)
-        backgroundRendererRef.current.applyBackground(ctx, tempCanvas)
+        backgroundRendererRef.current.applyBackground(ctx, tempCanvas, undefined, undefined, undefined, undefined, videoScale)
       } else if (tempCtx) {
         // No zoom effect, just draw video normally
         tempCtx.drawImage(video, 0, 0, canvas.width, canvas.height)
         ctx.clearRect(0, 0, canvas.width, canvas.height)
-        backgroundRendererRef.current.applyBackground(ctx, tempCanvas)
+        backgroundRendererRef.current.applyBackground(ctx, tempCanvas, undefined, undefined, undefined, undefined, videoScale)
       }
     } else {
       // No effects - draw video directly
@@ -179,8 +186,12 @@ export function PreviewArea() {
         
         // Initialize effects first
         if (!effectsEngineRef.current && currentRecording) {
+          // Get video scale and padding from clip effects
+          const videoScale = selectedClip?.effects?.video?.scale ?? 1.0
+          const padding = selectedClip?.effects?.background?.padding || 120
+          
           const engine = new EffectsEngine()
-          engine.initializeFromRecording(currentRecording)
+          engine.initializeFromRecording(currentRecording, videoScale, padding)
           effectsEngineRef.current = engine
         }
         
@@ -272,17 +283,32 @@ export function PreviewArea() {
     const video = videoRef.current
     if (!video || !isVideoLoaded) return
 
+    // Update timeline time during playback
+    const handleTimeUpdate = () => {
+      const clip = getCurrentClip()
+      if (clip && isPlaying) {
+        // Convert video time to timeline time
+        const timelineTime = clip.startTime + (video.currentTime * 1000 - clip.sourceIn)
+        seek(timelineTime)
+      }
+    }
+
     if (isPlaying) {
       video.play()
       startAnimation()
+      video.addEventListener('timeupdate', handleTimeUpdate)
     } else {
       video.pause()
       stopAnimation()
       renderFrame() // Draw final frame
+      video.removeEventListener('timeupdate', handleTimeUpdate)
     }
 
-    return () => stopAnimation()
-  }, [isPlaying, isVideoLoaded, startAnimation, stopAnimation, renderFrame])
+    return () => {
+      stopAnimation()
+      video.removeEventListener('timeupdate', handleTimeUpdate)
+    }
+  }, [isPlaying, isVideoLoaded, startAnimation, stopAnimation, renderFrame, getCurrentClip, seek])
 
   // Sync video time with timeline
   useEffect(() => {
@@ -309,8 +335,8 @@ export function PreviewArea() {
 
   return (
     <div className="bg-card border-b border-border flex flex-col">
-      {/* Preview Container - fixed height, not flex */}
-      <div ref={containerRef} className="h-[300px] relative bg-muted/20 flex items-center justify-center overflow-hidden">
+      {/* Preview Container */}
+      <div ref={containerRef} className="h-[500px] relative bg-muted/20 flex items-center justify-center overflow-hidden">
         {videoSource ? (
           <>
             <video

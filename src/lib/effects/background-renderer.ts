@@ -194,10 +194,12 @@ export class BackgroundRenderer {
     videoX?: number,
     videoY?: number,
     videoWidth?: number,
-    videoHeight?: number
+    videoHeight?: number,
+    videoScale?: number  // New parameter for video scaling (0.3 - 1.0)
   ) {
     const { width, height } = ctx.canvas
     const padding = this.options.padding || 0
+    const scale = videoScale ?? 1.0  // Default to full size if not specified
 
     // Clear canvas
     ctx.clearRect(0, 0, width, height)
@@ -253,10 +255,19 @@ export class BackgroundRenderer {
 
     // Draw video frame with padding and effects
     if (videoFrame) {
-      const frameX = videoX ?? padding
-      const frameY = videoY ?? padding
-      const frameWidth = videoWidth ?? (width - padding * 2)
-      const frameHeight = videoHeight ?? (height - padding * 2)
+      // Calculate available space (canvas minus padding)
+      const availableWidth = width - padding * 2
+      const availableHeight = height - padding * 2
+      
+      // Apply scale to get actual video dimensions
+      const scaledWidth = availableWidth * scale
+      const scaledHeight = availableHeight * scale
+      
+      // Center the scaled video in the available space
+      const frameX = videoX ?? (padding + (availableWidth - scaledWidth) / 2)
+      const frameY = videoY ?? (padding + (availableHeight - scaledHeight) / 2)
+      const frameWidth = videoWidth ?? scaledWidth
+      const frameHeight = videoHeight ?? scaledHeight
 
       ctx.save()
 
@@ -323,6 +334,39 @@ export class BackgroundRenderer {
 
     if (options.image || options.type === 'image' || options.type === 'wallpaper') {
       this.initializeBackground()
+    }
+  }
+
+  /**
+   * Calculate the actual video bounds after scaling and padding
+   * Useful for coordinate transformation in zoom effects
+   */
+  getVideoBounds(canvasWidth: number, canvasHeight: number, videoScale: number = 1.0): {
+    x: number
+    y: number
+    width: number
+    height: number
+  } {
+    const padding = this.options.padding || 0
+    const scale = videoScale
+    
+    // Calculate available space (canvas minus padding)
+    const availableWidth = canvasWidth - padding * 2
+    const availableHeight = canvasHeight - padding * 2
+    
+    // Apply scale to get actual video dimensions
+    const scaledWidth = availableWidth * scale
+    const scaledHeight = availableHeight * scale
+    
+    // Center the scaled video in the available space
+    const x = padding + (availableWidth - scaledWidth) / 2
+    const y = padding + (availableHeight - scaledHeight) / 2
+    
+    return {
+      x,
+      y,
+      width: scaledWidth,
+      height: scaledHeight
     }
   }
 

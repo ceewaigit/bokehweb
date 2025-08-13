@@ -287,8 +287,10 @@ export class ExportEngine {
 
       if (enableZoom && metadata.length > 0) {
         effectsEngine = new EffectsEngine()
-        // Initialize with metadata - clean and simple!
-        effectsEngine.initializeFromMetadata(metadata, videoDuration * 1000, videoWidth, videoHeight)
+        // Initialize with metadata - pass video scale and padding from clip effects
+        const videoScale = clipEffects?.video?.scale ?? 1.0
+        const padding = clipEffects?.background?.padding || 120
+        effectsEngine.initializeFromMetadata(metadata, videoDuration * 1000, videoWidth, videoHeight, videoScale, padding)
       }
 
       if (enableCursor && metadata.length > 0) {
@@ -386,6 +388,9 @@ export class ExportEngine {
 
         // 2. Apply background if enabled
         if (backgroundRenderer) {
+          // Get video scale from clip effects
+          const videoScale = clipEffects?.video?.scale ?? 1.0
+          
           // Background renderer will handle the video frame with effects
           if (effectsEngine) {
             // Create temp canvas for zoomed video
@@ -401,11 +406,11 @@ export class ExportEngine {
               tempCtx.drawImage(video, 0, 0, videoWidth, videoHeight)
             }
 
-            // Apply background with zoomed video
-            backgroundRenderer.applyBackground(this.processingCtx!, tempCanvas)
+            // Apply background with zoomed video (with video scale)
+            backgroundRenderer.applyBackground(this.processingCtx!, tempCanvas, undefined, undefined, undefined, undefined, videoScale)
           } else {
-            // Apply background with original video
-            backgroundRenderer.applyBackground(this.processingCtx!, video)
+            // Apply background with original video (with video scale)
+            backgroundRenderer.applyBackground(this.processingCtx!, video, undefined, undefined, undefined, undefined, videoScale)
           }
         } else {
           // No background - just apply zoom or draw video directly

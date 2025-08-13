@@ -93,20 +93,45 @@ export class ElectronRecorder {
         throw new PermissionError('No screen sources available. Please check permissions.', 'screen')
       }
 
-      // Find the "Entire screen" source - this is what Screen Studio uses
-      let primarySource = sources.find((s: any) =>
-        s.id.startsWith('screen:') ||
-        s.name.toLowerCase().includes('entire screen') ||
-        s.name.toLowerCase().includes('screen 1')
-      )
+      let primarySource
+      
+      // Select source based on recording settings
+      if (recordingSettings.area === 'window') {
+        // For window recording, we'll need to show a window picker
+        // For now, use the first window source
+        primarySource = sources.find((s: any) => 
+          !s.id.startsWith('screen:') && 
+          !s.name.toLowerCase().includes('entire screen')
+        )
+        
+        if (!primarySource) {
+          logger.warn('No window sources available, falling back to screen')
+          primarySource = sources.find((s: any) => s.id.startsWith('screen:'))
+        }
+      } else if (recordingSettings.area === 'region') {
+        // For region recording, we'll need to implement area selection
+        // For now, use the entire screen and we'll crop in post-processing
+        primarySource = sources.find((s: any) =>
+          s.id.startsWith('screen:') ||
+          s.name.toLowerCase().includes('entire screen') ||
+          s.name.toLowerCase().includes('screen 1')
+        )
+      } else {
+        // Default to fullscreen recording
+        primarySource = sources.find((s: any) =>
+          s.id.startsWith('screen:') ||
+          s.name.toLowerCase().includes('entire screen') ||
+          s.name.toLowerCase().includes('screen 1')
+        )
+      }
 
       // Fallback to last source (usually the entire screen)
       if (!primarySource) {
-        logger.warn('Could not find entire screen source, using last available source')
+        logger.warn('Could not find appropriate source, using last available source')
         primarySource = sources[sources.length - 1]
       }
 
-      logger.info(`Using screen source: ${primarySource.name} (${primarySource.id})`)
+      logger.info(`Using ${recordingSettings.area} source: ${primarySource.name} (${primarySource.id})`)
 
       // Capture screen dimensions for dock exclusion
       await this.captureScreenInfo(primarySource.id)
@@ -405,26 +430,9 @@ export class ElectronRecorder {
       // Continue anyway - the NativeMouseTracker uses Electron's screen API as fallback
     }
 
-    // Add document-level click listener to capture clicks
-    const captureClick = (event: MouseEvent) => {
-      if (this.isRecording) {
-        // Send click event to main process
-        if (window.electronAPI?.send) {
-          window.electronAPI.send('detected-click', {
-            x: event.screenX,
-            y: event.screenY,
-            button: event.button === 0 ? 'left' : event.button === 2 ? 'right' : 'middle'
-          })
-        }
-      }
-    }
-
-    // Listen for clicks on document
-    document.addEventListener('click', captureClick, true);
-    document.addEventListener('mousedown', captureClick, true);
-
-    // Store for cleanup
-    (this as any).clickListener = captureClick;
+    // No longer need document-level click listeners
+    // Global click detection is now handled by uiohook-napi in the main process
+    // which can capture clicks anywhere on the screen, not just in the browser window
 
     // Set up event listeners for native mouse events
     const handleMouseMove = (_event: any, data: any) => {
@@ -508,6 +516,7 @@ export class ElectronRecorder {
           mouseX: transformedX,
           mouseY: transformedY,
           eventType: 'click',
+          key: data.button, // Store which button was clicked
           // Store the logical screen dimensions for reference
           screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
           screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
@@ -518,6 +527,8 @@ export class ElectronRecorder {
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
         this.lastMouseTime = Date.now()
+
+        logger.debug(`Global click captured at (${transformedX}, ${transformedY}), button: ${data.button}`)
       }
     }
 
@@ -575,12 +586,8 @@ export class ElectronRecorder {
       this.mouseTrackingCleanup = null
     }
 
-    // Remove click listener
-    if ((this as any).clickListener) {
-      document.removeEventListener('click', (this as any).clickListener, true)
-      document.removeEventListener('mousedown', (this as any).clickListener, true)
-      delete (this as any).clickListener
-    }
+    // Click detection is now handled globally in the main process
+    // No need to remove document listeners
 
     logger.debug('Mouse tracking stopped')
   }

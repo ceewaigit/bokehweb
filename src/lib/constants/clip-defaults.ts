@@ -27,7 +27,8 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
       blur: 0,
       color: '#000000',
       offset: { x: 0, y: 0 }
-    }
+    },
+    scale: 1.0  // Full size by default
   },
   annotations: []
 }
@@ -63,7 +64,8 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
       blur: 40,
       color: '#000000',
       offset: { x: 0, y: 20 }
-    }
+    },
+    scale: 0.8  // 80% size for Screen Studio style
   },
   annotations: []
 }

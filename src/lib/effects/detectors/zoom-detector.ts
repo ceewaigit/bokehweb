@@ -28,21 +28,23 @@ export class ZoomEffectDetector implements EffectDetector {
   
   // Configuration
   private readonly config = {
-    // Detection thresholds
-    DWELL_TIME_THRESHOLD: 1000,        // ms to consider as dwelling
-    DWELL_RADIUS: 50,                  // pixels for dwell detection
+    // Detection thresholds - RELAXED for better detection
+    DWELL_TIME_THRESHOLD: 500,         // ms to consider as dwelling (was 1000)
+    DWELL_RADIUS: 100,                 // pixels for dwell detection (was 50)
     CLICK_PRE_ZOOM: 200,               // ms to zoom before click
     CLICK_POST_ZOOM: 500,              // ms to hold zoom after click
-    VELOCITY_THRESHOLD: 100,           // pixels/second for slow movement
-    ZOOM_SCORE_THRESHOLD: 70,          // score needed to trigger zoom
+    VELOCITY_THRESHOLD: 500,           // pixels/second for fast movement (was 100)
+    ZOOM_SCORE_THRESHOLD: 50,          // score needed to trigger zoom (was 70)
     INTERACTION_CLUSTER_TIME: 3000,    // ms to group interactions
     INTERACTION_CLUSTER_RADIUS: 200,   // pixels for interaction area
+    ACTIVITY_WINDOW: 1000,             // ms window for activity detection
+    ACTIVITY_THRESHOLD: 10,            // events needed for activity burst
     
     // Effect parameters
     ZOOM_SCALE: 2.0,
     INTRO_DURATION: 200,
     OUTRO_DURATION: 300,
-    MIN_ZOOM_DURATION: 500,
+    MIN_ZOOM_DURATION: 300,            // Shorter minimum (was 500)
     MERGE_GAP: 1500
   }
   
@@ -68,13 +70,15 @@ export class ZoomEffectDetector implements EffectDetector {
     
     // Detect different trigger types
     const clickTriggers = this.detectClickBasedZooms(events, context)
+    const velocityClicks = this.detectVelocityBasedClicks(events, context)
     const dwellTriggers = this.detectDwellZooms(events, context)
     const interactionTriggers = this.detectInteractionClusters(events, context)
+    const activityTriggers = this.detectActivityBursts(events, context)
     
-    console.log(`[ZoomDetector] Triggers found: ${clickTriggers.length} clicks, ${dwellTriggers.length} dwells, ${interactionTriggers.length} interactions`)
+    console.log(`[ZoomDetector] Triggers found: ${clickTriggers.length} clicks, ${velocityClicks.length} velocity clicks, ${dwellTriggers.length} dwells, ${interactionTriggers.length} interactions, ${activityTriggers.length} activity bursts`)
     
     // Combine and score all triggers
-    const allTriggers = [...clickTriggers, ...dwellTriggers, ...interactionTriggers]
+    const allTriggers = [...clickTriggers, ...velocityClicks, ...dwellTriggers, ...interactionTriggers, ...activityTriggers]
       .sort((a, b) => a.timestamp - b.timestamp)
     
     // Convert high-scoring triggers to zoom effects
@@ -179,6 +183,51 @@ export class ZoomEffectDetector implements EffectDetector {
       
       console.log(`[ZoomDetector] Created click trigger: timestamp=${trigger.timestamp}, x=${trigger.x}, y=${trigger.y}`)
       triggers.push(trigger)
+    }
+    
+    return triggers
+  }
+  
+  /**
+   * Detect clicks by analyzing velocity patterns
+   * A click is likely when: fast movement → sudden stop → small movement
+   */
+  private detectVelocityBasedClicks(events: ProjectEvent[], context: RecordingContext): ZoomTrigger[] {
+    const triggers: ZoomTrigger[] = []
+    const moveEvents = events.filter(e => e.type === 'move')
+    
+    for (let i = 2; i < moveEvents.length - 1; i++) {
+      const prev = moveEvents[i - 1]
+      const curr = moveEvents[i]
+      const next = moveEvents[i + 1]
+      
+      // Calculate velocities
+      const prevDt = curr.timestamp - prev.timestamp
+      const nextDt = next.timestamp - curr.timestamp
+      
+      if (prevDt <= 0 || nextDt <= 0) continue
+      
+      const prevVelocity = Math.sqrt(
+        Math.pow(curr.x - prev.x, 2) + Math.pow(curr.y - prev.y, 2)
+      ) / (prevDt / 1000)
+      
+      const currVelocity = Math.sqrt(
+        Math.pow(next.x - curr.x, 2) + Math.pow(next.y - curr.y, 2)
+      ) / (nextDt / 1000)
+      
+      // Detect sudden velocity drop (likely a click)
+      if (prevVelocity > this.config.VELOCITY_THRESHOLD && currVelocity < 50) {
+        console.log(`[ZoomDetector] Velocity click detected at ${curr.timestamp}ms: ${prevVelocity.toFixed(0)}px/s -> ${currVelocity.toFixed(0)}px/s`)
+        
+        triggers.push({
+          timestamp: Math.max(0, curr.timestamp - this.config.CLICK_PRE_ZOOM),
+          score: 75, // High confidence for velocity-based clicks
+          reason: 'click',
+          x: curr.x,
+          y: curr.y,
+          confidence: 0.8
+        })
+      }
     }
     
     return triggers
@@ -313,6 +362,61 @@ export class ZoomEffectDetector implements EffectDetector {
   }
   
   /**
+   * Detect activity bursts - periods of high mouse activity
+   */
+  private detectActivityBursts(events: ProjectEvent[], context: RecordingContext): ZoomTrigger[] {
+    const triggers: ZoomTrigger[] = []
+    const moveEvents = events.filter(e => e.type === 'move')
+    
+    // Analyze activity in sliding windows
+    const windowSize = this.config.ACTIVITY_WINDOW
+    
+    for (let i = 0; i < moveEvents.length; i++) {
+      const windowStart = moveEvents[i].timestamp
+      const windowEnd = windowStart + windowSize
+      
+      // Count events in this window
+      const windowEvents = moveEvents.filter(e => 
+        e.timestamp >= windowStart && e.timestamp < windowEnd
+      )
+      
+      if (windowEvents.length >= this.config.ACTIVITY_THRESHOLD) {
+        // Calculate center of activity
+        const avgX = windowEvents.reduce((sum, e) => sum + e.x, 0) / windowEvents.length
+        const avgY = windowEvents.reduce((sum, e) => sum + e.y, 0) / windowEvents.length
+        
+        // Calculate total movement distance
+        let totalDistance = 0
+        for (let j = 1; j < windowEvents.length; j++) {
+          totalDistance += Math.sqrt(
+            Math.pow(windowEvents[j].x - windowEvents[j-1].x, 2) +
+            Math.pow(windowEvents[j].y - windowEvents[j-1].y, 2)
+          )
+        }
+        
+        // High activity = lots of events + significant movement
+        if (totalDistance > 200) {
+          console.log(`[ZoomDetector] Activity burst at ${windowStart}ms: ${windowEvents.length} events, ${totalDistance.toFixed(0)}px movement`)
+          
+          triggers.push({
+            timestamp: windowStart,
+            score: 60 + Math.min(20, windowEvents.length - this.config.ACTIVITY_THRESHOLD),
+            reason: 'focus',
+            x: avgX,
+            y: avgY,
+            confidence: 0.7
+          })
+          
+          // Skip ahead to avoid overlapping detections
+          i += Math.floor(windowEvents.length / 2)
+        }
+      }
+    }
+    
+    return triggers
+  }
+  
+  /**
    * Find nearest mouse position to a timestamp
    */
   private findNearestMousePosition(events: ProjectEvent[], timestamp: number): ProjectEvent | null {
@@ -358,17 +462,53 @@ export class ZoomEffectDetector implements EffectDetector {
       const startTime = Math.max(0, trigger.timestamp)
       const endTime = Math.min(startTime + duration, context.duration)
       
-      console.log(`[ZoomDetector] Zoom timing: start=${startTime}, end=${endTime}, duration=${endTime - startTime}, minDuration=${this.config.MIN_ZOOM_DURATION}`)
+      // Allow shorter zooms near the end of the video
+      const remainingTime = context.duration - startTime
+      const minDuration = remainingTime < 500 ? Math.min(200, remainingTime) : this.config.MIN_ZOOM_DURATION
       
-      if (endTime - startTime >= this.config.MIN_ZOOM_DURATION) {
+      console.log(`[ZoomDetector] Zoom timing: start=${startTime}, end=${endTime}, duration=${endTime - startTime}, minDuration=${minDuration}`)
+      
+      if (endTime - startTime >= minDuration) {
+        // Account for video scale and padding when calculating zoom targets
+        let normalizedX = trigger.x / context.width
+        let normalizedY = trigger.y / context.height
+        
+        // If video is scaled, we need to transform coordinates
+        if (context.videoScale && context.videoScale < 1.0) {
+          const padding = context.padding || 0
+          const scale = context.videoScale
+          
+          // Calculate actual video bounds
+          const availableWidth = context.width - padding * 2
+          const availableHeight = context.height - padding * 2
+          const scaledWidth = availableWidth * scale
+          const scaledHeight = availableHeight * scale
+          const videoX = padding + (availableWidth - scaledWidth) / 2
+          const videoY = padding + (availableHeight - scaledHeight) / 2
+          
+          // Transform coordinates to be relative to the actual video area
+          // First, check if the trigger is within the video bounds
+          if (trigger.x >= videoX && trigger.x <= videoX + scaledWidth &&
+              trigger.y >= videoY && trigger.y <= videoY + scaledHeight) {
+            // Calculate position relative to video
+            normalizedX = (trigger.x - videoX) / scaledWidth
+            normalizedY = (trigger.y - videoY) / scaledHeight
+          }
+          // If outside video bounds, clamp to edges
+          else {
+            normalizedX = Math.max(0, Math.min(1, (trigger.x - videoX) / scaledWidth))
+            normalizedY = Math.max(0, Math.min(1, (trigger.y - videoY) / scaledHeight))
+          }
+        }
+        
         effects.push({
           id: `zoom-${trigger.reason}-${startTime}`,
           type: 'zoom',
           startTime,
           endTime,
           params: {
-            targetX: trigger.x / context.width,
-            targetY: trigger.y / context.height,
+            targetX: normalizedX,
+            targetY: normalizedY,
             scale: this.config.ZOOM_SCALE,
             introMs: this.config.INTRO_DURATION,
             outroMs: this.config.OUTRO_DURATION

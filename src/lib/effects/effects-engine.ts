@@ -64,14 +64,16 @@ export class EffectsEngine {
   /**
    * Initialize from recording
    */
-  initializeFromRecording(recording: any): void {
+  initializeFromRecording(recording: any, videoScale?: number, padding?: number): void {
     if (!recording) return
 
     console.log('[EffectsEngine] Initializing from recording:', {
       duration: recording.duration,
       hasMetadata: !!recording.metadata,
       mouseEvents: recording.metadata?.mouseEvents?.length || 0,
-      clickEvents: recording.metadata?.clickEvents?.length || 0
+      clickEvents: recording.metadata?.clickEvents?.length || 0,
+      videoScale,
+      padding
     })
 
     // Create context
@@ -80,7 +82,9 @@ export class EffectsEngine {
       width: recording.width || 1920,
       height: recording.height || 1080,
       frameRate: recording.frameRate || 60,
-      metadata: recording.metadata || {}
+      metadata: recording.metadata || {},
+      videoScale: videoScale,
+      padding: padding
     }
 
     // Convert metadata to events
@@ -95,14 +99,16 @@ export class EffectsEngine {
   /**
    * Initialize from raw metadata (for preview)
    */
-  initializeFromMetadata(metadata: any[], duration: number, width: number, height: number): void {
+  initializeFromMetadata(metadata: any[], duration: number, width: number, height: number, videoScale?: number, padding?: number): void {
     // Create context
     this.context = {
       duration,
       width,
       height,
       frameRate: 60,
-      metadata
+      metadata,
+      videoScale: videoScale,
+      padding: padding
     }
 
     // Extract events

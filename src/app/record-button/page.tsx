@@ -29,7 +29,7 @@ export default function RecordingDock() {
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
-  const [selectedSource, setSelectedSource] = useState<'fullscreen' | 'window' | 'area'>('fullscreen')
+  const [selectedSource, setSelectedSource] = useState<'fullscreen' | 'window' | 'region'>('fullscreen')
 
   // Base window dimensions
   const BASE_WIDTH = 700
@@ -63,11 +63,12 @@ export default function RecordingDock() {
     document.body.classList.add('bg-transparent')
     document.documentElement.classList.add('bg-transparent')
 
-    // Update recording settings
+    // Update recording settings with both audio and source selection
     updateSettings({
-      audioInput: micEnabled ? 'system' : 'none'
+      audioInput: micEnabled ? 'system' : 'none',
+      area: selectedSource
     })
-  }, [micEnabled, updateSettings])
+  }, [micEnabled, selectedSource, updateSettings])
 
   // Dynamically resize window when dropdown expands/collapses
   useEffect(() => {
@@ -210,11 +211,11 @@ export default function RecordingDock() {
                       <span className="text-sm font-medium">Window</span>
                     </button>
                     <button
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${selectedSource === 'area'
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${selectedSource === 'region'
                           ? 'bg-white/20 text-white'
                           : 'text-white/60 hover:text-white hover:bg-white/10'
                         }`}
-                      onClick={() => setSelectedSource('area')}
+                      onClick={() => setSelectedSource('region')}
                     >
                       <MonitorDown size={16} />
                       <span className="text-sm font-medium">Area</span>
