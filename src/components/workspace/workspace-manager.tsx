@@ -367,16 +367,13 @@ export function WorkspaceManager() {
       <div className="flex-1 flex min-h-0">
         {/* Main Editor Section */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Preview Area - Takes up remaining space */}
-          <div className="flex-1 bg-muted/20 border-r">
+          {/* Preview Area - Fixed height */}
+          <div className="flex-shrink-0 bg-muted/20 border-r">
             <PreviewArea />
           </div>
 
-          {/* Timeline Section - Fixed height */}
-          <div
-            className="flex-shrink-0 border-t bg-card/50"
-            style={{ height: `${timelineHeight}px` }}
-          >
+          {/* Timeline Section - Takes remaining space */}
+          <div className="flex-1 border-t bg-card/50 min-h-[200px]">
             <TimelineCanvas className="h-full" />
           </div>
         </div>
