@@ -5,8 +5,17 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.externals = [...config.externals, 'electron'];
+    
+    // Fix Konva node/browser issue
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'konva/lib/index-node.js': 'konva/lib/index.js',
+      };
+    }
+    
     return config;
   },
 }
