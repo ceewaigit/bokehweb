@@ -148,6 +148,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                       onClick={() => updateEffect('background', {
                         type: 'gradient',
                         gradient: {
+                          type: 'linear',
                           colors: wallpaper.colors,
                           angle: 135
                         }

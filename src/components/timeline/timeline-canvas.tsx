@@ -22,7 +22,7 @@ interface TimelineCanvasProps {
   className?: string
 }
 
-export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps) {
+export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps) {
   const {
     currentProject,
     selectedClips,
@@ -79,7 +79,7 @@ export function TimelineCanvas({ className = "h-[400px]" }: TimelineCanvasProps)
     const updateSize = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
-        setStageSize({ width: rect.width, height: rect.height - 200 })
+        setStageSize({ width: rect.width, height: rect.height - 100 })  // Reduced offset for more timeline space
       }
     }
     updateSize()

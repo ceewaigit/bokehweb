@@ -1,61 +1,35 @@
 /**
- * Streamlined Effects Engine
- * Cleaner, more maintainable zoom and camera effects system
+ * Effects Engine - Orchestrates all video effects
+ * Clean architecture that delegates to specific effect detectors and appliers
  */
 
 import { easeInOutQuad, easeOutExpo, easeInQuad } from '@/lib/utils/easing'
 import { CameraController } from './camera-controller'
-import type { MouseEvent as ProjectMouseEvent } from '@/types/project'
-
-// Simplified effect types
-export interface Effect {
-  id: string
-  type: 'zoom'
-  startTime: number
-  endTime: number
-  params: any
-}
-
-export interface ZoomEffect extends Effect {
-  type: 'zoom'
-  params: {
-    targetX: number      // Initial focus point (normalized 0-1)
-    targetY: number      // Initial focus point (normalized 0-1)
-    scale: number        // Zoom level (e.g., 1.8)
-    introMs: number      // Intro animation duration
-    outroMs: number      // Outro animation duration
-  }
-}
-
-export interface EffectState {
-  zoom: {
-    x: number
-    y: number
-    scale: number
-  }
-}
+import { ZoomEffectDetector } from './detectors/zoom-detector'
+import type {
+  Effect,
+  EffectState,
+  ProjectEvent,
+  RecordingContext,
+  EffectDetector,
+  ZoomEffect
+} from './types'
 
 export class EffectsEngine {
   private effects: Effect[] = []
-  private mouseEvents: ProjectMouseEvent[] = []
-  private videoDuration: number = 0
-  private videoWidth: number = 1920
-  private videoHeight: number = 1080
+  private detectors: Map<string, EffectDetector> = new Map()
+  private events: ProjectEvent[] = []
+  private context: RecordingContext | null = null
+
+  // Camera controller for smooth zoom tracking
   private cameraController: CameraController
 
   // Configuration
-  private readonly ACTIVITY_THRESHOLD = 30
-  private readonly IDLE_TIMEOUT = 2000
-  private readonly ZOOM_SCALE = 1.8
-  private readonly INTRO_DURATION = 200
-  private readonly OUTRO_DURATION = 300
-  private readonly MIN_ZOOM_DURATION = 500
-  private readonly MERGE_GAP = 1500
-
   private debugMode = false
   private useSmartCamera = true
 
   constructor() {
+    // Initialize camera controller
     this.cameraController = new CameraController({
       deadZoneSize: 0.3,
       responsiveness: 0.15,
@@ -66,6 +40,25 @@ export class EffectsEngine {
       minMovementThreshold: 5
     })
     this.cameraController.setDebugMode(this.debugMode)
+
+    // Register default effect detectors
+    this.registerDetector(new ZoomEffectDetector())
+    // Future: this.registerDetector(new PanEffectDetector())
+    // Future: this.registerDetector(new TransitionEffectDetector())
+  }
+
+  /**
+   * Register an effect detector
+   */
+  registerDetector(detector: EffectDetector): void {
+    this.detectors.set(detector.name, detector)
+  }
+
+  /**
+   * Unregister an effect detector
+   */
+  unregisterDetector(name: string): void {
+    this.detectors.delete(name)
   }
 
   /**
@@ -73,69 +66,119 @@ export class EffectsEngine {
    */
   initializeFromRecording(recording: any): void {
     if (!recording) return
-    const effects = this.detectEffectsFromRecording(recording)
-    this.setEffects(effects)
+
+    // Create context
+    this.context = {
+      duration: recording.duration || 0,
+      width: recording.width || 1920,
+      height: recording.height || 1080,
+      frameRate: recording.frameRate || 60,
+      metadata: recording.metadata || {}
+    }
+
+    // Convert metadata to events
+    this.events = this.convertMetadataToEvents(recording.metadata, this.context.width, this.context.height)
+
+    // Detect effects using all registered detectors
+    this.detectAllEffects()
   }
 
   /**
    * Initialize from raw metadata (for preview)
    */
   initializeFromMetadata(metadata: any[], duration: number, width: number, height: number): void {
-    const events = this.extractEvents(metadata, width, height)
-    const effects = this.detectZoomEffects(events, duration, width, height)
-    this.setEffects(effects)
+    // Create context
+    this.context = {
+      duration,
+      width,
+      height,
+      frameRate: 60,
+      metadata
+    }
+
+    // Extract events
+    this.events = this.extractEvents(metadata, width, height)
+
+    // Detect effects
+    this.detectAllEffects()
   }
 
   /**
-   * Detect effects from recording
+   * Detect effects using all registered detectors
    */
-  detectEffectsFromRecording(recording: any): ZoomEffect[] {
-    if (!recording.metadata || !recording.duration) return []
+  private detectAllEffects(): void {
+    if (!this.context) return
 
-    const events = this.convertMetadataToEvents(recording.metadata, recording.width, recording.height)
-    return this.detectZoomEffects(events, recording.duration, recording.width || 1920, recording.height || 1080)
+    this.effects = []
+
+    // Run each detector - use Array.from() to avoid iterator issues
+    const detectors = Array.from(this.detectors.values())
+    for (const detector of detectors) {
+      const detectedEffects = detector.detectEffects(this.events, this.context)
+      this.effects.push(...detectedEffects)
+    }
+
+    // Sort effects by start time
+    this.effects.sort((a, b) => a.startTime - b.startTime)
   }
 
   /**
    * Get effect state at timestamp
    */
   getEffectState(timestamp: number): EffectState {
-    const activeZoom = this.effects.find(effect =>
-      effect.type === 'zoom' &&
-      timestamp >= effect.startTime &&
-      timestamp <= effect.endTime
-    ) as ZoomEffect | undefined
+    const state: EffectState = {}
 
-    if (!activeZoom) {
-      return { zoom: { x: 0.5, y: 0.5, scale: 1.0 } }
+    // Find active effects at this timestamp
+    const activeEffects = this.effects.filter(effect =>
+      timestamp >= effect.startTime && timestamp <= effect.endTime
+    )
+
+    // Apply each active effect to the state
+    for (const effect of activeEffects) {
+      if (effect.type === 'zoom') {
+        state.zoom = this.calculateZoomState(effect as ZoomEffect, timestamp)
+      }
+      // Future: Handle other effect types
     }
 
+    // Default states if no effects active
+    if (!state.zoom) {
+      state.zoom = { x: 0.5, y: 0.5, scale: 1.0 }
+    }
+
+    return state
+  }
+
+  /**
+   * Calculate zoom state at a specific timestamp
+   */
+  private calculateZoomState(zoom: ZoomEffect, timestamp: number): { x: number; y: number; scale: number } {
+    const elapsed = timestamp - zoom.startTime
+    const effectDuration = zoom.endTime - zoom.startTime
     const mousePos = this.getInterpolatedMousePosition(timestamp)
-    const elapsed = timestamp - activeZoom.startTime
-    const effectDuration = activeZoom.endTime - activeZoom.startTime
 
     let x: number, y: number, scale: number
 
     // Intro phase - zoom in
-    if (elapsed < activeZoom.params.introMs) {
-      const progress = elapsed / activeZoom.params.introMs
+    if (elapsed < zoom.params.introMs) {
+      const progress = elapsed / zoom.params.introMs
       const eased = easeOutExpo(progress)
 
-      scale = 1.0 + (activeZoom.params.scale - 1.0) * eased
-      x = 0.5 + (activeZoom.params.targetX - 0.5) * eased
-      y = 0.5 + (activeZoom.params.targetY - 0.5) * eased
+      scale = 1.0 + (zoom.params.scale - 1.0) * eased
+      x = 0.5 + (zoom.params.targetX - 0.5) * eased
+      y = 0.5 + (zoom.params.targetY - 0.5) * eased
 
       if (this.useSmartCamera) {
         this.cameraController.setPosition(x, y)
       }
     }
     // Outro phase - zoom out
-    else if (elapsed > effectDuration - activeZoom.params.outroMs) {
-      const outroElapsed = elapsed - (effectDuration - activeZoom.params.outroMs)
-      const progress = outroElapsed / activeZoom.params.outroMs
+    else if (elapsed > effectDuration - zoom.params.outroMs) {
+      const outroElapsed = elapsed - (effectDuration - zoom.params.outroMs)
+      const progress = outroElapsed / zoom.params.outroMs
       const eased = easeInQuad(progress)
 
-      scale = activeZoom.params.scale - (activeZoom.params.scale - 1.0) * eased
+      scale = zoom.params.scale - (zoom.params.scale - 1.0) * eased
 
       if (this.useSmartCamera) {
         const currentCameraPos = this.cameraController.getPosition()
@@ -149,7 +192,7 @@ export class EffectsEngine {
     }
     // Tracking phase
     else {
-      scale = activeZoom.params.scale
+      scale = zoom.params.scale
 
       if (this.useSmartCamera) {
         const cameraPos = this.cameraController.getCameraPosition(
@@ -166,7 +209,7 @@ export class EffectsEngine {
       }
     }
 
-    return { zoom: { x, y, scale } }
+    return { x, y, scale }
   }
 
   /**
@@ -230,178 +273,17 @@ export class EffectsEngine {
   }
 
   /**
-   * Convert metadata to events
-   */
-  private convertMetadataToEvents(metadata: any, width: number, height: number): ProjectMouseEvent[] {
-    const events: ProjectMouseEvent[] = []
-
-    if (metadata.mouseEvents) {
-      events.push(...metadata.mouseEvents.map((e: any) => ({
-        timestamp: e.timestamp,
-        x: e.x,
-        y: e.y,
-        type: 'move' as const,
-        screenWidth: e.screenWidth || width,
-        screenHeight: e.screenHeight || height
-      })))
-    }
-
-    if (metadata.clickEvents) {
-      events.push(...metadata.clickEvents.map((e: any) => ({
-        timestamp: e.timestamp,
-        x: e.x,
-        y: e.y,
-        type: 'click' as const,
-        screenWidth: width,
-        screenHeight: height
-      })))
-    }
-
-    return events.sort((a, b) => a.timestamp - b.timestamp)
-  }
-
-  /**
-   * Extract events from preview metadata
-   */
-  private extractEvents(metadata: any[], width: number, height: number): ProjectMouseEvent[] {
-    return metadata
-      .filter((e: any) => e.eventType === 'mouse' || e.eventType === 'click')
-      .map((e: any) => ({
-        timestamp: e.timestamp,
-        x: e.mouseX || e.x,
-        y: e.mouseY || e.y,
-        type: e.eventType === 'click' ? 'click' : 'move',
-        screenWidth: e.windowWidth || e.screenWidth || width,
-        screenHeight: e.windowHeight || e.screenHeight || height
-      }))
-  }
-
-  /**
-   * Detect zoom effects from events
-   */
-  private detectZoomEffects(
-    events: ProjectMouseEvent[],
-    videoDuration: number,
-    videoWidth: number,
-    videoHeight: number
-  ): ZoomEffect[] {
-    this.mouseEvents = events
-    this.videoDuration = videoDuration
-    this.videoWidth = videoWidth
-    this.videoHeight = videoHeight
-
-    const zoomEffects: ZoomEffect[] = []
-    let currentZoomStart: number | null = null
-    let lastActivityTime = 0
-    let lastX = 0, lastY = 0
-    let initialZoomX = 0, initialZoomY = 0
-
-    for (let i = 0; i < events.length; i++) {
-      const event = events[i]
-
-      if (i === 0) {
-        lastX = event.x
-        lastY = event.y
-        continue
-      }
-
-      const distance = Math.sqrt(
-        Math.pow(event.x - lastX, 2) +
-        Math.pow(event.y - lastY, 2)
-      )
-
-      const isActivity = distance > this.ACTIVITY_THRESHOLD
-      const timeSinceLastActivity = event.timestamp - lastActivityTime
-
-      if (isActivity) {
-        if (currentZoomStart === null) {
-          currentZoomStart = event.timestamp
-          initialZoomX = event.x
-          initialZoomY = event.y
-        }
-        lastActivityTime = event.timestamp
-      } else if (currentZoomStart !== null && timeSinceLastActivity > this.IDLE_TIMEOUT) {
-        const zoomEnd = lastActivityTime + 300
-
-        if (zoomEnd - currentZoomStart >= this.MIN_ZOOM_DURATION) {
-          zoomEffects.push({
-            id: `zoom-${currentZoomStart}`,
-            type: 'zoom',
-            startTime: currentZoomStart,
-            endTime: zoomEnd,
-            params: {
-              targetX: initialZoomX / videoWidth,
-              targetY: initialZoomY / videoHeight,
-              scale: this.ZOOM_SCALE,
-              introMs: this.INTRO_DURATION,
-              outroMs: this.OUTRO_DURATION
-            }
-          })
-        }
-        currentZoomStart = null
-      }
-
-      lastX = event.x
-      lastY = event.y
-    }
-
-    // Handle remaining zoom
-    if (currentZoomStart !== null) {
-      const zoomEnd = Math.min(lastActivityTime + 300, videoDuration)
-
-      if (zoomEnd - currentZoomStart >= this.MIN_ZOOM_DURATION) {
-        zoomEffects.push({
-          id: `zoom-final-${currentZoomStart}`,
-          type: 'zoom',
-          startTime: currentZoomStart,
-          endTime: zoomEnd,
-          params: {
-            targetX: initialZoomX / videoWidth,
-            targetY: initialZoomY / videoHeight,
-            scale: this.ZOOM_SCALE,
-            introMs: this.INTRO_DURATION,
-            outroMs: this.OUTRO_DURATION
-          }
-        })
-      }
-    }
-
-    // Merge nearby effects
-    return this.mergeNearbyEffects(zoomEffects)
-  }
-
-  /**
-   * Merge effects that are close together
-   */
-  private mergeNearbyEffects(effects: ZoomEffect[]): ZoomEffect[] {
-    const merged: ZoomEffect[] = []
-    let lastEffect: ZoomEffect | null = null
-
-    for (const effect of effects) {
-      if (lastEffect && effect.startTime - lastEffect.endTime < this.MERGE_GAP) {
-        lastEffect.endTime = effect.endTime
-      } else {
-        if (lastEffect) merged.push(lastEffect)
-        lastEffect = { ...effect }
-      }
-    }
-
-    if (lastEffect) merged.push(lastEffect)
-    return merged
-  }
-
-  /**
    * Get interpolated mouse position
    */
   private getInterpolatedMousePosition(timestamp: number): { x: number; y: number } {
-    if (!this.mouseEvents || this.mouseEvents.length === 0) {
+    if (!this.events || this.events.length === 0 || !this.context) {
       return { x: 0.5, y: 0.5 }
     }
 
-    let before: ProjectMouseEvent | null = null
-    let after: ProjectMouseEvent | null = null
+    let before: ProjectEvent | null = null
+    let after: ProjectEvent | null = null
 
-    for (const event of this.mouseEvents) {
+    for (const event of this.events) {
       if (event.timestamp <= timestamp) {
         before = event
       } else {
@@ -414,10 +296,10 @@ export class EffectsEngine {
       const progress = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
       const smoothProgress = easeInOutQuad(Math.min(1, Math.max(0, progress)))
 
-      const beforeX = before.x / this.videoWidth
-      const beforeY = before.y / this.videoHeight
-      const afterX = after.x / this.videoWidth
-      const afterY = after.y / this.videoHeight
+      const beforeX = before.x / this.context.width
+      const beforeY = before.y / this.context.height
+      const afterX = after.x / this.context.width
+      const afterY = after.y / this.context.height
 
       return {
         x: beforeX + (afterX - beforeX) * smoothProgress,
@@ -427,19 +309,67 @@ export class EffectsEngine {
 
     if (before) {
       return {
-        x: before.x / this.videoWidth,
-        y: before.y / this.videoHeight
+        x: before.x / this.context.width,
+        y: before.y / this.context.height
       }
     }
 
     if (after) {
       return {
-        x: after.x / this.videoWidth,
-        y: after.y / this.videoHeight
+        x: after.x / this.context.width,
+        y: after.y / this.context.height
       }
     }
 
     return { x: 0.5, y: 0.5 }
+  }
+
+  /**
+   * Convert metadata to events
+   */
+  private convertMetadataToEvents(metadata: any, width: number, height: number): ProjectEvent[] {
+    const events: ProjectEvent[] = []
+
+    if (metadata?.mouseEvents) {
+      events.push(...metadata.mouseEvents.map((e: any) => ({
+        timestamp: e.timestamp,
+        x: e.x,
+        y: e.y,
+        type: 'move' as const,
+        screenWidth: e.screenWidth || width,
+        screenHeight: e.screenHeight || height
+      })))
+    }
+
+    if (metadata?.clickEvents) {
+      events.push(...metadata.clickEvents.map((e: any) => ({
+        timestamp: e.timestamp,
+        x: e.x,
+        y: e.y,
+        type: 'click' as const,
+        button: e.button,
+        screenWidth: width,
+        screenHeight: height
+      })))
+    }
+
+    return events.sort((a, b) => a.timestamp - b.timestamp)
+  }
+
+  /**
+   * Extract events from preview metadata
+   */
+  private extractEvents(metadata: any[], width: number, height: number): ProjectEvent[] {
+    return metadata
+      .filter((e: any) => e.eventType === 'mouse' || e.eventType === 'click')
+      .map((e: any) => ({
+        timestamp: e.timestamp,
+        x: e.mouseX || e.x,
+        y: e.mouseY || e.y,
+        type: e.eventType === 'click' ? 'click' : 'move',
+        screenWidth: e.windowWidth || e.screenWidth || width,
+        screenHeight: e.windowHeight || e.screenHeight || height
+      }))
   }
 
   /**
@@ -487,7 +417,7 @@ export class EffectsEngine {
 
     // Info panel
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
-    ctx.fillRect(5, 5, 250, 70)
+    ctx.fillRect(5, 5, 250, 90)
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.9)'
     ctx.font = 'bold 14px monospace'
@@ -499,37 +429,13 @@ export class EffectsEngine {
       ctx.fillText(`Mouse: (${mousePos.x.toFixed(3)}, ${mousePos.y.toFixed(3)})`, 10, 65)
     }
 
+    // Show active detectors
+    ctx.fillText(`Detectors: ${Array.from(this.detectors.keys()).join(', ')}`, 10, 85)
+
     ctx.restore()
   }
 
-  /**
-   * Legacy method for compatibility
-   */
-  getZoomKeyframes(recording: any): any[] {
-    const zoomEffects = this.detectEffectsFromRecording(recording)
-    const keyframes: any[] = []
-
-    zoomEffects.forEach(effect => {
-      keyframes.push({
-        time: effect.startTime,
-        zoom: effect.params.scale,
-        x: effect.params.targetX,
-        y: effect.params.targetY,
-        easing: 'easeOut'
-      })
-      keyframes.push({
-        time: effect.endTime,
-        zoom: 1.0,
-        x: 0.5,
-        y: 0.5,
-        easing: 'easeIn'
-      })
-    })
-
-    return keyframes
-  }
-
-  // Getters/Setters
+  // Public API
   getEffects(): Effect[] {
     return this.effects
   }
@@ -551,11 +457,54 @@ export class EffectsEngine {
     this.effects = []
   }
 
+  setDebugMode(enabled: boolean) {
+    this.debugMode = enabled
+    this.cameraController.setDebugMode(enabled)
+  }
+
+  setSmartCamera(enabled: boolean) {
+    this.useSmartCamera = enabled
+  }
+
   setPosition(x: number, y: number) {
     this.cameraController.setPosition(x, y)
   }
 
   getPosition() {
     return this.cameraController.getPosition()
+  }
+
+  /**
+   * Legacy method for compatibility - converts effects to keyframes
+   */
+  getZoomKeyframes(recording: any): any[] {
+    if (!recording) return []
+
+    // Initialize if needed
+    if (!this.context) {
+      this.initializeFromRecording(recording)
+    }
+
+    const keyframes: any[] = []
+    const zoomEffects = this.effects.filter(e => e.type === 'zoom') as ZoomEffect[]
+
+    zoomEffects.forEach(effect => {
+      keyframes.push({
+        time: effect.startTime,
+        zoom: effect.params.scale,
+        x: effect.params.targetX,
+        y: effect.params.targetY,
+        easing: 'easeOut'
+      })
+      keyframes.push({
+        time: effect.endTime,
+        zoom: 1.0,
+        x: 0.5,
+        y: 0.5,
+        easing: 'easeIn'
+      })
+    })
+
+    return keyframes
   }
 }
