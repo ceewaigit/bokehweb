@@ -204,7 +204,10 @@ export function PreviewArea() {
   useEffect(() => {
     if (isVideoLoaded) {
       initializeEffects()
-      renderFrame() // Draw initial frame
+      // Small delay to ensure effects are initialized
+      setTimeout(() => {
+        renderFrame() // Draw initial frame with effects
+      }, 100)
     }
   }, [isVideoLoaded, initializeEffects, renderFrame])
 
@@ -276,7 +279,7 @@ export function PreviewArea() {
   return (
     <div className="h-full bg-card border-b border-border flex flex-col">
       {/* Preview Container - constrained height */}
-      <div ref={containerRef} className="h-[400px] relative bg-muted/20 flex items-center justify-center overflow-hidden">
+      <div ref={containerRef} className="h-[300px] relative bg-muted/20 flex items-center justify-center overflow-hidden">
         {videoSource ? (
           <>
             <video

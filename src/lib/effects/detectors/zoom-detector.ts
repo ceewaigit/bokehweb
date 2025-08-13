@@ -159,19 +159,26 @@ export class ZoomEffectDetector implements EffectDetector {
     const triggers: ZoomTrigger[] = []
     const clickEvents = events.filter(e => e.type === 'click')
     
+    console.log(`[ZoomDetector] Processing ${clickEvents.length} click events`)
+    
     for (const click of clickEvents) {
+      console.log(`[ZoomDetector] Click at ${click.timestamp}ms, position (${click.x}, ${click.y})`)
+      
       // Find mouse position just before click for pre-zoom
       const preClickTime = Math.max(0, click.timestamp - this.config.CLICK_PRE_ZOOM)
       const mouseBeforeClick = this.findNearestMousePosition(events, preClickTime)
       
-      triggers.push({
+      const trigger = {
         timestamp: preClickTime,
         score: 85, // Clicks are high priority
-        reason: 'click',
+        reason: 'click' as const,
         x: mouseBeforeClick?.x || click.x,
         y: mouseBeforeClick?.y || click.y,
         confidence: 0.9
-      })
+      }
+      
+      console.log(`[ZoomDetector] Created click trigger: timestamp=${trigger.timestamp}, x=${trigger.x}, y=${trigger.y}`)
+      triggers.push(trigger)
     }
     
     return triggers
@@ -331,7 +338,12 @@ export class ZoomEffectDetector implements EffectDetector {
     const effects: ZoomEffect[] = []
     
     for (const trigger of triggers) {
-      if (trigger.score < this.config.ZOOM_SCORE_THRESHOLD) continue
+      console.log(`[ZoomDetector] Evaluating trigger: score=${trigger.score}, threshold=${this.config.ZOOM_SCORE_THRESHOLD}, reason=${trigger.reason}`)
+      
+      if (trigger.score < this.config.ZOOM_SCORE_THRESHOLD) {
+        console.log(`[ZoomDetector] Trigger rejected - score too low`)
+        continue
+      }
       
       // Calculate zoom duration based on trigger type
       let duration = this.config.MIN_ZOOM_DURATION
@@ -345,6 +357,8 @@ export class ZoomEffectDetector implements EffectDetector {
       
       const startTime = Math.max(0, trigger.timestamp)
       const endTime = Math.min(startTime + duration, context.duration)
+      
+      console.log(`[ZoomDetector] Zoom timing: start=${startTime}, end=${endTime}, duration=${endTime - startTime}, minDuration=${this.config.MIN_ZOOM_DURATION}`)
       
       if (endTime - startTime >= this.config.MIN_ZOOM_DURATION) {
         effects.push({
@@ -360,6 +374,9 @@ export class ZoomEffectDetector implements EffectDetector {
             outroMs: this.config.OUTRO_DURATION
           }
         })
+        console.log(`[ZoomDetector] Created zoom effect: ${trigger.reason} at ${startTime}ms`)
+      } else {
+        console.log(`[ZoomDetector] Zoom duration too short, skipped`)
       }
     }
     
