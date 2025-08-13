@@ -11,6 +11,8 @@ interface FocusSession {
   events: ProjectEvent[]
   centerX: number
   centerY: number
+  clickX?: number  // Position of the most important click
+  clickY?: number
   maxDistance: number
   hasClicks: boolean
 }
@@ -135,12 +137,17 @@ export class ZoomEffectDetector implements EffectDetector {
       
       if (event.type === 'click') {
         currentSession.hasClicks = true
+        // Store click position - this is where we'll zoom to
+        currentSession.clickX = event.x
+        currentSession.clickY = event.y
       }
       
-      // Update center as weighted average (recent events have more weight)
-      const weight = 0.1
-      currentSession.centerX = currentSession.centerX * (1 - weight) + event.x * weight
-      currentSession.centerY = currentSession.centerY * (1 - weight) + event.y * weight
+      // For calculating session bounds, use simple average
+      // But don't move the center too much - this is just for detecting if mouse left the area
+      const allX = currentSession.events.map(e => e.x)
+      const allY = currentSession.events.map(e => e.y)
+      currentSession.centerX = allX.reduce((a, b) => a + b, 0) / allX.length
+      currentSession.centerY = allY.reduce((a, b) => a + b, 0) / allY.length
     }
     
     // Don't forget the last session
@@ -236,9 +243,13 @@ export class ZoomEffectDetector implements EffectDetector {
         continue
       }
       
+      // Use click position if available, otherwise use session center
+      const targetX = session.clickX ?? session.centerX
+      const targetY = session.clickY ?? session.centerY
+      
       // Calculate normalized position
-      let normalizedX = session.centerX / context.width
-      let normalizedY = session.centerY / context.height
+      let normalizedX = targetX / context.width
+      let normalizedY = targetY / context.height
       
       // Account for padding if present
       if (context.padding && context.padding > 0) {
@@ -246,8 +257,8 @@ export class ZoomEffectDetector implements EffectDetector {
         const videoWidth = context.width - padding * 2
         const videoHeight = context.height - padding * 2
         
-        normalizedX = (session.centerX - padding) / videoWidth
-        normalizedY = (session.centerY - padding) / videoHeight
+        normalizedX = (targetX - padding) / videoWidth
+        normalizedY = (targetY - padding) / videoHeight
         
         // Clamp to valid range
         normalizedX = Math.max(0, Math.min(1, normalizedX))

@@ -19,7 +19,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   background: {
     type: 'gradient',
     gradient: {
-      colors: ['#1e293b', '#0f172a'],
+      colors: ['#f3f4f6', '#e5e7eb'],  // Light gray gradient
       angle: 135
     },
     padding: 80  // Reasonable padding around video
@@ -55,7 +55,7 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
   background: {
     type: 'gradient',
     gradient: {
-      colors: ['#1a1a2e', '#0f0f1e'],
+      colors: ['#f0f9ff', '#e0f2fe'],  // Light blue gradient for Screen Studio style
       angle: 135
     },
     padding: 120  // More padding for Screen Studio style

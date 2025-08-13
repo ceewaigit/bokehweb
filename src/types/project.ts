@@ -491,7 +491,7 @@ export async function saveRecordingWithProject(
         background: {
           type: 'gradient',
           gradient: {
-            colors: ['#1a1a2e', '#0f0f1e'],
+            colors: ['#f0f9ff', '#e0f2fe'],  // Light blue gradient
             angle: 135
           },
           padding: 40

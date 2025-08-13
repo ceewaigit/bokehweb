@@ -178,12 +178,9 @@ export class EffectsEngine {
 
       scale = 1.0 + (zoom.params.scale - 1.0) * eased
       
-      // Start from current mouse position (or center if no mouse data)
-      // and interpolate to target position
-      const startX = mousePos.x || 0.5
-      const startY = mousePos.y || 0.5
-      x = startX + (zoom.params.targetX - startX) * eased
-      y = startY + (zoom.params.targetY - startY) * eased
+      // Always start from center (full view) and zoom to target
+      x = 0.5 + (zoom.params.targetX - 0.5) * eased
+      y = 0.5 + (zoom.params.targetY - 0.5) * eased
 
       if (this.useSmartCamera) {
         this.cameraController.setPosition(x, y)
