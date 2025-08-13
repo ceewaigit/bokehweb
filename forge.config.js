@@ -32,7 +32,9 @@ module.exports = {
       /^\/forge.config.js$/,
     ],
   },
-  rebuildConfig: {},
+  rebuildConfig: {
+    onlyModules: ['uiohook-napi'],
+  },
   makers: [
     {
       name: '@electron-forge/maker-squirrel',

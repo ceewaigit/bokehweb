@@ -37,6 +37,16 @@ module.exports = {
       ],
     }),
   ],
+  externals: [
+    'uiohook-napi',
+    ({ request }, callback) => {
+      // Mark uiohook-napi as external
+      if (/^uiohook-napi/.test(request)) {
+        return callback(null, `commonjs ${request}`);
+      }
+      callback();
+    },
+  ],
   target: 'electron-main',
   node: {
     __dirname: false,
