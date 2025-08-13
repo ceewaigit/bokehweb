@@ -45,7 +45,8 @@ export class ZoomEffectDetector implements EffectDetector {
     INTRO_DURATION: 200,
     OUTRO_DURATION: 300,
     MIN_ZOOM_DURATION: 300,            // Shorter minimum (was 500)
-    MERGE_GAP: 1500
+    MAX_ZOOM_DURATION: 3000,           // Maximum duration for any zoom effect
+    MERGE_GAP: 300                     // Reduced to prevent over-merging
   }
   
   constructor(config?: Partial<typeof ZoomEffectDetector.prototype.config>) {
@@ -440,12 +441,49 @@ export class ZoomEffectDetector implements EffectDetector {
    */
   private triggersToZoomEffects(triggers: ZoomTrigger[], context: RecordingContext): ZoomEffect[] {
     const effects: ZoomEffect[] = []
+    const processedTimestamps = new Set<number>()
     
-    for (const trigger of triggers) {
+    // Sort triggers by score (highest first) to prioritize better triggers
+    const sortedTriggers = [...triggers].sort((a, b) => {
+      // First sort by timestamp
+      const timeDiff = a.timestamp - b.timestamp
+      if (Math.abs(timeDiff) < 100) {
+        // If timestamps are very close, prioritize by type
+        const typePriority: Record<string, number> = {
+          'click': 4,
+          'interaction': 3,
+          'dwell': 2,
+          'focus': 1,
+          'precision': 0
+        }
+        const priorityDiff = (typePriority[b.reason] || 0) - (typePriority[a.reason] || 0)
+        if (priorityDiff !== 0) return priorityDiff
+        // Then by score
+        return b.score - a.score
+      }
+      return timeDiff
+    })
+    
+    let lastEffectEnd = 0
+    
+    for (const trigger of sortedTriggers) {
       console.log(`[ZoomDetector] Evaluating trigger: score=${trigger.score}, threshold=${this.config.ZOOM_SCORE_THRESHOLD}, reason=${trigger.reason}`)
       
       if (trigger.score < this.config.ZOOM_SCORE_THRESHOLD) {
         console.log(`[ZoomDetector] Trigger rejected - score too low`)
+        continue
+      }
+      
+      // Skip if we already have a trigger at this timestamp (within 200ms)
+      const roundedTimestamp = Math.round(trigger.timestamp / 200) * 200
+      if (processedTimestamps.has(roundedTimestamp)) {
+        console.log(`[ZoomDetector] Skipping duplicate trigger at ${trigger.timestamp}ms`)
+        continue
+      }
+      
+      // Ensure minimum gap between zoom effects (at least 500ms)
+      if (trigger.timestamp < lastEffectEnd + 500) {
+        console.log(`[ZoomDetector] Skipping trigger at ${trigger.timestamp}ms - too close to previous effect ending at ${lastEffectEnd}ms`)
         continue
       }
       
@@ -454,10 +492,15 @@ export class ZoomEffectDetector implements EffectDetector {
       if (trigger.reason === 'click') {
         duration = this.config.CLICK_PRE_ZOOM + this.config.CLICK_POST_ZOOM + 200
       } else if (trigger.reason === 'dwell') {
-        duration = 1500
+        duration = Math.min(1200, this.config.MAX_ZOOM_DURATION)
       } else if (trigger.reason === 'interaction') {
-        duration = 2000
+        duration = Math.min(1500, this.config.MAX_ZOOM_DURATION)
+      } else if (trigger.reason === 'focus' || trigger.reason === 'precision') {
+        duration = Math.min(800, this.config.MAX_ZOOM_DURATION)
       }
+      
+      // Enforce maximum duration
+      duration = Math.min(duration, this.config.MAX_ZOOM_DURATION)
       
       const startTime = Math.max(0, trigger.timestamp)
       const endTime = Math.min(startTime + duration, context.duration)
@@ -514,7 +557,9 @@ export class ZoomEffectDetector implements EffectDetector {
             outroMs: this.config.OUTRO_DURATION
           }
         })
-        console.log(`[ZoomDetector] Created zoom effect: ${trigger.reason} at ${startTime}ms`)
+        processedTimestamps.add(roundedTimestamp)
+        lastEffectEnd = endTime
+        console.log(`[ZoomDetector] Created zoom effect: ${trigger.reason} at ${startTime}ms, ending at ${endTime}ms`)
       } else {
         console.log(`[ZoomDetector] Zoom duration too short, skipped`)
       }
@@ -527,20 +572,63 @@ export class ZoomEffectDetector implements EffectDetector {
    * Merge effects that are close together
    */
   private mergeNearbyEffects(effects: ZoomEffect[]): ZoomEffect[] {
-    const merged: ZoomEffect[] = []
-    let lastEffect: ZoomEffect | null = null
+    if (effects.length === 0) return []
     
-    for (const effect of effects) {
-      if (lastEffect && effect.startTime - lastEffect.endTime < this.config.MERGE_GAP) {
-        // Extend the last effect instead of creating a new one
-        lastEffect.endTime = effect.endTime
+    const merged: ZoomEffect[] = []
+    let currentGroup: ZoomEffect[] = [effects[0]]
+    
+    for (let i = 1; i < effects.length; i++) {
+      const effect = effects[i]
+      const lastInGroup = currentGroup[currentGroup.length - 1]
+      
+      // Check if this effect should be merged with the current group
+      if (effect.startTime - lastInGroup.endTime < this.config.MERGE_GAP) {
+        // Don't merge if it would create an effect longer than MAX_ZOOM_DURATION
+        const groupStart = currentGroup[0].startTime
+        const potentialDuration = effect.endTime - groupStart
+        
+        if (potentialDuration <= this.config.MAX_ZOOM_DURATION) {
+          currentGroup.push(effect)
+        } else {
+          // Start a new group
+          merged.push(this.mergeGroup(currentGroup))
+          currentGroup = [effect]
+        }
       } else {
-        if (lastEffect) merged.push(lastEffect)
-        lastEffect = { ...effect }
+        // Gap is too large, finalize current group and start new one
+        merged.push(this.mergeGroup(currentGroup))
+        currentGroup = [effect]
       }
     }
     
-    if (lastEffect) merged.push(lastEffect)
+    // Don't forget the last group
+    if (currentGroup.length > 0) {
+      merged.push(this.mergeGroup(currentGroup))
+    }
+    
     return merged
+  }
+  
+  /**
+   * Merge a group of effects into a single effect
+   */
+  private mergeGroup(group: ZoomEffect[]): ZoomEffect {
+    if (group.length === 1) return group[0]
+    
+    // Calculate average position for merged effect
+    const avgX = group.reduce((sum, e) => sum + (e.params?.targetX || 0.5), 0) / group.length
+    const avgY = group.reduce((sum, e) => sum + (e.params?.targetY || 0.5), 0) / group.length
+    const maxScale = Math.max(...group.map(e => e.params?.scale || 2.0))
+    
+    return {
+      ...group[0],
+      endTime: group[group.length - 1].endTime,
+      params: {
+        ...group[0].params,
+        targetX: avgX,
+        targetY: avgY,
+        scale: maxScale
+      }
+    }
   }
 }

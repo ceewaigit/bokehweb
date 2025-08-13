@@ -59,8 +59,8 @@ export function PreviewArea() {
     }
 
     // Get video scale and padding from clip effects
-    const videoScale = selectedClip?.effects?.video?.scale ?? 1.0
-    const padding = selectedClip?.effects?.background?.padding || 120
+    const videoScale = selectedClip?.effects?.video?.scale ?? 0.85
+    const padding = selectedClip?.effects?.background?.padding ?? 60
 
     // Initialize effects engine with video scale and padding
     if (!effectsEngineRef.current) {
@@ -74,17 +74,17 @@ export function PreviewArea() {
       type: (selectedClip?.effects?.background?.type as any) || 'gradient',
       gradient: {
         type: 'linear' as const,
-        colors: selectedClip?.effects?.background?.gradient?.colors || ['#667eea', '#764ba2'],
+        colors: selectedClip?.effects?.background?.gradient?.colors || ['#1e293b', '#0f172a'],
         angle: selectedClip?.effects?.background?.gradient?.angle || 135
       },
-      padding: selectedClip?.effects?.background?.padding || 120,  // Increased padding for better background visibility
-      borderRadius: selectedClip?.effects?.video?.cornerRadius || 16,
+      padding: selectedClip?.effects?.background?.padding ?? 60,
+      borderRadius: selectedClip?.effects?.video?.cornerRadius ?? 24,
       shadow: {
-        enabled: true,
-        color: 'rgba(0, 0, 0, 0.3)',
-        blur: 40,
-        offsetX: 0,
-        offsetY: 20
+        enabled: selectedClip?.effects?.video?.shadow?.enabled ?? true,
+        color: selectedClip?.effects?.video?.shadow?.color || 'rgba(0, 0, 0, 0.5)',
+        blur: selectedClip?.effects?.video?.shadow?.blur ?? 60,
+        offsetX: selectedClip?.effects?.video?.shadow?.offset?.x ?? 0,
+        offsetY: selectedClip?.effects?.video?.shadow?.offset?.y ?? 25
       }
     }
 
@@ -108,7 +108,7 @@ export function PreviewArea() {
 
     if (showEffects && effectsEngineRef.current && backgroundRendererRef.current) {
       // Get video scale from clip effects
-      const videoScale = selectedClip?.effects?.video?.scale ?? 1.0
+      const videoScale = selectedClip?.effects?.video?.scale ?? 0.85
       
       // Get effect state
       const effectState = effectsEngineRef.current.getEffectState(timeMs)
@@ -187,8 +187,8 @@ export function PreviewArea() {
         // Initialize effects first
         if (!effectsEngineRef.current && currentRecording) {
           // Get video scale and padding from clip effects
-          const videoScale = selectedClip?.effects?.video?.scale ?? 1.0
-          const padding = selectedClip?.effects?.background?.padding || 120
+          const videoScale = selectedClip?.effects?.video?.scale ?? 0.85
+          const padding = selectedClip?.effects?.background?.padding ?? 60
           
           const engine = new EffectsEngine()
           engine.initializeFromRecording(currentRecording, videoScale, padding)
@@ -201,17 +201,17 @@ export function PreviewArea() {
             type: 'gradient' as const,
             gradient: {
               type: 'linear' as const,
-              colors: ['#667eea', '#764ba2'],
+              colors: ['#1e293b', '#0f172a'],
               angle: 135
             },
-            padding: 120,
-            borderRadius: 16,
+            padding: 60,
+            borderRadius: 24,
             shadow: {
               enabled: true,
-              color: 'rgba(0, 0, 0, 0.3)',
-              blur: 40,
+              color: 'rgba(0, 0, 0, 0.5)',
+              blur: 60,
               offsetX: 0,
-              offsetY: 20
+              offsetY: 25
             }
           }
           backgroundRendererRef.current = new BackgroundRenderer(bgOptions)
@@ -253,30 +253,50 @@ export function PreviewArea() {
     }
   }, [isVideoLoaded, initializeEffects, renderFrame])
 
-  // Update background when settings change
+  // Update background and re-initialize effects when settings change
   useEffect(() => {
-    if (backgroundRendererRef.current && selectedClip && !isPlaying) {
+    if (!selectedClip || isPlaying) return
+    
+    // Update background renderer options
+    if (backgroundRendererRef.current) {
       const bgOptions = {
         type: (selectedClip.effects?.background?.type as any) || 'gradient',
         gradient: {
           type: 'linear' as const,
-          colors: selectedClip.effects?.background?.gradient?.colors || ['#667eea', '#764ba2'],
+          colors: selectedClip.effects?.background?.gradient?.colors || ['#1e293b', '#0f172a'],
           angle: selectedClip.effects?.background?.gradient?.angle || 135
         },
-        padding: selectedClip.effects?.background?.padding || 120,  // Increased padding for better background visibility
-        borderRadius: selectedClip.effects?.video?.cornerRadius || 16,
+        padding: selectedClip.effects?.background?.padding ?? 60,
+        borderRadius: selectedClip.effects?.video?.cornerRadius ?? 24,
         shadow: {
-          enabled: true,
-          color: 'rgba(0, 0, 0, 0.3)',
-          blur: 40,
-          offsetX: 0,
-          offsetY: 20
+          enabled: selectedClip.effects?.video?.shadow?.enabled ?? true,
+          color: selectedClip.effects?.video?.shadow?.color || 'rgba(0, 0, 0, 0.5)',
+          blur: selectedClip.effects?.video?.shadow?.blur ?? 60,
+          offsetX: selectedClip.effects?.video?.shadow?.offset?.x ?? 0,
+          offsetY: selectedClip.effects?.video?.shadow?.offset?.y ?? 25
         }
       }
       backgroundRendererRef.current.updateOptions(bgOptions)
-      renderFrame() // Re-render with new settings
     }
-  }, [selectedClip, isPlaying, renderFrame])
+    
+    // Re-initialize effects engine with new video scale
+    if (effectsEngineRef.current && currentRecording) {
+      const videoScale = selectedClip.effects?.video?.scale ?? 0.85
+      const padding = selectedClip.effects?.background?.padding ?? 60
+      effectsEngineRef.current.initializeFromRecording(currentRecording, videoScale, padding)
+    }
+    
+    // Force re-render
+    renderFrame()
+  }, [
+    selectedClip?.effects?.background,
+    selectedClip?.effects?.video?.scale,
+    selectedClip?.effects?.video?.cornerRadius,
+    selectedClip?.effects?.video?.shadow,
+    isPlaying, 
+    renderFrame,
+    currentRecording
+  ])
 
   // Handle playback
   useEffect(() => {

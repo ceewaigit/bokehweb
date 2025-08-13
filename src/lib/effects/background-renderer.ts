@@ -255,43 +255,75 @@ export class BackgroundRenderer {
 
     // Draw video frame with padding and effects
     if (videoFrame) {
-      // Calculate available space (canvas minus padding)
-      const availableWidth = width - padding * 2
-      const availableHeight = height - padding * 2
-      
-      // Apply scale to get actual video dimensions
-      const scaledWidth = availableWidth * scale
-      const scaledHeight = availableHeight * scale
-      
-      // Center the scaled video in the available space
-      const frameX = videoX ?? (padding + (availableWidth - scaledWidth) / 2)
-      const frameY = videoY ?? (padding + (availableHeight - scaledHeight) / 2)
-      const frameWidth = videoWidth ?? scaledWidth
-      const frameHeight = videoHeight ?? scaledHeight
+      // Calculate video dimensions based on scale
+      let frameX: number, frameY: number, frameWidth: number, frameHeight: number
 
-      ctx.save()
+      if (padding === 0) {
+        // No padding - video fills available space with scale
+        frameWidth = width * scale
+        frameHeight = height * scale
+        frameX = videoX ?? (width - frameWidth) / 2
+        frameY = videoY ?? (height - frameHeight) / 2
+      } else {
+        // With padding - calculate available space
+        const availableWidth = width - padding * 2
+        const availableHeight = height - padding * 2
 
-      // Apply shadow if specified
-      if (this.options.shadow?.enabled) {
-        ctx.shadowColor = this.options.shadow.color
-        ctx.shadowBlur = this.options.shadow.blur
-        ctx.shadowOffsetX = this.options.shadow.offsetX
-        ctx.shadowOffsetY = this.options.shadow.offsetY
+        // Apply scale to get actual video dimensions
+        frameWidth = availableWidth * scale
+        frameHeight = availableHeight * scale
 
-        // Create a subtle inner shadow effect for more depth
-        if (this.options.shadow.spread) {
-          const spread = this.options.shadow.spread
-          ctx.save()
-          ctx.globalCompositeOperation = 'multiply'
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.1)'
-          ctx.shadowBlur = Math.abs(spread)
-          ctx.shadowOffsetX = 0
-          ctx.shadowOffsetY = 0
-          ctx.restore()
-        }
+        // Center the scaled video
+        frameX = videoX ?? (padding + (availableWidth - frameWidth) / 2)
+        frameY = videoY ?? (padding + (availableHeight - frameHeight) / 2)
       }
 
-      // Apply border radius if specified
+      // Use provided dimensions if specified
+      if (videoWidth !== undefined) frameWidth = videoWidth
+      if (videoHeight !== undefined) frameHeight = videoHeight
+
+      // Draw shadow first (behind the video)
+      if (this.options.shadow?.enabled) {
+        ctx.save()
+
+        // Create shadow by drawing a blurred shape behind the video
+        const shadowOffsetX = this.options.shadow.offsetX || 0
+        const shadowOffsetY = this.options.shadow.offsetY || 0
+        const shadowBlur = this.options.shadow.blur || 40
+        const shadowColor = this.options.shadow.color || 'rgba(0, 0, 0, 0.5)'
+
+        // Draw shadow shape
+        ctx.filter = `blur(${shadowBlur}px)`
+        ctx.fillStyle = shadowColor
+
+        if (this.options.borderRadius && this.options.borderRadius > 0) {
+          // Draw rounded rectangle for shadow
+          this.roundRect(
+            ctx,
+            frameX + shadowOffsetX,
+            frameY + shadowOffsetY,
+            frameWidth,
+            frameHeight,
+            this.options.borderRadius
+          )
+          ctx.fill()
+        } else {
+          // Draw regular rectangle for shadow
+          ctx.fillRect(
+            frameX + shadowOffsetX,
+            frameY + shadowOffsetY,
+            frameWidth,
+            frameHeight
+          )
+        }
+
+        ctx.restore()
+      }
+
+      // Draw the video frame with clipping for rounded corners
+      ctx.save()
+
+      // Apply border radius clipping if specified
       if (this.options.borderRadius && this.options.borderRadius > 0) {
         this.roundRect(ctx, frameX, frameY, frameWidth, frameHeight, this.options.borderRadius)
         ctx.clip()
@@ -349,24 +381,33 @@ export class BackgroundRenderer {
   } {
     const padding = this.options.padding || 0
     const scale = videoScale
-    
-    // Calculate available space (canvas minus padding)
-    const availableWidth = canvasWidth - padding * 2
-    const availableHeight = canvasHeight - padding * 2
-    
-    // Apply scale to get actual video dimensions
-    const scaledWidth = availableWidth * scale
-    const scaledHeight = availableHeight * scale
-    
-    // Center the scaled video in the available space
-    const x = padding + (availableWidth - scaledWidth) / 2
-    const y = padding + (availableHeight - scaledHeight) / 2
-    
-    return {
-      x,
-      y,
-      width: scaledWidth,
-      height: scaledHeight
+
+    if (padding === 0) {
+      // No padding - video fills available space with scale
+      const width = canvasWidth * scale
+      const height = canvasHeight * scale
+      return {
+        x: (canvasWidth - width) / 2,
+        y: (canvasHeight - height) / 2,
+        width,
+        height
+      }
+    } else {
+      // With padding - calculate available space
+      const availableWidth = canvasWidth - padding * 2
+      const availableHeight = canvasHeight - padding * 2
+
+      // Apply scale to get actual video dimensions
+      const width = availableWidth * scale
+      const height = availableHeight * scale
+
+      // Center the scaled video
+      return {
+        x: padding + (availableWidth - width) / 2,
+        y: padding + (availableHeight - height) / 2,
+        width,
+        height
+      }
     }
   }
 

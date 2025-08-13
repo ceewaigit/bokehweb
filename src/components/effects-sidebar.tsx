@@ -354,24 +354,53 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                   checked={effects.video.shadow.enabled}
                   onCheckedChange={(checked) => 
                     updateEffect('video', {
+                      ...effects.video,
                       shadow: { ...effects.video.shadow, enabled: checked }
                     })
                   }
                 />
               </label>
               {effects.video.shadow.enabled && (
-                <Slider
-                  value={[effects.video.shadow.blur]}
-                  onValueChange={([value]) => 
-                    updateEffect('video', {
-                      shadow: { ...effects.video.shadow, blur: value }
-                    })
-                  }
-                  min={0}
-                  max={100}
-                  step={5}
-                  className="w-full"
-                />
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Blur</label>
+                    <Slider
+                      value={[effects.video.shadow.blur]}
+                      onValueChange={([value]) => 
+                        updateEffect('video', {
+                          ...effects.video,
+                          shadow: { ...effects.video.shadow, blur: value }
+                        })
+                      }
+                      min={0}
+                      max={120}
+                      step={5}
+                      className="w-full"
+                    />
+                    <span className="text-xs text-muted-foreground">{effects.video.shadow.blur}px</span>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Offset Y</label>
+                    <Slider
+                      value={[effects.video.shadow.offset.y]}
+                      onValueChange={([value]) => 
+                        updateEffect('video', {
+                          ...effects.video,
+                          shadow: { 
+                            ...effects.video.shadow, 
+                            offset: { ...effects.video.shadow.offset, y: value }
+                          }
+                        })
+                      }
+                      min={0}
+                      max={50}
+                      step={5}
+                      className="w-full"
+                    />
+                    <span className="text-xs text-muted-foreground">{effects.video.shadow.offset.y}px</span>
+                  </div>
+                </>
               )}
             </div>
           </div>

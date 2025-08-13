@@ -17,18 +17,22 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
     motionBlur: false
   },
   background: {
-    type: 'none',
-    padding: 0
+    type: 'gradient',
+    gradient: {
+      colors: ['#1e293b', '#0f172a'],
+      angle: 135
+    },
+    padding: 60
   },
   video: {
-    cornerRadius: 0,
+    cornerRadius: 24,
     shadow: {
-      enabled: false,
-      blur: 0,
-      color: '#000000',
-      offset: { x: 0, y: 0 }
+      enabled: true,
+      blur: 60,
+      color: 'rgba(0, 0, 0, 0.5)',
+      offset: { x: 0, y: 25 }
     },
-    scale: 1.0  // Full size by default
+    scale: 0.85  // 85% size by default for better framing
   },
   annotations: []
 }
@@ -58,14 +62,14 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
     padding: 40
   },
   video: {
-    cornerRadius: 12,
+    cornerRadius: 24,
     shadow: {
       enabled: true,
-      blur: 40,
-      color: '#000000',
-      offset: { x: 0, y: 20 }
+      blur: 80,
+      color: 'rgba(0, 0, 0, 0.6)',
+      offset: { x: 0, y: 30 }
     },
-    scale: 0.8  // 80% size for Screen Studio style
+    scale: 0.75  // 75% size for Screen Studio style with more background visible
   },
   annotations: []
 }
