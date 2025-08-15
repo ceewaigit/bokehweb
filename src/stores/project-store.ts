@@ -24,6 +24,7 @@ interface ProjectStore {
   zoom: number
   selectedClipId: string | null
   selectedClips: string[]
+  effectsEngine: EffectsEngine | null
 
   // Core Actions
   newProject: (name: string) => void
@@ -54,6 +55,10 @@ interface ProjectStore {
   pause: () => void
   seek: (time: number) => void
   setZoom: (zoom: number) => void
+
+  // Effects Engine
+  setEffectsEngine: (engine: EffectsEngine | null) => void
+  regenerateZoomEffects: (options?: any) => void
 
   // Getters
   getCurrentClip: () => Clip | null
@@ -109,6 +114,7 @@ export const useProjectStore = create<ProjectStore>()(
     zoom: 1.0,
     selectedClipId: null,
     selectedClips: [],
+    effectsEngine: null,
 
     newProject: (name) => {
       set((state) => {
@@ -583,6 +589,44 @@ export const useProjectStore = create<ProjectStore>()(
       const clip = get().getCurrentClip()
       if (!currentProject || !clip) return null
       return currentProject.recordings.find(r => r.id === clip.recordingId) || null
+    },
+
+    setEffectsEngine: (engine) => {
+      set((state) => {
+        state.effectsEngine = engine
+      })
+    },
+
+    regenerateZoomEffects: (options) => {
+      const { effectsEngine, getCurrentRecording, selectedClipId, currentProject } = get()
+      if (!effectsEngine || !selectedClipId || !currentProject) return
+
+      const recording = getCurrentRecording()
+      if (!recording) return
+
+      // Regenerate effects based on options
+      if (options?.forceTest) {
+        effectsEngine.forceDetectZoomEffects(options)
+      } else {
+        effectsEngine.regenerateEffects(options)
+      }
+
+      // Update the clip's zoom blocks
+      const zoomBlocks = effectsEngine.getZoomBlocks(recording)
+      
+      set((state) => {
+        if (!state.currentProject) return
+        
+        const result = findClipById(state.currentProject, selectedClipId)
+        if (!result) return
+        
+        const { clip } = result
+        if (clip.effects?.zoom) {
+          clip.effects.zoom.blocks = zoomBlocks
+        }
+        
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
     }
   }))
 )

@@ -27,7 +27,8 @@ export function PreviewArea() {
     isPlaying,
     getCurrentRecording,
     seek,
-    pause
+    pause,
+    setEffectsEngine
   } = useProjectStore()
 
   // Get the selected clip
@@ -103,6 +104,9 @@ export function PreviewArea() {
       effectsEngineRef.current = new EffectsEngine()
     }
     effectsEngineRef.current.initializeFromRecording(currentRecording)
+    
+    // Set effects engine in store for external access
+    setEffectsEngine(effectsEngineRef.current)
 
     // Initialize cursor renderer
     if (cursorRendererRef.current) {

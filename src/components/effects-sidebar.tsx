@@ -281,6 +281,82 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                 className="w-full"
               />
             </div>
+
+            {/* Debug section - only show in development */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="border-t pt-4 space-y-2">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Debug Tools
+                </h4>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs"
+                  onClick={() => {
+                    const store = useProjectStore.getState()
+                    store.regenerateZoomEffects({
+                      forceTest: true,
+                      intervalMs: 3000,
+                      zoomDuration: 2500,
+                      zoomScale: 2.5,
+                      useMouseEvents: false
+                    })
+                  }}
+                >
+                  Create Test Zoom Effects
+                </Button>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs"
+                  onClick={() => {
+                    const store = useProjectStore.getState()
+                    store.regenerateZoomEffects({
+                      forceTest: true,
+                      useMouseEvents: true,
+                      zoomDuration: 2000,
+                      zoomScale: 2.0
+                    })
+                  }}
+                >
+                  Generate from Mouse Events
+                </Button>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs"
+                  onClick={() => {
+                    const store = useProjectStore.getState()
+                    store.regenerateZoomEffects({
+                      minGapMs: 1500,
+                      zoomDuration: 3000,
+                      zoomScale: 2.0,
+                      clicksOnly: true
+                    })
+                  }}
+                >
+                  Regenerate from Clicks
+                </Button>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs"
+                  onClick={() => {
+                    const store = useProjectStore.getState()
+                    if (store.effectsEngine) {
+                      store.effectsEngine.clearEffects()
+                      store.regenerateZoomEffects({})
+                    }
+                  }}
+                >
+                  Clear All Effects
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

@@ -297,6 +297,156 @@ export class EffectsEngine {
   }
 
   /**
+   * Force detect zoom effects with test data for debugging
+   */
+  forceDetectZoomEffects(options?: {
+    intervalMs?: number
+    zoomDuration?: number
+    zoomScale?: number
+    useMouseEvents?: boolean
+  }): void {
+    this.effects = []
+    
+    const {
+      intervalMs = 4000,
+      zoomDuration = 3000,
+      zoomScale = 2.0,
+      useMouseEvents = false
+    } = options || {}
+
+    if (useMouseEvents && this.events.length > 0) {
+      // Create zoom effects based on mouse movement patterns
+      let lastZoomEnd = 0
+      const significantMoves = this.events.filter((e, i) => {
+        if (i === 0) return false
+        const prev = this.events[i - 1]
+        const distance = Math.sqrt(
+          Math.pow((e.x - prev.x) / this.width, 2) + 
+          Math.pow((e.y - prev.y) / this.height, 2)
+        )
+        return distance > 0.1 && e.timestamp > lastZoomEnd + 2000
+      })
+
+      significantMoves.slice(0, 5).forEach(move => {
+        if (move.timestamp < lastZoomEnd + 2000) return
+        
+        const effectDuration = Math.min(zoomDuration, this.duration - move.timestamp - 500)
+        if (effectDuration > 1000) {
+          this.effects.push({
+            id: `zoom-test-${move.timestamp}`,
+            type: 'zoom',
+            startTime: move.timestamp,
+            endTime: move.timestamp + effectDuration,
+            targetX: move.x / this.width,
+            targetY: move.y / this.height,
+            scale: zoomScale,
+            introMs: 400,
+            outroMs: 400
+          })
+          lastZoomEnd = move.timestamp + effectDuration
+        }
+      })
+    } else {
+      // Create evenly spaced test zoom effects
+      const numEffects = Math.floor(this.duration / intervalMs)
+      for (let i = 0; i < Math.min(numEffects, 5); i++) {
+        const startTime = i * intervalMs + 1000
+        const endTime = Math.min(startTime + zoomDuration, this.duration - 500)
+        
+        if (endTime - startTime > 1000) {
+          // Create zoom at different positions for variety
+          const positions = [
+            { x: 0.3, y: 0.3 },
+            { x: 0.7, y: 0.3 },
+            { x: 0.5, y: 0.5 },
+            { x: 0.3, y: 0.7 },
+            { x: 0.7, y: 0.7 }
+          ]
+          const pos = positions[i % positions.length]
+          
+          this.effects.push({
+            id: `zoom-test-${startTime}`,
+            type: 'zoom',
+            startTime,
+            endTime,
+            targetX: pos.x,
+            targetY: pos.y,
+            scale: zoomScale,
+            introMs: 400,
+            outroMs: 400
+          })
+        }
+      }
+    }
+
+    console.log(`Created ${this.effects.length} test zoom effects`)
+  }
+
+  /**
+   * Regenerate effects with different parameters
+   */
+  regenerateEffects(options?: {
+    minGapMs?: number
+    zoomDuration?: number
+    zoomScale?: number
+    clicksOnly?: boolean
+  }): void {
+    const {
+      minGapMs = 2000,
+      zoomDuration = 3000,
+      zoomScale = 2.0,
+      clicksOnly = true
+    } = options || {}
+
+    this.effects = []
+    
+    const events = clicksOnly 
+      ? this.events.filter(e => e.type === 'click')
+      : this.events
+
+    if (events.length === 0) {
+      console.log('No events found for regeneration')
+      return
+    }
+
+    let lastZoomEnd = 0
+    
+    events.forEach((event, index) => {
+      if (event.timestamp < lastZoomEnd + minGapMs) return
+      
+      const nextEvent = events[index + 1]
+      let effectDuration = zoomDuration
+      
+      if (nextEvent) {
+        const gapToNext = nextEvent.timestamp - event.timestamp
+        if (gapToNext < 5000) {
+          effectDuration = Math.max(1500, gapToNext - 500)
+        }
+      }
+      
+      effectDuration = Math.min(effectDuration, this.duration - event.timestamp - 500)
+      
+      if (effectDuration > 1000) {
+        this.effects.push({
+          id: `zoom-${event.timestamp}`,
+          type: 'zoom',
+          startTime: event.timestamp,
+          endTime: event.timestamp + effectDuration,
+          targetX: event.x / this.width,
+          targetY: event.y / this.height,
+          scale: zoomScale,
+          introMs: 400,
+          outroMs: 400
+        })
+        
+        lastZoomEnd = event.timestamp + effectDuration
+      }
+    })
+
+    console.log(`Regenerated ${this.effects.length} zoom effects`)
+  }
+
+  /**
    * Get zoom blocks for timeline (Screen Studio style)
    */
   getZoomBlocks(recording: any): any[] {
