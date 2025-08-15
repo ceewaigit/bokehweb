@@ -42,6 +42,7 @@ export class CursorRenderer {
   private lastFrameTime = 0
   private animationFrame: number | null = null
   private video: HTMLVideoElement | null = null
+  private isActive = false
   
   // Performance monitoring
   private frameCount = 0
@@ -175,17 +176,27 @@ export class CursorRenderer {
   }
 
   private startAnimationLoop() {
+    this.isActive = true
+    
     const animate = (currentTime: number) => {
+      // Stop if not active or video ended
+      if (!this.isActive || !this.video) {
+        this.animationFrame = null
+        return
+      }
+      
       // Calculate FPS
       this.updateFps(currentTime)
       
       // Get video time and render
-      if (this.video) {
-        this.render(this.video.currentTime * 1000, currentTime)
-      }
+      this.render(this.video.currentTime * 1000, currentTime)
       
       this.lastFrameTime = currentTime
-      this.animationFrame = requestAnimationFrame(animate)
+      
+      // Only continue if still active
+      if (this.isActive) {
+        this.animationFrame = requestAnimationFrame(animate)
+      }
     }
     
     this.animationFrame = requestAnimationFrame(animate)
@@ -464,9 +475,17 @@ export class CursorRenderer {
   }
 
   dispose() {
+    // Stop the animation loop
+    this.isActive = false
+    
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame)
       this.animationFrame = null
+    }
+    
+    // Clean up canvas if it exists
+    if (this.canvas && this.canvas.parentElement) {
+      this.canvas.remove()
     }
     
     this.canvas = null

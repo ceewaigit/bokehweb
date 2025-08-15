@@ -56,34 +56,119 @@ export function PreviewArea() {
     try {
       // Check if video is ready to draw
       if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-        // Scale video to fit canvas while maintaining aspect ratio
+        // Get background options from clip effects and map types
+        const clipBg = selectedClip?.effects?.background || {
+          type: 'gradient',
+          gradient: {
+            colors: ['#0F172A', '#1E293B'],
+            angle: 135
+          },
+          padding: 80
+        }
+        
+        // Map clip background type to renderer type
+        let bgType: 'solid' | 'gradient' | 'image' | 'wallpaper' | 'blur' = 'gradient'
+        if (clipBg.type === 'color') bgType = 'solid'
+        else if (clipBg.type === 'none') bgType = 'solid' // Use solid black for 'none'
+        else if (clipBg.type === 'gradient' || clipBg.type === 'image' || clipBg.type === 'blur') {
+          bgType = clipBg.type
+        }
+        
+        const bgOptions = {
+          type: bgType,
+          color: clipBg.type === 'none' ? '#000000' : clipBg.color,
+          gradient: clipBg.gradient ? {
+            type: 'linear' as const,
+            colors: clipBg.gradient.colors,
+            angle: clipBg.gradient.angle
+          } : undefined,
+          image: clipBg.image,
+          blur: clipBg.blur,
+          padding: clipBg.padding || 80,
+          borderRadius: 16
+        }
+        
+        // Calculate video dimensions with padding
+        const padding = bgOptions.padding || 0
         const videoAspect = video.videoWidth / video.videoHeight
-        const canvasAspect = canvas.width / canvas.height
+        const availableWidth = canvas.width - (padding * 2)
+        const availableHeight = canvas.height - (padding * 2)
+        const availableAspect = availableWidth / availableHeight
         
         let drawWidth, drawHeight, offsetX, offsetY
         
-        if (videoAspect > canvasAspect) {
+        if (videoAspect > availableAspect) {
           // Video is wider
-          drawWidth = canvas.width
-          drawHeight = canvas.width / videoAspect
-          offsetX = 0
-          offsetY = (canvas.height - drawHeight) / 2
+          drawWidth = availableWidth
+          drawHeight = availableWidth / videoAspect
+          offsetX = padding
+          offsetY = padding + (availableHeight - drawHeight) / 2
         } else {
           // Video is taller
-          drawHeight = canvas.height
-          drawWidth = canvas.height * videoAspect
-          offsetX = (canvas.width - drawWidth) / 2
-          offsetY = 0
+          drawHeight = availableHeight
+          drawWidth = availableHeight * videoAspect
+          offsetX = padding + (availableWidth - drawWidth) / 2
+          offsetY = padding
         }
         
-        // Fill background only if needed
-        if (offsetX > 0 || offsetY > 0) {
+        // Apply background first if background renderer exists
+        if (backgroundRendererRef.current) {
+          // Update background options if they changed
+          backgroundRendererRef.current.updateOptions(bgOptions)
+          
+          // Create a temporary canvas for the video frame
+          const tempCanvas = document.createElement('canvas')
+          tempCanvas.width = video.videoWidth
+          tempCanvas.height = video.videoHeight
+          const tempCtx = tempCanvas.getContext('2d')!
+          
+          // Save context state for zoom transformations
+          tempCtx.save()
+          
+          // Apply zoom effects if enabled
+          if (selectedClip?.effects?.zoom?.enabled && effectsEngineRef.current) {
+            const clipTime = currentTimeMs - selectedClip.sourceIn
+            const sourceTime = selectedClip.sourceIn + clipTime
+            const zoomState = effectsEngineRef.current.getZoomState(sourceTime)
+            
+            if (zoomState.scale > 1.0) {
+              const centerX = tempCanvas.width / 2
+              const centerY = tempCanvas.height / 2
+              
+              // Apply zoom transformation
+              tempCtx.translate(centerX, centerY)
+              tempCtx.scale(zoomState.scale, zoomState.scale)
+              
+              // Pan to keep the zoom target centered
+              const targetX = tempCanvas.width * zoomState.x
+              const targetY = tempCanvas.height * zoomState.y
+              const panX = (targetX - centerX) * (1 - 1/zoomState.scale)
+              const panY = (targetY - centerY) * (1 - 1/zoomState.scale)
+              tempCtx.translate(-panX/zoomState.scale, -panY/zoomState.scale)
+              
+              tempCtx.translate(-centerX, -centerY)
+            }
+          }
+          
+          // Draw video to temp canvas with zoom
+          tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height)
+          tempCtx.restore()
+          
+          // Apply background with the video frame
+          backgroundRendererRef.current.applyBackground(
+            ctx,
+            tempCanvas,
+            offsetX,
+            offsetY,
+            drawWidth,
+            drawHeight
+          )
+        } else {
+          // Fallback: just draw video without background
           ctx.fillStyle = '#000'
           ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
         }
-        
-        // Draw video frame
-        ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
       } else if (video.readyState < 2) {
         // Don't clear canvas if video is still loading - keep last frame
         // This prevents black flashes during playback
@@ -93,7 +178,7 @@ export function PreviewArea() {
       // Don't clear canvas on error - keep last frame visible
       console.error('Error drawing video:', err)
     }
-  }, [showEffects])
+  }, [showEffects, selectedClip, currentTime])
 
   // Initialize all effects
   const initializeEffects = useCallback(() => {
@@ -213,6 +298,9 @@ export function PreviewArea() {
       cursorRendererRef.current.dispose()
       cursorRendererRef.current = null
     }
+    
+    // Don't dispose background renderer, just update it
+    // This prevents crashes when changing background settings
 
     // Simple approach: Just use the file path directly or get blob URL from storage
     const loadVideo = () => {
@@ -222,7 +310,7 @@ export function PreviewArea() {
       if (storedBlobUrl) {
         // Use the stored blob URL (from when project was loaded)
         if (video.src !== storedBlobUrl) {
-          console.log(`Loading video from blob URL: ${clipRecording.id}`)
+          // Loading video from blob URL
           video.src = storedBlobUrl
           videoBlobUrlRef.current = storedBlobUrl
           video.load()
@@ -231,7 +319,7 @@ export function PreviewArea() {
         // Use file:// URL directly - let Electron handle the file access
         const fileUrl = `file://${clipRecording.filePath}`
         if (video.src !== fileUrl) {
-          console.log(`Loading video from file: ${clipRecording.filePath}`)
+          // Loading video from file
           video.src = fileUrl
           videoBlobUrlRef.current = fileUrl
           video.load()
@@ -409,6 +497,28 @@ export function PreviewArea() {
     initializeEffects()
     renderFrame()
   }, [selectedClip?.effects, isVideoLoaded]) // Remove callback deps to avoid infinite loop
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clean up all renderers on unmount
+      if (cursorRendererRef.current) {
+        cursorRendererRef.current.dispose()
+        cursorRendererRef.current = null
+      }
+      if (backgroundRendererRef.current) {
+        backgroundRendererRef.current.dispose()
+        backgroundRendererRef.current = null
+      }
+      if (effectsEngineRef.current) {
+        effectsEngineRef.current = null
+      }
+      if (cursorCanvasRef.current) {
+        cursorCanvasRef.current.remove()
+        cursorCanvasRef.current = null
+      }
+    }
+  }, [])
 
   return (
     <div className="relative w-full h-full bg-gray-900 overflow-hidden">
