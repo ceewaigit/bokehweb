@@ -48,17 +48,17 @@ export class CameraController {
   }
 
   private config: CameraConfig = {
-    deadZoneSize: 0.3, // 30% dead zone from center
-    responsiveness: 0.15, // Smooth camera movement
-    smoothingFactor: 0.85, // High smoothing for professional feel
-    predictiveStrength: 0.2, // Subtle lookahead
-    directionalBias: 0.7, // Prefer single-axis movement
+    deadZoneSize: 0.15, // 15% dead zone from center - smaller so camera follows more
+    responsiveness: 0.25, // Faster camera response
+    smoothingFactor: 0.75, // Still smooth but more responsive
+    predictiveStrength: 0.3, // Slightly more lookahead
+    directionalBias: 0.5, // Less bias, more natural movement
     edgeResistance: 0.8, // Strong resistance at edges
-    minMovementThreshold: 5 // 5 pixel minimum movement
+    minMovementThreshold: 2 // 2 pixel minimum movement - more sensitive
   }
 
   private lastUpdateTime: number = 0
-  private debugMode: boolean = true
+  private debugMode: boolean = false
 
   constructor(config?: Partial<CameraConfig>) {
     if (config) {
