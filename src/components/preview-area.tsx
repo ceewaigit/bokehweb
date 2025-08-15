@@ -110,6 +110,15 @@ export function PreviewArea() {
     if (!ctx) return
 
     const timeMs = forceTime !== undefined ? forceTime : video.currentTime * 1000
+    
+    // Check if we're within any clip bounds
+    const clip = getCurrentClip()
+    if (!clip) {
+      // No clip at this time - show black screen
+      ctx.fillStyle = '#000000'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      return
+    }
 
     if (showEffects && effectsEngineRef.current && backgroundRendererRef.current) {
       // Get effect state
@@ -139,7 +148,7 @@ export function PreviewArea() {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
     }
-  }, [isVideoLoaded, showEffects])
+  }, [isVideoLoaded, showEffects, getCurrentClip])
 
   // Animation loop
   const startAnimation = useCallback(() => {
@@ -353,7 +362,8 @@ export function PreviewArea() {
   // Sync video time with timeline (including when clips are moved)
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !isVideoLoaded || isPlaying) return
+    const canvas = canvasRef.current
+    if (!video || !canvas || !isVideoLoaded || isPlaying) return
 
     const clip = getCurrentClip()
     if (clip) {
@@ -367,6 +377,13 @@ export function PreviewArea() {
         video.currentTime = clampedVideoTime
         // Force render the frame at the new position
         renderFrame(clampedVideoTime * 1000)
+      }
+    } else {
+      // No clip at current time - clear the canvas to show black
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.fillStyle = '#000000'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
       }
     }
   }, [currentTime, isVideoLoaded, isPlaying, getCurrentClip, renderFrame, currentClip?.startTime])

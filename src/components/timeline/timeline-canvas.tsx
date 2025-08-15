@@ -13,6 +13,7 @@ import { TimelineTrack } from './timeline-track'
 import { TimelinePlayhead } from './timeline-playhead'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
+import { TimelineZoomKeyframes } from './timeline-zoom-keyframes'
 
 // Utilities
 import { TIMELINE_LAYOUT, TimelineUtils } from './timeline-constants'
@@ -36,6 +37,7 @@ export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps)
     selectClip,
     removeClip,
     updateClip,
+    updateZoomKeyframe,
     addClip,
     clearSelection,
     splitClip,
@@ -294,54 +296,22 @@ export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps)
                 />
               ))}
 
-            {/* Zoom visualization */}
+            {/* Zoom keyframes - draggable */}
             {hasZoomTrack && selectedClips.length > 0 && (() => {
               const selectedClip = currentProject.timeline.tracks
                 .find(t => t.type === 'video')
                 ?.clips.find(c => selectedClips.includes(c.id))
 
-              if (!selectedClip?.effects?.zoom?.enabled || !selectedClip.effects.zoom.keyframes.length) {
-                return null
-              }
+              if (!selectedClip) return null
 
-              const zoomY = TimelineUtils.getTrackY('zoom')
-              return selectedClip.effects.zoom.keyframes.slice(0, -1).map((kf, i) => {
-                const nextKf = selectedClip.effects.zoom.keyframes[i + 1]
-                if (kf.zoom <= 1 && nextKf.zoom <= 1) return null
-
-                const startX = TimelineUtils.timeToPixel(
-                  selectedClip.startTime + kf.time,
-                  pixelsPerMs
-                ) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-                const endX = TimelineUtils.timeToPixel(
-                  selectedClip.startTime + nextKf.time,
-                  pixelsPerMs
-                ) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-                const avgZoom = (kf.zoom + nextKf.zoom) / 2
-                const opacity = Math.min(0.6, (avgZoom - 1) * 0.3 + 0.2)
-
-                return (
-                  <Group key={`zoom-${i}`}>
-                    <Rect
-                      x={startX}
-                      y={zoomY + 4}
-                      width={endX - startX}
-                      height={TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT - 8}
-                      fill="rgba(59, 130, 246, 0.8)"
-                      opacity={opacity}
-                      cornerRadius={4}
-                    />
-                    <Text
-                      x={startX + 4}
-                      y={zoomY + TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT / 2 - 6}
-                      text={`${avgZoom.toFixed(1)}x`}
-                      fontSize={10}
-                      fill="white"
-                      opacity={0.9}
-                    />
-                  </Group>
-                )
-              })
+              return (
+                <TimelineZoomKeyframes
+                  clip={selectedClip}
+                  pixelsPerMs={pixelsPerMs}
+                  trackY={TimelineUtils.getTrackY('zoom')}
+                  onKeyframeUpdate={updateZoomKeyframe}
+                />
+              )
             })()}
 
             {/* Audio clips */}

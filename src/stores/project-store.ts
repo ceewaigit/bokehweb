@@ -38,6 +38,7 @@ interface ProjectStore {
   removeClip: (clipId: string) => void
   updateClip: (clipId: string, updates: Partial<Clip>) => void
   updateClipEffects: (clipId: string, effects: Partial<ClipEffects>) => void
+  updateZoomKeyframe: (clipId: string, keyframeIndex: number, newTime: number) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
   clearSelection: () => void
   splitClip: (clipId: string, splitTime: number) => void
@@ -341,6 +342,33 @@ export const useProjectStore = create<ProjectStore>()(
         // Save asynchronously without blocking UI
         saveProject(currentProject).catch(err => 
           console.error('Failed to auto-save after effects update:', err)
+        )
+      }
+    },
+    
+    updateZoomKeyframe: (clipId, keyframeIndex, newTime) => {
+      set((state) => {
+        if (!state.currentProject) return
+        const result = findClipById(state.currentProject, clipId)
+        if (!result) return
+        
+        const clip = result.clip
+        if (!clip.effects?.zoom?.keyframes?.[keyframeIndex]) return
+        
+        // Update the keyframe time
+        clip.effects.zoom.keyframes[keyframeIndex].time = newTime
+        
+        // Sort keyframes by time to maintain chronological order
+        clip.effects.zoom.keyframes.sort((a, b) => a.time - b.time)
+        
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
+      
+      // Auto-save after keyframe update
+      const { currentProject } = get()
+      if (currentProject) {
+        saveProject(currentProject).catch(err => 
+          console.error('Failed to auto-save after keyframe update:', err)
         )
       }
     },

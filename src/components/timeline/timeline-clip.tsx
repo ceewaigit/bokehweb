@@ -83,30 +83,37 @@ export const TimelineClip = React.memo(({
         fontStyle={trackType === 'video' ? 'bold' : 'normal'}
       />
 
-      {/* Effect badges for video clips */}
+      {/* Effect badges for video clips - simple indicators */}
       {trackType === 'video' && (
-        <>
+        <Group x={8} y={8}>
+          {/* Stack badges horizontally with proper spacing */}
           {clip.effects?.zoom?.enabled && (
-            <Group x={8} y={8}>
-              <Rect width={50} height={20} fill="rgba(59, 130, 246, 0.9)" cornerRadius={3} />
-              <Text x={4} y={5} text="Zoom" fontSize={10} fill="white" />
+            <Group x={0} y={0}>
+              <Rect width={45} height={18} fill="rgba(59, 130, 246, 0.9)" cornerRadius={3} />
+              <Text x={6} y={4} text="Zoom" fontSize={10} fill="white" />
             </Group>
           )}
 
           {clip.effects?.cursor?.visible && (
-            <Group x={clip.effects?.zoom?.enabled ? 64 : 8} y={8}>
-              <Rect width={50} height={20} fill="rgba(34, 197, 94, 0.9)" cornerRadius={3} />
-              <Text x={4} y={5} text="Cursor" fontSize={10} fill="white" />
+            <Group x={clip.effects?.zoom?.enabled ? 50 : 0} y={0}>
+              <Rect width={45} height={18} fill="rgba(34, 197, 94, 0.9)" cornerRadius={3} />
+              <Text x={5} y={4} text="Cursor" fontSize={10} fill="white" />
             </Group>
           )}
 
           {clip.effects?.background?.type && clip.effects.background.type !== 'none' && (
-            <Group x={8} y={32}>
-              <Rect width={35} height={20} fill="rgba(168, 85, 247, 0.9)" cornerRadius={3} />
-              <Text x={4} y={5} text="BG" fontSize={10} fill="white" />
+            <Group 
+              x={
+                (clip.effects?.zoom?.enabled ? 50 : 0) + 
+                (clip.effects?.cursor?.visible ? 50 : 0)
+              } 
+              y={0}
+            >
+              <Rect width={30} height={18} fill="rgba(168, 85, 247, 0.9)" cornerRadius={3} />
+              <Text x={8} y={4} text="BG" fontSize={10} fill="white" />
             </Group>
           )}
-        </>
+        </Group>
       )}
     </Group>
   )
