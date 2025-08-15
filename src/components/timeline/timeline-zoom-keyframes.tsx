@@ -30,7 +30,6 @@ export const TimelineZoomKeyframes = React.memo(({
 
   return (
     <Group>
-      {/* Draw zoom segments as clean bars - NO interaction here, just visual */}
       {keyframes.slice(0, -1).map((kf, i) => {
         const nextKf = keyframes[i + 1]
         
@@ -66,10 +65,8 @@ export const TimelineZoomKeyframes = React.memo(({
               listening={false}
             />
             
-            {/* Icon and text - positioned to not interfere with handles */}
             {segmentWidth > 80 && (
               <Group x={x1 + 12} y={trackY + trackHeight / 2 - 8} listening={false}>
-                {/* Zoom icon */}
                 <Text
                   x={0}
                   y={2}
@@ -78,8 +75,6 @@ export const TimelineZoomKeyframes = React.memo(({
                   fill="white"
                   listening={false}
                 />
-                
-                {/* Zoom text */}
                 <Text
                   x={20}
                   y={2}
@@ -89,8 +84,6 @@ export const TimelineZoomKeyframes = React.memo(({
                   fontStyle="normal"
                   listening={false}
                 />
-                
-                {/* Zoom level - centered */}
                 <Text
                   x={segmentWidth / 2 - 20}
                   y={2}
@@ -100,8 +93,6 @@ export const TimelineZoomKeyframes = React.memo(({
                   fontStyle="bold"
                   listening={false}
                 />
-                
-                {/* Auto indicator */}
                 {isAuto && segmentWidth > 140 && (
                   <Group x={segmentWidth - 50} y={0} listening={false}>
                     <Rect
@@ -129,7 +120,6 @@ export const TimelineZoomKeyframes = React.memo(({
         )
       })}
 
-      {/* Draw keyframe handles - ALL keyframes should be draggable */}
       {keyframes.map((kf, i) => {
         const x = clipX + TimelineUtils.timeToPixel(kf.time, pixelsPerMs)
         const y = trackY + trackHeight / 2
@@ -138,7 +128,6 @@ export const TimelineZoomKeyframes = React.memo(({
 
         return (
           <Group key={`keyframe-${i}`}>
-            {/* Keyframe handle - vertical line style */}
             <Rect
               x={x - 2}
               y={trackY + 4}
@@ -147,8 +136,6 @@ export const TimelineZoomKeyframes = React.memo(({
               fill="rgba(255, 255, 255, 0.3)"
               cornerRadius={2}
             />
-            
-            {/* Draggable handle - larger hit area and on top */}
             <Circle
               x={x}
               y={y}
@@ -203,8 +190,6 @@ export const TimelineZoomKeyframes = React.memo(({
                 document.body.style.cursor = isHover ? 'ew-resize' : 'default'
               }}
             />
-
-            {/* Time label on hover or drag */}
             {(isHover || isDragging) && (
               <Group x={x - 30} y={trackY - 20}>
                 <Rect
