@@ -168,6 +168,12 @@ export function WorkspaceManager() {
                           (rec.metadata.keyboardEvents?.length || 0)
                         console.log(`✅ Loaded ${totalEvents} metadata events for recording ${rec.id}`)
                       }
+                      
+                      // Store the file path as a "blob URL" so preview-area can find it
+                      // This is a workaround - preview-area checks for blob URL first
+                      if (rec.filePath) {
+                        RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
+                      }
                     } catch (error) {
                       console.error('Failed to load recording from project:', error)
                     }
@@ -256,6 +262,9 @@ export function WorkspaceManager() {
                   dimensions: `${rec.width}x${rec.height}`,
                   filePath: rec.filePath
                 })
+                
+                // Store the file path as a "blob URL" so preview-area can find it
+                RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
                 
                 // Create a dummy blob for now (we need to refactor addRecording later)
                 const dummyBlob = new Blob([], { type: 'video/webm' })
