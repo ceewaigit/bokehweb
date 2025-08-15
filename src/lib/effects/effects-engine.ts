@@ -312,16 +312,18 @@ export class EffectsEngine {
       return []
     }
     
-    // Add keyframes for each zoom effect (discrete blocks)
-    this.effects.forEach((effect, index) => {
-      // Only add a "before" keyframe if there's a gap from previous effect or start
-      const prevEffect = index > 0 ? this.effects[index - 1] : null
-      const gapFromPrev = prevEffect ? effect.startTime - prevEffect.endTime : effect.startTime
+    // Create discrete zoom blocks - each effect is completely separate
+    this.effects.forEach((effect) => {
+      // Each zoom effect is a complete block with 4 keyframes:
+      // 1. Just before zoom (at 1.0)
+      // 2. Zoom in to target
+      // 3. Hold at target  
+      // 4. Zoom back out to 1.0
       
-      if (gapFromPrev > 100) {
-        // Add a point just before zoom starts (to create discrete block)
+      // Point 1: Just before zoom starts (baseline)
+      if (effect.startTime > 50) {
         keyframes.push({
-          time: effect.startTime - 10,
+          time: effect.startTime - 50,
           zoom: 1.0,
           x: 0.5,
           y: 0.5,
@@ -329,7 +331,7 @@ export class EffectsEngine {
         })
       }
       
-      // Zoom in
+      // Point 2: Zoom in
       keyframes.push({
         time: effect.startTime,
         zoom: effect.scale,
@@ -338,18 +340,16 @@ export class EffectsEngine {
         easing: 'easeOut'
       })
       
-      // Hold zoom (only if duration is long enough)
-      if (effect.endTime - effect.startTime > effect.introMs + effect.outroMs + 500) {
-        keyframes.push({
-          time: effect.endTime - effect.outroMs,
-          zoom: effect.scale,
-          x: effect.targetX,
-          y: effect.targetY,
-          easing: 'linear'
-        })
-      }
+      // Point 3: Hold zoom (near end of effect)
+      keyframes.push({
+        time: effect.endTime - 100,
+        zoom: effect.scale,
+        x: effect.targetX,
+        y: effect.targetY,
+        easing: 'linear'
+      })
       
-      // Zoom out
+      // Point 4: Back to baseline
       keyframes.push({
         time: effect.endTime,
         zoom: 1.0,
@@ -357,18 +357,6 @@ export class EffectsEngine {
         y: 0.5,
         easing: 'easeIn'
       })
-      
-      // Add a point after zoom ends (to create discrete block)
-      if (index === this.effects.length - 1 || 
-          this.effects[index + 1].startTime - effect.endTime > 100) {
-        keyframes.push({
-          time: effect.endTime + 10,
-          zoom: 1.0,
-          x: 0.5,
-          y: 0.5,
-          easing: 'linear'
-        })
-      }
     })
     
     return keyframes

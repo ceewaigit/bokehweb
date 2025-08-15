@@ -43,38 +43,27 @@ export function PreviewArea() {
   const renderFrame = useCallback((timeMs?: number) => {
     const canvas = canvasRef.current
     const video = videoRef.current
-    if (!canvas || !video) {
-      console.log('renderFrame: missing canvas or video')
-      return
-    }
+    if (!canvas || !video) return
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      console.log('renderFrame: no context')
-      return
-    }
+    if (!ctx) return
 
     const currentTimeMs = timeMs ?? (video.currentTime * 1000)
-    console.log('Rendering frame at:', currentTimeMs, 'ms')
 
-    // Handle zoom effects
-    if (showEffects && effectsEngineRef.current && backgroundRendererRef.current) {
-      const zoomState = effectsEngineRef.current.getZoomState(currentTimeMs)
-      
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = canvas.width
-      tempCanvas.height = canvas.height
-      const tempCtx = tempCanvas.getContext('2d')
-
-      if (tempCtx) {
-        effectsEngineRef.current.applyZoomToCanvas(tempCtx, video, zoomState)
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        backgroundRendererRef.current.applyBackground(ctx, tempCanvas)
+    // Always draw video first (simpler approach)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    
+    try {
+      // Check if video is ready to draw
+      if (video.readyState >= 2) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      } else {
+        // Fill with placeholder color if video not ready
+        ctx.fillStyle = '#1a1a1a'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
       }
-    } else {
-      // No effects - draw video directly
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    } catch (err) {
+      console.error('Error drawing video:', err)
     }
   }, [showEffects])
 
@@ -208,20 +197,11 @@ export function PreviewArea() {
     }
 
     // Load video file
-    console.log('Loading video file:', clipRecording.filePath)
     loadVideoFile(clipRecording.filePath).then(videoUrl => {
       if (!video) return
       
       videoBlobUrlRef.current = videoUrl
       video.src = videoUrl
-      
-      // Add error handler
-      video.onerror = (e) => {
-        console.error('Video load error:', e)
-        console.error('Video error code:', video.error?.code)
-        console.error('Video error message:', video.error?.message)
-      }
-      
       video.load()
     }).catch(err => {
       console.error('Failed to load video file:', err)
@@ -318,16 +298,22 @@ export function PreviewArea() {
 
   return (
     <div className="relative flex-1 bg-gray-900 overflow-hidden">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <canvas
-            ref={canvasRef}
-            className="max-w-full max-h-full shadow-2xl"
-            style={{ 
-              display: clipRecording ? 'block' : 'none',
-              backgroundColor: '#000'
-            }}
-          />
+      <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div className="relative w-full h-full flex items-center justify-center">
+          {clipRecording && (
+            <canvas
+              ref={canvasRef}
+              className="shadow-2xl"
+              style={{ 
+                maxWidth: '100%',
+                maxHeight: '100%',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+                backgroundColor: '#000'
+              }}
+            />
+          )}
           <video
             ref={videoRef}
             className="hidden"
