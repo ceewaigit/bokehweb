@@ -5,7 +5,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
-import { cn } from '@/lib/utils'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 
 export function PreviewArea() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -25,7 +25,8 @@ export function PreviewArea() {
     selectedClipId,
     currentTime,
     isPlaying,
-    getCurrentRecording
+    getCurrentRecording,
+    seek
   } = useProjectStore()
 
   // Get the selected clip
@@ -195,7 +196,7 @@ export function PreviewArea() {
   useEffect(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || !clipRecording?.filePath) return
+    if (!video || !canvas || !clipRecording) return
 
     // Reset state
     setIsVideoLoaded(false)
@@ -211,22 +212,36 @@ export function PreviewArea() {
       cursorRendererRef.current = null
     }
 
-    // Clean up previous blob URL
-    if (videoBlobUrlRef.current) {
+    // Clean up previous blob URL (only if we created it)
+    if (videoBlobUrlRef.current && videoBlobUrlRef.current.startsWith('blob:')) {
       URL.revokeObjectURL(videoBlobUrlRef.current)
       videoBlobUrlRef.current = null
     }
 
-    // Load video file
-    loadVideoFile(clipRecording.filePath).then(videoUrl => {
-      if (!video) return
-      
-      videoBlobUrlRef.current = videoUrl
-      video.src = videoUrl
+    // First check if we have a blob URL in storage
+    const storedBlobUrl = RecordingStorage.getBlobUrl(clipRecording.id)
+    
+    if (storedBlobUrl) {
+      // Use the stored blob URL directly
+      console.log('Using stored blob URL for recording:', clipRecording.id)
+      videoBlobUrlRef.current = storedBlobUrl
+      video.src = storedBlobUrl
       video.load()
-    }).catch(err => {
-      console.error('Failed to load video file:', err)
-    })
+    } else if (clipRecording.filePath) {
+      // Fall back to loading from file if no blob URL is stored
+      console.log('Loading video from file:', clipRecording.filePath)
+      loadVideoFile(clipRecording.filePath).then(videoUrl => {
+        if (!video) return
+        
+        videoBlobUrlRef.current = videoUrl
+        video.src = videoUrl
+        video.load()
+      }).catch(err => {
+        console.error('Failed to load video file:', err)
+      })
+    } else {
+      console.error('No video source available for recording:', clipRecording.id)
+    }
 
     const handleVideoReady = () => {
       if (!video.videoWidth || !video.videoHeight) return
@@ -257,7 +272,13 @@ export function PreviewArea() {
     }
 
     const handleTimeUpdate = () => {
-      renderFrame(video.currentTime * 1000)
+      const videoTimeMs = video.currentTime * 1000
+      renderFrame(videoTimeMs)
+      
+      // Update store's current time if playing and video is driving the playback
+      if (isPlaying && Math.abs(currentTime - videoTimeMs) > 16) { // Only update if difference > 1 frame at 60fps
+        seek(videoTimeMs)
+      }
     }
 
     video.addEventListener('loadedmetadata', handleVideoReady)
@@ -271,13 +292,13 @@ export function PreviewArea() {
         cancelAnimationFrame(animationFrameRef.current)
       }
       
-      // Clean up blob URL
-      if (videoBlobUrlRef.current) {
+      // Clean up blob URL (only if we created it)
+      if (videoBlobUrlRef.current && videoBlobUrlRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(videoBlobUrlRef.current)
         videoBlobUrlRef.current = null
       }
     }
-  }, [clipRecording?.filePath, initializeEffects, renderFrame, loadVideoFile])
+  }, [clipRecording?.id, clipRecording?.filePath, initializeEffects, renderFrame, loadVideoFile, isPlaying, currentTime, seek])
 
   // Handle playback
   useEffect(() => {
@@ -285,6 +306,12 @@ export function PreviewArea() {
     if (!video || !isVideoLoaded) return
 
     if (isPlaying) {
+      // Ensure video time matches timeline time before playing
+      const targetTime = currentTime / 1000
+      if (Math.abs(video.currentTime - targetTime) > 0.1) {
+        video.currentTime = targetTime
+      }
+      
       video.play().catch(console.error)
       
       const animate = () => {
@@ -306,7 +333,7 @@ export function PreviewArea() {
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [isPlaying, isVideoLoaded, renderFrame])
+  }, [isPlaying, isVideoLoaded, renderFrame, currentTime])
 
   // Handle timeline scrubbing
   useEffect(() => {

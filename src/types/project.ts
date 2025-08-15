@@ -284,8 +284,9 @@ export function createProject(name: string): Project {
 
 // Save/load functions
 export async function saveProject(project: Project, customPath?: string): Promise<string | null> {
-  const projectData = JSON.stringify(project, null, 2)
-
+  // Create a copy of the project to avoid mutating the original
+  const projectCopy = { ...project }
+  
   // Check if running in Electron environment
   if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
     try {
@@ -293,17 +294,20 @@ export async function saveProject(project: Project, customPath?: string): Promis
       
       // Use existing filePath if available, otherwise create new one
       let projectFilePath: string
-      if (project.filePath && !customPath) {
+      if (projectCopy.filePath && !customPath) {
         // Update existing file
-        projectFilePath = project.filePath
+        projectFilePath = projectCopy.filePath
       } else {
         // Create new file
-        const projectFileName = customPath || `${project.id}.ssproj`
+        const projectFileName = customPath || `${projectCopy.id}.ssproj`
         projectFilePath = projectFileName.startsWith('/') ? projectFileName : `${recordingsDir}/${projectFileName}`
       }
 
-      // Update the project's filePath
-      project.filePath = projectFilePath
+      // Update the copy's filePath
+      projectCopy.filePath = projectFilePath
+      
+      // Stringify the copy with the updated filePath
+      const projectData = JSON.stringify(projectCopy, null, 2)
 
       // Save as text file with our custom extension
       await window.electronAPI.saveRecording(
@@ -312,20 +316,22 @@ export async function saveProject(project: Project, customPath?: string): Promis
       )
 
       // Also save to localStorage for quick access
-      RecordingStorage.setProject(project.id, projectData)
-      RecordingStorage.setProjectPath(project.id, projectFilePath)
+      RecordingStorage.setProject(projectCopy.id, projectData)
+      RecordingStorage.setProjectPath(projectCopy.id, projectFilePath)
 
       console.log(`Project saved to: ${projectFilePath}`)
       return projectFilePath
     } catch (error) {
       console.error('Failed to save project file:', error)
       // Fallback to localStorage only
-      RecordingStorage.setProject(project.id, projectData)
+      const projectData = JSON.stringify(projectCopy, null, 2)
+      RecordingStorage.setProject(projectCopy.id, projectData)
       return null
     }
   } else {
     // Fallback to localStorage if not in Electron
-    RecordingStorage.setProject(project.id, projectData)
+    const projectData = JSON.stringify(projectCopy, null, 2)
+    RecordingStorage.setProject(projectCopy.id, projectData)
     return null
   }
 }

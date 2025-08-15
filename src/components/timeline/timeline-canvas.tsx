@@ -89,6 +89,43 @@ export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps)
     return () => window.removeEventListener('resize', updateSize)
   }, [])
 
+  // Playback animation loop
+  useEffect(() => {
+    if (!isPlaying || !currentProject) return
+
+    let animationFrameId: number
+    let lastTimestamp: number | null = null
+
+    const animate = (timestamp: number) => {
+      if (lastTimestamp === null) {
+        lastTimestamp = timestamp
+      }
+
+      const deltaTime = timestamp - lastTimestamp
+      lastTimestamp = timestamp
+
+      // Update current time based on elapsed time
+      const newTime = currentTime + deltaTime
+
+      // Check if we've reached the end
+      if (newTime >= currentProject.timeline.duration) {
+        pause()
+        seek(currentProject.timeline.duration)
+      } else {
+        seek(newTime)
+        animationFrameId = requestAnimationFrame(animate)
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(animate)
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+      }
+    }
+  }, [isPlaying, currentTime, currentProject, seek, pause])
+
   // Auto-scroll during playback
   useEffect(() => {
     if (!isPlaying || !containerRef.current) return
