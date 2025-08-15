@@ -339,12 +339,46 @@ export function PreviewArea() {
         // Convert video time to timeline time
         const timelineTime = clip.startTime + (video.currentTime * 1000 - clip.sourceIn)
         seek(timelineTime)
+        
+        // Check if we've reached the end of the clip
+        if (timelineTime >= clip.startTime + clip.duration) {
+          // Find the next clip
+          const nextClip = currentProject?.timeline.tracks
+            .flatMap(t => t.clips)
+            .filter(c => c.startTime > clip.startTime)
+            .sort((a, b) => a.startTime - b.startTime)[0]
+          
+          if (nextClip) {
+            // Jump to the next clip
+            seek(nextClip.startTime)
+          } else {
+            // No more clips, pause at the end
+            pause()
+          }
+        }
+      } else if (isPlaying && !clip) {
+        // Playing but no clip at current position - stop
+        pause()
       }
     }
 
     if (isPlaying) {
-      video.play()
-      startAnimation()
+      const clip = getCurrentClip()
+      if (clip) {
+        // Sync video to correct position before playing
+        const videoTime = (currentTime - clip.startTime + clip.sourceIn) / 1000
+        if (Math.abs(video.currentTime - videoTime) > 0.1) {
+          video.currentTime = Math.max(0, Math.min(video.duration || 0, videoTime))
+        }
+        video.play().catch(e => {
+          console.warn('Video play failed:', e)
+          pause()
+        })
+        startAnimation()
+      } else {
+        // No clip to play, pause immediately
+        pause()
+      }
       video.addEventListener('timeupdate', handleTimeUpdate)
     } else {
       video.pause()
@@ -357,7 +391,7 @@ export function PreviewArea() {
       stopAnimation()
       video.removeEventListener('timeupdate', handleTimeUpdate)
     }
-  }, [isPlaying, isVideoLoaded, startAnimation, stopAnimation, renderFrame, getCurrentClip, seek])
+  }, [isPlaying, isVideoLoaded, currentTime, startAnimation, stopAnimation, renderFrame, getCurrentClip, seek, pause, currentProject])
 
   // Sync video time with timeline (including when clips are moved)
   useEffect(() => {

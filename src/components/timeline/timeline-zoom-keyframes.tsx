@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Group, Circle, Line, Rect, Text } from 'react-konva'
+import { Group, Circle, Rect, Text } from 'react-konva'
 import type { Clip } from '@/types/project'
 import { TIMELINE_LAYOUT, TimelineUtils } from './timeline-constants'
 
@@ -28,102 +28,147 @@ export const TimelineZoomKeyframes = React.memo(({
   const clipWidth = TimelineUtils.timeToPixel(clip.duration, pixelsPerMs)
   const trackHeight = TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT
 
-  // Calculate the height for zoom value visualization
-  const getKeyframeY = (zoom: number) => {
-    // Map zoom from 1-2 to track height
-    const normalizedZoom = Math.max(0, Math.min(1, (zoom - 1)))
-    return trackY + trackHeight - (normalizedZoom * (trackHeight - 20))
-  }
-
   return (
     <Group>
-      {/* Draw connections between keyframes */}
+      {/* Draw zoom segments as clean bars */}
       {keyframes.slice(0, -1).map((kf, i) => {
         const nextKf = keyframes[i + 1]
-        const x1 = clipX + TimelineUtils.timeToPixel(kf.time, pixelsPerMs)
-        const x2 = clipX + TimelineUtils.timeToPixel(nextKf.time, pixelsPerMs)
-        const y1 = getKeyframeY(kf.zoom)
-        const y2 = getKeyframeY(nextKf.zoom)
-
-        // Only draw if there's actual zoom
-        if (kf.zoom <= 1 && nextKf.zoom <= 1) return null
-
-        return (
-          <Line
-            key={`line-${i}`}
-            points={[x1, y1, x2, y2]}
-            stroke="rgba(59, 130, 246, 0.5)"
-            strokeWidth={2}
-            lineCap="round"
-            lineJoin="round"
-          />
-        )
-      })}
-
-      {/* Draw zoom area fill - properly sized based on time */}
-      {keyframes.slice(0, -1).map((kf, i) => {
-        const nextKf = keyframes[i + 1]
+        
+        // Only show segments where zoom is active
         if (kf.zoom <= 1 && nextKf.zoom <= 1) return null
 
         const x1 = clipX + TimelineUtils.timeToPixel(kf.time, pixelsPerMs)
         const x2 = clipX + TimelineUtils.timeToPixel(nextKf.time, pixelsPerMs)
-        const y1 = getKeyframeY(kf.zoom)
-        const y2 = getKeyframeY(nextKf.zoom)
-        const baseY = trackY + trackHeight - 20
+        const segmentWidth = x2 - x1
+        
+        // Get the average zoom for this segment
+        const avgZoom = (kf.zoom + nextKf.zoom) / 2
+        const zoomText = avgZoom.toFixed(1) + 'x'
+        
+        // Determine if this is an auto-zoom segment (could be based on some criteria)
+        const isAuto = clip.effects?.zoom?.sensitivity > 0
 
-        // Create a polygon to show the zoom area properly
         return (
-          <Group key={`fill-${i}`}>
-            {/* Fill under the zoom curve */}
-            <Line
-              points={[
-                x1, y1,
-                x2, y2,
-                x2, baseY,
-                x1, baseY
-              ]}
-              closed
-              fill="rgba(59, 130, 246, 0.15)"
-            />
-            {/* Stronger fill for the actual zoom area */}
+          <Group key={`segment-${i}`}>
+            {/* Main zoom bar */}
             <Rect
               x={x1}
-              y={Math.min(y1, y2)}
-              width={x2 - x1}
-              height={Math.max(baseY - Math.min(y1, y2), 2)}
-              fill="rgba(59, 130, 246, 0.1)"
+              y={trackY + 8}
+              width={segmentWidth}
+              height={trackHeight - 16}
+              fill="#5b21b6"
+              cornerRadius={8}
+              stroke="#7c3aed"
+              strokeWidth={1}
             />
+            
+            {/* Icon and text container */}
+            <Group x={x1 + 12} y={trackY + trackHeight / 2 - 8}>
+              {/* Zoom icon (simplified) */}
+              <Rect
+                x={0}
+                y={0}
+                width={16}
+                height={16}
+                fill="none"
+                stroke="white"
+                strokeWidth={1.5}
+                cornerRadius={2}
+              />
+              <Text
+                x={2}
+                y={3}
+                text="🔍"
+                fontSize={10}
+                fill="white"
+              />
+              
+              {/* Zoom text */}
+              <Text
+                x={24}
+                y={2}
+                text="Zoom"
+                fontSize={12}
+                fill="white"
+                fontStyle="normal"
+              />
+              
+              {/* Zoom level */}
+              <Text
+                x={segmentWidth / 2 - 20}
+                y={2}
+                text={zoomText}
+                fontSize={12}
+                fill="white"
+                fontStyle="bold"
+              />
+              
+              {/* Auto indicator if applicable */}
+              {isAuto && segmentWidth > 120 && (
+                <Group x={segmentWidth - 60} y={0}>
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={40}
+                    height={16}
+                    fill="rgba(255, 255, 255, 0.2)"
+                    cornerRadius={8}
+                  />
+                  <Text
+                    x={8}
+                    y={2}
+                    text="Auto"
+                    fontSize={11}
+                    fill="white"
+                  />
+                </Group>
+              )}
+            </Group>
           </Group>
         )
       })}
 
-      {/* Draw keyframe points */}
+      {/* Draw keyframe handles at segment boundaries */}
       {keyframes.map((kf, i) => {
         const x = clipX + TimelineUtils.timeToPixel(kf.time, pixelsPerMs)
-        const y = getKeyframeY(kf.zoom)
+        const y = trackY + trackHeight / 2
         const isActive = kf.zoom > 1
         const isDragging = draggedKeyframe === i
         const isHover = hoverKeyframe === i
+        
+        // Don't show handles at the very start/end of the clip
+        if (i === 0 || i === keyframes.length - 1) return null
 
         return (
           <Group key={`keyframe-${i}`}>
-            {/* Keyframe circle */}
+            {/* Keyframe handle - vertical line style */}
+            <Rect
+              x={x - 2}
+              y={trackY + 4}
+              width={4}
+              height={trackHeight - 8}
+              fill="rgba(255, 255, 255, 0.3)"
+              cornerRadius={2}
+            />
+            
+            {/* Draggable handle */}
             <Circle
               x={x}
               y={y}
-              radius={isDragging ? 7 : isHover ? 6 : 5}
-              fill={isActive ? '#3b82f6' : '#94a3b8'}
-              stroke={isDragging ? '#1e40af' : '#ffffff'}
+              radius={isDragging ? 8 : isHover ? 7 : 6}
+              fill={isDragging ? '#ffffff' : isHover ? '#e0e7ff' : '#cbd5e1'}
+              stroke={isDragging ? '#5b21b6' : '#7c3aed'}
               strokeWidth={2}
+              opacity={isHover || isDragging ? 1 : 0.8}
               draggable
               dragBoundFunc={(pos) => {
                 // Constrain to clip bounds
-                const minX = clipX
-                const maxX = clipX + clipWidth
+                const minX = clipX + 20
+                const maxX = clipX + clipWidth - 20
                 
                 // Prevent dragging past neighboring keyframes
-                const prevX = i > 0 ? clipX + TimelineUtils.timeToPixel(keyframes[i - 1].time, pixelsPerMs) + 10 : minX
-                const nextX = i < keyframes.length - 1 ? clipX + TimelineUtils.timeToPixel(keyframes[i + 1].time, pixelsPerMs) - 10 : maxX
+                const prevX = i > 0 ? clipX + TimelineUtils.timeToPixel(keyframes[i - 1].time, pixelsPerMs) + 20 : minX
+                const nextX = i < keyframes.length - 1 ? clipX + TimelineUtils.timeToPixel(keyframes[i + 1].time, pixelsPerMs) - 20 : maxX
                 
                 return {
                   x: Math.max(prevX, Math.min(nextX, pos.x)),
@@ -141,7 +186,7 @@ export const TimelineZoomKeyframes = React.memo(({
               }}
               onMouseEnter={() => {
                 setHoverKeyframe(i)
-                document.body.style.cursor = 'grab'
+                document.body.style.cursor = 'ew-resize'
               }}
               onMouseLeave={() => {
                 setHoverKeyframe(null)
@@ -150,27 +195,27 @@ export const TimelineZoomKeyframes = React.memo(({
                 }
               }}
               onMouseDown={() => {
-                document.body.style.cursor = 'grabbing'
+                document.body.style.cursor = 'ew-resize'
               }}
               onMouseUp={() => {
-                document.body.style.cursor = isHover ? 'grab' : 'default'
+                document.body.style.cursor = isHover ? 'ew-resize' : 'default'
               }}
             />
 
-            {/* Zoom value label on hover or drag */}
+            {/* Time label on hover or drag */}
             {(isHover || isDragging) && (
-              <Group x={x - 20} y={y - 25}>
+              <Group x={x - 30} y={trackY - 20}>
                 <Rect
-                  width={40}
-                  height={20}
-                  fill="rgba(0, 0, 0, 0.8)"
-                  cornerRadius={3}
+                  width={60}
+                  height={18}
+                  fill="rgba(0, 0, 0, 0.9)"
+                  cornerRadius={4}
                 />
                 <Text
                   x={0}
-                  y={5}
-                  width={40}
-                  text={`${kf.zoom.toFixed(1)}x`}
+                  y={3}
+                  width={60}
+                  text={`${(kf.time / 1000).toFixed(1)}s`}
                   fontSize={11}
                   fill="white"
                   align="center"

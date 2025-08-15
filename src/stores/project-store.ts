@@ -496,7 +496,26 @@ export const useProjectStore = create<ProjectStore>()(
       return newClip.id
     },
 
-    play: () => set({ isPlaying: true }),
+    play: () => {
+      const state = get()
+      
+      // If we're not on a clip, jump to the first clip or start of timeline
+      if (!state.getCurrentClip() && state.currentProject) {
+        const firstClip = state.currentProject.timeline.tracks
+          .flatMap(t => t.clips)
+          .sort((a, b) => a.startTime - b.startTime)[0]
+        
+        if (firstClip) {
+          // Jump to the start of the first clip
+          state.seek(firstClip.startTime)
+        } else if (state.currentTime >= state.currentProject.timeline.duration) {
+          // If at the end, restart from beginning
+          state.seek(0)
+        }
+      }
+      
+      set({ isPlaying: true })
+    },
     pause: () => set({ isPlaying: false }),
 
     seek: (time) => {
