@@ -23,14 +23,14 @@ export class ZoomEffectDetector implements EffectDetector {
   // Configuration
   private readonly config = {
     // Session detection
-    SESSION_INACTIVITY_THRESHOLD: 3000,    // ms of inactivity to end session (increased for dwelling)
-    SESSION_RADIUS: 150,                   // pixels - smaller area for more precise detection
-    SESSION_MIN_DURATION: 800,             // minimum session duration to create zoom (reduced for quicker response)
-    SESSION_MIN_EVENTS: 2,                 // minimum events to consider a session (reduced for dwell detection)
+    SESSION_INACTIVITY_THRESHOLD: 5000,    // ms of inactivity to end session (longer to keep sessions together)
+    SESSION_RADIUS: 200,                   // pixels - larger area to capture related activity
+    SESSION_MIN_DURATION: 1000,            // minimum session duration to create zoom
+    SESSION_MIN_EVENTS: 2,                 // minimum events to consider a session
     
     // Dwell detection
-    DWELL_TIME_MS: 600,                    // ms of hovering in one spot to trigger zoom
-    DWELL_RADIUS: 50,                      // pixels - how still the mouse must be
+    DWELL_TIME_MS: 800,                    // ms of hovering in one spot to trigger zoom
+    DWELL_RADIUS: 60,                      // pixels - how still the mouse must be
     
     // Zoom parameters
     ZOOM_SCALE: 2.0,
@@ -38,8 +38,8 @@ export class ZoomEffectDetector implements EffectDetector {
     ZOOM_OUTRO_MS: 300,
     
     // Limits
-    MAX_ZOOMS_PER_MINUTE: 6,              // Increased for more responsive zooming
-    MIN_ZOOM_GAP: 800,                    // Reduced gap for quicker transitions
+    MAX_ZOOMS_PER_MINUTE: 4,              // Fewer but more meaningful zooms
+    MIN_ZOOM_GAP: 2000,                   // Larger gap to merge nearby sessions
   }
   
   constructor(config?: Partial<typeof ZoomEffectDetector.prototype.config>) {
@@ -227,8 +227,14 @@ export class ZoomEffectDetector implements EffectDetector {
         Math.pow(session.centerY - lastInGroup.centerY, 2)
       )
       
-      // Merge if close in time AND space
-      if (timeGap < this.config.MIN_ZOOM_GAP && distance < this.config.SESSION_RADIUS) {
+      // More aggressive merging: merge if close in time OR close in space
+      // This creates longer, more consolidated zoom sessions
+      const shouldMerge = (
+        timeGap < this.config.MIN_ZOOM_GAP || // Close in time
+        (timeGap < this.config.MIN_ZOOM_GAP * 2 && distance < this.config.SESSION_RADIUS / 2) // Moderately close in time AND very close in space
+      )
+      
+      if (shouldMerge) {
         currentGroup.push(session)
       } else {
         // Save current group and start new one
@@ -316,8 +322,8 @@ export class ZoomEffectDetector implements EffectDetector {
       effects.push({
         id: `zoom-session-${session.startTime}`,
         type: 'zoom',
-        startTime: session.startTime,
-        endTime: Math.min(session.endTime + 500, context.duration), // Add a bit of padding
+        startTime: Math.max(0, session.startTime - 200), // Start slightly before session
+        endTime: Math.min(session.endTime + 1000, context.duration), // Add more padding at end
         params: {
           targetX: normalizedX,
           targetY: normalizedY,

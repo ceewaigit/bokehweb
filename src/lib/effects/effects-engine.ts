@@ -501,8 +501,34 @@ export class EffectsEngine {
 
     const keyframes: any[] = []
     const zoomEffects = this.effects.filter(e => e.type === 'zoom') as ZoomEffect[]
+    
+    if (zoomEffects.length === 0) {
+      // No zoom effects, return default keyframes
+      return [
+        { time: 0, zoom: 1.0, x: 0.5, y: 0.5, easing: 'linear' },
+        { time: this.context?.duration || 0, zoom: 1.0, x: 0.5, y: 0.5, easing: 'linear' }
+      ]
+    }
 
-    zoomEffects.forEach(effect => {
+    // Sort effects by start time
+    const sortedEffects = [...zoomEffects].sort((a, b) => a.startTime - b.startTime)
+    
+    // Add initial keyframe if first zoom doesn't start at 0
+    if (sortedEffects[0].startTime > 0) {
+      keyframes.push({
+        time: 0,
+        zoom: 1.0,
+        x: 0.5,
+        y: 0.5,
+        easing: 'linear'
+      })
+    }
+
+    // Process each zoom effect
+    sortedEffects.forEach((effect, index) => {
+      const nextEffect = sortedEffects[index + 1]
+      
+      // Zoom in keyframe - with smooth intro
       keyframes.push({
         time: effect.startTime,
         zoom: effect.params.scale,
@@ -510,14 +536,36 @@ export class EffectsEngine {
         y: effect.params.targetY,
         easing: 'easeOut'
       })
-      keyframes.push({
-        time: effect.endTime,
-        zoom: 1.0,
-        x: 0.5,
-        y: 0.5,
-        easing: 'easeIn'
-      })
+      
+      // Check if there's a gap before the next zoom or if this is the last one
+      const hasGap = nextEffect ? (nextEffect.startTime - effect.endTime) > 1000 : true
+      
+      if (hasGap) {
+        // Only add zoom out if there's a significant gap or it's the last effect
+        keyframes.push({
+          time: effect.endTime,
+          zoom: 1.0,
+          x: 0.5,
+          y: 0.5,
+          easing: 'easeIn'
+        })
+      } else {
+        // Keep zoom level and transition directly to next zoom position
+        keyframes.push({
+          time: effect.endTime,
+          zoom: effect.params.scale,
+          x: nextEffect.params.targetX,
+          y: nextEffect.params.targetY,
+          easing: 'linear'
+        })
+      }
     })
+    
+    // Add final keyframe if needed
+    const lastEffect = sortedEffects[sortedEffects.length - 1]
+    if (this.context && lastEffect.endTime < this.context.duration) {
+      // Already handled by the hasGap logic above
+    }
 
     return keyframes
   }
