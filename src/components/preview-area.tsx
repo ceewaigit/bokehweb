@@ -52,12 +52,9 @@ export function PreviewArea() {
 
     const currentTimeMs = timeMs ?? (video.currentTime * 1000)
 
-    // Always draw video first (simpler approach)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    
     try {
       // Check if video is ready to draw
-      if (video.readyState >= 2) {
+      if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
         // Scale video to fit canvas while maintaining aspect ratio
         const videoAspect = video.videoWidth / video.videoHeight
         const canvasAspect = canvas.width / canvas.height
@@ -78,18 +75,21 @@ export function PreviewArea() {
           offsetY = 0
         }
         
-        // Fill background
-        ctx.fillStyle = '#000'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        // Fill background only if needed
+        if (offsetX > 0 || offsetY > 0) {
+          ctx.fillStyle = '#000'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+        }
         
-        // Draw video
+        // Draw video frame
         ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
-      } else {
-        // Fill with placeholder color if video not ready
-        ctx.fillStyle = '#1a1a1a'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      } else if (video.readyState < 2) {
+        // Don't clear canvas if video is still loading - keep last frame
+        // This prevents black flashes during playback
+        return
       }
     } catch (err) {
+      // Don't clear canvas on error - keep last frame visible
       console.error('Error drawing video:', err)
     }
   }, [showEffects])
@@ -270,8 +270,11 @@ export function PreviewArea() {
     }
 
     const handleTimeUpdate = () => {
-      const videoTimeMs = video.currentTime * 1000
-      renderFrame(videoTimeMs)
+      // Only render during timeupdate if not playing (during scrubbing)
+      if (!isPlaying) {
+        const videoTimeMs = video.currentTime * 1000
+        renderFrame(videoTimeMs)
+      }
     }
 
     video.addEventListener('loadedmetadata', handleVideoReady)
