@@ -292,35 +292,35 @@ export function WorkspaceManager() {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-background">
-      {/* Top Toolbar - Fixed height */}
-      <div className="h-14 flex-shrink-0 border-b bg-card/50 overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-background" style={{ width: '100vw', height: '100vh' }}>
+      {/* Top Toolbar - 8vh height */}
+      <div className="flex-shrink-0 border-b bg-card/50 overflow-hidden" style={{ height: '8vh', minHeight: '56px' }}>
         <Toolbar
           onToggleProperties={handleToggleProperties}
           onExport={handleExport}
         />
       </div>
 
-      {/* Main Content Area - Takes remaining space */}
-      <div className="flex-1 flex min-h-0">
+      {/* Main Content Area - 92vh height */}
+      <div className="flex" style={{ height: '92vh' }}>
         {/* Main Editor Section */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Preview Area - Fixed height */}
-          <div className="flex-shrink-0 bg-muted/20 border-r">
+        <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
+          {/* Preview Area - 55vh height */}
+          <div className="bg-muted/20 border-b overflow-hidden" style={{ height: '55vh' }}>
             <PreviewArea />
           </div>
 
-          {/* Timeline Section - Takes remaining space */}
-          <div className="flex-1 border-t bg-card/50 min-h-[200px]">
-            <TimelineCanvas className="h-full" />
+          {/* Timeline Section - 37vh height */}
+          <div className="bg-card/50 overflow-hidden" style={{ height: '37vh' }}>
+            <TimelineCanvas className="h-full w-full" />
           </div>
         </div>
 
         {/* Properties Panel - Fixed width when open */}
         {isPropertiesOpen && (
           <div
-            className="flex-shrink-0 bg-card border-l overflow-hidden"
-            style={{ width: `${propertiesPanelWidth}px` }}
+            className="bg-card border-l overflow-hidden"
+            style={{ width: `${propertiesPanelWidth}px`, height: '92vh' }}
           >
             <EffectsSidebar className="h-full w-full" />
           </div>

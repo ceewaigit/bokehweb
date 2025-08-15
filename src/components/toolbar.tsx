@@ -2,10 +2,6 @@
 
 import { useState } from 'react'
 import {
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
   Settings,
   Folder,
   Save,
@@ -41,28 +37,11 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
   const {
     currentProject,
     currentTime,
-    isPlaying,
-    play,
-    pause,
-    seek,
     saveCurrentProject,
     newProject
   } = useProjectStore()
 
   const [propertiesOpen, setPropertiesOpen] = useState(true)
-
-  const handlePlay = () => {
-    isPlaying ? pause() : play()
-  }
-
-  const handleRewind = () => {
-    seek(Math.max(0, currentTime - 5000))
-  }
-
-  const handleForward = () => {
-    const duration = currentProject?.timeline?.duration || 0
-    seek(Math.min(duration, currentTime + 5000))
-  }
 
   const handleToggleProperties = () => {
     setPropertiesOpen(!propertiesOpen)
@@ -138,42 +117,14 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
         </Button>
       </div>
 
-      {/* Center Section - Playback Controls */}
+      {/* Center Section - Project Info and Status */}
       <div className="flex-1 flex items-center justify-center gap-1 min-w-0 overflow-hidden">
+        {/* Project Name and Time Display */}
         {currentProject && (
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <Button
-              onClick={handleRewind}
-              variant="ghost"
-              size="icon"
-              className="w-8 h-8"
-            >
-              <SkipBack className="w-4 h-4" />
-            </Button>
-
-            <Button
-              onClick={handlePlay}
-              variant="ghost"
-              size="icon"
-              className="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20"
-            >
-              {isPlaying ? 
-                <Pause className="w-5 h-5 text-primary" /> : 
-                <Play className="w-5 h-5 text-primary ml-0.5" />
-              }
-            </Button>
-
-            <Button
-              onClick={handleForward}
-              variant="ghost"
-              size="icon"
-              className="w-8 h-8"
-            >
-              <SkipForward className="w-4 h-4" />
-            </Button>
-
-            {/* Time Display */}
-            <div className="ml-2 flex items-center gap-1 text-xs flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <span className="text-sm font-medium">{currentProject.name}</span>
+            <span className="text-xs text-muted-foreground">•</span>
+            <div className="flex items-center gap-1 text-xs flex-shrink-0">
               <span className="font-mono font-medium text-foreground">
                 {formatTime(currentTime / 1000)}
               </span>

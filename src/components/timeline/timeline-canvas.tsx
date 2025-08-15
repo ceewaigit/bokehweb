@@ -23,7 +23,7 @@ interface TimelineCanvasProps {
   className?: string
 }
 
-export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps) {
+export function TimelineCanvas({ className = "h-full w-full" }: TimelineCanvasProps) {
   const {
     currentProject,
     selectedClips,
@@ -83,7 +83,8 @@ export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps)
     const updateSize = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
-        setStageSize({ width: rect.width, height: rect.height - 100 })  // Reduced offset for more timeline space
+        // Use full container dimensions
+        setStageSize({ width: rect.width, height: Math.max(400, rect.height - 60) })  // Leave room for controls
       }
     }
     updateSize()
@@ -241,7 +242,7 @@ export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps)
   }
 
   return (
-    <div className={cn("flex flex-col bg-background border border-border rounded-lg", className)}>
+    <div className={cn("flex flex-col h-full w-full bg-background", className)}>
       <TimelineControls
         isPlaying={isPlaying}
         zoom={zoom}
@@ -265,7 +266,6 @@ export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps)
       <div
         ref={containerRef}
         className="flex-1 overflow-auto relative"
-        style={{ minHeight: '200px', maxHeight: '600px' }}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       >
         <Stage

@@ -404,7 +404,7 @@ export function PreviewArea() {
   }, [selectedClip?.effects, isVideoLoaded]) // Remove callback deps to avoid infinite loop
 
   return (
-    <div className="relative flex-1 bg-gray-900 overflow-hidden">
+    <div className="relative w-full h-full bg-gray-900 overflow-hidden">
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="relative w-full h-full flex items-center justify-center">
           {clipRecording && (
