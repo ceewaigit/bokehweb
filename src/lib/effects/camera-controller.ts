@@ -48,13 +48,13 @@ export class CameraController {
   }
 
   private config: CameraConfig = {
-    deadZoneSize: 0.15, // 15% dead zone from center - smaller so camera follows more
-    responsiveness: 0.25, // Faster camera response
-    smoothingFactor: 0.75, // Still smooth but more responsive
-    predictiveStrength: 0.3, // Slightly more lookahead
-    directionalBias: 0.5, // Less bias, more natural movement
-    edgeResistance: 0.8, // Strong resistance at edges
-    minMovementThreshold: 2 // 2 pixel minimum movement - more sensitive
+    deadZoneSize: 0.08, // 8% dead zone - smaller for tighter following
+    responsiveness: 0.35, // Even faster camera response for zoom
+    smoothingFactor: 0.65, // Less smoothing for quicker reaction
+    predictiveStrength: 0.4, // More lookahead to anticipate movement
+    directionalBias: 0.3, // Less directional bias for more fluid motion
+    edgeResistance: 0.85, // Strong edge resistance
+    minMovementThreshold: 1 // 1 pixel minimum - very sensitive
   }
 
   private lastUpdateTime: number = 0

@@ -43,12 +43,12 @@ export function PreviewArea() {
       ? RecordingStorage.getBlobUrl(currentRecording.id)
       : null
 
-  // Get selected clip for effects
-  const selectedClip = selectedClips.length > 0 && currentProject
+  // Get selected clip for effects - always use the currently displayed clip's effects
+  const selectedClip = currentClip || (selectedClips.length > 0 && currentProject
     ? currentProject.timeline.tracks
       .flatMap(t => t.clips)
       .find(c => c.id === selectedClips[0])
-    : null
+    : null)
 
   // Initialize effects engine and background renderer
   const initializeEffects = useCallback(() => {
@@ -58,17 +58,21 @@ export function PreviewArea() {
       return
     }
 
-    // Get padding from clip effects
+    // Get padding from clip effects - always use current clip effects
     const padding = selectedClip?.effects?.background?.padding ?? 80
 
-    // Initialize effects engine with padding
-    if (!effectsEngineRef.current) {
-      const engine = new EffectsEngine()
+    // Always reinitialize or update effects engine with current clip settings
+    const engine = new EffectsEngine()
+    
+    // Use zoom keyframes from the clip if available
+    if (selectedClip?.effects?.zoom?.keyframes && selectedClip.effects.zoom.keyframes.length > 0) {
+      engine.initializeFromRecording(currentRecording, selectedClip.effects.zoom.keyframes, padding)
+    } else {
       engine.initializeFromRecording(currentRecording, undefined, padding)
-      effectsEngineRef.current = engine
     }
+    effectsEngineRef.current = engine
 
-    // Initialize background renderer
+    // Initialize background renderer with current clip settings
     const bgOptions = {
       type: (selectedClip?.effects?.background?.type as any) || 'gradient',
       gradient: {
@@ -176,41 +180,6 @@ export function PreviewArea() {
         canvasRef.current.height = video.videoHeight
       }
       
-      // Initialize effects first
-      if (!effectsEngineRef.current && currentRecording) {
-        // Get padding from clip effects
-        const padding = selectedClip?.effects?.background?.padding ?? 80
-        
-        const engine = new EffectsEngine()
-        engine.initializeFromRecording(currentRecording, undefined, padding)
-        effectsEngineRef.current = engine
-      }
-      
-      // Initialize background with proper clip effects or defaults
-      const bgOptions = {
-        type: (selectedClip?.effects?.background?.type as any) || 'gradient',
-        gradient: {
-          type: 'linear' as const,
-          colors: selectedClip?.effects?.background?.gradient?.colors || ['#f3f4f6', '#e5e7eb'],
-          angle: selectedClip?.effects?.background?.gradient?.angle || 135
-        },
-        padding: selectedClip?.effects?.background?.padding ?? 80,
-        borderRadius: selectedClip?.effects?.video?.cornerRadius ?? 24,
-        shadow: {
-          enabled: selectedClip?.effects?.video?.shadow?.enabled ?? true,
-          color: selectedClip?.effects?.video?.shadow?.color || 'rgba(0, 0, 0, 0.5)',
-          blur: selectedClip?.effects?.video?.shadow?.blur ?? 60,
-          offsetX: selectedClip?.effects?.video?.shadow?.offset?.x ?? 0,
-          offsetY: selectedClip?.effects?.video?.shadow?.offset?.y ?? 25
-        }
-      }
-      
-      if (!backgroundRendererRef.current) {
-        backgroundRendererRef.current = new BackgroundRenderer(bgOptions)
-      } else {
-        backgroundRendererRef.current.updateOptions(bgOptions)
-      }
-      
       // Force render first frame immediately
       const renderInitialFrame = () => {
         console.log('Rendering initial frame...', {
@@ -308,47 +277,45 @@ export function PreviewArea() {
     }
   }, [isVideoLoaded, initializeEffects, renderFrame])
 
-  // Update background and re-initialize effects when settings change
+  // Update effects and re-render when clip effects change
   useEffect(() => {
-    if (!selectedClip || isPlaying) return
+    if (!selectedClip || !isVideoLoaded) return
     
-    // Update background renderer options
-    if (backgroundRendererRef.current) {
-      const bgOptions = {
-        type: (selectedClip.effects?.background?.type as any) || 'gradient',
-        gradient: {
-          type: 'linear' as const,
-          colors: selectedClip.effects?.background?.gradient?.colors || ['#f3f4f6', '#e5e7eb'],
-          angle: selectedClip.effects?.background?.gradient?.angle || 135
-        },
-        padding: selectedClip.effects?.background?.padding ?? 80,
-        borderRadius: selectedClip.effects?.video?.cornerRadius ?? 24,
-        shadow: {
-          enabled: selectedClip.effects?.video?.shadow?.enabled ?? true,
-          color: selectedClip.effects?.video?.shadow?.color || 'rgba(0, 0, 0, 0.5)',
-          blur: selectedClip.effects?.video?.shadow?.blur ?? 60,
-          offsetX: selectedClip.effects?.video?.shadow?.offset?.x ?? 0,
-          offsetY: selectedClip.effects?.video?.shadow?.offset?.y ?? 25
-        }
-      }
-      backgroundRendererRef.current.updateOptions(bgOptions)
+    // Re-initialize all effects with current settings
+    initializeEffects()
+    
+    // Force re-render with current time
+    const video = videoRef.current
+    if (video) {
+      renderFrame(video.currentTime * 1000)
     }
-    
-    // Re-initialize effects engine with new padding
-    if (effectsEngineRef.current && currentRecording) {
-      const padding = selectedClip.effects?.background?.padding ?? 80
-      effectsEngineRef.current.initializeFromRecording(currentRecording, undefined, padding)
-    }
-    
-    // Force re-render
-    renderFrame()
   }, [
-    selectedClip?.effects?.background,
+    // Watch ALL effect properties for changes
+    selectedClip?.effects?.background?.type,
+    selectedClip?.effects?.background?.color,
+    selectedClip?.effects?.background?.gradient?.colors,
+    selectedClip?.effects?.background?.gradient?.angle,
+    selectedClip?.effects?.background?.padding,
     selectedClip?.effects?.video?.cornerRadius,
-    selectedClip?.effects?.video?.shadow,
-    isPlaying, 
-    renderFrame,
-    currentRecording
+    selectedClip?.effects?.video?.shadow?.enabled,
+    selectedClip?.effects?.video?.shadow?.blur,
+    selectedClip?.effects?.video?.shadow?.color,
+    selectedClip?.effects?.video?.shadow?.offset?.x,
+    selectedClip?.effects?.video?.shadow?.offset?.y,
+    selectedClip?.effects?.zoom?.enabled,
+    selectedClip?.effects?.zoom?.keyframes,
+    selectedClip?.effects?.zoom?.sensitivity,
+    selectedClip?.effects?.zoom?.maxZoom,
+    selectedClip?.effects?.zoom?.smoothing,
+    selectedClip?.effects?.cursor?.visible,
+    selectedClip?.effects?.cursor?.style,
+    selectedClip?.effects?.cursor?.size,
+    selectedClip?.effects?.cursor?.color,
+    selectedClip?.effects?.cursor?.clickEffects,
+    selectedClip?.effects?.cursor?.motionBlur,
+    isVideoLoaded,
+    initializeEffects,
+    renderFrame
   ])
 
   // Handle playback
@@ -383,20 +350,41 @@ export function PreviewArea() {
     }
   }, [isPlaying, isVideoLoaded, startAnimation, stopAnimation, renderFrame, getCurrentClip, seek])
 
-  // Sync video time with timeline
+  // Sync video time with timeline (including when clips are moved)
   useEffect(() => {
     const video = videoRef.current
     if (!video || !isVideoLoaded || isPlaying) return
 
     const clip = getCurrentClip()
     if (clip) {
+      // Calculate the video time based on current timeline position and clip position
       const videoTime = (currentTime - clip.startTime + clip.sourceIn) / 1000
-      if (Math.abs(video.currentTime - videoTime) > 0.1) {
-        video.currentTime = videoTime
-        renderFrame(videoTime * 1000)
+      
+      // Ensure videoTime is within valid bounds
+      const clampedVideoTime = Math.max(0, Math.min(video.duration || 0, videoTime))
+      
+      if (Math.abs(video.currentTime - clampedVideoTime) > 0.01) {
+        video.currentTime = clampedVideoTime
+        // Force render the frame at the new position
+        renderFrame(clampedVideoTime * 1000)
       }
     }
-  }, [currentTime, isVideoLoaded, isPlaying, getCurrentClip, renderFrame])
+  }, [currentTime, isVideoLoaded, isPlaying, getCurrentClip, renderFrame, currentClip?.startTime])
+  
+  // Update preview when current clip changes (e.g., after dragging)
+  useEffect(() => {
+    if (!currentClip || !isVideoLoaded || isPlaying) return
+    
+    // Re-initialize effects for the current clip
+    initializeEffects()
+    
+    // Force a render with the current video time
+    const video = videoRef.current
+    if (video) {
+      const timeMs = video.currentTime * 1000
+      renderFrame(timeMs)
+    }
+  }, [currentClip?.id, currentClip?.startTime, isVideoLoaded, isPlaying, initializeEffects, renderFrame])
 
   // Controls
   const handleRewind = () => seek(0)

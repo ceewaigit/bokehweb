@@ -198,9 +198,9 @@ export function WorkspaceManager() {
                               (rec.metadata.keyboardEvents?.length || 0)
                             console.log(`✅ Loaded ${totalEvents} metadata events for recording ${rec.id}`)
                           }
-
-                          // Store clip effects from project for later use
-                          RecordingStorage.setClipEffects(clipId, clip.effects)
+                          
+                          // Don't store effects in RecordingStorage - they should come from the clip
+                          // Effects are now managed directly through the project store
                         }
                       }
                     }

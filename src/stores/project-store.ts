@@ -310,6 +310,14 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
+      
+      // Auto-save after clip update (like when dragging)
+      const { currentProject } = get()
+      if (currentProject) {
+        saveProject(currentProject).catch(err => 
+          console.error('Failed to auto-save after clip update:', err)
+        )
+      }
     },
 
     updateClipEffects: (clipId, effects) => {
@@ -319,9 +327,22 @@ export const useProjectStore = create<ProjectStore>()(
         const result = findClipById(state.currentProject, clipId)
         if (!result) return
 
-        Object.assign(result.clip.effects, effects)
+        // Deep merge the effects to preserve nested properties
+        result.clip.effects = {
+          ...result.clip.effects,
+          ...effects
+        }
         state.currentProject.modifiedAt = new Date().toISOString()
       })
+      
+      // Auto-save after effects update
+      const { currentProject } = get()
+      if (currentProject) {
+        // Save asynchronously without blocking UI
+        saveProject(currentProject).catch(err => 
+          console.error('Failed to auto-save after effects update:', err)
+        )
+      }
     },
 
     selectClip: (clipId, multi = false) => {

@@ -23,10 +23,14 @@ export class ZoomEffectDetector implements EffectDetector {
   // Configuration
   private readonly config = {
     // Session detection
-    SESSION_INACTIVITY_THRESHOLD: 2000,    // ms of inactivity to end session
-    SESSION_RADIUS: 400,                   // pixels - area to consider same session
-    SESSION_MIN_DURATION: 2000,            // minimum session duration to create zoom
-    SESSION_MIN_EVENTS: 5,                 // minimum events to consider a session
+    SESSION_INACTIVITY_THRESHOLD: 3000,    // ms of inactivity to end session (increased for dwelling)
+    SESSION_RADIUS: 150,                   // pixels - smaller area for more precise detection
+    SESSION_MIN_DURATION: 800,             // minimum session duration to create zoom (reduced for quicker response)
+    SESSION_MIN_EVENTS: 2,                 // minimum events to consider a session (reduced for dwell detection)
+    
+    // Dwell detection
+    DWELL_TIME_MS: 600,                    // ms of hovering in one spot to trigger zoom
+    DWELL_RADIUS: 50,                      // pixels - how still the mouse must be
     
     // Zoom parameters
     ZOOM_SCALE: 2.0,
@@ -34,8 +38,8 @@ export class ZoomEffectDetector implements EffectDetector {
     ZOOM_OUTRO_MS: 300,
     
     // Limits
-    MAX_ZOOMS_PER_MINUTE: 4,              // Maximum zoom effects per minute of video
-    MIN_ZOOM_GAP: 1000,                   // Minimum gap between zoom effects
+    MAX_ZOOMS_PER_MINUTE: 6,              // Increased for more responsive zooming
+    MIN_ZOOM_GAP: 800,                    // Reduced gap for quicker transitions
   }
   
   constructor(config?: Partial<typeof ZoomEffectDetector.prototype.config>) {
@@ -74,9 +78,51 @@ export class ZoomEffectDetector implements EffectDetector {
   private detectFocusSessions(events: ProjectEvent[], context: RecordingContext): FocusSession[] {
     const sessions: FocusSession[] = []
     let currentSession: FocusSession | null = null
+    let dwellStart: { x: number, y: number, time: number } | null = null
     
     for (let i = 0; i < events.length; i++) {
       const event = events[i]
+      
+      // Check for dwelling/hovering behavior
+      if (event.type === 'move' && i > 0) {
+        const prevEvent = events[i - 1]
+        const distance = Math.sqrt(
+          Math.pow(event.x - prevEvent.x, 2) + 
+          Math.pow(event.y - prevEvent.y, 2)
+        )
+        
+        // Start tracking dwell if mouse is relatively still
+        if (distance < this.config.DWELL_RADIUS) {
+          if (!dwellStart) {
+            dwellStart = { x: event.x, y: event.y, time: event.timestamp }
+          } else {
+            // Check if we've been dwelling long enough
+            const dwellTime = event.timestamp - dwellStart.time
+            const dwellDistance = Math.sqrt(
+              Math.pow(event.x - dwellStart.x, 2) + 
+              Math.pow(event.y - dwellStart.y, 2)
+            )
+            
+            if (dwellTime >= this.config.DWELL_TIME_MS && 
+                dwellDistance < this.config.DWELL_RADIUS && 
+                !currentSession) {
+              // Start a session for dwell behavior
+              currentSession = {
+                startTime: dwellStart.time,
+                endTime: event.timestamp,
+                events: [event],
+                centerX: event.x,
+                centerY: event.y,
+                maxDistance: 0,
+                hasClicks: false
+              }
+              console.log(`[ZoomDetector] Started dwell session at ${dwellStart.time}ms`)
+            }
+          }
+        } else {
+          dwellStart = null // Reset dwell tracking if mouse moved
+        }
+      }
       
       if (!currentSession) {
         // Start new session on click or after initial movement
@@ -236,10 +282,12 @@ export class ZoomEffectDetector implements EffectDetector {
     const effects: ZoomEffect[] = []
     
     for (const session of sessions) {
-      // Skip sessions without clicks unless they're very long
+      // Include sessions with clicks OR sufficient dwell time
       const duration = session.endTime - session.startTime
-      if (!session.hasClicks && duration < 4000) {
-        console.log(`[ZoomDetector] Skipping session without clicks: ${session.startTime}-${session.endTime}ms`)
+      const isDwellSession = duration >= this.config.DWELL_TIME_MS && session.maxDistance < this.config.DWELL_RADIUS
+      
+      if (!session.hasClicks && !isDwellSession && duration < 2000) {
+        console.log(`[ZoomDetector] Skipping session without significant activity: ${session.startTime}-${session.endTime}ms`)
         continue
       }
       
