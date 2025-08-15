@@ -11,6 +11,7 @@ export interface Project {
   version: string
   id: string
   name: string
+  filePath?: string  // Path to the saved project file
   createdAt: string
   modifiedAt: string
 
@@ -289,8 +290,20 @@ export async function saveProject(project: Project, customPath?: string): Promis
   if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
     try {
       const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-      const projectFileName = customPath || `${project.id}.ssproj`
-      const projectFilePath = projectFileName.startsWith('/') ? projectFileName : `${recordingsDir}/${projectFileName}`
+      
+      // Use existing filePath if available, otherwise create new one
+      let projectFilePath: string
+      if (project.filePath && !customPath) {
+        // Update existing file
+        projectFilePath = project.filePath
+      } else {
+        // Create new file
+        const projectFileName = customPath || `${project.id}.ssproj`
+        projectFilePath = projectFileName.startsWith('/') ? projectFileName : `${recordingsDir}/${projectFileName}`
+      }
+
+      // Update the project's filePath
+      project.filePath = projectFilePath
 
       // Save as text file with our custom extension
       await window.electronAPI.saveRecording(
@@ -544,6 +557,9 @@ export async function loadProject(filePath: string): Promise<Project> {
         const decoder = new TextDecoder()
         const projectData = decoder.decode(result.data as ArrayBuffer)
         const project = JSON.parse(projectData) as Project
+        
+        // Set the filePath so we can update the same file later
+        project.filePath = filePath
 
         // Cache in RecordingStorage for quick access
         RecordingStorage.setProject(project.id, projectData)

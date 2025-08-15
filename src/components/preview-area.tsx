@@ -56,11 +56,46 @@ export function PreviewArea() {
     try {
       // Check if video is ready to draw
       if (video.readyState >= 2) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        // Scale video to fit canvas while maintaining aspect ratio
+        const videoAspect = video.videoWidth / video.videoHeight
+        const canvasAspect = canvas.width / canvas.height
+        
+        let drawWidth, drawHeight, offsetX, offsetY
+        
+        if (videoAspect > canvasAspect) {
+          // Video is wider
+          drawWidth = canvas.width
+          drawHeight = canvas.width / videoAspect
+          offsetX = 0
+          offsetY = (canvas.height - drawHeight) / 2
+        } else {
+          // Video is taller
+          drawHeight = canvas.height
+          drawWidth = canvas.height * videoAspect
+          offsetX = (canvas.width - drawWidth) / 2
+          offsetY = 0
+        }
+        
+        // Fill background
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        
+        // Draw video
+        ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
+        
+        // Debug: Draw a border to see if canvas is visible
+        ctx.strokeStyle = 'red'
+        ctx.lineWidth = 2
+        ctx.strokeRect(0, 0, canvas.width, canvas.height)
       } else {
         // Fill with placeholder color if video not ready
         ctx.fillStyle = '#1a1a1a'
         ctx.fillRect(0, 0, canvas.width, canvas.height)
+        
+        // Debug text
+        ctx.fillStyle = 'white'
+        ctx.font = '20px Arial'
+        ctx.fillText(`Video state: ${video.readyState}`, 10, 30)
       }
     } catch (err) {
       console.error('Error drawing video:', err)
@@ -211,9 +246,22 @@ export function PreviewArea() {
       console.log('Video ready:', video.videoWidth, 'x', video.videoHeight)
       if (!video.videoWidth || !video.videoHeight) return
       
+      // Set canvas to a reasonable size for display
+      const maxWidth = 1920
+      const maxHeight = 1080
+      let canvasWidth = video.videoWidth
+      let canvasHeight = video.videoHeight
+      
+      // Scale down if too large
+      if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
+        const scale = Math.min(maxWidth / canvasWidth, maxHeight / canvasHeight)
+        canvasWidth = Math.floor(canvasWidth * scale)
+        canvasHeight = Math.floor(canvasHeight * scale)
+      }
+      
       // Update canvas dimensions
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
+      canvas.width = canvasWidth
+      canvas.height = canvasHeight
       console.log('Canvas dimensions set:', canvas.width, 'x', canvas.height)
       
       // Initialize effects
