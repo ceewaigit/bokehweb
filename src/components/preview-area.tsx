@@ -145,23 +145,31 @@ export function PreviewArea() {
   const loadVideoFile = useCallback(async (filePath: string) => {
     try {
       // Check if we're in Electron environment with IPC
-      if (window.electronAPI?.readLocalFile) {
+      if (typeof window !== 'undefined' && window.electronAPI?.readLocalFile) {
+        console.log('Loading video via Electron API:', filePath)
         const result = await window.electronAPI.readLocalFile(filePath)
         if (result.success && result.data) {
           const blob = new Blob([result.data], { type: 'video/webm' })
-          return URL.createObjectURL(blob)
+          const blobUrl = URL.createObjectURL(blob)
+          console.log('Created blob URL:', blobUrl)
+          return blobUrl
         } else {
           console.error('Failed to read file:', result.error)
-          return filePath
         }
-      } else {
-        // Fallback for dev environment - direct file path
-        console.log('No Electron API, using direct file path')
-        return filePath
       }
+      
+      // Fallback: Try direct file:// URL (works in Electron without CSP restrictions)
+      if (filePath.startsWith('/')) {
+        const fileUrl = `file://${filePath}`
+        console.log('Using file:// URL:', fileUrl)
+        return fileUrl
+      }
+      
+      // Last resort: use as-is
+      console.log('Using path as-is:', filePath)
+      return filePath
     } catch (error) {
       console.error('Failed to load video file:', error)
-      // Last fallback
       return filePath
     }
   }, [])
@@ -193,12 +201,23 @@ export function PreviewArea() {
     }
 
     // Load video file
+    console.log('Loading video file:', clipRecording.filePath)
     loadVideoFile(clipRecording.filePath).then(videoUrl => {
       if (!video) return
       
       videoBlobUrlRef.current = videoUrl
       video.src = videoUrl
+      
+      // Add error handler
+      video.onerror = (e) => {
+        console.error('Video load error:', e)
+        console.error('Video error code:', video.error?.code)
+        console.error('Video error message:', video.error?.message)
+      }
+      
       video.load()
+    }).catch(err => {
+      console.error('Failed to load video file:', err)
     })
 
     const handleVideoReady = () => {

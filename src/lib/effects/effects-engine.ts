@@ -72,23 +72,42 @@ export class EffectsEngine {
   }
 
   /**
-   * Simple zoom detection based on click events
+   * Simple zoom detection - creates discrete zoom blocks
    */
   private detectZoomEffects(): void {
     this.effects = []
     
     // Find click events that should trigger zoom
     const clickEvents = this.events.filter(e => e.type === 'click')
+    if (clickEvents.length === 0) return
+    
+    let lastZoomEnd = 0
+    const MIN_GAP_BETWEEN_ZOOMS = 2000 // 2 seconds minimum between zoom effects
+    const DEFAULT_ZOOM_DURATION = 3000 // 3 seconds default zoom
     
     clickEvents.forEach((click, index) => {
-      // Calculate zoom duration (until next click or 3 seconds)
-      const nextClick = clickEvents[index + 1]
-      const zoomDuration = nextClick 
-        ? Math.min(nextClick.timestamp - click.timestamp, 3000)
-        : Math.min(3000, this.duration - click.timestamp)
+      // Skip if too close to last zoom
+      if (click.timestamp < lastZoomEnd + MIN_GAP_BETWEEN_ZOOMS) {
+        return
+      }
       
-      // Only create zoom if duration is reasonable
-      if (zoomDuration > 500) {
+      // Look for next click to determine zoom duration
+      const nextClick = clickEvents[index + 1]
+      let zoomDuration = DEFAULT_ZOOM_DURATION
+      
+      if (nextClick) {
+        // If next click is soon, zoom until then (but max 5 seconds)
+        const gapToNext = nextClick.timestamp - click.timestamp
+        if (gapToNext < 5000) {
+          zoomDuration = Math.max(1500, gapToNext - 500) // Leave gap before next click
+        }
+      }
+      
+      // Make sure zoom doesn't exceed video duration
+      zoomDuration = Math.min(zoomDuration, this.duration - click.timestamp - 500)
+      
+      // Only create zoom if we have enough duration
+      if (zoomDuration > 1000) {
         this.effects.push({
           id: `zoom-${click.timestamp}`,
           type: 'zoom',
@@ -97,9 +116,11 @@ export class EffectsEngine {
           targetX: click.x / this.width,
           targetY: click.y / this.height,
           scale: 2.0,
-          introMs: 300,
-          outroMs: 300
+          introMs: 400,
+          outroMs: 400
         })
+        
+        lastZoomEnd = click.timestamp + zoomDuration
       }
     })
   }
@@ -286,16 +307,28 @@ export class EffectsEngine {
     
     const keyframes: any[] = []
     
-    if (this.effects.length === 0) {
-      // No zoom effects, return default keyframes
-      return [
-        { time: 0, zoom: 1.0, x: 0.5, y: 0.5, easing: 'linear' },
-        { time: this.duration || 0, zoom: 1.0, x: 0.5, y: 0.5, easing: 'linear' }
-      ]
-    }
+    // Always start at zoom level 1
+    keyframes.push({
+      time: 0,
+      zoom: 1.0,
+      x: 0.5,
+      y: 0.5,
+      easing: 'linear'
+    })
     
-    // Convert effects to keyframes
+    // Add keyframes for each zoom effect (discrete blocks)
     this.effects.forEach(effect => {
+      // Start of zoom (still at 1.0 just before zooming)
+      if (effect.startTime > 0) {
+        keyframes.push({
+          time: effect.startTime - 1,
+          zoom: 1.0,
+          x: 0.5,
+          y: 0.5,
+          easing: 'linear'
+        })
+      }
+      
       // Zoom in
       keyframes.push({
         time: effect.startTime,
@@ -303,6 +336,15 @@ export class EffectsEngine {
         x: effect.targetX,
         y: effect.targetY,
         easing: 'easeOut'
+      })
+      
+      // Hold zoom
+      keyframes.push({
+        time: effect.endTime - effect.outroMs,
+        zoom: effect.scale,
+        x: effect.targetX,
+        y: effect.targetY,
+        easing: 'linear'
       })
       
       // Zoom out
@@ -314,6 +356,17 @@ export class EffectsEngine {
         easing: 'easeIn'
       })
     })
+    
+    // End at zoom level 1
+    if (keyframes[keyframes.length - 1].time < this.duration) {
+      keyframes.push({
+        time: this.duration,
+        zoom: 1.0,
+        x: 0.5,
+        y: 0.5,
+        easing: 'linear'
+      })
+    }
     
     return keyframes
   }
