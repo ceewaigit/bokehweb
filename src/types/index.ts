@@ -28,7 +28,7 @@ export type {
   Annotation,
   Transition,
   ExportPreset,
-  ZoomKeyframe
+  ZoomBlock
 } from './project'
 
 // Keep KeyframeData here as it's not in project.ts

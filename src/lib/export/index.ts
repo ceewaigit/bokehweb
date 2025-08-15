@@ -5,4 +5,3 @@
 
 export { ExportEngine } from './export-engine'
 export type { ExportProgress, ExportOptions } from './export-engine'
-export { FFmpegConverter } from './ffmpeg-converter'

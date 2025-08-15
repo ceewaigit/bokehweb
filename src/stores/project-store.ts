@@ -6,6 +6,7 @@ import {
   type Recording,
   type ClipEffects,
   type Track,
+  type ZoomBlock,
   createProject,
   saveProject,
   loadProject
@@ -38,7 +39,9 @@ interface ProjectStore {
   removeClip: (clipId: string) => void
   updateClip: (clipId: string, updates: Partial<Clip>) => void
   updateClipEffects: (clipId: string, effects: Partial<ClipEffects>) => void
-  updateZoomKeyframe: (clipId: string, keyframeIndex: number, newTime: number) => void
+  updateZoomBlock: (clipId: string, blockId: string, updates: Partial<ZoomBlock>) => void
+  addZoomBlock: (clipId: string, block: ZoomBlock) => void
+  removeZoomBlock: (clipId: string, blockId: string) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
   clearSelection: () => void
   splitClip: (clipId: string, splitTime: number) => void
@@ -192,7 +195,7 @@ export const useProjectStore = create<ProjectStore>()(
           ...SCREEN_STUDIO_CLIP_EFFECTS,
           zoom: {
             ...SCREEN_STUDIO_CLIP_EFFECTS.zoom,
-            keyframes: effectsEngine.getZoomKeyframes(completeRecording)
+            blocks: effectsEngine.getZoomBlocks(completeRecording)
           }
         }
 
@@ -346,31 +349,62 @@ export const useProjectStore = create<ProjectStore>()(
       }
     },
     
-    updateZoomKeyframe: (clipId, keyframeIndex, newTime) => {
+    updateZoomBlock: (clipId, blockId, updates) => {
       set((state) => {
         if (!state.currentProject) return
         const result = findClipById(state.currentProject, clipId)
         if (!result) return
         
         const clip = result.clip
-        if (!clip.effects?.zoom?.keyframes?.[keyframeIndex]) return
+        if (!clip.effects?.zoom?.blocks) return
         
-        // Update the keyframe time
-        clip.effects.zoom.keyframes[keyframeIndex].time = newTime
-        
-        // Sort keyframes by time to maintain chronological order
-        clip.effects.zoom.keyframes.sort((a, b) => a.time - b.time)
-        
-        state.currentProject.modifiedAt = new Date().toISOString()
+        const block = clip.effects.zoom.blocks.find(b => b.id === blockId)
+        if (block) {
+          Object.assign(block, updates)
+          state.currentProject.modifiedAt = new Date().toISOString()
+        }
       })
       
-      // Auto-save after keyframe update
+      // Auto-save
       const { currentProject } = get()
       if (currentProject) {
         saveProject(currentProject).catch(err => 
-          console.error('Failed to auto-save after keyframe update:', err)
+          console.error('Failed to auto-save after zoom block update:', err)
         )
       }
+    },
+    
+    addZoomBlock: (clipId, block) => {
+      set((state) => {
+        if (!state.currentProject) return
+        const result = findClipById(state.currentProject, clipId)
+        if (!result) return
+        
+        const clip = result.clip
+        if (!clip.effects?.zoom) return
+        
+        if (!clip.effects.zoom.blocks) {
+          clip.effects.zoom.blocks = []
+        }
+        
+        clip.effects.zoom.blocks.push(block)
+        clip.effects.zoom.blocks.sort((a, b) => a.startTime - b.startTime)
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
+    },
+    
+    removeZoomBlock: (clipId, blockId) => {
+      set((state) => {
+        if (!state.currentProject) return
+        const result = findClipById(state.currentProject, clipId)
+        if (!result) return
+        
+        const clip = result.clip
+        if (!clip.effects?.zoom?.blocks) return
+        
+        clip.effects.zoom.blocks = clip.effects.zoom.blocks.filter(b => b.id !== blockId)
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
     },
 
     selectClip: (clipId, multi = false) => {

@@ -26,7 +26,8 @@ export function PreviewArea() {
     currentTime,
     isPlaying,
     getCurrentRecording,
-    seek
+    seek,
+    pause
   } = useProjectStore()
 
   // Get the selected clip
@@ -198,9 +199,6 @@ export function PreviewArea() {
     const canvas = canvasRef.current
     if (!video || !canvas || !clipRecording) return
 
-    // Reset state
-    setIsVideoLoaded(false)
-    
     // Clean up previous effects
     if (cursorCanvasRef.current) {
       cursorCanvasRef.current.remove()
@@ -212,36 +210,36 @@ export function PreviewArea() {
       cursorRendererRef.current = null
     }
 
-    // Clean up previous blob URL (only if we created it)
-    if (videoBlobUrlRef.current && videoBlobUrlRef.current.startsWith('blob:')) {
-      URL.revokeObjectURL(videoBlobUrlRef.current)
-      videoBlobUrlRef.current = null
+    // Simple approach: Just use the file path directly or get blob URL from storage
+    const loadVideo = () => {
+      // First check if we already have a blob URL for this recording
+      const storedBlobUrl = RecordingStorage.getBlobUrl(clipRecording.id)
+      
+      if (storedBlobUrl) {
+        // Use the stored blob URL (from when project was loaded)
+        if (video.src !== storedBlobUrl) {
+          console.log(`Loading video from blob URL: ${clipRecording.id}`)
+          video.src = storedBlobUrl
+          videoBlobUrlRef.current = storedBlobUrl
+          video.load()
+        }
+      } else if (clipRecording.filePath) {
+        // Use file:// URL directly - let Electron handle the file access
+        const fileUrl = `file://${clipRecording.filePath}`
+        if (video.src !== fileUrl) {
+          console.log(`Loading video from file: ${clipRecording.filePath}`)
+          video.src = fileUrl
+          videoBlobUrlRef.current = fileUrl
+          video.load()
+        }
+      } else {
+        console.error('No video source available for recording:', clipRecording.id)
+      }
     }
-
-    // First check if we have a blob URL in storage
-    const storedBlobUrl = RecordingStorage.getBlobUrl(clipRecording.id)
     
-    if (storedBlobUrl) {
-      // Use the stored blob URL directly
-      console.log('Using stored blob URL for recording:', clipRecording.id)
-      videoBlobUrlRef.current = storedBlobUrl
-      video.src = storedBlobUrl
-      video.load()
-    } else if (clipRecording.filePath) {
-      // Fall back to loading from file if no blob URL is stored
-      console.log('Loading video from file:', clipRecording.filePath)
-      loadVideoFile(clipRecording.filePath).then(videoUrl => {
-        if (!video) return
-        
-        videoBlobUrlRef.current = videoUrl
-        video.src = videoUrl
-        video.load()
-      }).catch(err => {
-        console.error('Failed to load video file:', err)
-      })
-    } else {
-      console.error('No video source available for recording:', clipRecording.id)
-    }
+    // Reset loaded state when clip changes
+    setIsVideoLoaded(false)
+    loadVideo()
 
     const handleVideoReady = () => {
       if (!video.videoWidth || !video.videoHeight) return
@@ -274,11 +272,6 @@ export function PreviewArea() {
     const handleTimeUpdate = () => {
       const videoTimeMs = video.currentTime * 1000
       renderFrame(videoTimeMs)
-      
-      // Update store's current time if playing and video is driving the playback
-      if (isPlaying && Math.abs(currentTime - videoTimeMs) > 16) { // Only update if difference > 1 frame at 60fps
-        seek(videoTimeMs)
-      }
     }
 
     video.addEventListener('loadedmetadata', handleVideoReady)
@@ -292,13 +285,15 @@ export function PreviewArea() {
         cancelAnimationFrame(animationFrameRef.current)
       }
       
-      // Clean up blob URL (only if we created it)
-      if (videoBlobUrlRef.current && videoBlobUrlRef.current.startsWith('blob:')) {
+      // Don't clean up blob URLs from storage
+      if (videoBlobUrlRef.current && 
+          videoBlobUrlRef.current.startsWith('blob:') && 
+          !RecordingStorage.getBlobUrl(clipRecording?.id || '')) {
         URL.revokeObjectURL(videoBlobUrlRef.current)
         videoBlobUrlRef.current = null
       }
     }
-  }, [clipRecording?.id, clipRecording?.filePath, initializeEffects, renderFrame, loadVideoFile, isPlaying, currentTime, seek])
+  }, [clipRecording?.id, clipRecording?.filePath, initializeEffects])
 
   // Handle playback
   useEffect(() => {
@@ -306,10 +301,19 @@ export function PreviewArea() {
     if (!video || !isVideoLoaded) return
 
     if (isPlaying) {
-      // Ensure video time matches timeline time before playing
-      const targetTime = currentTime / 1000
-      if (Math.abs(video.currentTime - targetTime) > 0.1) {
-        video.currentTime = targetTime
+      // Calculate the video time based on clip's sourceIn and timeline position
+      if (selectedClip) {
+        // Map timeline time to source video time
+        const clipProgress = currentTime - selectedClip.startTime
+        const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
+        
+        // Ensure we're within the clip's source bounds
+        const maxSourceTime = selectedClip.sourceOut / 1000
+        const clampedTime = Math.min(Math.max(sourceTime, selectedClip.sourceIn / 1000), maxSourceTime)
+        
+        if (Math.abs(video.currentTime - clampedTime) > 0.1) {
+          video.currentTime = clampedTime
+        }
       }
       
       video.play().catch(console.error)
@@ -340,11 +344,56 @@ export function PreviewArea() {
     const video = videoRef.current
     if (!video || !isVideoLoaded || isPlaying) return
 
-    const targetTime = currentTime / 1000
-    if (Math.abs(video.currentTime - targetTime) > 0.1) {
-      video.currentTime = targetTime
+    if (selectedClip) {
+      // Map timeline position to source video position
+      const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
+      const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
+      
+      // Clamp to clip bounds
+      const minTime = selectedClip.sourceIn / 1000
+      const maxTime = selectedClip.sourceOut / 1000
+      const targetTime = Math.min(Math.max(sourceTime, minTime), maxTime)
+      
+      if (Math.abs(video.currentTime - targetTime) > 0.1) {
+        video.currentTime = targetTime
+      }
     }
-  }, [currentTime, isVideoLoaded, isPlaying])
+  }, [currentTime, isVideoLoaded, isPlaying, selectedClip])
+  
+  // Sync video time to timeline during playback and handle clip boundaries
+  useEffect(() => {
+    if (!isPlaying || !isVideoLoaded) return
+    
+    const video = videoRef.current
+    if (!video || !selectedClip) return
+    
+    const syncInterval = setInterval(() => {
+      const videoTimeMs = video.currentTime * 1000
+      
+      // Check if we've reached the end of the clip's source
+      if (videoTimeMs >= selectedClip.sourceOut) {
+        // Move to next clip or stop
+        const nextTime = selectedClip.startTime + selectedClip.duration
+        if (nextTime >= (currentProject?.timeline.duration || 0)) {
+          // End of timeline
+          pause()
+        } else {
+          // Move to next position
+          seek(nextTime)
+        }
+      } else {
+        // Update timeline position based on video position
+        const clipProgress = videoTimeMs - selectedClip.sourceIn
+        const timelineTime = selectedClip.startTime + clipProgress
+        
+        if (Math.abs(currentTime - timelineTime) > 50) {
+          seek(timelineTime)
+        }
+      }
+    }, 100) // Check every 100ms
+    
+    return () => clearInterval(syncInterval)
+  }, [isPlaying, isVideoLoaded, currentTime, seek, selectedClip, currentProject, pause])
 
   // Re-render when effects settings change
   useEffect(() => {

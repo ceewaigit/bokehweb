@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import type { Recording } from '@/types/project'
-import { convertElectronMetadataToProject } from '@/lib/metadata/metadata-converter'
 
 export function WorkspaceManager() {
   const { currentProject, newProject } = useProjectStore()
@@ -109,53 +108,32 @@ export function WorkspaceManager() {
                 // Load each recording from the project
                 for (let i = 0; i < project.recordings.length; i++) {
                   const rec = project.recordings[i]
-                  setLoadingMessage(`Loading video ${i + 1} of ${project.recordings.length}...`)
+                  setLoadingMessage(`Setting up video ${i + 1} of ${project.recordings.length}...`)
                   
                   if (rec.filePath) {
                     try {
-                    // Load the video file
-                    const result = await window.electronAPI?.readLocalFile?.(rec.filePath)
-                    if (!result || !result.success) {
-                      console.error('Failed to load video:', rec.filePath)
-                      continue
-                    }
-
-                    const arrayBuffer: ArrayBuffer = result.data as ArrayBuffer
-                    const blob = new Blob([arrayBuffer], { type: 'video/webm' })
-                    const url = globalBlobManager.create(blob, 'project-recording')
-
+                    // Don't load the entire video file! Just verify it exists and get duration if needed
+                    
                     // Verify and fix recording duration if needed
                     if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
                       setLoadingMessage('Detecting video duration...')
                       console.log('⚠️ Recording has invalid duration, detecting from video...')
                       
                       const tempVideo = document.createElement('video')
-                      tempVideo.src = url
+                      // Just use the file path directly
+                      tempVideo.src = `file://${rec.filePath}`
                       
                       await new Promise<void>((resolve) => {
                         tempVideo.addEventListener('loadedmetadata', () => {
                           console.log('Checking project video duration:', tempVideo.duration)
                           
-                          if (!isFinite(tempVideo.duration)) {
-                            // Seek to end to get duration for blob URLs
-                            tempVideo.currentTime = Number.MAX_SAFE_INTEGER
-                            
-                            tempVideo.addEventListener('seeked', () => {
-                              if (isFinite(tempVideo.duration) && tempVideo.duration > 0) {
-                                rec.duration = tempVideo.duration * 1000
-                                console.log('✅ Fixed recording duration:', rec.duration, 'ms')
-                              }
-                              tempVideo.currentTime = 0
-                              resolve()
-                            }, { once: true })
-                          } else if (tempVideo.duration > 0) {
+                          if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
                             rec.duration = tempVideo.duration * 1000
                             console.log('✅ Fixed recording duration:', rec.duration, 'ms')
-                            resolve()
                           } else {
                             console.error('❌ Could not determine video duration')
-                            resolve()
                           }
+                          resolve()
                         }, { once: true })
                         
                         tempVideo.addEventListener('error', () => {
@@ -173,19 +151,15 @@ export function WorkspaceManager() {
                     for (const track of project.timeline.tracks) {
                       for (const clip of track.clips) {
                         if (clip.recordingId === rec.id) {
-                          const clipId = clip.id
-
-                          // Store blob URL for the recording
-                          RecordingStorage.setBlobUrl(rec.id, url)
-
                           // Fix clip duration if recording duration was updated
                           if (rec.duration && rec.duration > 0) {
                             clip.duration = Math.min(clip.duration, rec.duration)
                             clip.sourceOut = Math.min(clip.sourceOut, rec.duration)
                           }
                           
-                          // Add recording to project store
-                          useProjectStore.getState().addRecording(rec, blob)
+                          // Just add the recording with its file path - no blob needed!
+                          // The preview area will use the file path directly
+                          useProjectStore.getState().setProject(project)
 
                           // Save metadata for effects rendering
                           if (rec.metadata) {
@@ -214,59 +188,20 @@ export function WorkspaceManager() {
                 setLoadingMessage('Creating new project...')
                 newProject(recording.name)
                 
-                setLoadingMessage('Loading video file...')
-                const result = await window.electronAPI?.readLocalFile?.(recording.path)
-                if (!result || !result.success) {
-                  throw new Error(result?.error || 'Failed to read local file')
-                }
-                const arrayBuffer: ArrayBuffer = result.data as ArrayBuffer
-                const blob = new Blob([arrayBuffer], { type: 'video/webm' })
-                const url = globalBlobManager.create(blob, 'loaded-recording')
+                setLoadingMessage('Analyzing video file...')
                 const recordingId = `recording-${Date.now()}`
-
-                // Store blob URL for preview (by id only)
-                RecordingStorage.setBlobUrl(recordingId, url)
 
                 // Create a temporary video element to get actual duration
                 const tempVideo = document.createElement('video')
-                tempVideo.src = url
+                tempVideo.src = `file://${recording.path}`
                 
-                // For blob URLs, we need to seek to end to get duration
+                // Get video metadata
                 setLoadingMessage('Analyzing video...')
                 await new Promise<void>((resolve, reject) => {
-                  let resolved = false
-                  
                   tempVideo.addEventListener('loadedmetadata', () => {
-                    console.log('Initial metadata loaded, duration:', tempVideo.duration)
-                    setLoadingMessage('Processing video metadata...')
-                    
-                    // If duration is not finite, we need to seek to get it
-                    if (!isFinite(tempVideo.duration)) {
-                      console.log('Duration is not finite, seeking to end...')
-                      tempVideo.currentTime = Number.MAX_SAFE_INTEGER
-                    } else if (tempVideo.duration > 0) {
-                      console.log('Valid duration found immediately:', tempVideo.duration)
-                      resolved = true
-                      resolve()
-                    }
+                    console.log('Video metadata loaded, duration:', tempVideo.duration)
+                    resolve()
                   }, { once: true })
-                  
-                  tempVideo.addEventListener('durationchange', () => {
-                    console.log('Duration changed to:', tempVideo.duration)
-                    if (!resolved && isFinite(tempVideo.duration) && tempVideo.duration > 0) {
-                      resolved = true
-                      resolve()
-                    }
-                  })
-                  
-                  tempVideo.addEventListener('seeked', () => {
-                    console.log('Seeked, duration is now:', tempVideo.duration)
-                    tempVideo.currentTime = 0 // Reset to start
-                    if (!resolved && isFinite(tempVideo.duration) && tempVideo.duration > 0) {
-                      resolved = true
-                      resolve()
-                    }
-                  })
                   
                   tempVideo.addEventListener('error', (e) => {
                     console.error('Video error:', e)
@@ -311,15 +246,18 @@ export function WorkspaceManager() {
                   }
                 }
 
-                // Add recording to project store
+                // Add recording to project store - with NO blob, just the file path!
                 setLoadingMessage('Setting up timeline...')
                 console.log('📼 Adding recording to project store:', {
                   id: rec.id,
                   duration: `${(rec.duration / 1000).toFixed(2)}s`,
                   dimensions: `${rec.width}x${rec.height}`,
-                  hasMetadata: Object.keys(rec.metadata).length > 0
+                  filePath: rec.filePath
                 })
-                useProjectStore.getState().addRecording(rec, blob)
+                
+                // Create a dummy blob for now (we need to refactor addRecording later)
+                const dummyBlob = new Blob([], { type: 'video/webm' })
+                useProjectStore.getState().addRecording(rec, dummyBlob)
                 
                 // Log the project state after adding
                 const projectState = useProjectStore.getState().currentProject

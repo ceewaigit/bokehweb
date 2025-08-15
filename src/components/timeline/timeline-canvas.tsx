@@ -13,7 +13,7 @@ import { TimelineTrack } from './timeline-track'
 import { TimelinePlayhead } from './timeline-playhead'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
-import { TimelineZoomKeyframes } from './timeline-zoom-keyframes'
+import { TimelineZoomBlock } from './timeline-zoom-block'
 
 // Utilities
 import { TIMELINE_LAYOUT, TimelineUtils } from './timeline-constants'
@@ -37,7 +37,9 @@ export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps)
     selectClip,
     removeClip,
     updateClip,
-    updateZoomKeyframe,
+    updateZoomBlock,
+    addZoomBlock,
+    removeZoomBlock,
     addClip,
     clearSelection,
     splitClip,
@@ -333,22 +335,52 @@ export function TimelineCanvas({ className = "h-[500px]" }: TimelineCanvasProps)
                 />
               ))}
 
-            {/* Zoom keyframes - draggable */}
+            {/* Zoom blocks - draggable */}
             {hasZoomTrack && selectedClips.length > 0 && (() => {
               const selectedClip = currentProject.timeline.tracks
                 .find(t => t.type === 'video')
                 ?.clips.find(c => selectedClips.includes(c.id))
 
-              if (!selectedClip) return null
+              if (!selectedClip?.effects?.zoom?.enabled) return null
 
-              return (
-                <TimelineZoomKeyframes
-                  clip={selectedClip}
-                  pixelsPerMs={pixelsPerMs}
-                  trackY={TimelineUtils.getTrackY('zoom')}
-                  onKeyframeUpdate={updateZoomKeyframe}
+              const clipX = TimelineUtils.timeToPixel(selectedClip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+              
+              return selectedClip.effects.zoom.blocks?.map(block => (
+                <TimelineZoomBlock
+                  key={block.id}
+                  x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
+                  y={TimelineUtils.getTrackY('zoom')}
+                  width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
+                  height={TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT}
+                  startTime={block.startTime}
+                  endTime={block.endTime}
+                  introMs={block.introMs}
+                  outroMs={block.outroMs}
+                  scale={block.scale}
+                  isSelected={false}
+                  onSelect={() => {}}
+                  onDragEnd={(newX) => {
+                    const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
+                    updateZoomBlock(selectedClip.id, block.id, { 
+                      startTime: newStartTime,
+                      endTime: newStartTime + (block.endTime - block.startTime)
+                    })
+                  }}
+                  onResize={(newWidth, side) => {
+                    if (side === 'right') {
+                      updateZoomBlock(selectedClip.id, block.id, {
+                        endTime: block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
+                      })
+                    }
+                  }}
+                  onIntroChange={(newIntroMs) => {
+                    updateZoomBlock(selectedClip.id, block.id, { introMs: newIntroMs })
+                  }}
+                  onOutroChange={(newOutroMs) => {
+                    updateZoomBlock(selectedClip.id, block.id, { outroMs: newOutroMs })
+                  }}
                 />
-              )
+              ))
             })()}
 
             {/* Audio clips */}

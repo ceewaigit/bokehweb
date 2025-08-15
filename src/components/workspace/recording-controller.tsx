@@ -1,51 +1,21 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback } from 'react'
 import { RecordingOverlay, RecordingIndicator, RecordingStatusBar } from '../recording-overlay'
 import { ProcessingIndicator } from '../processing-indicator'
-import { CountdownTimer } from '../countdown-timer'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useRecording } from '@/hooks/use-recording'
-import { useConfigStore } from '@/stores/config-store'
 import { useEventListener, useDocumentEvent } from '@/hooks/use-event-listener'
 import { logger } from '@/lib/utils/logger'
 import { safeResetRecording } from '@/lib/utils/recording-helpers'
 
 export function RecordingController() {
-  // Modal State
-  const [showCountdown, setShowCountdown] = useState(false)
-  
-  // Get settings from config store
-  const { defaultCountdown } = useConfigStore()
-  const countdownSeconds = defaultCountdown
-
   // Hooks
   const { isRecording, isPaused } = useRecordingStore()
-  const { startRecording, stopRecording, pauseRecording, resumeRecording, processingProgress } = useRecording()
+  const { stopRecording, pauseRecording, resumeRecording, processingProgress } = useRecording()
 
-  // Simple recorder doesn't need enhancement settings applied separately
-  // Enhancement settings are used during recording start
-
-  const handleStartRecording = useCallback(async () => {
-    // Show countdown timer first
-    setShowCountdown(true)
-  }, [])
-
-  const handleCountdownComplete = useCallback(async () => {
-    setShowCountdown(false)
-    try {
-      logger.info('Starting recording')
-      await startRecording(undefined) // Effects are now applied during export
-    } catch (error) {
-      logger.error('Failed to start recording:', error)
-      // Reset recording state on start failure
-      safeResetRecording()
-    }
-  }, [startRecording])
-
-  const handleCountdownCancel = useCallback(() => {
-    setShowCountdown(false)
-  }, [])
+  // RecordingController in workspace should only handle ongoing recordings
+  // Starting recordings is handled by the Record Button window
 
   const handleStopRecording = useCallback(async () => {
     // Prevent double-stop by checking current state
@@ -82,22 +52,17 @@ export function RecordingController() {
   }, [resumeRecording])
 
   // Listen for recording events from other components
-  useEventListener('start-recording' as any, handleStartRecording)
+  // Note: start-recording is not handled here - only the Record Button window can start recordings
   useEventListener('stop-recording' as any, handleStopRecording)
   useEventListener('pause-recording' as any, handlePauseRecording)
   useEventListener('resume-recording' as any, handleResumeRecording)
 
-  // Keyboard shortcuts for recording
+  // Keyboard shortcuts for recording control (no start recording - only control existing recordings)
   useDocumentEvent('keydown', useCallback((e: KeyboardEvent) => {
     // Command/Ctrl key combinations
     if (e.metaKey || e.ctrlKey) {
       switch (e.key) {
-        case 'r':
-          e.preventDefault()
-          if (!isRecording) {
-            handleStartRecording()
-          }
-          break
+        // Removed 'r' key for starting recording - recordings should only start from Record Button window
         case ' ':
           e.preventDefault()
           if (isRecording) {
@@ -116,19 +81,11 @@ export function RecordingController() {
           break
       }
     }
-  }, [isRecording, isPaused, handleStartRecording, handlePauseRecording, handleResumeRecording, handleStopRecording]))
+  }, [isRecording, isPaused, handlePauseRecording, handleResumeRecording, handleStopRecording]))
 
   return (
     <>
-      {/* Countdown Timer */}
-      <CountdownTimer
-        seconds={countdownSeconds}
-        onComplete={handleCountdownComplete}
-        onCancel={handleCountdownCancel}
-        isVisible={showCountdown}
-      />
-
-      {/* Recording Overlays */}
+      {/* Recording Overlays - only shown when actively recording */}
       {isRecording && (
         <>
           <RecordingOverlay
@@ -143,7 +100,6 @@ export function RecordingController() {
         </>
       )}
 
-
       {/* Processing Indicator */}
       <ProcessingIndicator
         isVisible={!!processingProgress}
@@ -153,9 +109,6 @@ export function RecordingController() {
         currentFrame={processingProgress?.currentFrame}
         totalFrames={processingProgress?.totalFrames}
       />
-
-      {/* Additional modals can be added here as needed */}
-
     </>
   )
 }

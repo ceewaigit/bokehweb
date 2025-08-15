@@ -144,7 +144,7 @@ export interface ClipEffects {
   // Zoom and pan
   zoom: {
     enabled: boolean
-    keyframes: ZoomKeyframe[]
+    blocks: ZoomBlock[]  // Screen Studio style zoom blocks
     sensitivity: number
     maxZoom: number
     smoothing: number
@@ -188,12 +188,16 @@ export interface ClipEffects {
   annotations: Annotation[]
 }
 
-export interface ZoomKeyframe {
-  time: number
-  zoom: number
-  x: number  // Focus point
-  y: number
-  easing: 'linear' | 'easeIn' | 'easeOut' | 'easeInOut' | 'smoothStep'
+export interface ZoomBlock {
+  id: string
+  startTime: number    // Start of zoom effect (in clip time)
+  endTime: number      // End of zoom effect (in clip time)
+  introMs: number      // Duration of zoom in animation (default 500ms)
+  outroMs: number      // Duration of zoom out animation (default 500ms)
+  scale: number        // Max zoom level (e.g., 2.0 for 2x)
+  targetX: number      // Focus point X (0-1)
+  targetY: number      // Focus point Y (0-1)
+  mode: 'manual' | 'auto'  // Manual or auto-detected
 }
 
 export interface Annotation {
@@ -475,9 +479,9 @@ export async function saveRecordingWithProject(
     }
 
     // Use the engine's public method
-    const zoomKeyframes = effectsEngine.getZoomKeyframes(mockRecording)
+    const zoomBlocks = effectsEngine.getZoomBlocks(mockRecording)
 
-    console.log(`📹 Generated ${zoomKeyframes.length} zoom keyframes`)
+    console.log(`📹 Generated ${zoomBlocks.length} zoom blocks`)
 
     // Detect cursor activity to set visibility intelligently
     const hasCursorActivity = mouseEvents.length > 5 // Has meaningful mouse movement
@@ -494,7 +498,7 @@ export async function saveRecordingWithProject(
       effects: {
         zoom: {
           enabled: true,
-          keyframes: zoomKeyframes, // Use generated keyframes instead of empty array
+          blocks: zoomBlocks, // Use generated zoom blocks
           sensitivity: 1.0,
           maxZoom: 2.0,
           smoothing: 0.1

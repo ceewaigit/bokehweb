@@ -3,7 +3,7 @@ import type { ClipEffects } from '@/types/project'
 export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   zoom: {
     enabled: false,
-    keyframes: [],
+    blocks: [],
     sensitivity: 1.0,
     maxZoom: 2.0,
     smoothing: 0.1
@@ -39,7 +39,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
 export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
   zoom: {
     enabled: true,
-    keyframes: [],
+    blocks: [],
     sensitivity: 1.0,
     maxZoom: 2.0,
     smoothing: 0.1

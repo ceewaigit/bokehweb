@@ -29,7 +29,7 @@ export class EffectsEngine {
   private duration = 0
   private width = 1920
   private height = 1080
-  
+
   // Simple camera position for smooth tracking
   private cameraPosition = { x: 0.5, y: 0.5 }
   private readonly CAMERA_SMOOTHING = 0.15
@@ -46,7 +46,7 @@ export class EffectsEngine {
 
     // Convert metadata to events
     this.events = []
-    
+
     if (recording.metadata?.mouseEvents) {
       this.events.push(...recording.metadata.mouseEvents.map((e: any) => ({
         timestamp: e.timestamp,
@@ -76,25 +76,25 @@ export class EffectsEngine {
    */
   private detectZoomEffects(): void {
     this.effects = []
-    
+
     // Find click events that should trigger zoom
     const clickEvents = this.events.filter(e => e.type === 'click')
     if (clickEvents.length === 0) return
-    
+
     let lastZoomEnd = 0
     const MIN_GAP_BETWEEN_ZOOMS = 2000 // 2 seconds minimum between zoom effects
     const DEFAULT_ZOOM_DURATION = 3000 // 3 seconds default zoom
-    
+
     clickEvents.forEach((click, index) => {
       // Skip if too close to last zoom
       if (click.timestamp < lastZoomEnd + MIN_GAP_BETWEEN_ZOOMS) {
         return
       }
-      
+
       // Look for next click to determine zoom duration
       const nextClick = clickEvents[index + 1]
       let zoomDuration = DEFAULT_ZOOM_DURATION
-      
+
       if (nextClick) {
         // If next click is soon, zoom until then (but max 5 seconds)
         const gapToNext = nextClick.timestamp - click.timestamp
@@ -102,10 +102,10 @@ export class EffectsEngine {
           zoomDuration = Math.max(1500, gapToNext - 500) // Leave gap before next click
         }
       }
-      
+
       // Make sure zoom doesn't exceed video duration
       zoomDuration = Math.min(zoomDuration, this.duration - click.timestamp - 500)
-      
+
       // Only create zoom if we have enough duration
       if (zoomDuration > 1000) {
         this.effects.push({
@@ -119,7 +119,7 @@ export class EffectsEngine {
           introMs: 400,
           outroMs: 400
         })
-        
+
         lastZoomEnd = click.timestamp + zoomDuration
       }
     })
@@ -152,7 +152,7 @@ export class EffectsEngine {
       scale = 1.0 + (activeZoom.scale - 1.0) * eased
       x = 0.5 + (activeZoom.targetX - 0.5) * eased
       y = 0.5 + (activeZoom.targetY - 0.5) * eased
-      
+
       this.cameraPosition = { x, y }
     }
     // Outro phase - zoom out
@@ -164,17 +164,17 @@ export class EffectsEngine {
       scale = activeZoom.scale - (activeZoom.scale - 1.0) * eased
       x = this.cameraPosition.x + (0.5 - this.cameraPosition.x) * eased
       y = this.cameraPosition.y + (0.5 - this.cameraPosition.y) * eased
-      
+
       this.cameraPosition = { x, y }
     }
     // Tracking phase - follow mouse smoothly
     else {
       scale = activeZoom.scale
-      
+
       // Smooth camera tracking
       this.cameraPosition.x += (mousePos.x - this.cameraPosition.x) * this.CAMERA_SMOOTHING
       this.cameraPosition.y += (mousePos.y - this.cameraPosition.y) * this.CAMERA_SMOOTHING
-      
+
       x = this.cameraPosition.x
       y = this.cameraPosition.y
     }
@@ -245,7 +245,7 @@ export class EffectsEngine {
     const sh = Math.min(zoomHeight, sourceHeight - sy)
 
     ctx.clearRect(0, 0, width, height)
-    
+
     if (sw > 0 && sh > 0) {
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
@@ -297,68 +297,25 @@ export class EffectsEngine {
   }
 
   /**
-   * Get zoom keyframes for timeline (legacy compatibility)
+   * Get zoom blocks for timeline (Screen Studio style)
    */
-  getZoomKeyframes(recording: any): any[] {
+  getZoomBlocks(recording: any): any[] {
     if (!recording) return []
-    
+
     // Initialize if needed
     this.initializeFromRecording(recording)
-    
-    const keyframes: any[] = []
-    
-    // If no effects, return empty array (timeline will handle default)
-    if (this.effects.length === 0) {
-      return []
-    }
-    
-    // Create discrete zoom blocks - each effect is completely separate
-    this.effects.forEach((effect) => {
-      // Each zoom effect is a complete block with 4 keyframes:
-      // 1. Just before zoom (at 1.0)
-      // 2. Zoom in to target
-      // 3. Hold at target  
-      // 4. Zoom back out to 1.0
-      
-      // Point 1: Just before zoom starts (baseline)
-      if (effect.startTime > 50) {
-        keyframes.push({
-          time: effect.startTime - 50,
-          zoom: 1.0,
-          x: 0.5,
-          y: 0.5,
-          easing: 'linear'
-        })
-      }
-      
-      // Point 2: Zoom in
-      keyframes.push({
-        time: effect.startTime,
-        zoom: effect.scale,
-        x: effect.targetX,
-        y: effect.targetY,
-        easing: 'easeOut'
-      })
-      
-      // Point 3: Hold zoom (near end of effect)
-      keyframes.push({
-        time: effect.endTime - 100,
-        zoom: effect.scale,
-        x: effect.targetX,
-        y: effect.targetY,
-        easing: 'linear'
-      })
-      
-      // Point 4: Back to baseline
-      keyframes.push({
-        time: effect.endTime,
-        zoom: 1.0,
-        x: 0.5,
-        y: 0.5,
-        easing: 'easeIn'
-      })
-    })
-    
-    return keyframes
+
+    // Return zoom effects as blocks directly
+    return this.effects.map(effect => ({
+      id: effect.id,
+      startTime: effect.startTime,
+      endTime: effect.endTime,
+      introMs: effect.introMs || 500,
+      outroMs: effect.outroMs || 500,
+      scale: effect.scale,
+      targetX: effect.targetX,
+      targetY: effect.targetY,
+      mode: 'auto' as const
+    }))
   }
 }
