@@ -43,6 +43,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
   const { selectedClipId, currentProject, updateClipEffects } = useProjectStore()
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
+  const [showDebug, setShowDebug] = useState(true) // Always show debug in dev
   
   // Get current clip effects
   const selectedClip = currentProject?.timeline.tracks
@@ -282,8 +283,8 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
               />
             </div>
 
-            {/* Debug section - only show in development */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* Debug section */}
+            {showDebug && (
               <div className="border-t pt-4 space-y-2">
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Debug Tools
