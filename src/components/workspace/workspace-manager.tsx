@@ -169,9 +169,28 @@ export function WorkspaceManager() {
                         console.log(`✅ Loaded ${totalEvents} metadata events for recording ${rec.id}`)
                       }
                       
-                      // Store the file path as a "blob URL" so preview-area can find it
-                      // This is a workaround - preview-area checks for blob URL first
-                      if (rec.filePath) {
+                      // Load the video file through Electron API to create a proper blob URL
+                      if (rec.filePath && window.electronAPI?.readLocalFile) {
+                        try {
+                          setLoadingMessage(`Loading video file ${i + 1}...`)
+                          const result = await window.electronAPI.readLocalFile(rec.filePath)
+                          if (result?.success && result.data) {
+                            const videoBlob = new Blob([result.data], { type: 'video/webm' })
+                            const blobUrl = globalBlobManager.create(videoBlob, `recording-${rec.id}`)
+                            RecordingStorage.setBlobUrl(rec.id, blobUrl)
+                            console.log('✅ Created blob URL for recording:', rec.id)
+                          } else {
+                            console.error('Failed to read video file:', rec.filePath)
+                            // Fallback: Store the file path as a "blob URL" 
+                            RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
+                          }
+                        } catch (error) {
+                          console.error('Error loading video file:', error)
+                          // Fallback: Store the file path as a "blob URL"
+                          RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
+                        }
+                      } else if (rec.filePath) {
+                        // No Electron API available, store file path as fallback
                         RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
                       }
                     } catch (error) {
@@ -254,7 +273,7 @@ export function WorkspaceManager() {
                   }
                 }
 
-                // Add recording to project store - with NO blob, just the file path!
+                // Add recording to project store
                 setLoadingMessage('Setting up timeline...')
                 console.log('📼 Adding recording to project store:', {
                   id: rec.id,
@@ -263,12 +282,36 @@ export function WorkspaceManager() {
                   filePath: rec.filePath
                 })
                 
-                // Store the file path as a "blob URL" so preview-area can find it
-                RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
+                // Load the video file through Electron API to create a proper blob
+                let videoBlob: Blob
+                if (window.electronAPI?.readLocalFile) {
+                  try {
+                    setLoadingMessage('Loading video file...')
+                    const result = await window.electronAPI.readLocalFile(recording.path)
+                    if (result?.success && result.data) {
+                      videoBlob = new Blob([result.data], { type: 'video/webm' })
+                      const blobUrl = globalBlobManager.create(videoBlob, `recording-${rec.id}`)
+                      RecordingStorage.setBlobUrl(rec.id, blobUrl)
+                      console.log('✅ Created blob URL for recording:', rec.id)
+                    } else {
+                      console.error('Failed to read video file:', recording.path)
+                      // Create dummy blob as fallback
+                      videoBlob = new Blob([], { type: 'video/webm' })
+                      RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
+                    }
+                  } catch (error) {
+                    console.error('Error loading video file:', error)
+                    // Create dummy blob as fallback
+                    videoBlob = new Blob([], { type: 'video/webm' })
+                    RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
+                  }
+                } else {
+                  // No Electron API available, create dummy blob
+                  videoBlob = new Blob([], { type: 'video/webm' })
+                  RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
+                }
                 
-                // Create a dummy blob for now (we need to refactor addRecording later)
-                const dummyBlob = new Blob([], { type: 'video/webm' })
-                useProjectStore.getState().addRecording(rec, dummyBlob)
+                useProjectStore.getState().addRecording(rec, videoBlob)
                 
                 // Log the project state after adding
                 const projectState = useProjectStore.getState().currentProject
