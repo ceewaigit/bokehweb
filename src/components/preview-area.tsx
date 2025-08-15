@@ -1,145 +1,55 @@
-"use client"
+'use client'
 
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useProjectStore } from '@/stores/project-store'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
+import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
-import { Button } from './ui/button'
-import { Separator } from './ui/separator'
-import { Play, Pause, RotateCcw, Eye, EyeOff, SkipBack, SkipForward } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export function PreviewArea() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   const effectsEngineRef = useRef<EffectsEngine | null>(null)
+  const cursorRendererRef = useRef<CursorRenderer | null>(null)
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
-  const animationFrameRef = useRef<number | null>(null)
-
+  const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const animationFrameRef = useRef<number>()
+  
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
-  const [showEffects, setShowEffects] = useState(true)
 
   const {
-    currentProject,
-    currentTime,
+    selectedClip,
+    currentTimelineTime,
     isPlaying,
-    play,
-    pause,
-    seek,
-    getCurrentClip,
-    getCurrentRecording,
-    selectedClips
+    currentRecording,
+    showEffects
   } = useProjectStore()
 
-  // Get current clip and recording
-  const currentClip = getCurrentClip()
-  const currentRecording = getCurrentRecording() || currentProject?.recordings?.[0]
+  const videoSource = selectedClip?.source
 
-  // Get video source
-  const videoSource = currentClip
-    ? RecordingStorage.getBlobUrl(currentClip.recordingId)
-    : currentRecording
-      ? RecordingStorage.getBlobUrl(currentRecording.id)
-      : null
-
-  // Get selected clip for effects - always use the currently displayed clip's effects
-  const selectedClip = currentClip || (selectedClips.length > 0 && currentProject
-    ? currentProject.timeline.tracks
-      .flatMap(t => t.clips)
-      .find(c => c.id === selectedClips[0])
-    : null)
-
-  // Initialize effects engine and background renderer
-  const initializeEffects = useCallback(() => {
-    if (!currentRecording || !showEffects) {
-      effectsEngineRef.current = null
-      backgroundRendererRef.current = null
-      return
-    }
-
-    // Get padding from clip effects - always use current clip effects
-    const padding = selectedClip?.effects?.background?.padding ?? 80
-
-    // Always reinitialize or update effects engine with current clip settings
-    const engine = new EffectsEngine()
-    
-    // Use zoom keyframes from the clip if available
-    if (selectedClip?.effects?.zoom?.keyframes && selectedClip.effects.zoom.keyframes.length > 0) {
-      engine.initializeFromRecording(currentRecording, selectedClip.effects.zoom.keyframes, padding)
-    } else {
-      engine.initializeFromRecording(currentRecording, undefined, padding)
-    }
-    effectsEngineRef.current = engine
-
-    // Initialize background renderer with current clip settings
-    const bgOptions = {
-      type: (selectedClip?.effects?.background?.type as any) || 'gradient',
-      gradient: {
-        type: 'linear' as const,
-        colors: selectedClip?.effects?.background?.gradient?.colors || ['#1e293b', '#0f172a'],
-        angle: selectedClip?.effects?.background?.gradient?.angle || 135
-      },
-      padding: selectedClip?.effects?.background?.padding ?? 80,
-      borderRadius: selectedClip?.effects?.video?.cornerRadius ?? 24,
-      shadow: {
-        enabled: selectedClip?.effects?.video?.shadow?.enabled ?? true,
-        color: selectedClip?.effects?.video?.shadow?.color || 'rgba(0, 0, 0, 0.5)',
-        blur: selectedClip?.effects?.video?.shadow?.blur ?? 60,
-        offsetX: selectedClip?.effects?.video?.shadow?.offset?.x ?? 0,
-        offsetY: selectedClip?.effects?.video?.shadow?.offset?.y ?? 25
-      }
-    }
-
-    if (!backgroundRendererRef.current) {
-      backgroundRendererRef.current = new BackgroundRenderer(bgOptions)
-    } else {
-      backgroundRendererRef.current.updateOptions(bgOptions)
-    }
-  }, [currentRecording, selectedClip, showEffects])
-
-  // Render frame
-  const renderFrame = useCallback((forceTime?: number) => {
-    const video = videoRef.current
+  // Main rendering function
+  const renderFrame = useCallback((timeMs?: number) => {
     const canvas = canvasRef.current
-    
-    // Allow rendering even if isVideoLoaded is false if we're forcing a specific time
-    if (!video || !canvas || (!isVideoLoaded && forceTime === undefined)) return
+    const video = videoRef.current
+    if (!canvas || !video) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const timeMs = forceTime !== undefined ? forceTime : video.currentTime * 1000
-    
-    // Check if we're within any clip bounds
-    const clip = getCurrentClip()
-    if (!clip) {
-      // No clip at this time - show black screen
-      ctx.fillStyle = '#000000'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      return
-    }
+    const currentTime = timeMs ?? (video.currentTime * 1000)
 
+    // Handle zoom effects
     if (showEffects && effectsEngineRef.current && backgroundRendererRef.current) {
-      // Get effect state
-      const effectState = effectsEngineRef.current.getEffectState(timeMs)
-
-      // Create temp canvas for video with effects
+      const zoomState = effectsEngineRef.current.getZoomState(currentTime)
+      
       const tempCanvas = document.createElement('canvas')
       tempCanvas.width = canvas.width
       tempCanvas.height = canvas.height
       const tempCtx = tempCanvas.getContext('2d')
 
-      if (tempCtx && effectState.zoom) {
-        // Apply zoom to temp canvas
-        effectsEngineRef.current.applyZoomToCanvas(tempCtx, video, effectState.zoom, timeMs)
-
-        // Clear main canvas and apply background with video
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        backgroundRendererRef.current.applyBackground(ctx, tempCanvas)
-      } else if (tempCtx) {
-        // No zoom effect, just draw video normally
-        tempCtx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      if (tempCtx) {
+        effectsEngineRef.current.applyZoomToCanvas(tempCtx, video, zoomState)
         ctx.clearRect(0, 0, canvas.width, canvas.height)
         backgroundRendererRef.current.applyBackground(ctx, tempCanvas)
       }
@@ -148,383 +58,198 @@ export function PreviewArea() {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
     }
-  }, [isVideoLoaded, showEffects, getCurrentClip])
+  }, [showEffects])
 
-  // Animation loop
-  const startAnimation = useCallback(() => {
-    const animate = () => {
-      renderFrame()
-      animationFrameRef.current = requestAnimationFrame(animate)
+  // Initialize all effects
+  const initializeEffects = useCallback(() => {
+    if (!currentRecording || !videoRef.current) return
+
+    // Initialize effects engine
+    if (!effectsEngineRef.current) {
+      effectsEngineRef.current = new EffectsEngine()
     }
-    animate()
-  }, [renderFrame])
+    effectsEngineRef.current.initializeFromRecording(currentRecording)
 
-  const stopAnimation = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current)
-      animationFrameRef.current = null
+    // Initialize cursor renderer
+    if (cursorRendererRef.current) {
+      cursorRendererRef.current.dispose()
     }
-  }, [])
+    
+    const clipEffects = selectedClip?.effects
+    const showCursor = clipEffects?.cursor?.enabled ?? true
+    
+    if (showCursor && currentRecording.metadata?.mouseEvents) {
+      cursorRendererRef.current = new CursorRenderer({
+        size: clipEffects?.cursor?.size ?? 1.5,
+        color: clipEffects?.cursor?.color ?? '#000000',
+        clickColor: '#007AFF',
+        smoothing: true
+      })
+      
+      const cursorCanvas = cursorRendererRef.current.attachToVideo(
+        videoRef.current,
+        currentRecording.metadata.mouseEvents
+      )
+      
+      if (cursorCanvas && canvasRef.current?.parentElement) {
+        cursorCanvas.style.position = 'absolute'
+        cursorCanvas.style.top = '0'
+        cursorCanvas.style.left = '0'
+        cursorCanvas.style.width = '100%'
+        cursorCanvas.style.height = '100%'
+        cursorCanvas.style.pointerEvents = 'none'
+        cursorCanvas.style.zIndex = '10'
+        canvasRef.current.parentElement.appendChild(cursorCanvas)
+        cursorCanvasRef.current = cursorCanvas
+      }
+    }
 
-  // Load video
+    // Initialize background renderer
+    if (!backgroundRendererRef.current) {
+      backgroundRendererRef.current = new BackgroundRenderer()
+    }
+    
+    const bgOptions = clipEffects?.background || {
+      type: 'gradient',
+      gradient: {
+        type: 'linear',
+        colors: ['#0F172A', '#1E293B'],
+        angle: 135
+      },
+      padding: 120,
+      borderRadius: 16
+    }
+    
+    backgroundRendererRef.current.setOptions(bgOptions)
+  }, [currentRecording, selectedClip?.effects])
+
+  // Main effect: Handle video loading and initialization
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !videoSource) {
-      setIsVideoLoaded(false)
-      return
+    const canvas = canvasRef.current
+    if (!video || !canvas || !videoSource) return
+
+    // Reset state
+    setIsVideoLoaded(false)
+    
+    // Clean up previous effects
+    if (cursorCanvasRef.current) {
+      cursorCanvasRef.current.remove()
+      cursorCanvasRef.current = null
+    }
+    
+    if (cursorRendererRef.current) {
+      cursorRendererRef.current.dispose()
+      cursorRendererRef.current = null
     }
 
-    if (video.src === videoSource) return
-
+    // Set video source
     video.src = videoSource
     video.load()
 
-    const handleLoadedData = async () => {
-      console.log('Video loaded, initializing...')
+    const handleVideoReady = () => {
+      if (!video.videoWidth || !video.videoHeight) return
+      
+      // Update canvas dimensions
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      
+      // Initialize effects
       setIsVideoLoaded(true)
-      
-      // Initialize canvas
-      if (canvasRef.current && video.videoWidth && video.videoHeight) {
-        canvasRef.current.width = video.videoWidth
-        canvasRef.current.height = video.videoHeight
-      }
-      
-      // Force render first frame immediately
-      const renderInitialFrame = () => {
-        console.log('Rendering initial frame...', {
-          readyState: video.readyState,
-          currentTime: video.currentTime,
-          videoWidth: video.videoWidth,
-          videoHeight: video.videoHeight
-        })
-        
-        // Ensure canvas and video dimensions match
-        if (canvasRef.current && video.videoWidth && video.videoHeight) {
-          canvasRef.current.width = video.videoWidth
-          canvasRef.current.height = video.videoHeight
-          
-          const ctx = canvasRef.current.getContext('2d')
-          if (ctx) {
-            // Clear and render
-            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
-            
-            if (showEffects && backgroundRendererRef.current) {
-              // Create temp canvas for video
-              const tempCanvas = document.createElement('canvas')
-              tempCanvas.width = video.videoWidth
-              tempCanvas.height = video.videoHeight
-              const tempCtx = tempCanvas.getContext('2d')
-              
-              if (tempCtx) {
-                // Draw video to temp canvas
-                tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height)
-                // Apply background with video
-                backgroundRendererRef.current.applyBackground(ctx, tempCanvas)
-              }
-            } else {
-              // Draw video directly
-              ctx.drawImage(video, 0, 0, canvasRef.current.width, canvasRef.current.height)
-            }
-          }
-        }
-      }
-      
-      // Ensure video is at the start
-      video.currentTime = 0
-      
-      // Try multiple strategies to ensure first frame renders
-      
-      // Strategy 1: If video is ready (has enough data), render immediately
-      if (video.readyState >= 3) {
-        console.log('Video ready, rendering immediately')
-        renderInitialFrame()
-      } else {
-        // Strategy 2: Wait for canplay event which guarantees we can render
-        video.addEventListener('canplay', () => {
-          console.log('Video can play, rendering')
-          renderInitialFrame()
-        }, { once: true })
-        
-        // Strategy 3: Also listen for seeked in case we're already ready
-        video.addEventListener('seeked', () => {
-          console.log('Video seeked, rendering')
-          renderInitialFrame()
-        }, { once: true })
-      }
-      
-      // Strategy 4: Fallback with timeout to ensure something renders
-      setTimeout(() => {
-        console.log('Timeout fallback, forcing render')
-        renderInitialFrame()
-      }, 500)
-    }
-    
-    const handleLoadedMetadata = () => {
-      // Also trigger on metadata load as a backup
-      if (video.videoWidth && video.videoHeight) {
-        handleLoadedData()
-      }
-    }
-
-    video.addEventListener('loadeddata', handleLoadedData)
-    video.addEventListener('loadedmetadata', handleLoadedMetadata)
-    
-    return () => {
-      video.removeEventListener('loadeddata', handleLoadedData)
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
-    }
-  }, [videoSource, renderFrame, currentRecording])
-
-  // Initialize effects when video loads or settings change
-  useEffect(() => {
-    if (isVideoLoaded) {
       initializeEffects()
-      // Small delay to ensure effects are initialized
-      setTimeout(() => {
-        renderFrame() // Draw initial frame with effects
-      }, 100)
+      
+      // Render first frame
+      renderFrame(0)
     }
-  }, [isVideoLoaded, initializeEffects, renderFrame])
 
-  // Update effects and re-render when clip effects change
-  useEffect(() => {
-    if (!selectedClip || !isVideoLoaded) return
-    
-    // Re-initialize all effects with current settings
-    initializeEffects()
-    
-    // Force re-render with current time
-    const video = videoRef.current
-    if (video) {
+    const handleTimeUpdate = () => {
       renderFrame(video.currentTime * 1000)
     }
-  }, [
-    // Watch ALL effect properties for changes
-    selectedClip?.effects?.background?.type,
-    selectedClip?.effects?.background?.color,
-    selectedClip?.effects?.background?.gradient?.colors,
-    selectedClip?.effects?.background?.gradient?.angle,
-    selectedClip?.effects?.background?.padding,
-    selectedClip?.effects?.video?.cornerRadius,
-    selectedClip?.effects?.video?.shadow?.enabled,
-    selectedClip?.effects?.video?.shadow?.blur,
-    selectedClip?.effects?.video?.shadow?.color,
-    selectedClip?.effects?.video?.shadow?.offset?.x,
-    selectedClip?.effects?.video?.shadow?.offset?.y,
-    selectedClip?.effects?.zoom?.enabled,
-    selectedClip?.effects?.zoom?.keyframes,
-    selectedClip?.effects?.zoom?.sensitivity,
-    selectedClip?.effects?.zoom?.maxZoom,
-    selectedClip?.effects?.zoom?.smoothing,
-    selectedClip?.effects?.cursor?.visible,
-    selectedClip?.effects?.cursor?.style,
-    selectedClip?.effects?.cursor?.size,
-    selectedClip?.effects?.cursor?.color,
-    selectedClip?.effects?.cursor?.clickEffects,
-    selectedClip?.effects?.cursor?.motionBlur,
-    isVideoLoaded,
-    initializeEffects,
-    renderFrame
-  ])
+
+    video.addEventListener('loadedmetadata', handleVideoReady)
+    video.addEventListener('timeupdate', handleTimeUpdate)
+    
+    return () => {
+      video.removeEventListener('loadedmetadata', handleVideoReady)
+      video.removeEventListener('timeupdate', handleTimeUpdate)
+      
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+    }
+  }, [videoSource, initializeEffects, renderFrame])
 
   // Handle playback
   useEffect(() => {
     const video = videoRef.current
     if (!video || !isVideoLoaded) return
 
-    // Update timeline time during playback
-    const handleTimeUpdate = () => {
-      const clip = getCurrentClip()
-      if (clip && isPlaying) {
-        // Convert video time to timeline time
-        const timelineTime = clip.startTime + (video.currentTime * 1000 - clip.sourceIn)
-        seek(timelineTime)
-        
-        // Check if we've reached the end of the clip
-        if (timelineTime >= clip.startTime + clip.duration) {
-          // Find the next clip
-          const nextClip = currentProject?.timeline.tracks
-            .flatMap(t => t.clips)
-            .filter(c => c.startTime > clip.startTime)
-            .sort((a, b) => a.startTime - b.startTime)[0]
-          
-          if (nextClip) {
-            // Jump to the next clip
-            seek(nextClip.startTime)
-          } else {
-            // No more clips, pause at the end
-            pause()
-          }
-        }
-      } else if (isPlaying && !clip) {
-        // Playing but no clip at current position - stop
-        pause()
-      }
-    }
-
     if (isPlaying) {
-      const clip = getCurrentClip()
-      if (clip) {
-        // Sync video to correct position before playing
-        const videoTime = (currentTime - clip.startTime + clip.sourceIn) / 1000
-        if (Math.abs(video.currentTime - videoTime) > 0.1) {
-          video.currentTime = Math.max(0, Math.min(video.duration || 0, videoTime))
+      video.play().catch(console.error)
+      
+      const animate = () => {
+        renderFrame()
+        if (isPlaying) {
+          animationFrameRef.current = requestAnimationFrame(animate)
         }
-        video.play().catch(e => {
-          console.warn('Video play failed:', e)
-          pause()
-        })
-        startAnimation()
-      } else {
-        // No clip to play, pause immediately
-        pause()
       }
-      video.addEventListener('timeupdate', handleTimeUpdate)
+      animate()
     } else {
       video.pause()
-      stopAnimation()
-      renderFrame() // Draw final frame
-      video.removeEventListener('timeupdate', handleTimeUpdate)
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
     }
 
     return () => {
-      stopAnimation()
-      video.removeEventListener('timeupdate', handleTimeUpdate)
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
     }
-  }, [isPlaying, isVideoLoaded, currentTime, startAnimation, stopAnimation, renderFrame, getCurrentClip, seek, pause, currentProject])
+  }, [isPlaying, isVideoLoaded, renderFrame])
 
-  // Sync video time with timeline (including when clips are moved)
+  // Handle timeline scrubbing
   useEffect(() => {
     const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas || !isVideoLoaded || isPlaying) return
+    if (!video || !isVideoLoaded || isPlaying) return
 
-    const clip = getCurrentClip()
-    if (clip) {
-      // Calculate the video time based on current timeline position and clip position
-      const videoTime = (currentTime - clip.startTime + clip.sourceIn) / 1000
-      
-      // Ensure videoTime is within valid bounds
-      const clampedVideoTime = Math.max(0, Math.min(video.duration || 0, videoTime))
-      
-      if (Math.abs(video.currentTime - clampedVideoTime) > 0.01) {
-        video.currentTime = clampedVideoTime
-        // Force render the frame at the new position
-        renderFrame(clampedVideoTime * 1000)
-      }
-    } else {
-      // No clip at current time - clear the canvas to show black
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.fillStyle = '#000000'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-      }
+    const targetTime = currentTimelineTime / 1000
+    if (Math.abs(video.currentTime - targetTime) > 0.1) {
+      video.currentTime = targetTime
     }
-  }, [currentTime, isVideoLoaded, isPlaying, getCurrentClip, renderFrame, currentClip?.startTime])
-  
-  // Update preview when current clip changes (e.g., after dragging)
+  }, [currentTimelineTime, isVideoLoaded, isPlaying])
+
+  // Re-render when effects settings change
   useEffect(() => {
-    if (!currentClip || !isVideoLoaded || isPlaying) return
+    if (!isVideoLoaded) return
     
-    // Re-initialize effects for the current clip
     initializeEffects()
-    
-    // Force a render with the current video time
-    const video = videoRef.current
-    if (video) {
-      const timeMs = video.currentTime * 1000
-      renderFrame(timeMs)
-    }
-  }, [currentClip?.id, currentClip?.startTime, isVideoLoaded, isPlaying, initializeEffects, renderFrame])
-
-  // Controls
-  const handleRewind = () => seek(0)
-  const handleSkipBack = () => seek(Math.max(0, currentTime - 5000))
-  const handleSkipForward = () => {
-    const duration = currentProject?.timeline?.duration || 10000
-    seek(Math.min(duration, currentTime + 5000))
-  }
+    renderFrame()
+  }, [selectedClip?.effects, isVideoLoaded, initializeEffects, renderFrame])
 
   return (
-    <div className="bg-card border-b border-border flex flex-col">
-      {/* Preview Container */}
-      <div ref={containerRef} className="h-[500px] relative bg-muted/20 flex items-center justify-center overflow-hidden">
-        {videoSource ? (
-          <>
-            <video
-              ref={videoRef}
-              className="hidden"
-              playsInline
-              muted
-            />
-            <canvas
-              ref={canvasRef}
-              className="w-auto h-full object-contain"
-              style={{ 
-                display: isVideoLoaded ? 'block' : 'none',
-                maxWidth: '90%',
-                maxHeight: '90%'
-              }}
-            />
-            {!isVideoLoaded && (
-              <div className="text-sm text-muted-foreground">Loading video...</div>
+    <div className="relative flex-1 bg-gray-900 overflow-hidden">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="relative">
+          <canvas
+            ref={canvasRef}
+            className={cn(
+              "max-w-full max-h-full shadow-2xl",
+              !videoSource && "hidden"
             )}
-          </>
-        ) : (
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-2">No recording selected</p>
-            <p className="text-xs text-muted-foreground">Record or import a video to get started</p>
-          </div>
-        )}
-      </div>
-
-      {/* Controls */}
-      <div className="h-16 px-4 flex items-center justify-between border-t border-border bg-background/95">
-        <div className="flex items-center space-x-2">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleRewind}
-            disabled={!videoSource}
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleSkipBack}
-            disabled={!videoSource}
-          >
-            <SkipBack className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            onClick={isPlaying ? pause : play}
-            disabled={!videoSource}
-          >
-            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleSkipForward}
-            disabled={!videoSource}
-          >
-            <SkipForward className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <Separator orientation="vertical" className="h-8" />
-
-        <div className="flex items-center space-x-2">
-          <Button
-            size="sm"
-            variant={showEffects ? "default" : "ghost"}
-            onClick={() => setShowEffects(!showEffects)}
-          >
-            {showEffects ? <Eye className="h-4 w-4 mr-2" /> : <EyeOff className="h-4 w-4 mr-2" />}
-            Effects
-          </Button>
+          />
+          <video
+            ref={videoRef}
+            className="hidden"
+            muted
+            playsInline
+          />
+          {!videoSource && (
+            <div className="text-gray-500 text-center p-8">
+              <p className="text-lg font-medium mb-2">No recording selected</p>
+              <p className="text-sm">Select a recording from the library to preview</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

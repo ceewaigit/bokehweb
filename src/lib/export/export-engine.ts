@@ -287,9 +287,17 @@ export class ExportEngine {
 
       if (enableZoom && metadata.length > 0) {
         effectsEngine = new EffectsEngine()
-        // Initialize with metadata - pass padding from clip effects
-        const padding = clipEffects?.background?.padding || 120
-        effectsEngine.initializeFromMetadata(metadata, videoDuration * 1000, videoWidth, videoHeight, undefined, padding)
+        // Convert metadata to recording format and initialize
+        const recording = {
+          duration: videoDuration * 1000,
+          width: videoWidth,
+          height: videoHeight,
+          metadata: {
+            mouseEvents: metadata.filter((e: any) => e.eventType === 'mouse'),
+            clickEvents: metadata.filter((e: any) => e.eventType === 'click')
+          }
+        }
+        effectsEngine.initializeFromRecording(recording)
       }
 
       if (enableCursor && metadata.length > 0) {
@@ -395,9 +403,9 @@ export class ExportEngine {
             tempCanvas.height = videoHeight
             const tempCtx = tempCanvas.getContext('2d')!
 
-            const effectState = effectsEngine.getEffectState(timestamp)
-            if (effectState?.zoom) {
-              effectsEngine.applyZoomToCanvas(tempCtx, video, effectState.zoom, timestamp)
+            const zoomState = effectsEngine.getZoomState(timestamp)
+            if (zoomState && zoomState.scale > 1) {
+              effectsEngine.applyZoomToCanvas(tempCtx, video, zoomState)
             } else {
               tempCtx.drawImage(video, 0, 0, videoWidth, videoHeight)
             }
@@ -411,9 +419,9 @@ export class ExportEngine {
         } else {
           // No background - just apply zoom or draw video directly
           if (effectsEngine) {
-            const effectState = effectsEngine.getEffectState(timestamp)
-            if (effectState?.zoom) {
-              effectsEngine.applyZoomToCanvas(this.processingCtx!, video, effectState.zoom, timestamp)
+            const zoomState = effectsEngine.getZoomState(timestamp)
+            if (zoomState && zoomState.scale > 1) {
+              effectsEngine.applyZoomToCanvas(this.processingCtx!, video, zoomState)
             } else {
               this.processingCtx!.drawImage(video, 0, 0, videoWidth, videoHeight)
             }
@@ -448,16 +456,15 @@ export class ExportEngine {
             let cursorY = closestEvent.mouseY
 
             if (effectsEngine) {
-              const effectState = effectsEngine.getEffectState(timestamp)
-              const zoom = effectState.zoom
-              if (zoom) {
+              const zoomState = effectsEngine.getZoomState(timestamp)
+              if (zoomState && zoomState.scale > 1) {
                 // Transform cursor coordinates based on zoom
-                const zoomCenterX = zoom.x * videoWidth
-                const zoomCenterY = zoom.y * videoHeight
+                const zoomCenterX = zoomState.x * videoWidth
+                const zoomCenterY = zoomState.y * videoHeight
 
                 // Apply zoom transformation
-                cursorX = (cursorX - zoomCenterX) * zoom.scale + videoWidth / 2
-                cursorY = (cursorY - zoomCenterY) * zoom.scale + videoHeight / 2
+                cursorX = (cursorX - zoomCenterX) * zoomState.scale + videoWidth / 2
+                cursorY = (cursorY - zoomCenterY) * zoomState.scale + videoHeight / 2
               }
             }
 
