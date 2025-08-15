@@ -82,20 +82,10 @@ export function PreviewArea() {
         
         // Draw video
         ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
-        
-        // Debug: Draw a border to see if canvas is visible
-        ctx.strokeStyle = 'red'
-        ctx.lineWidth = 2
-        ctx.strokeRect(0, 0, canvas.width, canvas.height)
       } else {
         // Fill with placeholder color if video not ready
         ctx.fillStyle = '#1a1a1a'
         ctx.fillRect(0, 0, canvas.width, canvas.height)
-        
-        // Debug text
-        ctx.fillStyle = 'white'
-        ctx.font = '20px Arial'
-        ctx.fillText(`Video state: ${video.readyState}`, 10, 30)
       }
     } catch (err) {
       console.error('Error drawing video:', err)
@@ -177,12 +167,10 @@ export function PreviewArea() {
     try {
       // Check if we're in Electron environment with IPC
       if (typeof window !== 'undefined' && window.electronAPI?.readLocalFile) {
-        console.log('Loading video via Electron API:', filePath)
         const result = await window.electronAPI.readLocalFile(filePath)
         if (result.success && result.data) {
           const blob = new Blob([result.data], { type: 'video/webm' })
           const blobUrl = URL.createObjectURL(blob)
-          console.log('Created blob URL:', blobUrl)
           return blobUrl
         } else {
           console.error('Failed to read file:', result.error)
@@ -192,12 +180,10 @@ export function PreviewArea() {
       // Fallback: Try direct file:// URL (works in Electron without CSP restrictions)
       if (filePath.startsWith('/')) {
         const fileUrl = `file://${filePath}`
-        console.log('Using file:// URL:', fileUrl)
         return fileUrl
       }
       
       // Last resort: use as-is
-      console.log('Using path as-is:', filePath)
       return filePath
     } catch (error) {
       console.error('Failed to load video file:', error)
@@ -243,7 +229,6 @@ export function PreviewArea() {
     })
 
     const handleVideoReady = () => {
-      console.log('Video ready:', video.videoWidth, 'x', video.videoHeight)
       if (!video.videoWidth || !video.videoHeight) return
       
       // Set canvas to a reasonable size for display
@@ -262,14 +247,12 @@ export function PreviewArea() {
       // Update canvas dimensions
       canvas.width = canvasWidth
       canvas.height = canvasHeight
-      console.log('Canvas dimensions set:', canvas.width, 'x', canvas.height)
       
       // Initialize effects
       setIsVideoLoaded(true)
       initializeEffects()
       
       // Render first frame
-      console.log('Rendering first frame...')
       renderFrame(0)
     }
 
@@ -353,11 +336,9 @@ export function PreviewArea() {
               ref={canvasRef}
               className="shadow-2xl"
               style={{ 
+                display: 'block',
                 maxWidth: '100%',
                 maxHeight: '100%',
-                width: 'auto',
-                height: 'auto',
-                objectFit: 'contain',
                 backgroundColor: '#000'
               }}
             />
