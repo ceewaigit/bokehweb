@@ -43,12 +43,19 @@ export function PreviewArea() {
   const renderFrame = useCallback((timeMs?: number) => {
     const canvas = canvasRef.current
     const video = videoRef.current
-    if (!canvas || !video) return
+    if (!canvas || !video) {
+      console.log('renderFrame: missing canvas or video')
+      return
+    }
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) {
+      console.log('renderFrame: no context')
+      return
+    }
 
     const currentTimeMs = timeMs ?? (video.currentTime * 1000)
+    console.log('Rendering frame at:', currentTimeMs, 'ms')
 
     // Handle zoom effects
     if (showEffects && effectsEngineRef.current && backgroundRendererRef.current) {
@@ -221,17 +228,20 @@ export function PreviewArea() {
     })
 
     const handleVideoReady = () => {
+      console.log('Video ready:', video.videoWidth, 'x', video.videoHeight)
       if (!video.videoWidth || !video.videoHeight) return
       
       // Update canvas dimensions
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
+      console.log('Canvas dimensions set:', canvas.width, 'x', canvas.height)
       
       // Initialize effects
       setIsVideoLoaded(true)
       initializeEffects()
       
       // Render first frame
+      console.log('Rendering first frame...')
       renderFrame(0)
     }
 
@@ -304,24 +314,27 @@ export function PreviewArea() {
     
     initializeEffects()
     renderFrame()
-  }, [selectedClip?.effects, isVideoLoaded, initializeEffects, renderFrame])
+  }, [selectedClip?.effects, isVideoLoaded]) // Remove callback deps to avoid infinite loop
 
   return (
     <div className="relative flex-1 bg-gray-900 overflow-hidden">
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative">
+        <div className="relative" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <canvas
             ref={canvasRef}
-            className={cn(
-              "max-w-full max-h-full shadow-2xl",
-              !clipRecording && "hidden"
-            )}
+            className="max-w-full max-h-full shadow-2xl"
+            style={{ 
+              display: clipRecording ? 'block' : 'none',
+              backgroundColor: '#000'
+            }}
           />
           <video
             ref={videoRef}
             className="hidden"
+            style={{ display: 'none' }}
             muted
             playsInline
+            crossOrigin="anonymous"
           />
           {!clipRecording && (
             <div className="text-gray-500 text-center p-8">

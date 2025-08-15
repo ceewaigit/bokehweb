@@ -307,21 +307,21 @@ export class EffectsEngine {
     
     const keyframes: any[] = []
     
-    // Always start at zoom level 1
-    keyframes.push({
-      time: 0,
-      zoom: 1.0,
-      x: 0.5,
-      y: 0.5,
-      easing: 'linear'
-    })
+    // If no effects, return empty array (timeline will handle default)
+    if (this.effects.length === 0) {
+      return []
+    }
     
     // Add keyframes for each zoom effect (discrete blocks)
-    this.effects.forEach(effect => {
-      // Start of zoom (still at 1.0 just before zooming)
-      if (effect.startTime > 0) {
+    this.effects.forEach((effect, index) => {
+      // Only add a "before" keyframe if there's a gap from previous effect or start
+      const prevEffect = index > 0 ? this.effects[index - 1] : null
+      const gapFromPrev = prevEffect ? effect.startTime - prevEffect.endTime : effect.startTime
+      
+      if (gapFromPrev > 100) {
+        // Add a point just before zoom starts (to create discrete block)
         keyframes.push({
-          time: effect.startTime - 1,
+          time: effect.startTime - 10,
           zoom: 1.0,
           x: 0.5,
           y: 0.5,
@@ -338,14 +338,16 @@ export class EffectsEngine {
         easing: 'easeOut'
       })
       
-      // Hold zoom
-      keyframes.push({
-        time: effect.endTime - effect.outroMs,
-        zoom: effect.scale,
-        x: effect.targetX,
-        y: effect.targetY,
-        easing: 'linear'
-      })
+      // Hold zoom (only if duration is long enough)
+      if (effect.endTime - effect.startTime > effect.introMs + effect.outroMs + 500) {
+        keyframes.push({
+          time: effect.endTime - effect.outroMs,
+          zoom: effect.scale,
+          x: effect.targetX,
+          y: effect.targetY,
+          easing: 'linear'
+        })
+      }
       
       // Zoom out
       keyframes.push({
@@ -355,18 +357,19 @@ export class EffectsEngine {
         y: 0.5,
         easing: 'easeIn'
       })
+      
+      // Add a point after zoom ends (to create discrete block)
+      if (index === this.effects.length - 1 || 
+          this.effects[index + 1].startTime - effect.endTime > 100) {
+        keyframes.push({
+          time: effect.endTime + 10,
+          zoom: 1.0,
+          x: 0.5,
+          y: 0.5,
+          easing: 'linear'
+        })
+      }
     })
-    
-    // End at zoom level 1
-    if (keyframes[keyframes.length - 1].time < this.duration) {
-      keyframes.push({
-        time: this.duration,
-        zoom: 1.0,
-        x: 0.5,
-        y: 0.5,
-        easing: 'linear'
-      })
-    }
     
     return keyframes
   }
