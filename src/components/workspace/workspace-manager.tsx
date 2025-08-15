@@ -16,7 +16,6 @@ import { RecordingsLibrary } from '../recordings-library'
 import { RecordingController } from './recording-controller'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
-import { cn } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import type { Recording } from '@/types/project'
@@ -369,7 +368,7 @@ export function WorkspaceManager() {
         {/* Main Editor Section */}
         <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
           {/* Preview Area - 55vh height */}
-          <div className="bg-muted/20 border-b overflow-hidden" style={{ height: '55vh' }}>
+          <div className="bg-background border-b overflow-hidden" style={{ height: '55vh' }}>
             <PreviewArea />
           </div>
 

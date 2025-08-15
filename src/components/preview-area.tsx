@@ -521,7 +521,7 @@ export function PreviewArea() {
   }, [])
 
   return (
-    <div className="relative w-full h-full bg-gray-900 overflow-hidden">
+    <div className="relative w-full h-full overflow-hidden">
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="relative w-full h-full flex items-center justify-center">
           {clipRecording && (
