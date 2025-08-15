@@ -43,13 +43,12 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
   const { selectedClipId, currentProject, updateClipEffects } = useProjectStore()
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
-  const [showDebug, setShowDebug] = useState(true) // Always show debug in dev
-  
+
   // Get current clip effects
   const selectedClip = currentProject?.timeline.tracks
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId)
-  
+
   const effects = selectedClip?.effects
 
   if (!selectedClip || !effects) {
@@ -128,8 +127,8 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                   onClick={() => setBackgroundType(type)}
                   className={cn(
                     "flex-1 py-1.5 px-3 rounded text-sm capitalize transition-colors",
-                    backgroundType === type 
-                      ? "bg-background shadow-sm" 
+                    backgroundType === type
+                      ? "bg-background shadow-sm"
                       : "hover:bg-background/50"
                   )}
                 >
@@ -173,7 +172,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                 Background blur
                 <Switch
                   checked={effects.background.blur ? effects.background.blur > 0 : false}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     updateEffect('background', { blur: checked ? 10 : 0 })
                   }
                 />
@@ -199,7 +198,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                 Show cursor
                 <Switch
                   checked={effects.cursor.visible}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     updateEffect('cursor', { visible: checked })
                   }
                 />
@@ -223,7 +222,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                 Click effects
                 <Switch
                   checked={effects.cursor.clickEffects}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     updateEffect('cursor', { clickEffects: checked })
                   }
                 />
@@ -235,7 +234,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                 Motion blur
                 <Switch
                   checked={effects.cursor.motionBlur}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     updateEffect('cursor', { motionBlur: checked })
                   }
                 />
@@ -251,7 +250,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                 Auto zoom
                 <Switch
                   checked={effects.zoom.enabled}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     updateEffect('zoom', { enabled: checked })
                   }
                 />
@@ -284,80 +283,78 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
             </div>
 
             {/* Debug section */}
-            {showDebug && (
-              <div className="border-t pt-4 space-y-2">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Debug Tools
-                </h4>
-                
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs"
-                  onClick={() => {
-                    const store = useProjectStore.getState()
-                    store.regenerateZoomEffects({
-                      forceTest: true,
-                      intervalMs: 3000,
-                      zoomDuration: 2500,
-                      zoomScale: 2.5,
-                      useMouseEvents: false
-                    })
-                  }}
-                >
-                  Create Test Zoom Effects
-                </Button>
-                
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs"
-                  onClick={() => {
-                    const store = useProjectStore.getState()
-                    store.regenerateZoomEffects({
-                      forceTest: true,
-                      useMouseEvents: true,
-                      zoomDuration: 2000,
-                      zoomScale: 2.0
-                    })
-                  }}
-                >
-                  Generate from Mouse Events
-                </Button>
-                
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs"
-                  onClick={() => {
-                    const store = useProjectStore.getState()
-                    store.regenerateZoomEffects({
-                      minGapMs: 1500,
-                      zoomDuration: 3000,
-                      zoomScale: 2.0,
-                      clicksOnly: true
-                    })
-                  }}
-                >
-                  Regenerate from Clicks
-                </Button>
-                
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs"
-                  onClick={() => {
-                    const store = useProjectStore.getState()
-                    if (store.effectsEngine) {
-                      store.effectsEngine.clearEffects()
-                      store.regenerateZoomEffects({})
-                    }
-                  }}
-                >
-                  Clear All Effects
-                </Button>
-              </div>
-            )}
+            <div className="border-t pt-4 space-y-2">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Debug Tools
+              </h4>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs"
+                onClick={() => {
+                  const store = useProjectStore.getState()
+                  store.regenerateZoomEffects({
+                    forceTest: true,
+                    intervalMs: 3000,
+                    zoomDuration: 2500,
+                    zoomScale: 2.5,
+                    useMouseEvents: false
+                  })
+                }}
+              >
+                Create Test Zoom Effects
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs"
+                onClick={() => {
+                  const store = useProjectStore.getState()
+                  store.regenerateZoomEffects({
+                    forceTest: true,
+                    useMouseEvents: true,
+                    zoomDuration: 2000,
+                    zoomScale: 2.0
+                  })
+                }}
+              >
+                Generate from Mouse Events
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs"
+                onClick={() => {
+                  const store = useProjectStore.getState()
+                  store.regenerateZoomEffects({
+                    minGapMs: 1500,
+                    zoomDuration: 3000,
+                    zoomScale: 2.0,
+                    clicksOnly: true
+                  })
+                }}
+              >
+                Regenerate from Clicks
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs"
+                onClick={() => {
+                  const store = useProjectStore.getState()
+                  if (store.effectsEngine) {
+                    store.effectsEngine.clearEffects()
+                    store.regenerateZoomEffects({})
+                  }
+                }}
+              >
+                Clear All Effects
+              </Button>
+            </div>
           </div>
         )}
 
@@ -367,9 +364,9 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
               <label className="text-sm font-medium">Padding</label>
               <Slider
                 value={[effects.background.padding ?? 80]}
-                onValueChange={([value]) => updateEffect('background', { 
+                onValueChange={([value]) => updateEffect('background', {
                   ...effects.background,
-                  padding: value 
+                  padding: value
                 })}
                 min={0}
                 max={200}
@@ -379,9 +376,9 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{effects.background.padding ?? 80}px</span>
                 <button
-                  onClick={() => updateEffect('background', { 
+                  onClick={() => updateEffect('background', {
                     ...effects.background,
-                    padding: 80 
+                    padding: 80
                   })}
                   className="text-primary hover:underline"
                 >
@@ -408,7 +405,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                 Shadow
                 <Switch
                   checked={effects.video.shadow.enabled}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     updateEffect('video', {
                       ...effects.video,
                       shadow: { ...effects.video.shadow, enabled: checked }
@@ -422,7 +419,7 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                     <label className="text-xs text-muted-foreground">Blur</label>
                     <Slider
                       value={[effects.video.shadow.blur]}
-                      onValueChange={([value]) => 
+                      onValueChange={([value]) =>
                         updateEffect('video', {
                           ...effects.video,
                           shadow: { ...effects.video.shadow, blur: value }
@@ -435,16 +432,16 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                     />
                     <span className="text-xs text-muted-foreground">{effects.video.shadow.blur}px</span>
                   </div>
-                  
+
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Offset Y</label>
                     <Slider
                       value={[effects.video.shadow.offset.y]}
-                      onValueChange={([value]) => 
+                      onValueChange={([value]) =>
                         updateEffect('video', {
                           ...effects.video,
-                          shadow: { 
-                            ...effects.video.shadow, 
+                          shadow: {
+                            ...effects.video.shadow,
                             offset: { ...effects.video.shadow.offset, y: value }
                           }
                         })
