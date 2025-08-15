@@ -15,6 +15,7 @@ export function PreviewArea() {
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const animationFrameRef = useRef<number>()
+  const videoBlobUrlRef = useRef<string | null>(null)
   
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [showEffects, setShowEffects] = useState(true)
@@ -35,7 +36,7 @@ export function PreviewArea() {
   // Get the recording for the selected clip
   const clipRecording = selectedClip ? 
     currentProject?.recordings.find(r => r.id === selectedClip.recordingId) : null
-  const videoSource = clipRecording?.filePath
+  
   const currentRecording = clipRecording || getCurrentRecording()
 
   // Main rendering function
@@ -140,11 +141,36 @@ export function PreviewArea() {
     // BackgroundRenderer will use default options
   }, [currentRecording, selectedClip?.effects])
 
+  // Load video file as blob
+  const loadVideoFile = useCallback(async (filePath: string) => {
+    try {
+      // Check if we're in Electron environment with IPC
+      if (window.electronAPI?.readLocalFile) {
+        const result = await window.electronAPI.readLocalFile(filePath)
+        if (result.success && result.data) {
+          const blob = new Blob([result.data], { type: 'video/webm' })
+          return URL.createObjectURL(blob)
+        } else {
+          console.error('Failed to read file:', result.error)
+          return filePath
+        }
+      } else {
+        // Fallback for dev environment - direct file path
+        console.log('No Electron API, using direct file path')
+        return filePath
+      }
+    } catch (error) {
+      console.error('Failed to load video file:', error)
+      // Last fallback
+      return filePath
+    }
+  }, [])
+
   // Main effect: Handle video loading and initialization
   useEffect(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || !videoSource) return
+    if (!video || !canvas || !clipRecording?.filePath) return
 
     // Reset state
     setIsVideoLoaded(false)
@@ -160,9 +186,20 @@ export function PreviewArea() {
       cursorRendererRef.current = null
     }
 
-    // Set video source
-    video.src = videoSource
-    video.load()
+    // Clean up previous blob URL
+    if (videoBlobUrlRef.current) {
+      URL.revokeObjectURL(videoBlobUrlRef.current)
+      videoBlobUrlRef.current = null
+    }
+
+    // Load video file
+    loadVideoFile(clipRecording.filePath).then(videoUrl => {
+      if (!video) return
+      
+      videoBlobUrlRef.current = videoUrl
+      video.src = videoUrl
+      video.load()
+    })
 
     const handleVideoReady = () => {
       if (!video.videoWidth || !video.videoHeight) return
@@ -193,8 +230,14 @@ export function PreviewArea() {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
       }
+      
+      // Clean up blob URL
+      if (videoBlobUrlRef.current) {
+        URL.revokeObjectURL(videoBlobUrlRef.current)
+        videoBlobUrlRef.current = null
+      }
     }
-  }, [videoSource, initializeEffects, renderFrame])
+  }, [clipRecording?.filePath, initializeEffects, renderFrame, loadVideoFile])
 
   // Handle playback
   useEffect(() => {
@@ -252,7 +295,7 @@ export function PreviewArea() {
             ref={canvasRef}
             className={cn(
               "max-w-full max-h-full shadow-2xl",
-              !videoSource && "hidden"
+              !clipRecording && "hidden"
             )}
           />
           <video
@@ -261,7 +304,7 @@ export function PreviewArea() {
             muted
             playsInline
           />
-          {!videoSource && (
+          {!clipRecording && (
             <div className="text-gray-500 text-center p-8">
               <p className="text-lg font-medium mb-2">No recording selected</p>
               <p className="text-sm">Select a recording from the library to preview</p>
