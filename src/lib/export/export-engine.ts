@@ -306,7 +306,6 @@ export class ExportEngine {
           color: clipEffects?.cursor?.color ?? '#ffffff',
           clickColor: '#3b82f6',
           smoothing: true,
-          motionBlur: clipEffects?.cursor?.motionBlur ?? true,
           cursorStyle: (clipEffects?.cursor?.style || 'macOS') as any
         })
       }

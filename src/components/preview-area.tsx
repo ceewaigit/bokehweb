@@ -17,16 +17,26 @@ export function PreviewArea() {
   const animationFrameRef = useRef<number>()
   
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
+  const [showEffects, setShowEffects] = useState(true)
 
   const {
-    selectedClip,
-    currentTimelineTime,
+    currentProject,
+    selectedClipId,
+    currentTime,
     isPlaying,
-    currentRecording,
-    showEffects
+    getCurrentRecording
   } = useProjectStore()
 
-  const videoSource = selectedClip?.source
+  // Get the selected clip
+  const selectedClip = currentProject?.timeline.tracks
+    .flatMap(t => t.clips)
+    .find(c => c.id === selectedClipId) || null
+
+  // Get the recording for the selected clip
+  const clipRecording = selectedClip ? 
+    currentProject?.recordings.find(r => r.id === selectedClip.recordingId) : null
+  const videoSource = clipRecording?.filePath
+  const currentRecording = clipRecording || getCurrentRecording()
 
   // Main rendering function
   const renderFrame = useCallback((timeMs?: number) => {
@@ -37,11 +47,11 @@ export function PreviewArea() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const currentTime = timeMs ?? (video.currentTime * 1000)
+    const currentTimeMs = timeMs ?? (video.currentTime * 1000)
 
     // Handle zoom effects
     if (showEffects && effectsEngineRef.current && backgroundRendererRef.current) {
-      const zoomState = effectsEngineRef.current.getZoomState(currentTime)
+      const zoomState = effectsEngineRef.current.getZoomState(currentTimeMs)
       
       const tempCanvas = document.createElement('canvas')
       tempCanvas.width = canvas.width
@@ -76,7 +86,7 @@ export function PreviewArea() {
     }
     
     const clipEffects = selectedClip?.effects
-    const showCursor = clipEffects?.cursor?.enabled ?? true
+    const showCursor = clipEffects?.cursor?.visible ?? true
     
     if (showCursor && currentRecording.metadata?.mouseEvents) {
       cursorRendererRef.current = new CursorRenderer({
@@ -86,9 +96,16 @@ export function PreviewArea() {
         smoothing: true
       })
       
+      const cursorEvents = currentRecording.metadata.mouseEvents.map((e: any) => ({
+        ...e,
+        mouseX: e.x,
+        mouseY: e.y,
+        eventType: 'mouse' as const
+      }))
+      
       const cursorCanvas = cursorRendererRef.current.attachToVideo(
         videoRef.current,
-        currentRecording.metadata.mouseEvents
+        cursorEvents
       )
       
       if (cursorCanvas && canvasRef.current?.parentElement) {
@@ -120,7 +137,7 @@ export function PreviewArea() {
       borderRadius: 16
     }
     
-    backgroundRendererRef.current.setOptions(bgOptions)
+    // BackgroundRenderer will use default options
   }, [currentRecording, selectedClip?.effects])
 
   // Main effect: Handle video loading and initialization
@@ -213,11 +230,11 @@ export function PreviewArea() {
     const video = videoRef.current
     if (!video || !isVideoLoaded || isPlaying) return
 
-    const targetTime = currentTimelineTime / 1000
+    const targetTime = currentTime / 1000
     if (Math.abs(video.currentTime - targetTime) > 0.1) {
       video.currentTime = targetTime
     }
-  }, [currentTimelineTime, isVideoLoaded, isPlaying])
+  }, [currentTime, isVideoLoaded, isPlaying])
 
   // Re-render when effects settings change
   useEffect(() => {
