@@ -112,77 +112,79 @@ export function WorkspaceManager() {
                   
                   if (rec.filePath) {
                     try {
-                    // Don't load the entire video file! Just verify it exists and get duration if needed
-                    
-                    // Verify and fix recording duration if needed
-                    if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
-                      setLoadingMessage('Detecting video duration...')
-                      console.log('⚠️ Recording has invalid duration, detecting from video...')
+                      // Don't load the entire video file! Just verify it exists and get duration if needed
                       
-                      const tempVideo = document.createElement('video')
-                      // Just use the file path directly
-                      tempVideo.src = `file://${rec.filePath}`
-                      
-                      await new Promise<void>((resolve) => {
-                        tempVideo.addEventListener('loadedmetadata', () => {
-                          console.log('Checking project video duration:', tempVideo.duration)
+                      // Verify and fix recording duration if needed
+                      if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
+                        setLoadingMessage('Detecting video duration...')
+                        console.log('⚠️ Recording has invalid duration, detecting from video...')
+                        
+                        const tempVideo = document.createElement('video')
+                        // Just use the file path directly
+                        tempVideo.src = `file://${rec.filePath}`
+                        
+                        await new Promise<void>((resolve) => {
+                          tempVideo.addEventListener('loadedmetadata', () => {
+                            console.log('Checking project video duration:', tempVideo.duration)
+                            
+                            if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
+                              rec.duration = tempVideo.duration * 1000
+                              console.log('✅ Fixed recording duration:', rec.duration, 'ms')
+                            } else {
+                              console.error('❌ Could not determine video duration')
+                            }
+                            resolve()
+                          }, { once: true })
                           
-                          if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
-                            rec.duration = tempVideo.duration * 1000
-                            console.log('✅ Fixed recording duration:', rec.duration, 'ms')
-                          } else {
-                            console.error('❌ Could not determine video duration')
-                          }
-                          resolve()
-                        }, { once: true })
+                          tempVideo.addEventListener('error', () => {
+                            console.error('Failed to load video for duration check')
+                            resolve()
+                          }, { once: true })
+                          
+                          tempVideo.load()
+                        })
                         
-                        tempVideo.addEventListener('error', () => {
-                          console.error('Failed to load video for duration check')
-                          resolve()
-                        }, { once: true })
-                        
-                        tempVideo.load()
-                      })
-                      
-                      tempVideo.remove()
-                    }
+                        tempVideo.remove()
+                      }
 
-                    // Add clips from the project timeline
-                    for (const track of project.timeline.tracks) {
-                      for (const clip of track.clips) {
-                        if (clip.recordingId === rec.id) {
-                          // Fix clip duration if recording duration was updated
-                          if (rec.duration && rec.duration > 0) {
+                      // Fix clip durations if recording duration was updated
+                      for (const track of project.timeline.tracks) {
+                        for (const clip of track.clips) {
+                          if (clip.recordingId === rec.id && rec.duration && rec.duration > 0) {
                             clip.duration = Math.min(clip.duration, rec.duration)
                             clip.sourceOut = Math.min(clip.sourceOut, rec.duration)
                           }
-                          
-                          // Just add the recording with its file path - no blob needed!
-                          // The preview area will use the file path directly
-                          useProjectStore.getState().setProject(project)
-
-                          // Save metadata for effects rendering
-                          if (rec.metadata) {
-                            // Store the metadata directly - it's already in the correct project format
-                            RecordingStorage.setMetadata(rec.id, rec.metadata)
-
-                            const totalEvents =
-                              (rec.metadata.mouseEvents?.length || 0) +
-                              (rec.metadata.clickEvents?.length || 0) +
-                              (rec.metadata.keyboardEvents?.length || 0)
-                            console.log(`✅ Loaded ${totalEvents} metadata events for recording ${rec.id}`)
-                          }
-                          
-                          // Don't store effects in RecordingStorage - they should come from the clip
-                          // Effects are now managed directly through the project store
                         }
                       }
+
+                      // Save metadata for effects rendering
+                      if (rec.metadata) {
+                        // Store the metadata directly - it's already in the correct project format
+                        RecordingStorage.setMetadata(rec.id, rec.metadata)
+
+                        const totalEvents =
+                          (rec.metadata.mouseEvents?.length || 0) +
+                          (rec.metadata.clickEvents?.length || 0) +
+                          (rec.metadata.keyboardEvents?.length || 0)
+                        console.log(`✅ Loaded ${totalEvents} metadata events for recording ${rec.id}`)
+                      }
+                    } catch (error) {
+                      console.error('Failed to load recording from project:', error)
                     }
-                  } catch (error) {
-                    console.error('Failed to load recording from project:', error)
                   }
                 }
-              }
+
+                // Set the project ONCE after all recordings are processed
+                useProjectStore.getState().setProject(project)
+                
+                // Auto-select the first clip if available
+                const firstClip = project.timeline.tracks
+                  .flatMap(t => t.clips)
+                  .sort((a, b) => a.startTime - b.startTime)[0]
+                if (firstClip) {
+                  console.log('🎯 Auto-selecting first clip:', firstClip.id)
+                  useProjectStore.getState().selectClip(firstClip.id)
+                }
               } else {
                 // Legacy: Load raw video file
                 setLoadingMessage('Creating new project...')
@@ -268,6 +270,15 @@ export function WorkspaceManager() {
                     timelineDuration: `${(projectState.timeline.duration / 1000).toFixed(2)}s`,
                     clips: projectState.timeline.tracks.reduce((acc, t) => acc + t.clips.length, 0)
                   })
+                  
+                  // The addRecording method should have already selected the new clip,
+                  // but let's ensure it's selected
+                  const addedClip = projectState.timeline.tracks
+                    .flatMap(t => t.clips)
+                    .find(c => c.recordingId === rec.id)
+                  if (addedClip && !useProjectStore.getState().selectedClipId) {
+                    useProjectStore.getState().selectClip(addedClip.id)
+                  }
                 }
               }
               
