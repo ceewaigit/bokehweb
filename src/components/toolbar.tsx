@@ -59,9 +59,9 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
             Screen Studio
           </span>
         </div>
-        
+
         <Separator orientation="vertical" className="h-8" />
-        
+
         {/* Project Actions */}
         <Button
           variant="ghost"
@@ -72,7 +72,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
           <Folder className="w-4 h-4 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">New</span>
         </Button>
-        
+
         <Button
           variant="ghost"
           size="sm"
@@ -86,7 +86,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
                     { name: 'All Files', extensions: ['*'] }
                   ]
                 })
-                
+
                 if (!result.canceled && result.filePaths?.length > 0) {
                   const projectPath = result.filePaths[0]
                   const openProject = useProjectStore.getState().openProject
@@ -104,7 +104,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
           <FolderOpen className="w-4 h-4 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">Open</span>
         </Button>
-        
+
         <Button
           variant="ghost"
           size="sm"
@@ -161,13 +161,13 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
       <div className="flex items-center gap-1 flex-shrink-0">
         {/* Audio Controls */}
         <div className="flex items-center gap-1">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
             className={cn(
               "w-8 h-8",
-              settings.audioInput === 'system' || settings.audioInput === 'both' 
-                ? "text-primary" 
+              settings.audioInput === 'system' || settings.audioInput === 'both'
+                ? "text-primary"
                 : "text-muted-foreground"
             )}
           >
@@ -177,13 +177,13 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
             }
           </Button>
 
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
             className={cn(
               "w-8 h-8",
-              settings.audioInput === 'microphone' || settings.audioInput === 'both' 
-                ? "text-primary" 
+              settings.audioInput === 'microphone' || settings.audioInput === 'both'
+                ? "text-primary"
                 : "text-muted-foreground"
             )}
           >
@@ -197,9 +197,9 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
         <Separator orientation="vertical" className="h-8" />
 
         {/* Export Button */}
-        <Button 
-          variant="default" 
-          size="sm" 
+        <Button
+          variant="default"
+          size="sm"
           disabled={!currentProject || !currentProject.timeline.tracks[0]?.clips?.length}
           onClick={onExport}
           className="text-xs font-medium"
@@ -215,15 +215,15 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
           onClick={handleToggleProperties}
           className="w-8 h-8"
         >
-          {propertiesOpen ? 
-            <PanelRightClose className="w-4 h-4" /> : 
+          {propertiesOpen ?
+            <PanelRightClose className="w-4 h-4" /> :
             <PanelRight className="w-4 h-4" />
           }
         </Button>
 
         {/* Settings */}
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           size="icon"
           className="w-8 h-8"
         >

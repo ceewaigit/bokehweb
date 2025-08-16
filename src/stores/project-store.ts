@@ -25,6 +25,7 @@ interface ProjectStore {
   selectedClipId: string | null
   selectedClips: string[]
   effectsEngine: EffectsEngine | null
+  playbackInterval: number | null
 
   // Core Actions
   newProject: (name: string) => void
@@ -106,6 +107,10 @@ const findNextValidPosition = (track: Track, clipId: string, desiredStart: numbe
   return desiredStart
 }
 
+// Store the animation frame ID outside the store to avoid serialization issues
+let animationFrameId: number | null = null
+let lastTimestamp: number | null = null
+
 export const useProjectStore = create<ProjectStore>()(
   immer((set, get) => ({
     currentProject: null,
@@ -115,6 +120,7 @@ export const useProjectStore = create<ProjectStore>()(
     selectedClipId: null,
     selectedClips: [],
     effectsEngine: null,
+    playbackInterval: null,
 
     newProject: (name) => {
       set((state) => {
@@ -136,19 +142,11 @@ export const useProjectStore = create<ProjectStore>()(
       try {
         const project = await loadProject(projectPath)
 
-        // Load video files for preview
+        // Store file paths and metadata for recordings
         for (const recording of project.recordings) {
-          if (recording.filePath && window.electronAPI?.readLocalFile) {
-            try {
-              const result = await window.electronAPI.readLocalFile(recording.filePath)
-              if (result?.success && result.data) {
-                const videoBlob = new Blob([result.data], { type: 'video/webm' })
-                const blobUrl = globalBlobManager.create(videoBlob, `recording-${recording.id}`)
-                RecordingStorage.setBlobUrl(recording.id, blobUrl)
-              }
-            } catch (error) {
-              console.error(`Failed to load video: ${recording.id}`, error)
-            }
+          if (recording.filePath) {
+            // Store file:// URL for video playback
+            RecordingStorage.setBlobUrl(recording.id, `file://${recording.filePath}`)
           }
           if (recording.metadata) {
             RecordingStorage.setMetadata(recording.id, recording.metadata)
@@ -226,7 +224,8 @@ export const useProjectStore = create<ProjectStore>()(
           clip.startTime + clip.duration
         )
 
-        // Store blob and metadata
+        // Store video blob URL and metadata
+        // The blob is already created by the recorder, just store the URL
         const blobUrl = globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
         RecordingStorage.setBlobUrl(completeRecording.id, blobUrl)
         if (completeRecording.metadata) {
@@ -244,7 +243,7 @@ export const useProjectStore = create<ProjectStore>()(
         if (!state.currentProject) return
 
         let clip: Clip
-        
+
         if (typeof clipOrRecordingId === 'object') {
           clip = clipOrRecordingId
         } else {
@@ -320,11 +319,11 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
-      
+
       // Auto-save after clip update (like when dragging)
       const { currentProject } = get()
       if (currentProject) {
-        saveProject(currentProject).catch(err => 
+        saveProject(currentProject).catch(err =>
           console.error('Failed to auto-save after clip update:', err)
         )
       }
@@ -344,70 +343,70 @@ export const useProjectStore = create<ProjectStore>()(
         }
         state.currentProject.modifiedAt = new Date().toISOString()
       })
-      
+
       // Auto-save after effects update
       const { currentProject } = get()
       if (currentProject) {
         // Save asynchronously without blocking UI
-        saveProject(currentProject).catch(err => 
+        saveProject(currentProject).catch(err =>
           console.error('Failed to auto-save after effects update:', err)
         )
       }
     },
-    
+
     updateZoomBlock: (clipId, blockId, updates) => {
       set((state) => {
         if (!state.currentProject) return
         const result = findClipById(state.currentProject, clipId)
         if (!result) return
-        
+
         const clip = result.clip
         if (!clip.effects?.zoom?.blocks) return
-        
+
         const block = clip.effects.zoom.blocks.find(b => b.id === blockId)
         if (block) {
           Object.assign(block, updates)
           state.currentProject.modifiedAt = new Date().toISOString()
         }
       })
-      
+
       // Auto-save
       const { currentProject } = get()
       if (currentProject) {
-        saveProject(currentProject).catch(err => 
+        saveProject(currentProject).catch(err =>
           console.error('Failed to auto-save after zoom block update:', err)
         )
       }
     },
-    
+
     addZoomBlock: (clipId, block) => {
       set((state) => {
         if (!state.currentProject) return
         const result = findClipById(state.currentProject, clipId)
         if (!result) return
-        
+
         const clip = result.clip
         if (!clip.effects?.zoom) return
-        
+
         if (!clip.effects.zoom.blocks) {
           clip.effects.zoom.blocks = []
         }
-        
+
         clip.effects.zoom.blocks.push(block)
         clip.effects.zoom.blocks.sort((a, b) => a.startTime - b.startTime)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
     },
-    
+
     removeZoomBlock: (clipId, blockId) => {
       set((state) => {
         if (!state.currentProject) return
         const result = findClipById(state.currentProject, clipId)
         if (!result) return
-        
+
         const clip = result.clip
         if (!clip.effects?.zoom?.blocks) return
-        
+
         clip.effects.zoom.blocks = clip.effects.zoom.blocks.filter(b => b.id !== blockId)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
@@ -538,30 +537,102 @@ export const useProjectStore = create<ProjectStore>()(
 
     play: () => {
       const state = get()
-      
+
       // If we're not on a clip, jump to the first clip or start of timeline
       if (!state.getCurrentClip() && state.currentProject) {
         const firstClip = state.currentProject.timeline.tracks
           .flatMap(t => t.clips)
           .sort((a, b) => a.startTime - b.startTime)[0]
-        
+
         if (firstClip) {
-          // Jump to the start of the first clip
+          // Jump to the start of the first clip and select it
           state.seek(firstClip.startTime)
+          state.selectClip(firstClip.id)
         } else if (state.currentTime >= state.currentProject.timeline.duration) {
           // If at the end, restart from beginning
           state.seek(0)
         }
       }
-      
+
       set({ isPlaying: true })
+
+      // Start the unified playback loop
+      lastTimestamp = null
+      const animate = (timestamp: number) => {
+        const state = get()
+        if (!state.isPlaying || !state.currentProject) {
+          animationFrameId = null
+          return
+        }
+
+        if (lastTimestamp === null) {
+          lastTimestamp = timestamp
+        }
+
+        const deltaTime = timestamp - lastTimestamp
+        lastTimestamp = timestamp
+
+        // Update current time
+        const newTime = state.currentTime + deltaTime
+
+        // Check if we've reached the end
+        if (newTime >= state.currentProject.timeline.duration) {
+          state.pause()
+          state.seek(state.currentProject.timeline.duration)
+        } else {
+          // Update time and check for clip boundaries
+          state.seek(newTime)
+
+          // Check if we need to switch clips
+          const currentClip = state.getCurrentClip()
+          if (!currentClip && state.selectedClipId) {
+            // We've moved past the current clip, find the next one
+            const nextClip = state.currentProject.timeline.tracks
+              .flatMap(t => t.clips)
+              .filter(c => c.startTime >= newTime)
+              .sort((a, b) => a.startTime - b.startTime)[0]
+
+            if (nextClip) {
+              state.selectClip(nextClip.id)
+            }
+          } else if (currentClip && currentClip.id !== state.selectedClipId) {
+            // We've entered a new clip
+            state.selectClip(currentClip.id)
+          }
+
+          animationFrameId = requestAnimationFrame(animate)
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(animate)
     },
-    pause: () => set({ isPlaying: false }),
+
+    pause: () => {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
+        lastTimestamp = null
+      }
+      set({ isPlaying: false })
+    },
 
     seek: (time) => {
       set((state) => {
         const maxTime = state.currentProject?.timeline?.duration || 0
-        state.currentTime = Math.max(0, Math.min(maxTime, time))
+        const clampedTime = Math.max(0, Math.min(maxTime, time))
+        state.currentTime = clampedTime
+
+        // Auto-select clip at this time if not playing
+        if (!state.isPlaying && state.currentProject) {
+          const clipAtTime = state.currentProject.timeline.tracks
+            .flatMap(t => t.clips)
+            .find(c => clampedTime >= c.startTime && clampedTime < c.startTime + c.duration)
+
+          if (clipAtTime && clipAtTime.id !== state.selectedClipId) {
+            state.selectedClipId = clipAtTime.id
+            state.selectedClips = [clipAtTime.id]
+          }
+        }
       })
     },
 
@@ -574,7 +645,7 @@ export const useProjectStore = create<ProjectStore>()(
     getCurrentClip: () => {
       const { currentProject, currentTime } = get()
       if (!currentProject) return null
-      
+
       for (const track of currentProject.timeline.tracks) {
         const clip = track.clips.find(c =>
           currentTime >= c.startTime && currentTime < c.startTime + c.duration
@@ -613,18 +684,18 @@ export const useProjectStore = create<ProjectStore>()(
 
       // Update the clip's zoom blocks
       const zoomBlocks = effectsEngine.getZoomBlocks(recording)
-      
+
       set((state) => {
         if (!state.currentProject) return
-        
+
         const result = findClipById(state.currentProject, selectedClipId)
         if (!result) return
-        
+
         const { clip } = result
         if (clip.effects?.zoom) {
           clip.effects.zoom.blocks = zoomBlocks
         }
-        
+
         state.currentProject.modifiedAt = new Date().toISOString()
       })
     }

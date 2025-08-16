@@ -357,7 +357,7 @@ export class BackgroundRenderer {
     height: number
   } {
     const padding = this.options.padding || 0
-    
+
     return {
       x: padding,
       y: padding,

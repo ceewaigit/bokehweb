@@ -92,42 +92,7 @@ export function TimelineCanvas({ className = "h-full w-full" }: TimelineCanvasPr
     return () => window.removeEventListener('resize', updateSize)
   }, [])
 
-  // Playback animation loop
-  useEffect(() => {
-    if (!isPlaying || !currentProject) return
-
-    let animationFrameId: number
-    let lastTimestamp: number | null = null
-
-    const animate = (timestamp: number) => {
-      if (lastTimestamp === null) {
-        lastTimestamp = timestamp
-      }
-
-      const deltaTime = timestamp - lastTimestamp
-      lastTimestamp = timestamp
-
-      // Update current time based on elapsed time
-      const newTime = currentTime + deltaTime
-
-      // Check if we've reached the end
-      if (newTime >= currentProject.timeline.duration) {
-        pause()
-        seek(currentProject.timeline.duration)
-      } else {
-        seek(newTime)
-        animationFrameId = requestAnimationFrame(animate)
-      }
-    }
-
-    animationFrameId = requestAnimationFrame(animate)
-
-    return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId)
-      }
-    }
-  }, [isPlaying, currentTime, currentProject, seek, pause])
+  // Removed animation loop - now handled by project store
 
   // Auto-scroll during playback
   useEffect(() => {
@@ -221,17 +186,26 @@ export function TimelineCanvas({ className = "h-full w-full" }: TimelineCanvasPr
     }
   }, [selectedClips, duplicateClip])
 
-  // Stage click handler
+  // Stage click handler - click to seek
   const handleStageClick = useCallback((e: any) => {
     if (e.target === e.target.getStage()) {
       const x = e.evt.offsetX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
       if (x > 0) {
         const time = TimelineUtils.pixelToTime(x, pixelsPerMs)
         const maxTime = currentProject?.timeline?.duration || 0
-        seek(Math.max(0, Math.min(maxTime, time)))
+        const targetTime = Math.max(0, Math.min(maxTime, time))
+
+        // Force immediate seek when clicking timeline
+        seek(targetTime)
+
+        // If not playing, ensure video updates immediately
+        if (!isPlaying) {
+          // Trigger a re-render to update video position
+          useProjectStore.getState().seek(targetTime)
+        }
       }
     }
-  }, [currentProject, pixelsPerMs, seek])
+  }, [currentProject, pixelsPerMs, seek, isPlaying])
 
   if (!currentProject) {
     return (
@@ -344,7 +318,7 @@ export function TimelineCanvas({ className = "h-full w-full" }: TimelineCanvasPr
               if (!selectedClip?.effects?.zoom?.enabled) return null
 
               const clipX = TimelineUtils.timeToPixel(selectedClip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-              
+
               return selectedClip.effects.zoom.blocks?.map(block => (
                 <TimelineZoomBlock
                   key={block.id}
@@ -358,10 +332,10 @@ export function TimelineCanvas({ className = "h-full w-full" }: TimelineCanvasPr
                   outroMs={block.outroMs}
                   scale={block.scale}
                   isSelected={false}
-                  onSelect={() => {}}
+                  onSelect={() => { }}
                   onDragEnd={(newX) => {
                     const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
-                    updateZoomBlock(selectedClip.id, block.id, { 
+                    updateZoomBlock(selectedClip.id, block.id, {
                       startTime: newStartTime,
                       endTime: newStartTime + (block.endTime - block.startTime)
                     })

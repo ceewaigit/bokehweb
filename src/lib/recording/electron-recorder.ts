@@ -461,16 +461,10 @@ export class ElectronRecorder {
         let transformedX = data.x
         let transformedY = data.y
 
-        // If we have display bounds from the mouse event, use them
-        if (data.displayBounds && data.scaleFactor) {
-          // Convert logical pixels to physical pixels
-          transformedX = data.x * data.scaleFactor
-          transformedY = data.y * data.scaleFactor
-        } else if (this.captureArea?.scaleFactor) {
-          // Fallback to capture area scale factor
-          transformedX = data.x * this.captureArea.scaleFactor
-          transformedY = data.y * this.captureArea.scaleFactor
-        }
+        // Convert logical pixels to physical pixels using scale factor
+        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
+        transformedX = data.x * scaleFactor
+        transformedY = data.y * scaleFactor
 
         this.metadata.push({
           timestamp,
@@ -499,13 +493,9 @@ export class ElectronRecorder {
         let transformedX = data.x
         let transformedY = data.y
 
-        if (data.displayBounds && data.scaleFactor) {
-          transformedX = data.x * data.scaleFactor
-          transformedY = data.y * data.scaleFactor
-        } else if (this.captureArea?.scaleFactor) {
-          transformedX = data.x * this.captureArea.scaleFactor
-          transformedY = data.y * this.captureArea.scaleFactor
-        }
+        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
+        transformedX = data.x * scaleFactor
+        transformedY = data.y * scaleFactor
 
         this.metadata.push({
           timestamp,

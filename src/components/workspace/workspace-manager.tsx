@@ -18,7 +18,6 @@ import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import type { Recording } from '@/types/project'
 
 export function WorkspaceManager() {
   const { currentProject, newProject } = useProjectStore()
@@ -30,7 +29,7 @@ export function WorkspaceManager() {
     toggleProperties,
     setExportOpen
   } = useWorkspaceStore()
-  
+
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Loading...')
 
@@ -63,13 +62,13 @@ export function WorkspaceManager() {
               <div className="w-16 h-16 border-4 border-t-primary border-r-primary border-b-transparent border-l-transparent rounded-full animate-spin" />
             </div>
           </div>
-          
+
           {/* Loading message */}
           <div className="space-y-2">
             <h3 className="text-xl font-semibold">{loadingMessage}</h3>
             <p className="text-sm text-muted-foreground">Please wait while we set everything up...</p>
           </div>
-          
+
           {/* Progress dots */}
           <div className="flex gap-2 justify-center">
             <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -89,7 +88,7 @@ export function WorkspaceManager() {
         <RecordingsLibrary
           onSelectRecording={async (recording) => {
             console.log('🔍 Selected recording:', recording.name)
-            
+
             // Start loading
             setIsLoading(true)
             setLoadingMessage('Loading recording...')
@@ -108,24 +107,24 @@ export function WorkspaceManager() {
                 for (let i = 0; i < project.recordings.length; i++) {
                   const rec = project.recordings[i]
                   setLoadingMessage(`Setting up video ${i + 1} of ${project.recordings.length}...`)
-                  
+
                   if (rec.filePath) {
                     try {
                       // Don't load the entire video file! Just verify it exists and get duration if needed
-                      
+
                       // Verify and fix recording duration if needed
                       if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
                         setLoadingMessage('Detecting video duration...')
                         console.log('⚠️ Recording has invalid duration, detecting from video...')
-                        
+
                         const tempVideo = document.createElement('video')
                         // Just use the file path directly
                         tempVideo.src = `file://${rec.filePath}`
-                        
+
                         await new Promise<void>((resolve) => {
                           tempVideo.addEventListener('loadedmetadata', () => {
                             console.log('Checking project video duration:', tempVideo.duration)
-                            
+
                             if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
                               rec.duration = tempVideo.duration * 1000
                               console.log('✅ Fixed recording duration:', rec.duration, 'ms')
@@ -134,15 +133,15 @@ export function WorkspaceManager() {
                             }
                             resolve()
                           }, { once: true })
-                          
+
                           tempVideo.addEventListener('error', () => {
                             console.error('Failed to load video for duration check')
                             resolve()
                           }, { once: true })
-                          
+
                           tempVideo.load()
                         })
-                        
+
                         tempVideo.remove()
                       }
 
@@ -167,30 +166,12 @@ export function WorkspaceManager() {
                           (rec.metadata.keyboardEvents?.length || 0)
                         console.log(`✅ Loaded ${totalEvents} metadata events for recording ${rec.id}`)
                       }
-                      
-                      // Load the video file through Electron API to create a proper blob URL
-                      if (rec.filePath && window.electronAPI?.readLocalFile) {
-                        try {
-                          setLoadingMessage(`Loading video file ${i + 1}...`)
-                          const result = await window.electronAPI.readLocalFile(rec.filePath)
-                          if (result?.success && result.data) {
-                            const videoBlob = new Blob([result.data], { type: 'video/webm' })
-                            const blobUrl = globalBlobManager.create(videoBlob, `recording-${rec.id}`)
-                            RecordingStorage.setBlobUrl(rec.id, blobUrl)
-                            console.log('✅ Created blob URL for recording:', rec.id)
-                          } else {
-                            console.error('Failed to read video file:', rec.filePath)
-                            // Fallback: Store the file path as a "blob URL" 
-                            RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
-                          }
-                        } catch (error) {
-                          console.error('Error loading video file:', error)
-                          // Fallback: Store the file path as a "blob URL"
-                          RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
-                        }
-                      } else if (rec.filePath) {
-                        // No Electron API available, store file path as fallback
+
+                      // Simplified video loading - always use file:// URLs
+                      // Electron handles file:// URLs natively without needing blob conversion
+                      if (rec.filePath) {
                         RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
+                        console.log('✅ Set file URL for recording:', rec.id)
                       }
                     } catch (error) {
                       console.error('Failed to load recording from project:', error)
@@ -200,7 +181,7 @@ export function WorkspaceManager() {
 
                 // Set the project ONCE after all recordings are processed
                 useProjectStore.getState().setProject(project)
-                
+
                 // Auto-select the first clip if available
                 const firstClip = project.timeline.tracks
                   .flatMap(t => t.clips)
@@ -210,138 +191,23 @@ export function WorkspaceManager() {
                   useProjectStore.getState().selectClip(firstClip.id)
                 }
               } else {
-                // Legacy: Load raw video file
-                setLoadingMessage('Creating new project...')
-                newProject(recording.name)
-                
-                setLoadingMessage('Analyzing video file...')
-                const recordingId = `recording-${Date.now()}`
-
-                // Create a temporary video element to get actual duration
-                const tempVideo = document.createElement('video')
-                tempVideo.src = `file://${recording.path}`
-                
-                // Get video metadata
-                setLoadingMessage('Analyzing video...')
-                await new Promise<void>((resolve, reject) => {
-                  tempVideo.addEventListener('loadedmetadata', () => {
-                    console.log('Video metadata loaded, duration:', tempVideo.duration)
-                    resolve()
-                  }, { once: true })
-                  
-                  tempVideo.addEventListener('error', (e) => {
-                    console.error('Video error:', e)
-                    reject(new Error('Failed to load video metadata'))
-                  }, { once: true })
-                  
-                  tempVideo.load()
-                })
-
-                // Get actual video properties - NO FALLBACKS
-                if (!tempVideo.duration || !isFinite(tempVideo.duration) || tempVideo.duration <= 0) {
-                  throw new Error(`Invalid video duration: ${tempVideo.duration}`)
-                }
-                
-                const duration = tempVideo.duration * 1000 // Convert to milliseconds
-                const width = tempVideo.videoWidth || 1920
-                const height = tempVideo.videoHeight || 1080
-                
-                console.log('📹 Video metadata successfully loaded:', {
-                  duration: `${(duration / 1000).toFixed(2)}s`,
-                  durationMs: duration,
-                  videoDuration: tempVideo.duration,
-                  dimensions: `${width}x${height}`
-                })
-
-                // Clean up temp video
-                tempVideo.remove()
-
-                // Create a Recording object with actual video properties
-                const rec: Recording = {
-                  id: recordingId,
-                  filePath: recording.path,
-                  duration: duration,
-                  width: width,
-                  height: height,
-                  frameRate: 60,
-                  metadata: {
-                    mouseEvents: [],
-                    keyboardEvents: [],
-                    clickEvents: [],
-                    screenEvents: []
-                  }
-                }
-
-                // Add recording to project store
-                setLoadingMessage('Setting up timeline...')
-                console.log('📼 Adding recording to project store:', {
-                  id: rec.id,
-                  duration: `${(rec.duration / 1000).toFixed(2)}s`,
-                  dimensions: `${rec.width}x${rec.height}`,
-                  filePath: rec.filePath
-                })
-                
-                // Load the video file through Electron API to create a proper blob
-                let videoBlob: Blob
-                if (window.electronAPI?.readLocalFile) {
-                  try {
-                    setLoadingMessage('Loading video file...')
-                    const result = await window.electronAPI.readLocalFile(recording.path)
-                    if (result?.success && result.data) {
-                      videoBlob = new Blob([result.data], { type: 'video/webm' })
-                      const blobUrl = globalBlobManager.create(videoBlob, `recording-${rec.id}`)
-                      RecordingStorage.setBlobUrl(rec.id, blobUrl)
-                      console.log('✅ Created blob URL for recording:', rec.id)
-                    } else {
-                      console.error('Failed to read video file:', recording.path)
-                      // Create dummy blob as fallback
-                      videoBlob = new Blob([], { type: 'video/webm' })
-                      RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
-                    }
-                  } catch (error) {
-                    console.error('Error loading video file:', error)
-                    // Create dummy blob as fallback
-                    videoBlob = new Blob([], { type: 'video/webm' })
-                    RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
-                  }
-                } else {
-                  // No Electron API available, create dummy blob
-                  videoBlob = new Blob([], { type: 'video/webm' })
-                  RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
-                }
-                
-                useProjectStore.getState().addRecording(rec, videoBlob)
-                
-                // Log the project state after adding
-                const projectState = useProjectStore.getState().currentProject
-                if (projectState) {
-                  console.log('📊 Project state after adding recording:', {
-                    name: projectState.name,
-                    recordings: projectState.recordings.length,
-                    timelineDuration: `${(projectState.timeline.duration / 1000).toFixed(2)}s`,
-                    clips: projectState.timeline.tracks.reduce((acc, t) => acc + t.clips.length, 0)
-                  })
-                  
-                  // The addRecording method should have already selected the new clip,
-                  // but let's ensure it's selected
-                  const addedClip = projectState.timeline.tracks
-                    .flatMap(t => t.clips)
-                    .find(c => c.recordingId === rec.id)
-                  if (addedClip && !useProjectStore.getState().selectedClipId) {
-                    useProjectStore.getState().selectClip(addedClip.id)
-                  }
-                }
+                // Raw video files without project metadata are not supported
+                console.error('Cannot load raw video files without project metadata')
+                alert('This video file does not have an associated project. Please load a .screencast project file instead.')
+                setIsLoading(false)
+                setLoadingMessage('')
+                return
               }
-              
+
               // Final setup message
               setLoadingMessage('Finalizing setup...')
-              
+
               // Small delay to ensure everything is fully rendered
               await new Promise(resolve => setTimeout(resolve, 500))
-              
+
               // Hide loading screen after everything is loaded
               setIsLoading(false)
-              
+
             } catch (error) {
               console.error('Failed to load recording:', error)
               setIsLoading(false)

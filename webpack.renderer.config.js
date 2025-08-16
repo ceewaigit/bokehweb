@@ -39,11 +39,6 @@ module.exports = {
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
-    fallback: {
-      path: require.resolve('path-browserify'),
-      fs: false,
-      crypto: false,
-    },
   },
   plugins: [
     new CopyPlugin({

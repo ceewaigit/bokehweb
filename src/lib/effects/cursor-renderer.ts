@@ -55,7 +55,7 @@ export class CursorRenderer {
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
-      size: 1.5,
+      size: 2.5, // Increased from 1.5 for better visibility on high-DPI displays
       color: '#000000',
       clickColor: '#007AFF',
       smoothing: true,
@@ -71,12 +71,12 @@ export class CursorRenderer {
   }
 
   private createCursorDataURL(): string {
-    const size = (this.options.size || 1.5) * 20
+    const size = (this.options.size || 2.5) * 24 // Increased base size from 20 to 24
     const color = this.options.color || '#000000'
 
     // High-quality macOS-style cursor with better anti-aliasing
     const svg = `
-      <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+      <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
         <defs>
           <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur in="SourceAlpha" stdDeviation="1.5"/>
@@ -90,7 +90,7 @@ export class CursorRenderer {
           </filter>
         </defs>
         
-        <path d="M3,3 L3,16 L6,13.5 L9,19 L11.5,18 L8.5,12.5 L13.5,12.5 Z" 
+        <path d="M4,4 L4,19 L7.5,16 L11,22 L14,21 L10.5,15 L16,15 Z" 
               fill="white" 
               filter="url(#shadow)"
               stroke="${color}" 
@@ -98,7 +98,7 @@ export class CursorRenderer {
               stroke-linejoin="round"
               stroke-linecap="round"/>
         
-        <path d="M4.5,5 L4.5,13 L6.5,11.5 L8.5,16 L9.5,15.5 L7.5,11 L11,11 Z" 
+        <path d="M5.5,6 L5.5,15.5 L8,13.5 L10.5,19 L11.5,18.5 L9,13 L13,13 Z" 
               fill="${color}"
               opacity="0.95"/>
       </svg>
@@ -370,10 +370,13 @@ export class CursorRenderer {
     // Draw trail with decreasing opacity
     this.trailPoints.forEach((point, index) => {
       this.ctx!.globalAlpha = point.opacity * 0.3
+      const cursorSize = (this.options.size || 2.5) * 24
+      const hotspotX = (4 / 24) * cursorSize
+      const hotspotY = (4 / 24) * cursorSize
       this.ctx!.drawImage(
         this.cursorImage,
-        Math.round(point.x - 2),
-        Math.round(point.y - 2)
+        Math.round(point.x - hotspotX),
+        Math.round(point.y - hotspotY)
       )
     })
     
@@ -385,9 +388,13 @@ export class CursorRenderer {
 
     this.ctx.save()
     
-    // Sub-pixel positioning for smoother movement
-    const x = this.currentPosition.x - 2
-    const y = this.currentPosition.y - 2
+    // Proper hotspot positioning - cursor tip should align with actual mouse position
+    // For macOS cursor, the hotspot is at approximately (4, 4) in the 24x24 viewBox
+    const cursorSize = (this.options.size || 2.5) * 24
+    const hotspotX = (4 / 24) * cursorSize // Scale hotspot based on actual cursor size
+    const hotspotY = (4 / 24) * cursorSize
+    const x = this.currentPosition.x - hotspotX
+    const y = this.currentPosition.y - hotspotY
     
     // Use subpixel rendering
     this.ctx.imageSmoothingEnabled = true

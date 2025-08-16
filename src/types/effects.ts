@@ -6,7 +6,7 @@ export interface RecordingEnhancementSettings {
   zoomSensitivity: number // 0.1 - 2.0
   maxZoom: number // 1.0 - 4.0
   zoomSpeed: number // 0.1 - 2.0
-  
+
   // Mouse Effects
   showCursor: boolean
   cursorSize: number // 0.5 - 3.0 multiplier
@@ -16,12 +16,12 @@ export interface RecordingEnhancementSettings {
   clickEffectColor: string
   showCursorHighlight: boolean
   highlightColor: string
-  
+
   // Motion Detection
   motionSensitivity: number // 0.1 - 2.0
   enableSmartPanning: boolean
   panSpeed: number // 0.1 - 2.0
-  
+
   // Visual Enhancements
   enableSmoothAnimations: boolean
   animationQuality: 'performance' | 'balanced' | 'quality'
