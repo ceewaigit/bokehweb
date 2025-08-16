@@ -52,6 +52,7 @@ export function WorkspaceManager() {
 
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Loading...')
+  const [isMounted, setIsMounted] = useState(false)
   
   // Centralized refs for video and rendering
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -224,71 +225,97 @@ export function WorkspaceManager() {
     }
   }, [selectedRecording, selectedClip?.effects])
 
-  // Load video when recording changes
+  // Track when component is mounted
   useEffect(() => {
-    const video = videoRef.current
-    if (!video || !selectedRecording) {
-      console.log('No video element or recording:', { video: !!video, recording: !!selectedRecording })
+    setIsMounted(true)
+    return () => setIsMounted(false)
+  }, [])
+
+  // Load video when recording changes and component is mounted
+  useEffect(() => {
+    if (!selectedRecording || !isMounted) {
+      console.log('Waiting for mount or recording:', { 
+        mounted: isMounted, 
+        hasRecording: !!selectedRecording 
+      })
       return
     }
 
-    const loadVideo = async () => {
-      console.log('Loading video for recording:', {
-        id: selectedRecording.id,
-        filePath: selectedRecording.filePath
-      })
-      
-      if (!selectedRecording.filePath) {
-        console.error('Recording has no filePath:', selectedRecording)
+    // Give React time to render the video element
+    const timeoutId = setTimeout(() => {
+      const video = videoRef.current
+      if (!video) {
+        console.error('Video element not found after mount!', {
+          videoRef: videoRef,
+          recording: selectedRecording?.id,
+          isMounted: isMounted
+        })
         return
       }
-      
-      const blobUrl = await globalBlobManager.ensureVideoLoaded(
-        selectedRecording.id, 
-        selectedRecording.filePath
-      )
-      
-      if (blobUrl) {
-        console.log('Got blob URL, setting on video element:', blobUrl)
-        console.log('Video element before setting src:', {
-          currentSrc: video.src,
-          readyState: video.readyState,
-          videoElement: video,
-          isConnected: video.isConnected
+
+      const loadVideo = async () => {
+        console.log('Loading video for recording:', {
+          id: selectedRecording.id,
+          filePath: selectedRecording.filePath,
+          videoElement: !!video
         })
         
-        // Ensure video element is in DOM
-        if (!video.isConnected) {
-          console.error('Video element is not connected to DOM!')
+        if (!selectedRecording.filePath) {
+          console.error('Recording has no filePath:', selectedRecording)
           return
         }
         
-        video.src = blobUrl
-        video.load()
+        const blobUrl = await globalBlobManager.ensureVideoLoaded(
+          selectedRecording.id, 
+          selectedRecording.filePath
+        )
         
-        // Check after setting with a small delay
-        setTimeout(() => {
-          console.log('Video element after setting src (delayed check):', {
-            newSrc: video.src,
+        if (blobUrl) {
+          console.log('Got blob URL, setting on video element:', blobUrl)
+          console.log('Video element before setting src:', {
+            currentSrc: video.src,
             readyState: video.readyState,
-            error: video.error,
-            networkState: video.networkState,
-            currentSrc: video.currentSrc
+            videoElement: video,
+            isConnected: video.isConnected
           })
-        }, 100)
-        
-        // Initialize effects after video is loaded
-        video.addEventListener('loadedmetadata', () => {
-          console.log('Video metadata loaded, initializing effects')
-          initializeEffects()
-        }, { once: true })
-      } else {
-        console.error('Failed to get blob URL for:', selectedRecording.id)
+          
+          // Ensure video element is in DOM
+          if (!video.isConnected) {
+            console.error('Video element is not connected to DOM!')
+            return
+          }
+          
+          video.src = blobUrl
+          video.load()
+          
+          // Check after setting with a small delay
+          setTimeout(() => {
+            console.log('Video element after setting src (delayed check):', {
+              newSrc: video.src,
+              readyState: video.readyState,
+              error: video.error,
+              networkState: video.networkState,
+              currentSrc: video.currentSrc
+            })
+          }, 100)
+          
+          // Initialize effects after video is loaded
+          video.addEventListener('loadedmetadata', () => {
+            console.log('Video metadata loaded, initializing effects')
+            initializeEffects()
+          }, { once: true })
+        } else {
+          console.error('Failed to get blob URL for:', selectedRecording.id)
+        }
       }
-    }
 
-    loadVideo()
-  }, [selectedRecording?.id, selectedRecording?.filePath, initializeEffects])
+      loadVideo()
+    }, 0)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [selectedRecording?.id, selectedRecording?.filePath, initializeEffects, isMounted])
 
   // Re-initialize effects when clip effects change
   useEffect(() => {
@@ -434,8 +461,9 @@ export function WorkspaceManager() {
   if (!currentProject) {
     console.log('🔍 WorkspaceManager: Showing recordings library')
     return (
-      <div className="fixed inset-0 flex flex-col bg-background">
-        <RecordingsLibrary
+      <>
+        <div className="fixed inset-0 flex flex-col bg-background">
+          <RecordingsLibrary
           onSelectRecording={async (recording) => {
             console.log('🔍 Selected recording:', recording.name)
 
@@ -581,7 +609,25 @@ export function WorkspaceManager() {
             }
           }}
         />
-      </div>
+        </div>
+        
+        {/* Hidden video element - needs to be always present for loading */}
+        <video
+          ref={videoRef}
+          style={{ 
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            left: '-9999px',
+            top: '-9999px',
+            visibility: 'hidden'
+          }}
+          muted
+          playsInline
+          crossOrigin="anonymous"
+          preload="auto"
+        />
+      </>
     )
   }
 
