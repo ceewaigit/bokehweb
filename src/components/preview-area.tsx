@@ -11,6 +11,9 @@ import type { Clip, Recording } from '@/types/project'
 interface PreviewAreaProps {
   videoRef: RefObject<HTMLVideoElement>
   canvasRef: RefObject<HTMLCanvasElement>
+  effectsEngine: EffectsEngine | null
+  cursorRenderer: CursorRenderer | null
+  backgroundRenderer: BackgroundRenderer | null
   selectedClip: Clip | null
   selectedRecording: Recording | null | undefined
   currentTime: number
@@ -18,24 +21,18 @@ interface PreviewAreaProps {
 }
 
 export function PreviewArea({
-  videoRef: externalVideoRef,
-  canvasRef: externalCanvasRef,
+  videoRef,
+  canvasRef,
+  effectsEngine,
+  cursorRenderer,
+  backgroundRenderer,
   selectedClip,
   selectedRecording,
   currentTime,
   isPlaying
 }: PreviewAreaProps) {
-  // Use external refs from parent
-  const videoRef = externalVideoRef
-  const canvasRef = externalCanvasRef
-  
-  // Internal refs for effects
-  const effectsEngineRef = useRef<EffectsEngine | null>(null)
-  const cursorRendererRef = useRef<CursorRenderer | null>(null)
-  const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
-  const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Internal refs for animation and state
   const animationFrameRef = useRef<number>()
-  const videoBlobUrlRef = useRef<string | null>(null)
 
   // Performance optimizations: cache temporary canvases
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -118,14 +115,14 @@ export function PreviewArea({
         }
 
         // Apply background first if background renderer exists
-        if (backgroundRendererRef.current) {
+        if (backgroundRenderer) {
           // Update background options if they changed
-          backgroundRendererRef.current.updateOptions(bgOptions)
+          backgroundRenderer.updateOptions(bgOptions)
 
           // Only use temp canvas if we have zoom effects
-          const hasZoomEffect = selectedClip?.effects?.zoom?.enabled && effectsEngineRef.current
+          const hasZoomEffect = selectedClip?.effects?.zoom?.enabled && effectsEngine
 
-          if (hasZoomEffect && effectsEngineRef.current) {
+          if (hasZoomEffect && effectsEngine) {
             // Reuse cached temporary canvas for zoom effects
             if (!tempCanvasRef.current ||
               tempCanvasRef.current.width !== video.videoWidth ||
@@ -147,7 +144,7 @@ export function PreviewArea({
 
             const clipTime = currentTimeMs - selectedClip.sourceIn
             const sourceTime = selectedClip.sourceIn + clipTime
-            const zoomState = effectsEngineRef.current.getZoomState(sourceTime)
+            const zoomState = effectsEngine.getZoomState(sourceTime)
 
             if (zoomState.scale > 1.0) {
               const centerX = tempCanvas.width / 2
@@ -172,7 +169,7 @@ export function PreviewArea({
             tempCtx.restore()
 
             // Apply background with the zoomed video frame
-            backgroundRendererRef.current.applyBackground(
+            backgroundRenderer.applyBackground(
               ctx,
               tempCanvas,
               offsetX,
@@ -182,7 +179,7 @@ export function PreviewArea({
             )
           } else {
             // No zoom - draw directly, much faster
-            backgroundRendererRef.current.applyBackground(
+            backgroundRenderer.applyBackground(
               ctx,
               video,
               offsetX,
@@ -206,68 +203,8 @@ export function PreviewArea({
       // Don't clear canvas on error - keep last frame visible
       console.error('Error drawing video:', err)
     }
-  }, [selectedClip])
+  }, [selectedClip, backgroundRenderer, effectsEngine])
 
-  // Initialize all effects
-  const initializeEffects = useCallback(() => {
-    if (!currentRecording || !videoRef.current) return
-
-    // Initialize effects engine
-    if (!effectsEngineRef.current) {
-      effectsEngineRef.current = new EffectsEngine()
-    }
-    effectsEngineRef.current.initializeFromRecording(currentRecording)
-
-    // Initialize cursor renderer
-    if (cursorRendererRef.current) {
-      cursorRendererRef.current.dispose()
-    }
-
-    const clipEffects = selectedClip?.effects
-    const showCursor = clipEffects?.cursor?.visible ?? true
-
-    if (showCursor && currentRecording.metadata?.mouseEvents) {
-      cursorRendererRef.current = new CursorRenderer({
-        size: clipEffects?.cursor?.size ?? 1.5,
-        color: clipEffects?.cursor?.color ?? '#000000',
-        clickColor: '#007AFF',
-        smoothing: true
-      })
-
-      // Note: metadata.mouseEvents already have x/y coordinates from project saving
-      // but CursorRenderer expects mouseX/mouseY format
-      const cursorEvents = currentRecording.metadata.mouseEvents.map((e: any) => ({
-        ...e,
-        mouseX: e.x, // x is already in pixels from project saving
-        mouseY: e.y, // y is already in pixels from project saving
-        eventType: 'mouse' as const
-      }))
-
-      const cursorCanvas = cursorRendererRef.current.attachToVideo(
-        videoRef.current,
-        cursorEvents
-      )
-
-      if (cursorCanvas && canvasRef.current?.parentElement) {
-        cursorCanvas.style.position = 'absolute'
-        cursorCanvas.style.top = '0'
-        cursorCanvas.style.left = '0'
-        cursorCanvas.style.width = '100%'
-        cursorCanvas.style.height = '100%'
-        cursorCanvas.style.pointerEvents = 'none'
-        cursorCanvas.style.zIndex = '10'
-        canvasRef.current.parentElement.appendChild(cursorCanvas)
-        cursorCanvasRef.current = cursorCanvas
-      }
-    }
-
-    // Initialize background renderer
-    if (!backgroundRendererRef.current) {
-      backgroundRendererRef.current = new BackgroundRenderer()
-    }
-
-    // BackgroundRenderer will use clip effects or default options
-  }, [currentRecording, selectedClip?.effects])
 
   // Main effect: Handle canvas and effects initialization
   useEffect(() => {
@@ -289,19 +226,7 @@ export function PreviewArea({
     setIsLoading(true)
     setLoadError(null)
 
-    // Clean up previous effects
-    if (cursorCanvasRef.current) {
-      cursorCanvasRef.current.remove()
-      cursorCanvasRef.current = null
-    }
-
-    if (cursorRendererRef.current) {
-      cursorRendererRef.current.dispose()
-      cursorRendererRef.current = null
-    }
-
-    // Don't dispose background renderer, just update it
-    // This prevents crashes when changing background settings
+    // Effects are now managed by parent component
 
     // Video loading is now handled by WorkspaceManager
     // Monitor when it's ready
@@ -335,10 +260,9 @@ export function PreviewArea({
           canvas.width = canvasWidth
           canvas.height = canvasHeight
 
-          // Initialize effects
+          // Mark as loaded - effects are initialized by parent
           setIsVideoLoaded(true)
           setIsLoading(false)
-          initializeEffects()
         }
 
         // Always render frame when video is ready
@@ -382,10 +306,8 @@ export function PreviewArea({
         cancelAnimationFrame(animationFrameRef.current)
       }
 
-      // Blob manager handles cleanup automatically
-      videoBlobUrlRef.current = null
     }
-  }, [currentRecording?.id, initializeEffects, renderFrame, isVideoLoaded])
+  }, [currentRecording?.id, renderFrame, isVideoLoaded])
 
   // Handle playback state changes - simplified
   useEffect(() => {
@@ -516,33 +438,9 @@ export function PreviewArea({
     // which controls the overall playback state
   }, [isPlaying, isVideoLoaded, selectedClip])
 
-  // Re-render when effects settings change
-  useEffect(() => {
-    if (!isVideoLoaded) return
-
-    initializeEffects()
-    // Don't render here - the main loop will handle it
-  }, [selectedClip?.effects, isVideoLoaded]) // Remove callback deps to avoid infinite loop
-
-  // Cleanup on unmount
+  // Cleanup cached canvases on unmount
   useEffect(() => {
     return () => {
-      // Clean up all renderers on unmount
-      if (cursorRendererRef.current) {
-        cursorRendererRef.current.dispose()
-        cursorRendererRef.current = null
-      }
-      if (backgroundRendererRef.current) {
-        backgroundRendererRef.current.dispose()
-        backgroundRendererRef.current = null
-      }
-      if (effectsEngineRef.current) {
-        effectsEngineRef.current = null
-      }
-      if (cursorCanvasRef.current) {
-        cursorCanvasRef.current.remove()
-        cursorCanvasRef.current = null
-      }
       // Clean up cached canvases
       tempCanvasRef.current = null
       tempCtxRef.current = null

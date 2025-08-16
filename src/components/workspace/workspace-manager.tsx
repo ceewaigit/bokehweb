@@ -61,6 +61,7 @@ export function WorkspaceManager() {
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
   const animationFrameRef = useRef<number>()
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
+  const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
   
   // Get selected clip and recording
   const selectedClip = currentProject?.timeline.tracks
@@ -159,6 +160,70 @@ export function WorkspaceManager() {
     }
   }, [])
 
+  // Initialize effects when recording and clip change
+  const initializeEffects = useCallback(() => {
+    if (!selectedRecording || !videoRef.current) return
+
+    // Initialize effects engine
+    if (!effectsEngineRef.current) {
+      effectsEngineRef.current = new EffectsEngine()
+    }
+    effectsEngineRef.current.initializeFromRecording(selectedRecording)
+
+    // Clean up previous cursor renderer
+    if (cursorCanvasRef.current) {
+      cursorCanvasRef.current.remove()
+      cursorCanvasRef.current = null
+    }
+    if (cursorRendererRef.current) {
+      cursorRendererRef.current.dispose()
+      cursorRendererRef.current = null
+    }
+
+    // Initialize cursor renderer
+    const clipEffects = selectedClip?.effects
+    const showCursor = clipEffects?.cursor?.visible ?? true
+
+    if (showCursor && selectedRecording.metadata?.mouseEvents) {
+      cursorRendererRef.current = new CursorRenderer({
+        size: clipEffects?.cursor?.size ?? 1.5,
+        color: clipEffects?.cursor?.color ?? '#000000',
+        clickColor: '#007AFF',
+        smoothing: true
+      })
+
+      // Convert metadata format for cursor renderer
+      const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
+        ...e,
+        mouseX: e.x,
+        mouseY: e.y,
+        eventType: 'mouse' as const
+      }))
+
+      const cursorCanvas = cursorRendererRef.current.attachToVideo(
+        videoRef.current,
+        cursorEvents
+      )
+
+      if (cursorCanvas && canvasRef.current?.parentElement) {
+        cursorCanvas.style.position = 'absolute'
+        cursorCanvas.style.top = '0'
+        cursorCanvas.style.left = '0'
+        cursorCanvas.style.width = '100%'
+        cursorCanvas.style.height = '100%'
+        cursorCanvas.style.pointerEvents = 'none'
+        cursorCanvas.style.zIndex = '10'
+        canvasRef.current.parentElement.appendChild(cursorCanvas)
+        cursorCanvasRef.current = cursorCanvas
+      }
+    }
+
+    // Initialize background renderer
+    if (!backgroundRendererRef.current) {
+      backgroundRendererRef.current = new BackgroundRenderer()
+    }
+  }, [selectedRecording, selectedClip?.effects])
+
   // Load video when recording changes
   useEffect(() => {
     const video = videoRef.current
@@ -185,15 +250,67 @@ export function WorkspaceManager() {
       
       if (blobUrl) {
         console.log('Got blob URL, setting on video element:', blobUrl)
+        console.log('Video element before setting src:', {
+          currentSrc: video.src,
+          readyState: video.readyState,
+          videoElement: video,
+          isConnected: video.isConnected
+        })
+        
+        // Ensure video element is in DOM
+        if (!video.isConnected) {
+          console.error('Video element is not connected to DOM!')
+          return
+        }
+        
         video.src = blobUrl
         video.load()
+        
+        // Check after setting with a small delay
+        setTimeout(() => {
+          console.log('Video element after setting src (delayed check):', {
+            newSrc: video.src,
+            readyState: video.readyState,
+            error: video.error,
+            networkState: video.networkState,
+            currentSrc: video.currentSrc
+          })
+        }, 100)
+        
+        // Initialize effects after video is loaded
+        video.addEventListener('loadedmetadata', () => {
+          console.log('Video metadata loaded, initializing effects')
+          initializeEffects()
+        }, { once: true })
       } else {
         console.error('Failed to get blob URL for:', selectedRecording.id)
       }
     }
 
     loadVideo()
-  }, [selectedRecording?.id, selectedRecording?.filePath])
+  }, [selectedRecording?.id, selectedRecording?.filePath, initializeEffects])
+
+  // Re-initialize effects when clip effects change
+  useEffect(() => {
+    if (selectedRecording && videoRef.current && videoRef.current.readyState >= 2) {
+      initializeEffects()
+    }
+  }, [selectedClip?.effects, initializeEffects])
+
+  // Cleanup effects on unmount
+  useEffect(() => {
+    return () => {
+      if (cursorCanvasRef.current) {
+        cursorCanvasRef.current.remove()
+      }
+      if (cursorRendererRef.current) {
+        cursorRendererRef.current.dispose()
+      }
+      if (backgroundRendererRef.current) {
+        backgroundRendererRef.current.dispose()
+      }
+    }
+  }, [])
 
   // Debug: Track project changes
   useEffect(() => {
@@ -491,6 +608,9 @@ export function WorkspaceManager() {
             <PreviewArea 
               videoRef={videoRef}
               canvasRef={canvasRef}
+              effectsEngine={effectsEngineRef.current}
+              cursorRenderer={cursorRendererRef.current}
+              backgroundRenderer={backgroundRendererRef.current}
               selectedClip={selectedClip}
               selectedRecording={selectedRecording}
               currentTime={currentTime}
@@ -537,13 +657,21 @@ export function WorkspaceManager() {
         onClose={handleCloseExport}
       />
       
-      {/* Hidden video element for playback control */}
+      {/* Hidden video element for playback control - must be in DOM for loading */}
       <video
         ref={videoRef}
-        style={{ display: 'none' }}
+        style={{ 
+          position: 'absolute',
+          width: '1px',
+          height: '1px',
+          left: '-9999px',
+          top: '-9999px',
+          visibility: 'hidden'
+        }}
         muted
         playsInline
         crossOrigin="anonymous"
+        preload="auto"
       />
     </div>
   )
