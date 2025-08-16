@@ -17,7 +17,6 @@ import { RecordingController } from './recording-controller'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
 
 export function WorkspaceManager() {
   const { currentProject, newProject } = useProjectStore()
@@ -155,23 +154,22 @@ export function WorkspaceManager() {
                         }
                       }
 
-                      // Save metadata for effects rendering
-                      if (rec.metadata) {
-                        // Store the metadata directly - it's already in the correct project format
-                        RecordingStorage.setMetadata(rec.id, rec.metadata)
-
-                        const totalEvents =
-                          (rec.metadata.mouseEvents?.length || 0) +
-                          (rec.metadata.clickEvents?.length || 0) +
-                          (rec.metadata.keyboardEvents?.length || 0)
-                        console.log(`✅ Loaded ${totalEvents} metadata events for recording ${rec.id}`)
-                      }
-
-                      // Simplified video loading - always use file:// URLs
-                      // Electron handles file:// URLs natively without needing blob conversion
-                      if (rec.filePath) {
-                        RecordingStorage.setBlobUrl(rec.id, `file://${rec.filePath}`)
-                        console.log('✅ Set file URL for recording:', rec.id)
+                      // Load video and metadata together
+                      if (rec.filePath || rec.metadata) {
+                        setLoadingMessage(`Loading video ${i + 1}...`)
+                        await globalBlobManager.loadVideos([{
+                          id: rec.id,
+                          filePath: rec.filePath,
+                          metadata: rec.metadata
+                        }])
+                        
+                        if (rec.metadata) {
+                          const totalEvents =
+                            (rec.metadata.mouseEvents?.length || 0) +
+                            (rec.metadata.clickEvents?.length || 0) +
+                            (rec.metadata.keyboardEvents?.length || 0)
+                          console.log(`✅ Loaded ${totalEvents} metadata events`)
+                        }
                       }
                     } catch (error) {
                       console.error('Failed to load recording from project:', error)

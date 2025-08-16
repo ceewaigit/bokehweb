@@ -6,6 +6,7 @@ import { Film, Play, Trash2, MoreVertical, Calendar, HardDrive, FileJson, Sparkl
 import { Button } from './ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { cn, formatTime } from '@/lib/utils'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { type Project } from '@/types/project'
 
 interface Recording {
@@ -43,7 +44,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
       const arrayBuffer = result.data as ArrayBuffer
       const blob = new Blob([arrayBuffer], { type: 'video/webm' })
-      const videoUrl = URL.createObjectURL(blob)
+      const videoUrl = globalBlobManager.create(blob, `thumbnail-${recording.name}`)
 
       // Create video element to extract frame
       const video = document.createElement('video')
@@ -75,14 +76,14 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           recording.thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8)
 
           // Clean up
-          URL.revokeObjectURL(videoUrl)
+          globalBlobManager.revoke(videoUrl)
           video.remove()
           resolve()
         }, { once: true })
 
         video.addEventListener('error', (e) => {
           console.error('Video error:', e)
-          URL.revokeObjectURL(videoUrl)
+          globalBlobManager.revoke(videoUrl)
           reject(new Error('Failed to load video'))
         }, { once: true })
 

@@ -5,7 +5,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
 
 export function PreviewArea() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -290,30 +290,16 @@ export function PreviewArea() {
     // Don't dispose background renderer, just update it
     // This prevents crashes when changing background settings
 
-    // Simple approach: Just use the file path directly or get blob URL from storage
-    const loadVideo = () => {
-      // First check if we already have a blob URL for this recording
-      const storedBlobUrl = RecordingStorage.getBlobUrl(clipRecording.id)
-
-      if (storedBlobUrl) {
-        // Use the stored blob URL (from when project was loaded)
-        if (video.src !== storedBlobUrl) {
-          // Loading video from blob URL
-          video.src = storedBlobUrl
-          videoBlobUrlRef.current = storedBlobUrl
-          video.load()
-        }
-      } else if (clipRecording.filePath) {
-        // Use file:// URL directly - let Electron handle the file access
-        const fileUrl = `file://${clipRecording.filePath}`
-        if (video.src !== fileUrl) {
-          // Loading video from file
-          video.src = fileUrl
-          videoBlobUrlRef.current = fileUrl
-          video.load()
-        }
-      } else {
-        console.error('No video source available for recording:', clipRecording.id)
+    // Load video - all complexity handled by manager
+    const loadVideo = async () => {
+      const blobUrl = await globalBlobManager.ensureVideoLoaded(clipRecording.id, clipRecording.filePath)
+      
+      if (blobUrl && video.src !== blobUrl) {
+        video.src = blobUrl
+        videoBlobUrlRef.current = blobUrl
+        video.load()
+      } else if (!blobUrl) {
+        console.error('No video available for:', clipRecording.id)
       }
     }
 
@@ -365,13 +351,8 @@ export function PreviewArea() {
         cancelAnimationFrame(animationFrameRef.current)
       }
 
-      // Don't clean up blob URLs from storage
-      if (videoBlobUrlRef.current &&
-        videoBlobUrlRef.current.startsWith('blob:') &&
-        !RecordingStorage.getBlobUrl(clipRecording?.id || '')) {
-        URL.revokeObjectURL(videoBlobUrlRef.current)
-        videoBlobUrlRef.current = null
-      }
+      // Blob manager handles cleanup automatically
+      videoBlobUrlRef.current = null
     }
   }, [clipRecording?.id, clipRecording?.filePath, initializeEffects])
 

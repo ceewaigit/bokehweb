@@ -12,7 +12,6 @@ import {
   loadProject
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
 
@@ -142,16 +141,14 @@ export const useProjectStore = create<ProjectStore>()(
       try {
         const project = await loadProject(projectPath)
 
-        // Store file paths and metadata for recordings
-        for (const recording of project.recordings) {
-          if (recording.filePath) {
-            // Store file:// URL for video playback
-            RecordingStorage.setBlobUrl(recording.id, `file://${recording.filePath}`)
-          }
-          if (recording.metadata) {
-            RecordingStorage.setMetadata(recording.id, recording.metadata)
-          }
-        }
+        // Load all videos and metadata in one call
+        await globalBlobManager.loadVideos(
+          project.recordings.map(r => ({ 
+            id: r.id, 
+            filePath: r.filePath,
+            metadata: r.metadata
+          }))
+        )
 
         set((state) => {
           state.currentProject = project
@@ -224,12 +221,11 @@ export const useProjectStore = create<ProjectStore>()(
           clip.startTime + clip.duration
         )
 
-        // Store video blob URL and metadata
-        // The blob is already created by the recorder, just store the URL
+        // Create blob URL and store metadata
         const blobUrl = globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
-        RecordingStorage.setBlobUrl(completeRecording.id, blobUrl)
+        // Note: blob URL is automatically cached by the manager
         if (completeRecording.metadata) {
-          RecordingStorage.setMetadata(completeRecording.id, completeRecording.metadata)
+          globalBlobManager.storeMetadata(completeRecording.id, completeRecording.metadata)
         }
 
         state.currentProject.modifiedAt = new Date().toISOString()

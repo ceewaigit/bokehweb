@@ -1,10 +1,11 @@
 /**
- * BlobURLManager - Enhanced memory leak prevention with automatic cleanup
- * Tracks all blob URLs and ensures they are properly revoked
+ * BlobURLManager - Unified video/blob management with automatic cleanup
+ * Handles video loading, caching, and memory management
  */
 
 import { logger } from '@/lib/utils/logger'
 import { MemoryError } from '@/lib/core/errors'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 
 interface BlobEntry {
   url: string
@@ -19,6 +20,7 @@ export class BlobURLManager {
   private totalSize = 0
   private maxSize = 500 * 1024 * 1024 // 500MB limit
   private cleanupTimer: NodeJS.Timeout | null = null
+  private loadingPromises = new Map<string, Promise<string | null>>()
 
   create(blob: Blob, description?: string): string {
     if (this.disposed) {
@@ -46,6 +48,12 @@ export class BlobURLManager {
 
     this.entries.set(url, entry)
     this.totalSize += blob.size
+
+    // Auto-cache if it's a recording
+    if (description?.startsWith('recording-')) {
+      const recordingId = description.replace('recording-', '')
+      RecordingStorage.setBlobUrl(recordingId, url)
+    }
 
     logger.debug(`Blob URL created: ${description || 'unnamed'}, size: ${blob.size} bytes`)
     
@@ -159,6 +167,116 @@ export class BlobURLManager {
     }, 60000) // Check every minute
   }
 
+  /**
+   * Load a video file and return a blob URL
+   * Handles caching, loading, and error handling automatically
+   */
+  async loadVideo(recordingId: string, filePath?: string): Promise<string | null> {
+    // Check cache first
+    const cached = RecordingStorage.getBlobUrl(recordingId)
+    if (cached) {
+      logger.debug(`Using cached video for ${recordingId}`)
+      return cached
+    }
+
+    // Check if already loading
+    const existingPromise = this.loadingPromises.get(recordingId)
+    if (existingPromise) {
+      logger.debug(`Already loading ${recordingId}, waiting...`)
+      return existingPromise
+    }
+
+    // Start loading
+    const loadPromise = this._loadVideoInternal(recordingId, filePath)
+    this.loadingPromises.set(recordingId, loadPromise)
+
+    try {
+      const result = await loadPromise
+      return result
+    } finally {
+      this.loadingPromises.delete(recordingId)
+    }
+  }
+
+  private async _loadVideoInternal(recordingId: string, filePath?: string): Promise<string | null> {
+    if (!filePath) {
+      logger.error(`No file path for ${recordingId}`)
+      return null
+    }
+
+    if (!window.electronAPI?.readLocalFile) {
+      logger.error('Electron API not available')
+      return null
+    }
+
+    try {
+      logger.debug(`Loading video: ${recordingId}`)
+      const result = await window.electronAPI.readLocalFile(filePath)
+      
+      if (!result?.success || !result.data) {
+        logger.error(`Failed to read file: ${filePath}`)
+        return null
+      }
+
+      // Create blob and URL
+      const blob = new Blob([result.data], { type: 'video/webm' })
+      const blobUrl = this.create(blob, `recording-${recordingId}`)
+      
+      // Cache for future use
+      RecordingStorage.setBlobUrl(recordingId, blobUrl)
+      
+      logger.info(`Video loaded: ${recordingId}`)
+      return blobUrl
+    } catch (error) {
+      logger.error(`Error loading video ${recordingId}:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Ensure a video is loaded (loads if necessary)
+   */
+  async ensureVideoLoaded(recordingId: string, filePath?: string): Promise<string | null> {
+    return this.loadVideo(recordingId, filePath)
+  }
+
+  /**
+   * Load multiple videos in parallel
+   */
+  async loadVideos(recordings: Array<{ id: string; filePath?: string; metadata?: any }>): Promise<void> {
+    await Promise.all(
+      recordings.map(async rec => {
+        // Load video
+        const loadPromise = rec.filePath ? 
+          this.loadVideo(rec.id, rec.filePath).catch(err => {
+            logger.error(`Failed to load ${rec.id}:`, err)
+            return null
+          }) : Promise.resolve(null)
+        
+        // Store metadata if provided
+        if (rec.metadata) {
+          RecordingStorage.setMetadata(rec.id, rec.metadata)
+        }
+        
+        return loadPromise
+      })
+    )
+  }
+
+  /**
+   * Store metadata for a recording
+   */
+  storeMetadata(recordingId: string, metadata: any): void {
+    RecordingStorage.setMetadata(recordingId, metadata)
+  }
+
+  /**
+   * Get metadata for a recording
+   */
+  getMetadata(recordingId: string): any {
+    return RecordingStorage.getMetadata(recordingId)
+  }
+
   dispose(): void {
     if (!this.disposed) {
       if (this.cleanupTimer) {
@@ -167,6 +285,7 @@ export class BlobURLManager {
       }
       this.cleanup()
       this.disposed = true
+      this.loadingPromises.clear()
       logger.debug('BlobURLManager disposed')
     }
   }
