@@ -116,32 +116,38 @@ export function WorkspaceManager() {
                         setLoadingMessage('Detecting video duration...')
                         console.log('⚠️ Recording has invalid duration, detecting from video...')
 
-                        const tempVideo = document.createElement('video')
-                        // Just use the file path directly
-                        tempVideo.src = `file://${rec.filePath}`
+                        // Use blob manager to load the video safely
+                        const blobUrl = await globalBlobManager.loadVideo(rec.id, rec.filePath)
+                        
+                        if (blobUrl) {
+                          const tempVideo = document.createElement('video')
+                          tempVideo.src = blobUrl
 
-                        await new Promise<void>((resolve) => {
-                          tempVideo.addEventListener('loadedmetadata', () => {
-                            console.log('Checking project video duration:', tempVideo.duration)
+                          await new Promise<void>((resolve) => {
+                            tempVideo.addEventListener('loadedmetadata', () => {
+                              console.log('Checking project video duration:', tempVideo.duration)
 
-                            if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
-                              rec.duration = tempVideo.duration * 1000
-                              console.log('✅ Fixed recording duration:', rec.duration, 'ms')
-                            } else {
-                              console.error('❌ Could not determine video duration')
-                            }
-                            resolve()
-                          }, { once: true })
+                              if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
+                                rec.duration = tempVideo.duration * 1000
+                                console.log('✅ Fixed recording duration:', rec.duration, 'ms')
+                              } else {
+                                console.error('❌ Could not determine video duration')
+                              }
+                              resolve()
+                            }, { once: true })
 
-                          tempVideo.addEventListener('error', () => {
-                            console.error('Failed to load video for duration check')
-                            resolve()
-                          }, { once: true })
+                            tempVideo.addEventListener('error', () => {
+                              console.error('Failed to load video for duration check')
+                              resolve()
+                            }, { once: true })
 
-                          tempVideo.load()
-                        })
+                            tempVideo.load()
+                          })
 
-                        tempVideo.remove()
+                          tempVideo.remove()
+                        } else {
+                          console.error('Failed to load video for duration check')
+                        }
                       }
 
                       // Fix clip durations if recording duration was updated

@@ -35,16 +35,12 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   const generateThumbnail = async (recording: Recording, videoPath: string) => {
     try {
-      // Load the video file
-      const result = await window.electronAPI?.readLocalFile?.(videoPath)
-      if (!result || !result.success) {
-        console.error('Failed to read video file for thumbnail:', videoPath)
+      // Use blob manager to load the video file safely
+      const videoUrl = await globalBlobManager.loadVideo(`thumbnail-${recording.name}`, videoPath)
+      if (!videoUrl) {
+        console.error('Failed to load video file for thumbnail:', videoPath)
         return
       }
-
-      const arrayBuffer = result.data as ArrayBuffer
-      const blob = new Blob([arrayBuffer], { type: 'video/webm' })
-      const videoUrl = globalBlobManager.create(blob, `thumbnail-${recording.name}`)
 
       // Create video element to extract frame
       const video = document.createElement('video')
@@ -76,14 +72,12 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           recording.thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8)
 
           // Clean up
-          globalBlobManager.revoke(videoUrl)
           video.remove()
           resolve()
         }, { once: true })
 
         video.addEventListener('error', (e) => {
           console.error('Video error:', e)
-          globalBlobManager.revoke(videoUrl)
           reject(new Error('Failed to load video'))
         }, { once: true })
 
@@ -119,6 +113,8 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
           // Try to load the project data
           try {
+            // Projects are JSON, not video - we still need to use readLocalFile directly for these
+            // But we should add a project-specific method to blob manager later
             if (window.electronAPI?.readLocalFile) {
               const result = await window.electronAPI.readLocalFile(file.path)
               if (result?.success && result.data) {
