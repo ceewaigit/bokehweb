@@ -162,17 +162,29 @@ export function WorkspaceManager() {
   // Load video when recording changes
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !selectedRecording) return
+    if (!video || !selectedRecording) {
+      console.log('No video element or recording:', { video: !!video, recording: !!selectedRecording })
+      return
+    }
 
     const loadVideo = async () => {
-      console.log('Loading video for recording:', selectedRecording.id)
+      console.log('Loading video for recording:', {
+        id: selectedRecording.id,
+        filePath: selectedRecording.filePath
+      })
+      
+      if (!selectedRecording.filePath) {
+        console.error('Recording has no filePath:', selectedRecording)
+        return
+      }
+      
       const blobUrl = await globalBlobManager.ensureVideoLoaded(
         selectedRecording.id, 
         selectedRecording.filePath
       )
       
       if (blobUrl) {
-        console.log('Got blob URL:', blobUrl)
+        console.log('Got blob URL, setting on video element:', blobUrl)
         video.src = blobUrl
         video.load()
       } else {
@@ -181,7 +193,7 @@ export function WorkspaceManager() {
     }
 
     loadVideo()
-  }, [selectedRecording])
+  }, [selectedRecording?.id, selectedRecording?.filePath])
 
   // Debug: Track project changes
   useEffect(() => {

@@ -5,6 +5,7 @@ import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { Clip, Recording } from '@/types/project'
 
 interface PreviewAreaProps {
@@ -41,6 +42,8 @@ export function PreviewArea({
   const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null)
 
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Use the selected recording passed from parent
   const currentRecording = selectedRecording
@@ -266,11 +269,25 @@ export function PreviewArea({
     // BackgroundRenderer will use clip effects or default options
   }, [currentRecording, selectedClip?.effects])
 
-  // Main effect: Handle video loading and initialization
+  // Main effect: Handle canvas and effects initialization
   useEffect(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || !currentRecording) return
+    
+    if (!currentRecording) {
+      // No recording, reset states
+      setIsVideoLoaded(false)
+      setIsLoading(false)
+      setLoadError(null)
+      return
+    }
+    
+    if (!video || !canvas) return
+
+    // Reset loaded state when recording changes
+    setIsVideoLoaded(false)
+    setIsLoading(true)
+    setLoadError(null)
 
     // Clean up previous effects
     if (cursorCanvasRef.current) {
@@ -286,62 +303,80 @@ export function PreviewArea({
     // Don't dispose background renderer, just update it
     // This prevents crashes when changing background settings
 
-    // Load video - all complexity handled by manager
-    const loadVideo = async () => {
-      const blobUrl = await globalBlobManager.ensureVideoLoaded(currentRecording.id, currentRecording.filePath)
+    // Video loading is now handled by WorkspaceManager
+    // Monitor when it's ready
+    const checkVideoReady = () => {
+      console.log('Checking video ready state:', {
+        readyState: video.readyState,
+        width: video.videoWidth,
+        height: video.videoHeight,
+        loaded: isVideoLoaded,
+        src: video.src,
+        currentRecording: currentRecording?.id
+      })
       
-      if (blobUrl && video.src !== blobUrl) {
-        video.src = blobUrl
-        videoBlobUrlRef.current = blobUrl
-        video.load()
-      } else if (!blobUrl) {
-        console.error('No video available for:', currentRecording.id)
+      if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
+        // Only initialize once per video
+        if (!isVideoLoaded) {
+          // Set canvas to a reasonable size for display
+          const maxWidth = 1920
+          const maxHeight = 1080
+          let canvasWidth = video.videoWidth
+          let canvasHeight = video.videoHeight
+
+          // Scale down if too large
+          if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
+            const scale = Math.min(maxWidth / canvasWidth, maxHeight / canvasHeight)
+            canvasWidth = Math.floor(canvasWidth * scale)
+            canvasHeight = Math.floor(canvasHeight * scale)
+          }
+
+          // Update canvas dimensions
+          canvas.width = canvasWidth
+          canvas.height = canvasHeight
+
+          // Initialize effects
+          setIsVideoLoaded(true)
+          setIsLoading(false)
+          initializeEffects()
+        }
+
+        // Always render frame when video is ready
+        renderFrame()
+      } else if (video.readyState === 0 && video.src) {
+        // Video has a source but hasn't started loading yet
+        console.log('Video source set but not loaded yet')
       }
     }
 
-    // Reset loaded state when clip changes
-    setIsVideoLoaded(false)
-    loadVideo()
+    // Check immediately in case video is already loaded
+    checkVideoReady()
 
     const handleVideoReady = () => {
-      if (!video.videoWidth || !video.videoHeight) return
-
-      // Set canvas to a reasonable size for display
-      const maxWidth = 1920
-      const maxHeight = 1080
-      let canvasWidth = video.videoWidth
-      let canvasHeight = video.videoHeight
-
-      // Scale down if too large
-      if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
-        const scale = Math.min(maxWidth / canvasWidth, maxHeight / canvasHeight)
-        canvasWidth = Math.floor(canvasWidth * scale)
-        canvasHeight = Math.floor(canvasHeight * scale)
-      }
-
-      // Update canvas dimensions
-      canvas.width = canvasWidth
-      canvas.height = canvasHeight
-
-      // Initialize effects
-      setIsVideoLoaded(true)
-      initializeEffects()
-
-      // Render first frame
-      renderFrame()
+      checkVideoReady()
     }
 
     const handleTimeUpdate = () => {
       // Don't render here - let the main loop handle it
       // This was causing double rendering
     }
+    
+    const handleError = (e: Event) => {
+      console.error('Video error in PreviewArea:', e)
+      setIsLoading(false)
+      setLoadError('Failed to load video. The file may be corrupted or in an unsupported format.')
+    }
 
     video.addEventListener('loadedmetadata', handleVideoReady)
+    video.addEventListener('canplay', handleVideoReady)
     video.addEventListener('timeupdate', handleTimeUpdate)
+    video.addEventListener('error', handleError)
 
     return () => {
       video.removeEventListener('loadedmetadata', handleVideoReady)
+      video.removeEventListener('canplay', handleVideoReady)
       video.removeEventListener('timeupdate', handleTimeUpdate)
+      video.removeEventListener('error', handleError)
 
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
@@ -350,7 +385,7 @@ export function PreviewArea({
       // Blob manager handles cleanup automatically
       videoBlobUrlRef.current = null
     }
-  }, [currentRecording?.id, currentRecording?.filePath, initializeEffects])
+  }, [currentRecording?.id, initializeEffects, renderFrame, isVideoLoaded])
 
   // Handle playback state changes - simplified
   useEffect(() => {
@@ -515,22 +550,84 @@ export function PreviewArea({
   }, [])
 
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div className="relative w-full h-full overflow-hidden bg-black">
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="relative w-full h-full flex items-center justify-center">
           {currentRecording && (
-            <canvas
-              ref={canvasRef}
-              className="shadow-2xl"
-              style={{
-                display: 'block',
-                maxWidth: '100%',
-                maxHeight: '100%',
-                backgroundColor: '#000'
-              }}
-            />
+            <>
+              <canvas
+                ref={canvasRef}
+                className="shadow-2xl"
+                style={{
+                  display: isVideoLoaded ? 'block' : 'none',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  backgroundColor: '#000'
+                }}
+              />
+              
+              {/* Error state */}
+              {loadError && !isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center p-8">
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 max-w-md">
+                    <div className="flex items-start space-x-3">
+                      <svg className="w-5 h-5 text-destructive mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                      </svg>
+                      <div>
+                        <h3 className="text-sm font-medium text-destructive">Failed to load video</h3>
+                        <p className="text-xs text-muted-foreground mt-1">{loadError}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Loading skeleton */}
+              {isLoading && !isVideoLoaded && !loadError && (
+                <div className="absolute inset-0 flex items-center justify-center p-8">
+                  <div className="relative w-full max-w-4xl">
+                    {/* Skeleton preview area with aspect ratio */}
+                    <div className="relative aspect-video">
+                      <Skeleton className="absolute inset-0 rounded-lg" />
+                      
+                      {/* Loading indicator overlay */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <div className="bg-background/80 backdrop-blur-sm rounded-lg p-6 shadow-lg">
+                          <div className="flex flex-col items-center space-y-3">
+                            {/* Spinner */}
+                            <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            
+                            <div className="text-center">
+                              <p className="text-sm font-medium">Loading video</p>
+                              {currentRecording?.id && (
+                                <p className="text-xs text-muted-foreground mt-1">{currentRecording.id}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Skeleton timeline indicator */}
+                    <div className="mt-4 space-y-2">
+                      <Skeleton className="h-1 w-full" />
+                      <div className="flex items-center justify-between">
+                        <Skeleton className="h-4 w-12" />
+                        <Skeleton className="h-4 w-12" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
+          
           {/* Video element is now managed by parent WorkspaceManager */}
+          
           {!currentRecording && (
             <div className="text-gray-500 text-center p-8">
               <p className="text-lg font-medium mb-2">No recording selected</p>
