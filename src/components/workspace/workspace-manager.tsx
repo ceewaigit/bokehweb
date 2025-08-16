@@ -118,7 +118,7 @@ export function WorkspaceManager() {
 
                         // Use blob manager to load the video safely (it handles relative paths)
                         const blobUrl = await globalBlobManager.loadVideo(rec.id, rec.filePath)
-                        
+
                         if (blobUrl) {
                           const tempVideo = document.createElement('video')
                           tempVideo.src = blobUrl
@@ -168,7 +168,7 @@ export function WorkspaceManager() {
                           filePath: rec.filePath,
                           metadata: rec.metadata
                         }])
-                        
+
                         if (rec.metadata) {
                           const totalEvents =
                             (rec.metadata.mouseEvents?.length || 0) +
@@ -258,9 +258,6 @@ export function WorkspaceManager() {
           </div>
         )}
       </div>
-
-      {/* Recording Controller - Floating overlay */}
-      <RecordingController />
 
       {/* Dialogs and Modals */}
       <ExportDialog

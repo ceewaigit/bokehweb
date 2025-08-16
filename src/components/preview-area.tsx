@@ -20,8 +20,6 @@ export function PreviewArea() {
   // Performance optimizations: cache temporary canvases
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null)
-  const lastRenderTimeRef = useRef<number>(0)
-  const targetFpsRef = useRef<number>(60)
 
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
 
@@ -362,36 +360,85 @@ export function PreviewArea() {
     if (!video || !isVideoLoaded) return
 
     if (isPlaying) {
-      video.play().catch(console.error)
-
-      // Simple render loop - let the browser handle timing
+      // Render loop - runs continuously during playback
       const animate = () => {
         if (!isPlaying) return
 
+        // Render current frame
         renderFrame()
+        
+        // Continue animation loop
         animationFrameRef.current = requestAnimationFrame(animate)
       }
 
+      // Start the render loop
       animationFrameRef.current = requestAnimationFrame(animate)
     } else {
-      video.pause()
+      // Stop the render loop when paused
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = undefined
       }
     }
 
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = undefined
       }
     }
-  }, [isPlaying, isVideoLoaded])
+  }, [isPlaying, isVideoLoaded, renderFrame])
 
-  // Sync video time with timeline currentTime
+  // Handle video element play/pause state and sync during playback
   useEffect(() => {
     const video = videoRef.current
-    if (!video || !isVideoLoaded) return
+    if (!video || !isVideoLoaded || !selectedClip) return
 
+    if (isPlaying) {
+      // Continuously sync video time during playback
+      const syncVideoTime = () => {
+        if (!isPlaying) return
+        
+        // Map timeline time to video time
+        const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
+        const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
+        
+        // Clamp to clip bounds
+        const minTime = selectedClip.sourceIn / 1000
+        const maxTime = selectedClip.sourceOut / 1000
+        const targetTime = Math.min(Math.max(sourceTime, minTime), maxTime)
+        
+        // Update video time if significantly different (allow small drift for smooth playback)
+        if (Math.abs(video.currentTime - targetTime) > 0.1) {
+          video.currentTime = targetTime
+        }
+        
+        // Ensure video is playing
+        if (video.paused && targetTime < maxTime) {
+          video.play().catch(console.error)
+        }
+      }
+      
+      // Initial sync and play
+      syncVideoTime()
+      
+      // Set up interval to keep video in sync
+      const syncInterval = setInterval(syncVideoTime, 100) // Sync every 100ms
+      
+      return () => {
+        clearInterval(syncInterval)
+      }
+    } else {
+      video.pause()
+    }
+  }, [isPlaying, isVideoLoaded, selectedClip, currentTime])
+
+  // Sync video time with timeline currentTime when scrubbing (not playing)
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !isVideoLoaded || isPlaying) return
+
+    // Only sync when not playing (during scrubbing)
     if (selectedClip) {
       // Check if currentTime is within this clip's range
       const clipStart = selectedClip.startTime
@@ -410,6 +457,8 @@ export function PreviewArea() {
         // Update video time if different
         if (Math.abs(video.currentTime - targetTime) > 0.01) {
           video.currentTime = targetTime
+          // Render the frame at the new position
+          renderFrame()
         }
       } else {
         // Current time is outside this clip - pause at start or end
@@ -418,9 +467,10 @@ export function PreviewArea() {
         } else {
           video.currentTime = selectedClip.sourceOut / 1000
         }
+        renderFrame()
       }
     }
-  }, [currentTime, isVideoLoaded, selectedClip])
+  }, [currentTime, isVideoLoaded, selectedClip, isPlaying, renderFrame])
 
   // Monitor clip boundaries during playback
   useEffect(() => {
