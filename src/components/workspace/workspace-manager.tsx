@@ -234,6 +234,9 @@ export function WorkspaceManager() {
                 // Create a new timeline project
                 newProject(project.name)
 
+                // Get project directory for resolving relative paths
+                const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
+                
                 // Load each recording from the project
                 for (let i = 0; i < project.recordings.length; i++) {
                   const rec = project.recordings[i]
@@ -241,15 +244,23 @@ export function WorkspaceManager() {
 
                   if (rec.filePath) {
                     try {
-                      // Don't load the entire video file! Just verify it exists and get duration if needed
+                      // Resolve video path relative to project file location
+                      let videoPath = rec.filePath
+                      if (!videoPath.startsWith('/')) {
+                        videoPath = `${projectDir}/${videoPath}`
+                      }
+                      
+                      // Update the recording's filePath to be absolute
+                      rec.filePath = videoPath
+                      console.log('Resolved video path:', videoPath)
 
                       // Verify and fix recording duration if needed
                       if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
                         setLoadingMessage('Detecting video duration...')
                         console.log('⚠️ Recording has invalid duration, detecting from video...')
 
-                        // Use blob manager to load the video safely (it handles relative paths)
-                        const blobUrl = await globalBlobManager.loadVideo(rec.id, rec.filePath)
+                        // Use blob manager to load the video safely
+                        const blobUrl = await globalBlobManager.loadVideo(rec.id, videoPath)
 
                         if (blobUrl) {
                           const tempVideo = document.createElement('video')

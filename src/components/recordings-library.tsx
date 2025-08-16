@@ -173,7 +173,18 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         uniqueRecordings.forEach(async (recording) => {
           if (recording.project?.recordings?.[0]?.filePath && !recording.thumbnailUrl) {
             try {
-              await generateThumbnail(recording, recording.project.recordings[0].filePath)
+              // Resolve video path relative to project file location
+              const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
+              let videoPath = recording.project.recordings[0].filePath
+              
+              // If the video path is relative, make it absolute relative to the project
+              if (!videoPath.startsWith('/')) {
+                videoPath = `${projectDir}/${videoPath}`
+              }
+              
+              console.log('Loading thumbnail from:', videoPath, 'for project at:', recording.path)
+              
+              await generateThumbnail(recording, videoPath)
               // Update state with thumbnail
               setRecordings(prev => {
                 const index = prev.findIndex(r => r.path === recording.path)
