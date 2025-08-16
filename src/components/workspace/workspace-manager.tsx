@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 // Recording logic handled by RecordingController component
 import { Toolbar } from '../toolbar'
 import { PreviewArea } from '../preview-area'
@@ -17,9 +17,30 @@ import { RecordingController } from './recording-controller'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { EffectsEngine } from '@/lib/effects/effects-engine'
+import { CursorRenderer } from '@/lib/effects/cursor-renderer'
+import { BackgroundRenderer } from '@/lib/effects/background-renderer'
+import type { Clip, ClipEffects } from '@/types/project'
 
 export function WorkspaceManager() {
-  const { currentProject, newProject } = useProjectStore()
+  // Store hooks - will gradually reduce direct store access
+  const { 
+    currentProject, 
+    newProject,
+    selectedClipId,
+    currentTime,
+    isPlaying,
+    play: storePlay,
+    pause: storePause,
+    seek: storeSeek,
+    selectClip,
+    updateClipEffects,
+    saveCurrentProject,
+    openProject,
+    setZoom,
+    zoom
+  } = useProjectStore()
+  
   const {
     isPropertiesOpen,
     isExportOpen,
@@ -31,11 +52,122 @@ export function WorkspaceManager() {
 
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Loading...')
+  
+  // Centralized refs for video and rendering
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const effectsEngineRef = useRef<EffectsEngine | null>(null)
+  const cursorRendererRef = useRef<CursorRenderer | null>(null)
+  const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
+  const animationFrameRef = useRef<number>()
+  const playbackIntervalRef = useRef<NodeJS.Timeout>()
+  
+  // Get selected clip and recording
+  const selectedClip = currentProject?.timeline.tracks
+    .flatMap(t => t.clips)
+    .find(c => c.id === selectedClipId) || null
+  
+  const selectedRecording = selectedClip && currentProject
+    ? currentProject.recordings.find(r => r.id === selectedClip.recordingId)
+    : null
+
+  // Define handlePause first since it's used in useEffect
+  const handlePause = useCallback(() => {
+    const video = videoRef.current
+    if (video) {
+      video.pause()
+    }
+    storePause()
+  }, [storePause])
+
+  // Sync video playback with timeline
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !selectedClip || !isPlaying) return
+
+    // Update video time continuously during playback
+    const syncInterval = setInterval(() => {
+      if (!isPlaying) return
+      
+      const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
+      const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
+      const maxTime = selectedClip.sourceOut / 1000
+      
+      if (sourceTime <= maxTime) {
+        // Small tolerance for sync
+        if (Math.abs(video.currentTime - sourceTime) > 0.1) {
+          video.currentTime = sourceTime
+        }
+        
+        // Ensure video is playing
+        if (video.paused) {
+          video.play().catch(console.error)
+        }
+      } else {
+        // Reached end of clip
+        handlePause()
+      }
+    }, 100) // Sync every 100ms
+
+    playbackIntervalRef.current = syncInterval
+
+    return () => {
+      if (playbackIntervalRef.current) {
+        clearInterval(playbackIntervalRef.current)
+      }
+    }
+  }, [isPlaying, currentTime, selectedClip, handlePause])
 
   // Debug: Track project changes
   useEffect(() => {
     console.log('🔍 WorkspaceManager: Project changed:', currentProject?.name || 'null')
   }, [currentProject])
+
+  // Centralized playback control
+  const handlePlay = useCallback(() => {
+    const video = videoRef.current
+    if (!video || !selectedClip || !selectedRecording) {
+      console.warn('Cannot play: missing video, clip, or recording')
+      return
+    }
+
+    // Map timeline time to video time
+    const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
+    const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
+    
+    // Set video time and play
+    video.currentTime = sourceTime
+    video.play().then(() => {
+      storePlay() // Update store state
+    }).catch(error => {
+      console.error('Failed to play video:', error)
+      storePause()
+    })
+  }, [selectedClip, selectedRecording, currentTime, storePlay, storePause])
+
+  const handleSeek = useCallback((time: number) => {
+    storeSeek(time)
+    
+    // Update video position if we have one
+    const video = videoRef.current
+    if (video && selectedClip) {
+      const clipProgress = Math.max(0, time - selectedClip.startTime)
+      const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
+      const minTime = selectedClip.sourceIn / 1000
+      const maxTime = selectedClip.sourceOut / 1000
+      video.currentTime = Math.min(Math.max(sourceTime, minTime), maxTime)
+    }
+  }, [storeSeek, selectedClip])
+
+  const handleClipSelect = useCallback((clipId: string) => {
+    selectClip(clipId)
+  }, [selectClip])
+
+  const handleEffectChange = useCallback((effects: ClipEffects) => {
+    if (selectedClipId) {
+      updateClipEffects(selectedClipId, effects)
+    }
+  }, [selectedClipId, updateClipEffects])
 
   const handleToggleProperties = useCallback(() => {
     toggleProperties()
@@ -228,8 +360,12 @@ export function WorkspaceManager() {
       {/* Top Toolbar - 8vh height */}
       <div className="flex-shrink-0 border-b bg-card/50 overflow-hidden" style={{ height: '8vh', minHeight: '56px' }}>
         <Toolbar
+          project={currentProject}
           onToggleProperties={handleToggleProperties}
           onExport={handleExport}
+          onNewProject={() => newProject('New Project')}
+          onSaveProject={saveCurrentProject}
+          onOpenProject={openProject}
         />
       </div>
 
@@ -239,12 +375,30 @@ export function WorkspaceManager() {
         <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
           {/* Preview Area - 55vh height */}
           <div className="bg-background border-b overflow-hidden" style={{ height: '55vh' }}>
-            <PreviewArea />
+            <PreviewArea 
+              videoRef={videoRef}
+              canvasRef={canvasRef}
+              selectedClip={selectedClip}
+              selectedRecording={selectedRecording}
+              currentTime={currentTime}
+              isPlaying={isPlaying}
+            />
           </div>
 
           {/* Timeline Section - 37vh height */}
           <div className="bg-card/50 overflow-hidden" style={{ height: '37vh' }}>
-            <TimelineCanvas className="h-full w-full" />
+            <TimelineCanvas 
+              className="h-full w-full"
+              currentProject={currentProject}
+              currentTime={currentTime}
+              isPlaying={isPlaying}
+              zoom={zoom}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onSeek={handleSeek}
+              onClipSelect={handleClipSelect}
+              onZoomChange={setZoom}
+            />
           </div>
         </div>
 
@@ -254,7 +408,12 @@ export function WorkspaceManager() {
             className="bg-card border-l overflow-hidden"
             style={{ width: `${propertiesPanelWidth}px`, height: '92vh' }}
           >
-            <EffectsSidebar className="h-full w-full" />
+            <EffectsSidebar 
+              className="h-full w-full"
+              selectedClip={selectedClip}
+              effects={selectedClip?.effects}
+              onEffectChange={handleEffectChange}
+            />
           </div>
         )}
       </div>

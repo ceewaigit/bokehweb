@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useProjectStore } from '@/stores/project-store'
 import {
   Camera,
   Palette,
@@ -16,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import type { Clip, ClipEffects } from '@/types/project'
 
 const WALLPAPERS = [
   { id: 'gradient-1', colors: ['#FF6B6B', '#4ECDC4'] },
@@ -37,19 +37,19 @@ const WALLPAPERS = [
 
 interface EffectsSidebarProps {
   className?: string
+  selectedClip: Clip | null
+  effects: ClipEffects | undefined
+  onEffectChange: (effects: ClipEffects) => void
 }
 
-export function EffectsSidebar({ className }: EffectsSidebarProps) {
-  const { selectedClipId, currentProject, updateClipEffects } = useProjectStore()
+export function EffectsSidebar({ 
+  className,
+  selectedClip,
+  effects,
+  onEffectChange 
+}: EffectsSidebarProps) {
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
-
-  // Get current clip effects
-  const selectedClip = currentProject?.timeline.tracks
-    .flatMap(t => t.clips)
-    .find(c => c.id === selectedClipId)
-
-  const effects = selectedClip?.effects
 
   if (!selectedClip || !effects) {
     return (
@@ -60,7 +60,8 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
   }
 
   const updateEffect = (category: string, updates: any) => {
-    updateClipEffects(selectedClipId!, {
+    if (!effects) return
+    onEffectChange({
       ...effects,
       [category]: {
         ...effects[category as keyof typeof effects],
@@ -288,72 +289,8 @@ export function EffectsSidebar({ className }: EffectsSidebarProps) {
                 Debug Tools
               </h4>
 
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-xs"
-                onClick={() => {
-                  const store = useProjectStore.getState()
-                  store.regenerateZoomEffects({
-                    forceTest: true,
-                    intervalMs: 3000,
-                    zoomDuration: 2500,
-                    zoomScale: 2.5,
-                    useMouseEvents: false
-                  })
-                }}
-              >
-                Create Test Zoom Effects
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-xs"
-                onClick={() => {
-                  const store = useProjectStore.getState()
-                  store.regenerateZoomEffects({
-                    forceTest: true,
-                    useMouseEvents: true,
-                    zoomDuration: 2000,
-                    zoomScale: 2.0
-                  })
-                }}
-              >
-                Generate from Mouse Events
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-xs"
-                onClick={() => {
-                  const store = useProjectStore.getState()
-                  store.regenerateZoomEffects({
-                    minGapMs: 1500,
-                    zoomDuration: 3000,
-                    zoomScale: 2.0,
-                    clicksOnly: true
-                  })
-                }}
-              >
-                Regenerate from Clicks
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-xs"
-                onClick={() => {
-                  const store = useProjectStore.getState()
-                  if (store.effectsEngine) {
-                    store.effectsEngine.clearEffects()
-                    store.regenerateZoomEffects({})
-                  }
-                }}
-              >
-                Clear All Effects
-              </Button>
+              {/* Zoom effect controls temporarily disabled during refactor */}
+              {/* TODO: Add these back via WorkspaceManager callbacks */}
             </div>
           </div>
         )}

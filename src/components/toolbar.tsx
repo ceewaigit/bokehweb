@@ -18,28 +18,32 @@ import {
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
 import { useRecordingStore } from '@/stores/recording-store'
-import { useProjectStore } from '@/stores/project-store'
 import { cn, formatTime } from '@/lib/utils'
+import type { Project } from '@/types/project'
 
 interface ToolbarProps {
+  project: Project | null
   onToggleProperties: () => void
   onExport: () => void
+  onNewProject: () => void
+  onSaveProject: () => Promise<void>
+  onOpenProject: (path: string) => Promise<void>
 }
 
-export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
+export function Toolbar({ 
+  project,
+  onToggleProperties, 
+  onExport,
+  onNewProject,
+  onSaveProject,
+  onOpenProject
+}: ToolbarProps) {
   const {
     isRecording,
     duration,
     status,
     settings
   } = useRecordingStore()
-
-  const {
-    currentProject,
-    currentTime,
-    saveCurrentProject,
-    newProject
-  } = useProjectStore()
 
   const [propertiesOpen, setPropertiesOpen] = useState(true)
 
@@ -66,7 +70,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => newProject('New Project')}
+          onClick={onNewProject}
           className="text-xs"
         >
           <Folder className="w-4 h-4 mr-1 flex-shrink-0" />
@@ -89,8 +93,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
 
                 if (!result.canceled && result.filePaths?.length > 0) {
                   const projectPath = result.filePaths[0]
-                  const openProject = useProjectStore.getState().openProject
-                  await openProject(projectPath)
+                  await onOpenProject(projectPath)
                 }
               } catch (error) {
                 console.error('Failed to open project:', error)
@@ -108,8 +111,8 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={saveCurrentProject}
-          disabled={!currentProject}
+          onClick={onSaveProject}
+          disabled={!project}
           className="text-xs"
         >
           <Save className="w-4 h-4 mr-1 flex-shrink-0" />
@@ -120,17 +123,13 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
       {/* Center Section - Project Info and Status */}
       <div className="flex-1 flex items-center justify-center gap-1 min-w-0 overflow-hidden">
         {/* Project Name and Time Display */}
-        {currentProject && (
+        {project && (
           <div className="flex items-center gap-3 flex-shrink-0">
-            <span className="text-sm font-medium">{currentProject.name}</span>
+            <span className="text-sm font-medium">{project.name}</span>
             <span className="text-xs text-muted-foreground">•</span>
             <div className="flex items-center gap-1 text-xs flex-shrink-0">
-              <span className="font-mono font-medium text-foreground">
-                {formatTime(currentTime / 1000)}
-              </span>
-              <span className="text-muted-foreground">/</span>
               <span className="font-mono text-muted-foreground">
-                {formatTime((currentProject?.timeline?.duration || 0) / 1000)}
+                {formatTime((project?.timeline?.duration || 0) / 1000)}
               </span>
             </div>
           </div>
@@ -200,7 +199,7 @@ export function Toolbar({ onToggleProperties, onExport }: ToolbarProps) {
         <Button
           variant="default"
           size="sm"
-          disabled={!currentProject || !currentProject.timeline.tracks[0]?.clips?.length}
+          disabled={!project || !project.timeline.tracks[0]?.clips?.length}
           onClick={onExport}
           className="text-xs font-medium"
         >

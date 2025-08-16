@@ -1,15 +1,34 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback } from 'react'
-import { useProjectStore } from '@/stores/project-store'
+import { useRef, useEffect, useState, useCallback, RefObject } from 'react'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import type { Clip, Recording } from '@/types/project'
 
-export function PreviewArea() {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+interface PreviewAreaProps {
+  videoRef: RefObject<HTMLVideoElement>
+  canvasRef: RefObject<HTMLCanvasElement>
+  selectedClip: Clip | null
+  selectedRecording: Recording | null | undefined
+  currentTime: number
+  isPlaying: boolean
+}
+
+export function PreviewArea({
+  videoRef: externalVideoRef,
+  canvasRef: externalCanvasRef,
+  selectedClip,
+  selectedRecording,
+  currentTime,
+  isPlaying
+}: PreviewAreaProps) {
+  // Use external refs from parent
+  const videoRef = externalVideoRef
+  const canvasRef = externalCanvasRef
+  
+  // Internal refs for effects
   const effectsEngineRef = useRef<EffectsEngine | null>(null)
   const cursorRendererRef = useRef<CursorRenderer | null>(null)
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
@@ -23,26 +42,8 @@ export function PreviewArea() {
 
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
 
-  const {
-    currentProject,
-    selectedClipId,
-    currentTime,
-    isPlaying,
-    getCurrentRecording,
-    pause,
-    setEffectsEngine
-  } = useProjectStore()
-
-  // Get the selected clip
-  const selectedClip = currentProject?.timeline.tracks
-    .flatMap(t => t.clips)
-    .find(c => c.id === selectedClipId) || null
-
-  // Get the recording for the selected clip
-  const clipRecording = selectedClip ?
-    currentProject?.recordings.find(r => r.id === selectedClip.recordingId) : null
-
-  const currentRecording = clipRecording || getCurrentRecording()
+  // Use the selected recording passed from parent
+  const currentRecording = selectedRecording
 
   // Main rendering function - simplified
   const renderFrame = useCallback(() => {
@@ -214,9 +215,6 @@ export function PreviewArea() {
     }
     effectsEngineRef.current.initializeFromRecording(currentRecording)
 
-    // Set effects engine in store for external access
-    setEffectsEngine(effectsEngineRef.current)
-
     // Initialize cursor renderer
     if (cursorRendererRef.current) {
       cursorRendererRef.current.dispose()
@@ -272,7 +270,7 @@ export function PreviewArea() {
   useEffect(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || !clipRecording) return
+    if (!video || !canvas || !currentRecording) return
 
     // Clean up previous effects
     if (cursorCanvasRef.current) {
@@ -290,14 +288,14 @@ export function PreviewArea() {
 
     // Load video - all complexity handled by manager
     const loadVideo = async () => {
-      const blobUrl = await globalBlobManager.ensureVideoLoaded(clipRecording.id, clipRecording.filePath)
+      const blobUrl = await globalBlobManager.ensureVideoLoaded(currentRecording.id, currentRecording.filePath)
       
       if (blobUrl && video.src !== blobUrl) {
         video.src = blobUrl
         videoBlobUrlRef.current = blobUrl
         video.load()
       } else if (!blobUrl) {
-        console.error('No video available for:', clipRecording.id)
+        console.error('No video available for:', currentRecording.id)
       }
     }
 
@@ -352,7 +350,7 @@ export function PreviewArea() {
       // Blob manager handles cleanup automatically
       videoBlobUrlRef.current = null
     }
-  }, [clipRecording?.id, clipRecording?.filePath, initializeEffects])
+  }, [currentRecording?.id, currentRecording?.filePath, initializeEffects])
 
   // Handle playback state changes - simplified
   useEffect(() => {
@@ -479,20 +477,9 @@ export function PreviewArea() {
     const video = videoRef.current
     if (!video || !selectedClip) return
 
-    const handleVideoEnded = () => {
-      const clipEnd = selectedClip.startTime + selectedClip.duration
-
-      if (clipEnd >= (currentProject?.timeline.duration || 0)) {
-        pause()
-      }
-    }
-
-    video.addEventListener('ended', handleVideoEnded)
-
-    return () => {
-      video.removeEventListener('ended', handleVideoEnded)
-    }
-  }, [isPlaying, isVideoLoaded, selectedClip, currentProject, pause])
+    // Video end handling is now managed by WorkspaceManager
+    // which controls the overall playback state
+  }, [isPlaying, isVideoLoaded, selectedClip])
 
   // Re-render when effects settings change
   useEffect(() => {
@@ -531,7 +518,7 @@ export function PreviewArea() {
     <div className="relative w-full h-full overflow-hidden">
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="relative w-full h-full flex items-center justify-center">
-          {clipRecording && (
+          {currentRecording && (
             <canvas
               ref={canvasRef}
               className="shadow-2xl"
@@ -551,7 +538,7 @@ export function PreviewArea() {
             playsInline
             crossOrigin="anonymous"
           />
-          {!clipRecording && (
+          {!currentRecording && (
             <div className="text-gray-500 text-center p-8">
               <p className="text-lg font-medium mb-2">No recording selected</p>
               <p className="text-sm">Select a recording from the library to preview</p>

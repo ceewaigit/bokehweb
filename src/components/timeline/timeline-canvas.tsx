@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { cn } from '@/lib/utils'
-import type { Clip } from '@/types/project'
+import type { Clip, Project } from '@/types/project'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -21,19 +21,39 @@ import { useTimelineKeyboard } from './use-timeline-keyboard'
 
 interface TimelineCanvasProps {
   className?: string
+  currentProject?: Project | null
+  currentTime?: number
+  isPlaying?: boolean
+  zoom?: number
+  onPlay?: () => void
+  onPause?: () => void
+  onSeek?: (time: number) => void
+  onClipSelect?: (clipId: string) => void
+  onZoomChange?: (zoom: number) => void
 }
 
-export function TimelineCanvas({ className = "h-full w-full" }: TimelineCanvasProps) {
+export function TimelineCanvas({ 
+  className = "h-full w-full",
+  currentProject: propCurrentProject,
+  currentTime: propCurrentTime,
+  isPlaying: propIsPlaying,
+  zoom: propZoom,
+  onPlay: propOnPlay,
+  onPause: propOnPause,
+  onSeek: propOnSeek,
+  onClipSelect: propOnClipSelect,
+  onZoomChange: propOnZoomChange
+}: TimelineCanvasProps) {
   const {
-    currentProject,
+    currentProject: storeCurrentProject,
     selectedClips,
-    currentTime,
-    isPlaying,
-    zoom,
-    seek,
-    play,
-    pause,
-    setZoom,
+    currentTime: storeCurrentTime,
+    isPlaying: storeIsPlaying,
+    zoom: storeZoom,
+    seek: storeSeek,
+    play: storePlay,
+    pause: storePause,
+    setZoom: storeSetZoom,
     selectClip,
     removeClip,
     updateClip,
@@ -47,6 +67,16 @@ export function TimelineCanvas({ className = "h-full w-full" }: TimelineCanvasPr
     trimClipEnd,
     duplicateClip
   } = useProjectStore()
+  
+  // Use props if provided, otherwise fall back to store
+  const currentProject = propCurrentProject ?? storeCurrentProject
+  const currentTime = propCurrentTime ?? storeCurrentTime
+  const isPlaying = propIsPlaying ?? storeIsPlaying
+  const zoom = propZoom ?? storeZoom
+  const play = propOnPlay ?? storePlay
+  const pause = propOnPause ?? storePause
+  const seek = propOnSeek ?? storeSeek
+  const setZoom = propOnZoomChange ?? storeSetZoom
 
   const [stageSize, setStageSize] = useState({ width: 800, height: 400 })
   const [scrollLeft, setScrollLeft] = useState(0)
@@ -119,8 +149,11 @@ export function TimelineCanvas({ className = "h-full w-full" }: TimelineCanvasPr
 
   // Handle clip selection
   const handleClipSelect = useCallback((clipId: string) => {
-    selectClip(clipId)
-  }, [selectClip])
+    if (propOnClipSelect) {
+      propOnClipSelect(clipId)
+    }
+    selectClip(clipId) // Still need for multi-selection tracking
+  }, [propOnClipSelect, selectClip])
 
   // Handle clip drag
   const handleClipDragEnd = useCallback((clipId: string, newStartTime: number) => {
