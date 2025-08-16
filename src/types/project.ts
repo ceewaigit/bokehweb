@@ -380,6 +380,8 @@ export async function saveRecordingWithProject(
           
           video.onseeked = () => {
             console.log('After seeking, duration is:', video.duration)
+            // Remove the event listener to prevent infinite loop
+            video.onseeked = null
             video.currentTime = 0 // Reset to start
             resolve()
           }
@@ -437,10 +439,10 @@ export async function saveRecordingWithProject(
         modifiers: []
       }))
 
-    // Add recording to project
+    // Add recording to project - store just the filename, not absolute path
     const recording: Recording = {
       id: recordingId,
-      filePath: videoFilePath,
+      filePath: videoFileName, // Store just the filename, not the full path
       duration,
       width,
       height,

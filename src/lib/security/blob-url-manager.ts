@@ -204,14 +204,21 @@ export class BlobURLManager {
       return null
     }
 
-    if (!window.electronAPI?.readLocalFile) {
+    if (!window.electronAPI?.readLocalFile || !window.electronAPI?.getRecordingsDirectory) {
       logger.error('Electron API not available')
       return null
     }
 
     try {
-      logger.debug(`Loading video: ${recordingId}`)
-      const result = await window.electronAPI.readLocalFile(filePath)
+      // If path is not absolute, construct full path using recordings directory
+      let fullPath = filePath
+      if (!filePath.startsWith('/') && !filePath.startsWith('C:\\')) {
+        const recordingsDir = await window.electronAPI.getRecordingsDirectory()
+        fullPath = `${recordingsDir}/${filePath}`
+      }
+      
+      logger.debug(`Loading video: ${recordingId} from ${fullPath}`)
+      const result = await window.electronAPI.readLocalFile(fullPath)
       
       if (!result?.success || !result.data) {
         logger.error(`Failed to read file: ${filePath}`)

@@ -116,7 +116,7 @@ export function WorkspaceManager() {
                         setLoadingMessage('Detecting video duration...')
                         console.log('⚠️ Recording has invalid duration, detecting from video...')
 
-                        // Use blob manager to load the video safely
+                        // Use blob manager to load the video safely (it handles relative paths)
                         const blobUrl = await globalBlobManager.loadVideo(rec.id, rec.filePath)
                         
                         if (blobUrl) {
