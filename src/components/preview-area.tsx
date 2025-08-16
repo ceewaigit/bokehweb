@@ -530,14 +530,7 @@ export function PreviewArea({
               }}
             />
           )}
-          <video
-            ref={videoRef}
-            className="hidden"
-            style={{ display: 'none' }}
-            muted
-            playsInline
-            crossOrigin="anonymous"
-          />
+          {/* Video element is now managed by parent WorkspaceManager */}
           {!currentRecording && (
             <div className="text-gray-500 text-center p-8">
               <p className="text-lg font-medium mb-2">No recording selected</p>

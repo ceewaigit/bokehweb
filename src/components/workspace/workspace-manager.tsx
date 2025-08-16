@@ -87,7 +87,13 @@ export function WorkspaceManager() {
 
     // Update video time continuously during playback
     const syncInterval = setInterval(() => {
-      if (!isPlaying) return
+      if (!isPlaying || !video) return
+      
+      // Don't try to play if video isn't ready
+      if (video.readyState < 2) {
+        console.log('Video not ready during sync, skipping...')
+        return
+      }
       
       const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
       const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
@@ -101,7 +107,9 @@ export function WorkspaceManager() {
         
         // Ensure video is playing
         if (video.paused) {
-          video.play().catch(console.error)
+          video.play().catch(error => {
+            console.error('Failed to resume video during sync:', error)
+          })
         }
       } else {
         // Reached end of clip
@@ -118,6 +126,63 @@ export function WorkspaceManager() {
     }
   }, [isPlaying, currentTime, selectedClip, handlePause])
 
+  // Monitor video loading state
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    const handleLoadedMetadata = () => {
+      console.log('Video loaded and ready:', {
+        duration: video.duration,
+        dimensions: `${video.videoWidth}x${video.videoHeight}`,
+        readyState: video.readyState
+      })
+    }
+
+    const handleError = (e: Event) => {
+      console.error('Video error:', e)
+      const videoError = video.error
+      if (videoError) {
+        console.error('Video error details:', {
+          code: videoError.code,
+          message: videoError.message
+        })
+      }
+    }
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata)
+    video.addEventListener('error', handleError)
+
+    return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+      video.removeEventListener('error', handleError)
+    }
+  }, [])
+
+  // Load video when recording changes
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !selectedRecording) return
+
+    const loadVideo = async () => {
+      console.log('Loading video for recording:', selectedRecording.id)
+      const blobUrl = await globalBlobManager.ensureVideoLoaded(
+        selectedRecording.id, 
+        selectedRecording.filePath
+      )
+      
+      if (blobUrl) {
+        console.log('Got blob URL:', blobUrl)
+        video.src = blobUrl
+        video.load()
+      } else {
+        console.error('Failed to get blob URL for:', selectedRecording.id)
+      }
+    }
+
+    loadVideo()
+  }, [selectedRecording])
+
   // Debug: Track project changes
   useEffect(() => {
     console.log('🔍 WorkspaceManager: Project changed:', currentProject?.name || 'null')
@@ -131,7 +196,32 @@ export function WorkspaceManager() {
       return
     }
 
-    // Map timeline time to video time
+    // Check if video is ready
+    if (video.readyState < 2) { // HAVE_CURRENT_DATA
+      console.log('Video not ready, waiting for load...')
+      
+      // Wait for video to be ready, then play
+      const handleCanPlay = () => {
+        video.removeEventListener('canplay', handleCanPlay)
+        
+        // Map timeline time to video time
+        const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
+        const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
+        video.currentTime = sourceTime
+        
+        video.play().then(() => {
+          storePlay() // Update store state
+        }).catch(error => {
+          console.error('Failed to play video:', error)
+          storePause()
+        })
+      }
+      
+      video.addEventListener('canplay', handleCanPlay)
+      return
+    }
+
+    // Video is ready, play immediately
     const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
     const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
     
@@ -433,6 +523,15 @@ export function WorkspaceManager() {
       <ExportDialog
         isOpen={isExportOpen}
         onClose={handleCloseExport}
+      />
+      
+      {/* Hidden video element for playback control */}
+      <video
+        ref={videoRef}
+        style={{ display: 'none' }}
+        muted
+        playsInline
+        crossOrigin="anonymous"
       />
     </div>
   )
