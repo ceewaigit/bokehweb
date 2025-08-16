@@ -241,80 +241,93 @@ export function WorkspaceManager() {
       return
     }
 
-    // Give React time to render the video element
-    const timeoutId = setTimeout(() => {
-      const video = videoRef.current
-      if (!video) {
-        console.error('Video element not found after mount!', {
-          videoRef: videoRef,
-          recording: selectedRecording?.id,
-          isMounted: isMounted
-        })
+    const loadVideo = async () => {
+      // Try multiple times to get the video element
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      const tryGetVideo = async () => {
+        const video = videoRef.current;
+        
+        if (!video && attempts < maxAttempts) {
+          attempts++;
+          console.log(`Waiting for video element... attempt ${attempts}/${maxAttempts}`);
+          await new Promise(resolve => setTimeout(resolve, 100));
+          return tryGetVideo();
+        }
+        
+        if (!video) {
+          console.error('Video element not found after multiple attempts!', {
+            videoRef: videoRef,
+            recording: selectedRecording?.id,
+            isMounted: isMounted,
+            attempts: attempts
+          })
+          return;
+        }
+        
+        return video;
+      }
+      
+      const video = await tryGetVideo();
+      if (!video) return;
+      
+      console.log('Loading video for recording:', {
+        id: selectedRecording.id,
+        filePath: selectedRecording.filePath,
+        videoElement: !!video
+      })
+      
+      if (!selectedRecording.filePath) {
+        console.error('Recording has no filePath:', selectedRecording)
         return
       }
-
-      const loadVideo = async () => {
-        console.log('Loading video for recording:', {
-          id: selectedRecording.id,
-          filePath: selectedRecording.filePath,
-          videoElement: !!video
+      
+      const blobUrl = await globalBlobManager.ensureVideoLoaded(
+        selectedRecording.id, 
+        selectedRecording.filePath
+      )
+      
+      if (blobUrl) {
+        console.log('Got blob URL, setting on video element:', blobUrl)
+        console.log('Video element before setting src:', {
+          currentSrc: video.src,
+          readyState: video.readyState,
+          videoElement: video,
+          isConnected: video.isConnected
         })
         
-        if (!selectedRecording.filePath) {
-          console.error('Recording has no filePath:', selectedRecording)
+        // Ensure video element is in DOM
+        if (!video.isConnected) {
+          console.error('Video element is not connected to DOM!')
           return
         }
         
-        const blobUrl = await globalBlobManager.ensureVideoLoaded(
-          selectedRecording.id, 
-          selectedRecording.filePath
-        )
+        video.src = blobUrl
+        video.load()
         
-        if (blobUrl) {
-          console.log('Got blob URL, setting on video element:', blobUrl)
-          console.log('Video element before setting src:', {
-            currentSrc: video.src,
+        // Check after setting with a small delay
+        setTimeout(() => {
+          console.log('Video element after setting src (delayed check):', {
+            newSrc: video.src,
             readyState: video.readyState,
-            videoElement: video,
-            isConnected: video.isConnected
+            error: video.error,
+            networkState: video.networkState,
+            currentSrc: video.currentSrc
           })
-          
-          // Ensure video element is in DOM
-          if (!video.isConnected) {
-            console.error('Video element is not connected to DOM!')
-            return
-          }
-          
-          video.src = blobUrl
-          video.load()
-          
-          // Check after setting with a small delay
-          setTimeout(() => {
-            console.log('Video element after setting src (delayed check):', {
-              newSrc: video.src,
-              readyState: video.readyState,
-              error: video.error,
-              networkState: video.networkState,
-              currentSrc: video.currentSrc
-            })
-          }, 100)
-          
-          // Initialize effects after video is loaded
-          video.addEventListener('loadedmetadata', () => {
-            console.log('Video metadata loaded, initializing effects')
-            initializeEffects()
-          }, { once: true })
-        } else {
-          console.error('Failed to get blob URL for:', selectedRecording.id)
-        }
+        }, 100)
+        
+        // Initialize effects after video is loaded
+        video.addEventListener('loadedmetadata', () => {
+          console.log('Video metadata loaded, initializing effects')
+          initializeEffects()
+        }, { once: true })
+      } else {
+        console.error('Failed to get blob URL for:', selectedRecording.id)
       }
-
-      loadVideo()
-    }, 0)
-
-    return () => {
-      clearTimeout(timeoutId)
     }
+
+    loadVideo()
   }, [selectedRecording?.id, selectedRecording?.filePath, initializeEffects, isMounted])
 
   // Re-initialize effects when clip effects change
@@ -610,100 +623,85 @@ export function WorkspaceManager() {
           }}
         />
         </div>
-        
-        {/* Hidden video element - needs to be always present for loading */}
-        <video
-          ref={videoRef}
-          style={{ 
-            position: 'absolute',
-            width: '1px',
-            height: '1px',
-            left: '-9999px',
-            top: '-9999px',
-            visibility: 'hidden'
-          }}
-          muted
-          playsInline
-          crossOrigin="anonymous"
-          preload="auto"
-        />
       </>
     )
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-background" style={{ width: '100vw', height: '100vh' }}>
-      {/* Top Toolbar - 8vh height */}
-      <div className="flex-shrink-0 border-b bg-card/50 overflow-hidden" style={{ height: '8vh', minHeight: '56px' }}>
-        <Toolbar
-          project={currentProject}
-          onToggleProperties={handleToggleProperties}
-          onExport={handleExport}
-          onNewProject={() => newProject('New Project')}
-          onSaveProject={saveCurrentProject}
-          onOpenProject={openProject}
-        />
-      </div>
-
-      {/* Main Content Area - 92vh height */}
-      <div className="flex" style={{ height: '92vh' }}>
-        {/* Main Editor Section */}
-        <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
-          {/* Preview Area - 55vh height */}
-          <div className="bg-background border-b overflow-hidden" style={{ height: '55vh' }}>
-            <PreviewArea 
-              videoRef={videoRef}
-              canvasRef={canvasRef}
-              effectsEngine={effectsEngineRef.current}
-              cursorRenderer={cursorRendererRef.current}
-              backgroundRenderer={backgroundRendererRef.current}
-              selectedClip={selectedClip}
-              selectedRecording={selectedRecording}
-              currentTime={currentTime}
-              isPlaying={isPlaying}
-            />
-          </div>
-
-          {/* Timeline Section - 37vh height */}
-          <div className="bg-card/50 overflow-hidden" style={{ height: '37vh' }}>
-            <TimelineCanvas 
-              className="h-full w-full"
-              currentProject={currentProject}
-              currentTime={currentTime}
-              isPlaying={isPlaying}
-              zoom={zoom}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onSeek={handleSeek}
-              onClipSelect={handleClipSelect}
-              onZoomChange={setZoom}
-            />
-          </div>
+    <>
+      <div className="fixed inset-0 flex flex-col bg-background" style={{ width: '100vw', height: '100vh' }}>
+        {/* Top Toolbar - 8vh height */}
+        <div className="flex-shrink-0 border-b bg-card/50 overflow-hidden" style={{ height: '8vh', minHeight: '56px' }}>
+          <Toolbar
+            project={currentProject}
+            onToggleProperties={handleToggleProperties}
+            onExport={handleExport}
+            onNewProject={() => newProject('New Project')}
+            onSaveProject={saveCurrentProject}
+            onOpenProject={openProject}
+          />
         </div>
 
-        {/* Properties Panel - Fixed width when open */}
-        {isPropertiesOpen && (
-          <div
-            className="bg-card border-l overflow-hidden"
-            style={{ width: `${propertiesPanelWidth}px`, height: '92vh' }}
-          >
-            <EffectsSidebar 
-              className="h-full w-full"
-              selectedClip={selectedClip}
-              effects={selectedClip?.effects}
-              onEffectChange={handleEffectChange}
-            />
-          </div>
-        )}
-      </div>
+        {/* Main Content Area - 92vh height */}
+        <div className="flex" style={{ height: '92vh' }}>
+          {/* Main Editor Section */}
+          <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
+            {/* Preview Area - 55vh height */}
+            <div className="bg-background border-b overflow-hidden" style={{ height: '55vh' }}>
+              <PreviewArea 
+                videoRef={videoRef}
+                canvasRef={canvasRef}
+                effectsEngine={effectsEngineRef.current}
+                cursorRenderer={cursorRendererRef.current}
+                backgroundRenderer={backgroundRendererRef.current}
+                selectedClip={selectedClip}
+                selectedRecording={selectedRecording}
+                currentTime={currentTime}
+                isPlaying={isPlaying}
+              />
+            </div>
 
-      {/* Dialogs and Modals */}
-      <ExportDialog
-        isOpen={isExportOpen}
-        onClose={handleCloseExport}
-      />
+            {/* Timeline Section - 37vh height */}
+            <div className="bg-card/50 overflow-hidden" style={{ height: '37vh' }}>
+              <TimelineCanvas 
+                className="h-full w-full"
+                currentProject={currentProject}
+                currentTime={currentTime}
+                isPlaying={isPlaying}
+                zoom={zoom}
+                onPlay={handlePlay}
+                onPause={handlePause}
+                onSeek={handleSeek}
+                onClipSelect={handleClipSelect}
+                onZoomChange={setZoom}
+              />
+            </div>
+          </div>
+
+          {/* Properties Panel - Fixed width when open */}
+          {isPropertiesOpen && (
+            <div
+              className="bg-card border-l overflow-hidden"
+              style={{ width: `${propertiesPanelWidth}px`, height: '92vh' }}
+            >
+              <EffectsSidebar 
+                className="h-full w-full"
+                selectedClip={selectedClip}
+                effects={selectedClip?.effects}
+                onEffectChange={handleEffectChange}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Dialogs and Modals */}
+        <ExportDialog
+          isOpen={isExportOpen}
+          onClose={handleCloseExport}
+        />
+      </div>
       
-      {/* Hidden video element for playback control - must be in DOM for loading */}
+      {/* Hidden video element for playback control - must be OUTSIDE and ALWAYS present */}
       <video
         ref={videoRef}
         style={{ 
@@ -719,6 +717,6 @@ export function WorkspaceManager() {
         crossOrigin="anonymous"
         preload="auto"
       />
-    </div>
+    </>
   )
 }
