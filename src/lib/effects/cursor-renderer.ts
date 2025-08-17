@@ -1,4 +1,5 @@
 import type { MouseEvent } from '@/types/project'
+import { CursorType, electronToCustomCursor, getCursorImagePath, CURSOR_HOTSPOTS } from './cursor-types'
 
 interface CursorEvent extends Omit<MouseEvent, 'x' | 'y'> {
   mouseX: number
@@ -6,6 +7,7 @@ interface CursorEvent extends Omit<MouseEvent, 'x' | 'y'> {
   eventType: 'mouse' | 'click' | 'scroll' | 'key'
   screenWidth: number
   screenHeight: number
+  cursorType?: string  // Track cursor type for each event
 }
 
 interface CursorOptions {
@@ -28,7 +30,9 @@ interface CursorPoint {
 export class CursorRenderer {
   private canvas: HTMLCanvasElement | null = null
   private ctx: CanvasRenderingContext2D | null = null
-  private cursorImage: HTMLImageElement
+  private cursorImages: Map<CursorType, HTMLImageElement> = new Map()
+  private currentCursorType: CursorType = CursorType.ARROW
+  private currentCursorImage: HTMLImageElement | null = null
   private events: CursorEvent[] = []
   private sortedPoints: CursorPoint[] = []
   private clickAnimations: Map<string, {
@@ -71,45 +75,27 @@ export class CursorRenderer {
       ...options
     }
 
-    // Create cursor image
-    this.cursorImage = new Image()
-    this.cursorImage.src = this.createCursorDataURL()
+    // Preload all cursor images
+    this.preloadCursorImages()
   }
 
-  private createCursorDataURL(): string {
-    const size = (this.options.size || 2.5) * 24 // Increased base size from 20 to 24
-    const color = this.options.color || '#000000'
-
-    // High-quality macOS-style cursor with better anti-aliasing
-    const svg = `
-      <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-        <defs>
-          <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="1.5"/>
-            <feOffset dx="0" dy="1" result="offsetblur"/>
-            <feFlood flood-color="#000000" flood-opacity="0.3"/>
-            <feComposite in2="offsetblur" operator="in"/>
-            <feMerge>
-              <feMergeNode/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
-        </defs>
+  private preloadCursorImages() {
+    // Preload all cursor types for smooth transitions
+    const cursorTypes = Object.values(CursorType)
+    
+    cursorTypes.forEach(cursorType => {
+      const img = new Image()
+      img.src = getCursorImagePath(cursorType)
+      
+      img.onload = () => {
+        this.cursorImages.set(cursorType, img)
         
-        <path d="M4,4 L4,19 L7.5,16 L11,22 L14,21 L10.5,15 L16,15 Z" 
-              fill="white" 
-              filter="url(#shadow)"
-              stroke="${color}" 
-              stroke-width="0.5"
-              stroke-linejoin="round"
-              stroke-linecap="round"/>
-        
-        <path d="M5.5,6 L5.5,15.5 L8,13.5 L10.5,19 L11.5,18.5 L9,13 L13,13 Z" 
-              fill="${color}"
-              opacity="0.95"/>
-      </svg>
-    `
-    return `data:image/svg+xml;base64,${btoa(svg)}`
+        // Set default cursor once arrow is loaded
+        if (cursorType === CursorType.ARROW && !this.currentCursorImage) {
+          this.currentCursorImage = img
+        }
+      }
+    })
   }
 
   attachToVideo(video: HTMLVideoElement, events: CursorEvent[]): HTMLCanvasElement {
@@ -145,13 +131,11 @@ export class CursorRenderer {
 
   // Update video positioning info for proper cursor alignment
   updateVideoPosition(x: number, y: number, width: number, height: number) {
-    console.log('📍 updateVideoPosition called:', { x, y, width, height })
     this.videoOffset = { x, y, width, height }
   }
 
   // Set video dimensions for proper normalization
   setVideoDimensions(width: number, height: number) {
-    console.log('📐 Setting recording dimensions:', { width, height })
     this.recordingWidth = width
     this.recordingHeight = height
   }
@@ -165,16 +149,6 @@ export class CursorRenderer {
     // Convert events to sorted points with velocity calculation
     // Store as normalized coordinates (0-1) for resolution independence
     
-    // Log first few events to understand the data
-    if (this.events.length > 0) {
-      console.log('🔍 Raw cursor events (first 3):', this.events.slice(0, 3).map(e => ({
-        mouseX: e.mouseX,
-        mouseY: e.mouseY,
-        screenW: e.screenWidth,
-        screenH: e.screenHeight,
-        timestamp: e.timestamp
-      })))
-    }
     
     this.sortedPoints = this.events
       .map((event, index) => {
@@ -253,6 +227,9 @@ export class CursorRenderer {
     // Get interpolated position using Catmull-Rom spline (normalized 0-1)
     const targetPos = this.getInterpolatedPosition(videoTime)
     if (!targetPos) return
+    
+    // Update cursor type based on current event
+    this.updateCursorType(videoTime)
 
     // Convert normalized coordinates (0-1) to video space coordinates
     // This is resolution-independent, similar to how zoom works
@@ -296,23 +273,6 @@ export class CursorRenderer {
       }
     }
 
-    // Log coordinate transformation for debugging (only every 30 frames to reduce spam)
-    if (this.frameCount % 30 === 0) {
-      console.log('🎯 Cursor Transform:', {
-        videoTime: videoTime.toFixed(0),
-        normalized: { x: targetPos.x.toFixed(3), y: targetPos.y.toFixed(3) },
-        videoSpace: { x: videoX.toFixed(1), y: videoY.toFixed(1) },
-        zoomScale: zoomScale.toFixed(2),
-        video: { w: this.video.videoWidth, h: this.video.videoHeight },
-        canvas: { w: this.canvas.width, h: this.canvas.height },
-        videoOffset: { 
-          x: this.videoOffset.x.toFixed(1), 
-          y: this.videoOffset.y.toFixed(1), 
-          w: this.videoOffset.width.toFixed(1), 
-          h: this.videoOffset.height.toFixed(1) 
-        }
-      })
-    }
 
     // Calculate scaling to map from video space to canvas space
     const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
@@ -329,14 +289,6 @@ export class CursorRenderer {
     const smoothingFactor = this.options.smoothing ? 0.25 : 1
     const scaledTargetX = this.videoOffset.x + (videoX * scaleX)
     const scaledTargetY = this.videoOffset.y + (videoY * scaleY)
-    
-    if (this.frameCount % 30 === 0) {
-      console.log('🎯 Scaled Target:', {
-        scaleX: scaleX.toFixed(2),
-        scaleY: scaleY.toFixed(2),
-        scaledTarget: { x: scaledTargetX.toFixed(1), y: scaledTargetY.toFixed(1) }
-      })
-    }
     this.currentPosition.x += (scaledTargetX - this.currentPosition.x) * smoothingFactor
     this.currentPosition.y += (scaledTargetY - this.currentPosition.y) * smoothingFactor
     
@@ -477,29 +429,56 @@ export class CursorRenderer {
     // Draw trail with decreasing opacity
     this.trailPoints.forEach((point) => {
       this.ctx!.globalAlpha = point.opacity * 0.3
-      const cursorSize = (this.options.size || 2.5) * 24
-      const hotspotX = (4 / 24) * cursorSize
-      const hotspotY = (4 / 24) * cursorSize
-      this.ctx!.drawImage(
-        this.cursorImage,
-        Math.round(point.x - hotspotX),
-        Math.round(point.y - hotspotY)
-      )
+      
+      if (this.currentCursorImage) {
+        const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
+        const scale = this.options.size || 2.5
+        const hotspotX = hotspot.x * scale
+        const hotspotY = hotspot.y * scale
+        const cursorWidth = this.currentCursorImage.width * scale
+        const cursorHeight = this.currentCursorImage.height * scale
+        
+        this.ctx!.drawImage(
+          this.currentCursorImage,
+          Math.round(point.x - hotspotX),
+          Math.round(point.y - hotspotY),
+          cursorWidth,
+          cursorHeight
+        )
+      }
     })
     
     this.ctx.restore()
   }
 
+  private updateCursorType(videoTime: number) {
+    // Find the event closest to current video time
+    const currentEvent = this.events.find(e => 
+      Math.abs(e.timestamp - videoTime) < 50
+    )
+    
+    if (currentEvent?.cursorType) {
+      const newCursorType = electronToCustomCursor(currentEvent.cursorType)
+      
+      if (newCursorType !== this.currentCursorType) {
+        this.currentCursorType = newCursorType
+        this.currentCursorImage = this.cursorImages.get(newCursorType) || this.currentCursorImage
+      }
+    }
+  }
+
   private renderCursor() {
-    if (!this.ctx || !this.cursorImage.complete) return
+    if (!this.ctx || !this.currentCursorImage || !this.currentCursorImage.complete) return
 
     this.ctx.save()
     
-    // Proper hotspot positioning - cursor tip should align with actual mouse position
-    // For macOS cursor, the hotspot is at approximately (4, 4) in the 24x24 viewBox
-    const cursorSize = (this.options.size || 2.5) * 24
-    const hotspotX = (4 / 24) * cursorSize // Scale hotspot based on actual cursor size
-    const hotspotY = (4 / 24) * cursorSize
+    // Get proper hotspot for current cursor type
+    const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
+    const scale = this.options.size || 2.5
+    
+    // Scale hotspot based on cursor size
+    const hotspotX = hotspot.x * scale
+    const hotspotY = hotspot.y * scale
     
     // Constrain cursor position to video bounds if video offset is set
     let renderX = this.currentPosition.x
@@ -516,7 +495,11 @@ export class CursorRenderer {
     
     // Use subpixel rendering
     this.ctx.imageSmoothingEnabled = true
-    this.ctx.drawImage(this.cursorImage, x, y)
+    
+    // Draw cursor image with proper scaling
+    const cursorWidth = this.currentCursorImage.width * scale
+    const cursorHeight = this.currentCursorImage.height * scale
+    this.ctx.drawImage(this.currentCursorImage, x, y, cursorWidth, cursorHeight)
     
     this.ctx.restore()
   }
@@ -693,5 +676,7 @@ export class CursorRenderer {
     this.sortedPoints = []
     this.clickAnimations.clear()
     this.trailPoints = []
+    this.cursorImages.clear()
+    this.currentCursorImage = null
   }
 }

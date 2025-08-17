@@ -8,6 +8,8 @@ let clickDetectionActive = false
 let lastMousePosition: { x: number; y: number; time: number } | null = null
 let mouseHistory: Array<{ x: number; y: number; time: number }> = []
 let uiohookStarted = false
+let currentCursorType = 'default'  // Track current cursor type
+let targetWindow: BrowserWindow | null = null  // Track the window for cursor-changed events
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -37,6 +39,21 @@ export function registerMouseTrackingHandlers(): void {
 
       mouseEventSender = event.sender
       isMouseTracking = true
+
+      // Get the BrowserWindow from the sender
+      targetWindow = BrowserWindow.fromWebContents(event.sender)
+      
+      // Set up cursor-changed event listener for cursor type detection
+      if (targetWindow) {
+        const handleCursorChange = (_event: any, type: string) => {
+          currentCursorType = type
+        }
+        
+        // Remove any existing listener first
+        targetWindow.webContents.removeListener('cursor-changed', handleCursorChange)
+        // Add the new listener
+        targetWindow.webContents.on('cursor-changed', handleCursorChange)
+      }
 
       // Start click detection using global mouse hooks
       startClickDetection()
@@ -117,7 +134,8 @@ export function registerMouseTrackingHandlers(): void {
               velocity,
               acceleration,
               displayBounds: positionData.displayBounds,
-              scaleFactor: positionData.scaleFactor
+              scaleFactor: positionData.scaleFactor,
+              cursorType: currentCursorType  // Include current cursor type
             } as MousePosition)
 
             lastPosition = currentPosition
@@ -127,7 +145,6 @@ export function registerMouseTrackingHandlers(): void {
         }
       }, intervalMs)
 
-      console.log(`🖱️ Mouse tracking started (interval: ${intervalMs}ms)`)
 
       return {
         success: true,
@@ -149,16 +166,22 @@ export function registerMouseTrackingHandlers(): void {
 
       isMouseTracking = false
 
+      // Remove cursor-changed listener
+      if (targetWindow) {
+        targetWindow.webContents.removeAllListeners('cursor-changed')
+        targetWindow = null
+      }
+
       // Stop click detection
       stopClickDetection()
 
       // Reset mouse history
       mouseHistory = []
       lastMousePosition = null
+      currentCursorType = 'default'
 
       mouseEventSender = null
 
-      console.log('🖱️ Mouse tracking stopped')
       return { success: true }
     } catch (error: any) {
       console.error('Error stopping mouse tracking:', error)
@@ -200,7 +223,6 @@ function startClickDetection(): void {
     if (!uiohookStarted) {
       uIOhook.start()
       uiohookStarted = true
-      console.log('🖱️ uiohook started for global mouse tracking')
     }
 
     // Register global mouse click handler
@@ -218,10 +240,9 @@ function startClickDetection(): void {
         timestamp: Date.now(),
         button: event.button === 1 ? 'left' : event.button === 2 ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,
-        scaleFactor: scaleFactor
+        scaleFactor: scaleFactor,
+        cursorType: currentCursorType  // Include current cursor type
       })
-      
-      console.log(`🖱️ Global click detected at (${event.x}, ${event.y}), button: ${event.button}`)
     }
 
     // Register the mouse down event listener
@@ -231,7 +252,6 @@ function startClickDetection(): void {
     // Store the handler for cleanup
     (global as any).uiohookMouseHandler = handleMouseDown
 
-    console.log('🖱️ Click detection started (global mouse hooks enabled)')
   } catch (error) {
     console.error('❌ Failed to start global click detection:', error)
     clickDetectionActive = false
@@ -253,13 +273,10 @@ function stopClickDetection(): void {
     if (uiohookStarted) {
       uIOhook.stop()
       uiohookStarted = false
-      console.log('🖱️ uiohook stopped')
     }
   } catch (error) {
     console.error('❌ Error stopping click detection:', error)
   }
-  
-  console.log('🖱️ Click detection stopped')
 }
 
 export function cleanupMouseTracking(): void {

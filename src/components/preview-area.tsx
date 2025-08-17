@@ -74,89 +74,92 @@ export function PreviewArea({
     const currentTimeMs = video.currentTime * 1000
 
     try {
-      // Check if video is ready to draw
-      if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-        // Use refs for latest values without recreating callback
-        const currentClip = latestClipRef.current
-        const currentBackgroundRenderer = latestBackgroundRendererRef.current
-        const currentEffectsEngine = latestEffectsEngineRef.current
-        
-        // Use localEffects if available, otherwise use clip effects
-        const effectsToUse = localEffects || currentClip?.effects
-        
-        // Get background options from clip effects
-        const clipBg = effectsToUse?.background || {
-          type: 'gradient',
-          gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
-          padding: 80
-        }
+      // Use refs for latest values without recreating callback
+      const currentClip = latestClipRef.current
+      const currentBackgroundRenderer = latestBackgroundRendererRef.current
+      const currentEffectsEngine = latestEffectsEngineRef.current
+      
+      // Use localEffects if available, otherwise use clip effects
+      const effectsToUse = localEffects || currentClip?.effects
+      
+      // Get background options from clip effects
+      const clipBg = effectsToUse?.background || {
+        type: 'gradient',
+        gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
+        padding: 80
+      }
 
-        const bgOptions = {
-          type: clipBg.type === 'color' ? 'solid' : 
-                clipBg.type === 'none' ? 'solid' : 
-                clipBg.type as any,
-          color: clipBg.type === 'none' ? '#000000' : clipBg.color,
-          gradient: clipBg.gradient ? {
-            type: 'linear' as const,
-            colors: clipBg.gradient.colors,
-            angle: clipBg.gradient.angle
-          } : undefined,
-          image: clipBg.image,
-          blur: clipBg.blur,
-          padding: clipBg.padding || 80,
-          borderRadius: 16
-        }
+      const bgOptions = {
+        type: clipBg.type === 'color' ? 'solid' : 
+              clipBg.type === 'none' ? 'solid' : 
+              clipBg.type as any,
+        color: clipBg.type === 'none' ? '#000000' : clipBg.color,
+        gradient: clipBg.gradient ? {
+          type: 'linear' as const,
+          colors: clipBg.gradient.colors,
+          angle: clipBg.gradient.angle
+        } : undefined,
+        image: clipBg.image,
+        blur: clipBg.blur,
+        padding: clipBg.padding || 80,
+        borderRadius: 16
+      }
 
-        // Calculate video dimensions with padding
-        const padding = bgOptions.padding || 0
-        const videoAspect = video.videoWidth / video.videoHeight
-        const availableWidth = canvas.width - (padding * 2)
-        const availableHeight = canvas.height - (padding * 2)
-        const availableAspect = availableWidth / availableHeight
+      // Calculate video dimensions with padding
+      const padding = bgOptions.padding || 0
+      
+      // Check if video has valid dimensions, use defaults if not ready
+      const videoIsReady = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0
+      const videoWidth = videoIsReady ? video.videoWidth : 1920
+      const videoHeight = videoIsReady ? video.videoHeight : 1080
+      
+      const videoAspect = videoWidth / videoHeight
+      const availableWidth = canvas.width - (padding * 2)
+      const availableHeight = canvas.height - (padding * 2)
+      const availableAspect = availableWidth / availableHeight
 
-        let drawWidth, drawHeight, offsetX, offsetY
+      let drawWidth, drawHeight, offsetX, offsetY
 
-        if (videoAspect > availableAspect) {
-          // Video is wider
-          drawWidth = availableWidth
-          drawHeight = availableWidth / videoAspect
-          offsetX = padding
-          offsetY = padding + (availableHeight - drawHeight) / 2
-        } else {
-          // Video is taller
-          drawHeight = availableHeight
-          drawWidth = availableHeight * videoAspect
-          offsetX = padding + (availableWidth - drawWidth) / 2
-          offsetY = padding
-        }
-        
-        // Store video position for cursor renderer
-        videoPositionRef.current = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight }
-        
-        // Update cursor renderer if it exists
-        if (cursorRenderer) {
-          console.log('📍 Preview area updating cursor position:', { offsetX, offsetY, drawWidth, drawHeight })
-          cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
-        } else {
-          console.log('⚠️ No cursor renderer to update position')
-        }
+      if (videoAspect > availableAspect) {
+        // Video is wider
+        drawWidth = availableWidth
+        drawHeight = availableWidth / videoAspect
+        offsetX = padding
+        offsetY = padding + (availableHeight - drawHeight) / 2
+      } else {
+        // Video is taller
+        drawHeight = availableHeight
+        drawWidth = availableHeight * videoAspect
+        offsetX = padding + (availableWidth - drawWidth) / 2
+        offsetY = padding
+      }
+      
+      // Store video position for cursor renderer
+      videoPositionRef.current = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight }
+      
+      // Update cursor renderer if it exists
+      if (cursorRenderer && videoIsReady) {
+        cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
+      }
 
-        // Apply background first if background renderer exists
-        if (currentBackgroundRenderer) {
-          // Update background options if they changed
-          currentBackgroundRenderer.updateOptions(bgOptions)
+      // Apply background first if background renderer exists
+      if (currentBackgroundRenderer) {
+        // Update background options if they changed
+        currentBackgroundRenderer.updateOptions(bgOptions)
 
+        // Only draw video if it's ready
+        if (videoIsReady) {
           // Only use temp canvas if we have zoom effects
           const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
 
           if (hasZoomEffect && currentEffectsEngine) {
             // Reuse cached temporary canvas for zoom effects
             if (!tempCanvasRef.current ||
-              tempCanvasRef.current.width !== video.videoWidth ||
-              tempCanvasRef.current.height !== video.videoHeight) {
+              tempCanvasRef.current.width !== videoWidth ||
+              tempCanvasRef.current.height !== videoHeight) {
               tempCanvasRef.current = document.createElement('canvas')
-              tempCanvasRef.current.width = video.videoWidth
-              tempCanvasRef.current.height = video.videoHeight
+              tempCanvasRef.current.width = videoWidth
+              tempCanvasRef.current.height = videoHeight
               tempCtxRef.current = tempCanvasRef.current.getContext('2d', {
                 alpha: false,
                 desynchronized: true
@@ -217,18 +220,29 @@ export function PreviewArea({
             )
           }
         } else {
-          // Fallback: just draw video without background
-          ctx.fillStyle = '#000'
-          ctx.fillRect(0, 0, canvas.width, canvas.height)
-          ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
+          // Video not ready - just draw background without video frame
+          currentBackgroundRenderer.applyBackground(
+            ctx,
+            undefined, // No video frame
+            offsetX,
+            offsetY,
+            drawWidth,
+            drawHeight
+          )
         }
-      } else if (video.readyState < 2) {
-        // Don't clear canvas if video is still loading - keep last frame
-        // This prevents black flashes during playback
-        return
+      } else if (videoIsReady) {
+        // Fallback: just draw video without background (only if video is ready)
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
+      } else {
+        // Video not ready and no background renderer - show black screen
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
       }
     } catch (err) {
       // Don't clear canvas on error - keep last frame visible
+      console.warn('Error rendering frame:', err)
     }
   }, [localEffects]) // Include localEffects to update when it changes
 

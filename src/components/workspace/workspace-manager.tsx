@@ -263,12 +263,10 @@ export function WorkspaceManager() {
           // Wait for main canvas to be properly sized
           // If main canvas is still at default size, wait for preview area to size it
           if (mainCanvas.width === 300 && mainCanvas.height === 150) {
-            console.log('⚠️ Main canvas not ready, waiting for proper dimensions')
             // Re-initialize once canvas is ready
             setTimeout(() => {
               if (cursorRendererRef.current && canvasRef.current && 
                   canvasRef.current.width > 300 && canvasRef.current.height > 150) {
-                console.log('✅ Re-initializing cursor with proper canvas size')
                 initializeEffects(false)
               }
             }, 100)
@@ -278,7 +276,6 @@ export function WorkspaceManager() {
           // Match dimensions exactly - preview area handles sizing
           cursorCanvas.width = mainCanvas.width
           cursorCanvas.height = mainCanvas.height
-          console.log('🎯 Cursor canvas sized to:', { width: cursorCanvas.width, height: cursorCanvas.height })
           
           // Copy all styles from main canvas to cursor canvas
           cursorCanvas.style.position = 'absolute'
@@ -319,7 +316,6 @@ export function WorkspaceManager() {
             offsetY = padding
           }
           
-          console.log('🎯 Setting initial cursor video position:', { offsetX, offsetY, drawWidth, drawHeight })
           cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
         }
       }
@@ -449,7 +445,6 @@ export function WorkspaceManager() {
             offsetY = padding
           }
           
-          console.log('🔄 Updating cursor position on effect change:', { offsetX, offsetY, drawWidth, drawHeight })
           cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
         }
       }

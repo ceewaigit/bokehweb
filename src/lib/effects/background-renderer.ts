@@ -247,6 +247,10 @@ export class BackgroundRenderer {
           // Add overlay to darken
           ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
           ctx.fillRect(0, 0, width, height)
+        } else {
+          // No video frame available - show fallback background
+          ctx.fillStyle = '#1a1a1a'
+          ctx.fillRect(0, 0, width, height)
         }
         break
     }

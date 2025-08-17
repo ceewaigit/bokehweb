@@ -85,6 +85,7 @@ export interface MouseEvent {
   y: number
   screenWidth: number
   screenHeight: number
+  cursorType?: string  // Optional cursor type for rendering
 }
 
 export interface KeyboardEvent {
@@ -397,14 +398,11 @@ export async function saveRecordingWithProject(
     }
 
     const duration = video.duration * 1000 // Convert to milliseconds
-    console.log(`✅ Video duration detected: ${duration}ms (${(duration / 1000).toFixed(2)}s)`)
-    const width = video.videoWidth || 1920 // Use standard HD as fallback
-    const height = video.videoHeight || 1080
+    const width = video.videoWidth
+    const height = video.videoHeight
 
-    // Try to detect actual frame rate from video
-    // @ts-ignore - videoTracks may have getSettings
-    const videoStreamTrack = video.captureStream?.()?.getVideoTracks()?.[0]
-    const detectedFrameRate = videoStreamTrack?.getSettings?.()?.frameRate || 30 // Default to 30fps if unknown
+    // Use default frame rate since browser detection is unreliable
+    const detectedFrameRate = 30
 
     globalBlobManager.revoke(videoUrl)
 
