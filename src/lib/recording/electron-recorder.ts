@@ -179,6 +179,17 @@ export class ElectronRecorder {
             if (track.kind === 'audio' && this.isRecording) {
               logger.warn('Audio track ended but continuing video recording')
               this.stream?.removeTrack(track)
+            } else if (track.kind === 'video' && this.isRecording && this.mediaRecorder) {
+              // Video track ended unexpectedly - force save what we have
+              logger.error('Video track ended unexpectedly - forcing save')
+              // Trigger the onstop handler manually if recording
+              if (this.mediaRecorder.state === 'recording') {
+                try {
+                  this.mediaRecorder.stop()
+                } catch (e) {
+                  logger.error('Failed to stop MediaRecorder after video track ended:', e)
+                }
+              }
             }
           }
           
