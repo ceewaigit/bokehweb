@@ -262,11 +262,14 @@ const electronAPI = {
   }
 }
 
-// Expose the API to the renderer process
-if ((process as any).contextIsolated) {
+// Always expose the API using contextBridge for security
+// This works in both development and production
+try {
   contextBridge.exposeInMainWorld('electronAPI', electronAPI)
-} else {
-  // Development fallback when contextIsolation is disabled
+  console.log('Electron API exposed via contextBridge')
+} catch (error) {
+  // Fallback for cases where contextIsolation might be disabled
+  console.warn('Failed to use contextBridge, falling back to direct assignment:', error)
   ; (globalThis as any).electronAPI = electronAPI
 }
 
