@@ -148,7 +148,7 @@ export class CursorRenderer {
 
   private preprocessEvents() {
     // Convert events to sorted points with velocity calculation
-    // Transform from screen space to video space
+    // Store as normalized coordinates (0-1) for resolution independence
     
     // Log first few events to understand the data
     if (this.events.length > 0) {
@@ -159,17 +159,13 @@ export class CursorRenderer {
         screenH: e.screenHeight,
         timestamp: e.timestamp
       })))
-      console.log('🎬 Video dimensions:', {
-        width: this.video?.videoWidth,
-        height: this.video?.videoHeight
-      })
     }
     
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Convert from screen space to video space
-        const x = this.video ? (event.mouseX / event.screenWidth) * this.video.videoWidth : event.mouseX
-        const y = this.video ? (event.mouseY / event.screenHeight) * this.video.videoHeight : event.mouseY
+        // Normalize coordinates to 0-1 range (resolution independent)
+        const x = event.mouseX / event.screenWidth
+        const y = event.mouseY / event.screenHeight
         
         const point: CursorPoint = {
           x,
@@ -177,11 +173,11 @@ export class CursorRenderer {
           timestamp: event.timestamp
         }
         
-        // Calculate velocity from previous point
+        // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevX = this.video ? (prevEvent.mouseX / prevEvent.screenWidth) * this.video.videoWidth : prevEvent.mouseX
-          const prevY = this.video ? (prevEvent.mouseY / prevEvent.screenHeight) * this.video.videoHeight : prevEvent.mouseY
+          const prevX = prevEvent.mouseX / prevEvent.screenWidth
+          const prevY = prevEvent.mouseY / prevEvent.screenHeight
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {
@@ -238,15 +234,21 @@ export class CursorRenderer {
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
-    // Get interpolated position using Catmull-Rom spline
+    // Get interpolated position using Catmull-Rom spline (normalized 0-1)
     const targetPos = this.getInterpolatedPosition(videoTime)
     if (!targetPos) return
+
+    // Convert normalized coordinates (0-1) to video space coordinates
+    // This is resolution-independent, similar to how zoom works
+    const videoX = targetPos.x * this.video.videoWidth
+    const videoY = targetPos.y * this.video.videoHeight
 
     // Log coordinate transformation for debugging (only every 30 frames to reduce spam)
     if (this.frameCount % 30 === 0) {
       console.log('🎯 Cursor Transform:', {
         videoTime: videoTime.toFixed(0),
-        targetPos: { x: targetPos.x.toFixed(1), y: targetPos.y.toFixed(1) },
+        normalized: { x: targetPos.x.toFixed(3), y: targetPos.y.toFixed(3) },
+        videoSpace: { x: videoX.toFixed(1), y: videoY.toFixed(1) },
         video: { w: this.video.videoWidth, h: this.video.videoHeight },
         canvas: { w: this.canvas.width, h: this.canvas.height },
         videoOffset: { 
@@ -259,8 +261,6 @@ export class CursorRenderer {
     }
 
     // Calculate scaling to map from video space to canvas space
-    // The cursor coordinates are already in video space (0 to videoWidth/Height)
-    // We need to map them to the canvas position where the video is displayed
     const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
     const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
 
@@ -273,8 +273,8 @@ export class CursorRenderer {
     
     // Map video-space coordinates to canvas-space coordinates
     const smoothingFactor = this.options.smoothing ? 0.25 : 1
-    const scaledTargetX = this.videoOffset.x + (targetPos.x * scaleX)
-    const scaledTargetY = this.videoOffset.y + (targetPos.y * scaleY)
+    const scaledTargetX = this.videoOffset.x + (videoX * scaleX)
+    const scaledTargetY = this.videoOffset.y + (videoY * scaleY)
     
     if (this.frameCount % 30 === 0) {
       console.log('🎯 Scaled Target:', {
@@ -477,9 +477,11 @@ export class CursorRenderer {
     )
     
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      // Convert click coordinates from screen space to video space, then to canvas space
-      const videoX = (clickEvent.mouseX / clickEvent.screenWidth) * this.video.videoWidth
-      const videoY = (clickEvent.mouseY / clickEvent.screenHeight) * this.video.videoHeight
+      // Normalize coordinates, then convert to video space, then to canvas space
+      const normalizedX = clickEvent.mouseX / clickEvent.screenWidth
+      const normalizedY = clickEvent.mouseY / clickEvent.screenHeight
+      const videoX = normalizedX * this.video.videoWidth
+      const videoY = normalizedY * this.video.videoHeight
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
       const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
       this.addClickAnimation(

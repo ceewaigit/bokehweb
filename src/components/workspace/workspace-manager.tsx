@@ -245,80 +245,32 @@ export function WorkspaceManager() {
         )
 
         if (cursorCanvas && canvasRef.current?.parentElement) {
-          // Match the cursor canvas to the main canvas dimensions
+          // Simply match the cursor canvas to the main canvas dimensions
+          // The preview area will handle updating the video position
           const mainCanvas = canvasRef.current
-          console.log('📐 Main canvas dimensions:', { width: mainCanvas.width, height: mainCanvas.height })
-          console.log('📹 Video dimensions:', { width: videoWidth, height: videoHeight })
           
-          // Use video dimensions if main canvas is at default size (300x150)
-          if (mainCanvas.width === 300 && mainCanvas.height === 150) {
-            // Main canvas not properly sized yet, use video dimensions with max constraints
-            const maxWidth = 1920
-            const maxHeight = 1080
-            let canvasWidth = videoWidth
-            let canvasHeight = videoHeight
-            
-            // Scale down if too large
-            if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
-              const scale = Math.min(maxWidth / canvasWidth, maxHeight / canvasHeight)
-              canvasWidth = Math.floor(canvasWidth * scale)
-              canvasHeight = Math.floor(canvasHeight * scale)
-            }
-            
-            cursorCanvas.width = canvasWidth
-            cursorCanvas.height = canvasHeight
-            console.log('📐 Using calculated dimensions:', { width: canvasWidth, height: canvasHeight })
-          } else {
-            cursorCanvas.width = mainCanvas.width
-            cursorCanvas.height = mainCanvas.height
-          }
+          // Match dimensions exactly - preview area handles sizing
+          cursorCanvas.width = mainCanvas.width
+          cursorCanvas.height = mainCanvas.height
           
           // Copy all styles from main canvas to cursor canvas
           cursorCanvas.style.position = 'absolute'
           cursorCanvas.style.top = '0'
           cursorCanvas.style.left = '0'
-          cursorCanvas.style.width = mainCanvas.style.width || `${mainCanvas.width}px`
-          cursorCanvas.style.height = mainCanvas.style.height || `${mainCanvas.height}px`
+          cursorCanvas.style.width = mainCanvas.style.width || '100%'
+          cursorCanvas.style.height = mainCanvas.style.height || '100%'
           cursorCanvas.style.maxWidth = mainCanvas.style.maxWidth || '100%'
           cursorCanvas.style.maxHeight = mainCanvas.style.maxHeight || '100%'
           cursorCanvas.style.pointerEvents = 'none'
           cursorCanvas.style.zIndex = '100' // Higher z-index to ensure it's on top
           
-          // Calculate video position in canvas (same logic as preview-area)
-          const padding = clipEffects?.background?.padding || 80
-          const videoAspect = videoWidth / videoHeight
-          
-          // Use the actual canvas dimensions that will be used
-          const actualCanvasWidth = cursorCanvas.width
-          const actualCanvasHeight = cursorCanvas.height
-          
-          const availableWidth = actualCanvasWidth - (padding * 2)
-          const availableHeight = actualCanvasHeight - (padding * 2)
-          const availableAspect = availableWidth / availableHeight
-          
-          let drawWidth, drawHeight, offsetX, offsetY
-          
-          if (videoAspect > availableAspect) {
-            // Video is wider
-            drawWidth = availableWidth
-            drawHeight = availableWidth / videoAspect
-            offsetX = padding
-            offsetY = padding + (availableHeight - drawHeight) / 2
-          } else {
-            // Video is taller
-            drawHeight = availableHeight
-            drawWidth = availableHeight * videoAspect
-            offsetX = padding + (availableWidth - drawWidth) / 2
-            offsetY = padding
-          }
-          
-          // Update cursor renderer with video position immediately
-          cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
-          
           // Append to the same parent, ensuring it overlays the main canvas
           canvasRef.current.parentElement.style.position = 'relative' // Ensure parent is positioned
           canvasRef.current.parentElement.appendChild(cursorCanvas)
           cursorCanvasRef.current = cursorCanvas
+          
+          // The preview area will call updateVideoPosition when it renders
+          // This ensures the cursor is always aligned with the actual video position
         }
       }
     }
