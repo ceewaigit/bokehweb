@@ -151,6 +151,7 @@ export function PreviewArea({
       if (currentBackgroundRenderer) {
         // Only update background options if they actually changed
         if (backgroundChanged) {
+          console.log('📐 Background options changed, updating renderer', bgOptions)
           currentBackgroundRenderer.updateOptions(bgOptions)
           lastBackgroundOptionsRef.current = bgOptionsString
         }
@@ -257,13 +258,16 @@ export function PreviewArea({
   // Handle effect updates - force re-render when effects change
   useEffect(() => {
     if (isVideoLoaded) {
-      // Force a render when effects change, whether playing or paused
-      // Use a small delay to ensure the background renderer has updated
-      requestAnimationFrame(() => {
-        renderFrame()
+      console.log('🎨 Background effect changed, forcing render', {
+        isPlaying,
+        localEffects: localEffects?.background,
+        clipEffects: selectedClip?.effects?.background
       })
+      // Force a render when effects change, whether playing or paused
+      // Call directly, don't use requestAnimationFrame
+      renderFrame()
     }
-  }, [localEffects?.background, selectedClip?.effects?.background, isVideoLoaded, renderFrame])
+  }, [localEffects?.background, selectedClip?.effects?.background, isVideoLoaded, renderFrame, isPlaying])
 
   // Main effect: Handle canvas and effects initialization
   useEffect(() => {
@@ -282,12 +286,10 @@ export function PreviewArea({
     
     // Listen for force render events
     const handleForceRender = () => {
+      console.log('🔄 Force render event received, isVideoLoaded:', isVideoLoaded)
       if (isVideoLoaded) {
-        // Use requestAnimationFrame to ensure we render in the next frame
-        // This helps with timing issues when background options are being updated
-        requestAnimationFrame(() => {
-          renderFrame()
-        })
+        // Call renderFrame directly for immediate update
+        renderFrame()
       }
     }
     canvas.addEventListener('forceRender', handleForceRender)

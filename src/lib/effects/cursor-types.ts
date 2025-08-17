@@ -96,11 +96,11 @@ export const CURSOR_HOTSPOTS: Record<CursorType, CursorHotspot> = {
  * Get cursor image path for a given cursor type
  */
 export function getCursorImagePath(cursorType: CursorType): string {
-  // In production (Electron), files are served from public/ subdirectory
-  // In development (Next.js), files are served from root
+  // In production (Electron), files are served from the webpack output root
+  // In development (Next.js), files are served from public folder
   if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
-    // Electron production build
-    return `public/cursors/${cursorType}.png`
+    // Electron production build - cursors are copied to root/cursors
+    return `cursors/${cursorType}.png`
   }
   // Development or web build
   return `/cursors/${cursorType}.png`

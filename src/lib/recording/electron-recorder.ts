@@ -457,9 +457,11 @@ export class ElectronRecorder {
         }
 
         // Transform logical pixels to video coordinate space
+        // data.x/y are in logical pixels, we need to map to video space
         let transformedX = data.x
         let transformedY = data.y
 
+        // Convert logical pixels to physical pixels using scale factor
         const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
         transformedX = data.x * scaleFactor
         transformedY = data.y * scaleFactor
@@ -473,10 +475,10 @@ export class ElectronRecorder {
           // Store the logical screen dimensions for reference
           screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
           screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
-          scaleFactor: scaleFactor
+          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
-        // Update last position
+        // Update last position (use transformed coordinates for consistency)
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
         this.lastMouseTime = now
@@ -504,10 +506,10 @@ export class ElectronRecorder {
           // Store the logical screen dimensions for reference
           screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
           screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
-          scaleFactor: scaleFactor
+          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
-        // Update position on click
+        // Update position on click (use transformed coordinates)
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
         this.lastMouseTime = Date.now()

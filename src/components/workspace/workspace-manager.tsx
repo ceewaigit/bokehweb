@@ -549,42 +549,12 @@ export function WorkspaceManager() {
         }
       }
       
-      // Force preview update for background changes
-      if (backgroundRendererRef.current && effects.background) {
-        const bgType = effects.background.type === 'color' ? 'solid' : 
-                       effects.background.type === 'none' ? 'solid' : 
-                       effects.background.type as any
-        
-        const bgOptions = {
-          type: bgType,
-          color: effects.background.type === 'none' ? '#000000' : effects.background.color,
-          gradient: effects.background.gradient ? {
-            type: 'linear' as const,
-            colors: effects.background.gradient.colors,
-            angle: effects.background.gradient.angle
-          } : undefined,
-          image: effects.background.image,
-          blur: effects.background.blur,
-          padding: effects.background.padding || 80,
-          borderRadius: 16
-        }
-        
-        backgroundRendererRef.current.updateOptions(bgOptions)
-        
-        // Force a render frame to show the changes immediately
-        // Use requestAnimationFrame to ensure the gradient canvas is ready
-        if (canvasRef.current && videoRef.current) {
-          const ctx = canvasRef.current.getContext('2d')
-          if (ctx && videoRef.current.readyState >= 2) {
-            // Small delay to ensure gradient canvas is recreated
-            requestAnimationFrame(() => {
-              // Trigger a render by calling renderFrame through preview area
-              // We need to force update the preview
-              const event = new CustomEvent('forceRender')
-              canvasRef.current?.dispatchEvent(event)
-            })
-          }
-        }
+      // Don't update backgroundRenderer here - let preview-area handle it
+      // Just trigger a re-render
+      if (canvasRef.current) {
+        // Trigger a render by calling renderFrame through preview area
+        const event = new CustomEvent('forceRender')
+        canvasRef.current.dispatchEvent(event)
       }
     }
   }, [selectedClipId])

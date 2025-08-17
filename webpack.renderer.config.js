@@ -54,6 +54,11 @@ module.exports = {
             ignore: ['**/index.html'],
           },
         },
+        // Explicitly copy cursors folder to ensure it's included
+        {
+          from: path.resolve(__dirname, 'public/cursors'),
+          to: 'cursors',
+        },
       ],
     }),
   ],
