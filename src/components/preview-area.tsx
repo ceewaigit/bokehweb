@@ -54,6 +54,7 @@ export function PreviewArea({
   const latestClipRef = useRef(selectedClip)
   const latestEffectsEngineRef = useRef(effectsEngine)
   const latestBackgroundRendererRef = useRef(backgroundRenderer)
+  const latestLocalEffectsRef = useRef(localEffects)
   const lastBackgroundOptionsRef = useRef<string>("")
   
   // Update refs when props change
@@ -61,7 +62,8 @@ export function PreviewArea({
     latestClipRef.current = selectedClip
     latestEffectsEngineRef.current = effectsEngine
     latestBackgroundRendererRef.current = backgroundRenderer
-  }, [selectedClip, effectsEngine, backgroundRenderer])
+    latestLocalEffectsRef.current = localEffects
+  }, [selectedClip, effectsEngine, backgroundRenderer, localEffects])
 
   // Main rendering function - now stable, doesn't depend on changing props
   const renderFrame = useCallback(() => {
@@ -79,9 +81,10 @@ export function PreviewArea({
       const currentClip = latestClipRef.current
       const currentBackgroundRenderer = latestBackgroundRendererRef.current
       const currentEffectsEngine = latestEffectsEngineRef.current
+      const currentLocalEffects = latestLocalEffectsRef.current
       
       // Use localEffects if available, otherwise use clip effects
-      const effectsToUse = localEffects || currentClip?.effects
+      const effectsToUse = currentLocalEffects || currentClip?.effects
       
       // Get background options from clip effects
       const clipBg = effectsToUse?.background || {
@@ -191,25 +194,32 @@ export function PreviewArea({
             const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime)
 
             if (zoomState.scale > 1.0) {
-              const centerX = tempCanvas.width / 2
-              const centerY = tempCanvas.height / 2
-
-              // Apply zoom transformation
-              tempCtx.translate(centerX, centerY)
-              tempCtx.scale(zoomState.scale, zoomState.scale)
-
-              // Pan to keep the zoom target centered
+              // Calculate the zoom target point in video space
               const targetX = tempCanvas.width * zoomState.x
               const targetY = tempCanvas.height * zoomState.y
-              const panX = (targetX - centerX) * (1 - 1 / zoomState.scale)
-              const panY = (targetY - centerY) * (1 - 1 / zoomState.scale)
-              tempCtx.translate(-panX / zoomState.scale, -panY / zoomState.scale)
 
-              tempCtx.translate(-centerX, -centerY)
+              // Calculate the zoomed region dimensions
+              const zoomWidth = tempCanvas.width / zoomState.scale
+              const zoomHeight = tempCanvas.height / zoomState.scale
+
+              // Calculate the top-left corner of the region to draw
+              // This keeps the target point centered in the view
+              const sx = Math.max(0, Math.min(tempCanvas.width - zoomWidth, targetX - zoomWidth / 2))
+              const sy = Math.max(0, Math.min(tempCanvas.height - zoomHeight, targetY - zoomHeight / 2))
+
+              // Clear and draw the zoomed portion
+              tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
+              tempCtx.drawImage(
+                video,
+                sx, sy, zoomWidth, zoomHeight,  // Source rectangle (zoomed area)
+                0, 0, tempCanvas.width, tempCanvas.height  // Destination (full canvas)
+              )
+            } else {
+              // No zoom - draw full video
+              tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height)
             }
 
-            // Draw video to temp canvas with zoom
-            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height)
+            // Restore context state (only needed if we used save earlier)
             tempCtx.restore()
 
             // Apply background with the zoomed video frame
@@ -256,7 +266,7 @@ export function PreviewArea({
     } catch (err) {
       // Don't clear canvas on error - keep last frame visible
     }
-  }, [localEffects]) // Include localEffects to update when it changes
+  }, []) // No dependencies - use refs for all changing values
 
 
   // Handle effect updates - force re-render when effects change

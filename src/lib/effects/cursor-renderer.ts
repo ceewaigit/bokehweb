@@ -65,7 +65,7 @@ export class CursorRenderer {
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
-      size: 1.0,  // Reduced from 1.5 to match actual cursor size
+      size: 0.5,  // Reduced to 0.5 for proper cursor size
       color: '#000000',
       clickColor: '#007AFF',
       smoothing: true,
@@ -243,31 +243,23 @@ export class CursorRenderer {
       if (zoomState && zoomState.scale > 1.0) {
         // When zoomed, we need to transform the cursor position
         // to match how the video is transformed
-        const centerX = this.video.videoWidth / 2
-        const centerY = this.video.videoHeight / 2
         
-        // Calculate zoom target in video space
+        // Calculate the zoom target point in video space
         const targetX = this.video.videoWidth * zoomState.x
         const targetY = this.video.videoHeight * zoomState.y
         
-        // Apply the same transformations as the video
-        // 1. Translate to center
-        videoX -= centerX
-        videoY -= centerY
+        // Calculate the zoomed region dimensions
+        const zoomWidth = this.video.videoWidth / zoomState.scale
+        const zoomHeight = this.video.videoHeight / zoomState.scale
         
-        // 2. Scale
-        videoX *= zoomState.scale
-        videoY *= zoomState.scale
+        // Calculate the top-left corner of the zoomed region
+        const sx = Math.max(0, Math.min(this.video.videoWidth - zoomWidth, targetX - zoomWidth / 2))
+        const sy = Math.max(0, Math.min(this.video.videoHeight - zoomHeight, targetY - zoomHeight / 2))
         
-        // 3. Pan to keep zoom target centered
-        const panX = (targetX - centerX) * (1 - 1 / zoomState.scale)
-        const panY = (targetY - centerY) * (1 - 1 / zoomState.scale)
-        videoX -= panX
-        videoY -= panY
-        
-        // 4. Translate back
-        videoX += centerX
-        videoY += centerY
+        // Transform cursor position from zoomed space to display space
+        // The cursor position needs to be adjusted based on the zoom
+        videoX = ((videoX - sx) / zoomWidth) * this.video.videoWidth
+        videoY = ((videoY - sy) / zoomHeight) * this.video.videoHeight
         
         zoomScale = zoomState.scale
       }
