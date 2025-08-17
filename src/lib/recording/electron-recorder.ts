@@ -44,6 +44,7 @@ export class ElectronRecorder {
   private lastPauseTime = 0
   private metadata: ElectronMetadata[] = []
   private captureArea: ElectronRecordingResult['captureArea'] = undefined
+  private dataRequestInterval: NodeJS.Timeout | null = null
 
   // Mouse tracking optimization
   private lastMouseX = -1
@@ -135,8 +136,8 @@ export class ElectronRecorder {
       // Check and request screen recording permission first
       await this.checkScreenRecordingPermission()
 
-      // Get media stream from desktop capturer - DISABLE AUDIO for now to avoid issues
-      const hasAudio = false // Force disable audio to prevent stream failure
+      // Get media stream from desktop capturer with audio support
+      const hasAudio = recordingSettings.audioInput !== 'none'
       logger.debug('Requesting media stream with constraints', {
         audio: hasAudio,
         sourceId: primarySource.id
@@ -145,7 +146,12 @@ export class ElectronRecorder {
       // ALWAYS use the mandatory format - this is what works universally
       // Cast to 'any' because Electron extends the standard MediaStreamConstraints
       const constraints: any = {
-        audio: false, // Disable audio completely
+        audio: hasAudio ? {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: primarySource.id
+          }
+        } : false,
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
@@ -352,13 +358,29 @@ export class ElectronRecorder {
       await this.startMouseTracking()
 
       // Start recording with immediate data collection
-      // Use very small timeslice to collect data before stream dies
-      this.mediaRecorder.start(10)
+      // Don't use timeslice - let MediaRecorder handle buffering
+      this.mediaRecorder.start()
       this.isRecording = true
       this.startTime = Date.now()
 
+      // Periodically request data to keep stream alive
+      const dataRequestInterval = setInterval(() => {
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+          try {
+            this.mediaRecorder.requestData()
+          } catch (e) {
+            clearInterval(dataRequestInterval)
+          }
+        } else {
+          clearInterval(dataRequestInterval)
+        }
+      }, 1000) // Request data every second
+
+      // Store interval for cleanup
+      this.dataRequestInterval = dataRequestInterval
+
       logger.info('Screen recording started successfully')
-      console.log('Recording started with 10ms timeslice')
+      console.log('Recording started with periodic data requests')
 
     } catch (error) {
       this.cleanup()
@@ -743,6 +765,12 @@ export class ElectronRecorder {
   private async cleanup(): Promise<void> {
     this.isRecording = false
     await this.stopMouseTracking()
+
+    // Clear data request interval
+    if (this.dataRequestInterval) {
+      clearInterval(this.dataRequestInterval)
+      this.dataRequestInterval = null
+    }
 
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop())
