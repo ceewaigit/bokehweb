@@ -412,14 +412,16 @@ export async function saveRecordingWithProject(
     const project = createProject(baseName)
 
     // Process metadata into proper format
+    // IMPORTANT: Preserve original screen dimensions for proper cursor alignment
     const mouseEvents = metadata
       .filter(m => m.eventType === 'mouse' || m.type === 'move')
       .map(m => ({
         timestamp: m.timestamp || m.t || 0,
         x: m.mouseX || m.x || 0,
         y: m.mouseY || m.y || 0,
-        screenWidth: width,
-        screenHeight: height
+        // Keep original screen dimensions if available, otherwise use video dimensions
+        screenWidth: m.screenWidth || width,
+        screenHeight: m.screenHeight || height
       }))
 
     const clickEvents = metadata
