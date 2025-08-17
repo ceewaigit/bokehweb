@@ -239,6 +239,12 @@ export function WorkspaceManager() {
           screenHeight: e.screenHeight
         }))
 
+        // Pass recording dimensions for proper normalization (align with effects-engine)
+        // Use recording dimensions if available, otherwise fall back to video dimensions
+        const recordingWidth = selectedRecording.width || videoWidth
+        const recordingHeight = selectedRecording.height || videoHeight
+        cursorRendererRef.current.setVideoDimensions(recordingWidth, recordingHeight)
+        
         // Pass effects engine for zoom support
         if (effectsEngineRef.current) {
           cursorRendererRef.current.setEffectsEngine(effectsEngineRef.current)

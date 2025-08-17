@@ -47,6 +47,8 @@ export class CursorRenderer {
   private isActive = false
   private videoOffset = { x: 0, y: 0, width: 0, height: 0 } // Track video position in canvas
   private effectsEngine: any = null // For getting zoom state
+  private recordingWidth = 1920 // Default, will be updated
+  private recordingHeight = 1080 // Default, will be updated
   
   // Performance monitoring
   private frameCount = 0
@@ -147,6 +149,13 @@ export class CursorRenderer {
     this.videoOffset = { x, y, width, height }
   }
 
+  // Set video dimensions for proper normalization
+  setVideoDimensions(width: number, height: number) {
+    console.log('📐 Setting recording dimensions:', { width, height })
+    this.recordingWidth = width
+    this.recordingHeight = height
+  }
+
   // Set effects engine for zoom state
   setEffectsEngine(engine: any) {
     this.effectsEngine = engine
@@ -169,9 +178,10 @@ export class CursorRenderer {
     
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Normalize coordinates to 0-1 range (resolution independent)
-        const x = event.mouseX / event.screenWidth
-        const y = event.mouseY / event.screenHeight
+        // Normalize coordinates to 0-1 range using recording dimensions
+        // This aligns with how effects-engine handles coordinates
+        const x = event.mouseX / this.recordingWidth
+        const y = event.mouseY / this.recordingHeight
         
         const point: CursorPoint = {
           x,
@@ -182,8 +192,8 @@ export class CursorRenderer {
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevX = prevEvent.mouseX / prevEvent.screenWidth
-          const prevY = prevEvent.mouseY / prevEvent.screenHeight
+          const prevX = prevEvent.mouseX / this.recordingWidth
+          const prevY = prevEvent.mouseY / this.recordingHeight
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {
