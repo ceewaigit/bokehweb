@@ -54,6 +54,7 @@ export function PreviewArea({
   const latestClipRef = useRef(selectedClip)
   const latestEffectsEngineRef = useRef(effectsEngine)
   const latestBackgroundRendererRef = useRef(backgroundRenderer)
+  const lastBackgroundOptionsRef = useRef<string>("")
   
   // Update refs when props change
   useEffect(() => {
@@ -108,10 +109,10 @@ export function PreviewArea({
       // Calculate video dimensions with padding
       const padding = bgOptions.padding || 0
       
-      // Check if video has valid dimensions, use defaults if not ready
+      // Check if video has valid dimensions
       const videoIsReady = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0
-      const videoWidth = videoIsReady ? video.videoWidth : 1920
-      const videoHeight = videoIsReady ? video.videoHeight : 1080
+      const videoWidth = videoIsReady ? video.videoWidth : canvas.width
+      const videoHeight = videoIsReady ? video.videoHeight : canvas.height
       
       const videoAspect = videoWidth / videoHeight
       const availableWidth = canvas.width - (padding * 2)
@@ -142,10 +143,17 @@ export function PreviewArea({
         cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
       }
 
+      // Check if background options actually changed
+      const bgOptionsString = JSON.stringify(bgOptions)
+      const backgroundChanged = bgOptionsString !== lastBackgroundOptionsRef.current
+      
       // Apply background first if background renderer exists
       if (currentBackgroundRenderer) {
-        // Update background options if they changed
-        currentBackgroundRenderer.updateOptions(bgOptions)
+        // Only update background options if they actually changed
+        if (backgroundChanged) {
+          currentBackgroundRenderer.updateOptions(bgOptions)
+          lastBackgroundOptionsRef.current = bgOptionsString
+        }
 
         // Only draw video if it's ready
         if (videoIsReady) {
@@ -230,29 +238,32 @@ export function PreviewArea({
             drawHeight
           )
         }
-      } else if (videoIsReady) {
-        // Fallback: just draw video without background (only if video is ready)
-        ctx.fillStyle = '#000'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
       } else {
-        // Video not ready and no background renderer - show black screen
+        // No background renderer - clear to black
         ctx.fillStyle = '#000'
         ctx.fillRect(0, 0, canvas.width, canvas.height)
+        
+        // Draw video if ready
+        if (videoIsReady) {
+          ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
+        }
       }
     } catch (err) {
       // Don't clear canvas on error - keep last frame visible
-      console.warn('Error rendering frame:', err)
     }
   }, [localEffects]) // Include localEffects to update when it changes
 
 
-  // Handle effect updates without disrupting playback
+  // Handle effect updates - force re-render when effects change
   useEffect(() => {
-    if (isVideoLoaded && !isPlaying) {
-      renderFrame() // Re-render current frame with new effects
+    if (isVideoLoaded) {
+      // Force a render when effects change, whether playing or paused
+      // Use a small delay to ensure the background renderer has updated
+      requestAnimationFrame(() => {
+        renderFrame()
+      })
     }
-  }, [localEffects, selectedClip?.effects, isVideoLoaded, isPlaying, renderFrame])
+  }, [localEffects?.background, selectedClip?.effects?.background, isVideoLoaded, renderFrame])
 
   // Main effect: Handle canvas and effects initialization
   useEffect(() => {
@@ -376,11 +387,13 @@ export function PreviewArea({
       // Start the render loop
       animationFrameRef.current = requestAnimationFrame(animate)
     } else {
-      // Stop the render loop when paused
+      // When paused, stop the loop and render one final frame
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = undefined
       }
+      // Always render current frame when pausing
+      renderFrame()
     }
 
     return () => {

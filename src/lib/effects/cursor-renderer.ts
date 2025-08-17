@@ -152,8 +152,8 @@ export class CursorRenderer {
     
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Normalize coordinates to 0-1 range using recording dimensions
-        // This aligns with how effects-engine handles coordinates
+        // Use the recording dimensions (video dimensions) for normalization
+        // This ensures cursor position matches the video content exactly
         const x = event.mouseX / this.recordingWidth
         const y = event.mouseY / this.recordingHeight
         

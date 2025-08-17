@@ -81,7 +81,7 @@ export function WorkspaceManager() {
     
     // If there's an overlap, don't apply the update
     if (hasOverlap) {
-      console.warn('Zoom block update would cause overlap, rejecting')
+      // Zoom block would cause overlap, reject update
       return
     }
     
@@ -239,11 +239,9 @@ export function WorkspaceManager() {
           screenHeight: e.screenHeight
         }))
 
-        // Pass recording dimensions for proper normalization (align with effects-engine)
-        // Use recording dimensions if available, otherwise fall back to video dimensions
-        const recordingWidth = selectedRecording.width || videoWidth
-        const recordingHeight = selectedRecording.height || videoHeight
-        cursorRendererRef.current.setVideoDimensions(recordingWidth, recordingHeight)
+        // Pass video dimensions for proper normalization
+        // The cursor positions are relative to the actual video content
+        cursorRendererRef.current.setVideoDimensions(videoWidth, videoHeight)
         
         // Pass effects engine for zoom support
         if (effectsEngineRef.current) {
@@ -698,13 +696,13 @@ export function WorkspaceManager() {
                                   rec.duration = tempVideo.duration * 1000
                                   // Fixed recording duration
                                 } else {
-                                  console.error('Could not determine video duration')
+                                  // Could not determine video duration
                                 }
                                 resolve()
                               }, { once: true })
 
                               tempVideo.addEventListener('error', () => {
-                                console.error('Failed to load video for duration check')
+                                // Failed to load video for duration check
                                 resolve()
                               }, { once: true })
 
@@ -739,7 +737,7 @@ export function WorkspaceManager() {
                           // Metadata loaded successfully
                         }
                       } catch (error) {
-                        console.error('Failed to load recording from project:', error)
+                        // Failed to load recording from project
                       }
                     }
                   }
@@ -767,7 +765,7 @@ export function WorkspaceManager() {
                 setIsLoading(false)
 
               } catch (error) {
-                console.error('Failed to load recording:', error)
+                // Failed to load recording
                 setIsLoading(false)
                 // Optionally show an error message
               }

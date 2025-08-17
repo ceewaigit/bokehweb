@@ -456,31 +456,29 @@ export class ElectronRecorder {
           }
         }
 
-        // Convert to physical pixels (multiply by scale factor)
-        // Both coordinates AND dimensions must be in the same space
-        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
-        const physicalX = data.x * scaleFactor
-        const physicalY = data.y * scaleFactor
+        // Transform logical pixels to video coordinate space
+        let transformedX = data.x
+        let transformedY = data.y
 
-        // Get physical screen dimensions (logical * scale)
-        const physicalWidth = (data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width) * scaleFactor
-        const physicalHeight = (data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height) * scaleFactor
+        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
+        transformedX = data.x * scaleFactor
+        transformedY = data.y * scaleFactor
 
         this.metadata.push({
           timestamp,
-          mouseX: physicalX,
-          mouseY: physicalY,
+          mouseX: transformedX,
+          mouseY: transformedY,
           eventType: 'mouse',
           velocity,
-          // Store physical dimensions to match physical coordinates
-          screenWidth: physicalWidth,
-          screenHeight: physicalHeight,
+          // Store the logical screen dimensions for reference
+          screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
+          screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
           scaleFactor: scaleFactor
         })
 
-        // Update last position (use physical coordinates for consistency)
-        this.lastMouseX = physicalX
-        this.lastMouseY = physicalY
+        // Update last position
+        this.lastMouseX = transformedX
+        this.lastMouseY = transformedY
         this.lastMouseTime = now
       }
     }
@@ -489,33 +487,32 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        // Convert to physical pixels (same as mouse move)
-        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
-        const physicalX = data.x * scaleFactor
-        const physicalY = data.y * scaleFactor
+        // Transform logical pixels to video coordinate space
+        let transformedX = data.x
+        let transformedY = data.y
 
-        // Get physical screen dimensions
-        const physicalWidth = (data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width) * scaleFactor
-        const physicalHeight = (data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height) * scaleFactor
+        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
+        transformedX = data.x * scaleFactor
+        transformedY = data.y * scaleFactor
 
         this.metadata.push({
           timestamp,
-          mouseX: physicalX,
-          mouseY: physicalY,
+          mouseX: transformedX,
+          mouseY: transformedY,
           eventType: 'click',
           key: data.button, // Store which button was clicked
-          // Store physical dimensions to match physical coordinates
-          screenWidth: physicalWidth,
-          screenHeight: physicalHeight,
+          // Store the logical screen dimensions for reference
+          screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
+          screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
           scaleFactor: scaleFactor
         })
 
-        // Update position on click (use physical coordinates)
-        this.lastMouseX = physicalX
-        this.lastMouseY = physicalY
+        // Update position on click
+        this.lastMouseX = transformedX
+        this.lastMouseY = transformedY
         this.lastMouseTime = Date.now()
 
-        logger.debug(`Global click captured at (${physicalX}, ${physicalY}), button: ${data.button}`)
+        logger.debug(`Global click captured at (${transformedX}, ${transformedY}), button: ${data.button}`)
       }
     }
 
