@@ -154,12 +154,7 @@ export class ElectronRecorder {
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id,
-            // Add frame rate constraints to keep stream stable
-            minFrameRate: 30,
-            maxFrameRate: 60,
-            // Hide cursor so we can overlay our own custom cursor
-            cursorSize: 0
+            chromeMediaSourceId: primarySource.id
           }
         }
       }
@@ -173,7 +168,7 @@ export class ElectronRecorder {
         // In Electron, we must use getUserMedia with the specific desktop constraints
         this.stream = await navigator.mediaDevices.getUserMedia(constraints) as MediaStream
         logger.info('Desktop capture stream acquired successfully')
-        
+
         // Add error handlers for individual tracks to prevent stream from stopping
         this.stream.getTracks().forEach(track => {
           track.onended = () => {
@@ -185,38 +180,60 @@ export class ElectronRecorder {
             } else if (track.kind === 'video' && this.isRecording && this.mediaRecorder) {
               // Video track ended unexpectedly - force save what we have
               logger.error('Video track ended unexpectedly - forcing save')
-              // Create blob immediately from chunks we have
-              if (this.chunks.length > 0) {
-                const emergencyBlob = new Blob(this.chunks, { type: 'video/webm' })
-                logger.info(`Emergency save: ${emergencyBlob.size} bytes from ${this.chunks.length} chunks`)
-                
-                // Directly trigger save without waiting for onstop
-                const duration = Date.now() - this.startTime
-                const result: ElectronRecordingResult = {
-                  video: emergencyBlob,
-                  metadata: this.metadata,
-                  duration,
-                  effectsApplied: ['electron-desktop-capture', 'emergency-save'],
-                  processingTime: 0
-                }
-                
-                // Save immediately via the project save function
-                this.emergencySave(result).catch(err => {
-                  logger.error('Emergency save failed:', err)
-                })
-              }
-              
-              // Still try to stop MediaRecorder normally
-              if (this.mediaRecorder.state === 'recording') {
+              console.log('VIDEO TRACK ENDED - chunks available:', this.chunks.length)
+
+              // Force MediaRecorder to give us any pending data
+              if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
                 try {
-                  this.mediaRecorder.stop()
+                  this.mediaRecorder.requestData()
                 } catch (e) {
-                  logger.error('Failed to stop MediaRecorder after video track ended:', e)
+                  logger.warn('Could not request data from MediaRecorder:', e)
                 }
               }
+
+              // Wait a brief moment for any pending chunks
+              setTimeout(() => {
+                console.log('After requestData - chunks available:', this.chunks.length)
+
+                // Create blob immediately from chunks we have
+                if (this.chunks.length > 0) {
+                  const emergencyBlob = new Blob(this.chunks, { type: 'video/webm' })
+                  logger.info(`Creating emergency blob: ${emergencyBlob.size} bytes from ${this.chunks.length} chunks`)
+                  console.log(`EMERGENCY BLOB CREATED: ${emergencyBlob.size} bytes from ${this.chunks.length} chunks`)
+
+                  // Directly trigger save without waiting for onstop
+                  const duration = Date.now() - this.startTime
+                  const result: ElectronRecordingResult = {
+                    video: emergencyBlob,
+                    metadata: this.metadata,
+                    duration,
+                    effectsApplied: ['electron-desktop-capture', 'emergency-save'],
+                    processingTime: 0,
+                    captureArea: this.captureArea
+                  }
+
+                  // Save immediately via the project save function
+                  this.emergencySave(result).catch(err => {
+                    logger.error('Emergency save failed:', err)
+                    console.error('EMERGENCY SAVE FAILED:', err)
+                  })
+                } else {
+                  logger.error('NO CHUNKS AVAILABLE FOR EMERGENCY SAVE')
+                  console.error('NO CHUNKS TO SAVE - Recording lost!')
+                }
+
+                // Still try to stop MediaRecorder normally
+                if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                  try {
+                    this.mediaRecorder.stop()
+                  } catch (e) {
+                    logger.error('Failed to stop MediaRecorder after video track ended:', e)
+                  }
+                }
+              }, 200) // Wait 200ms for chunks
             }
           }
-          
+
           track.onmute = () => {
             logger.warn(`Track muted: ${track.kind} - ${track.label}`)
           }
@@ -251,19 +268,17 @@ export class ElectronRecorder {
       })
 
       // Set up MediaRecorder with optimized settings for stability
-      let mimeType = 'video/webm;codecs=vp9'
+      // Use VP8 for better compatibility and stability with ScreenCaptureKit
+      let mimeType = 'video/webm;codecs=vp8'
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = 'video/webm;codecs=vp8'
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'video/webm'
-        }
+        mimeType = 'video/webm'
       }
 
       logger.debug(`Using mimeType: ${mimeType}`)
 
       this.mediaRecorder = new MediaRecorder(this.stream, {
         mimeType,
-        videoBitsPerSecond: 8000000, // 8 Mbps - slightly lower for better stability
+        videoBitsPerSecond: 5000000, // 5 Mbps - lower bitrate for stability
         // Add audio bitrate if audio is enabled
         ...(hasAudio ? { audioBitsPerSecond: 128000 } : {})
       })
@@ -272,7 +287,13 @@ export class ElectronRecorder {
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           this.chunks.push(event.data)
-          logger.debug(`Recording chunk: ${event.data.size} bytes`)
+          logger.debug(`Recording chunk #${this.chunks.length}: ${event.data.size} bytes, total chunks: ${this.chunks.length}`)
+
+          // Auto-save every 2 seconds worth of chunks as backup
+          if (this.chunks.length % 20 === 0) { // Every 20 chunks at 100ms = 2 seconds
+            const backupBlob = new Blob(this.chunks, { type: mimeType })
+            logger.debug(`Backup save point: ${backupBlob.size} bytes from ${this.chunks.length} chunks`)
+          }
         }
       }
 
@@ -313,9 +334,12 @@ export class ElectronRecorder {
   }
 
   private async emergencySave(result: ElectronRecordingResult) {
+    logger.info('EMERGENCY SAVE TRIGGERED - Attempting to save recording')
+    console.log('EMERGENCY SAVE - blob size:', result.video.size, 'bytes')
+
     // Import the save function dynamically to avoid circular dependency
     const { saveRecordingWithProject } = await import('@/types/project')
-    
+
     const now = new Date()
     const year = now.getFullYear()
     const month = String(now.getMonth() + 1).padStart(2, '0')
@@ -324,12 +348,29 @@ export class ElectronRecorder {
     const minutes = String(now.getMinutes()).padStart(2, '0')
     const seconds = String(now.getSeconds()).padStart(2, '0')
     const projectName = `Emergency_Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
-    
-    const saved = await saveRecordingWithProject(result.video, result.metadata, projectName)
-    if (saved) {
-      logger.info(`Emergency recording saved: video=${saved.videoPath}`)
-    } else {
-      logger.error('Failed to save emergency recording')
+
+    try {
+      const saved = await saveRecordingWithProject(result.video, result.metadata, projectName)
+      if (saved) {
+        logger.info(`✅ EMERGENCY RECORDING SAVED: video=${saved.videoPath}`)
+        console.log('✅ EMERGENCY SAVE SUCCESS:', saved.videoPath)
+
+        // Show user notification that emergency save worked
+        if (window.electronAPI?.showMessageBox) {
+          window.electronAPI.showMessageBox({
+            type: 'info',
+            title: 'Recording Saved',
+            message: 'Recording was saved despite stream interruption',
+            detail: `Saved to: ${saved.videoPath}`
+          })
+        }
+      } else {
+        logger.error('❌ EMERGENCY SAVE FAILED: saveRecordingWithProject returned null')
+        console.error('❌ EMERGENCY SAVE FAILED')
+      }
+    } catch (error) {
+      logger.error('❌ EMERGENCY SAVE ERROR:', error)
+      console.error('❌ EMERGENCY SAVE ERROR:', error)
     }
   }
 
