@@ -287,6 +287,7 @@ export class ElectronRecorder {
         const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
 
         logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
+        console.log('MediaRecorder onstop fired - blob created:', video.size, 'bytes')
 
         // Don't save here - let the consumer (use-recording.ts) handle saving
         // This was causing duplicate saves with different timestamp formats
