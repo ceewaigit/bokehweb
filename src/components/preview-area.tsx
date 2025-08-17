@@ -4,7 +4,6 @@ import { useRef, useEffect, useState, useCallback, RefObject } from 'react'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
-import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Clip, Recording } from '@/types/project'
 
@@ -46,7 +45,19 @@ export function PreviewArea({
   // Use the selected recording passed from parent
   const currentRecording = selectedRecording
 
-  // Main rendering function - simplified
+  // Store latest effects in refs to avoid recreating renderFrame
+  const latestClipRef = useRef(selectedClip)
+  const latestEffectsEngineRef = useRef(effectsEngine)
+  const latestBackgroundRendererRef = useRef(backgroundRenderer)
+  
+  // Update refs when props change
+  useEffect(() => {
+    latestClipRef.current = selectedClip
+    latestEffectsEngineRef.current = effectsEngine
+    latestBackgroundRendererRef.current = backgroundRenderer
+  }, [selectedClip, effectsEngine, backgroundRenderer])
+
+  // Main rendering function - now stable, doesn't depend on changing props
   const renderFrame = useCallback(() => {
     const canvas = canvasRef.current
     const video = videoRef.current
@@ -60,8 +71,13 @@ export function PreviewArea({
     try {
       // Check if video is ready to draw
       if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+        // Use refs for latest values without recreating callback
+        const currentClip = latestClipRef.current
+        const currentBackgroundRenderer = latestBackgroundRendererRef.current
+        const currentEffectsEngine = latestEffectsEngineRef.current
+        
         // Get background options from clip effects and map types
-        const clipBg = selectedClip?.effects?.background || {
+        const clipBg = currentClip?.effects?.background || {
           type: 'gradient',
           gradient: {
             colors: ['#0F172A', '#1E293B'],
@@ -116,14 +132,14 @@ export function PreviewArea({
         }
 
         // Apply background first if background renderer exists
-        if (backgroundRenderer) {
+        if (currentBackgroundRenderer) {
           // Update background options if they changed
-          backgroundRenderer.updateOptions(bgOptions)
+          currentBackgroundRenderer.updateOptions(bgOptions)
 
           // Only use temp canvas if we have zoom effects
-          const hasZoomEffect = selectedClip?.effects?.zoom?.enabled && effectsEngine
+          const hasZoomEffect = currentClip?.effects?.zoom?.enabled && currentEffectsEngine
 
-          if (hasZoomEffect && effectsEngine) {
+          if (hasZoomEffect && currentEffectsEngine) {
             // Reuse cached temporary canvas for zoom effects
             if (!tempCanvasRef.current ||
               tempCanvasRef.current.width !== video.videoWidth ||
@@ -143,9 +159,9 @@ export function PreviewArea({
             // Save context state for zoom transformations
             tempCtx.save()
 
-            const clipTime = currentTimeMs - selectedClip.sourceIn
-            const sourceTime = selectedClip.sourceIn + clipTime
-            const zoomState = effectsEngine.getZoomState(sourceTime)
+            const clipTime = currentTimeMs - currentClip.sourceIn
+            const sourceTime = currentClip.sourceIn + clipTime
+            const zoomState = currentEffectsEngine.getZoomState(sourceTime)
 
             if (zoomState.scale > 1.0) {
               const centerX = tempCanvas.width / 2
@@ -170,7 +186,7 @@ export function PreviewArea({
             tempCtx.restore()
 
             // Apply background with the zoomed video frame
-            backgroundRenderer.applyBackground(
+            currentBackgroundRenderer.applyBackground(
               ctx,
               tempCanvas,
               offsetX,
@@ -180,7 +196,7 @@ export function PreviewArea({
             )
           } else {
             // No zoom - draw directly, much faster
-            backgroundRenderer.applyBackground(
+            currentBackgroundRenderer.applyBackground(
               ctx,
               video,
               offsetX,
@@ -202,10 +218,18 @@ export function PreviewArea({
       }
     } catch (err) {
       // Don't clear canvas on error - keep last frame visible
-      console.error('Error drawing video:', err)
     }
-  }, [selectedClip, backgroundRenderer, effectsEngine])
+  }, []) // No dependencies - uses refs for latest values
 
+
+  // Separate effect for handling effect updates without disrupting playback
+  useEffect(() => {
+    // When effects change, just render the current frame with new effects
+    // Don't reset video state or position
+    if (isVideoLoaded && !isPlaying) {
+      renderFrame()
+    }
+  }, [selectedClip?.effects, isVideoLoaded, isPlaying, renderFrame])
 
   // Main effect: Handle canvas and effects initialization
   useEffect(() => {
@@ -233,20 +257,8 @@ export function PreviewArea({
       initializedRecordingRef.current = currentRecording.id
     }
 
-    // Effects are now managed by parent component
-
-    // Video loading is now handled by WorkspaceManager
-    // Monitor when it's ready
+    // Monitor when video is ready
     const checkVideoReady = () => {
-      console.log('Checking video ready state:', {
-        readyState: video.readyState,
-        width: video.videoWidth,
-        height: video.videoHeight,
-        loaded: isVideoLoaded,
-        src: video.src,
-        currentRecording: currentRecording?.id
-      })
-      
       if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
         // Only initialize once per recording
         if (!isVideoLoaded && initializedRecordingRef.current === currentRecording.id) {
@@ -274,9 +286,6 @@ export function PreviewArea({
 
         // Always render frame when video is ready
         renderFrame()
-      } else if (video.readyState === 0 && video.src) {
-        // Video has a source but hasn't started loading yet
-        console.log('Video source set but not loaded yet')
       }
     }
 
@@ -287,26 +296,21 @@ export function PreviewArea({
       checkVideoReady()
     }
 
-    const handleTimeUpdate = () => {
-      // Don't render here - let the main loop handle it
-      // This was causing double rendering
-    }
+    // Removed handleTimeUpdate - not needed, was causing double rendering
     
     const handleError = (e: Event) => {
-      console.error('Video error in PreviewArea:', e)
+      // Video error occurred
       setIsLoading(false)
       setLoadError('Failed to load video. The file may be corrupted or in an unsupported format.')
     }
 
     video.addEventListener('loadedmetadata', handleVideoReady)
     video.addEventListener('canplay', handleVideoReady)
-    video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('error', handleError)
 
     return () => {
       video.removeEventListener('loadedmetadata', handleVideoReady)
       video.removeEventListener('canplay', handleVideoReady)
-      video.removeEventListener('timeupdate', handleTimeUpdate)
       video.removeEventListener('error', handleError)
 
       if (animationFrameRef.current) {
@@ -314,7 +318,7 @@ export function PreviewArea({
       }
 
     }
-  }, [currentRecording?.id, renderFrame])
+  }, [currentRecording?.id]) // Remove renderFrame dependency
 
   // Handle playback state changes - simplified
   useEffect(() => {
@@ -377,7 +381,9 @@ export function PreviewArea({
         
         // Ensure video is playing
         if (video.paused && targetTime < maxTime) {
-          video.play().catch(console.error)
+          video.play().catch(() => {
+            // Video play failed, likely due to browser restrictions
+          })
         }
       }
       

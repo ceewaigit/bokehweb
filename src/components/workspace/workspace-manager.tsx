@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useState, useRef } from 'react'
-// Recording logic handled by RecordingController component
 import { Toolbar } from '../toolbar'
 import { PreviewArea } from '../preview-area'
 import dynamic from 'next/dynamic'
@@ -13,7 +12,6 @@ const TimelineCanvas = dynamic(
 import { EffectsSidebar } from '../effects-sidebar'
 import { ExportDialog } from '../export-dialog'
 import { RecordingsLibrary } from '../recordings-library'
-import { RecordingController } from './recording-controller'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
@@ -63,6 +61,7 @@ export function WorkspaceManager() {
   const animationFrameRef = useRef<number>()
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const prevEffectsRef = useRef<ClipEffects | undefined>()
   
   // Get selected clip and recording
   const selectedClip = currentProject?.timeline.tracks
@@ -92,10 +91,7 @@ export function WorkspaceManager() {
       if (!isPlaying || !video) return
       
       // Don't try to play if video isn't ready
-      if (video.readyState < 2) {
-        console.log('Video not ready during sync, skipping...')
-        return
-      }
+      if (video.readyState < 2) return
       
       const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
       const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
@@ -128,101 +124,83 @@ export function WorkspaceManager() {
     }
   }, [isPlaying, currentTime, selectedClip, handlePause])
 
-  // Monitor video loading state
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    const handleLoadedMetadata = () => {
-      console.log('Video loaded and ready:', {
-        duration: video.duration,
-        dimensions: `${video.videoWidth}x${video.videoHeight}`,
-        readyState: video.readyState
-      })
-    }
-
-    const handleError = (e: Event) => {
-      console.error('Video error:', e)
-      const videoError = video.error
-      if (videoError) {
-        console.error('Video error details:', {
-          code: videoError.code,
-          message: videoError.message
-        })
-      }
-    }
-
-    video.addEventListener('loadedmetadata', handleLoadedMetadata)
-    video.addEventListener('error', handleError)
-
-    return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
-      video.removeEventListener('error', handleError)
-    }
-  }, [])
+  // Removed video monitoring - handled in loadVideo function
 
   // Initialize effects when recording and clip change
-  const initializeEffects = useCallback(() => {
+  const initializeEffects = useCallback((forceFullInit = false) => {
     if (!selectedRecording || !videoRef.current) return
 
-    // Initialize effects engine
-    if (!effectsEngineRef.current) {
-      effectsEngineRef.current = new EffectsEngine()
-    }
-    effectsEngineRef.current.initializeFromRecording(selectedRecording)
-
-    // Clean up previous cursor renderer
-    if (cursorCanvasRef.current) {
-      cursorCanvasRef.current.remove()
-      cursorCanvasRef.current = null
-    }
-    if (cursorRendererRef.current) {
-      cursorRendererRef.current.dispose()
-      cursorRendererRef.current = null
-    }
-
-    // Initialize cursor renderer
     const clipEffects = selectedClip?.effects
-    const showCursor = clipEffects?.cursor?.visible ?? true
+    const prevEffects = prevEffectsRef.current
 
-    if (showCursor && selectedRecording.metadata?.mouseEvents) {
-      cursorRendererRef.current = new CursorRenderer({
-        size: clipEffects?.cursor?.size ?? 1.5,
-        color: clipEffects?.cursor?.color ?? '#000000',
-        clickColor: '#007AFF',
-        smoothing: true
-      })
+    // Initialize effects engine if needed
+    if (!effectsEngineRef.current || forceFullInit) {
+      effectsEngineRef.current = new EffectsEngine()
+      effectsEngineRef.current.initializeFromRecording(selectedRecording)
+    }
 
-      // Convert metadata format for cursor renderer
-      const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
-        ...e,
-        mouseX: e.x,
-        mouseY: e.y,
-        eventType: 'mouse' as const
-      }))
+    // Only reinitialize cursor if cursor settings changed or force init
+    const cursorChanged = forceFullInit || 
+      prevEffects?.cursor?.visible !== clipEffects?.cursor?.visible ||
+      prevEffects?.cursor?.size !== clipEffects?.cursor?.size ||
+      prevEffects?.cursor?.color !== clipEffects?.cursor?.color
 
-      const cursorCanvas = cursorRendererRef.current.attachToVideo(
-        videoRef.current,
-        cursorEvents
-      )
+    if (cursorChanged) {
+      // Clean up previous cursor renderer
+      if (cursorCanvasRef.current) {
+        cursorCanvasRef.current.remove()
+        cursorCanvasRef.current = null
+      }
+      if (cursorRendererRef.current) {
+        cursorRendererRef.current.dispose()
+        cursorRendererRef.current = null
+      }
 
-      if (cursorCanvas && canvasRef.current?.parentElement) {
-        cursorCanvas.style.position = 'absolute'
-        cursorCanvas.style.top = '0'
-        cursorCanvas.style.left = '0'
-        cursorCanvas.style.width = '100%'
-        cursorCanvas.style.height = '100%'
-        cursorCanvas.style.pointerEvents = 'none'
-        cursorCanvas.style.zIndex = '10'
-        canvasRef.current.parentElement.appendChild(cursorCanvas)
-        cursorCanvasRef.current = cursorCanvas
+      // Initialize cursor renderer
+      const showCursor = clipEffects?.cursor?.visible ?? true
+
+      if (showCursor && selectedRecording.metadata?.mouseEvents) {
+        cursorRendererRef.current = new CursorRenderer({
+          size: clipEffects?.cursor?.size ?? 1.5,
+          color: clipEffects?.cursor?.color ?? '#000000',
+          clickColor: '#007AFF',
+          smoothing: true
+        })
+
+        // Convert metadata format for cursor renderer
+        const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
+          ...e,
+          mouseX: e.x,
+          mouseY: e.y,
+          eventType: 'mouse' as const
+        }))
+
+        const cursorCanvas = cursorRendererRef.current.attachToVideo(
+          videoRef.current,
+          cursorEvents
+        )
+
+        if (cursorCanvas && canvasRef.current?.parentElement) {
+          cursorCanvas.style.position = 'absolute'
+          cursorCanvas.style.top = '0'
+          cursorCanvas.style.left = '0'
+          cursorCanvas.style.width = '100%'
+          cursorCanvas.style.height = '100%'
+          cursorCanvas.style.pointerEvents = 'none'
+          cursorCanvas.style.zIndex = '10'
+          canvasRef.current.parentElement.appendChild(cursorCanvas)
+          cursorCanvasRef.current = cursorCanvas
+        }
       }
     }
 
-    // Initialize background renderer
-    if (!backgroundRendererRef.current) {
+    // Initialize background renderer only if needed
+    if (!backgroundRendererRef.current || forceFullInit) {
       backgroundRendererRef.current = new BackgroundRenderer()
     }
+
+    // Store current effects for next comparison
+    prevEffectsRef.current = clipEffects
   }, [selectedRecording, selectedClip?.effects])
 
   // Track when component is mounted
@@ -234,10 +212,7 @@ export function WorkspaceManager() {
   // Load video when recording changes and component is mounted
   useEffect(() => {
     if (!selectedRecording || !isMounted) {
-      console.log('Waiting for mount or recording:', { 
-        mounted: isMounted, 
-        hasRecording: !!selectedRecording 
-      })
+      // Waiting for mount or recording
       return
     }
 
@@ -251,18 +226,13 @@ export function WorkspaceManager() {
         
         if (!video && attempts < maxAttempts) {
           attempts++;
-          console.log(`Waiting for video element... attempt ${attempts}/${maxAttempts}`);
+          // Waiting for video element...
           await new Promise(resolve => setTimeout(resolve, 100));
           return tryGetVideo();
         }
         
         if (!video) {
-          console.error('Video element not found after multiple attempts!', {
-            videoRef: videoRef,
-            recording: selectedRecording?.id,
-            isMounted: isMounted,
-            attempts: attempts
-          })
+          console.error('Video element not found after multiple attempts!')
           return;
         }
         
@@ -272,14 +242,10 @@ export function WorkspaceManager() {
       const video = await tryGetVideo();
       if (!video) return;
       
-      console.log('Loading video for recording:', {
-        id: selectedRecording.id,
-        filePath: selectedRecording.filePath,
-        videoElement: !!video
-      })
+      // Loading video for recording
       
       if (!selectedRecording.filePath) {
-        console.error('Recording has no filePath:', selectedRecording)
+        console.error('Recording has no filePath')
         return
       }
       
@@ -289,13 +255,7 @@ export function WorkspaceManager() {
       )
       
       if (blobUrl) {
-        console.log('Got blob URL, setting on video element:', blobUrl)
-        console.log('Video element before setting src:', {
-          currentSrc: video.src,
-          readyState: video.readyState,
-          videoElement: video,
-          isConnected: video.isConnected
-        })
+        // Got blob URL, setting on video element
         
         // Ensure video element is in DOM
         if (!video.isConnected) {
@@ -308,22 +268,16 @@ export function WorkspaceManager() {
         
         // Check after setting with a small delay
         setTimeout(() => {
-          console.log('Video element after setting src (delayed check):', {
-            newSrc: video.src,
-            readyState: video.readyState,
-            error: video.error,
-            networkState: video.networkState,
-            currentSrc: video.currentSrc
-          })
+          // Video element loaded check
         }, 100)
         
         // Initialize effects after video is loaded
         video.addEventListener('loadedmetadata', () => {
-          console.log('Video metadata loaded, initializing effects')
-          initializeEffects()
+          // Video metadata loaded, initializing effects
+          initializeEffects(true) // Force full init on new video
         }, { once: true })
       } else {
-        console.error('Failed to get blob URL for:', selectedRecording.id)
+        console.error('Failed to get blob URL for recording')
       }
     }
 
@@ -333,9 +287,11 @@ export function WorkspaceManager() {
   // Re-initialize effects when clip effects change
   useEffect(() => {
     if (selectedRecording && videoRef.current && videoRef.current.readyState >= 2) {
-      initializeEffects()
+      // Don't force full init, only update what changed
+      initializeEffects(false)
     }
   }, [selectedClip?.effects, initializeEffects])
+
 
   // Cleanup effects on unmount
   useEffect(() => {
@@ -349,12 +305,15 @@ export function WorkspaceManager() {
       if (backgroundRendererRef.current) {
         backgroundRendererRef.current.dispose()
       }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
     }
   }, [])
 
   // Debug: Track project changes
   useEffect(() => {
-    console.log('🔍 WorkspaceManager: Project changed:', currentProject?.name || 'null')
+    // Project changed
   }, [currentProject])
 
   // Centralized playback control
@@ -367,7 +326,7 @@ export function WorkspaceManager() {
 
     // Check if video is ready
     if (video.readyState < 2) { // HAVE_CURRENT_DATA
-      console.log('Video not ready, waiting for load...')
+      // Video not ready, waiting for load
       
       // Wait for video to be ready, then play
       const handleCanPlay = () => {
@@ -440,6 +399,7 @@ export function WorkspaceManager() {
     setExportOpen(false)
   }, [setExportOpen])
 
+
   // Show loading screen when processing
   if (isLoading) {
     return (
@@ -472,13 +432,13 @@ export function WorkspaceManager() {
 
   // Show recordings library when no active project
   if (!currentProject) {
-    console.log('🔍 WorkspaceManager: Showing recordings library')
+    // Showing recordings library
     return (
       <>
         <div className="fixed inset-0 flex flex-col bg-background">
           <RecordingsLibrary
           onSelectRecording={async (recording) => {
-            console.log('🔍 Selected recording:', recording.name)
+            // Selected recording
 
             // Start loading
             setIsLoading(true)
@@ -488,7 +448,7 @@ export function WorkspaceManager() {
               // Check if it's a project file
               if (recording.isProject && recording.project) {
                 const project = recording.project
-                console.log('📁 Loading project:', project.name)
+                // Loading project
 
                 setLoadingMessage('Creating project...')
                 // Create a new timeline project
@@ -512,12 +472,12 @@ export function WorkspaceManager() {
                       
                       // Update the recording's filePath to be absolute
                       rec.filePath = videoPath
-                      console.log('Resolved video path:', videoPath)
+                      // Resolved video path
 
                       // Verify and fix recording duration if needed
                       if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
                         setLoadingMessage('Detecting video duration...')
-                        console.log('⚠️ Recording has invalid duration, detecting from video...')
+                        // Recording has invalid duration, detecting from video
 
                         // Use blob manager to load the video safely
                         const blobUrl = await globalBlobManager.loadVideo(rec.id, videoPath)
@@ -528,13 +488,13 @@ export function WorkspaceManager() {
 
                           await new Promise<void>((resolve) => {
                             tempVideo.addEventListener('loadedmetadata', () => {
-                              console.log('Checking project video duration:', tempVideo.duration)
+                              // Checking project video duration
 
                               if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
                                 rec.duration = tempVideo.duration * 1000
-                                console.log('✅ Fixed recording duration:', rec.duration, 'ms')
+                                // Fixed recording duration
                               } else {
-                                console.error('❌ Could not determine video duration')
+                                console.error('Could not determine video duration')
                               }
                               resolve()
                             }, { once: true })
@@ -577,7 +537,7 @@ export function WorkspaceManager() {
                             (rec.metadata.mouseEvents?.length || 0) +
                             (rec.metadata.clickEvents?.length || 0) +
                             (rec.metadata.keyboardEvents?.length || 0)
-                          console.log(`✅ Loaded ${totalEvents} metadata events`)
+                          // Loaded metadata events
                         }
                       }
                     } catch (error) {
@@ -594,7 +554,7 @@ export function WorkspaceManager() {
                   .flatMap(t => t.clips)
                   .sort((a, b) => a.startTime - b.startTime)[0]
                 if (firstClip) {
-                  console.log('🎯 Auto-selecting first clip:', firstClip.id)
+                  // Auto-selecting first clip
                   useProjectStore.getState().selectClip(firstClip.id)
                 }
               } else {
