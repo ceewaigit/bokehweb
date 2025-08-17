@@ -81,6 +81,11 @@ export function WorkspaceManager() {
     
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
+    
+    // Sync with effects engine immediately for real-time preview
+    if (effectsEngineRef.current && newEffects.zoom.enabled) {
+      effectsEngineRef.current.setZoomEffects(updatedBlocks)
+    }
   }, [localEffects, selectedClip?.effects])
 
   // Centralized refs for video and rendering
@@ -133,8 +138,8 @@ export function WorkspaceManager() {
 
         // Ensure video is playing
         if (video.paused) {
-          video.play().catch(error => {
-            console.error('Failed to resume video during sync:', error)
+          video.play().catch(() => {
+            // Ignore play failures during sync
           })
         }
       } else {
@@ -165,6 +170,14 @@ export function WorkspaceManager() {
     if (!effectsEngineRef.current || forceFullInit) {
       effectsEngineRef.current = new EffectsEngine()
       effectsEngineRef.current.initializeFromRecording(selectedRecording)
+    }
+    
+    // Sync zoom blocks with effects engine
+    if (clipEffects?.zoom?.enabled && clipEffects.zoom.blocks) {
+      effectsEngineRef.current.setZoomEffects(clipEffects.zoom.blocks)
+    } else if (!clipEffects?.zoom?.enabled) {
+      // Clear zoom effects if zoom is disabled
+      effectsEngineRef.current.clearEffects()
     }
 
     // Only reinitialize cursor if cursor settings changed or force init
@@ -215,11 +228,20 @@ export function WorkspaceManager() {
           const mainCanvas = canvasRef.current
           cursorCanvas.width = mainCanvas.width
           cursorCanvas.height = mainCanvas.height
-          cursorCanvas.style.width = mainCanvas.style.width || '100%'
-          cursorCanvas.style.height = mainCanvas.style.height || '100%'
+          
+          // Copy all styles from main canvas to cursor canvas
+          cursorCanvas.style.position = 'absolute'
+          cursorCanvas.style.top = '0'
+          cursorCanvas.style.left = '0'
+          cursorCanvas.style.width = mainCanvas.style.width || `${mainCanvas.width}px`
+          cursorCanvas.style.height = mainCanvas.style.height || `${mainCanvas.height}px`
           cursorCanvas.style.maxWidth = mainCanvas.style.maxWidth || '100%'
           cursorCanvas.style.maxHeight = mainCanvas.style.maxHeight || '100%'
-          cursorCanvas.style.zIndex = '10'
+          cursorCanvas.style.pointerEvents = 'none'
+          cursorCanvas.style.zIndex = '100' // Higher z-index to ensure it's on top
+          
+          // Append to the same parent, ensuring it overlays the main canvas
+          canvasRef.current.parentElement.style.position = 'relative' // Ensure parent is positioned
           canvasRef.current.parentElement.appendChild(cursorCanvas)
           cursorCanvasRef.current = cursorCanvas
         }
@@ -233,7 +255,7 @@ export function WorkspaceManager() {
 
     // Store current effects for next comparison
     prevEffectsRef.current = clipEffects
-  }, [selectedRecording])
+  }, [selectedRecording, activeEffects])
 
   // Track when component is mounted
   useEffect(() => {
@@ -271,10 +293,7 @@ export function WorkspaceManager() {
           return tryGetVideo();
         }
 
-        if (!video) {
-          console.error('Video element not found after multiple attempts!')
-          return;
-        }
+        if (!video) return;
 
         return video;
       }
@@ -284,10 +303,7 @@ export function WorkspaceManager() {
 
       // Loading video for recording
 
-      if (!selectedRecording.filePath) {
-        console.error('Recording has no filePath')
-        return
-      }
+      if (!selectedRecording.filePath) return
 
       const blobUrl = await globalBlobManager.ensureVideoLoaded(
         selectedRecording.id,
@@ -298,10 +314,7 @@ export function WorkspaceManager() {
         // Got blob URL, setting on video element
 
         // Ensure video element is in DOM
-        if (!video.isConnected) {
-          console.error('Video element is not connected to DOM!')
-          return
-        }
+        if (!video.isConnected) return
 
         video.src = blobUrl
         video.load()
@@ -316,8 +329,6 @@ export function WorkspaceManager() {
           // Video metadata loaded, initializing effects
           initializeEffects(true) // Force full init on new video
         }, { once: true })
-      } else {
-        console.error('Failed to get blob URL for recording')
       }
     }
 
@@ -329,6 +340,14 @@ export function WorkspaceManager() {
     if (selectedRecording && videoRef.current && videoRef.current.readyState >= 2) {
       // Don't force full init, only update what changed
       initializeEffects(false)
+      
+      // Also update cursor canvas dimensions if it exists
+      if (cursorCanvasRef.current && canvasRef.current) {
+        cursorCanvasRef.current.width = canvasRef.current.width
+        cursorCanvasRef.current.height = canvasRef.current.height
+        cursorCanvasRef.current.style.width = canvasRef.current.style.width || `${canvasRef.current.width}px`
+        cursorCanvasRef.current.style.height = canvasRef.current.style.height || `${canvasRef.current.height}px`
+      }
     }
   }, [activeEffects, initializeEffects, selectedRecording])
 
@@ -356,10 +375,7 @@ export function WorkspaceManager() {
   // Centralized playback control
   const handlePlay = useCallback(() => {
     const video = videoRef.current
-    if (!video || !selectedClip || !selectedRecording) {
-      console.warn('Cannot play: missing video, clip, or recording')
-      return
-    }
+    if (!video || !selectedClip || !selectedRecording) return
 
     // Check if video is ready
     if (video.readyState < 2) { // HAVE_CURRENT_DATA
@@ -375,9 +391,8 @@ export function WorkspaceManager() {
         video.currentTime = sourceTime
 
         video.play().then(() => {
-          storePlay() // Update store state
-        }).catch(error => {
-          console.error('Failed to play video:', error)
+          storePlay()
+        }).catch(() => {
           storePause()
         })
       }
@@ -393,9 +408,8 @@ export function WorkspaceManager() {
     // Set video time and play
     video.currentTime = sourceTime
     video.play().then(() => {
-      storePlay() // Update store state
-    }).catch(error => {
-      console.error('Failed to play video:', error)
+      storePlay()
+    }).catch(() => {
       storePause()
     })
   }, [selectedClip, selectedRecording, currentTime, storePlay, storePause])
@@ -427,6 +441,15 @@ export function WorkspaceManager() {
       // Store effects locally instead of saving immediately
       setLocalEffects(effects)
       setHasUnsavedChanges(true)
+      
+      // Sync zoom effects with engine for real-time preview
+      if (effectsEngineRef.current) {
+        if (effects.zoom?.enabled && effects.zoom.blocks) {
+          effectsEngineRef.current.setZoomEffects(effects.zoom.blocks)
+        } else {
+          effectsEngineRef.current.clearEffects()
+        }
+      }
     }
   }, [selectedClipId])
 
@@ -596,7 +619,6 @@ export function WorkspaceManager() {
                   }
                 } else {
                   // Raw video files without project metadata are not supported
-                  console.error('Cannot load raw video files without project metadata')
                   alert('This video file does not have an associated project. Please load a .screencast project file instead.')
                   setIsLoading(false)
                   setLoadingMessage('')

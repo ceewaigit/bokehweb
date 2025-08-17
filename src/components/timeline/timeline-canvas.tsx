@@ -3,7 +3,7 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
-import { cn } from '@/lib/utils'
+import { cn, formatTime } from '@/lib/utils'
 import type { Clip, Project, ZoomBlock, ClipEffects } from '@/types/project'
 
 // Sub-components
@@ -16,7 +16,7 @@ import { TimelineContextMenu } from './timeline-context-menu'
 import { TimelineZoomBlock } from './timeline-zoom-block'
 
 // Utilities
-import { TIMELINE_LAYOUT, TimelineUtils } from './timeline-constants'
+import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
 import { useTimelineKeyboard } from './use-timeline-keyboard'
 
 interface TimelineCanvasProps {
@@ -333,6 +333,7 @@ export function TimelineCanvas({
               return clipEffects.zoom.blocks?.map((block: ZoomBlock) => (
                 <TimelineZoomBlock
                   key={block.id}
+                  blockId={block.id}
                   x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
                   y={TimelineUtils.getTrackY('zoom') + TIMELINE_LAYOUT.TRACK_PADDING}
                   width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
@@ -343,6 +344,10 @@ export function TimelineCanvas({
                   outroMs={block.outroMs}
                   scale={block.scale}
                   isSelected={false}
+                  allBlocks={clipEffects.zoom.blocks || []}
+                  clipX={clipX}
+                  clipDuration={selectedClip.duration}
+                  pixelsPerMs={pixelsPerMs}
                   onSelect={() => { }}
                   onDragEnd={(newX) => {
                     const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
@@ -432,7 +437,7 @@ export function TimelineCanvas({
       <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-muted-foreground">
         <span>{selectedClips.length} clip(s) selected</span>
         <span>
-          {TimelineUtils.formatTime(currentTime)} / {TimelineUtils.formatTime(currentProject.timeline.duration)}
+          {formatTime(currentTime)} / {formatTime(currentProject.timeline.duration)}
         </span>
       </div>
 

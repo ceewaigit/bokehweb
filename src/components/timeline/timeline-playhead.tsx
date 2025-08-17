@@ -1,6 +1,6 @@
 import React from 'react'
 import { Group, Line, Rect } from 'react-konva'
-import { TIMELINE_LAYOUT, TimelineUtils } from './timeline-constants'
+import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
 
 interface TimelinePlayheadProps {
   currentTime: number

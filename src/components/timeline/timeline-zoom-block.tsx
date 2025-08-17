@@ -1,5 +1,7 @@
 import React from 'react'
 import { Rect, Group, Text, Line } from 'react-konva'
+import type { ZoomBlock } from '@/types/project'
+import { createZoomBlockDragBoundFunc, ZoomBlockUtils, TimelineUtils } from '@/lib/timeline'
 
 interface TimelineZoomBlockProps {
   x: number
@@ -12,6 +14,11 @@ interface TimelineZoomBlockProps {
   outroMs: number
   scale: number
   isSelected: boolean
+  allBlocks: ZoomBlock[]  // All zoom blocks for collision detection
+  blockId: string
+  clipX: number  // Clip's x position for coordinate conversion
+  clipDuration: number  // Clip duration for bounds checking
+  pixelsPerMs: number  // For coordinate conversion
   onSelect: () => void
   onDragEnd: (newX: number) => void
   onResize: (newWidth: number, side: 'left' | 'right') => void
@@ -30,6 +37,11 @@ export const TimelineZoomBlock = React.memo(({
   outroMs,
   scale,
   isSelected,
+  allBlocks,
+  blockId,
+  clipX,
+  clipDuration,
+  pixelsPerMs,
   onSelect,
   onDragEnd,
   onResize,
@@ -45,18 +57,25 @@ export const TimelineZoomBlock = React.memo(({
   const introWidth = (introMs / totalDuration) * width
   const outroWidth = (outroMs / totalDuration) * width
   
+  // Create drag bound function with collision detection
+  const dragBoundFunc = React.useMemo(() => 
+    createZoomBlockDragBoundFunc(
+      blockId,
+      totalDuration,
+      allBlocks,
+      clipDuration,
+      clipX,
+      y,
+      pixelsPerMs
+    ), [blockId, totalDuration, allBlocks, clipDuration, clipX, y, pixelsPerMs]
+  )
+  
   return (
     <Group
       x={x}
       y={y}
       draggable
-      dragBoundFunc={(pos) => {
-        // Constrain to horizontal movement only (keep same y)
-        return {
-          x: pos.x,
-          y: y
-        }
-      }}
+      dragBoundFunc={dragBoundFunc}
       onDragEnd={(e) => onDragEnd(e.target.x())}
       onClick={onSelect}
       onTap={onSelect}
@@ -165,7 +184,7 @@ export const TimelineZoomBlock = React.memo(({
             }}
           />
           
-          {/* Resize handles */}
+          {/* Resize handles with collision detection */}
           <Rect
             x={-handleSize / 2}
             y={blockHeight / 2 - handleSize / 2}
@@ -174,10 +193,22 @@ export const TimelineZoomBlock = React.memo(({
             fill="white"
             cursor="ew-resize"
             draggable
-            dragBoundFunc={(pos) => ({
-              x: Math.min(pos.x, width - handleSize * 2), // Can't go past right edge
-              y: y + blockHeight / 2 - handleSize / 2
-            })}
+            dragBoundFunc={(pos) => {
+              // Get resize bounds with collision detection
+              const bounds = ZoomBlockUtils.getResizeBounds(
+                { id: blockId, startTime, endTime, introMs, outroMs, scale, targetX: 0.5, targetY: 0.5, mode: 'auto' },
+                'left',
+                allBlocks,
+                clipDuration
+              )
+              const minX = clipX + TimelineUtils.timeToPixel(bounds.min - startTime, pixelsPerMs) - handleSize / 2
+              const maxX = clipX + TimelineUtils.timeToPixel(bounds.max - startTime, pixelsPerMs) - handleSize / 2
+              
+              return {
+                x: Math.max(minX, Math.min(maxX, pos.x)),
+                y: y + blockHeight / 2 - handleSize / 2
+              }
+            }}
             onDragEnd={(e) => {
               const deltaX = e.target.x() - (-handleSize / 2)
               const newWidth = width - deltaX
@@ -194,10 +225,22 @@ export const TimelineZoomBlock = React.memo(({
             fill="white"
             cursor="ew-resize"
             draggable
-            dragBoundFunc={(pos) => ({
-              x: Math.max(pos.x, handleSize), // Can't go past left edge
-              y: y + blockHeight / 2 - handleSize / 2
-            })}
+            dragBoundFunc={(pos) => {
+              // Get resize bounds with collision detection
+              const bounds = ZoomBlockUtils.getResizeBounds(
+                { id: blockId, startTime, endTime, introMs, outroMs, scale, targetX: 0.5, targetY: 0.5, mode: 'auto' },
+                'right',
+                allBlocks,
+                clipDuration
+              )
+              const minX = TimelineUtils.timeToPixel(bounds.min - startTime, pixelsPerMs) - handleSize / 2
+              const maxX = TimelineUtils.timeToPixel(bounds.max - startTime, pixelsPerMs) - handleSize / 2
+              
+              return {
+                x: Math.max(minX, Math.min(maxX, pos.x)),
+                y: y + blockHeight / 2 - handleSize / 2
+              }
+            }}
             onDragEnd={(e) => {
               const newWidth = e.target.x() + handleSize / 2
               onResize(newWidth, 'right')

@@ -283,15 +283,6 @@ export function EffectsSidebar({
               />
             </div>
 
-            {/* Debug section */}
-            <div className="border-t pt-4 space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Debug Tools
-              </h4>
-
-              {/* Zoom effect controls temporarily disabled during refactor */}
-              {/* TODO: Add these back via WorkspaceManager callbacks */}
-            </div>
           </div>
         )}
 

@@ -297,6 +297,37 @@ export class EffectsEngine {
   }
 
   /**
+   * Set zoom effects from timeline zoom blocks
+   * Replaces all existing zoom effects with the provided blocks
+   */
+  setZoomEffects(zoomBlocks: any[]) {
+    // Remove all existing zoom effects
+    this.effects = this.effects.filter(e => e.type !== 'zoom')
+    
+    // Add new zoom effects from blocks
+    if (zoomBlocks && zoomBlocks.length > 0) {
+      for (const block of zoomBlocks) {
+        // Convert zoom block to effect format
+        const effect: ZoomEffect = {
+          id: block.id,
+          type: 'zoom',
+          startTime: block.startTime,
+          endTime: block.endTime,
+          targetX: block.targetX || 0.5,  // Default to center if not specified
+          targetY: block.targetY || 0.5,
+          scale: block.scale || 2.0,
+          introMs: block.introMs || 300,
+          outroMs: block.outroMs || 300
+        }
+        this.effects.push(effect)
+      }
+      
+      // Keep effects sorted by start time
+      this.effects.sort((a, b) => a.startTime - b.startTime)
+    }
+  }
+
+  /**
    * Force detect zoom effects with test data for debugging
    */
   forceDetectZoomEffects(options?: {

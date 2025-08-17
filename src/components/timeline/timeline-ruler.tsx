@@ -1,6 +1,7 @@
 import React from 'react'
 import { Line, Text } from 'react-konva'
-import { TIMELINE_LAYOUT, TimelineUtils } from './timeline-constants'
+import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
+import { formatTime } from '@/lib/utils'
 
 interface TimelineRulerProps {
   duration: number
@@ -31,7 +32,7 @@ export const TimelineRuler = React.memo(({ duration, zoom, pixelsPerMs }: Timeli
           key={`label-${time}`}
           x={x + 4}
           y={4}
-          text={TimelineUtils.formatTime(time)}
+          text={formatTime(time)}
           fontSize={11}
           fill="#999"
         />

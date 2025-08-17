@@ -1,6 +1,6 @@
 import React from 'react'
 import { Group, Rect, Text } from 'react-konva'
-import { TIMELINE_LAYOUT } from './timeline-constants'
+import { TIMELINE_LAYOUT } from '@/lib/timeline'
 
 interface TimelineTrackProps {
   type: 'video' | 'zoom' | 'audio'

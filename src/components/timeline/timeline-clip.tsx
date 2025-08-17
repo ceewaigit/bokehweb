@@ -1,7 +1,7 @@
 import React from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import type { Clip } from '@/types/project'
-import { TIMELINE_LAYOUT, TimelineUtils, createDragBoundFunc } from './timeline-constants'
+import { TIMELINE_LAYOUT, TimelineUtils, createDragBoundFunc } from '@/lib/timeline'
 
 interface TimelineClipProps {
   clip: Clip

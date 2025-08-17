@@ -368,10 +368,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                             "ml-auto w-6 h-6 p-0 bg-black/40 backdrop-blur-sm hover:bg-black/60 transition-opacity",
                             hoveredIndex === index ? "opacity-100" : "opacity-0"
                           )}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            // TODO: Show options menu
-                          }}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <MoreVertical className="w-3 h-3 text-white" />
                         </Button>
@@ -448,7 +445,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                               className="w-7 h-7 p-0 bg-white/10 hover:bg-red-500/20 text-white hover:text-red-300"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                // TODO: Delete functionality
                               }}
                             >
                               <Trash2 className="w-3 h-3" />

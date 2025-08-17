@@ -216,12 +216,24 @@ export class BlobURLManager {
     }
 
     try {
-      // Try to fetch the blob URL with HEAD request to check if it exists
-      // If the blob URL is invalid, this will throw an error
-      const response = await fetch(url, { method: 'HEAD' })
-      return response.ok
+      // Instead of HEAD request (which blob URLs don't support),
+      // try to fetch just the first byte to check validity
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 100) // Quick timeout
+      
+      const response = await fetch(url, { 
+        method: 'GET',
+        headers: { 'Range': 'bytes=0-0' }, // Request only first byte
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      // If we can fetch even one byte, the blob URL is valid
+      return response.ok || response.status === 206 // 206 is partial content
     } catch (error) {
       // Blob URL is no longer valid (happens after page reload)
+      // This is expected behavior, not an error
       return false
     }
   }

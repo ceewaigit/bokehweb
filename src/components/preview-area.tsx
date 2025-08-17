@@ -79,26 +79,17 @@ export function PreviewArea({
         const currentBackgroundRenderer = latestBackgroundRendererRef.current
         const currentEffectsEngine = latestEffectsEngineRef.current
         
-        // Get background options from clip effects and map types
+        // Get background options from clip effects
         const clipBg = currentClip?.effects?.background || {
           type: 'gradient',
-          gradient: {
-            colors: ['#0F172A', '#1E293B'],
-            angle: 135
-          },
+          gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
           padding: 80
         }
 
-        // Map clip background type to renderer type
-        let bgType: 'solid' | 'gradient' | 'image' | 'wallpaper' | 'blur' = 'gradient'
-        if (clipBg.type === 'color') bgType = 'solid'
-        else if (clipBg.type === 'none') bgType = 'solid' // Use solid black for 'none'
-        else if (clipBg.type === 'gradient' || clipBg.type === 'image' || clipBg.type === 'blur') {
-          bgType = clipBg.type
-        }
-
         const bgOptions = {
-          type: bgType,
+          type: clipBg.type === 'color' ? 'solid' : 
+                clipBg.type === 'none' ? 'solid' : 
+                clipBg.type as any,
           color: clipBg.type === 'none' ? '#000000' : clipBg.color,
           gradient: clipBg.gradient ? {
             type: 'linear' as const,
@@ -233,12 +224,10 @@ export function PreviewArea({
   }, []) // No dependencies - uses refs for latest values
 
 
-  // Separate effect for handling effect updates without disrupting playback
+  // Handle effect updates without disrupting playback
   useEffect(() => {
-    // When effects change, just render the current frame with new effects
-    // Don't reset video state or position
     if (isVideoLoaded && !isPlaying) {
-      renderFrame()
+      renderFrame() // Re-render current frame with new effects
     }
   }, [selectedClip?.effects, isVideoLoaded, isPlaying, renderFrame])
 
@@ -309,7 +298,7 @@ export function PreviewArea({
 
     // Removed handleTimeUpdate - not needed, was causing double rendering
     
-    const handleError = (e: Event) => {
+    const handleError = () => {
       // Video error occurred
       setIsLoading(false)
       setLoadError('Failed to load video. The file may be corrupted or in an unsupported format.')
