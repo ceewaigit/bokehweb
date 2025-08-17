@@ -41,6 +41,7 @@ export function PreviewArea({
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const initializedRecordingRef = useRef<string | null>(null)
 
   // Use the selected recording passed from parent
   const currentRecording = selectedRecording
@@ -221,10 +222,16 @@ export function PreviewArea({
     
     if (!video || !canvas) return
 
-    // Reset loaded state when recording changes
-    setIsVideoLoaded(false)
-    setIsLoading(true)
-    setLoadError(null)
+    // Check if this is a new recording
+    const isNewRecording = initializedRecordingRef.current !== currentRecording.id
+
+    if (isNewRecording) {
+      // Reset loaded state when recording changes
+      setIsVideoLoaded(false)
+      setIsLoading(true)
+      setLoadError(null)
+      initializedRecordingRef.current = currentRecording.id
+    }
 
     // Effects are now managed by parent component
 
@@ -241,8 +248,8 @@ export function PreviewArea({
       })
       
       if (video.readyState >= 2 && video.videoWidth && video.videoHeight) {
-        // Only initialize once per video
-        if (!isVideoLoaded) {
+        // Only initialize once per recording
+        if (!isVideoLoaded && initializedRecordingRef.current === currentRecording.id) {
           // Set canvas to a reasonable size for display
           const maxWidth = 1920
           const maxHeight = 1080
@@ -307,7 +314,7 @@ export function PreviewArea({
       }
 
     }
-  }, [currentRecording?.id, renderFrame, isVideoLoaded])
+  }, [currentRecording?.id, renderFrame])
 
   // Handle playback state changes - simplified
   useEffect(() => {
