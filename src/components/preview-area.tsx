@@ -5,7 +5,7 @@ import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { Clip, Recording } from '@/types/project'
+import type { Clip, Recording, ClipEffects } from '@/types/project'
 
 interface PreviewAreaProps {
   videoRef: RefObject<HTMLVideoElement>
@@ -17,6 +17,7 @@ interface PreviewAreaProps {
   selectedRecording: Recording | null | undefined
   currentTime: number
   isPlaying: boolean
+  localEffects?: ClipEffects | null
 }
 
 export function PreviewArea({
@@ -28,7 +29,8 @@ export function PreviewArea({
   selectedClip,
   selectedRecording,
   currentTime,
-  isPlaying
+  isPlaying,
+  localEffects
 }: PreviewAreaProps) {
   // Internal refs for animation and state
   const animationFrameRef = useRef<number>()
@@ -85,14 +87,17 @@ export function PreviewArea({
         const currentBackgroundRenderer = latestBackgroundRendererRef.current
         const currentEffectsEngine = latestEffectsEngineRef.current
         
+        // Use localEffects if available, otherwise use clip effects
+        const effectsToUse = localEffects || currentClip?.effects
+        
         // Get background options from clip effects
-        const clipBg = currentClip?.effects?.background || {
+        const clipBg = effectsToUse?.background || {
           type: 'gradient',
           gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
           padding: 80
         }
         
-        console.log('🎨 renderFrame: clipBg =', clipBg)
+        console.log('🎨 renderFrame: clipBg =', clipBg, 'from:', localEffects ? 'localEffects' : 'clip.effects')
 
         const bgOptions = {
           type: clipBg.type === 'color' ? 'solid' : 
@@ -147,7 +152,7 @@ export function PreviewArea({
           currentBackgroundRenderer.updateOptions(bgOptions)
 
           // Only use temp canvas if we have zoom effects
-          const hasZoomEffect = currentClip?.effects?.zoom?.enabled && currentEffectsEngine
+          const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
 
           if (hasZoomEffect && currentEffectsEngine) {
             // Reuse cached temporary canvas for zoom effects
@@ -171,7 +176,7 @@ export function PreviewArea({
 
             // Calculate time relative to the clip for zoom effects
             // The zoom blocks are stored relative to clip time (0 = start of clip)
-            const clipRelativeTime = currentTimeMs - currentClip.sourceIn
+            const clipRelativeTime = currentTimeMs - (currentClip?.sourceIn || 0)
             const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime)
 
             if (zoomState.scale > 1.0) {
@@ -230,15 +235,24 @@ export function PreviewArea({
     } catch (err) {
       // Don't clear canvas on error - keep last frame visible
     }
-  }, []) // No dependencies - uses refs for latest values
+  }, [localEffects]) // Include localEffects to update when it changes
 
 
   // Handle effect updates without disrupting playback
   useEffect(() => {
+    const effectsInUse = localEffects || selectedClip?.effects
+    console.log('🔍 Effect update detected:', {
+      effectsInUse,
+      localEffects,
+      clipEffects: selectedClip?.effects,
+      isVideoLoaded,
+      isPlaying
+    })
     if (isVideoLoaded && !isPlaying) {
+      console.log('📸 Re-rendering frame due to effect change')
       renderFrame() // Re-render current frame with new effects
     }
-  }, [selectedClip?.effects, isVideoLoaded, isPlaying, renderFrame])
+  }, [localEffects, selectedClip?.effects, isVideoLoaded, isPlaying, renderFrame])
 
   // Main effect: Handle canvas and effects initialization
   useEffect(() => {

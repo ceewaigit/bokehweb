@@ -222,8 +222,7 @@ export function WorkspaceManager() {
           size: clipEffects.cursor.size,
           color: clipEffects.cursor.color,
           clickColor: '#007AFF',
-          smoothing: true,
-          showDebug: true  // Enable debug mode to see coordinates
+          smoothing: true
         })
 
         // Convert metadata format for cursor renderer
@@ -760,6 +759,7 @@ export function WorkspaceManager() {
                 selectedRecording={selectedRecording}
                 currentTime={currentTime}
                 isPlaying={isPlaying}
+                localEffects={localEffects}
               />
             </div>
 

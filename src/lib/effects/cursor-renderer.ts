@@ -142,12 +142,29 @@ export class CursorRenderer {
 
   // Update video positioning info for proper cursor alignment
   updateVideoPosition(x: number, y: number, width: number, height: number) {
+    console.log('📍 updateVideoPosition called:', { x, y, width, height })
     this.videoOffset = { x, y, width, height }
   }
 
   private preprocessEvents() {
     // Convert events to sorted points with velocity calculation
     // Transform from screen space to video space
+    
+    // Log first few events to understand the data
+    if (this.events.length > 0) {
+      console.log('🔍 Raw cursor events (first 3):', this.events.slice(0, 3).map(e => ({
+        mouseX: e.mouseX,
+        mouseY: e.mouseY,
+        screenW: e.screenWidth,
+        screenH: e.screenHeight,
+        timestamp: e.timestamp
+      })))
+      console.log('🎬 Video dimensions:', {
+        width: this.video?.videoWidth,
+        height: this.video?.videoHeight
+      })
+    }
+    
     this.sortedPoints = this.events
       .map((event, index) => {
         // Convert from screen space to video space
@@ -225,6 +242,22 @@ export class CursorRenderer {
     const targetPos = this.getInterpolatedPosition(videoTime)
     if (!targetPos) return
 
+    // Log coordinate transformation for debugging (only every 30 frames to reduce spam)
+    if (this.frameCount % 30 === 0) {
+      console.log('🎯 Cursor Transform:', {
+        videoTime: videoTime.toFixed(0),
+        targetPos: { x: targetPos.x.toFixed(1), y: targetPos.y.toFixed(1) },
+        video: { w: this.video.videoWidth, h: this.video.videoHeight },
+        canvas: { w: this.canvas.width, h: this.canvas.height },
+        videoOffset: { 
+          x: this.videoOffset.x.toFixed(1), 
+          y: this.videoOffset.y.toFixed(1), 
+          w: this.videoOffset.width.toFixed(1), 
+          h: this.videoOffset.height.toFixed(1) 
+        }
+      })
+    }
+
     // Calculate scaling to map from video space to canvas space
     // The cursor coordinates are already in video space (0 to videoWidth/Height)
     // We need to map them to the canvas position where the video is displayed
@@ -242,6 +275,14 @@ export class CursorRenderer {
     const smoothingFactor = this.options.smoothing ? 0.25 : 1
     const scaledTargetX = this.videoOffset.x + (targetPos.x * scaleX)
     const scaledTargetY = this.videoOffset.y + (targetPos.y * scaleY)
+    
+    if (this.frameCount % 30 === 0) {
+      console.log('🎯 Scaled Target:', {
+        scaleX: scaleX.toFixed(2),
+        scaleY: scaleY.toFixed(2),
+        scaledTarget: { x: scaledTargetX.toFixed(1), y: scaledTargetY.toFixed(1) }
+      })
+    }
     this.currentPosition.x += (scaledTargetX - this.currentPosition.x) * smoothingFactor
     this.currentPosition.y += (scaledTargetY - this.currentPosition.y) * smoothingFactor
     
