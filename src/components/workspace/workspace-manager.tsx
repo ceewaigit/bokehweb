@@ -247,8 +247,31 @@ export function WorkspaceManager() {
         if (cursorCanvas && canvasRef.current?.parentElement) {
           // Match the cursor canvas to the main canvas dimensions
           const mainCanvas = canvasRef.current
-          cursorCanvas.width = mainCanvas.width
-          cursorCanvas.height = mainCanvas.height
+          console.log('📐 Main canvas dimensions:', { width: mainCanvas.width, height: mainCanvas.height })
+          console.log('📹 Video dimensions:', { width: videoWidth, height: videoHeight })
+          
+          // Use video dimensions if main canvas is at default size (300x150)
+          if (mainCanvas.width === 300 && mainCanvas.height === 150) {
+            // Main canvas not properly sized yet, use video dimensions with max constraints
+            const maxWidth = 1920
+            const maxHeight = 1080
+            let canvasWidth = videoWidth
+            let canvasHeight = videoHeight
+            
+            // Scale down if too large
+            if (canvasWidth > maxWidth || canvasHeight > maxHeight) {
+              const scale = Math.min(maxWidth / canvasWidth, maxHeight / canvasHeight)
+              canvasWidth = Math.floor(canvasWidth * scale)
+              canvasHeight = Math.floor(canvasHeight * scale)
+            }
+            
+            cursorCanvas.width = canvasWidth
+            cursorCanvas.height = canvasHeight
+            console.log('📐 Using calculated dimensions:', { width: canvasWidth, height: canvasHeight })
+          } else {
+            cursorCanvas.width = mainCanvas.width
+            cursorCanvas.height = mainCanvas.height
+          }
           
           // Copy all styles from main canvas to cursor canvas
           cursorCanvas.style.position = 'absolute'
@@ -264,8 +287,13 @@ export function WorkspaceManager() {
           // Calculate video position in canvas (same logic as preview-area)
           const padding = clipEffects?.background?.padding || 80
           const videoAspect = videoWidth / videoHeight
-          const availableWidth = mainCanvas.width - (padding * 2)
-          const availableHeight = mainCanvas.height - (padding * 2)
+          
+          // Use the actual canvas dimensions that will be used
+          const actualCanvasWidth = cursorCanvas.width
+          const actualCanvasHeight = cursorCanvas.height
+          
+          const availableWidth = actualCanvasWidth - (padding * 2)
+          const availableHeight = actualCanvasHeight - (padding * 2)
           const availableAspect = availableWidth / availableHeight
           
           let drawWidth, drawHeight, offsetX, offsetY
