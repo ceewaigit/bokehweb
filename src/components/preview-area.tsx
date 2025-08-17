@@ -151,7 +151,11 @@ export function PreviewArea({
       if (currentBackgroundRenderer) {
         // Only update background options if they actually changed
         if (backgroundChanged) {
-          console.log('📐 Background options changed, updating renderer', bgOptions)
+          console.log('📐 Background options changed, updating renderer', {
+            ...bgOptions,
+            gradientColors: bgOptions.gradient?.colors,
+            effectsToUse: effectsToUse?.background
+          })
           currentBackgroundRenderer.updateOptions(bgOptions)
           lastBackgroundOptionsRef.current = bgOptionsString
         }

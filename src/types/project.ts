@@ -347,8 +347,14 @@ export async function saveRecordingWithProject(
   projectName?: string,
   captureArea?: CaptureArea
 ): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
+  console.log('saveRecordingWithProject called')
+  console.log('window.electronAPI:', window.electronAPI)
+  console.log('saveRecording available:', !!window.electronAPI?.saveRecording)
+  console.log('getRecordingsDirectory available:', !!window.electronAPI?.getRecordingsDirectory)
+  
   if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
     console.error('Electron API not available for saving')
+    console.error('window.electronAPI:', window.electronAPI)
     return null
   }
 

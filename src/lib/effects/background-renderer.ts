@@ -335,6 +335,12 @@ export class BackgroundRenderer {
   }
 
   updateOptions(options: Partial<BackgroundOptions>) {
+    console.log('🎨 BackgroundRenderer.updateOptions called with:', {
+      type: options.type,
+      gradientColors: options.gradient?.colors,
+      oldColors: this.options.gradient?.colors
+    })
+    
     this.options = { ...this.options, ...options }
 
     if (options.gradient || options.type === 'gradient') {
