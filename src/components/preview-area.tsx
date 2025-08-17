@@ -66,16 +66,10 @@ export function PreviewArea({
   const renderFrame = useCallback(() => {
     const canvas = canvasRef.current
     const video = videoRef.current
-    if (!canvas || !video) {
-      console.log('🚫 renderFrame: canvas or video not available')
-      return
-    }
+    if (!canvas || !video) return
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      console.log('🚫 renderFrame: no context')
-      return
-    }
+    if (!ctx) return
 
     const currentTimeMs = video.currentTime * 1000
 
@@ -96,8 +90,6 @@ export function PreviewArea({
           gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
           padding: 80
         }
-        
-        console.log('🎨 renderFrame: clipBg =', clipBg, 'from:', localEffects ? 'localEffects' : 'clip.effects')
 
         const bgOptions = {
           type: clipBg.type === 'color' ? 'solid' : 
@@ -240,16 +232,7 @@ export function PreviewArea({
 
   // Handle effect updates without disrupting playback
   useEffect(() => {
-    const effectsInUse = localEffects || selectedClip?.effects
-    console.log('🔍 Effect update detected:', {
-      effectsInUse,
-      localEffects,
-      clipEffects: selectedClip?.effects,
-      isVideoLoaded,
-      isPlaying
-    })
     if (isVideoLoaded && !isPlaying) {
-      console.log('📸 Re-rendering frame due to effect change')
       renderFrame() // Re-render current frame with new effects
     }
   }, [localEffects, selectedClip?.effects, isVideoLoaded, isPlaying, renderFrame])
@@ -271,16 +254,12 @@ export function PreviewArea({
     
     // Listen for force render events
     const handleForceRender = () => {
-      console.log('🎯 forceRender event received, isVideoLoaded:', isVideoLoaded)
       if (isVideoLoaded) {
         // Use requestAnimationFrame to ensure we render in the next frame
         // This helps with timing issues when background options are being updated
         requestAnimationFrame(() => {
-          console.log('🖌️ Calling renderFrame from forceRender')
           renderFrame()
         })
-      } else {
-        console.log('⚠️ Video not loaded, skipping render')
       }
     }
     canvas.addEventListener('forceRender', handleForceRender)
