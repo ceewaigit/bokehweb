@@ -135,7 +135,10 @@ export function PreviewArea({
         
         // Update cursor renderer if it exists
         if (cursorRenderer) {
+          console.log('📍 Preview area updating cursor position:', { offsetX, offsetY, drawWidth, drawHeight })
           cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
+        } else {
+          console.log('⚠️ No cursor renderer to update position')
         }
 
         // Apply background first if background renderer exists

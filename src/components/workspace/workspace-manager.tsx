@@ -249,9 +249,25 @@ export function WorkspaceManager() {
           // The preview area will handle updating the video position
           const mainCanvas = canvasRef.current
           
+          // Wait for main canvas to be properly sized
+          // If main canvas is still at default size, wait for preview area to size it
+          if (mainCanvas.width === 300 && mainCanvas.height === 150) {
+            console.log('⚠️ Main canvas not ready, waiting for proper dimensions')
+            // Re-initialize once canvas is ready
+            setTimeout(() => {
+              if (cursorRendererRef.current && canvasRef.current && 
+                  canvasRef.current.width > 300 && canvasRef.current.height > 150) {
+                console.log('✅ Re-initializing cursor with proper canvas size')
+                initializeEffects(false)
+              }
+            }, 100)
+            return // Don't proceed with default dimensions
+          }
+          
           // Match dimensions exactly - preview area handles sizing
           cursorCanvas.width = mainCanvas.width
           cursorCanvas.height = mainCanvas.height
+          console.log('🎯 Cursor canvas sized to:', { width: cursorCanvas.width, height: cursorCanvas.height })
           
           // Copy all styles from main canvas to cursor canvas
           cursorCanvas.style.position = 'absolute'
@@ -374,6 +390,34 @@ export function WorkspaceManager() {
         cursorCanvasRef.current.height = canvasRef.current.height
         cursorCanvasRef.current.style.width = canvasRef.current.style.width || `${canvasRef.current.width}px`
         cursorCanvasRef.current.style.height = canvasRef.current.style.height || `${canvasRef.current.height}px`
+        
+        // Also update video position if cursor renderer exists
+        if (cursorRendererRef.current && canvasRef.current.width > 300) {
+          const padding = activeEffects?.background?.padding || 80
+          const videoWidth = videoRef.current?.videoWidth || 1920
+          const videoHeight = videoRef.current?.videoHeight || 1080
+          const videoAspect = videoWidth / videoHeight
+          const availableWidth = canvasRef.current.width - (padding * 2)
+          const availableHeight = canvasRef.current.height - (padding * 2)
+          const availableAspect = availableWidth / availableHeight
+          
+          let drawWidth, drawHeight, offsetX, offsetY
+          
+          if (videoAspect > availableAspect) {
+            drawWidth = availableWidth
+            drawHeight = availableWidth / videoAspect
+            offsetX = padding
+            offsetY = padding + (availableHeight - drawHeight) / 2
+          } else {
+            drawHeight = availableHeight
+            drawWidth = availableHeight * videoAspect
+            offsetX = padding + (availableWidth - drawWidth) / 2
+            offsetY = padding
+          }
+          
+          console.log('🔄 Updating cursor position on effect change:', { offsetX, offsetY, drawWidth, drawHeight })
+          cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
+        }
       }
     }
   }, [activeEffects, initializeEffects, selectedRecording])
