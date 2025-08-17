@@ -396,8 +396,19 @@ export class CursorRenderer {
     const cursorSize = (this.options.size || 2.5) * 24
     const hotspotX = (4 / 24) * cursorSize // Scale hotspot based on actual cursor size
     const hotspotY = (4 / 24) * cursorSize
-    const x = this.currentPosition.x - hotspotX
-    const y = this.currentPosition.y - hotspotY
+    
+    // Constrain cursor position to video bounds if video offset is set
+    let renderX = this.currentPosition.x
+    let renderY = this.currentPosition.y
+    
+    if (this.videoOffset.width > 0 && this.videoOffset.height > 0) {
+      // Clamp cursor position to stay within video bounds
+      renderX = Math.max(this.videoOffset.x, Math.min(this.videoOffset.x + this.videoOffset.width, renderX))
+      renderY = Math.max(this.videoOffset.y, Math.min(this.videoOffset.y + this.videoOffset.height, renderY))
+    }
+    
+    const x = renderX - hotspotX
+    const y = renderY - hotspotY
     
     // Use subpixel rendering
     this.ctx.imageSmoothingEnabled = true
@@ -461,19 +472,28 @@ export class CursorRenderer {
     const clickColor = this.options.clickColor || '#007AFF'
 
     this.clickAnimations.forEach(anim => {
+      // Constrain click animation position to video bounds
+      let renderX = anim.x
+      let renderY = anim.y
+      
+      if (this.videoOffset.width > 0 && this.videoOffset.height > 0) {
+        renderX = Math.max(this.videoOffset.x, Math.min(this.videoOffset.x + this.videoOffset.width, renderX))
+        renderY = Math.max(this.videoOffset.y, Math.min(this.videoOffset.y + this.videoOffset.height, renderY))
+      }
+      
       this.ctx!.save()
       this.ctx!.globalAlpha = anim.opacity * 0.6
       this.ctx!.strokeStyle = clickColor
       this.ctx!.lineWidth = 2.5
       this.ctx!.beginPath()
-      this.ctx!.arc(anim.x, anim.y, anim.radius, 0, Math.PI * 2)
+      this.ctx!.arc(renderX, renderY, anim.radius, 0, Math.PI * 2)
       this.ctx!.stroke()
       
       // Inner circle for better visibility
       this.ctx!.globalAlpha = anim.opacity * 0.3
       this.ctx!.fillStyle = clickColor
       this.ctx!.beginPath()
-      this.ctx!.arc(anim.x, anim.y, anim.radius * 0.3, 0, Math.PI * 2)
+      this.ctx!.arc(renderX, renderY, anim.radius * 0.3, 0, Math.PI * 2)
       this.ctx!.fill()
       
       this.ctx!.restore()

@@ -256,17 +256,43 @@ export function createZoomBlockDragBoundFunc(
   pixelsPerMs: number
 ) {
   return (pos: { x: number; y: number }) => {
-    // Convert pixel position to time
-    const newStartTime = TimelineUtils.pixelToTime(pos.x - clipX, pixelsPerMs)
+    // Convert pixel position to time relative to clip start
+    const requestedTime = Math.max(0, TimelineUtils.pixelToTime(pos.x - clipX, pixelsPerMs))
+    const requestedEnd = requestedTime + duration
     
-    // Find valid position avoiding overlaps
-    const validStartTime = ZoomBlockUtils.findNextValidPosition(
-      blockId,
-      newStartTime,
-      duration,
-      allBlocks,
-      clipDuration
-    )
+    // Check boundaries first
+    let validStartTime = requestedTime
+    if (requestedEnd > clipDuration) {
+      validStartTime = Math.max(0, clipDuration - duration)
+    }
+    
+    // Check for overlaps with other blocks
+    const otherBlocks = allBlocks.filter(b => b.id !== blockId)
+    for (const block of otherBlocks) {
+      // Check if requested position would overlap with this block
+      if (validStartTime < block.endTime && validStartTime + duration > block.startTime) {
+        // Try positioning before this block
+        if (block.startTime - duration >= 0) {
+          validStartTime = Math.max(0, block.startTime - duration)
+        } else {
+          // Try positioning after this block
+          validStartTime = block.endTime
+        }
+        
+        // Check if new position is valid
+        const newEnd = validStartTime + duration
+        if (newEnd > clipDuration) {
+          // Can't fit after this block, stay at original position
+          const currentBlock = allBlocks.find(b => b.id === blockId)
+          if (currentBlock) {
+            validStartTime = currentBlock.startTime
+          }
+        }
+      }
+    }
+    
+    // Ensure we don't go negative or past clip duration
+    validStartTime = Math.max(0, Math.min(validStartTime, clipDuration - duration))
     
     // Convert back to pixels
     const validX = clipX + TimelineUtils.timeToPixel(validStartTime, pixelsPerMs)

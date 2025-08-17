@@ -161,9 +161,10 @@ export function PreviewArea({
             // Save context state for zoom transformations
             tempCtx.save()
 
-            const clipTime = currentTimeMs - currentClip.sourceIn
-            const sourceTime = currentClip.sourceIn + clipTime
-            const zoomState = currentEffectsEngine.getZoomState(sourceTime)
+            // Calculate time relative to the clip for zoom effects
+            // The zoom blocks are stored relative to clip time (0 = start of clip)
+            const clipRelativeTime = currentTimeMs - currentClip.sourceIn
+            const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime)
 
             if (zoomState.scale > 1.0) {
               const centerX = tempCanvas.width / 2
@@ -245,6 +246,14 @@ export function PreviewArea({
     }
     
     if (!video || !canvas) return
+    
+    // Listen for force render events
+    const handleForceRender = () => {
+      if (isVideoLoaded) {
+        renderFrame()
+      }
+    }
+    canvas.addEventListener('forceRender', handleForceRender)
 
     // Check if this is a new recording
     const isNewRecording = initializedRecordingRef.current !== currentRecording.id
@@ -312,6 +321,7 @@ export function PreviewArea({
       video.removeEventListener('loadedmetadata', handleVideoReady)
       video.removeEventListener('canplay', handleVideoReady)
       video.removeEventListener('error', handleError)
+      canvas.removeEventListener('forceRender', handleForceRender)
 
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)

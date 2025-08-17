@@ -66,6 +66,25 @@ export function WorkspaceManager() {
     const currentEffects = localEffects || selectedClip?.effects || DEFAULT_CLIP_EFFECTS
     const currentZoom = currentEffects.zoom
     
+    // Validate the update doesn't cause overlaps
+    const blockToUpdate = currentZoom.blocks.find((b: ZoomBlock) => b.id === blockId)
+    if (!blockToUpdate) return
+    
+    const newStartTime = updates.startTime ?? blockToUpdate.startTime
+    const newEndTime = updates.endTime ?? blockToUpdate.endTime
+    
+    // Check for overlaps with other blocks
+    const hasOverlap = currentZoom.blocks.some((block: ZoomBlock) => {
+      if (block.id === blockId) return false
+      return newStartTime < block.endTime && newEndTime > block.startTime
+    })
+    
+    // If there's an overlap, don't apply the update
+    if (hasOverlap) {
+      console.warn('Zoom block update would cause overlap, rejecting')
+      return
+    }
+    
     const updatedBlocks = currentZoom.blocks.map((block: ZoomBlock) =>
       block.id === blockId ? { ...block, ...updates } : block
     )
@@ -448,6 +467,40 @@ export function WorkspaceManager() {
           effectsEngineRef.current.setZoomEffects(effects.zoom.blocks)
         } else {
           effectsEngineRef.current.clearEffects()
+        }
+      }
+      
+      // Force preview update for background changes
+      if (backgroundRendererRef.current && effects.background) {
+        const bgType = effects.background.type === 'color' ? 'solid' : 
+                       effects.background.type === 'none' ? 'solid' : 
+                       effects.background.type as any
+        
+        const bgOptions = {
+          type: bgType,
+          color: effects.background.type === 'none' ? '#000000' : effects.background.color,
+          gradient: effects.background.gradient ? {
+            type: 'linear' as const,
+            colors: effects.background.gradient.colors,
+            angle: effects.background.gradient.angle
+          } : undefined,
+          image: effects.background.image,
+          blur: effects.background.blur,
+          padding: effects.background.padding || 80,
+          borderRadius: 16
+        }
+        
+        backgroundRendererRef.current.updateOptions(bgOptions)
+        
+        // Force a render frame to show the changes immediately
+        if (canvasRef.current && videoRef.current) {
+          const ctx = canvasRef.current.getContext('2d')
+          if (ctx && videoRef.current.readyState >= 2) {
+            // Trigger a render by calling renderFrame through preview area
+            // We need to force update the preview
+            const event = new CustomEvent('forceRender')
+            canvasRef.current.dispatchEvent(event)
+          }
         }
       }
     }

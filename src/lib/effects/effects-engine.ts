@@ -304,10 +304,14 @@ export class EffectsEngine {
     // Remove all existing zoom effects
     this.effects = this.effects.filter(e => e.type !== 'zoom')
     
+    // Reset camera position when changing zoom effects
+    this.cameraPosition = { x: 0.5, y: 0.5 }
+    
     // Add new zoom effects from blocks
     if (zoomBlocks && zoomBlocks.length > 0) {
       for (const block of zoomBlocks) {
         // Convert zoom block to effect format
+        // Note: zoom blocks times are already in milliseconds relative to clip
         const effect: ZoomEffect = {
           id: block.id,
           type: 'zoom',
@@ -410,7 +414,6 @@ export class EffectsEngine {
       }
     }
 
-    console.log(`Created ${this.effects.length} test zoom effects`)
   }
 
   /**
@@ -436,7 +439,6 @@ export class EffectsEngine {
       : this.events
 
     if (events.length === 0) {
-      console.log('No events found for regeneration')
       return
     }
 
@@ -474,7 +476,6 @@ export class EffectsEngine {
       }
     })
 
-    console.log(`Regenerated ${this.effects.length} zoom effects`)
   }
 
   /**
