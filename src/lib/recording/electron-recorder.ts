@@ -135,8 +135,8 @@ export class ElectronRecorder {
       // Check and request screen recording permission first
       await this.checkScreenRecordingPermission()
 
-      // Get media stream from desktop capturer with audio support
-      const hasAudio = recordingSettings.audioInput !== 'none'
+      // Get media stream from desktop capturer - DISABLE AUDIO for now to avoid issues
+      const hasAudio = false // Force disable audio to prevent stream failure
       logger.debug('Requesting media stream with constraints', {
         audio: hasAudio,
         sourceId: primarySource.id
@@ -145,12 +145,7 @@ export class ElectronRecorder {
       // ALWAYS use the mandatory format - this is what works universally
       // Cast to 'any' because Electron extends the standard MediaStreamConstraints
       const constraints: any = {
-        audio: hasAudio ? {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id
-          }
-        } : false,
+        audio: false, // Disable audio completely
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
@@ -284,13 +279,16 @@ export class ElectronRecorder {
       })
 
       this.chunks = []
+      
+      // Set up data collection BEFORE starting
       this.mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           this.chunks.push(event.data)
           logger.debug(`Recording chunk #${this.chunks.length}: ${event.data.size} bytes, total chunks: ${this.chunks.length}`)
-
-          // Auto-save every 2 seconds worth of chunks as backup
-          if (this.chunks.length % 20 === 0) { // Every 20 chunks at 100ms = 2 seconds
+          console.log(`CHUNK RECEIVED #${this.chunks.length}: ${event.data.size} bytes`)
+          
+          // Auto-save every 5 chunks as backup
+          if (this.chunks.length % 5 === 0) {
             const backupBlob = new Blob(this.chunks, { type: mimeType })
             logger.debug(`Backup save point: ${backupBlob.size} bytes from ${this.chunks.length} chunks`)
           }
@@ -299,12 +297,46 @@ export class ElectronRecorder {
 
       this.mediaRecorder.onstart = () => {
         logger.debug('MediaRecorder started')
+        console.log('MEDIARECORDER STARTED')
+        
+        // Immediately request data to start collecting chunks
+        setTimeout(() => {
+          if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+            try {
+              this.mediaRecorder.requestData()
+              console.log('Initial data request sent')
+            } catch (e) {
+              console.warn('Could not request initial data:', e)
+            }
+          }
+        }, 50)
       }
 
       this.mediaRecorder.onerror = (event: any) => {
         logger.error('MediaRecorder error:', event)
+        console.error('MEDIARECORDER ERROR:', event)
+        
+        // Try to save whatever we have so far
+        if (this.chunks.length > 0) {
+          const emergencyBlob = new Blob(this.chunks, { type: mimeType })
+          console.log(`MEDIARECORDER ERROR - Saving ${this.chunks.length} chunks, ${emergencyBlob.size} bytes`)
+          
+          const duration = Date.now() - this.startTime
+          const result: ElectronRecordingResult = {
+            video: emergencyBlob,
+            metadata: this.metadata,
+            duration,
+            effectsApplied: ['electron-desktop-capture', 'error-recovery'],
+            processingTime: 0,
+            captureArea: this.captureArea
+          }
+          
+          this.emergencySave(result).catch(err => {
+            console.error('Emergency save on error failed:', err)
+          })
+        }
+        
         // Don't stop recording on audio errors - continue with video only
-        // Audio stream errors are common on macOS
         if (event.error?.message?.includes('audio') || event.error?.message?.includes('Stream')) {
           logger.warn('Audio stream error detected, continuing with video only')
           // Remove audio tracks to prevent further errors
@@ -319,13 +351,14 @@ export class ElectronRecorder {
       // Always capture mouse metadata to power effects
       await this.startMouseTracking()
 
-      // Start recording with more frequent data requests to keep ScreenCaptureKit alive
-      // Request data every 100ms instead of 1000ms to prevent stream termination
-      this.mediaRecorder.start(100)
+      // Start recording with immediate data collection
+      // Use very small timeslice to collect data before stream dies
+      this.mediaRecorder.start(10)
       this.isRecording = true
       this.startTime = Date.now()
 
       logger.info('Screen recording started successfully')
+      console.log('Recording started with 10ms timeslice')
 
     } catch (error) {
       this.cleanup()
