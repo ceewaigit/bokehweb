@@ -239,6 +239,11 @@ export function WorkspaceManager() {
           screenHeight: e.screenHeight
         }))
 
+        // Pass effects engine for zoom support
+        if (effectsEngineRef.current) {
+          cursorRendererRef.current.setEffectsEngine(effectsEngineRef.current)
+        }
+        
         const cursorCanvas = cursorRendererRef.current.attachToVideo(
           videoRef.current,
           cursorEvents
@@ -285,8 +290,31 @@ export function WorkspaceManager() {
           canvasRef.current.parentElement.appendChild(cursorCanvas)
           cursorCanvasRef.current = cursorCanvas
           
-          // The preview area will call updateVideoPosition when it renders
-          // This ensures the cursor is always aligned with the actual video position
+          // Calculate and set initial video position
+          const padding = clipEffects?.background?.padding || 80
+          const videoAspect = videoWidth / videoHeight
+          const canvasWidth = cursorCanvas.width
+          const canvasHeight = cursorCanvas.height
+          const availableWidth = canvasWidth - (padding * 2)
+          const availableHeight = canvasHeight - (padding * 2)
+          const availableAspect = availableWidth / availableHeight
+          
+          let drawWidth, drawHeight, offsetX, offsetY
+          
+          if (videoAspect > availableAspect) {
+            drawWidth = availableWidth
+            drawHeight = availableWidth / videoAspect
+            offsetX = padding
+            offsetY = padding + (availableHeight - drawHeight) / 2
+          } else {
+            drawHeight = availableHeight
+            drawWidth = availableHeight * videoAspect
+            offsetX = padding + (availableWidth - drawWidth) / 2
+            offsetY = padding
+          }
+          
+          console.log('🎯 Setting initial cursor video position:', { offsetX, offsetY, drawWidth, drawHeight })
+          cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
         }
       }
     }

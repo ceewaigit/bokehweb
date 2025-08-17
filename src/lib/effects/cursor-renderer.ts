@@ -46,6 +46,7 @@ export class CursorRenderer {
   private video: HTMLVideoElement | null = null
   private isActive = false
   private videoOffset = { x: 0, y: 0, width: 0, height: 0 } // Track video position in canvas
+  private effectsEngine: any = null // For getting zoom state
   
   // Performance monitoring
   private frameCount = 0
@@ -146,6 +147,11 @@ export class CursorRenderer {
     this.videoOffset = { x, y, width, height }
   }
 
+  // Set effects engine for zoom state
+  setEffectsEngine(engine: any) {
+    this.effectsEngine = engine
+  }
+
   private preprocessEvents() {
     // Convert events to sorted points with velocity calculation
     // Store as normalized coordinates (0-1) for resolution independence
@@ -240,8 +246,45 @@ export class CursorRenderer {
 
     // Convert normalized coordinates (0-1) to video space coordinates
     // This is resolution-independent, similar to how zoom works
-    const videoX = targetPos.x * this.video.videoWidth
-    const videoY = targetPos.y * this.video.videoHeight
+    let videoX = targetPos.x * this.video.videoWidth
+    let videoY = targetPos.y * this.video.videoHeight
+    
+    // Apply zoom transformations if effects engine is available
+    let zoomScale = 1.0
+    if (this.effectsEngine) {
+      const zoomState = this.effectsEngine.getZoomState(videoTime)
+      if (zoomState && zoomState.scale > 1.0) {
+        // When zoomed, we need to transform the cursor position
+        // to match how the video is transformed
+        const centerX = this.video.videoWidth / 2
+        const centerY = this.video.videoHeight / 2
+        
+        // Calculate zoom target in video space
+        const targetX = this.video.videoWidth * zoomState.x
+        const targetY = this.video.videoHeight * zoomState.y
+        
+        // Apply the same transformations as the video
+        // 1. Translate to center
+        videoX -= centerX
+        videoY -= centerY
+        
+        // 2. Scale
+        videoX *= zoomState.scale
+        videoY *= zoomState.scale
+        
+        // 3. Pan to keep zoom target centered
+        const panX = (targetX - centerX) * (1 - 1 / zoomState.scale)
+        const panY = (targetY - centerY) * (1 - 1 / zoomState.scale)
+        videoX -= panX
+        videoY -= panY
+        
+        // 4. Translate back
+        videoX += centerX
+        videoY += centerY
+        
+        zoomScale = zoomState.scale
+      }
+    }
 
     // Log coordinate transformation for debugging (only every 30 frames to reduce spam)
     if (this.frameCount % 30 === 0) {
@@ -249,6 +292,7 @@ export class CursorRenderer {
         videoTime: videoTime.toFixed(0),
         normalized: { x: targetPos.x.toFixed(3), y: targetPos.y.toFixed(3) },
         videoSpace: { x: videoX.toFixed(1), y: videoY.toFixed(1) },
+        zoomScale: zoomScale.toFixed(2),
         video: { w: this.video.videoWidth, h: this.video.videoHeight },
         canvas: { w: this.canvas.width, h: this.canvas.height },
         videoOffset: { 
