@@ -175,8 +175,16 @@ export class BlobURLManager {
     // Check cache first
     const cached = RecordingStorage.getBlobUrl(recordingId)
     if (cached) {
-      logger.debug(`Using cached video for ${recordingId}`)
-      return cached
+      // Validate that the cached blob URL is still valid
+      // Blob URLs become invalid after page reload/app restart
+      if (await this.isBlobUrlValid(cached)) {
+        logger.debug(`Using cached video for ${recordingId}`)
+        return cached
+      } else {
+        logger.debug(`Cached blob URL invalid for ${recordingId}, reloading from file`)
+        // Clear the invalid cached URL
+        RecordingStorage.clearBlobUrl(recordingId)
+      }
     }
 
     // Check if already loading
@@ -195,6 +203,26 @@ export class BlobURLManager {
       return result
     } finally {
       this.loadingPromises.delete(recordingId)
+    }
+  }
+
+  /**
+   * Check if a blob URL is still valid
+   */
+  private async isBlobUrlValid(url: string): Promise<boolean> {
+    // Blob URLs start with "blob:"
+    if (!url.startsWith('blob:')) {
+      return false
+    }
+
+    try {
+      // Try to fetch the blob URL with HEAD request to check if it exists
+      // If the blob URL is invalid, this will throw an error
+      const response = await fetch(url, { method: 'HEAD' })
+      return response.ok
+    } catch (error) {
+      // Blob URL is no longer valid (happens after page reload)
+      return false
     }
   }
 

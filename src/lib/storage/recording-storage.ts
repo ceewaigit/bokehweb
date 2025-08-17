@@ -31,6 +31,14 @@ export class RecordingStorage {
   }
 
   /**
+   * Clear a recording blob URL
+   */
+  static clearBlobUrl(recordingId: string): void {
+    localStorage.removeItem(`${this.BLOB_PREFIX}${recordingId}`)
+    logger.debug(`Cleared blob URL for recording ${recordingId}`)
+  }
+
+  /**
    * Store recording metadata
    */
   static setMetadata(recordingId: string, metadata: any): void {
@@ -97,6 +105,31 @@ export class RecordingStorage {
       logger.debug(`Stored project path for ${projectId}: ${path}`)
     } catch (error) {
       logger.error(`Failed to store project path for ${projectId}:`, error)
+    }
+  }
+
+  /**
+   * Clear all blob URLs from localStorage (useful on app startup)
+   * Since blob URLs are session-specific and become invalid after restart
+   */
+  static clearAllBlobUrls(): void {
+    const keysToRemove: string[] = []
+    
+    // Find all blob URL keys
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith(this.BLOB_PREFIX)) {
+        keysToRemove.push(key)
+      }
+    }
+    
+    // Remove all blob URL entries
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key)
+    })
+    
+    if (keysToRemove.length > 0) {
+      logger.info(`Cleared ${keysToRemove.length} cached blob URLs on startup`)
     }
   }
 
