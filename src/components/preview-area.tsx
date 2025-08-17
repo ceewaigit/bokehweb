@@ -260,14 +260,23 @@ export function PreviewArea({
     if (isVideoLoaded) {
       console.log('🎨 Background effect changed, forcing render', {
         isPlaying,
-        localEffects: localEffects?.background,
-        clipEffects: selectedClip?.effects?.background
+        gradient: localEffects?.background?.gradient || selectedClip?.effects?.background?.gradient,
+        localColors: localEffects?.background?.gradient?.colors,
+        clipColors: selectedClip?.effects?.background?.gradient?.colors
       })
       // Force a render when effects change, whether playing or paused
       // Call directly, don't use requestAnimationFrame
       renderFrame()
     }
-  }, [localEffects?.background, selectedClip?.effects?.background, isVideoLoaded, renderFrame, isPlaying])
+  }, [
+    localEffects?.background?.gradient?.colors?.[0],
+    localEffects?.background?.gradient?.colors?.[1],
+    selectedClip?.effects?.background?.gradient?.colors?.[0], 
+    selectedClip?.effects?.background?.gradient?.colors?.[1],
+    isVideoLoaded, 
+    renderFrame, 
+    isPlaying
+  ])
 
   // Main effect: Handle canvas and effects initialization
   useEffect(() => {

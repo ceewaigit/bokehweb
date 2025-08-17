@@ -147,7 +147,8 @@ export class ElectronRecorder {
       const constraints: any = {
         audio: hasAudio ? {
           mandatory: {
-            chromeMediaSource: 'desktop'
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: primarySource.id
           }
         } : false,
         video: {
@@ -169,6 +170,22 @@ export class ElectronRecorder {
         // In Electron, we must use getUserMedia with the specific desktop constraints
         this.stream = await navigator.mediaDevices.getUserMedia(constraints) as MediaStream
         logger.info('Desktop capture stream acquired successfully')
+        
+        // Add error handlers for individual tracks to prevent stream from stopping
+        this.stream.getTracks().forEach(track => {
+          track.onended = () => {
+            logger.warn(`Track ended: ${track.kind} - ${track.label}`)
+            // If it's an audio track that ended, don't stop the whole recording
+            if (track.kind === 'audio' && this.isRecording) {
+              logger.warn('Audio track ended but continuing video recording')
+              this.stream?.removeTrack(track)
+            }
+          }
+          
+          track.onmute = () => {
+            logger.warn(`Track muted: ${track.kind} - ${track.label}`)
+          }
+        })
 
         // If audio was requested but not in the desktop stream, add microphone
         if (hasAudio && this.stream.getAudioTracks().length === 0) {
@@ -226,8 +243,19 @@ export class ElectronRecorder {
         logger.debug('MediaRecorder started')
       }
 
-      this.mediaRecorder.onerror = (event) => {
+      this.mediaRecorder.onerror = (event: any) => {
         logger.error('MediaRecorder error:', event)
+        // Don't stop recording on audio errors - continue with video only
+        // Audio stream errors are common on macOS
+        if (event.error?.message?.includes('audio') || event.error?.message?.includes('Stream')) {
+          logger.warn('Audio stream error detected, continuing with video only')
+          // Remove audio tracks to prevent further errors
+          const audioTracks = this.stream?.getAudioTracks()
+          audioTracks?.forEach(track => {
+            track.stop()
+            this.stream?.removeTrack(track)
+          })
+        }
       }
 
       // Always capture mouse metadata to power effects

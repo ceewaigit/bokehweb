@@ -56,13 +56,26 @@ export function EffectsSidebar({
 
   const updateEffect = (category: string, updates: any) => {
     if (!effects) return
-    onEffectChange({
-      ...effects,
-      [category]: {
-        ...effects[category as keyof typeof effects],
-        ...updates
-      }
-    })
+    
+    // For background gradients, deep merge to ensure gradient colors update
+    if (category === 'background' && updates.gradient) {
+      onEffectChange({
+        ...effects,
+        background: {
+          ...effects.background,
+          ...updates,
+          gradient: updates.gradient  // Replace entire gradient object
+        }
+      })
+    } else {
+      onEffectChange({
+        ...effects,
+        [category]: {
+          ...effects[category as keyof typeof effects],
+          ...updates
+        }
+      })
+    }
   }
 
   return (

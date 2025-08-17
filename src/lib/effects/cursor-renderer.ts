@@ -65,7 +65,7 @@ export class CursorRenderer {
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
-      size: 1.5,
+      size: 1.0,  // Reduced from 1.5 to match actual cursor size
       color: '#000000',
       clickColor: '#007AFF',
       smoothing: true,
@@ -152,16 +152,10 @@ export class CursorRenderer {
     
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Mouse coordinates are in physical pixels (logical * scale)
-        // Screen dimensions are in logical pixels
-        // We need to account for the scale factor
-        const scaleFactor = (event as any).scaleFactor || 1
-        const physicalScreenWidth = event.screenWidth * scaleFactor
-        const physicalScreenHeight = event.screenHeight * scaleFactor
-        
-        // Now normalize using the physical screen dimensions
-        const x = event.mouseX / physicalScreenWidth
-        const y = event.mouseY / physicalScreenHeight
+        // Use recording dimensions directly for normalization
+        // The mouse coordinates should already be in the correct coordinate space
+        const x = event.mouseX / this.recordingWidth
+        const y = event.mouseY / this.recordingHeight
         
         const point: CursorPoint = {
           x,
@@ -172,11 +166,8 @@ export class CursorRenderer {
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevScaleFactor = (prevEvent as any).scaleFactor || 1
-          const prevPhysicalWidth = prevEvent.screenWidth * prevScaleFactor
-          const prevPhysicalHeight = prevEvent.screenHeight * prevScaleFactor
-          const prevX = prevEvent.mouseX / prevPhysicalWidth
-          const prevY = prevEvent.mouseY / prevPhysicalHeight
+          const prevX = prevEvent.mouseX / this.recordingWidth
+          const prevY = prevEvent.mouseY / this.recordingHeight
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {
