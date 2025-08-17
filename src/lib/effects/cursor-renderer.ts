@@ -512,15 +512,66 @@ export class CursorRenderer {
   }
 
   private renderDebugInfo() {
-    if (!this.ctx) return
+    if (!this.ctx || !this.canvas || !this.video) return
     
     this.ctx.save()
     this.ctx.fillStyle = '#00FF00'
+    this.ctx.strokeStyle = '#00FF00'
+    this.ctx.lineWidth = 2
     this.ctx.font = '12px monospace'
-    this.ctx.fillText(`FPS: ${this.currentFps}`, 10, 20)
-    this.ctx.fillText(`Pos: ${Math.round(this.currentPosition.x)}, ${Math.round(this.currentPosition.y)}`, 10, 35)
-    this.ctx.fillText(`Vel: ${Math.round(this.velocity.x)}, ${Math.round(this.velocity.y)}`, 10, 50)
-    this.ctx.fillText(`Events: ${this.sortedPoints.length}`, 10, 65)
+    
+    // Debug text
+    let y = 20
+    this.ctx.fillText(`FPS: ${this.currentFps}`, 10, y)
+    y += 15
+    this.ctx.fillText(`Cursor Canvas Pos: (${Math.round(this.currentPosition.x)}, ${Math.round(this.currentPosition.y)})`, 10, y)
+    y += 15
+    
+    // Get current interpolated point for more info
+    const currentTime = this.video.currentTime * 1000
+    const currentPoint = this.getInterpolatedPosition(currentTime)
+    if (currentPoint) {
+      this.ctx.fillText(`Video Space Pos: (${Math.round(currentPoint.x)}, ${Math.round(currentPoint.y)})`, 10, y)
+      y += 15
+    }
+    
+    // Find raw event data
+    const currentEvent = this.events.find(e => Math.abs(e.timestamp - currentTime) < 100)
+    if (currentEvent) {
+      this.ctx.fillText(`Raw Screen Pos: (${Math.round(currentEvent.mouseX)}, ${Math.round(currentEvent.mouseY)})`, 10, y)
+      y += 15
+      this.ctx.fillText(`Screen Size: ${currentEvent.screenWidth}x${currentEvent.screenHeight}`, 10, y)
+      y += 15
+    }
+    
+    this.ctx.fillText(`Video Size: ${this.video.videoWidth}x${this.video.videoHeight}`, 10, y)
+    y += 15
+    this.ctx.fillText(`Canvas Size: ${this.canvas.width}x${this.canvas.height}`, 10, y)
+    y += 15
+    this.ctx.fillText(`Video in Canvas: (${Math.round(this.videoOffset.x)}, ${Math.round(this.videoOffset.y)}) ${Math.round(this.videoOffset.width)}x${Math.round(this.videoOffset.height)}`, 10, y)
+    y += 15
+    
+    const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
+    const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
+    this.ctx.fillText(`Scale: ${scaleX.toFixed(2)}x${scaleY.toFixed(2)}`, 10, y)
+    
+    // Draw crosshair at cursor position
+    this.ctx.beginPath()
+    this.ctx.moveTo(this.currentPosition.x - 15, this.currentPosition.y)
+    this.ctx.lineTo(this.currentPosition.x + 15, this.currentPosition.y)
+    this.ctx.moveTo(this.currentPosition.x, this.currentPosition.y - 15)
+    this.ctx.lineTo(this.currentPosition.x, this.currentPosition.y + 15)
+    this.ctx.stroke()
+    
+    // Draw circle around cursor
+    this.ctx.beginPath()
+    this.ctx.arc(this.currentPosition.x, this.currentPosition.y, 20, 0, Math.PI * 2)
+    this.ctx.stroke()
+    
+    // Draw video bounds rectangle
+    this.ctx.strokeStyle = '#FF00FF'
+    this.ctx.strokeRect(this.videoOffset.x, this.videoOffset.y, this.videoOffset.width, this.videoOffset.height)
+    
     this.ctx.restore()
   }
 

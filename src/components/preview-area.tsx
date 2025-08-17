@@ -64,10 +64,16 @@ export function PreviewArea({
   const renderFrame = useCallback(() => {
     const canvas = canvasRef.current
     const video = videoRef.current
-    if (!canvas || !video) return
+    if (!canvas || !video) {
+      console.log('🚫 renderFrame: canvas or video not available')
+      return
+    }
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) {
+      console.log('🚫 renderFrame: no context')
+      return
+    }
 
     const currentTimeMs = video.currentTime * 1000
 
@@ -85,6 +91,8 @@ export function PreviewArea({
           gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
           padding: 80
         }
+        
+        console.log('🎨 renderFrame: clipBg =', clipBg)
 
         const bgOptions = {
           type: clipBg.type === 'color' ? 'solid' : 
@@ -249,12 +257,16 @@ export function PreviewArea({
     
     // Listen for force render events
     const handleForceRender = () => {
+      console.log('🎯 forceRender event received, isVideoLoaded:', isVideoLoaded)
       if (isVideoLoaded) {
         // Use requestAnimationFrame to ensure we render in the next frame
         // This helps with timing issues when background options are being updated
         requestAnimationFrame(() => {
+          console.log('🖌️ Calling renderFrame from forceRender')
           renderFrame()
         })
+      } else {
+        console.log('⚠️ Video not loaded, skipping render')
       }
     }
     canvas.addEventListener('forceRender', handleForceRender)

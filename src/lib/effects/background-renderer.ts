@@ -335,13 +335,18 @@ export class BackgroundRenderer {
   }
 
   updateOptions(options: Partial<BackgroundOptions>) {
+    console.log('🔧 BackgroundRenderer.updateOptions called with:', options)
+    const oldOptions = { ...this.options }
     this.options = { ...this.options, ...options }
+    console.log('📝 BackgroundRenderer options updated from:', oldOptions, 'to:', this.options)
 
     if (options.gradient || options.type === 'gradient') {
+      console.log('🎨 Creating new gradient canvas')
       this.createGradientCanvas()
     }
 
     if (options.image || options.type === 'image' || options.type === 'wallpaper') {
+      console.log('🖼️ Initializing background image')
       this.initializeBackground()
     }
   }

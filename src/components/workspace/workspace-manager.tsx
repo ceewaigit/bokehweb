@@ -222,7 +222,8 @@ export function WorkspaceManager() {
           size: clipEffects.cursor.size,
           color: clipEffects.cursor.color,
           clickColor: '#007AFF',
-          smoothing: true
+          smoothing: true,
+          showDebug: true  // Enable debug mode to see coordinates
         })
 
         // Convert metadata format for cursor renderer
@@ -459,6 +460,8 @@ export function WorkspaceManager() {
 
   const handleEffectChange = useCallback((effects: ClipEffects) => {
     if (selectedClipId) {
+      console.log('🎨 handleEffectChange called with effects:', effects)
+      
       // Store effects locally instead of saving immediately
       setLocalEffects(effects)
       setHasUnsavedChanges(true)
@@ -474,6 +477,8 @@ export function WorkspaceManager() {
       
       // Force preview update for background changes
       if (backgroundRendererRef.current && effects.background) {
+        console.log('🖼️ Updating background with:', effects.background)
+        
         const bgType = effects.background.type === 'color' ? 'solid' : 
                        effects.background.type === 'none' ? 'solid' : 
                        effects.background.type as any
@@ -492,6 +497,7 @@ export function WorkspaceManager() {
           borderRadius: 16
         }
         
+        console.log('📋 Background options:', bgOptions)
         backgroundRendererRef.current.updateOptions(bgOptions)
         
         // Force a render frame to show the changes immediately
@@ -499,14 +505,20 @@ export function WorkspaceManager() {
         if (canvasRef.current && videoRef.current) {
           const ctx = canvasRef.current.getContext('2d')
           if (ctx && videoRef.current.readyState >= 2) {
+            console.log('🔄 Dispatching forceRender event')
             // Small delay to ensure gradient canvas is recreated
             requestAnimationFrame(() => {
               // Trigger a render by calling renderFrame through preview area
               // We need to force update the preview
               const event = new CustomEvent('forceRender')
               canvasRef.current?.dispatchEvent(event)
+              console.log('✅ forceRender event dispatched')
             })
+          } else {
+            console.log('❌ Cannot force render - canvas or video not ready')
           }
+        } else {
+          console.log('❌ Canvas or video ref not available')
         }
       }
     }
