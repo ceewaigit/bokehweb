@@ -6,14 +6,9 @@ import {
   Palette,
   MousePointer,
   Square,
-  Maximize,
-  Volume2,
-  Settings,
-  ChevronRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
-import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import type { Clip, ClipEffects } from '@/types/project'
 

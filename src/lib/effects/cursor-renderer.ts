@@ -1,9 +1,11 @@
 import type { MouseEvent } from '@/types/project'
 
-interface CursorEvent extends Omit<MouseEvent, 'x' | 'y' | 'screenWidth' | 'screenHeight'> {
+interface CursorEvent extends Omit<MouseEvent, 'x' | 'y'> {
   mouseX: number
   mouseY: number
   eventType: 'mouse' | 'click' | 'scroll' | 'key'
+  screenWidth: number
+  screenHeight: number
 }
 
 interface CursorOptions {
@@ -145,22 +147,29 @@ export class CursorRenderer {
 
   private preprocessEvents() {
     // Convert events to sorted points with velocity calculation
+    // Transform from screen space to video space
     this.sortedPoints = this.events
       .map((event, index) => {
+        // Convert from screen space to video space
+        const x = this.video ? (event.mouseX / event.screenWidth) * this.video.videoWidth : event.mouseX
+        const y = this.video ? (event.mouseY / event.screenHeight) * this.video.videoHeight : event.mouseY
+        
         const point: CursorPoint = {
-          x: event.mouseX,
-          y: event.mouseY,
+          x,
+          y,
           timestamp: event.timestamp
         }
         
         // Calculate velocity from previous point
         if (index > 0) {
           const prevEvent = this.events[index - 1]
+          const prevX = this.video ? (prevEvent.mouseX / prevEvent.screenWidth) * this.video.videoWidth : prevEvent.mouseX
+          const prevY = this.video ? (prevEvent.mouseY / prevEvent.screenHeight) * this.video.videoHeight : prevEvent.mouseY
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {
-              x: (event.mouseX - prevEvent.mouseX) / dt,
-              y: (event.mouseY - prevEvent.mouseY) / dt
+              x: (x - prevX) / dt,
+              y: (y - prevY) / dt
             }
           }
         }
@@ -216,9 +225,9 @@ export class CursorRenderer {
     const targetPos = this.getInterpolatedPosition(videoTime)
     if (!targetPos) return
 
-    // Calculate scaling and offset for cursor position
-    // The cursor coordinates are in video space, we need to map them to canvas space
-    // considering the video might be scaled and offset within the canvas
+    // Calculate scaling to map from video space to canvas space
+    // The cursor coordinates are already in video space (0 to videoWidth/Height)
+    // We need to map them to the canvas position where the video is displayed
     const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
     const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
 
@@ -229,7 +238,7 @@ export class CursorRenderer {
     const oldX = this.currentPosition.x
     const oldY = this.currentPosition.y
     
-    // Smooth position update with easing, apply scaling and offset
+    // Map video-space coordinates to canvas-space coordinates
     const smoothingFactor = this.options.smoothing ? 0.25 : 1
     const scaledTargetX = this.videoOffset.x + (targetPos.x * scaleX)
     const scaledTargetY = this.videoOffset.y + (targetPos.y * scaleY)
@@ -427,12 +436,14 @@ export class CursorRenderer {
     )
     
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      // Scale click coordinates to canvas space with video offset
+      // Convert click coordinates from screen space to video space, then to canvas space
+      const videoX = (clickEvent.mouseX / clickEvent.screenWidth) * this.video.videoWidth
+      const videoY = (clickEvent.mouseY / clickEvent.screenHeight) * this.video.videoHeight
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
       const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
       this.addClickAnimation(
-        this.videoOffset.x + (clickEvent.mouseX * scaleX), 
-        this.videoOffset.y + (clickEvent.mouseY * scaleY), 
+        this.videoOffset.x + (videoX * scaleX), 
+        this.videoOffset.y + (videoY * scaleY), 
         clickEvent.timestamp
       )
     }

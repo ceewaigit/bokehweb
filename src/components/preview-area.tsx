@@ -250,7 +250,11 @@ export function PreviewArea({
     // Listen for force render events
     const handleForceRender = () => {
       if (isVideoLoaded) {
-        renderFrame()
+        // Use requestAnimationFrame to ensure we render in the next frame
+        // This helps with timing issues when background options are being updated
+        requestAnimationFrame(() => {
+          renderFrame()
+        })
       }
     }
     canvas.addEventListener('forceRender', handleForceRender)

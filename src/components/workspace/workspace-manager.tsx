@@ -231,10 +231,12 @@ export function WorkspaceManager() {
         
         const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
           ...e,
-          // Scale coordinates from screen space to video space
-          mouseX: (e.x / e.screenWidth) * videoWidth,
-          mouseY: (e.y / e.screenHeight) * videoHeight,
-          eventType: 'mouse' as const
+          // Pass raw coordinates - cursor renderer will handle scaling
+          mouseX: e.x,
+          mouseY: e.y,
+          eventType: 'mouse' as const,
+          screenWidth: e.screenWidth,
+          screenHeight: e.screenHeight
         }))
 
         const cursorCanvas = cursorRendererRef.current.attachToVideo(
@@ -493,13 +495,17 @@ export function WorkspaceManager() {
         backgroundRendererRef.current.updateOptions(bgOptions)
         
         // Force a render frame to show the changes immediately
+        // Use requestAnimationFrame to ensure the gradient canvas is ready
         if (canvasRef.current && videoRef.current) {
           const ctx = canvasRef.current.getContext('2d')
           if (ctx && videoRef.current.readyState >= 2) {
-            // Trigger a render by calling renderFrame through preview area
-            // We need to force update the preview
-            const event = new CustomEvent('forceRender')
-            canvasRef.current.dispatchEvent(event)
+            // Small delay to ensure gradient canvas is recreated
+            requestAnimationFrame(() => {
+              // Trigger a render by calling renderFrame through preview area
+              // We need to force update the preview
+              const event = new CustomEvent('forceRender')
+              canvasRef.current?.dispatchEvent(event)
+            })
           }
         }
       }
