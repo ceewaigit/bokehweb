@@ -65,7 +65,7 @@ export class CursorRenderer {
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
-      size: 2.5, // Increased from 1.5 for better visibility on high-DPI displays
+      size: 1.5,
       color: '#000000',
       clickColor: '#007AFF',
       smoothing: true,
