@@ -36,7 +36,8 @@ export const TimelineZoomBlock = React.memo(({
   onIntroChange,
   onOutroChange
 }: TimelineZoomBlockProps) => {
-  const blockHeight = 40
+  // Use the provided height prop instead of hardcoded value
+  const blockHeight = height
   const handleSize = 8
   
   // Calculate intro/outro widths as proportion of total width
@@ -49,6 +50,13 @@ export const TimelineZoomBlock = React.memo(({
       x={x}
       y={y}
       draggable
+      dragBoundFunc={(pos) => {
+        // Constrain to horizontal movement only (keep same y)
+        return {
+          x: pos.x,
+          y: y
+        }
+      }}
       onDragEnd={(e) => onDragEnd(e.target.x())}
       onClick={onSelect}
       onTap={onSelect}

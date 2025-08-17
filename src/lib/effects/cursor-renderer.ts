@@ -43,6 +43,7 @@ export class CursorRenderer {
   private animationFrame: number | null = null
   private video: HTMLVideoElement | null = null
   private isActive = false
+  private videoOffset = { x: 0, y: 0, width: 0, height: 0 } // Track video position in canvas
   
   // Performance monitoring
   private frameCount = 0
@@ -137,6 +138,11 @@ export class CursorRenderer {
     return this.canvas
   }
 
+  // Update video positioning info for proper cursor alignment
+  updateVideoPosition(x: number, y: number, width: number, height: number) {
+    this.videoOffset = { x, y, width, height }
+  }
+
   private preprocessEvents() {
     // Convert events to sorted points with velocity calculation
     this.sortedPoints = this.events
@@ -210,9 +216,11 @@ export class CursorRenderer {
     const targetPos = this.getInterpolatedPosition(videoTime)
     if (!targetPos) return
 
-    // Calculate scaling factors between video and canvas
-    const scaleX = this.canvas.width / this.video.videoWidth
-    const scaleY = this.canvas.height / this.video.videoHeight
+    // Calculate scaling and offset for cursor position
+    // The cursor coordinates are in video space, we need to map them to canvas space
+    // considering the video might be scaled and offset within the canvas
+    const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
+    const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
 
     // Calculate frame delta time for smooth animation
     const deltaTime = this.lastFrameTime ? (renderTime - this.lastFrameTime) / 1000 : 0.016
@@ -221,10 +229,10 @@ export class CursorRenderer {
     const oldX = this.currentPosition.x
     const oldY = this.currentPosition.y
     
-    // Smooth position update with easing and apply scaling
+    // Smooth position update with easing, apply scaling and offset
     const smoothingFactor = this.options.smoothing ? 0.25 : 1
-    const scaledTargetX = targetPos.x * scaleX
-    const scaledTargetY = targetPos.y * scaleY
+    const scaledTargetX = this.videoOffset.x + (targetPos.x * scaleX)
+    const scaledTargetY = this.videoOffset.y + (targetPos.y * scaleY)
     this.currentPosition.x += (scaledTargetX - this.currentPosition.x) * smoothingFactor
     this.currentPosition.y += (scaledTargetY - this.currentPosition.y) * smoothingFactor
     
@@ -408,12 +416,12 @@ export class CursorRenderer {
     )
     
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      // Scale click coordinates to canvas space
-      const scaleX = this.canvas.width / this.video.videoWidth
-      const scaleY = this.canvas.height / this.video.videoHeight
+      // Scale click coordinates to canvas space with video offset
+      const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
+      const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
       this.addClickAnimation(
-        clickEvent.mouseX * scaleX, 
-        clickEvent.mouseY * scaleY, 
+        this.videoOffset.x + (clickEvent.mouseX * scaleX), 
+        this.videoOffset.y + (clickEvent.mouseY * scaleY), 
         clickEvent.timestamp
       )
     }

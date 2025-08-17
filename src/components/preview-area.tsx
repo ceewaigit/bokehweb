@@ -36,6 +36,9 @@ export function PreviewArea({
   // Performance optimizations: cache temporary canvases
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null)
+  
+  // Track video position for cursor alignment
+  const videoPositionRef = useRef({ x: 0, y: 0, width: 0, height: 0 })
 
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -129,6 +132,14 @@ export function PreviewArea({
           drawWidth = availableHeight * videoAspect
           offsetX = padding + (availableWidth - drawWidth) / 2
           offsetY = padding
+        }
+        
+        // Store video position for cursor renderer
+        videoPositionRef.current = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight }
+        
+        // Update cursor renderer if it exists
+        if (cursorRenderer) {
+          cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
         }
 
         // Apply background first if background renderer exists

@@ -19,6 +19,7 @@ import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
 import type { Clip, ClipEffects, ZoomBlock } from '@/types/project'
+import { DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 
 export function WorkspaceManager() {
   // Store hooks - will gradually reduce direct store access
@@ -55,22 +56,32 @@ export function WorkspaceManager() {
   const [localEffects, setLocalEffects] = useState<ClipEffects | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
+  // Get selected clip first (needed for handleZoomBlockUpdate)
+  const selectedClip = currentProject?.timeline.tracks
+    .flatMap(t => t.clips)
+    .find(c => c.id === selectedClipId) || null
+
   // Handle zoom block updates for local state
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
-    if (localEffects && localEffects.zoom?.blocks) {
-      const updatedBlocks = localEffects.zoom.blocks.map(block =>
-        block.id === blockId ? { ...block, ...updates } : block
-      )
-      setLocalEffects({
-        ...localEffects,
-        zoom: {
-          ...localEffects.zoom,
-          blocks: updatedBlocks
-        }
-      })
-      setHasUnsavedChanges(true)
+    const currentEffects = localEffects || selectedClip?.effects || DEFAULT_CLIP_EFFECTS
+    const currentZoom = currentEffects.zoom
+    
+    const updatedBlocks = currentZoom.blocks.map((block: ZoomBlock) =>
+      block.id === blockId ? { ...block, ...updates } : block
+    )
+    
+    const newEffects: ClipEffects = {
+      ...currentEffects,
+      zoom: {
+        ...currentZoom,
+        enabled: updatedBlocks.length > 0, // Enable zoom when blocks exist
+        blocks: updatedBlocks
+      }
     }
-  }, [localEffects])
+    
+    setLocalEffects(newEffects)
+    setHasUnsavedChanges(true)
+  }, [localEffects, selectedClip?.effects])
 
   // Centralized refs for video and rendering
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -78,15 +89,9 @@ export function WorkspaceManager() {
   const effectsEngineRef = useRef<EffectsEngine | null>(null)
   const cursorRendererRef = useRef<CursorRenderer | null>(null)
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
-  const animationFrameRef = useRef<number>()
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const prevEffectsRef = useRef<ClipEffects | undefined>()
-
-  // Get selected clip and recording
-  const selectedClip = currentProject?.timeline.tracks
-    .flatMap(t => t.clips)
-    .find(c => c.id === selectedClipId) || null
 
   const selectedRecording = selectedClip && currentProject
     ? currentProject.recordings.find(r => r.id === selectedClip.recordingId)
@@ -180,29 +185,23 @@ export function WorkspaceManager() {
       }
 
       // Initialize cursor renderer
-      const showCursor = clipEffects?.cursor?.visible ?? true
-
-      if (showCursor && selectedRecording.metadata?.mouseEvents) {
+      if (clipEffects?.cursor?.visible && selectedRecording.metadata?.mouseEvents) {
         cursorRendererRef.current = new CursorRenderer({
-          size: clipEffects?.cursor?.size ?? 1.5,
-          color: clipEffects?.cursor?.color ?? '#000000',
+          size: clipEffects.cursor.size,
+          color: clipEffects.cursor.color,
           clickColor: '#007AFF',
           smoothing: true
         })
 
         // Convert metadata format for cursor renderer
-        // Get the first mouse event to determine screen dimensions
-        const firstEvent = selectedRecording.metadata.mouseEvents[0]
-        const screenWidth = firstEvent?.screenWidth || 1920
-        const screenHeight = firstEvent?.screenHeight || 1080
-        const videoWidth = videoRef.current.videoWidth || screenWidth
-        const videoHeight = videoRef.current.videoHeight || screenHeight
+        const videoWidth = videoRef.current.videoWidth
+        const videoHeight = videoRef.current.videoHeight
         
         const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
           ...e,
           // Scale coordinates from screen space to video space
-          mouseX: (e.x / (e.screenWidth || screenWidth)) * videoWidth,
-          mouseY: (e.y / (e.screenHeight || screenHeight)) * videoHeight,
+          mouseX: (e.x / e.screenWidth) * videoWidth,
+          mouseY: (e.y / e.screenHeight) * videoHeight,
           eventType: 'mouse' as const
         }))
 
@@ -234,7 +233,7 @@ export function WorkspaceManager() {
 
     // Store current effects for next comparison
     prevEffectsRef.current = clipEffects
-  }, [selectedRecording, selectedClip?.effects])
+  }, [selectedRecording])
 
   // Track when component is mounted
   useEffect(() => {
@@ -246,6 +245,14 @@ export function WorkspaceManager() {
   useEffect(() => {
     if (!selectedRecording || !isMounted) {
       // Waiting for mount or recording
+      return
+    }
+
+    // Check if video is already loaded with the correct source
+    const video = videoRef.current
+    if (video && video.src && video.readyState >= 2) {
+      // Video already loaded, just initialize effects
+      initializeEffects(true)
       return
     }
 
@@ -317,13 +324,13 @@ export function WorkspaceManager() {
     loadVideo()
   }, [selectedRecording?.id, selectedRecording?.filePath, initializeEffects, isMounted])
 
-  // Re-initialize effects when clip effects change
+  // Re-initialize effects when active effects change
   useEffect(() => {
     if (selectedRecording && videoRef.current && videoRef.current.readyState >= 2) {
       // Don't force full init, only update what changed
       initializeEffects(false)
     }
-  }, [selectedClip?.effects, initializeEffects])
+  }, [activeEffects, initializeEffects, selectedRecording])
 
 
   // Cleanup effects on unmount
@@ -337,9 +344,6 @@ export function WorkspaceManager() {
       }
       if (backgroundRendererRef.current) {
         backgroundRendererRef.current.dispose()
-      }
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
       }
     }
   }, [])
@@ -599,12 +603,6 @@ export function WorkspaceManager() {
                   return
                 }
 
-                // Final setup message
-                setLoadingMessage('Finalizing setup...')
-
-                // Small delay to ensure everything is fully rendered
-                await new Promise(resolve => setTimeout(resolve, 500))
-
                 // Hide loading screen after everything is loaded
                 setIsLoading(false)
 
@@ -638,6 +636,8 @@ export function WorkspaceManager() {
               // Apply local effects before saving
               if (localEffects && selectedClipId) {
                 updateClipEffects(selectedClipId, localEffects)
+                // Clear local effects after applying to avoid double updates
+                setLocalEffects(null)
               }
               await saveCurrentProject()
               setHasUnsavedChanges(false)

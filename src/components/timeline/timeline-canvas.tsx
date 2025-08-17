@@ -334,9 +334,9 @@ export function TimelineCanvas({
                 <TimelineZoomBlock
                   key={block.id}
                   x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
-                  y={TimelineUtils.getTrackY('zoom')}
+                  y={TimelineUtils.getTrackY('zoom') + TIMELINE_LAYOUT.TRACK_PADDING}
                   width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
-                  height={TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT}
+                  height={TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT - TIMELINE_LAYOUT.TRACK_PADDING * 2}
                   startTime={block.startTime}
                   endTime={block.endTime}
                   introMs={block.introMs}

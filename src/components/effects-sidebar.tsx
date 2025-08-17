@@ -300,7 +300,7 @@ export function EffectsSidebar({
             <div className="space-y-2">
               <label className="text-sm font-medium">Padding</label>
               <Slider
-                value={[effects.background.padding ?? 80]}
+                value={[effects.background.padding || 0]}
                 onValueChange={([value]) => updateEffect('background', {
                   ...effects.background,
                   padding: value
@@ -311,7 +311,7 @@ export function EffectsSidebar({
                 className="w-full"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{effects.background.padding ?? 80}px</span>
+                <span>{effects.background.padding || 0}px</span>
                 <button
                   onClick={() => updateEffect('background', {
                     ...effects.background,
