@@ -155,6 +155,9 @@ export class ElectronRecorder {
           mandatory: {
             chromeMediaSource: 'desktop',
             chromeMediaSourceId: primarySource.id,
+            // Add frame rate constraints to keep stream stable
+            minFrameRate: 30,
+            maxFrameRate: 60,
             // Hide cursor so we can overlay our own custom cursor
             cursorSize: 0
           }
@@ -182,7 +185,28 @@ export class ElectronRecorder {
             } else if (track.kind === 'video' && this.isRecording && this.mediaRecorder) {
               // Video track ended unexpectedly - force save what we have
               logger.error('Video track ended unexpectedly - forcing save')
-              // Trigger the onstop handler manually if recording
+              // Create blob immediately from chunks we have
+              if (this.chunks.length > 0) {
+                const emergencyBlob = new Blob(this.chunks, { type: 'video/webm' })
+                logger.info(`Emergency save: ${emergencyBlob.size} bytes from ${this.chunks.length} chunks`)
+                
+                // Directly trigger save without waiting for onstop
+                const duration = Date.now() - this.startTime
+                const result: ElectronRecordingResult = {
+                  video: emergencyBlob,
+                  metadata: this.metadata,
+                  duration,
+                  effectsApplied: ['electron-desktop-capture', 'emergency-save'],
+                  processingTime: 0
+                }
+                
+                // Save immediately via the project save function
+                this.emergencySave(result).catch(err => {
+                  logger.error('Emergency save failed:', err)
+                })
+              }
+              
+              // Still try to stop MediaRecorder normally
               if (this.mediaRecorder.state === 'recording') {
                 try {
                   this.mediaRecorder.stop()
@@ -226,7 +250,7 @@ export class ElectronRecorder {
         audioTracks: this.stream.getAudioTracks().length
       })
 
-      // Set up MediaRecorder with high quality settings
+      // Set up MediaRecorder with optimized settings for stability
       let mimeType = 'video/webm;codecs=vp9'
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'video/webm;codecs=vp8'
@@ -239,7 +263,9 @@ export class ElectronRecorder {
 
       this.mediaRecorder = new MediaRecorder(this.stream, {
         mimeType,
-        videoBitsPerSecond: 10000000 // 10 Mbps for high quality
+        videoBitsPerSecond: 8000000, // 8 Mbps - slightly lower for better stability
+        // Add audio bitrate if audio is enabled
+        ...(hasAudio ? { audioBitsPerSecond: 128000 } : {})
       })
 
       this.chunks = []
@@ -272,8 +298,9 @@ export class ElectronRecorder {
       // Always capture mouse metadata to power effects
       await this.startMouseTracking()
 
-      // Start recording
-      this.mediaRecorder.start(1000)
+      // Start recording with more frequent data requests to keep ScreenCaptureKit alive
+      // Request data every 100ms instead of 1000ms to prevent stream termination
+      this.mediaRecorder.start(100)
       this.isRecording = true
       this.startTime = Date.now()
 
@@ -282,6 +309,27 @@ export class ElectronRecorder {
     } catch (error) {
       this.cleanup()
       throw error
+    }
+  }
+
+  private async emergencySave(result: ElectronRecordingResult) {
+    // Import the save function dynamically to avoid circular dependency
+    const { saveRecordingWithProject } = await import('@/types/project')
+    
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    const seconds = String(now.getSeconds()).padStart(2, '0')
+    const projectName = `Emergency_Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
+    
+    const saved = await saveRecordingWithProject(result.video, result.metadata, projectName)
+    if (saved) {
+      logger.info(`Emergency recording saved: video=${saved.videoPath}`)
+    } else {
+      logger.error('Failed to save emergency recording')
     }
   }
 

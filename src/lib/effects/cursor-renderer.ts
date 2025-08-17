@@ -432,7 +432,7 @@ export class CursorRenderer {
       
       if (this.currentCursorImage) {
         const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
-        const scale = this.options.size || 2.5
+        const scale = this.options.size || 1.0
         const hotspotX = hotspot.x * scale
         const hotspotY = hotspot.y * scale
         const cursorWidth = this.currentCursorImage.width * scale
@@ -474,7 +474,7 @@ export class CursorRenderer {
     
     // Get proper hotspot for current cursor type
     const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
-    const scale = this.options.size || 2.5
+    const scale = this.options.size || 1.0
     
     // Scale hotspot based on cursor size
     const hotspotX = hotspot.x * scale

@@ -131,6 +131,21 @@ export function PropertiesPanel() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
+                  <label className="text-xs">Cursor Size</label>
+                  <Slider
+                    value={[selectedClip.effects?.cursor?.size || 1.0]}
+                    onValueChange={([value]) => {
+                      updateClipEffects(selectedClip.id, {
+                        cursor: { ...selectedClip.effects?.cursor, size: value }
+                      })
+                    }}
+                    min={0.5}
+                    max={2.0}
+                    step={0.1}
+                    className="mt-2"
+                  />
+                </div>
                 <div className="flex items-center justify-between">
                   <label className="text-xs">Motion Blur</label>
                   <Switch

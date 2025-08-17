@@ -11,7 +11,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   cursor: {
     visible: true,
     style: 'default',
-    size: 2.5,
+    size: 1.0,
     color: '#ffffff',
     clickEffects: false,
     motionBlur: false
