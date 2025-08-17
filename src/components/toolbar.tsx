@@ -28,6 +28,7 @@ interface ToolbarProps {
   onNewProject: () => void
   onSaveProject: () => Promise<void>
   onOpenProject: (path: string) => Promise<void>
+  hasUnsavedChanges?: boolean
 }
 
 export function Toolbar({ 
@@ -36,7 +37,8 @@ export function Toolbar({
   onExport,
   onNewProject,
   onSaveProject,
-  onOpenProject
+  onOpenProject,
+  hasUnsavedChanges = false
 }: ToolbarProps) {
   const {
     isRecording,
@@ -109,14 +111,22 @@ export function Toolbar({
         </Button>
 
         <Button
-          variant="ghost"
+          variant={hasUnsavedChanges ? "default" : "ghost"}
           size="sm"
           onClick={onSaveProject}
           disabled={!project}
-          className="text-xs"
+          className={cn(
+            "text-xs",
+            hasUnsavedChanges && "animate-pulse"
+          )}
         >
           <Save className="w-4 h-4 mr-1 flex-shrink-0" />
-          <span className="whitespace-nowrap">Save</span>
+          <span className="whitespace-nowrap">
+            {hasUnsavedChanges ? "Save Changes" : "Save"}
+          </span>
+          {hasUnsavedChanges && (
+            <span className="ml-1 w-2 h-2 bg-orange-500 rounded-full flex-shrink-0" />
+          )}
         </Button>
       </div>
 

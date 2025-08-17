@@ -316,13 +316,7 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject.modifiedAt = new Date().toISOString()
       })
 
-      // Auto-save after clip update (like when dragging)
-      const { currentProject } = get()
-      if (currentProject) {
-        saveProject(currentProject).catch(err =>
-          console.error('Failed to auto-save after clip update:', err)
-        )
-      }
+      // Removed auto-save - now requires explicit save action
     },
 
     updateClipEffects: (clipId, effects) => {
@@ -340,14 +334,7 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject.modifiedAt = new Date().toISOString()
       })
 
-      // Auto-save after effects update
-      const { currentProject } = get()
-      if (currentProject) {
-        // Save asynchronously without blocking UI
-        saveProject(currentProject).catch(err =>
-          console.error('Failed to auto-save after effects update:', err)
-        )
-      }
+      // Removed auto-save - now requires explicit save action
     },
 
     updateZoomBlock: (clipId, blockId, updates) => {
@@ -366,13 +353,7 @@ export const useProjectStore = create<ProjectStore>()(
         }
       })
 
-      // Auto-save
-      const { currentProject } = get()
-      if (currentProject) {
-        saveProject(currentProject).catch(err =>
-          console.error('Failed to auto-save after zoom block update:', err)
-        )
-      }
+      // Removed auto-save - now requires explicit save action
     },
 
     addZoomBlock: (clipId, block) => {

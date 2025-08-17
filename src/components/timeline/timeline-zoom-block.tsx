@@ -164,12 +164,18 @@ export const TimelineZoomBlock = React.memo(({
             width={handleSize}
             height={handleSize}
             fill="white"
+            cursor="ew-resize"
             draggable
             dragBoundFunc={(pos) => ({
-              x: pos.x,
+              x: Math.min(pos.x, width - handleSize * 2), // Can't go past right edge
               y: y + blockHeight / 2 - handleSize / 2
             })}
-            onDragEnd={(e) => onResize(e.target.x() + width, 'left')}
+            onDragEnd={(e) => {
+              const deltaX = e.target.x() - (-handleSize / 2)
+              const newWidth = width - deltaX
+              // For left handle, we need to update both position and width
+              onResize(newWidth, 'left')
+            }}
           />
           
           <Rect
@@ -178,12 +184,16 @@ export const TimelineZoomBlock = React.memo(({
             width={handleSize}
             height={handleSize}
             fill="white"
+            cursor="ew-resize"
             draggable
             dragBoundFunc={(pos) => ({
-              x: pos.x,
+              x: Math.max(pos.x, handleSize), // Can't go past left edge
               y: y + blockHeight / 2 - handleSize / 2
             })}
-            onDragEnd={(e) => onResize(e.target.x(), 'right')}
+            onDragEnd={(e) => {
+              const newWidth = e.target.x() + handleSize / 2
+              onResize(newWidth, 'right')
+            }}
           />
         </>
       )}

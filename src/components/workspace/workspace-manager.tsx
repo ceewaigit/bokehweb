@@ -18,12 +18,12 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
 import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
-import type { Clip, ClipEffects } from '@/types/project'
+import type { Clip, ClipEffects, ZoomBlock } from '@/types/project'
 
 export function WorkspaceManager() {
   // Store hooks - will gradually reduce direct store access
-  const { 
-    currentProject, 
+  const {
+    currentProject,
     newProject,
     selectedClipId,
     currentTime,
@@ -38,7 +38,7 @@ export function WorkspaceManager() {
     setZoom,
     zoom
   } = useProjectStore()
-  
+
   const {
     isPropertiesOpen,
     isExportOpen,
@@ -48,10 +48,30 @@ export function WorkspaceManager() {
     setExportOpen
   } = useWorkspaceStore()
 
+
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Loading...')
   const [isMounted, setIsMounted] = useState(false)
-  
+  const [localEffects, setLocalEffects] = useState<ClipEffects | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Handle zoom block updates for local state
+  const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
+    if (localEffects && localEffects.zoom?.blocks) {
+      const updatedBlocks = localEffects.zoom.blocks.map(block =>
+        block.id === blockId ? { ...block, ...updates } : block
+      )
+      setLocalEffects({
+        ...localEffects,
+        zoom: {
+          ...localEffects.zoom,
+          blocks: updatedBlocks
+        }
+      })
+      setHasUnsavedChanges(true)
+    }
+  }, [localEffects])
+
   // Centralized refs for video and rendering
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -62,15 +82,18 @@ export function WorkspaceManager() {
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const prevEffectsRef = useRef<ClipEffects | undefined>()
-  
+
   // Get selected clip and recording
   const selectedClip = currentProject?.timeline.tracks
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId) || null
-  
+
   const selectedRecording = selectedClip && currentProject
     ? currentProject.recordings.find(r => r.id === selectedClip.recordingId)
     : null
+
+  // Use local effects if available, otherwise use saved effects
+  const activeEffects = localEffects || selectedClip?.effects
 
   // Define handlePause first since it's used in useEffect
   const handlePause = useCallback(() => {
@@ -89,20 +112,20 @@ export function WorkspaceManager() {
     // Update video time continuously during playback
     const syncInterval = setInterval(() => {
       if (!isPlaying || !video) return
-      
+
       // Don't try to play if video isn't ready
       if (video.readyState < 2) return
-      
+
       const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
       const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
       const maxTime = selectedClip.sourceOut / 1000
-      
+
       if (sourceTime <= maxTime) {
         // Small tolerance for sync
         if (Math.abs(video.currentTime - sourceTime) > 0.1) {
           video.currentTime = sourceTime
         }
-        
+
         // Ensure video is playing
         if (video.paused) {
           video.play().catch(error => {
@@ -130,7 +153,7 @@ export function WorkspaceManager() {
   const initializeEffects = useCallback((forceFullInit = false) => {
     if (!selectedRecording || !videoRef.current) return
 
-    const clipEffects = selectedClip?.effects
+    const clipEffects = activeEffects || selectedClip?.effects
     const prevEffects = prevEffectsRef.current
 
     // Initialize effects engine if needed
@@ -140,7 +163,7 @@ export function WorkspaceManager() {
     }
 
     // Only reinitialize cursor if cursor settings changed or force init
-    const cursorChanged = forceFullInit || 
+    const cursorChanged = forceFullInit ||
       prevEffects?.cursor?.visible !== clipEffects?.cursor?.visible ||
       prevEffects?.cursor?.size !== clipEffects?.cursor?.size ||
       prevEffects?.cursor?.color !== clipEffects?.cursor?.color
@@ -168,10 +191,18 @@ export function WorkspaceManager() {
         })
 
         // Convert metadata format for cursor renderer
+        // Get the first mouse event to determine screen dimensions
+        const firstEvent = selectedRecording.metadata.mouseEvents[0]
+        const screenWidth = firstEvent?.screenWidth || 1920
+        const screenHeight = firstEvent?.screenHeight || 1080
+        const videoWidth = videoRef.current.videoWidth || screenWidth
+        const videoHeight = videoRef.current.videoHeight || screenHeight
+        
         const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
           ...e,
-          mouseX: e.x,
-          mouseY: e.y,
+          // Scale coordinates from screen space to video space
+          mouseX: (e.x / (e.screenWidth || screenWidth)) * videoWidth,
+          mouseY: (e.y / (e.screenHeight || screenHeight)) * videoHeight,
           eventType: 'mouse' as const
         }))
 
@@ -181,12 +212,14 @@ export function WorkspaceManager() {
         )
 
         if (cursorCanvas && canvasRef.current?.parentElement) {
-          cursorCanvas.style.position = 'absolute'
-          cursorCanvas.style.top = '0'
-          cursorCanvas.style.left = '0'
-          cursorCanvas.style.width = '100%'
-          cursorCanvas.style.height = '100%'
-          cursorCanvas.style.pointerEvents = 'none'
+          // Match the cursor canvas to the main canvas dimensions
+          const mainCanvas = canvasRef.current
+          cursorCanvas.width = mainCanvas.width
+          cursorCanvas.height = mainCanvas.height
+          cursorCanvas.style.width = mainCanvas.style.width || '100%'
+          cursorCanvas.style.height = mainCanvas.style.height || '100%'
+          cursorCanvas.style.maxWidth = mainCanvas.style.maxWidth || '100%'
+          cursorCanvas.style.maxHeight = mainCanvas.style.maxHeight || '100%'
           cursorCanvas.style.zIndex = '10'
           canvasRef.current.parentElement.appendChild(cursorCanvas)
           cursorCanvasRef.current = cursorCanvas
@@ -220,57 +253,57 @@ export function WorkspaceManager() {
       // Try multiple times to get the video element
       let attempts = 0;
       const maxAttempts = 10;
-      
+
       const tryGetVideo = async () => {
         const video = videoRef.current;
-        
+
         if (!video && attempts < maxAttempts) {
           attempts++;
           // Waiting for video element...
           await new Promise(resolve => setTimeout(resolve, 100));
           return tryGetVideo();
         }
-        
+
         if (!video) {
           console.error('Video element not found after multiple attempts!')
           return;
         }
-        
+
         return video;
       }
-      
+
       const video = await tryGetVideo();
       if (!video) return;
-      
+
       // Loading video for recording
-      
+
       if (!selectedRecording.filePath) {
         console.error('Recording has no filePath')
         return
       }
-      
+
       const blobUrl = await globalBlobManager.ensureVideoLoaded(
-        selectedRecording.id, 
+        selectedRecording.id,
         selectedRecording.filePath
       )
-      
+
       if (blobUrl) {
         // Got blob URL, setting on video element
-        
+
         // Ensure video element is in DOM
         if (!video.isConnected) {
           console.error('Video element is not connected to DOM!')
           return
         }
-        
+
         video.src = blobUrl
         video.load()
-        
+
         // Check after setting with a small delay
         setTimeout(() => {
           // Video element loaded check
         }, 100)
-        
+
         // Initialize effects after video is loaded
         video.addEventListener('loadedmetadata', () => {
           // Video metadata loaded, initializing effects
@@ -327,16 +360,16 @@ export function WorkspaceManager() {
     // Check if video is ready
     if (video.readyState < 2) { // HAVE_CURRENT_DATA
       // Video not ready, waiting for load
-      
+
       // Wait for video to be ready, then play
       const handleCanPlay = () => {
         video.removeEventListener('canplay', handleCanPlay)
-        
+
         // Map timeline time to video time
         const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
         const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
         video.currentTime = sourceTime
-        
+
         video.play().then(() => {
           storePlay() // Update store state
         }).catch(error => {
@@ -344,7 +377,7 @@ export function WorkspaceManager() {
           storePause()
         })
       }
-      
+
       video.addEventListener('canplay', handleCanPlay)
       return
     }
@@ -352,7 +385,7 @@ export function WorkspaceManager() {
     // Video is ready, play immediately
     const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
     const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
-    
+
     // Set video time and play
     video.currentTime = sourceTime
     video.play().then(() => {
@@ -365,7 +398,7 @@ export function WorkspaceManager() {
 
   const handleSeek = useCallback((time: number) => {
     storeSeek(time)
-    
+
     // Update video position if we have one
     const video = videoRef.current
     if (video && selectedClip) {
@@ -378,14 +411,20 @@ export function WorkspaceManager() {
   }, [storeSeek, selectedClip])
 
   const handleClipSelect = useCallback((clipId: string) => {
+    // Reset local effects when switching clips
+    setLocalEffects(null)
+    setHasUnsavedChanges(false)
+
     selectClip(clipId)
   }, [selectClip])
 
   const handleEffectChange = useCallback((effects: ClipEffects) => {
     if (selectedClipId) {
-      updateClipEffects(selectedClipId, effects)
+      // Store effects locally instead of saving immediately
+      setLocalEffects(effects)
+      setHasUnsavedChanges(true)
     }
-  }, [selectedClipId, updateClipEffects])
+  }, [selectedClipId])
 
   const handleToggleProperties = useCallback(() => {
     toggleProperties()
@@ -437,151 +476,145 @@ export function WorkspaceManager() {
       <>
         <div className="fixed inset-0 flex flex-col bg-background">
           <RecordingsLibrary
-          onSelectRecording={async (recording) => {
-            // Selected recording
+            onSelectRecording={async (recording) => {
+              // Selected recording
 
-            // Start loading
-            setIsLoading(true)
-            setLoadingMessage('Loading recording...')
+              // Start loading
+              setIsLoading(true)
+              setLoadingMessage('Loading recording...')
 
-            try {
-              // Check if it's a project file
-              if (recording.isProject && recording.project) {
-                const project = recording.project
-                // Loading project
+              try {
+                // Check if it's a project file
+                if (recording.isProject && recording.project) {
+                  const project = recording.project
+                  // Loading project
 
-                setLoadingMessage('Creating project...')
-                // Create a new timeline project
-                newProject(project.name)
+                  setLoadingMessage('Creating project...')
+                  // Create a new timeline project
+                  newProject(project.name)
 
-                // Get project directory for resolving relative paths
-                const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
-                
-                // Load each recording from the project
-                for (let i = 0; i < project.recordings.length; i++) {
-                  const rec = project.recordings[i]
-                  setLoadingMessage(`Setting up video ${i + 1} of ${project.recordings.length}...`)
+                  // Get project directory for resolving relative paths
+                  const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
 
-                  if (rec.filePath) {
-                    try {
-                      // Resolve video path relative to project file location
-                      let videoPath = rec.filePath
-                      if (!videoPath.startsWith('/')) {
-                        videoPath = `${projectDir}/${videoPath}`
-                      }
-                      
-                      // Update the recording's filePath to be absolute
-                      rec.filePath = videoPath
-                      // Resolved video path
+                  // Load each recording from the project
+                  for (let i = 0; i < project.recordings.length; i++) {
+                    const rec = project.recordings[i]
+                    setLoadingMessage(`Setting up video ${i + 1} of ${project.recordings.length}...`)
 
-                      // Verify and fix recording duration if needed
-                      if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
-                        setLoadingMessage('Detecting video duration...')
-                        // Recording has invalid duration, detecting from video
-
-                        // Use blob manager to load the video safely
-                        const blobUrl = await globalBlobManager.loadVideo(rec.id, videoPath)
-
-                        if (blobUrl) {
-                          const tempVideo = document.createElement('video')
-                          tempVideo.src = blobUrl
-
-                          await new Promise<void>((resolve) => {
-                            tempVideo.addEventListener('loadedmetadata', () => {
-                              // Checking project video duration
-
-                              if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
-                                rec.duration = tempVideo.duration * 1000
-                                // Fixed recording duration
-                              } else {
-                                console.error('Could not determine video duration')
-                              }
-                              resolve()
-                            }, { once: true })
-
-                            tempVideo.addEventListener('error', () => {
-                              console.error('Failed to load video for duration check')
-                              resolve()
-                            }, { once: true })
-
-                            tempVideo.load()
-                          })
-
-                          tempVideo.remove()
-                        } else {
-                          console.error('Failed to load video for duration check')
+                    if (rec.filePath) {
+                      try {
+                        // Resolve video path relative to project file location
+                        let videoPath = rec.filePath
+                        if (!videoPath.startsWith('/')) {
+                          videoPath = `${projectDir}/${videoPath}`
                         }
-                      }
 
-                      // Fix clip durations if recording duration was updated
-                      for (const track of project.timeline.tracks) {
-                        for (const clip of track.clips) {
-                          if (clip.recordingId === rec.id && rec.duration && rec.duration > 0) {
-                            clip.duration = Math.min(clip.duration, rec.duration)
-                            clip.sourceOut = Math.min(clip.sourceOut, rec.duration)
+                        // Update the recording's filePath to be absolute
+                        rec.filePath = videoPath
+                        // Resolved video path
+
+                        // Verify and fix recording duration if needed
+                        if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
+                          setLoadingMessage('Detecting video duration...')
+                          // Recording has invalid duration, detecting from video
+
+                          // Use blob manager to load the video safely
+                          const blobUrl = await globalBlobManager.loadVideo(rec.id, videoPath)
+
+                          if (blobUrl) {
+                            const tempVideo = document.createElement('video')
+                            tempVideo.src = blobUrl
+
+                            await new Promise<void>((resolve) => {
+                              tempVideo.addEventListener('loadedmetadata', () => {
+                                // Checking project video duration
+
+                                if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
+                                  rec.duration = tempVideo.duration * 1000
+                                  // Fixed recording duration
+                                } else {
+                                  console.error('Could not determine video duration')
+                                }
+                                resolve()
+                              }, { once: true })
+
+                              tempVideo.addEventListener('error', () => {
+                                console.error('Failed to load video for duration check')
+                                resolve()
+                              }, { once: true })
+
+                              tempVideo.load()
+                            })
+
+                            tempVideo.remove()
+                          } else {
+                            console.error('Failed to load video for duration check')
                           }
                         }
-                      }
 
-                      // Load video and metadata together
-                      if (rec.filePath || rec.metadata) {
-                        setLoadingMessage(`Loading video ${i + 1}...`)
-                        await globalBlobManager.loadVideos([{
-                          id: rec.id,
-                          filePath: rec.filePath,
-                          metadata: rec.metadata
-                        }])
-
-                        if (rec.metadata) {
-                          const totalEvents =
-                            (rec.metadata.mouseEvents?.length || 0) +
-                            (rec.metadata.clickEvents?.length || 0) +
-                            (rec.metadata.keyboardEvents?.length || 0)
-                          // Loaded metadata events
+                        // Fix clip durations if recording duration was updated
+                        for (const track of project.timeline.tracks) {
+                          for (const clip of track.clips) {
+                            if (clip.recordingId === rec.id && rec.duration && rec.duration > 0) {
+                              clip.duration = Math.min(clip.duration, rec.duration)
+                              clip.sourceOut = Math.min(clip.sourceOut, rec.duration)
+                            }
+                          }
                         }
+
+                        // Load video and metadata together
+                        if (rec.filePath || rec.metadata) {
+                          setLoadingMessage(`Loading video ${i + 1}...`)
+                          await globalBlobManager.loadVideos([{
+                            id: rec.id,
+                            filePath: rec.filePath,
+                            metadata: rec.metadata
+                          }])
+
+                          // Metadata loaded successfully
+                        }
+                      } catch (error) {
+                        console.error('Failed to load recording from project:', error)
                       }
-                    } catch (error) {
-                      console.error('Failed to load recording from project:', error)
                     }
                   }
+
+                  // Set the project ONCE after all recordings are processed
+                  useProjectStore.getState().setProject(project)
+
+                  // Auto-select the first clip if available
+                  const firstClip = project.timeline.tracks
+                    .flatMap(t => t.clips)
+                    .sort((a, b) => a.startTime - b.startTime)[0]
+                  if (firstClip) {
+                    // Auto-selecting first clip
+                    useProjectStore.getState().selectClip(firstClip.id)
+                  }
+                } else {
+                  // Raw video files without project metadata are not supported
+                  console.error('Cannot load raw video files without project metadata')
+                  alert('This video file does not have an associated project. Please load a .screencast project file instead.')
+                  setIsLoading(false)
+                  setLoadingMessage('')
+                  return
                 }
 
-                // Set the project ONCE after all recordings are processed
-                useProjectStore.getState().setProject(project)
+                // Final setup message
+                setLoadingMessage('Finalizing setup...')
 
-                // Auto-select the first clip if available
-                const firstClip = project.timeline.tracks
-                  .flatMap(t => t.clips)
-                  .sort((a, b) => a.startTime - b.startTime)[0]
-                if (firstClip) {
-                  // Auto-selecting first clip
-                  useProjectStore.getState().selectClip(firstClip.id)
-                }
-              } else {
-                // Raw video files without project metadata are not supported
-                console.error('Cannot load raw video files without project metadata')
-                alert('This video file does not have an associated project. Please load a .screencast project file instead.')
+                // Small delay to ensure everything is fully rendered
+                await new Promise(resolve => setTimeout(resolve, 500))
+
+                // Hide loading screen after everything is loaded
                 setIsLoading(false)
-                setLoadingMessage('')
-                return
+
+              } catch (error) {
+                console.error('Failed to load recording:', error)
+                setIsLoading(false)
+                // Optionally show an error message
               }
-
-              // Final setup message
-              setLoadingMessage('Finalizing setup...')
-
-              // Small delay to ensure everything is fully rendered
-              await new Promise(resolve => setTimeout(resolve, 500))
-
-              // Hide loading screen after everything is loaded
-              setIsLoading(false)
-
-            } catch (error) {
-              console.error('Failed to load recording:', error)
-              setIsLoading(false)
-              // Optionally show an error message
-            }
-          }}
-        />
+            }}
+          />
         </div>
       </>
     )
@@ -596,9 +629,25 @@ export function WorkspaceManager() {
             project={currentProject}
             onToggleProperties={handleToggleProperties}
             onExport={handleExport}
-            onNewProject={() => newProject('New Project')}
-            onSaveProject={saveCurrentProject}
-            onOpenProject={openProject}
+            onNewProject={() => {
+              newProject('New Project')
+              setLocalEffects(null)
+              setHasUnsavedChanges(false)
+            }}
+            onSaveProject={async () => {
+              // Apply local effects before saving
+              if (localEffects && selectedClipId) {
+                updateClipEffects(selectedClipId, localEffects)
+              }
+              await saveCurrentProject()
+              setHasUnsavedChanges(false)
+            }}
+            onOpenProject={async (path: string) => {
+              await openProject(path)
+              setLocalEffects(null)
+              setHasUnsavedChanges(false)
+            }}
+            hasUnsavedChanges={hasUnsavedChanges}
           />
         </div>
 
@@ -608,7 +657,7 @@ export function WorkspaceManager() {
           <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
             {/* Preview Area - 55vh height */}
             <div className="bg-background border-b overflow-hidden" style={{ height: '55vh' }}>
-              <PreviewArea 
+              <PreviewArea
                 videoRef={videoRef}
                 canvasRef={canvasRef}
                 effectsEngine={effectsEngineRef.current}
@@ -623,7 +672,7 @@ export function WorkspaceManager() {
 
             {/* Timeline Section - 37vh height */}
             <div className="bg-card/50 overflow-hidden" style={{ height: '37vh' }}>
-              <TimelineCanvas 
+              <TimelineCanvas
                 className="h-full w-full"
                 currentProject={currentProject}
                 currentTime={currentTime}
@@ -634,6 +683,8 @@ export function WorkspaceManager() {
                 onSeek={handleSeek}
                 onClipSelect={handleClipSelect}
                 onZoomChange={setZoom}
+                localEffects={localEffects}
+                onZoomBlockUpdate={handleZoomBlockUpdate}
               />
             </div>
           </div>
@@ -644,10 +695,10 @@ export function WorkspaceManager() {
               className="bg-card border-l overflow-hidden"
               style={{ width: `${propertiesPanelWidth}px`, height: '92vh' }}
             >
-              <EffectsSidebar 
+              <EffectsSidebar
                 className="h-full w-full"
                 selectedClip={selectedClip}
-                effects={selectedClip?.effects}
+                effects={activeEffects || selectedClip?.effects}
                 onEffectChange={handleEffectChange}
               />
             </div>
@@ -660,11 +711,11 @@ export function WorkspaceManager() {
           onClose={handleCloseExport}
         />
       </div>
-      
+
       {/* Hidden video element for playback control - must be OUTSIDE and ALWAYS present */}
       <video
         ref={videoRef}
-        style={{ 
+        style={{
           position: 'absolute',
           width: '1px',
           height: '1px',

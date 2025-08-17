@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { cn } from '@/lib/utils'
-import type { Clip, Project } from '@/types/project'
+import type { Clip, Project, ZoomBlock, ClipEffects } from '@/types/project'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -21,39 +21,35 @@ import { useTimelineKeyboard } from './use-timeline-keyboard'
 
 interface TimelineCanvasProps {
   className?: string
-  currentProject?: Project | null
-  currentTime?: number
-  isPlaying?: boolean
-  zoom?: number
-  onPlay?: () => void
-  onPause?: () => void
-  onSeek?: (time: number) => void
-  onClipSelect?: (clipId: string) => void
-  onZoomChange?: (zoom: number) => void
+  currentProject: Project | null
+  currentTime: number
+  isPlaying: boolean
+  zoom: number
+  onPlay: () => void
+  onPause: () => void
+  onSeek: (time: number) => void
+  onClipSelect: (clipId: string) => void
+  onZoomChange: (zoom: number) => void
+  localEffects?: ClipEffects | null
+  onZoomBlockUpdate?: (clipId: string, blockId: string, updates: Partial<ZoomBlock>) => void
 }
 
-export function TimelineCanvas({ 
+export function TimelineCanvas({
   className = "h-full w-full",
-  currentProject: propCurrentProject,
-  currentTime: propCurrentTime,
-  isPlaying: propIsPlaying,
-  zoom: propZoom,
-  onPlay: propOnPlay,
-  onPause: propOnPause,
-  onSeek: propOnSeek,
-  onClipSelect: propOnClipSelect,
-  onZoomChange: propOnZoomChange
+  currentProject,
+  currentTime,
+  isPlaying,
+  zoom,
+  onPlay,
+  onPause,
+  onSeek,
+  onClipSelect,
+  onZoomChange,
+  localEffects,
+  onZoomBlockUpdate
 }: TimelineCanvasProps) {
   const {
-    currentProject: storeCurrentProject,
     selectedClips,
-    currentTime: storeCurrentTime,
-    isPlaying: storeIsPlaying,
-    zoom: storeZoom,
-    seek: storeSeek,
-    play: storePlay,
-    pause: storePause,
-    setZoom: storeSetZoom,
     selectClip,
     removeClip,
     updateClip,
@@ -67,16 +63,6 @@ export function TimelineCanvas({
     trimClipEnd,
     duplicateClip
   } = useProjectStore()
-  
-  // Use props if provided, otherwise fall back to store
-  const currentProject = propCurrentProject ?? storeCurrentProject
-  const currentTime = propCurrentTime ?? storeCurrentTime
-  const isPlaying = propIsPlaying ?? storeIsPlaying
-  const zoom = propZoom ?? storeZoom
-  const play = propOnPlay ?? storePlay
-  const pause = propOnPause ?? storePause
-  const seek = propOnSeek ?? storeSeek
-  const setZoom = propOnZoomChange ?? storeSetZoom
 
   const [stageSize, setStageSize] = useState({ width: 800, height: 400 })
   const [scrollLeft, setScrollLeft] = useState(0)
@@ -100,8 +86,8 @@ export function TimelineCanvas({
     isPlaying,
     selectedClips,
     currentTime,
-    play,
-    pause,
+    play: onPlay,
+    pause: onPause,
     splitClip,
     removeClip,
     duplicateClip,
@@ -149,11 +135,9 @@ export function TimelineCanvas({
 
   // Handle clip selection
   const handleClipSelect = useCallback((clipId: string) => {
-    if (propOnClipSelect) {
-      propOnClipSelect(clipId)
-    }
+    onClipSelect(clipId)
     selectClip(clipId) // Still need for multi-selection tracking
-  }, [propOnClipSelect, selectClip])
+  }, [onClipSelect, selectClip])
 
   // Handle clip drag
   const handleClipDragEnd = useCallback((clipId: string, newStartTime: number) => {
@@ -227,18 +211,10 @@ export function TimelineCanvas({
         const time = TimelineUtils.pixelToTime(x, pixelsPerMs)
         const maxTime = currentProject?.timeline?.duration || 0
         const targetTime = Math.max(0, Math.min(maxTime, time))
-
-        // Force immediate seek when clicking timeline
-        seek(targetTime)
-
-        // If not playing, ensure video updates immediately
-        if (!isPlaying) {
-          // Trigger a re-render to update video position
-          useProjectStore.getState().seek(targetTime)
-        }
+        onSeek(targetTime)
       }
     }
-  }, [currentProject, pixelsPerMs, seek, isPlaying])
+  }, [currentProject, pixelsPerMs, onSeek])
 
   if (!currentProject) {
     return (
@@ -257,10 +233,10 @@ export function TimelineCanvas({
         maxDuration={currentProject.timeline.duration}
         selectedClips={selectedClips}
         copiedClip={!!copiedClip}
-        onPlay={play}
-        onPause={pause}
-        onSeek={seek}
-        onZoomChange={setZoom}
+        onPlay={onPlay}
+        onPause={onPause}
+        onSeek={onSeek}
+        onZoomChange={onZoomChange}
         onSplit={handleSplit}
         onTrimStart={handleTrimStart}
         onTrimEnd={handleTrimEnd}
@@ -348,11 +324,13 @@ export function TimelineCanvas({
                 .find(t => t.type === 'video')
                 ?.clips.find(c => selectedClips.includes(c.id))
 
-              if (!selectedClip?.effects?.zoom?.enabled) return null
+              // Use local effects if available, otherwise use saved effects
+              const clipEffects = localEffects || selectedClip?.effects
+              if (!clipEffects?.zoom?.enabled || !selectedClip) return null
 
               const clipX = TimelineUtils.timeToPixel(selectedClip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
 
-              return selectedClip.effects.zoom.blocks?.map(block => (
+              return clipEffects.zoom.blocks?.map((block: ZoomBlock) => (
                 <TimelineZoomBlock
                   key={block.id}
                   x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
@@ -368,16 +346,45 @@ export function TimelineCanvas({
                   onSelect={() => { }}
                   onDragEnd={(newX) => {
                     const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
-                    updateZoomBlock(selectedClip.id, block.id, {
-                      startTime: newStartTime,
-                      endTime: newStartTime + (block.endTime - block.startTime)
-                    })
+                    // Use local update if available, otherwise use store update
+                    if (onZoomBlockUpdate) {
+                      onZoomBlockUpdate(selectedClip.id, block.id, {
+                        startTime: newStartTime,
+                        endTime: newStartTime + (block.endTime - block.startTime)
+                      })
+                    } else {
+                      updateZoomBlock(selectedClip.id, block.id, {
+                        startTime: newStartTime,
+                        endTime: newStartTime + (block.endTime - block.startTime)
+                      })
+                    }
                   }}
                   onResize={(newWidth, side) => {
                     if (side === 'right') {
-                      updateZoomBlock(selectedClip.id, block.id, {
+                      // Right handle - just update the end time
+                      const updates = {
                         endTime: block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
-                      })
+                      }
+                      if (onZoomBlockUpdate) {
+                        onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                      } else {
+                        updateZoomBlock(selectedClip.id, block.id, updates)
+                      }
+                    } else if (side === 'left') {
+                      // Left handle - update start time and maintain duration
+                      const oldDuration = block.endTime - block.startTime
+                      const widthDiff = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs) - newWidth
+                      const newStartTime = block.startTime + TimelineUtils.pixelToTime(widthDiff, pixelsPerMs)
+
+                      const updates = {
+                        startTime: Math.max(0, newStartTime),
+                        endTime: Math.max(0, newStartTime) + oldDuration
+                      }
+                      if (onZoomBlockUpdate) {
+                        onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                      } else {
+                        updateZoomBlock(selectedClip.id, block.id, updates)
+                      }
                     }
                   }}
                   onIntroChange={(newIntroMs) => {
@@ -415,7 +422,7 @@ export function TimelineCanvas({
               pixelsPerMs={pixelsPerMs}
               timelineWidth={timelineWidth}
               maxTime={currentProject.timeline.duration}
-              onSeek={seek}
+              onSeek={onSeek}
             />
           </Layer>
         </Stage>

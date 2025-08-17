@@ -119,32 +119,21 @@ export class CursorRenderer {
     this.canvas.style.top = '0'
     this.canvas.style.left = '0'
     this.canvas.style.pointerEvents = 'none'
-    this.canvas.style.width = '100%'
-    this.canvas.style.height = '100%'
-
-    // Match video dimensions
-    const updateCanvasSize = () => {
-      if (this.canvas && video.videoWidth && video.videoHeight) {
-        this.canvas.width = video.videoWidth
-        this.canvas.height = video.videoHeight
-        this.ctx = this.canvas.getContext('2d', { 
-          alpha: true,
-          desynchronized: true // Better performance
-        })
-
-        if (this.ctx) {
-          this.ctx.imageSmoothingEnabled = true
-          this.ctx.imageSmoothingQuality = 'high'
-        }
-      }
-    }
-
-    video.addEventListener('loadedmetadata', updateCanvasSize)
     
-    // Start the independent animation loop
+    // Initialize context (canvas dimensions will be set externally)
+    this.ctx = this.canvas.getContext('2d', { 
+      alpha: true,
+      desynchronized: true // Better performance
+    })
+
+    if (this.ctx) {
+      this.ctx.imageSmoothingEnabled = true
+      this.ctx.imageSmoothingQuality = 'high'
+    }
+    
+    // Start the animation loop
     this.startAnimationLoop()
 
-    updateCanvasSize()
     return this.canvas
   }
 
@@ -212,7 +201,7 @@ export class CursorRenderer {
   }
 
   private render(videoTime: number, renderTime: number) {
-    if (!this.ctx || !this.canvas) return
+    if (!this.ctx || !this.canvas || !this.video) return
 
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
@@ -221,6 +210,10 @@ export class CursorRenderer {
     const targetPos = this.getInterpolatedPosition(videoTime)
     if (!targetPos) return
 
+    // Calculate scaling factors between video and canvas
+    const scaleX = this.canvas.width / this.video.videoWidth
+    const scaleY = this.canvas.height / this.video.videoHeight
+
     // Calculate frame delta time for smooth animation
     const deltaTime = this.lastFrameTime ? (renderTime - this.lastFrameTime) / 1000 : 0.016
 
@@ -228,10 +221,12 @@ export class CursorRenderer {
     const oldX = this.currentPosition.x
     const oldY = this.currentPosition.y
     
-    // Smooth position update with easing
+    // Smooth position update with easing and apply scaling
     const smoothingFactor = this.options.smoothing ? 0.25 : 1
-    this.currentPosition.x += (targetPos.x - this.currentPosition.x) * smoothingFactor
-    this.currentPosition.y += (targetPos.y - this.currentPosition.y) * smoothingFactor
+    const scaledTargetX = targetPos.x * scaleX
+    const scaledTargetY = targetPos.y * scaleY
+    this.currentPosition.x += (scaledTargetX - this.currentPosition.x) * smoothingFactor
+    this.currentPosition.y += (scaledTargetY - this.currentPosition.y) * smoothingFactor
     
     // Calculate actual velocity
     if (deltaTime > 0) {
@@ -368,7 +363,7 @@ export class CursorRenderer {
     this.ctx.save()
     
     // Draw trail with decreasing opacity
-    this.trailPoints.forEach((point, index) => {
+    this.trailPoints.forEach((point) => {
       this.ctx!.globalAlpha = point.opacity * 0.3
       const cursorSize = (this.options.size || 2.5) * 24
       const hotspotX = (4 / 24) * cursorSize
@@ -404,6 +399,8 @@ export class CursorRenderer {
   }
 
   private checkForClicks(currentTime: number) {
+    if (!this.video || !this.canvas) return
+    
     // Check if any click event occurs at the current time
     const clickEvent = this.events.find(e => 
       e.eventType === 'click' && 
@@ -411,7 +408,14 @@ export class CursorRenderer {
     )
     
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      this.addClickAnimation(clickEvent.mouseX, clickEvent.mouseY, clickEvent.timestamp)
+      // Scale click coordinates to canvas space
+      const scaleX = this.canvas.width / this.video.videoWidth
+      const scaleY = this.canvas.height / this.video.videoHeight
+      this.addClickAnimation(
+        clickEvent.mouseX * scaleX, 
+        clickEvent.mouseY * scaleY, 
+        clickEvent.timestamp
+      )
     }
   }
 
