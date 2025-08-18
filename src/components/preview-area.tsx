@@ -37,9 +37,9 @@ export function PreviewArea({
   // Internal refs for animation and state
   const animationFrameRef = useRef<number>()
 
-  // Performance optimizations: cache temporary canvases
-  const tempCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null)
+  // Canvas for full composition (background + video) - used for zoom effects
+  const compositionCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const compositionCtxRef = useRef<CanvasRenderingContext2D | null>(null)
   
   // Cache the main canvas context to avoid recreating it
   const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null)
@@ -300,80 +300,86 @@ export function PreviewArea({
       // Only clear and redraw if we can actually draw the video
       // This prevents blank frames when video state temporarily changes
       if (videoIsReady && currentBackgroundRenderer && video.src && !video.error) {
-        // Clear canvas and draw background
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        
-        if (bgCanvas && bgCanvas.width === canvas.width && bgCanvas.height === canvas.height) {
-          ctx.drawImage(bgCanvas, 0, 0)
-        }
-        // Only use temp canvas if we have zoom effects
+        // Check if we have zoom effects
         const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
-
+        
         if (hasZoomEffect && currentEffectsEngine) {
-          // Reuse cached temporary canvas for zoom effects
-          if (!tempCanvasRef.current ||
-            tempCanvasRef.current.width !== videoWidth ||
-            tempCanvasRef.current.height !== videoHeight) {
-            tempCanvasRef.current = document.createElement('canvas')
-            tempCanvasRef.current.width = videoWidth
-            tempCanvasRef.current.height = videoHeight
-            tempCtxRef.current = tempCanvasRef.current.getContext('2d', {
+          // Create or reuse composition canvas for full scene (background + video)
+          if (!compositionCanvasRef.current ||
+            compositionCanvasRef.current.width !== canvas.width ||
+            compositionCanvasRef.current.height !== canvas.height) {
+            compositionCanvasRef.current = document.createElement('canvas')
+            compositionCanvasRef.current.width = canvas.width
+            compositionCanvasRef.current.height = canvas.height
+            compositionCtxRef.current = compositionCanvasRef.current.getContext('2d', {
               alpha: false,
               desynchronized: true
             })
           }
 
-          const tempCanvas = tempCanvasRef.current
-          const tempCtx = tempCtxRef.current!
+          const compCanvas = compositionCanvasRef.current
+          const compCtx = compositionCtxRef.current!
 
-          // Reset temp context state
-          tempCtx.globalAlpha = 1
-          tempCtx.globalCompositeOperation = 'source-over'
-          tempCtx.setTransform(1, 0, 0, 1, 0, 0)
+          // Reset composition context state
+          compCtx.globalAlpha = 1
+          compCtx.globalCompositeOperation = 'source-over'
+          compCtx.setTransform(1, 0, 0, 1, 0, 0)
+          
+          // Draw full composition: background first
+          compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height)
+          if (bgCanvas && bgCanvas.width === compCanvas.width && bgCanvas.height === compCanvas.height) {
+            compCtx.drawImage(bgCanvas, 0, 0)
+          }
+          
+          // Draw video on top of background with border radius
+          compCtx.save()
+          compCtx.beginPath()
+          compCtx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
+          compCtx.clip()
+          compCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
+          compCtx.restore()
 
-          // Calculate time relative to the clip for zoom effects
-          // The zoom blocks are stored relative to clip time (0 = start of clip)
+          // Now apply zoom to the entire composition
           const clipRelativeTime = currentTimeMs - (currentClip?.sourceIn || 0)
           const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime)
 
+          // Clear main canvas
+          ctx.clearRect(0, 0, canvas.width, canvas.height)
+
           if (zoomState.scale > 1.0) {
-            // Calculate the zoom target point in video space
-            const targetX = tempCanvas.width * zoomState.x
-            const targetY = tempCanvas.height * zoomState.y
+            // Calculate the zoom target point in canvas space
+            const targetX = canvas.width * zoomState.x
+            const targetY = canvas.height * zoomState.y
 
             // Calculate the zoomed region dimensions
-            const zoomWidth = tempCanvas.width / zoomState.scale
-            const zoomHeight = tempCanvas.height / zoomState.scale
+            const zoomWidth = canvas.width / zoomState.scale
+            const zoomHeight = canvas.height / zoomState.scale
 
             // Calculate the top-left corner of the region to draw
             // This keeps the target point centered in the view
-            const sx = Math.max(0, Math.min(tempCanvas.width - zoomWidth, targetX - zoomWidth / 2))
-            const sy = Math.max(0, Math.min(tempCanvas.height - zoomHeight, targetY - zoomHeight / 2))
+            const sx = Math.max(0, Math.min(canvas.width - zoomWidth, targetX - zoomWidth / 2))
+            const sy = Math.max(0, Math.min(canvas.height - zoomHeight, targetY - zoomHeight / 2))
 
-            // Clear and draw the zoomed portion
-            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
-            tempCtx.drawImage(
-              video,
-              sx, sy, zoomWidth, zoomHeight,  // Source rectangle (zoomed area)
-              0, 0, tempCanvas.width, tempCanvas.height  // Destination (full canvas)
+            // Draw the zoomed portion of the full composition
+            ctx.drawImage(
+              compCanvas,
+              sx, sy, zoomWidth, zoomHeight,  // Source rectangle (zoomed area of composition)
+              0, 0, canvas.width, canvas.height  // Destination (full canvas)
             )
           } else {
-            // No zoom - draw full video
-            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
-            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height)
+            // No zoom - draw full composition
+            ctx.drawImage(compCanvas, 0, 0)
           }
-
-          // No need to restore since we're not using save()
-
-          // Draw zoomed video with border radius clipping
-          ctx.save()
-          ctx.beginPath()
-          ctx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
-          ctx.clip()
-          ctx.drawImage(tempCanvas, offsetX, offsetY, drawWidth, drawHeight)
-          ctx.restore()
         } else {
-          // No zoom - draw video directly with border radius
+          // No zoom effects - use original rendering path
+          // Clear canvas and draw background
+          ctx.clearRect(0, 0, canvas.width, canvas.height)
+          
+          if (bgCanvas && bgCanvas.width === canvas.width && bgCanvas.height === canvas.height) {
+            ctx.drawImage(bgCanvas, 0, 0)
+          }
+          
+          // Draw video directly with border radius
           ctx.save()
           ctx.beginPath()
           ctx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
@@ -624,9 +630,9 @@ export function PreviewArea({
   // Cleanup cached canvases on unmount
   useEffect(() => {
     return () => {
-      // Clean up cached canvases
-      tempCanvasRef.current = null
-      tempCtxRef.current = null
+      // Clean up composition canvas
+      compositionCanvasRef.current = null
+      compositionCtxRef.current = null
       
       // Clean up cursor canvas
       if (cursorCanvasRef.current && cursorCanvasRef.current.parentElement) {

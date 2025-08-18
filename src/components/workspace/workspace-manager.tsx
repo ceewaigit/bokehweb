@@ -112,7 +112,7 @@ export function WorkspaceManager() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null)
   const effectsEngineRef = useRef<EffectsEngine | null>(null)
-  const cursorRendererRef = useRef<CursorRenderer | null>(null)
+  const [cursorRenderer, setCursorRenderer] = useState<CursorRenderer | null>(null)
   // Initialize background renderer immediately
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(new BackgroundRenderer())
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
@@ -209,14 +209,14 @@ export function WorkspaceManager() {
 
     if (cursorChanged) {
       // Clean up previous cursor renderer
-      if (cursorRendererRef.current) {
-        cursorRendererRef.current.dispose()
-        cursorRendererRef.current = null
+      if (cursorRenderer) {
+        cursorRenderer.dispose()
+        setCursorRenderer(null)
       }
 
       // Initialize cursor renderer
       if (clipEffects?.cursor?.visible && selectedRecording.metadata?.mouseEvents) {
-        cursorRendererRef.current = new CursorRenderer({
+        const newCursorRenderer = new CursorRenderer({
           size: clipEffects.cursor.size,
           clickColor: '#007AFF',
           smoothing: true
@@ -238,20 +238,22 @@ export function WorkspaceManager() {
 
         // Pass video dimensions for proper normalization
         // The cursor positions are relative to the actual video content
-        cursorRendererRef.current.setVideoDimensions(videoWidth, videoHeight)
+        newCursorRenderer.setVideoDimensions(videoWidth, videoHeight)
 
         // Pass effects engine for zoom support
         if (effectsEngineRef.current) {
-          cursorRendererRef.current.setEffectsEngine(effectsEngineRef.current)
+          newCursorRenderer.setEffectsEngine(effectsEngineRef.current)
         }
 
         // Just attach the video, don't manage the canvas DOM
         // Let preview-area handle canvas positioning since it knows the actual padding/dimensions
-        const canvas = cursorRendererRef.current.attachToVideo(
+        newCursorRenderer.attachToVideo(
           videoRef.current,
           cursorEvents
         )
-        console.log('Cursor renderer created, canvas:', !!canvas)
+        
+        // Set the state to trigger re-render
+        setCursorRenderer(newCursorRenderer)
       }
     }
 
@@ -340,7 +342,7 @@ export function WorkspaceManager() {
       initializeEffects(false)
 
       // Update video position if cursor renderer exists
-      if (cursorRendererRef.current && canvasRef.current && canvasRef.current.width > 300) {
+      if (cursorRenderer && canvasRef.current && canvasRef.current.width > 300) {
           const padding = activeEffects?.background?.padding || 80
           const videoWidth = videoRef.current?.videoWidth || 1920
           const videoHeight = videoRef.current?.videoHeight || 1080
@@ -363,7 +365,7 @@ export function WorkspaceManager() {
             offsetY = padding
           }
 
-          cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
+          cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
       }
     }
   }, [activeEffects, initializeEffects, selectedRecording])
@@ -372,8 +374,8 @@ export function WorkspaceManager() {
   // Cleanup effects on unmount
   useEffect(() => {
     return () => {
-      if (cursorRendererRef.current) {
-        cursorRendererRef.current.dispose()
+      if (cursorRenderer) {
+        cursorRenderer.dispose()
       }
       if (backgroundRendererRef.current) {
         backgroundRendererRef.current.dispose()
@@ -706,7 +708,7 @@ export function WorkspaceManager() {
                 canvasRef={canvasRef}
                 backgroundCanvasRef={backgroundCanvasRef}
                 effectsEngine={effectsEngineRef.current}
-                cursorRenderer={cursorRendererRef.current}
+                cursorRenderer={cursorRenderer}
                 backgroundRenderer={backgroundRendererRef.current}
                 selectedClip={selectedClip}
                 selectedRecording={selectedRecording}
