@@ -237,6 +237,14 @@ export function WorkspaceManager() {
             screenWidth: e.screenWidth,
             screenHeight: e.screenHeight
           })) : []
+        
+        console.log('WorkspaceManager: Initializing cursor with events', {
+          recordingId: selectedRecording.id,
+          hasMetadata: !!selectedRecording.metadata,
+          mouseEventCount: selectedRecording.metadata?.mouseEvents?.length || 0,
+          cursorEventCount: cursorEvents.length,
+          sampleEvent: cursorEvents[0]
+        })
 
         // Pass video dimensions for proper normalization
         // The cursor positions are relative to the actual video content
