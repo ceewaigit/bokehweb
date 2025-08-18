@@ -272,10 +272,11 @@ export function WorkspaceManager() {
             cursorCanvas.style.position = 'absolute'
             cursorCanvas.style.top = '0'
             cursorCanvas.style.left = '0'
-            cursorCanvas.style.width = mainCanvas.style.width
-            cursorCanvas.style.height = mainCanvas.style.height
-            cursorCanvas.style.maxWidth = mainCanvas.style.maxWidth
-            cursorCanvas.style.maxHeight = mainCanvas.style.maxHeight
+            cursorCanvas.style.width = mainCanvas.style.width || ''
+            cursorCanvas.style.height = mainCanvas.style.height || ''
+            cursorCanvas.style.maxWidth = '100%'
+            cursorCanvas.style.maxHeight = '100%'
+            cursorCanvas.style.objectFit = 'contain'
             cursorCanvas.style.pointerEvents = 'none'
             cursorCanvas.style.zIndex = '100'
 
@@ -419,8 +420,11 @@ export function WorkspaceManager() {
       if (cursorCanvasRef.current && canvasRef.current) {
         cursorCanvasRef.current.width = canvasRef.current.width
         cursorCanvasRef.current.height = canvasRef.current.height
-        cursorCanvasRef.current.style.width = canvasRef.current.style.width || `${canvasRef.current.width}px`
-        cursorCanvasRef.current.style.height = canvasRef.current.style.height || `${canvasRef.current.height}px`
+        cursorCanvasRef.current.style.width = canvasRef.current.style.width || ''
+        cursorCanvasRef.current.style.height = canvasRef.current.style.height || ''
+        cursorCanvasRef.current.style.maxWidth = '100%'
+        cursorCanvasRef.current.style.maxHeight = '100%'
+        cursorCanvasRef.current.style.objectFit = 'contain'
 
         // Also update video position if cursor renderer exists
         if (cursorRendererRef.current && canvasRef.current.width > 300) {
