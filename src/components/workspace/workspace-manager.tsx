@@ -247,10 +247,11 @@ export function WorkspaceManager() {
 
         // Just attach the video, don't manage the canvas DOM
         // Let preview-area handle canvas positioning since it knows the actual padding/dimensions
-        cursorRendererRef.current.attachToVideo(
+        const canvas = cursorRendererRef.current.attachToVideo(
           videoRef.current,
           cursorEvents
         )
+        console.log('Cursor renderer created, canvas:', !!canvas)
       }
     }
 

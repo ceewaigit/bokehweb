@@ -231,10 +231,17 @@ export function PreviewArea({
         
         // Get the cursor canvas from the renderer
         const cursorCanvas = cursorRenderer.canvasElement
+        console.log('Cursor canvas check:', { 
+          hasCursorRenderer: !!cursorRenderer, 
+          hasCursorCanvas: !!cursorCanvas,
+          currentRef: !!cursorCanvasRef.current,
+          isSame: cursorCanvas === cursorCanvasRef.current
+        })
         
         // Attach cursor canvas if we have one and it's not already attached
         if (cursorCanvas && cursorCanvas !== cursorCanvasRef.current) {
           const parentElement = canvas.parentElement
+          console.log('Parent element:', !!parentElement, 'Attaching cursor canvas')
           
           if (parentElement) {
             // Remove old cursor canvas if exists
