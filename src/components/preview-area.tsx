@@ -140,13 +140,19 @@ export function PreviewArea({
     const canvas = canvasRef.current
     const bgCanvas = backgroundCanvasRef.current
     const video = videoRef.current
-    if (!canvas || !video) return
+    if (!canvas || !video) {
+      console.log('RenderFrame skipped - missing elements:', { canvas: !!canvas, video: !!video })
+      return
+    }
 
     let ctx = canvas.getContext('2d', {
       alpha: true,
       desynchronized: true
     })
-    if (!ctx) return
+    if (!ctx) {
+      console.log('RenderFrame skipped - no context')
+      return
+    }
 
     const currentTimeMs = video.currentTime * 1000
 
@@ -381,6 +387,13 @@ export function PreviewArea({
           // Update canvas dimensions
           canvas.width = canvasWidth
           canvas.height = canvasHeight
+          
+          console.log('Canvas initialized:', { 
+            width: canvas.width, 
+            height: canvas.height,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight
+          })
 
           // Mark as loaded - effects are initialized by parent
           setIsVideoLoaded(true)
@@ -442,6 +455,7 @@ export function PreviewArea({
       }
       animationFrameRef.current = requestAnimationFrame(animate)
     } else {
+      // Render current frame when paused
       renderFrame()
     }
 
@@ -452,6 +466,13 @@ export function PreviewArea({
       }
     }
   }, [isPlaying, isVideoLoaded, renderFrame])
+  
+  // Force render when video becomes loaded
+  useEffect(() => {
+    if (isVideoLoaded) {
+      renderFrame()
+    }
+  }, [isVideoLoaded, renderFrame])
 
   // Handle video element play/pause state and sync during playback
   useEffect(() => {
@@ -563,7 +584,7 @@ export function PreviewArea({
   }, [])
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-black">
+    <div className="relative w-full h-full overflow-hidden bg-background">
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="relative w-full h-full flex items-center justify-center">
           {currentRecording && (
@@ -583,9 +604,9 @@ export function PreviewArea({
                 ref={canvasRef}
                 className="shadow-2xl"
                 style={{
-                  display: isVideoLoaded ? 'block' : 'none',
                   maxWidth: '100%',
-                  maxHeight: '100%'
+                  maxHeight: '100%',
+                  objectFit: 'contain'
                 }}
               />
 
