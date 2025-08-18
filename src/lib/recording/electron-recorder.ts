@@ -641,14 +641,13 @@ export class ElectronRecorder {
         }
 
         // Transform logical pixels to video coordinate space
-        // data.x/y are in logical pixels, we need to map to video space
-        let transformedX = data.x
-        let transformedY = data.y
+        // data.x/y are already in logical pixels from screen.getCursorScreenPoint()
+        // Keep them as-is since video dimensions are also in logical pixels
+        const transformedX = data.x
+        const transformedY = data.y
 
-        // Convert logical pixels to physical pixels using scale factor
+        // Store scaleFactor for reference but don't apply it to coordinates
         const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
-        transformedX = data.x * scaleFactor
-        transformedY = data.y * scaleFactor
 
         this.metadata.push({
           timestamp,
@@ -673,13 +672,11 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        // Transform logical pixels to video coordinate space
-        let transformedX = data.x
-        let transformedY = data.y
+        // Keep coordinates in logical pixels (no transformation needed)
+        const transformedX = data.x
+        const transformedY = data.y
 
         const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
-        transformedX = data.x * scaleFactor
-        transformedY = data.y * scaleFactor
 
         this.metadata.push({
           timestamp,
