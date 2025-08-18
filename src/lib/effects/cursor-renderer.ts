@@ -198,14 +198,17 @@ export class CursorRenderer {
     
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Mouse coordinates come from screen.getCursorScreenPoint() which returns LOGICAL pixels
-        // On HiDPI displays (scaleFactor > 1), these are already in logical coordinates
-        // Video dimensions are also in logical pixels
-        // So we DON'T need to apply any scale factor transformation here
+        // Mouse coordinates are in screen space (from screen.getCursorScreenPoint())
+        // We need to normalize them using the actual screen dimensions they were captured from
+        // NOT the video dimensions (which might be different due to resolution settings)
         
-        // Simply normalize to 0-1 range based on video dimensions
-        const x = this.videoWidth > 0 ? event.mouseX / this.videoWidth : 0
-        const y = this.videoHeight > 0 ? event.mouseY / this.videoHeight : 0
+        // Use screen dimensions from the event metadata, fallback to video dimensions
+        const screenWidth = (event as any).screenWidth || this.videoWidth
+        const screenHeight = (event as any).screenHeight || this.videoHeight
+        
+        // Normalize to 0-1 range based on actual screen dimensions
+        const x = screenWidth > 0 ? event.mouseX / screenWidth : 0
+        const y = screenHeight > 0 ? event.mouseY / screenHeight : 0
 
         const point: CursorPoint = {
           x,
@@ -216,8 +219,10 @@ export class CursorRenderer {
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevX = this.videoWidth > 0 ? prevEvent.mouseX / this.videoWidth : 0
-          const prevY = this.videoHeight > 0 ? prevEvent.mouseY / this.videoHeight : 0
+          const prevScreenWidth = (prevEvent as any).screenWidth || this.videoWidth
+          const prevScreenHeight = (prevEvent as any).screenHeight || this.videoHeight
+          const prevX = prevScreenWidth > 0 ? prevEvent.mouseX / prevScreenWidth : 0
+          const prevY = prevScreenHeight > 0 ? prevEvent.mouseY / prevScreenHeight : 0
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {
@@ -591,9 +596,11 @@ export class CursorRenderer {
     )
 
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      // Normalize coordinates the same way as cursor position (no scale factor needed)
-      const normalizedX = this.videoWidth > 0 ? clickEvent.mouseX / this.videoWidth : 0
-      const normalizedY = this.videoHeight > 0 ? clickEvent.mouseY / this.videoHeight : 0
+      // Normalize coordinates using screen dimensions (same as cursor position)
+      const screenWidth = (clickEvent as any).screenWidth || this.videoWidth
+      const screenHeight = (clickEvent as any).screenHeight || this.videoHeight
+      const normalizedX = screenWidth > 0 ? clickEvent.mouseX / screenWidth : 0
+      const normalizedY = screenHeight > 0 ? clickEvent.mouseY / screenHeight : 0
       const videoX = normalizedX * this.video.videoWidth
       const videoY = normalizedY * this.video.videoHeight
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1

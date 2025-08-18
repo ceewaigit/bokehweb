@@ -230,7 +230,10 @@ export function WorkspaceManager() {
             mouseY: e.y,
             eventType: 'mouse' as const,
             cursorType: e.cursorType,
-            scaleFactor: e.scaleFactor
+            scaleFactor: e.scaleFactor,
+            // Pass through screen dimensions for proper normalization
+            screenWidth: e.screenWidth,
+            screenHeight: e.screenHeight
           })) : []
         
         // Set video dimensions from recording (same as effects-engine)
