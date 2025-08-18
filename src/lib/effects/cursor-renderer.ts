@@ -52,6 +52,8 @@ export class CursorRenderer {
   private isAttachedToDOM = false // Only render when canvas is in DOM
   private videoOffset = { x: 0, y: 0, width: 0, height: 0 } // Track video position in canvas
   private effectsEngine: any = null // For getting zoom state
+  private recordingWidth = 1920 // Recording dimensions for normalization
+  private recordingHeight = 1080 // Will be updated from recording
 
   // Motion blur trail
   private trailPoints: Array<{ x: number; y: number; opacity: number }> = []
@@ -167,6 +169,12 @@ export class CursorRenderer {
     this.videoOffset = { x, y, width, height }
   }
 
+  // Set recording dimensions for proper coordinate normalization
+  setRecordingDimensions(width: number, height: number) {
+    this.recordingWidth = width
+    this.recordingHeight = height
+  }
+
   // Set effects engine for zoom state
   setEffectsEngine(engine: any) {
     this.effectsEngine = engine
@@ -175,10 +183,10 @@ export class CursorRenderer {
   private preprocessEvents() {
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Use screen dimensions from the event for proper normalization
-        // This ensures the mouse coordinates are normalized based on the actual screen size during recording
-        const x = event.screenWidth > 0 ? event.mouseX / event.screenWidth : 0
-        const y = event.screenHeight > 0 ? event.mouseY / event.screenHeight : 0
+        // Use recording dimensions for normalization to match effects-engine
+        // This ensures consistency between cursor position and zoom effects
+        const x = this.recordingWidth > 0 ? event.mouseX / this.recordingWidth : 0
+        const y = this.recordingHeight > 0 ? event.mouseY / this.recordingHeight : 0
 
         const point: CursorPoint = {
           x,
@@ -189,8 +197,8 @@ export class CursorRenderer {
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevX = prevEvent.screenWidth > 0 ? prevEvent.mouseX / prevEvent.screenWidth : 0
-          const prevY = prevEvent.screenHeight > 0 ? prevEvent.mouseY / prevEvent.screenHeight : 0
+          const prevX = this.recordingWidth > 0 ? prevEvent.mouseX / this.recordingWidth : 0
+          const prevY = this.recordingHeight > 0 ? prevEvent.mouseY / this.recordingHeight : 0
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {
@@ -564,9 +572,9 @@ export class CursorRenderer {
     )
 
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      // Normalize coordinates, then convert to video space, then to canvas space
-      const normalizedX = clickEvent.mouseX / clickEvent.screenWidth
-      const normalizedY = clickEvent.mouseY / clickEvent.screenHeight
+      // Normalize coordinates using recording dimensions (same as cursor position)
+      const normalizedX = clickEvent.mouseX / this.recordingWidth
+      const normalizedY = clickEvent.mouseY / this.recordingHeight
       const videoX = normalizedX * this.video.videoWidth
       const videoY = normalizedY * this.video.videoHeight
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1

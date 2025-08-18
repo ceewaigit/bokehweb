@@ -234,6 +234,12 @@ export function WorkspaceManager() {
             screenHeight: e.screenHeight
           })) : []
 
+        // Set recording dimensions for proper normalization (same as effects-engine)
+        newCursorRenderer.setRecordingDimensions(
+          selectedRecording.width || 1920,
+          selectedRecording.height || 1080
+        )
+
         // Pass effects engine for zoom support
         if (effectsEngineRef.current) {
           newCursorRenderer.setEffectsEngine(effectsEngineRef.current)
