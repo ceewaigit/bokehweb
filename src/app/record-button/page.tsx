@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
 import { useRecordingStore } from '@/stores/recording-store'
@@ -30,11 +30,9 @@ export default function RecordingDock() {
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
   const [selectedSource, setSelectedSource] = useState<'fullscreen' | 'window' | 'region'>('fullscreen')
-
-  // Base window dimensions - adjusted to fit content exactly
-  const BASE_WIDTH = 700
-  const BASE_HEIGHT = 120  // Reduced to better fit the actual dock height
-  const EXPANDED_HEIGHT = 250 // Height when dropdown is open
+  
+  // Reference to the dock container for measuring
+  const dockContainerRef = useRef<HTMLDivElement>(null)
 
   // Use the centralized recording hook and store
   const {
@@ -51,13 +49,11 @@ export default function RecordingDock() {
     updateSettings
   } = useRecordingStore()
 
-  // Initialize styles and window size on mount
+  // Force transparent background on mount
   useEffect(() => {
-    // Force transparent background with !important to override Tailwind
     const styles = `
       html, body {
         background: transparent !important;
-        background-color: transparent !important;
         margin: 0 !important;
         padding: 0 !important;
         overflow: visible !important;
@@ -67,24 +63,12 @@ export default function RecordingDock() {
       }
     `
     
-    // Create or update style element
-    let styleEl = document.getElementById('record-button-styles')
-    if (!styleEl) {
-      styleEl = document.createElement('style')
-      styleEl.id = 'record-button-styles'
-      document.head.appendChild(styleEl)
-    }
+    const styleEl = document.createElement('style')
     styleEl.textContent = styles
+    document.head.appendChild(styleEl)
     
-    // Also set inline styles for immediate effect
-    document.body.style.cssText = 'background: transparent !important; margin: 0 !important; padding: 0 !important;'
-    document.documentElement.style.cssText = 'background: transparent !important; margin: 0 !important; padding: 0 !important;'
-
-    // Set initial window size
-    if (window.electronAPI?.resizeRecordButton) {
-      window.electronAPI.resizeRecordButton({ width: BASE_WIDTH, height: BASE_HEIGHT })
-    }
-  }, []) // Run once on mount
+    return () => styleEl.remove()
+  }, [])
 
   // Update recording settings when audio or source changes
   useEffect(() => {
@@ -94,13 +78,28 @@ export default function RecordingDock() {
     })
   }, [micEnabled, selectedSource, updateSettings])
 
-  // Resize window when dropdown expands/collapses
+  // Dynamically size window based on actual content dimensions
   useEffect(() => {
-    if (window.electronAPI?.resizeRecordButton) {
-      const targetHeight = isExpanded ? EXPANDED_HEIGHT : BASE_HEIGHT
-      window.electronAPI.resizeRecordButton({ width: BASE_WIDTH, height: targetHeight })
-    }
-  }, [isExpanded])
+    const dockElement = dockContainerRef.current
+    if (!dockElement || !window.electronAPI?.setWindowContentSize) return
+    
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      
+      const { width, height } = entry.contentRect
+      // Add small buffer for shadows
+      const buffer = 20
+      
+      window.electronAPI?.setWindowContentSize?.({
+        width: Math.ceil(width + buffer),
+        height: Math.ceil(height + buffer)
+      })
+    })
+    
+    observer.observe(dockElement)
+    return () => observer.disconnect()
+  }, [])
 
   const handleStartRecording = () => {
     // Show countdown
@@ -165,9 +164,10 @@ export default function RecordingDock() {
         )}
       </AnimatePresence>
 
-      {/* Main Dock - Positioned to fit window exactly */}
-      <div className="fixed inset-0 flex items-start justify-center pointer-events-none z-[2147483647]" style={{ background: 'transparent', margin: 0, padding: 0 }}>
+      {/* Main Dock */}
+      <div className="fixed inset-0 flex items-start justify-center pointer-events-none z-[2147483647]">
         <motion.div
+          ref={dockContainerRef}
           className="pointer-events-auto"
           style={{ marginTop: '16px' }}
           initial={{ y: -100, opacity: 0 }}

@@ -234,9 +234,9 @@ export function WorkspaceManager() {
             screenHeight: e.screenHeight,
             scaleFactor: e.scaleFactor // Pass scale factor for proper coordinate conversion
           })) : []
-
-        // Set recording dimensions for proper normalization (same as effects-engine)
-        newCursorRenderer.setRecordingDimensions(
+        
+        // Set video dimensions from recording (same as effects-engine)
+        newCursorRenderer.setVideoDimensions(
           selectedRecording.width || 1920,
           selectedRecording.height || 1080
         )

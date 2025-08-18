@@ -46,27 +46,21 @@ export function registerWindowControlHandlers(): void {
     }
   })
 
-  ipcMain.handle('resize-record-button', (_event: IpcMainInvokeEvent, dimensions: { width?: number; height?: number } | number) => {
-    if (global.recordButton) {
-      const [currentWidth, currentHeight] = global.recordButton.getSize()
+  // Dynamic content-based sizing
+  ipcMain.handle('set-window-content-size', (event: IpcMainInvokeEvent, dimensions: { width: number; height: number }) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (window && dimensions.width > 0 && dimensions.height > 0) {
+      const { screen } = require('electron')
+      const display = screen.getPrimaryDisplay()
       
-      // Support both old API (just height) and new API (width & height)
-      if (typeof dimensions === 'number') {
-        // Legacy: just height
-        if (dimensions > 0) {
-          global.recordButton.setSize(currentWidth, Math.round(dimensions))
-          return { success: true }
-        }
-      } else if (dimensions && typeof dimensions === 'object') {
-        // New: width and/or height
-        const newWidth = dimensions.width || currentWidth
-        const newHeight = dimensions.height || currentHeight
-        
-        if (newWidth > 0 && newHeight > 0) {
-          global.recordButton.setSize(Math.round(newWidth), Math.round(newHeight))
-          return { success: true }
-        }
-      }
+      window.setContentSize(Math.round(dimensions.width), Math.round(dimensions.height))
+      
+      // Center the window horizontally after resizing
+      const newX = Math.floor(display.workAreaSize.width / 2 - dimensions.width / 2)
+      const currentY = window.getPosition()[1]
+      window.setPosition(newX, currentY)
+      
+      return { success: true }
     }
     return { success: false }
   })
