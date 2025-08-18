@@ -292,9 +292,9 @@ export class EffectsEngine {
     const frameHeight = 1.0 / scale
 
     // Configuration
-    const edgeMargin = 0.25 // Start panning when mouse is 25% from edge
-    const panSpeed = 0.08 // How much to pan per frame
-    const maxPanDistance = 0.3 // Maximum distance from original zoom target
+    const edgeMargin = 0.35 // Start panning when mouse is 35% from edge (earlier)
+    const panSpeed = 0.18 // How much to pan per frame (faster)
+    const maxPanDistance = 0.5 // Maximum distance from original zoom target (more freedom)
 
     // Calculate frame boundaries
     const leftEdge = currentCenter.x - frameWidth / 2
@@ -310,9 +310,9 @@ export class EffectsEngine {
     let targetY = currentCenter.y
 
     if (mouseOutside) {
-      // Mouse is outside - pan to bring it back
-      // Move towards mouse but not all the way
-      const pullFactor = 0.2
+      // Mouse is outside - pan more aggressively to bring it back
+      // Move towards mouse with stronger pull
+      const pullFactor = 0.4 // Doubled from 0.2 for faster catch-up
       targetX = currentCenter.x + (mousePos.x - currentCenter.x) * pullFactor
       targetY = currentCenter.y + (mousePos.y - currentCenter.y) * pullFactor
     } else {
@@ -329,19 +329,19 @@ export class EffectsEngine {
       // Pan horizontally if near edges
       if (distFromLeft < marginX && distFromLeft > 0) {
         const urgency = 1.0 - (distFromLeft / marginX)
-        targetX = currentCenter.x - urgency * frameWidth * 0.02
+        targetX = currentCenter.x - urgency * frameWidth * 0.05 // Increased from 0.02
       } else if (distFromRight < marginX && distFromRight > 0) {
         const urgency = 1.0 - (distFromRight / marginX)
-        targetX = currentCenter.x + urgency * frameWidth * 0.02
+        targetX = currentCenter.x + urgency * frameWidth * 0.05 // Increased from 0.02
       }
 
       // Pan vertically if near edges
       if (distFromTop < marginY && distFromTop > 0) {
         const urgency = 1.0 - (distFromTop / marginY)
-        targetY = currentCenter.y - urgency * frameHeight * 0.02
+        targetY = currentCenter.y - urgency * frameHeight * 0.05 // Increased from 0.02
       } else if (distFromBottom < marginY && distFromBottom > 0) {
         const urgency = 1.0 - (distFromBottom / marginY)
-        targetY = currentCenter.y + urgency * frameHeight * 0.02
+        targetY = currentCenter.y + urgency * frameHeight * 0.05 // Increased from 0.02
       }
     }
 
