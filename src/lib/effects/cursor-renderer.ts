@@ -8,6 +8,7 @@ interface CursorEvent extends Omit<MouseEvent, 'x' | 'y'> {
   screenWidth: number
   screenHeight: number
   cursorType?: string  // Track cursor type for each event
+  scaleFactor?: number  // Device pixel ratio for coordinate conversion
 }
 
 interface CursorOptions {
@@ -183,10 +184,21 @@ export class CursorRenderer {
   private preprocessEvents() {
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Use recording dimensions for normalization to match effects-engine
-        // This ensures consistency between cursor position and zoom effects
-        const x = this.recordingWidth > 0 ? event.mouseX / this.recordingWidth : 0
-        const y = this.recordingHeight > 0 ? event.mouseY / this.recordingHeight : 0
+        // Mouse coordinates are in physical pixels (scaled by device pixel ratio)
+        // Screen dimensions are in logical pixels, so we need to scale them
+        // to match the coordinate space of the mouse events
+        const scaleFactor = event.scaleFactor || 1
+        const scaledScreenWidth = event.screenWidth * scaleFactor
+        const scaledScreenHeight = event.screenHeight * scaleFactor
+        
+        // First normalize to screen space (0-1)
+        const screenX = scaledScreenWidth > 0 ? event.mouseX / scaledScreenWidth : 0
+        const screenY = scaledScreenHeight > 0 ? event.mouseY / scaledScreenHeight : 0
+        
+        // Then map from screen space to video space
+        // This handles cases where recording area might be different from full screen
+        const x = screenX
+        const y = screenY
 
         const point: CursorPoint = {
           x,
@@ -197,8 +209,11 @@ export class CursorRenderer {
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevX = this.recordingWidth > 0 ? prevEvent.mouseX / this.recordingWidth : 0
-          const prevY = this.recordingHeight > 0 ? prevEvent.mouseY / this.recordingHeight : 0
+          const prevScaleFactor = prevEvent.scaleFactor || 1
+          const prevScaledWidth = prevEvent.screenWidth * prevScaleFactor
+          const prevScaledHeight = prevEvent.screenHeight * prevScaleFactor
+          const prevX = prevScaledWidth > 0 ? prevEvent.mouseX / prevScaledWidth : 0
+          const prevY = prevScaledHeight > 0 ? prevEvent.mouseY / prevScaledHeight : 0
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {
@@ -572,9 +587,12 @@ export class CursorRenderer {
     )
 
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      // Normalize coordinates using recording dimensions (same as cursor position)
-      const normalizedX = clickEvent.mouseX / this.recordingWidth
-      const normalizedY = clickEvent.mouseY / this.recordingHeight
+      // Normalize coordinates the same way as cursor position
+      const scaleFactor = clickEvent.scaleFactor || 1
+      const scaledScreenWidth = clickEvent.screenWidth * scaleFactor
+      const scaledScreenHeight = clickEvent.screenHeight * scaleFactor
+      const normalizedX = scaledScreenWidth > 0 ? clickEvent.mouseX / scaledScreenWidth : 0
+      const normalizedY = scaledScreenHeight > 0 ? clickEvent.mouseY / scaledScreenHeight : 0
       const videoX = normalizedX * this.video.videoWidth
       const videoY = normalizedY * this.video.videoHeight
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1

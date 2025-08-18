@@ -31,9 +31,9 @@ export default function RecordingDock() {
   const [countdown, setCountdown] = useState<number | null>(null)
   const [selectedSource, setSelectedSource] = useState<'fullscreen' | 'window' | 'region'>('fullscreen')
 
-  // Base window dimensions
+  // Base window dimensions - adjusted to fit content exactly
   const BASE_WIDTH = 700
-  const BASE_HEIGHT = 150
+  const BASE_HEIGHT = 120  // Reduced to better fit the actual dock height
   const EXPANDED_HEIGHT = 250 // Height when dropdown is open
 
   // Use the centralized recording hook and store
@@ -53,18 +53,32 @@ export default function RecordingDock() {
 
   // Initialize styles and window size on mount
   useEffect(() => {
-    // Force transparent background - simplified without redundancy
-    document.body.style.background = 'transparent'
-    document.body.style.margin = '0'
-    document.body.style.padding = '0'
-    document.documentElement.style.background = 'transparent'
-    document.documentElement.style.margin = '0'
-    document.documentElement.style.padding = '0'
-
-    // Remove any background classes
-    document.body.classList.remove('bg-background')
-    document.body.classList.add('bg-transparent')
-    document.documentElement.classList.add('bg-transparent')
+    // Force transparent background with !important to override Tailwind
+    const styles = `
+      html, body {
+        background: transparent !important;
+        background-color: transparent !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+      }
+      .bg-background {
+        background: transparent !important;
+      }
+    `
+    
+    // Create or update style element
+    let styleEl = document.getElementById('record-button-styles')
+    if (!styleEl) {
+      styleEl = document.createElement('style')
+      styleEl.id = 'record-button-styles'
+      document.head.appendChild(styleEl)
+    }
+    styleEl.textContent = styles
+    
+    // Also set inline styles for immediate effect
+    document.body.style.cssText = 'background: transparent !important; margin: 0 !important; padding: 0 !important;'
+    document.documentElement.style.cssText = 'background: transparent !important; margin: 0 !important; padding: 0 !important;'
 
     // Set initial window size
     if (window.electronAPI?.resizeRecordButton) {
@@ -152,9 +166,10 @@ export default function RecordingDock() {
       </AnimatePresence>
 
       {/* Main Dock - Positioned to fit window exactly */}
-      <div className="fixed inset-0 flex items-start justify-center pointer-events-none z-[2147483647] bg-transparent p-0 m-0">
+      <div className="fixed inset-0 flex items-start justify-center pointer-events-none z-[2147483647]" style={{ background: 'transparent', margin: 0, padding: 0 }}>
         <motion.div
-          className="pointer-events-auto mt-4"
+          className="pointer-events-auto"
+          style={{ marginTop: '16px' }}
           initial={{ y: -100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}

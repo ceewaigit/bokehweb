@@ -231,7 +231,8 @@ export function WorkspaceManager() {
             mouseY: e.y,
             eventType: 'mouse' as const,
             screenWidth: e.screenWidth,
-            screenHeight: e.screenHeight
+            screenHeight: e.screenHeight,
+            scaleFactor: e.scaleFactor // Pass scale factor for proper coordinate conversion
           })) : []
 
         // Set recording dimensions for proper normalization (same as effects-engine)
@@ -349,7 +350,8 @@ export function WorkspaceManager() {
           mouseY: e.y,
           eventType: 'mouse' as const,
           screenWidth: e.screenWidth,
-          screenHeight: e.screenHeight
+          screenHeight: e.screenHeight,
+          scaleFactor: e.scaleFactor // Include scale factor
         }))
         cursorRenderer.updateEvents(cursorEvents)
       }
