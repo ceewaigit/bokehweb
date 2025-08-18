@@ -255,6 +255,9 @@ export function PreviewArea({
             // Append cursor canvas to DOM
             parentElement.appendChild(cursorCanvas)
             cursorCanvasRef.current = cursorCanvas
+            
+            // Confirm canvas is attached and ready to render
+            cursorRenderer.confirmAttached()
           }
         } else if (cursorCanvasRef.current) {
           // Update dimensions if canvas already attached

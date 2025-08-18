@@ -2,7 +2,7 @@
  * Effects Engine - Simple orchestration of video effects
  */
 
-import { easeInOutQuad, easeOutExpo, easeInQuad } from '@/lib/utils/easing'
+import { easeOutExpo, easeInQuad } from '@/lib/utils/easing'
 
 interface ZoomEffect {
   id: string
@@ -178,43 +178,6 @@ export class EffectsEngine {
     }
 
     return { x, y, scale }
-  }
-
-  /**
-   * Get interpolated mouse position
-   */
-  private getMousePosition(timestamp: number): { x: number; y: number } {
-    if (this.events.length === 0) {
-      return { x: 0.5, y: 0.5 }
-    }
-
-    let before: MouseEvent | null = null
-    let after: MouseEvent | null = null
-
-    for (const event of this.events) {
-      if (event.timestamp <= timestamp) {
-        before = event
-      } else {
-        after = event
-        break
-      }
-    }
-
-    if (before && after) {
-      const progress = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
-      const smoothProgress = easeInOutQuad(Math.min(1, Math.max(0, progress)))
-
-      return {
-        x: (before.x + (after.x - before.x) * smoothProgress) / this.width,
-        y: (before.y + (after.y - before.y) * smoothProgress) / this.height
-      }
-    }
-
-    if (before) {
-      return { x: before.x / this.width, y: before.y / this.height }
-    }
-
-    return { x: 0.5, y: 0.5 }
   }
 
   /**

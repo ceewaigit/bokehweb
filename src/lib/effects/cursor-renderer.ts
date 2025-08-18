@@ -49,6 +49,7 @@ export class CursorRenderer {
   private animationFrame: number | null = null
   private video: HTMLVideoElement | null = null
   private isActive = false
+  private isAttachedToDOM = false // Only render when canvas is in DOM
   private videoOffset = { x: 0, y: 0, width: 0, height: 0 } // Track video position in canvas
   private effectsEngine: any = null // For getting zoom state
   private recordingWidth = 1920 // Default, will be updated
@@ -120,6 +121,11 @@ export class CursorRenderer {
   // Getter for canvas element
   get canvasElement(): HTMLCanvasElement | null {
     return this.canvas
+  }
+
+  // Confirm canvas is attached to DOM and ready to render
+  confirmAttached() {
+    this.isAttachedToDOM = true
   }
 
   // Update events after initialization
@@ -234,6 +240,9 @@ export class CursorRenderer {
 
   private render(videoTime: number, renderTime: number) {
     if (!this.ctx || !this.canvas || !this.video) return
+    
+    // Only render if canvas is attached to DOM
+    if (!this.isAttachedToDOM) return
 
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
@@ -642,6 +651,7 @@ export class CursorRenderer {
   dispose() {
     // Stop the animation loop
     this.isActive = false
+    this.isAttachedToDOM = false
 
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame)
