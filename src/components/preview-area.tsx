@@ -141,7 +141,7 @@ export function PreviewArea({
     const bgCanvas = backgroundCanvasRef.current
     const video = videoRef.current
     if (!canvas || !video) {
-      console.log('RenderFrame skipped - missing elements:', { canvas: !!canvas, video: !!video })
+      console.log('RenderFrame aborted:', { canvas: !!canvas, video: !!video })
       return
     }
 
@@ -150,11 +150,16 @@ export function PreviewArea({
       desynchronized: true
     })
     if (!ctx) {
-      console.log('RenderFrame skipped - no context')
+      console.log('No context available')
       return
     }
 
     const currentTimeMs = video.currentTime * 1000
+    console.log('RenderFrame executing:', {
+      canvasSize: `${canvas.width}x${canvas.height}`,
+      videoReady: video.readyState,
+      videoSize: `${video.videoWidth}x${video.videoHeight}`
+    })
 
     // Check if background needs update
     if (backgroundNeedsUpdate.current) {
@@ -224,12 +229,23 @@ export function PreviewArea({
 
       // Clear canvas and draw background
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+      
+      // Draw a test rectangle to verify canvas is working
+      ctx.fillStyle = 'red'
+      ctx.fillRect(10, 10, 100, 100)
+      console.log('Drew test rectangle')
+      
       if (bgCanvas && bgCanvas.width === canvas.width && bgCanvas.height === canvas.height) {
         ctx.drawImage(bgCanvas, 0, 0)
+        console.log('Drew background canvas')
+      } else {
+        console.log('Background canvas not ready or size mismatch')
       }
 
       // Only draw video if it's ready
+      console.log('Video ready check:', { videoIsReady, hasBackgroundRenderer: !!currentBackgroundRenderer })
       if (videoIsReady && currentBackgroundRenderer) {
+        console.log('Drawing video to canvas')
         // Only use temp canvas if we have zoom effects
         const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
 
@@ -399,8 +415,14 @@ export function PreviewArea({
           setIsVideoLoaded(true)
           setIsLoading(false)
 
-          // Render initial background
+          // Render initial background and frame immediately
           backgroundNeedsUpdate.current = true
+          
+          // Force immediate render
+          requestAnimationFrame(() => {
+            console.log('Initial render triggered')
+            renderFrame()
+          })
         }
 
         // Always render frame when video is ready
