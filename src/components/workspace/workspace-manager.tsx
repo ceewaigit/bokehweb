@@ -222,10 +222,6 @@ export function WorkspaceManager() {
           smoothing: true
         })
 
-        // Convert metadata format for cursor renderer (if available)
-        const videoWidth = videoRef.current.videoWidth || 1920
-        const videoHeight = videoRef.current.videoHeight || 1080
-
         // Use mouse events if available, otherwise empty array
         const cursorEvents = selectedRecording.metadata?.mouseEvents ? 
           selectedRecording.metadata.mouseEvents.map((e: any) => ({
@@ -237,10 +233,6 @@ export function WorkspaceManager() {
             screenWidth: e.screenWidth,
             screenHeight: e.screenHeight
           })) : []
-
-        // Pass video dimensions for proper normalization
-        // The cursor positions are relative to the actual video content
-        newCursorRenderer.setVideoDimensions(videoWidth, videoHeight)
 
         // Pass effects engine for zoom support
         if (effectsEngineRef.current) {

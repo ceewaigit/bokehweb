@@ -30,8 +30,7 @@ export class EffectsEngine {
   private width = 1920
   private height = 1080
   private interpolatedMouseCache = new Map<number, { x: number; y: number }>()
-  private panVelocity = { x: 0, y: 0 } // Track pan velocity for smooth momentum
-  private lastPanUpdate = 0
+  private lastPanPosition = { x: 0.5, y: 0.5 } // Track last pan position for smooth transitions
 
   // Activity detection parameters (mutable for regeneration)
   private idleThresholdMs = 1500 // Time before considering mouse idle
@@ -143,7 +142,7 @@ export class EffectsEngine {
    * Get zoom state at timestamp with mouse position for smart panning
    */
   getZoomState(
-    timestamp: number, 
+    timestamp: number,
     mousePosition: { x: number; y: number } | null
   ): { x: number; y: number; scale: number } {
     // Find active zoom effect
@@ -152,9 +151,8 @@ export class EffectsEngine {
     )
 
     if (!activeZoom) {
-      // Reset pan velocity when no zoom is active
-      this.panVelocity = { x: 0, y: 0 }
-      this.lastPanUpdate = 0
+      // Reset pan position when no zoom is active
+      this.lastPanPosition = { x: 0.5, y: 0.5 }
       return { x: 0.5, y: 0.5, scale: 1.0 }
     }
 
@@ -171,10 +169,9 @@ export class EffectsEngine {
       scale = 1.0 + (activeZoom.scale - 1.0) * eased
       x = 0.5 + (activeZoom.targetX - 0.5) * eased
       y = 0.5 + (activeZoom.targetY - 0.5) * eased
-      
-      // Reset pan velocity during intro
-      this.panVelocity = { x: 0, y: 0 }
-      this.lastPanUpdate = 0
+
+      // Initialize pan position during intro
+      this.lastPanPosition = { x, y }
     }
     // Outro phase - zoom out
     else if (elapsed > effectDuration - activeZoom.outroMs) {
@@ -197,8 +194,7 @@ export class EffectsEngine {
         const panResult = this.calculateSmartPan(
           { x, y },
           mousePosition,
-          scale,
-          elapsed - activeZoom.introMs // Time since entering hold phase
+          scale
         )
         x = panResult.x
         y = panResult.y
@@ -234,33 +230,33 @@ export class EffectsEngine {
 
     // If we only have one event or timestamp is outside range
     if (!prevEvent) {
-      return this.events[0] ? { 
-        x: this.events[0].x / this.width, 
-        y: this.events[0].y / this.height 
+      return this.events[0] ? {
+        x: this.events[0].x / this.width,
+        y: this.events[0].y / this.height
       } : null
     }
-    
+
     if (!nextEvent) {
-      return { 
-        x: prevEvent.x / this.width, 
-        y: prevEvent.y / this.height 
+      return {
+        x: prevEvent.x / this.width,
+        y: prevEvent.y / this.height
       }
     }
 
     // Interpolate between events
     const timeDiff = nextEvent.timestamp - prevEvent.timestamp
     if (timeDiff === 0) {
-      return { 
-        x: prevEvent.x / this.width, 
-        y: prevEvent.y / this.height 
+      return {
+        x: prevEvent.x / this.width,
+        y: prevEvent.y / this.height
       }
     }
 
     const progress = (timestamp - prevEvent.timestamp) / timeDiff
-    
+
     // Use cubic interpolation for smoother motion
     const smoothProgress = progress * progress * (3 - 2 * progress)
-    
+
     const interpolatedX = prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress
     const interpolatedY = prevEvent.y + (nextEvent.y - prevEvent.y) * smoothProgress
 
@@ -271,7 +267,7 @@ export class EffectsEngine {
 
     // Cache the result for performance
     this.interpolatedMouseCache.set(Math.floor(timestamp), result)
-    
+
     // Limit cache size
     if (this.interpolatedMouseCache.size > 1000) {
       const firstKey = this.interpolatedMouseCache.keys().next().value
@@ -289,125 +285,100 @@ export class EffectsEngine {
   private calculateSmartPan(
     currentCenter: { x: number; y: number },
     mousePos: { x: number; y: number },
-    scale: number,
-    holdTime: number
+    scale: number
   ): { x: number; y: number } {
-    // Configuration for smart panning
+    // Calculate visible frame dimensions
     const frameWidth = 1.0 / scale
     const frameHeight = 1.0 / scale
-    
-    // Calculate current time for momentum tracking
-    const now = Date.now()
-    const deltaTime = this.lastPanUpdate > 0 ? (now - this.lastPanUpdate) / 1000 : 0.016
-    this.lastPanUpdate = now
-    
-    // Ideal framing: mouse should be within this comfortable zone
-    const comfortZone = 0.35 // Keep mouse within 35% from center
-    const criticalZone = 0.45 // Start aggressive panning at 45% from center
-    
-    // Calculate mouse position relative to current frame center
-    const relativeX = mousePos.x - currentCenter.x
-    const relativeY = mousePos.y - currentCenter.y
-    
-    // Calculate how far the mouse is from center as a percentage of frame
-    const distX = Math.abs(relativeX) / (frameWidth / 2)
-    const distY = Math.abs(relativeY) / (frameHeight / 2)
-    
-    // Target position: where we want the camera to be to keep mouse comfortable
+
+    // Configuration
+    const edgeMargin = 0.25 // Start panning when mouse is 25% from edge
+    const panSpeed = 0.08 // How much to pan per frame
+    const maxPanDistance = 0.3 // Maximum distance from original zoom target
+
+    // Calculate frame boundaries
+    const leftEdge = currentCenter.x - frameWidth / 2
+    const rightEdge = currentCenter.x + frameWidth / 2
+    const topEdge = currentCenter.y - frameHeight / 2
+    const bottomEdge = currentCenter.y + frameHeight / 2
+
+    // Check if mouse is outside frame
+    const mouseOutside = mousePos.x < leftEdge || mousePos.x > rightEdge ||
+      mousePos.y < topEdge || mousePos.y > bottomEdge
+
     let targetX = currentCenter.x
     let targetY = currentCenter.y
-    
-    // If mouse is outside the visible frame, we need to catch up
-    const mouseOutsideFrame = (
-      mousePos.x < currentCenter.x - frameWidth / 2 ||
-      mousePos.x > currentCenter.x + frameWidth / 2 ||
-      mousePos.y < currentCenter.y - frameHeight / 2 ||
-      mousePos.y > currentCenter.y + frameHeight / 2
-    )
-    
-    if (mouseOutsideFrame) {
-      // Mouse is completely outside - pan more aggressively to catch up
-      // But don't jump directly to mouse - ease towards it
-      const catchUpSpeed = 0.15 // Faster catch-up when mouse is outside
-      targetX = currentCenter.x + relativeX * catchUpSpeed
-      targetY = currentCenter.y + relativeY * catchUpSpeed
+
+    if (mouseOutside) {
+      // Mouse is outside - pan to bring it back
+      // Move towards mouse but not all the way
+      const pullFactor = 0.2
+      targetX = currentCenter.x + (mousePos.x - currentCenter.x) * pullFactor
+      targetY = currentCenter.y + (mousePos.y - currentCenter.y) * pullFactor
     } else {
-      // Mouse is in frame - use zone-based panning
-      
-      // Horizontal panning
-      if (distX > comfortZone) {
-        // Calculate pan strength based on how far past comfort zone
-        const excess = distX - comfortZone
-        const maxExcess = 1.0 - comfortZone
-        let panStrength = excess / maxExcess
-        
-        // Use exponential curve for smoother acceleration
-        panStrength = Math.pow(panStrength, 1.5)
-        
-        // Apply direction and scale
-        const panAmount = panStrength * 0.1 * Math.sign(relativeX)
-        targetX = currentCenter.x + panAmount
+      // Mouse is inside - check if near edges
+      const marginX = frameWidth * edgeMargin
+      const marginY = frameHeight * edgeMargin
+
+      // Distance from edges
+      const distFromLeft = mousePos.x - leftEdge
+      const distFromRight = rightEdge - mousePos.x
+      const distFromTop = mousePos.y - topEdge
+      const distFromBottom = bottomEdge - mousePos.y
+
+      // Pan horizontally if near edges
+      if (distFromLeft < marginX && distFromLeft > 0) {
+        const urgency = 1.0 - (distFromLeft / marginX)
+        targetX = currentCenter.x - urgency * frameWidth * 0.02
+      } else if (distFromRight < marginX && distFromRight > 0) {
+        const urgency = 1.0 - (distFromRight / marginX)
+        targetX = currentCenter.x + urgency * frameWidth * 0.02
       }
-      
-      // Vertical panning
-      if (distY > comfortZone) {
-        const excess = distY - comfortZone
-        const maxExcess = 1.0 - comfortZone
-        let panStrength = excess / maxExcess
-        panStrength = Math.pow(panStrength, 1.5)
-        
-        const panAmount = panStrength * 0.1 * Math.sign(relativeY)
-        targetY = currentCenter.y + panAmount
+
+      // Pan vertically if near edges
+      if (distFromTop < marginY && distFromTop > 0) {
+        const urgency = 1.0 - (distFromTop / marginY)
+        targetY = currentCenter.y - urgency * frameHeight * 0.02
+      } else if (distFromBottom < marginY && distFromBottom > 0) {
+        const urgency = 1.0 - (distFromBottom / marginY)
+        targetY = currentCenter.y + urgency * frameHeight * 0.02
       }
     }
-    
-    // Apply momentum-based smoothing
-    const smoothingFactor = mouseOutsideFrame ? 0.2 : 0.05 // Faster response when catching up
-    
-    // Update velocity with smoothing
-    const targetVelX = (targetX - currentCenter.x) / deltaTime
-    const targetVelY = (targetY - currentCenter.y) / deltaTime
-    
-    this.panVelocity.x = this.panVelocity.x * (1 - smoothingFactor) + targetVelX * smoothingFactor
-    this.panVelocity.y = this.panVelocity.y * (1 - smoothingFactor) + targetVelY * smoothingFactor
-    
-    // Apply velocity to get new position
-    let newX = currentCenter.x + this.panVelocity.x * deltaTime
-    let newY = currentCenter.y + this.panVelocity.y * deltaTime
-    
-    // Get the active zoom effect to find original target
-    const activeZoom = this.effects.find(e => 
+
+    // Smooth transition from last position
+    let newX = this.lastPanPosition.x + (targetX - this.lastPanPosition.x) * panSpeed
+    let newY = this.lastPanPosition.y + (targetY - this.lastPanPosition.y) * panSpeed
+
+    // Limit pan distance from original zoom target
+    const activeZoom = this.effects.find(e =>
       e.type === 'zoom' && e.targetX !== undefined
     )
-    
+
     if (activeZoom) {
-      // Soft limit: gradually reduce pan speed as we get far from original target
-      const distFromOriginalX = Math.abs(newX - activeZoom.targetX)
-      const distFromOriginalY = Math.abs(newY - activeZoom.targetY)
-      
-      // Start slowing down after 20% distance, fully stop at 40%
-      const softLimit = 0.2
-      const hardLimit = 0.4
-      
-      if (distFromOriginalX > softLimit) {
-        const limitFactor = 1.0 - Math.min(1.0, (distFromOriginalX - softLimit) / (hardLimit - softLimit))
-        const pullBack = (activeZoom.targetX - newX) * 0.02 // Gentle pull back to origin
-        newX = newX + pullBack * (1 - limitFactor)
+      const maxPanX = maxPanDistance
+      const maxPanY = maxPanDistance
+
+      // Clamp to maximum distance
+      const distX = newX - activeZoom.targetX
+      const distY = newY - activeZoom.targetY
+
+      if (Math.abs(distX) > maxPanX) {
+        newX = activeZoom.targetX + Math.sign(distX) * maxPanX
       }
-      
-      if (distFromOriginalY > softLimit) {
-        const limitFactor = 1.0 - Math.min(1.0, (distFromOriginalY - softLimit) / (hardLimit - softLimit))
-        const pullBack = (activeZoom.targetY - newY) * 0.02
-        newY = newY + pullBack * (1 - limitFactor)
+      if (Math.abs(distY) > maxPanY) {
+        newY = activeZoom.targetY + Math.sign(distY) * maxPanY
       }
     }
-    
+
     // Ensure we don't pan outside the video bounds
     const halfFrameWidth = frameWidth / 2
     const halfFrameHeight = frameHeight / 2
     newX = Math.max(halfFrameWidth, Math.min(1.0 - halfFrameWidth, newX))
     newY = Math.max(halfFrameHeight, Math.min(1.0 - halfFrameHeight, newY))
-    
+
+    // Store for next frame
+    this.lastPanPosition = { x: newX, y: newY }
+
     return { x: newX, y: newY }
   }
 
@@ -627,6 +598,10 @@ export class EffectsEngine {
     velocityThreshold?: number
     zoomScale?: number
   }): void {
+    // Clear cache when regenerating
+    this.interpolatedMouseCache.clear()
+    this.lastPanPosition = { x: 0.5, y: 0.5 }
+
     const {
       idleThresholdMs,
       activityThreshold,

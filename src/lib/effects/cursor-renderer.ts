@@ -52,9 +52,6 @@ export class CursorRenderer {
   private isAttachedToDOM = false // Only render when canvas is in DOM
   private videoOffset = { x: 0, y: 0, width: 0, height: 0 } // Track video position in canvas
   private effectsEngine: any = null // For getting zoom state
-  private recordingWidth = 1920 // Default, will be updated
-  private recordingHeight = 1080 // Default, will be updated
-
 
   // Motion blur trail
   private trailPoints: Array<{ x: number; y: number; opacity: number }> = []
@@ -170,12 +167,6 @@ export class CursorRenderer {
     this.videoOffset = { x, y, width, height }
   }
 
-  // Set video dimensions for proper normalization
-  setVideoDimensions(width: number, height: number) {
-    this.recordingWidth = width
-    this.recordingHeight = height
-  }
-
   // Set effects engine for zoom state
   setEffectsEngine(engine: any) {
     this.effectsEngine = engine
@@ -184,10 +175,10 @@ export class CursorRenderer {
   private preprocessEvents() {
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Use recording dimensions directly for normalization
-        // The mouse coordinates should already be in the correct coordinate space
-        const x = this.recordingWidth > 0 ? event.mouseX / this.recordingWidth : 0
-        const y = this.recordingHeight > 0 ? event.mouseY / this.recordingHeight : 0
+        // Use screen dimensions from the event for proper normalization
+        // This ensures the mouse coordinates are normalized based on the actual screen size during recording
+        const x = event.screenWidth > 0 ? event.mouseX / event.screenWidth : 0
+        const y = event.screenHeight > 0 ? event.mouseY / event.screenHeight : 0
 
         const point: CursorPoint = {
           x,
@@ -198,8 +189,8 @@ export class CursorRenderer {
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevX = this.recordingWidth > 0 ? prevEvent.mouseX / this.recordingWidth : 0
-          const prevY = this.recordingHeight > 0 ? prevEvent.mouseY / this.recordingHeight : 0
+          const prevX = prevEvent.screenWidth > 0 ? prevEvent.mouseX / prevEvent.screenWidth : 0
+          const prevY = prevEvent.screenHeight > 0 ? prevEvent.mouseY / prevEvent.screenHeight : 0
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {

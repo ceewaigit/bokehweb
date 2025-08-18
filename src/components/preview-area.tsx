@@ -312,19 +312,22 @@ export function PreviewArea({
           compCtx.globalCompositeOperation = 'source-over'
           compCtx.setTransform(1, 0, 0, 1, 0, 0)
           
-          // Draw full composition: background first
-          compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height)
-          if (bgCanvas && bgCanvas.width === compCanvas.width && bgCanvas.height === compCanvas.height) {
-            compCtx.drawImage(bgCanvas, 0, 0)
+          // Only update composition if video is ready
+          if (video.readyState >= 2) {
+            // Draw full composition: background first
+            compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height)
+            if (bgCanvas && bgCanvas.width === compCanvas.width && bgCanvas.height === compCanvas.height) {
+              compCtx.drawImage(bgCanvas, 0, 0)
+            }
+            
+            // Draw video on top of background with border radius
+            compCtx.save()
+            compCtx.beginPath()
+            compCtx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
+            compCtx.clip()
+            compCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
+            compCtx.restore()
           }
-          
-          // Draw video on top of background with border radius
-          compCtx.save()
-          compCtx.beginPath()
-          compCtx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
-          compCtx.clip()
-          compCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
-          compCtx.restore()
 
           // Now apply zoom to the entire composition
           const clipRelativeTime = currentTimeMs - (currentClip?.sourceIn || 0)
@@ -333,10 +336,10 @@ export function PreviewArea({
           const mousePos = currentEffectsEngine.getMousePositionAtTime(clipRelativeTime)
           const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime, mousePos)
 
-          // Clear main canvas
-          ctx.clearRect(0, 0, canvas.width, canvas.height)
-
+          // Draw the zoomed composition to main canvas
           if (zoomState.scale > 1.0) {
+            // Clear main canvas before drawing
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
             // Calculate the zoom target point in canvas space
             const targetX = canvas.width * zoomState.x
             const targetY = canvas.height * zoomState.y
@@ -358,6 +361,7 @@ export function PreviewArea({
             )
           } else {
             // No zoom - draw full composition
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
             ctx.drawImage(compCanvas, 0, 0)
           }
         } else {
