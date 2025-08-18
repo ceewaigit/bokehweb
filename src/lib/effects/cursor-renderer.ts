@@ -126,14 +126,6 @@ export class CursorRenderer {
   // Confirm canvas is attached to DOM and ready to render
   confirmAttached() {
     this.isAttachedToDOM = true
-    console.log('CursorRenderer: Canvas confirmed attached to DOM', {
-      canvas: this.canvas,
-      hasParent: this.canvas?.parentElement ? true : false,
-      canvasWidth: this.canvas?.width,
-      canvasHeight: this.canvas?.height,
-      eventCount: this.events.length,
-      sortedPointsCount: this.sortedPoints.length
-    })
   }
 
   // Update events after initialization
@@ -145,12 +137,6 @@ export class CursorRenderer {
   attachToVideo(video: HTMLVideoElement, events: CursorEvent[]): HTMLCanvasElement {
     this.video = video
     this.events = events
-
-    console.log('CursorRenderer.attachToVideo called', {
-      videoWidth: video.videoWidth,
-      videoHeight: video.videoHeight,
-      eventCount: events.length
-    })
 
     // Pre-process events into sorted points for efficient lookup
     this.preprocessEvents()
@@ -172,12 +158,6 @@ export class CursorRenderer {
       this.ctx.imageSmoothingEnabled = true
       this.ctx.imageSmoothingQuality = 'high'
     }
-
-    console.log('CursorRenderer: Canvas created', {
-      canvas: this.canvas,
-      ctx: !!this.ctx,
-      sortedPointsCount: this.sortedPoints.length
-    })
 
     // Start the animation loop
     this.startAnimationLoop()
@@ -259,30 +239,17 @@ export class CursorRenderer {
   }
 
   private render(videoTime: number, renderTime: number) {
-    if (!this.ctx || !this.canvas || !this.video) {
-      console.log('CursorRenderer: Missing requirements', { 
-        ctx: !!this.ctx, 
-        canvas: !!this.canvas, 
-        video: !!this.video 
-      })
-      return
-    }
+    if (!this.ctx || !this.canvas || !this.video) return
     
     // Only render if canvas is attached to DOM
-    if (!this.isAttachedToDOM) {
-      console.log('CursorRenderer: Not attached to DOM yet')
-      return
-    }
+    if (!this.isAttachedToDOM) return
 
     // Clear canvas
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
     // Get interpolated position using Catmull-Rom spline (normalized 0-1)
     const targetPos = this.getInterpolatedPosition(videoTime)
-    if (!targetPos) {
-      console.log('CursorRenderer: No target position for time', videoTime)
-      return
-    }
+    if (!targetPos) return
 
     // Update cursor type based on current event
     this.updateCursorType(videoTime)
@@ -388,17 +355,6 @@ export class CursorRenderer {
 
     // Render cursor with zoom scale
     this.renderCursor(zoomScale)
-    
-    // Debug: Log successful render (only once every 60 frames to avoid spam)
-    if (Math.floor(renderTime / 1000) % 1 === 0 && renderTime % 1000 < 16) {
-      console.log('CursorRenderer: Rendered frame', {
-        videoTime,
-        cursorPos: this.currentPosition,
-        canvasSize: { w: this.canvas.width, h: this.canvas.height },
-        videoOffset: this.videoOffset,
-        hasEvents: this.sortedPoints.length > 0
-      })
-    }
   }
 
   private getInterpolatedPosition(currentTime: number): CursorPoint | null {
@@ -565,14 +521,7 @@ export class CursorRenderer {
   }
 
   private renderCursor(zoomScale: number = 1.0) {
-    if (!this.ctx || !this.currentCursorImage || !this.currentCursorImage.complete) {
-      console.log('CursorRenderer: Cannot render cursor', {
-        ctx: !!this.ctx,
-        currentCursorImage: !!this.currentCursorImage,
-        imageComplete: this.currentCursorImage?.complete
-      })
-      return
-    }
+    if (!this.ctx || !this.currentCursorImage || !this.currentCursorImage.complete) return
 
     this.ctx.save()
 
