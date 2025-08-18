@@ -285,14 +285,14 @@ export class ElectronRecorder {
       })
 
       this.chunks = []
-      
+
       // Set up data collection BEFORE starting
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           this.chunks.push(event.data)
           logger.debug(`Recording chunk #${this.chunks.length}: ${event.data.size} bytes, total chunks: ${this.chunks.length}`)
           console.log(`CHUNK RECEIVED #${this.chunks.length}: ${event.data.size} bytes`)
-          
+
           // Auto-save every 5 chunks as backup
           if (this.chunks.length % 5 === 0) {
             const backupBlob = new Blob(this.chunks, { type: mimeType })
@@ -304,7 +304,7 @@ export class ElectronRecorder {
       this.mediaRecorder.onstart = () => {
         logger.debug('MediaRecorder started')
         console.log('MEDIARECORDER STARTED')
-        
+
         // Immediately request data to start collecting chunks
         setTimeout(() => {
           if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
@@ -321,12 +321,12 @@ export class ElectronRecorder {
       this.mediaRecorder.onerror = (event: any) => {
         logger.error('MediaRecorder error:', event)
         console.error('MEDIARECORDER ERROR:', event)
-        
+
         // Try to save whatever we have so far
         if (this.chunks.length > 0) {
           const emergencyBlob = new Blob(this.chunks, { type: mimeType })
           console.log(`MEDIARECORDER ERROR - Saving ${this.chunks.length} chunks, ${emergencyBlob.size} bytes`)
-          
+
           const duration = Date.now() - this.startTime
           const result: ElectronRecordingResult = {
             video: emergencyBlob,
@@ -336,12 +336,12 @@ export class ElectronRecorder {
             processingTime: 0,
             captureArea: this.captureArea
           }
-          
+
           this.emergencySave(result).catch(err => {
             console.error('Emergency save on error failed:', err)
           })
         }
-        
+
         // Don't stop recording on audio errors - continue with video only
         if (event.error?.message?.includes('audio') || event.error?.message?.includes('Stream')) {
           logger.warn('Audio stream error detected, continuing with video only')
