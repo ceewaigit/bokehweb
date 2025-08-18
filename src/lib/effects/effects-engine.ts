@@ -29,6 +29,7 @@ export class EffectsEngine {
   private duration = 0
   private width = 1920
   private height = 1080
+  private interpolatedMouseCache = new Map<number, { x: number; y: number }>()
 
   // Activity detection parameters (mutable for regeneration)
   private idleThresholdMs = 1500 // Time before considering mouse idle
@@ -47,6 +48,9 @@ export class EffectsEngine {
     this.duration = recording.duration || 0
     this.width = recording.width || 1920
     this.height = recording.height || 1080
+
+    // Clear interpolation cache when reinitializing
+    this.interpolatedMouseCache.clear()
 
     // Convert metadata to events
     this.events = []
@@ -134,9 +138,12 @@ export class EffectsEngine {
 
 
   /**
-   * Get zoom state at timestamp
+   * Get zoom state at timestamp with mouse position for smart panning
    */
-  getZoomState(timestamp: number): { x: number; y: number; scale: number } {
+  getZoomState(
+    timestamp: number, 
+    mousePosition: { x: number; y: number } | null
+  ): { x: number; y: number; scale: number } {
     // Find active zoom effect
     const activeZoom = this.effects.find(effect =>
       timestamp >= effect.startTime && timestamp <= effect.endTime
@@ -170,14 +177,205 @@ export class EffectsEngine {
       x = activeZoom.targetX + (0.5 - activeZoom.targetX) * eased
       y = activeZoom.targetY + (0.5 - activeZoom.targetY) * eased
     }
-    // Hold phase - stay fixed on target area
+    // Hold phase - apply smart panning if mouse position provided
     else {
       scale = activeZoom.scale
       x = activeZoom.targetX
       y = activeZoom.targetY
+
+      // Apply smart panning during hold phase
+      if (mousePosition && scale > 1.0) {
+        const panResult = this.calculateSmartPan(
+          { x, y },
+          mousePosition,
+          scale,
+          elapsed - activeZoom.introMs // Time since entering hold phase
+        )
+        x = panResult.x
+        y = panResult.y
+      }
     }
 
     return { x, y, scale }
+  }
+
+  /**
+   * Get interpolated mouse position at timestamp
+   */
+  getMousePositionAtTime(timestamp: number): { x: number; y: number } | null {
+    // Check cache first
+    const cached = this.interpolatedMouseCache.get(Math.floor(timestamp))
+    if (cached) return cached
+
+    if (this.events.length === 0) return null
+
+    // Find surrounding events
+    let prevEvent: MouseEvent | null = null
+    let nextEvent: MouseEvent | null = null
+
+    for (let i = 0; i < this.events.length; i++) {
+      const event = this.events[i]
+      if (event.timestamp <= timestamp) {
+        prevEvent = event
+      } else {
+        nextEvent = event
+        break
+      }
+    }
+
+    // If we only have one event or timestamp is outside range
+    if (!prevEvent) {
+      return this.events[0] ? { 
+        x: this.events[0].x / this.width, 
+        y: this.events[0].y / this.height 
+      } : null
+    }
+    
+    if (!nextEvent) {
+      return { 
+        x: prevEvent.x / this.width, 
+        y: prevEvent.y / this.height 
+      }
+    }
+
+    // Interpolate between events
+    const timeDiff = nextEvent.timestamp - prevEvent.timestamp
+    if (timeDiff === 0) {
+      return { 
+        x: prevEvent.x / this.width, 
+        y: prevEvent.y / this.height 
+      }
+    }
+
+    const progress = (timestamp - prevEvent.timestamp) / timeDiff
+    
+    // Use cubic interpolation for smoother motion
+    const smoothProgress = progress * progress * (3 - 2 * progress)
+    
+    const interpolatedX = prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress
+    const interpolatedY = prevEvent.y + (nextEvent.y - prevEvent.y) * smoothProgress
+
+    const result = {
+      x: interpolatedX / this.width,
+      y: interpolatedY / this.height
+    }
+
+    // Cache the result for performance
+    this.interpolatedMouseCache.set(Math.floor(timestamp), result)
+    
+    // Limit cache size
+    if (this.interpolatedMouseCache.size > 1000) {
+      const firstKey = this.interpolatedMouseCache.keys().next().value
+      if (firstKey !== undefined) {
+        this.interpolatedMouseCache.delete(firstKey)
+      }
+    }
+
+    return result
+  }
+
+  /**
+   * Calculate smart pan to keep mouse in frame
+   */
+  private calculateSmartPan(
+    currentCenter: { x: number; y: number },
+    mousePos: { x: number; y: number },
+    scale: number,
+    holdTime: number
+  ): { x: number; y: number } {
+    // Configuration for smart panning
+    const panMargin = 0.25 // Start panning when mouse is 25% from edge
+    const panSpeed = 0.08 // How quickly to pan (lower = smoother)
+    const maxPanDistance = 0.3 // Maximum pan from original target
+    const deadZoneRadius = 0.1 // No panning within 10% of center
+    
+    // Calculate visible frame boundaries in normalized coordinates
+    const frameWidth = 1.0 / scale
+    const frameHeight = 1.0 / scale
+    
+    // Calculate mouse position relative to current frame center
+    const relativeX = mousePos.x - currentCenter.x
+    const relativeY = mousePos.y - currentCenter.y
+    
+    // Check if mouse is in dead zone (no panning needed)
+    const distFromCenter = Math.sqrt(relativeX * relativeX + relativeY * relativeY)
+    if (distFromCenter < deadZoneRadius) {
+      return currentCenter
+    }
+    
+    // Calculate edges of visible frame
+    const leftEdge = currentCenter.x - frameWidth / 2
+    const rightEdge = currentCenter.x + frameWidth / 2
+    const topEdge = currentCenter.y - frameHeight / 2
+    const bottomEdge = currentCenter.y + frameHeight / 2
+    
+    // Calculate distance from mouse to edges
+    const distFromLeft = mousePos.x - leftEdge
+    const distFromRight = rightEdge - mousePos.x
+    const distFromTop = mousePos.y - topEdge
+    const distFromBottom = bottomEdge - mousePos.y
+    
+    // Calculate pan adjustments
+    let panX = 0
+    let panY = 0
+    
+    // Pan horizontally if mouse is near edges
+    const horizontalMargin = frameWidth * panMargin
+    if (distFromLeft < horizontalMargin && distFromLeft > 0) {
+      // Mouse near left edge - pan left
+      panX = -((horizontalMargin - distFromLeft) / horizontalMargin) * panSpeed
+    } else if (distFromRight < horizontalMargin && distFromRight > 0) {
+      // Mouse near right edge - pan right
+      panX = ((horizontalMargin - distFromRight) / horizontalMargin) * panSpeed
+    }
+    
+    // Pan vertically if mouse is near edges
+    const verticalMargin = frameHeight * panMargin
+    if (distFromTop < verticalMargin && distFromTop > 0) {
+      // Mouse near top edge - pan up
+      panY = -((verticalMargin - distFromTop) / verticalMargin) * panSpeed
+    } else if (distFromBottom < verticalMargin && distFromBottom > 0) {
+      // Mouse near bottom edge - pan down
+      panY = ((verticalMargin - distFromBottom) / verticalMargin) * panSpeed
+    }
+    
+    // Apply pan with smooth easing over time
+    const timeFactor = Math.min(1.0, holdTime / 1000) // Ramp up over 1 second
+    panX *= timeFactor
+    panY *= timeFactor
+    
+    // Calculate new center with pan applied
+    let newX = currentCenter.x + panX
+    let newY = currentCenter.y + panY
+    
+    // Limit maximum pan distance from original zoom target
+    // This prevents disorientation while still allowing flexibility
+    const originalTarget = this.effects.find(e => 
+      e.type === 'zoom' && e.targetX !== undefined
+    )
+    
+    if (originalTarget) {
+      const maxPanX = maxPanDistance
+      const maxPanY = maxPanDistance
+      
+      // Clamp to maximum distance from original target
+      newX = Math.max(
+        originalTarget.targetX - maxPanX,
+        Math.min(originalTarget.targetX + maxPanX, newX)
+      )
+      newY = Math.max(
+        originalTarget.targetY - maxPanY,
+        Math.min(originalTarget.targetY + maxPanY, newY)
+      )
+    }
+    
+    // Ensure we don't pan outside the video bounds
+    const halfFrameWidth = frameWidth / 2
+    const halfFrameHeight = frameHeight / 2
+    newX = Math.max(halfFrameWidth, Math.min(1.0 - halfFrameWidth, newX))
+    newY = Math.max(halfFrameHeight, Math.min(1.0 - halfFrameHeight, newY))
+    
+    return { x: newX, y: newY }
   }
 
   /**
@@ -344,6 +542,7 @@ export class EffectsEngine {
    */
   clearEffects() {
     this.effects = []
+    this.interpolatedMouseCache.clear()
   }
 
   /**

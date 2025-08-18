@@ -412,7 +412,9 @@ export class ExportEngine {
             tempCanvas.height = videoHeight
             const tempCtx = tempCanvas.getContext('2d')!
 
-            const zoomState = effectsEngine.getZoomState(timestamp)
+            // Get interpolated mouse position for smart panning
+            const mousePos = effectsEngine.getMousePositionAtTime(timestamp)
+            const zoomState = effectsEngine.getZoomState(timestamp, mousePos)
             if (zoomState && zoomState.scale > 1) {
               effectsEngine.applyZoomToCanvas(tempCtx, video, zoomState)
             } else {
@@ -428,7 +430,9 @@ export class ExportEngine {
         } else {
           // No background - just apply zoom or draw video directly
           if (effectsEngine) {
-            const zoomState = effectsEngine.getZoomState(timestamp)
+            // Get interpolated mouse position for smart panning
+            const mousePos = effectsEngine.getMousePositionAtTime(timestamp)
+            const zoomState = effectsEngine.getZoomState(timestamp, mousePos)
             if (zoomState && zoomState.scale > 1) {
               effectsEngine.applyZoomToCanvas(this.processingCtx!, video, zoomState)
             } else {
@@ -465,7 +469,9 @@ export class ExportEngine {
             let cursorY = closestEvent.mouseY
 
             if (effectsEngine) {
-              const zoomState = effectsEngine.getZoomState(timestamp)
+              // Get interpolated mouse position for smart panning
+              const mousePos = effectsEngine.getMousePositionAtTime(timestamp)
+              const zoomState = effectsEngine.getZoomState(timestamp, mousePos)
               if (zoomState && zoomState.scale > 1) {
                 // Transform cursor coordinates based on zoom
                 const zoomCenterX = zoomState.x * videoWidth

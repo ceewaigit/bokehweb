@@ -295,7 +295,9 @@ export class CursorRenderer {
     // Apply zoom transformations if effects engine is available
     let zoomScale = 1.0
     if (this.effectsEngine) {
-      const zoomState = this.effectsEngine.getZoomState(videoTime)
+      // Get interpolated mouse position for smart panning
+      const mousePos = this.effectsEngine.getMousePositionAtTime(videoTime)
+      const zoomState = this.effectsEngine.getZoomState(videoTime, mousePos)
       if (zoomState && zoomState.scale > 1.0) {
         // When zoomed, we need to transform the cursor position
         // to match how the video is transformed

@@ -59,6 +59,7 @@ export function PreviewArea({
   const latestClipRef = useRef(selectedClip)
   const latestEffectsEngineRef = useRef(effectsEngine)
   const latestBackgroundRendererRef = useRef(backgroundRenderer)
+  const latestCursorRendererRef = useRef(cursorRenderer)
   const latestLocalEffectsRef = useRef(localEffects)
   const lastBackgroundEffectsRef = useRef<string>("")
   const backgroundNeedsUpdate = useRef(true)
@@ -68,9 +69,10 @@ export function PreviewArea({
     latestClipRef.current = selectedClip
     latestEffectsEngineRef.current = effectsEngine
     latestBackgroundRendererRef.current = backgroundRenderer
+    latestCursorRendererRef.current = cursorRenderer
     backgroundNeedsUpdate.current = true // Mark background for update when renderer changes
     latestLocalEffectsRef.current = localEffects
-  }, [selectedClip, effectsEngine, backgroundRenderer, localEffects])
+  }, [selectedClip, effectsEngine, backgroundRenderer, cursorRenderer, localEffects])
 
   // Render background to background canvas (static, only when needed)
   const renderBackgroundOnce = useCallback(() => {
@@ -219,14 +221,15 @@ export function PreviewArea({
 
 
       // Update cursor renderer and manage cursor canvas
-      if (cursorRenderer && videoIsReady) {
-        cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
+      const currentCursorRenderer = latestCursorRendererRef.current
+      if (currentCursorRenderer && videoIsReady) {
+        currentCursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
         
         // Get the cursor canvas from the renderer
-        const cursorCanvas = cursorRenderer.canvasElement
+        const cursorCanvas = currentCursorRenderer.canvasElement
         
         console.log('PreviewArea: Cursor canvas check', {
-          hasCursorRenderer: !!cursorRenderer,
+          hasCursorRenderer: !!currentCursorRenderer,
           hasCursorCanvas: !!cursorCanvas,
           currentCanvasRef: !!cursorCanvasRef.current,
           isSameCanvas: cursorCanvas === cursorCanvasRef.current,
@@ -268,7 +271,7 @@ export function PreviewArea({
             
             // Confirm canvas is attached and ready to render
             console.log('PreviewArea: Calling confirmAttached on cursor renderer')
-            cursorRenderer.confirmAttached()
+            currentCursorRenderer.confirmAttached()
           }
         } else if (cursorCanvasRef.current) {
           // Update dimensions if canvas already attached
@@ -281,7 +284,7 @@ export function PreviewArea({
           }
           // Also confirm attached in case it was missed
           if (cursorCanvas === cursorCanvasRef.current) {
-            cursorRenderer.confirmAttached()
+            currentCursorRenderer.confirmAttached()
           }
         }
       }
@@ -338,7 +341,10 @@ export function PreviewArea({
 
           // Now apply zoom to the entire composition
           const clipRelativeTime = currentTimeMs - (currentClip?.sourceIn || 0)
-          const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime)
+          
+          // Get interpolated mouse position for smart panning
+          const mousePos = currentEffectsEngine.getMousePositionAtTime(clipRelativeTime)
+          const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime, mousePos)
 
           // Clear main canvas
           ctx.clearRect(0, 0, canvas.width, canvas.height)
