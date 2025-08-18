@@ -40,6 +40,9 @@ export function PreviewArea({
   // Performance optimizations: cache temporary canvases
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null)
+  
+  // Cache the main canvas context to avoid recreating it
+  const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null)
 
   // Track video position for cursor alignment
   const videoPositionRef = useRef({ x: 0, y: 0, width: 0, height: 0 })
@@ -154,10 +157,14 @@ export function PreviewArea({
     const video = videoRef.current
     if (!canvas || !video) return
 
-    let ctx = canvas.getContext('2d', {
-      alpha: true,
-      desynchronized: true
-    })
+    // Get or reuse the cached context
+    if (!canvasCtxRef.current) {
+      canvasCtxRef.current = canvas.getContext('2d', {
+        alpha: true,
+        desynchronized: true
+      })
+    }
+    const ctx = canvasCtxRef.current
     if (!ctx) return
 
     const currentTimeMs = video.currentTime * 1000
@@ -235,8 +242,8 @@ export function PreviewArea({
         ctx.drawImage(bgCanvas, 0, 0)
       }
 
-      // Only draw video if it's ready
-      if (videoIsReady && currentBackgroundRenderer) {
+      // Only draw video if it's ready and has a valid source
+      if (videoIsReady && currentBackgroundRenderer && video.src && !video.error) {
         // Only use temp canvas if we have zoom effects
         const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
 
@@ -401,6 +408,9 @@ export function PreviewArea({
           // Update canvas dimensions
           canvas.width = canvasWidth
           canvas.height = canvasHeight
+          
+          // Reset cached context when canvas size changes
+          canvasCtxRef.current = null
           
           // Mark as loaded - effects are initialized by parent
           setIsVideoLoaded(true)

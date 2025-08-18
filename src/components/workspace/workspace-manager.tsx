@@ -259,55 +259,74 @@ export function WorkspaceManager() {
           // The preview area will handle updating the video position
           const mainCanvas = canvasRef.current
 
-          // Skip if canvas not ready
+          // Defer if canvas not ready
           if (mainCanvas.width === 300 && mainCanvas.height === 150) {
+            cursorCanvasRef.current = cursorCanvas
+            setTimeout(() => {
+              if (canvasRef.current && canvasRef.current.width > 300) {
+                attachCursorCanvas()
+              }
+            }, 200)
             return
           }
 
-          // Match dimensions exactly - preview area handles sizing
-          cursorCanvas.width = mainCanvas.width
-          cursorCanvas.height = mainCanvas.height
+          // Function to attach cursor canvas with proper dimensions
+          const attachCursorCanvas = () => {
+            const mainCanvas = canvasRef.current
+            if (!mainCanvas || !cursorCanvas) return
 
-          // Copy all styles from main canvas to cursor canvas
-          cursorCanvas.style.position = 'absolute'
-          cursorCanvas.style.top = '0'
-          cursorCanvas.style.left = '0'
-          cursorCanvas.style.width = mainCanvas.style.width
-          cursorCanvas.style.height = mainCanvas.style.height
-          cursorCanvas.style.maxWidth = mainCanvas.style.maxWidth
-          cursorCanvas.style.maxHeight = mainCanvas.style.maxHeight
-          cursorCanvas.style.pointerEvents = 'none'
-          cursorCanvas.style.zIndex = '100'
+            // Match dimensions exactly - preview area handles sizing
+            cursorCanvas.width = mainCanvas.width
+            cursorCanvas.height = mainCanvas.height
 
-          // Append to the same parent, ensuring it overlays the main canvas
-          canvasRef.current.parentElement.style.position = 'relative' // Ensure parent is positioned
-          canvasRef.current.parentElement.appendChild(cursorCanvas)
-          cursorCanvasRef.current = cursorCanvas
+            // Copy all styles from main canvas to cursor canvas
+            cursorCanvas.style.position = 'absolute'
+            cursorCanvas.style.top = '0'
+            cursorCanvas.style.left = '0'
+            cursorCanvas.style.width = mainCanvas.style.width
+            cursorCanvas.style.height = mainCanvas.style.height
+            cursorCanvas.style.maxWidth = mainCanvas.style.maxWidth
+            cursorCanvas.style.maxHeight = mainCanvas.style.maxHeight
+            cursorCanvas.style.pointerEvents = 'none'
+            cursorCanvas.style.zIndex = '100'
 
-          // Calculate and set initial video position
-          const padding = clipEffects?.background?.padding || 80
-          const videoAspect = videoWidth / videoHeight
-          const canvasWidth = cursorCanvas.width
-          const canvasHeight = cursorCanvas.height
-          const availableWidth = canvasWidth - (padding * 2)
-          const availableHeight = canvasHeight - (padding * 2)
-          const availableAspect = availableWidth / availableHeight
+            // Append to the same parent, ensuring it overlays the main canvas
+            if (mainCanvas.parentElement) {
+              mainCanvas.parentElement.style.position = 'relative'
+              mainCanvas.parentElement.appendChild(cursorCanvas)
+            }
+            cursorCanvasRef.current = cursorCanvas
 
-          let drawWidth, drawHeight, offsetX, offsetY
+            // Calculate and set initial video position
+            const padding = clipEffects?.background?.padding || 80
+            const videoAspect = videoWidth / videoHeight
+            const canvasWidth = cursorCanvas.width
+            const canvasHeight = cursorCanvas.height
+            const availableWidth = canvasWidth - (padding * 2)
+            const availableHeight = canvasHeight - (padding * 2)
+            const availableAspect = availableWidth / availableHeight
 
-          if (videoAspect > availableAspect) {
-            drawWidth = availableWidth
-            drawHeight = availableWidth / videoAspect
-            offsetX = padding
-            offsetY = padding + (availableHeight - drawHeight) / 2
-          } else {
-            drawHeight = availableHeight
-            drawWidth = availableHeight * videoAspect
-            offsetX = padding + (availableWidth - drawWidth) / 2
-            offsetY = padding
+            let drawWidth, drawHeight, offsetX, offsetY
+
+            if (videoAspect > availableAspect) {
+              drawWidth = availableWidth
+              drawHeight = availableWidth / videoAspect
+              offsetX = padding
+              offsetY = padding + (availableHeight - drawHeight) / 2
+            } else {
+              drawHeight = availableHeight
+              drawWidth = availableHeight * videoAspect
+              offsetX = padding + (availableWidth - drawWidth) / 2
+              offsetY = padding
+            }
+
+            if (cursorRendererRef.current) {
+              cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
+            }
           }
-
-          cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
+          
+          // Call the attachment function
+          attachCursorCanvas()
         }
       }
     }
@@ -396,7 +415,7 @@ export function WorkspaceManager() {
       // Don't force full init, only update what changed
       initializeEffects(false)
 
-      // Also update cursor canvas dimensions if it exists
+      // Update cursor canvas dimensions if it exists
       if (cursorCanvasRef.current && canvasRef.current) {
         cursorCanvasRef.current.width = canvasRef.current.width
         cursorCanvasRef.current.height = canvasRef.current.height
