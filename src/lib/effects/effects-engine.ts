@@ -34,6 +34,14 @@ export class EffectsEngine {
   private cameraPosition = { x: 0.5, y: 0.5 }
   private readonly CAMERA_SMOOTHING = 0.15
 
+  // Activity detection parameters (mutable for regeneration)
+  private idleThresholdMs = 1500 // Time before considering mouse idle
+  private activityThreshold = 0.05 // Normalized distance to trigger activity
+  private velocityThreshold = 30 // Pixels/second to maintain zoom
+  private readonly MIN_ZOOM_DURATION = 1000 // Minimum zoom time
+  private readonly MAX_ZOOM_DURATION = 8000 // Maximum zoom time
+  private readonly MIN_GAP_BETWEEN_ZOOMS = 2000 // Minimum gap between zoom effects
+
   /**
    * Initialize from recording
    */
@@ -67,63 +75,67 @@ export class EffectsEngine {
 
     this.events.sort((a, b) => a.timestamp - b.timestamp)
 
-    // Detect zoom effects
-    this.detectZoomEffects()
+    // Use activity-based zoom detection by default
+    this.detectActivityBasedZooms()
   }
 
   /**
-   * Simple zoom detection - creates discrete zoom blocks
+   * Activity-based zoom detection - creates zoom effects based on mouse activity patterns
+   * This mimics Screen Studio behavior where zooms persist during activity and end when idle
    */
-  private detectZoomEffects(): void {
+  private detectActivityBasedZooms(): void {
     this.effects = []
 
-    // Find click events that should trigger zoom
-    const clickEvents = this.events.filter(e => e.type === 'click')
-    if (clickEvents.length === 0) return
+    // Detect activity periods
+    const activityPeriods = this.detectActivityPeriods()
 
-    let lastZoomEnd = 0
-    const MIN_GAP_BETWEEN_ZOOMS = 2000 // 2 seconds minimum between zoom effects
-    const DEFAULT_ZOOM_DURATION = 3000 // 3 seconds default zoom
+    if (activityPeriods.length === 0) return
 
-    clickEvents.forEach((click, index) => {
-      // Skip if too close to last zoom
-      if (click.timestamp < lastZoomEnd + MIN_GAP_BETWEEN_ZOOMS) {
-        return
+    // Convert activity periods to zoom effects
+    activityPeriods.forEach(period => {
+      const duration = period.end - period.start
+
+      // Skip very short periods
+      if (duration < this.MIN_ZOOM_DURATION) return
+
+      // Cap duration at maximum
+      const zoomDuration = Math.min(duration + 500, this.MAX_ZOOM_DURATION) // Add buffer for outro
+
+      // Find the focal point - prioritize clicks, then use center of activity
+      let targetX = 0.5
+      let targetY = 0.5
+
+      const clickEvent = period.events.find(e => e.type === 'click')
+      if (clickEvent) {
+        targetX = clickEvent.x / this.width
+        targetY = clickEvent.y / this.height
+      } else {
+        // Use average position of significant movements
+        const avgX = period.events.reduce((sum, e) => sum + e.x, 0) / period.events.length
+        const avgY = period.events.reduce((sum, e) => sum + e.y, 0) / period.events.length
+        targetX = avgX / this.width
+        targetY = avgY / this.height
       }
 
-      // Look for next click to determine zoom duration
-      const nextClick = clickEvents[index + 1]
-      let zoomDuration = DEFAULT_ZOOM_DURATION
+      // Ensure zoom doesn't exceed video duration
+      const effectiveDuration = Math.min(zoomDuration, this.duration - period.start - 500)
 
-      if (nextClick) {
-        // If next click is soon, zoom until then (but max 5 seconds)
-        const gapToNext = nextClick.timestamp - click.timestamp
-        if (gapToNext < 5000) {
-          zoomDuration = Math.max(1500, gapToNext - 500) // Leave gap before next click
-        }
-      }
-
-      // Make sure zoom doesn't exceed video duration
-      zoomDuration = Math.min(zoomDuration, this.duration - click.timestamp - 500)
-
-      // Only create zoom if we have enough duration
-      if (zoomDuration > 1000) {
+      if (effectiveDuration > this.MIN_ZOOM_DURATION) {
         this.effects.push({
-          id: `zoom-${click.timestamp}`,
+          id: `zoom-activity-${period.start}`,
           type: 'zoom',
-          startTime: click.timestamp,
-          endTime: click.timestamp + zoomDuration,
-          targetX: click.x / this.width,
-          targetY: click.y / this.height,
+          startTime: period.start,
+          endTime: period.start + effectiveDuration,
+          targetX,
+          targetY,
           scale: 2.0,
-          introMs: 400,
+          introMs: 300,
           outroMs: 400
         })
-
-        lastZoomEnd = click.timestamp + zoomDuration
       }
     })
   }
+
 
   /**
    * Get zoom state at timestamp
@@ -220,6 +232,95 @@ export class EffectsEngine {
   }
 
   /**
+   * Calculate velocity between two mouse events
+   */
+  private calculateVelocity(event1: MouseEvent, event2: MouseEvent): number {
+    const dx = event2.x - event1.x
+    const dy = event2.y - event1.y
+    const dt = (event2.timestamp - event1.timestamp) / 1000 // Convert to seconds
+
+    if (dt === 0) return 0
+
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    return distance / dt // Pixels per second
+  }
+
+  /**
+   * Calculate normalized distance between two points
+   */
+  private calculateNormalizedDistance(event1: MouseEvent, event2: MouseEvent): number {
+    const dx = (event2.x - event1.x) / this.width
+    const dy = (event2.y - event1.y) / this.height
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  /**
+   * Detect activity periods in mouse events
+   */
+  private detectActivityPeriods(): Array<{ start: number; end: number; events: MouseEvent[] }> {
+    if (this.events.length < 2) return []
+
+    const periods: Array<{ start: number; end: number; events: MouseEvent[] }> = []
+    let currentPeriod: { start: number; end: number; events: MouseEvent[] } | null = null
+    let lastActivityTime = 0
+
+    for (let i = 1; i < this.events.length; i++) {
+      const prevEvent = this.events[i - 1]
+      const currEvent = this.events[i]
+
+      const velocity = this.calculateVelocity(prevEvent, currEvent)
+      const distance = this.calculateNormalizedDistance(prevEvent, currEvent)
+      const timeSinceLastActivity = currEvent.timestamp - lastActivityTime
+
+      // Check if this is significant activity
+      const isActivity = (
+        currEvent.type === 'click' ||
+        velocity > this.velocityThreshold ||
+        distance > this.activityThreshold
+      )
+
+      if (isActivity) {
+        lastActivityTime = currEvent.timestamp
+
+        // Start new period if none exists or if too much time has passed
+        if (!currentPeriod || timeSinceLastActivity > this.MIN_GAP_BETWEEN_ZOOMS) {
+          // Close previous period if it exists
+          if (currentPeriod) {
+            periods.push(currentPeriod)
+          }
+
+          currentPeriod = {
+            start: currEvent.timestamp,
+            end: currEvent.timestamp,
+            events: [currEvent]
+          }
+        } else {
+          // Extend current period
+          currentPeriod.end = currEvent.timestamp
+          currentPeriod.events.push(currEvent)
+        }
+      } else if (currentPeriod) {
+        // Check if idle threshold has been reached
+        const idleTime = currEvent.timestamp - currentPeriod.end
+
+        if (idleTime > this.idleThresholdMs) {
+          // Close current period
+          periods.push(currentPeriod)
+          currentPeriod = null
+          lastActivityTime = 0
+        }
+      }
+    }
+
+    // Close any remaining period
+    if (currentPeriod) {
+      periods.push(currentPeriod)
+    }
+
+    return periods
+  }
+
+  /**
    * Apply zoom to canvas
    */
   applyZoomToCanvas(
@@ -303,10 +404,10 @@ export class EffectsEngine {
   setZoomEffects(zoomBlocks: any[]) {
     // Remove all existing zoom effects
     this.effects = this.effects.filter(e => e.type !== 'zoom')
-    
+
     // Reset camera position when changing zoom effects
     this.cameraPosition = { x: 0.5, y: 0.5 }
-    
+
     // Add new zoom effects from blocks
     if (zoomBlocks && zoomBlocks.length > 0) {
       for (const block of zoomBlocks) {
@@ -325,157 +426,65 @@ export class EffectsEngine {
         }
         this.effects.push(effect)
       }
-      
+
       // Keep effects sorted by start time
       this.effects.sort((a, b) => a.startTime - b.startTime)
     }
   }
 
   /**
-   * Force detect zoom effects with test data for debugging
+   * Detect zoom effects using activity-based algorithm
    */
-  forceDetectZoomEffects(options?: {
-    intervalMs?: number
-    zoomDuration?: number
-    zoomScale?: number
-    useMouseEvents?: boolean
-  }): void {
-    this.effects = []
-    
-    const {
-      intervalMs = 4000,
-      zoomDuration = 3000,
-      zoomScale = 2.0,
-      useMouseEvents = false
-    } = options || {}
-
-    if (useMouseEvents && this.events.length > 0) {
-      // Create zoom effects based on mouse movement patterns
-      let lastZoomEnd = 0
-      const significantMoves = this.events.filter((e, i) => {
-        if (i === 0) return false
-        const prev = this.events[i - 1]
-        const distance = Math.sqrt(
-          Math.pow((e.x - prev.x) / this.width, 2) + 
-          Math.pow((e.y - prev.y) / this.height, 2)
-        )
-        return distance > 0.1 && e.timestamp > lastZoomEnd + 2000
-      })
-
-      significantMoves.slice(0, 5).forEach(move => {
-        if (move.timestamp < lastZoomEnd + 2000) return
-        
-        const effectDuration = Math.min(zoomDuration, this.duration - move.timestamp - 500)
-        if (effectDuration > 1000) {
-          this.effects.push({
-            id: `zoom-test-${move.timestamp}`,
-            type: 'zoom',
-            startTime: move.timestamp,
-            endTime: move.timestamp + effectDuration,
-            targetX: move.x / this.width,
-            targetY: move.y / this.height,
-            scale: zoomScale,
-            introMs: 400,
-            outroMs: 400
-          })
-          lastZoomEnd = move.timestamp + effectDuration
-        }
-      })
-    } else {
-      // Create evenly spaced test zoom effects
-      const numEffects = Math.floor(this.duration / intervalMs)
-      for (let i = 0; i < Math.min(numEffects, 5); i++) {
-        const startTime = i * intervalMs + 1000
-        const endTime = Math.min(startTime + zoomDuration, this.duration - 500)
-        
-        if (endTime - startTime > 1000) {
-          // Create zoom at different positions for variety
-          const positions = [
-            { x: 0.3, y: 0.3 },
-            { x: 0.7, y: 0.3 },
-            { x: 0.5, y: 0.5 },
-            { x: 0.3, y: 0.7 },
-            { x: 0.7, y: 0.7 }
-          ]
-          const pos = positions[i % positions.length]
-          
-          this.effects.push({
-            id: `zoom-test-${startTime}`,
-            type: 'zoom',
-            startTime,
-            endTime,
-            targetX: pos.x,
-            targetY: pos.y,
-            scale: zoomScale,
-            introMs: 400,
-            outroMs: 400
-          })
-        }
-      }
-    }
-
+  detectZoomEffects(): void {
+    this.detectActivityBasedZooms()
   }
+
 
   /**
    * Regenerate effects with different parameters
    */
   regenerateEffects(options?: {
-    minGapMs?: number
-    zoomDuration?: number
+    idleThresholdMs?: number
+    activityThreshold?: number
+    velocityThreshold?: number
     zoomScale?: number
-    clicksOnly?: boolean
   }): void {
     const {
-      minGapMs = 2000,
-      zoomDuration = 3000,
-      zoomScale = 2.0,
-      clicksOnly = true
+      idleThresholdMs,
+      activityThreshold,
+      velocityThreshold,
+      zoomScale = 2.0
     } = options || {}
 
-    this.effects = []
-    
-    const events = clicksOnly 
-      ? this.events.filter(e => e.type === 'click')
-      : this.events
+    // Temporarily override thresholds if provided
+    const originalIdleThreshold = this.idleThresholdMs
+    const originalActivityThreshold = this.activityThreshold
+    const originalVelocityThreshold = this.velocityThreshold
 
-    if (events.length === 0) {
-      return
+    if (idleThresholdMs !== undefined) {
+      this.idleThresholdMs = idleThresholdMs
+    }
+    if (activityThreshold !== undefined) {
+      this.activityThreshold = activityThreshold
+    }
+    if (velocityThreshold !== undefined) {
+      this.velocityThreshold = velocityThreshold
     }
 
-    let lastZoomEnd = 0
-    
-    events.forEach((event, index) => {
-      if (event.timestamp < lastZoomEnd + minGapMs) return
-      
-      const nextEvent = events[index + 1]
-      let effectDuration = zoomDuration
-      
-      if (nextEvent) {
-        const gapToNext = nextEvent.timestamp - event.timestamp
-        if (gapToNext < 5000) {
-          effectDuration = Math.max(1500, gapToNext - 500)
-        }
-      }
-      
-      effectDuration = Math.min(effectDuration, this.duration - event.timestamp - 500)
-      
-      if (effectDuration > 1000) {
-        this.effects.push({
-          id: `zoom-${event.timestamp}`,
-          type: 'zoom',
-          startTime: event.timestamp,
-          endTime: event.timestamp + effectDuration,
-          targetX: event.x / this.width,
-          targetY: event.y / this.height,
-          scale: zoomScale,
-          introMs: 400,
-          outroMs: 400
-        })
-        
-        lastZoomEnd = event.timestamp + effectDuration
-      }
-    })
+    // Regenerate effects
+    this.detectZoomEffects()
 
+    // Update scale for all effects if specified
+    if (zoomScale !== 2.0) {
+      this.effects.forEach(effect => {
+        effect.scale = zoomScale
+      })
+    }
+
+    // Restore original thresholds
+    this.idleThresholdMs = originalIdleThreshold
+    this.activityThreshold = originalActivityThreshold
+    this.velocityThreshold = originalVelocityThreshold
   }
 
   /**

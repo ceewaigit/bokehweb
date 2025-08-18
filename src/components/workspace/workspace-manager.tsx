@@ -65,30 +65,30 @@ export function WorkspaceManager() {
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
     const currentEffects = localEffects || selectedClip?.effects || DEFAULT_CLIP_EFFECTS
     const currentZoom = currentEffects.zoom
-    
+
     // Validate the update doesn't cause overlaps
     const blockToUpdate = currentZoom.blocks.find((b: ZoomBlock) => b.id === blockId)
     if (!blockToUpdate) return
-    
+
     const newStartTime = updates.startTime ?? blockToUpdate.startTime
     const newEndTime = updates.endTime ?? blockToUpdate.endTime
-    
+
     // Check for overlaps with other blocks
     const hasOverlap = currentZoom.blocks.some((block: ZoomBlock) => {
       if (block.id === blockId) return false
       return newStartTime < block.endTime && newEndTime > block.startTime
     })
-    
+
     // If there's an overlap, don't apply the update
     if (hasOverlap) {
       // Zoom block would cause overlap, reject update
       return
     }
-    
+
     const updatedBlocks = currentZoom.blocks.map((block: ZoomBlock) =>
       block.id === blockId ? { ...block, ...updates } : block
     )
-    
+
     const newEffects: ClipEffects = {
       ...currentEffects,
       zoom: {
@@ -97,10 +97,10 @@ export function WorkspaceManager() {
         blocks: updatedBlocks
       }
     }
-    
+
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
-    
+
     // Sync with effects engine immediately for real-time preview
     if (effectsEngineRef.current && newEffects.zoom.enabled) {
       effectsEngineRef.current.setZoomEffects(updatedBlocks)
@@ -191,7 +191,7 @@ export function WorkspaceManager() {
       effectsEngineRef.current = new EffectsEngine()
       effectsEngineRef.current.initializeFromRecording(selectedRecording)
     }
-    
+
     // Sync zoom blocks with effects engine
     if (clipEffects?.zoom?.enabled && clipEffects.zoom.blocks) {
       effectsEngineRef.current.setZoomEffects(clipEffects.zoom.blocks)
@@ -221,7 +221,6 @@ export function WorkspaceManager() {
       if (clipEffects?.cursor?.visible && selectedRecording.metadata?.mouseEvents) {
         cursorRendererRef.current = new CursorRenderer({
           size: clipEffects.cursor.size,
-          color: clipEffects.cursor.color,
           clickColor: '#007AFF',
           smoothing: true
         })
@@ -229,7 +228,7 @@ export function WorkspaceManager() {
         // Convert metadata format for cursor renderer
         const videoWidth = videoRef.current.videoWidth
         const videoHeight = videoRef.current.videoHeight
-        
+
         const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
           ...e,
           // Pass raw coordinates - cursor renderer will handle scaling
@@ -243,12 +242,12 @@ export function WorkspaceManager() {
         // Pass video dimensions for proper normalization
         // The cursor positions are relative to the actual video content
         cursorRendererRef.current.setVideoDimensions(videoWidth, videoHeight)
-        
+
         // Pass effects engine for zoom support
         if (effectsEngineRef.current) {
           cursorRendererRef.current.setEffectsEngine(effectsEngineRef.current)
         }
-        
+
         const cursorCanvas = cursorRendererRef.current.attachToVideo(
           videoRef.current,
           cursorEvents
@@ -258,40 +257,32 @@ export function WorkspaceManager() {
           // Simply match the cursor canvas to the main canvas dimensions
           // The preview area will handle updating the video position
           const mainCanvas = canvasRef.current
-          
-          // Wait for main canvas to be properly sized
-          // If main canvas is still at default size, wait for preview area to size it
+
+          // Skip if canvas not ready
           if (mainCanvas.width === 300 && mainCanvas.height === 150) {
-            // Re-initialize once canvas is ready
-            setTimeout(() => {
-              if (cursorRendererRef.current && canvasRef.current && 
-                  canvasRef.current.width > 300 && canvasRef.current.height > 150) {
-                initializeEffects(false)
-              }
-            }, 100)
-            return // Don't proceed with default dimensions
+            return
           }
-          
+
           // Match dimensions exactly - preview area handles sizing
           cursorCanvas.width = mainCanvas.width
           cursorCanvas.height = mainCanvas.height
-          
+
           // Copy all styles from main canvas to cursor canvas
           cursorCanvas.style.position = 'absolute'
           cursorCanvas.style.top = '0'
           cursorCanvas.style.left = '0'
-          cursorCanvas.style.width = mainCanvas.style.width || '100%'
-          cursorCanvas.style.height = mainCanvas.style.height || '100%'
-          cursorCanvas.style.maxWidth = mainCanvas.style.maxWidth || '100%'
-          cursorCanvas.style.maxHeight = mainCanvas.style.maxHeight || '100%'
+          cursorCanvas.style.width = mainCanvas.style.width
+          cursorCanvas.style.height = mainCanvas.style.height
+          cursorCanvas.style.maxWidth = mainCanvas.style.maxWidth
+          cursorCanvas.style.maxHeight = mainCanvas.style.maxHeight
           cursorCanvas.style.pointerEvents = 'none'
-          cursorCanvas.style.zIndex = '100' // Higher z-index to ensure it's on top
-          
+          cursorCanvas.style.zIndex = '100'
+
           // Append to the same parent, ensuring it overlays the main canvas
           canvasRef.current.parentElement.style.position = 'relative' // Ensure parent is positioned
           canvasRef.current.parentElement.appendChild(cursorCanvas)
           cursorCanvasRef.current = cursorCanvas
-          
+
           // Calculate and set initial video position
           const padding = clipEffects?.background?.padding || 80
           const videoAspect = videoWidth / videoHeight
@@ -300,9 +291,9 @@ export function WorkspaceManager() {
           const availableWidth = canvasWidth - (padding * 2)
           const availableHeight = canvasHeight - (padding * 2)
           const availableAspect = availableWidth / availableHeight
-          
+
           let drawWidth, drawHeight, offsetX, offsetY
-          
+
           if (videoAspect > availableAspect) {
             drawWidth = availableWidth
             drawHeight = availableWidth / videoAspect
@@ -314,7 +305,7 @@ export function WorkspaceManager() {
             offsetX = padding + (availableWidth - drawWidth) / 2
             offsetY = padding
           }
-          
+
           cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
         }
       }
@@ -391,15 +382,9 @@ export function WorkspaceManager() {
         video.src = blobUrl
         video.load()
 
-        // Check after setting with a small delay
-        setTimeout(() => {
-          // Video element loaded check
-        }, 100)
-
         // Initialize effects after video is loaded
         video.addEventListener('loadedmetadata', () => {
-          // Video metadata loaded, initializing effects
-          initializeEffects(true) // Force full init on new video
+          initializeEffects(true)
         }, { once: true })
       }
     }
@@ -412,14 +397,14 @@ export function WorkspaceManager() {
     if (selectedRecording && videoRef.current && videoRef.current.readyState >= 2) {
       // Don't force full init, only update what changed
       initializeEffects(false)
-      
+
       // Also update cursor canvas dimensions if it exists
       if (cursorCanvasRef.current && canvasRef.current) {
         cursorCanvasRef.current.width = canvasRef.current.width
         cursorCanvasRef.current.height = canvasRef.current.height
         cursorCanvasRef.current.style.width = canvasRef.current.style.width || `${canvasRef.current.width}px`
         cursorCanvasRef.current.style.height = canvasRef.current.style.height || `${canvasRef.current.height}px`
-        
+
         // Also update video position if cursor renderer exists
         if (cursorRendererRef.current && canvasRef.current.width > 300) {
           const padding = activeEffects?.background?.padding || 80
@@ -429,9 +414,9 @@ export function WorkspaceManager() {
           const availableWidth = canvasRef.current.width - (padding * 2)
           const availableHeight = canvasRef.current.height - (padding * 2)
           const availableAspect = availableWidth / availableHeight
-          
+
           let drawWidth, drawHeight, offsetX, offsetY
-          
+
           if (videoAspect > availableAspect) {
             drawWidth = availableWidth
             drawHeight = availableWidth / videoAspect
@@ -443,7 +428,7 @@ export function WorkspaceManager() {
             offsetX = padding + (availableWidth - drawWidth) / 2
             offsetY = padding
           }
-          
+
           cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
         }
       }
@@ -540,7 +525,7 @@ export function WorkspaceManager() {
       // Store effects locally instead of saving immediately
       setLocalEffects(effects)
       setHasUnsavedChanges(true)
-      
+
       // Sync zoom effects with engine for real-time preview
       if (effectsEngineRef.current) {
         if (effects.zoom?.enabled && effects.zoom.blocks) {
@@ -549,7 +534,7 @@ export function WorkspaceManager() {
           effectsEngineRef.current.clearEffects()
         }
       }
-      
+
       // Don't update backgroundRenderer here - let preview-area handle it
       // Just trigger a re-render
       if (canvasRef.current) {

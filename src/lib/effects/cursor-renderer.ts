@@ -12,11 +12,8 @@ interface CursorEvent extends Omit<MouseEvent, 'x' | 'y'> {
 
 interface CursorOptions {
   size?: number
-  color?: string
   clickColor?: string
   smoothing?: boolean
-  cursorStyle?: 'macos' | 'windows' | 'custom'
-  showDebug?: boolean
   motionBlur?: boolean
 }
 
@@ -42,7 +39,7 @@ export class CursorRenderer {
     opacity: number
     startTime: number
   }> = new Map()
-  
+
   // Base cursor sizes for normalization (standard cursor is ~24x24)
   private cursorScaleFactors: Map<CursorType, number> = new Map()
 
@@ -56,31 +53,24 @@ export class CursorRenderer {
   private effectsEngine: any = null // For getting zoom state
   private recordingWidth = 1920 // Default, will be updated
   private recordingHeight = 1080 // Default, will be updated
-  
-  // Performance monitoring
-  private frameCount = 0
-  private lastFpsTime = 0
-  private currentFps = 0
-  
+
+
   // Motion blur trail
   private trailPoints: Array<{ x: number; y: number; opacity: number }> = []
   private readonly MAX_TRAIL_LENGTH = 5
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
-      size: 1.0,  // Default size multiplier (1.0 = normal size)
-      color: '#000000',
+      size: 1.0,
       clickColor: '#007AFF',
       smoothing: true,
-      cursorStyle: 'macos',
-      showDebug: false,
       motionBlur: true,
       ...options
     }
 
     // Initialize cursor scale factors based on actual image sizes
     this.initializeCursorScaleFactors()
-    
+
     // Preload all cursor images
     this.preloadCursorImages()
   }
@@ -111,14 +101,14 @@ export class CursorRenderer {
   private preloadCursorImages() {
     // Preload all cursor types for smooth transitions
     const cursorTypes = Object.values(CursorType)
-    
+
     cursorTypes.forEach(cursorType => {
       const img = new Image()
       img.src = getCursorImagePath(cursorType)
-      
+
       img.onload = () => {
         this.cursorImages.set(cursorType, img)
-        
+
         // Set default cursor once arrow is loaded
         if (cursorType === CursorType.ARROW && !this.currentCursorImage) {
           this.currentCursorImage = img
@@ -130,7 +120,7 @@ export class CursorRenderer {
   attachToVideo(video: HTMLVideoElement, events: CursorEvent[]): HTMLCanvasElement {
     this.video = video
     this.events = events
-    
+
     // Pre-process events into sorted points for efficient lookup
     this.preprocessEvents()
 
@@ -140,9 +130,9 @@ export class CursorRenderer {
     this.canvas.style.top = '0'
     this.canvas.style.left = '0'
     this.canvas.style.pointerEvents = 'none'
-    
+
     // Initialize context (canvas dimensions will be set externally)
-    this.ctx = this.canvas.getContext('2d', { 
+    this.ctx = this.canvas.getContext('2d', {
       alpha: true,
       desynchronized: true // Better performance
     })
@@ -151,7 +141,7 @@ export class CursorRenderer {
       this.ctx.imageSmoothingEnabled = true
       this.ctx.imageSmoothingQuality = 'high'
     }
-    
+
     // Start the animation loop
     this.startAnimationLoop()
 
@@ -175,23 +165,19 @@ export class CursorRenderer {
   }
 
   private preprocessEvents() {
-    // Convert events to sorted points with velocity calculation
-    // Store as normalized coordinates (0-1) for resolution independence
-    
-    
     this.sortedPoints = this.events
       .map((event, index) => {
         // Use recording dimensions directly for normalization
         // The mouse coordinates should already be in the correct coordinate space
         const x = event.mouseX / this.recordingWidth
         const y = event.mouseY / this.recordingHeight
-        
+
         const point: CursorPoint = {
           x,
           y,
           timestamp: event.timestamp
         }
-        
+
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
@@ -205,7 +191,7 @@ export class CursorRenderer {
             }
           }
         }
-        
+
         return point
       })
       .sort((a, b) => a.timestamp - b.timestamp)
@@ -213,38 +199,26 @@ export class CursorRenderer {
 
   private startAnimationLoop() {
     this.isActive = true
-    
+
     const animate = (currentTime: number) => {
       // Stop if not active or video ended
       if (!this.isActive || !this.video) {
         this.animationFrame = null
         return
       }
-      
-      // Calculate FPS
-      this.updateFps(currentTime)
-      
+
       // Get video time and render
       this.render(this.video.currentTime * 1000, currentTime)
-      
+
       this.lastFrameTime = currentTime
-      
+
       // Only continue if still active
       if (this.isActive) {
         this.animationFrame = requestAnimationFrame(animate)
       }
     }
-    
-    this.animationFrame = requestAnimationFrame(animate)
-  }
 
-  private updateFps(currentTime: number) {
-    this.frameCount++
-    if (currentTime >= this.lastFpsTime + 1000) {
-      this.currentFps = Math.round((this.frameCount * 1000) / (currentTime - this.lastFpsTime))
-      this.frameCount = 0
-      this.lastFpsTime = currentTime
-    }
+    this.animationFrame = requestAnimationFrame(animate)
   }
 
   private render(videoTime: number, renderTime: number) {
@@ -256,7 +230,7 @@ export class CursorRenderer {
     // Get interpolated position using Catmull-Rom spline (normalized 0-1)
     const targetPos = this.getInterpolatedPosition(videoTime)
     if (!targetPos) return
-    
+
     // Update cursor type based on current event
     this.updateCursorType(videoTime)
 
@@ -264,7 +238,7 @@ export class CursorRenderer {
     // This is resolution-independent, similar to how zoom works
     let videoX = targetPos.x * this.video.videoWidth
     let videoY = targetPos.y * this.video.videoHeight
-    
+
     // Apply zoom transformations if effects engine is available
     let zoomScale = 1.0
     if (this.effectsEngine) {
@@ -272,24 +246,24 @@ export class CursorRenderer {
       if (zoomState && zoomState.scale > 1.0) {
         // When zoomed, we need to transform the cursor position
         // to match how the video is transformed
-        
+
         // Calculate the zoom target point in video space
         const targetX = this.video.videoWidth * zoomState.x
         const targetY = this.video.videoHeight * zoomState.y
-        
+
         // Calculate the zoomed region dimensions
         const zoomWidth = this.video.videoWidth / zoomState.scale
         const zoomHeight = this.video.videoHeight / zoomState.scale
-        
+
         // Calculate the top-left corner of the zoomed region
         const sx = Math.max(0, Math.min(this.video.videoWidth - zoomWidth, targetX - zoomWidth / 2))
         const sy = Math.max(0, Math.min(this.video.videoHeight - zoomHeight, targetY - zoomHeight / 2))
-        
+
         // Transform cursor position from zoomed space to display space
         // The cursor position needs to be adjusted based on the zoom
         videoX = ((videoX - sx) / zoomWidth) * this.video.videoWidth
         videoY = ((videoY - sy) / zoomHeight) * this.video.videoHeight
-        
+
         // Store zoom scale to apply to cursor size
         zoomScale = zoomState.scale
       }
@@ -306,16 +280,35 @@ export class CursorRenderer {
     // Update velocity for motion blur
     const oldX = this.currentPosition.x
     const oldY = this.currentPosition.y
-    
+
     // Map video-space coordinates to canvas-space coordinates
     // Use a much lower smoothing factor for that "gliding on ice" effect
     // Lower values = more smoothing/lag, creating a buttery smooth motion
-    const smoothingFactor = this.options.smoothing ? 0.12 : 1
+    // Screen Studio uses around 0.03-0.05 for that signature smooth glide
+    const baseSmoothing = 0.035 // Much lower for ice-gliding effect
+
+    // Calculate distance to target for dynamic smoothing
     const scaledTargetX = this.videoOffset.x + (videoX * scaleX)
     const scaledTargetY = this.videoOffset.y + (videoY * scaleY)
-    this.currentPosition.x += (scaledTargetX - this.currentPosition.x) * smoothingFactor
-    this.currentPosition.y += (scaledTargetY - this.currentPosition.y) * smoothingFactor
-    
+    const dx = scaledTargetX - this.currentPosition.x
+    const dy = scaledTargetY - this.currentPosition.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    // Dynamic smoothing: faster catch-up for large movements, slower for precision
+    // This prevents the cursor from lagging too far behind on quick movements
+    let smoothingFactor = baseSmoothing
+    if (distance > 200) {
+      // For large jumps, increase responsiveness slightly
+      smoothingFactor = Math.min(0.08, baseSmoothing + (distance - 200) * 0.0001)
+    }
+
+    // Apply smoothing only when enabled
+    const appliedSmoothing = this.options.smoothing ? smoothingFactor : 1
+
+    // Use exponential smoothing for that buttery smooth Screen Studio feel
+    this.currentPosition.x += dx * appliedSmoothing
+    this.currentPosition.y += dy * appliedSmoothing
+
     // Calculate actual velocity
     if (deltaTime > 0) {
       this.velocity.x = (this.currentPosition.x - oldX) / deltaTime
@@ -327,7 +320,6 @@ export class CursorRenderer {
       this.updateTrail()
     }
 
-    // Check for click events at current time
     this.checkForClicks(videoTime)
 
     // Update and render click animations
@@ -341,20 +333,15 @@ export class CursorRenderer {
 
     // Render cursor with zoom scale
     this.renderCursor(zoomScale)
-
-    // Debug info
-    if (this.options.showDebug) {
-      this.renderDebugInfo()
-    }
   }
 
   private getInterpolatedPosition(currentTime: number): CursorPoint | null {
     if (this.sortedPoints.length === 0) return null
-    
+
     // Binary search for the right time range
     let left = 0
     let right = this.sortedPoints.length - 1
-    
+
     // Find the two points to interpolate between
     while (left < right - 1) {
       const mid = Math.floor((left + right) / 2)
@@ -364,25 +351,25 @@ export class CursorRenderer {
         right = mid
       }
     }
-    
+
     const p1 = this.sortedPoints[left]
     const p2 = this.sortedPoints[right]
-    
+
     // If we're at or past the last point, return it
     if (currentTime >= p2.timestamp || left === right) {
       return p2
     }
-    
+
     // If we're before the first point, return it
     if (currentTime <= p1.timestamp) {
       return p1
     }
-    
+
     // Use Catmull-Rom spline for smooth interpolation
     if (this.options.smoothing) {
       const p0 = left > 0 ? this.sortedPoints[left - 1] : p1
       const p3 = right < this.sortedPoints.length - 1 ? this.sortedPoints[right + 1] : p2
-      
+
       const t = (currentTime - p1.timestamp) / (p2.timestamp - p1.timestamp)
       return this.catmullRomInterpolate(p0, p1, p2, p3, t)
     } else {
@@ -404,25 +391,32 @@ export class CursorRenderer {
     t: number
   ): CursorPoint {
     // Catmull-Rom spline interpolation for smooth curves
-    // Use tension parameter for tighter control (0.5 = standard, lower = tighter)
-    const tension = 0.5
-    const t2 = t * t
-    const t3 = t2 * t
-    
-    // Apply easing to t for even smoother motion
-    // Use ease-in-out cubic for natural acceleration/deceleration
-    const easedT = t < 0.5
-      ? 4 * t * t * t
-      : 1 - Math.pow(-2 * t + 2, 3) / 2
-    
+    // Lower tension for smoother, more flowing curves (like Screen Studio)
+    const tension = 0.3 // Reduced for smoother curves
+
+    // Use smooth step function for more natural easing
+    // This creates a smoother acceleration/deceleration curve
+    const smoothStep = (x: number): number => {
+      // Clamp to [0, 1]
+      x = Math.max(0, Math.min(1, x))
+      // Smooth polynomial: 3x² - 2x³
+      return x * x * (3 - 2 * x)
+    }
+
+    // Apply double smooth step for extra smoothness (Screen Studio style)
+    const easedT = smoothStep(smoothStep(t))
+    const t2 = easedT * easedT
+    const t3 = t2 * easedT
+
+    // Catmull-Rom spline formula with eased t
     const v0 = (p2.x - p0.x) * tension
     const v1 = (p3.x - p1.x) * tension
     const x = p1.x + v0 * easedT + (3 * (p2.x - p1.x) - 2 * v0 - v1) * t2 + (2 * (p1.x - p2.x) + v0 + v1) * t3
-    
+
     const v0y = (p2.y - p0.y) * tension
     const v1y = (p3.y - p1.y) * tension
     const y = p1.y + v0y * easedT + (3 * (p2.y - p1.y) - 2 * v0y - v1y) * t2 + (2 * (p1.y - p2.y) + v0y + v1y) * t3
-    
+
     return {
       x: x,
       y: y,
@@ -432,7 +426,7 @@ export class CursorRenderer {
 
   private updateTrail() {
     const speed = Math.sqrt(this.velocity.x ** 2 + this.velocity.y ** 2)
-    
+
     // Only add trail points if moving fast enough
     if (speed > 50) {
       this.trailPoints.unshift({
@@ -440,13 +434,13 @@ export class CursorRenderer {
         y: this.currentPosition.y,
         opacity: Math.min(1, speed / 500)
       })
-      
+
       // Limit trail length
       if (this.trailPoints.length > this.MAX_TRAIL_LENGTH) {
         this.trailPoints.pop()
       }
     }
-    
+
     // Fade out trail points
     this.trailPoints = this.trailPoints
       .map(point => ({ ...point, opacity: point.opacity * 0.85 }))
@@ -455,13 +449,13 @@ export class CursorRenderer {
 
   private renderMotionBlur() {
     if (!this.ctx) return
-    
+
     this.ctx.save()
-    
+
     // Draw trail with decreasing opacity
     this.trailPoints.forEach((point) => {
       this.ctx!.globalAlpha = point.opacity * 0.3
-      
+
       if (this.currentCursorImage) {
         const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
         const baseScale = this.cursorScaleFactors.get(this.currentCursorType) || 0.5
@@ -471,7 +465,7 @@ export class CursorRenderer {
         const hotspotY = hotspot.y * finalScale
         const cursorWidth = this.currentCursorImage.width * finalScale
         const cursorHeight = this.currentCursorImage.height * finalScale
-        
+
         this.ctx!.drawImage(
           this.currentCursorImage,
           Math.round(point.x - hotspotX),
@@ -481,19 +475,19 @@ export class CursorRenderer {
         )
       }
     })
-    
+
     this.ctx.restore()
   }
 
   private updateCursorType(videoTime: number) {
     // Find the event closest to current video time
-    const currentEvent = this.events.find(e => 
+    const currentEvent = this.events.find(e =>
       Math.abs(e.timestamp - videoTime) < 50
     )
-    
+
     if (currentEvent?.cursorType) {
       const newCursorType = electronToCustomCursor(currentEvent.cursorType)
-      
+
       if (newCursorType !== this.currentCursorType) {
         this.currentCursorType = newCursorType
         this.currentCursorImage = this.cursorImages.get(newCursorType) || this.currentCursorImage
@@ -505,54 +499,54 @@ export class CursorRenderer {
     if (!this.ctx || !this.currentCursorImage || !this.currentCursorImage.complete) return
 
     this.ctx.save()
-    
+
     // Get proper hotspot for current cursor type
     const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
-    
+
     // Get base scale factor for this cursor type to normalize its size
     const baseScale = this.cursorScaleFactors.get(this.currentCursorType) || 0.5
-    
+
     // Apply user size option AND zoom scale on top of base normalization
     // The cursor should scale with zoom just like in Screen Studio
     const finalScale = baseScale * (this.options.size || 1.0) * zoomScale
-    
+
     // Scale hotspot based on final cursor size
     const hotspotX = hotspot.x * finalScale
     const hotspotY = hotspot.y * finalScale
-    
+
     // Constrain cursor position to video bounds if video offset is set
     let renderX = this.currentPosition.x
     let renderY = this.currentPosition.y
-    
+
     if (this.videoOffset.width > 0 && this.videoOffset.height > 0) {
       // Clamp cursor position to stay within video bounds
       renderX = Math.max(this.videoOffset.x, Math.min(this.videoOffset.x + this.videoOffset.width, renderX))
       renderY = Math.max(this.videoOffset.y, Math.min(this.videoOffset.y + this.videoOffset.height, renderY))
     }
-    
+
     const x = renderX - hotspotX
     const y = renderY - hotspotY
-    
+
     // Use subpixel rendering
     this.ctx.imageSmoothingEnabled = true
-    
+
     // Draw cursor image with proper scaling
     const cursorWidth = this.currentCursorImage.width * finalScale
     const cursorHeight = this.currentCursorImage.height * finalScale
     this.ctx.drawImage(this.currentCursorImage, x, y, cursorWidth, cursorHeight)
-    
+
     this.ctx.restore()
   }
 
   private checkForClicks(currentTime: number) {
     if (!this.video || !this.canvas) return
-    
+
     // Check if any click event occurs at the current time
-    const clickEvent = this.events.find(e => 
-      e.eventType === 'click' && 
+    const clickEvent = this.events.find(e =>
+      e.eventType === 'click' &&
       Math.abs(e.timestamp - currentTime) < 50
     )
-    
+
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
       // Normalize coordinates, then convert to video space, then to canvas space
       const normalizedX = clickEvent.mouseX / clickEvent.screenWidth
@@ -562,8 +556,8 @@ export class CursorRenderer {
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
       const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
       this.addClickAnimation(
-        this.videoOffset.x + (videoX * scaleX), 
-        this.videoOffset.y + (videoY * scaleY), 
+        this.videoOffset.x + (videoX * scaleX),
+        this.videoOffset.y + (videoY * scaleY),
         clickEvent.timestamp
       )
     }
@@ -606,12 +600,12 @@ export class CursorRenderer {
       // Constrain click animation position to video bounds
       let renderX = anim.x
       let renderY = anim.y
-      
+
       if (this.videoOffset.width > 0 && this.videoOffset.height > 0) {
         renderX = Math.max(this.videoOffset.x, Math.min(this.videoOffset.x + this.videoOffset.width, renderX))
         renderY = Math.max(this.videoOffset.y, Math.min(this.videoOffset.y + this.videoOffset.height, renderY))
       }
-      
+
       this.ctx!.save()
       this.ctx!.globalAlpha = anim.opacity * 0.6
       this.ctx!.strokeStyle = clickColor
@@ -619,96 +613,32 @@ export class CursorRenderer {
       this.ctx!.beginPath()
       this.ctx!.arc(renderX, renderY, anim.radius, 0, Math.PI * 2)
       this.ctx!.stroke()
-      
+
       // Inner circle for better visibility
       this.ctx!.globalAlpha = anim.opacity * 0.3
       this.ctx!.fillStyle = clickColor
       this.ctx!.beginPath()
       this.ctx!.arc(renderX, renderY, anim.radius * 0.3, 0, Math.PI * 2)
       this.ctx!.fill()
-      
+
       this.ctx!.restore()
     })
-  }
-
-  private renderDebugInfo() {
-    if (!this.ctx || !this.canvas || !this.video) return
-    
-    this.ctx.save()
-    this.ctx.fillStyle = '#00FF00'
-    this.ctx.strokeStyle = '#00FF00'
-    this.ctx.lineWidth = 2
-    this.ctx.font = '12px monospace'
-    
-    // Debug text
-    let y = 20
-    this.ctx.fillText(`FPS: ${this.currentFps}`, 10, y)
-    y += 15
-    this.ctx.fillText(`Cursor Canvas Pos: (${Math.round(this.currentPosition.x)}, ${Math.round(this.currentPosition.y)})`, 10, y)
-    y += 15
-    
-    // Get current interpolated point for more info
-    const currentTime = this.video.currentTime * 1000
-    const currentPoint = this.getInterpolatedPosition(currentTime)
-    if (currentPoint) {
-      this.ctx.fillText(`Video Space Pos: (${Math.round(currentPoint.x)}, ${Math.round(currentPoint.y)})`, 10, y)
-      y += 15
-    }
-    
-    // Find raw event data
-    const currentEvent = this.events.find(e => Math.abs(e.timestamp - currentTime) < 100)
-    if (currentEvent) {
-      this.ctx.fillText(`Raw Screen Pos: (${Math.round(currentEvent.mouseX)}, ${Math.round(currentEvent.mouseY)})`, 10, y)
-      y += 15
-      this.ctx.fillText(`Screen Size: ${currentEvent.screenWidth}x${currentEvent.screenHeight}`, 10, y)
-      y += 15
-    }
-    
-    this.ctx.fillText(`Video Size: ${this.video.videoWidth}x${this.video.videoHeight}`, 10, y)
-    y += 15
-    this.ctx.fillText(`Canvas Size: ${this.canvas.width}x${this.canvas.height}`, 10, y)
-    y += 15
-    this.ctx.fillText(`Video in Canvas: (${Math.round(this.videoOffset.x)}, ${Math.round(this.videoOffset.y)}) ${Math.round(this.videoOffset.width)}x${Math.round(this.videoOffset.height)}`, 10, y)
-    y += 15
-    
-    const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
-    const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
-    this.ctx.fillText(`Scale: ${scaleX.toFixed(2)}x${scaleY.toFixed(2)}`, 10, y)
-    
-    // Draw crosshair at cursor position
-    this.ctx.beginPath()
-    this.ctx.moveTo(this.currentPosition.x - 15, this.currentPosition.y)
-    this.ctx.lineTo(this.currentPosition.x + 15, this.currentPosition.y)
-    this.ctx.moveTo(this.currentPosition.x, this.currentPosition.y - 15)
-    this.ctx.lineTo(this.currentPosition.x, this.currentPosition.y + 15)
-    this.ctx.stroke()
-    
-    // Draw circle around cursor
-    this.ctx.beginPath()
-    this.ctx.arc(this.currentPosition.x, this.currentPosition.y, 20, 0, Math.PI * 2)
-    this.ctx.stroke()
-    
-    // Draw video bounds rectangle
-    this.ctx.strokeStyle = '#FF00FF'
-    this.ctx.strokeRect(this.videoOffset.x, this.videoOffset.y, this.videoOffset.width, this.videoOffset.height)
-    
-    this.ctx.restore()
   }
 
   dispose() {
     // Stop the animation loop
     this.isActive = false
-    
+
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame)
       this.animationFrame = null
     }
-    
+
     // Clean up canvas if it exists
     if (this.canvas && this.canvas.parentElement) {
       this.canvas.remove()
     }
-    
+
     this.canvas = null
     this.ctx = null
     this.video = null

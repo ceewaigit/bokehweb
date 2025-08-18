@@ -653,11 +653,7 @@ export const useProjectStore = create<ProjectStore>()(
       if (!recording) return
 
       // Regenerate effects based on options
-      if (options?.forceTest) {
-        effectsEngine.forceDetectZoomEffects(options)
-      } else {
-        effectsEngine.regenerateEffects(options)
-      }
+      effectsEngine.regenerateEffects(options)
 
       // Update the clip's zoom blocks
       const zoomBlocks = effectsEngine.getZoomBlocks(recording)

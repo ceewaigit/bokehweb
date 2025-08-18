@@ -302,10 +302,8 @@ export class ExportEngine {
       if (enableCursor && metadata.length > 0) {
         cursorRenderer = new CursorRenderer({
           size: clipEffects?.cursor?.size ?? 1.2,
-          color: clipEffects?.cursor?.color ?? '#ffffff',
           clickColor: '#3b82f6',
-          smoothing: true,
-          cursorStyle: (clipEffects?.cursor?.style || 'macOS') as any
+          smoothing: true
         })
       }
 

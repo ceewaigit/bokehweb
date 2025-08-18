@@ -40,7 +40,7 @@ export function PreviewArea({
   // Performance optimizations: cache temporary canvases
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tempCtxRef = useRef<CanvasRenderingContext2D | null>(null)
-  
+
   // Track video position for cursor alignment
   const videoPositionRef = useRef({ x: 0, y: 0, width: 0, height: 0 })
 
@@ -59,7 +59,7 @@ export function PreviewArea({
   const latestLocalEffectsRef = useRef(localEffects)
   const lastBackgroundOptionsRef = useRef<string>("")
   const backgroundNeedsUpdate = useRef(true)
-  
+
   // Update refs when props change
   useEffect(() => {
     latestClipRef.current = selectedClip
@@ -74,19 +74,19 @@ export function PreviewArea({
     const bgCanvas = backgroundCanvasRef.current
     const canvas = canvasRef.current
     if (!bgCanvas || !canvas) return
-    
+
     const bgCtx = bgCanvas.getContext('2d')
     if (!bgCtx) return
-    
+
     // Match background canvas size to main canvas
     if (bgCanvas.width !== canvas.width || bgCanvas.height !== canvas.height) {
       bgCanvas.width = canvas.width
       bgCanvas.height = canvas.height
     }
-    
+
     // Clear background canvas first
     bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height)
-    
+
     // Get background renderer
     const currentBackgroundRenderer = latestBackgroundRendererRef.current
     if (!currentBackgroundRenderer) {
@@ -95,23 +95,23 @@ export function PreviewArea({
       bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height)
       return
     }
-    
+
     // Use localEffects if available, otherwise use clip effects
     const currentLocalEffects = latestLocalEffectsRef.current
     const currentClip = latestClipRef.current
     const effectsToUse = currentLocalEffects || currentClip?.effects
-    
+
     // Get background options from effects
     const clipBg = effectsToUse?.background || {
       type: 'gradient',
       gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
       padding: 80
     }
-    
+
     const bgOptions = {
-      type: clipBg.type === 'color' ? 'solid' : 
-            clipBg.type === 'none' ? 'solid' : 
-            clipBg.type as any,
+      type: clipBg.type === 'color' ? 'solid' :
+        clipBg.type === 'none' ? 'solid' :
+          clipBg.type as any,
       color: clipBg.type === 'none' ? '#000000' : clipBg.color,
       gradient: clipBg.gradient ? {
         type: 'linear' as const,
@@ -123,13 +123,13 @@ export function PreviewArea({
       padding: clipBg.padding || 80,
       borderRadius: 16
     }
-    
+
     // Update background renderer options
     currentBackgroundRenderer.updateOptions(bgOptions)
-    
+
     // Apply background without video (just the background)
     currentBackgroundRenderer.applyBackground(bgCtx, undefined, 0, 0, bgCanvas.width, bgCanvas.height)
-    
+
     // Mark background as updated
     backgroundNeedsUpdate.current = false
     lastBackgroundOptionsRef.current = JSON.stringify(bgOptions)
@@ -142,7 +142,10 @@ export function PreviewArea({
     const video = videoRef.current
     if (!canvas || !video) return
 
-    const ctx = canvas.getContext('2d')
+    let ctx = canvas.getContext('2d', {
+      alpha: true,
+      desynchronized: true
+    })
     if (!ctx) return
 
     const currentTimeMs = video.currentTime * 1000
@@ -152,24 +155,30 @@ export function PreviewArea({
       renderBackgroundOnce()
     }
 
+
+    // Reset context state to prevent accumulation of transforms/clipping
+    ctx.globalAlpha = 1
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+
     try {
       // Use refs for latest values without recreating callback
       const currentClip = latestClipRef.current
       const currentBackgroundRenderer = latestBackgroundRendererRef.current
       const currentEffectsEngine = latestEffectsEngineRef.current
       const currentLocalEffects = latestLocalEffectsRef.current
-      
+
       // Use localEffects if available, otherwise use clip effects
       const effectsToUse = currentLocalEffects || currentClip?.effects
-      
+
       // Calculate video dimensions with padding
       const padding = effectsToUse?.background?.padding || 80
-      
+
       // Check if video has valid dimensions
       const videoIsReady = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0
       const videoWidth = videoIsReady ? video.videoWidth : canvas.width
       const videoHeight = videoIsReady ? video.videoHeight : canvas.height
-      
+
       const videoAspect = videoWidth / videoHeight
       const availableWidth = canvas.width - (padding * 2)
       const availableHeight = canvas.height - (padding * 2)
@@ -190,10 +199,10 @@ export function PreviewArea({
         offsetX = padding + (availableWidth - drawWidth) / 2
         offsetY = padding
       }
-      
+
       // Store video position for cursor renderer
       videoPositionRef.current = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight }
-      
+
       // Update cursor renderer if it exists
       if (cursorRenderer && videoIsReady) {
         cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
@@ -206,8 +215,9 @@ export function PreviewArea({
         lastBackgroundOptionsRef.current = effectsString
         renderBackgroundOnce()
       }
-      
-      // Draw the static background from background canvas
+
+      // Clear canvas and draw background
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
       if (bgCanvas && bgCanvas.width === canvas.width && bgCanvas.height === canvas.height) {
         ctx.drawImage(bgCanvas, 0, 0)
       }
@@ -218,58 +228,60 @@ export function PreviewArea({
         const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
 
         if (hasZoomEffect && currentEffectsEngine) {
-            // Reuse cached temporary canvas for zoom effects
-            if (!tempCanvasRef.current ||
-              tempCanvasRef.current.width !== videoWidth ||
-              tempCanvasRef.current.height !== videoHeight) {
-              tempCanvasRef.current = document.createElement('canvas')
-              tempCanvasRef.current.width = videoWidth
-              tempCanvasRef.current.height = videoHeight
-              tempCtxRef.current = tempCanvasRef.current.getContext('2d', {
-                alpha: false,
-                desynchronized: true
-              })
-            }
+          // Reuse cached temporary canvas for zoom effects
+          if (!tempCanvasRef.current ||
+            tempCanvasRef.current.width !== videoWidth ||
+            tempCanvasRef.current.height !== videoHeight) {
+            tempCanvasRef.current = document.createElement('canvas')
+            tempCanvasRef.current.width = videoWidth
+            tempCanvasRef.current.height = videoHeight
+            tempCtxRef.current = tempCanvasRef.current.getContext('2d', {
+              alpha: false,
+              desynchronized: true
+            })
+          }
 
-            const tempCanvas = tempCanvasRef.current
-            const tempCtx = tempCtxRef.current!
+          const tempCanvas = tempCanvasRef.current
+          const tempCtx = tempCtxRef.current!
 
-            // Save context state for zoom transformations
-            tempCtx.save()
+          // Reset temp context state
+          tempCtx.globalAlpha = 1
+          tempCtx.globalCompositeOperation = 'source-over'
+          tempCtx.setTransform(1, 0, 0, 1, 0, 0)
 
-            // Calculate time relative to the clip for zoom effects
-            // The zoom blocks are stored relative to clip time (0 = start of clip)
-            const clipRelativeTime = currentTimeMs - (currentClip?.sourceIn || 0)
-            const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime)
+          // Calculate time relative to the clip for zoom effects
+          // The zoom blocks are stored relative to clip time (0 = start of clip)
+          const clipRelativeTime = currentTimeMs - (currentClip?.sourceIn || 0)
+          const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime)
 
-            if (zoomState.scale > 1.0) {
-              // Calculate the zoom target point in video space
-              const targetX = tempCanvas.width * zoomState.x
-              const targetY = tempCanvas.height * zoomState.y
+          if (zoomState.scale > 1.0) {
+            // Calculate the zoom target point in video space
+            const targetX = tempCanvas.width * zoomState.x
+            const targetY = tempCanvas.height * zoomState.y
 
-              // Calculate the zoomed region dimensions
-              const zoomWidth = tempCanvas.width / zoomState.scale
-              const zoomHeight = tempCanvas.height / zoomState.scale
+            // Calculate the zoomed region dimensions
+            const zoomWidth = tempCanvas.width / zoomState.scale
+            const zoomHeight = tempCanvas.height / zoomState.scale
 
-              // Calculate the top-left corner of the region to draw
-              // This keeps the target point centered in the view
-              const sx = Math.max(0, Math.min(tempCanvas.width - zoomWidth, targetX - zoomWidth / 2))
-              const sy = Math.max(0, Math.min(tempCanvas.height - zoomHeight, targetY - zoomHeight / 2))
+            // Calculate the top-left corner of the region to draw
+            // This keeps the target point centered in the view
+            const sx = Math.max(0, Math.min(tempCanvas.width - zoomWidth, targetX - zoomWidth / 2))
+            const sy = Math.max(0, Math.min(tempCanvas.height - zoomHeight, targetY - zoomHeight / 2))
 
-              // Clear and draw the zoomed portion
-              tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
-              tempCtx.drawImage(
-                video,
-                sx, sy, zoomWidth, zoomHeight,  // Source rectangle (zoomed area)
-                0, 0, tempCanvas.width, tempCanvas.height  // Destination (full canvas)
-              )
-            } else {
-              // No zoom - draw full video
-              tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height)
-            }
+            // Clear and draw the zoomed portion
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
+            tempCtx.drawImage(
+              video,
+              sx, sy, zoomWidth, zoomHeight,  // Source rectangle (zoomed area)
+              0, 0, tempCanvas.width, tempCanvas.height  // Destination (full canvas)
+            )
+          } else {
+            // No zoom - draw full video
+            tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
+            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height)
+          }
 
-            // Restore context state (only needed if we used save earlier)
-            tempCtx.restore()
+          // No need to restore since we're not using save()
 
           // Draw zoomed video with border radius clipping
           ctx.save()
@@ -289,7 +301,7 @@ export function PreviewArea({
         }
       }
     } catch (err) {
-      // Don't clear canvas on error - keep last frame visible
+      // Silent fail - keep last frame visible
     }
   }, [backgroundCanvasRef, renderBackgroundOnce]) // Only stable deps
 
@@ -304,13 +316,13 @@ export function PreviewArea({
   }, [
     localEffects?.background?.gradient?.colors?.[0],
     localEffects?.background?.gradient?.colors?.[1],
-    selectedClip?.effects?.background?.gradient?.colors?.[0], 
+    selectedClip?.effects?.background?.gradient?.colors?.[0],
     selectedClip?.effects?.background?.gradient?.colors?.[1],
     localEffects?.background?.type,
     selectedClip?.effects?.background?.type,
     localEffects?.background?.padding,
     selectedClip?.effects?.background?.padding,
-    isVideoLoaded, 
+    isVideoLoaded,
     renderFrame
   ])
 
@@ -318,7 +330,7 @@ export function PreviewArea({
   useEffect(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
-    
+
     if (!currentRecording) {
       // No recording, reset states
       setIsVideoLoaded(false)
@@ -326,9 +338,9 @@ export function PreviewArea({
       setLoadError(null)
       return
     }
-    
+
     if (!video || !canvas) return
-    
+
     // Listen for force render events
     const handleForceRender = () => {
       if (isVideoLoaded) {
@@ -373,7 +385,7 @@ export function PreviewArea({
           // Mark as loaded - effects are initialized by parent
           setIsVideoLoaded(true)
           setIsLoading(false)
-          
+
           // Render initial background
           backgroundNeedsUpdate.current = true
         }
@@ -418,27 +430,18 @@ export function PreviewArea({
     const video = videoRef.current
     if (!video || !isVideoLoaded) return
 
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+    }
+
     if (isPlaying) {
-      // Render loop - runs continuously during playback
       const animate = () => {
         if (!isPlaying) return
-
-        // Render current frame
         renderFrame()
-        
-        // Continue animation loop
         animationFrameRef.current = requestAnimationFrame(animate)
       }
-
-      // Start the render loop
       animationFrameRef.current = requestAnimationFrame(animate)
     } else {
-      // When paused, stop the loop and render one final frame
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-        animationFrameRef.current = undefined
-      }
-      // Always render current frame when pausing
       renderFrame()
     }
 
@@ -459,21 +462,21 @@ export function PreviewArea({
       // Continuously sync video time during playback
       const syncVideoTime = () => {
         if (!isPlaying) return
-        
+
         // Map timeline time to video time
         const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
         const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
-        
+
         // Clamp to clip bounds
         const minTime = selectedClip.sourceIn / 1000
         const maxTime = selectedClip.sourceOut / 1000
         const targetTime = Math.min(Math.max(sourceTime, minTime), maxTime)
-        
+
         // Update video time if significantly different (allow small drift for smooth playback)
         if (Math.abs(video.currentTime - targetTime) > 0.1) {
           video.currentTime = targetTime
         }
-        
+
         // Ensure video is playing
         if (video.paused && targetTime < maxTime) {
           video.play().catch(() => {
@@ -481,13 +484,13 @@ export function PreviewArea({
           })
         }
       }
-      
+
       // Initial sync and play
       syncVideoTime()
-      
+
       // Set up interval to keep video in sync
       const syncInterval = setInterval(syncVideoTime, 100) // Sync every 100ms
-      
+
       return () => {
         clearInterval(syncInterval)
       }
@@ -550,6 +553,12 @@ export function PreviewArea({
       // Clean up cached canvases
       tempCanvasRef.current = null
       tempCtxRef.current = null
+
+      // Cancel any pending animation frames
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = undefined
+      }
     }
   }, [])
 
@@ -568,7 +577,7 @@ export function PreviewArea({
                   pointerEvents: 'none'
                 }}
               />
-              
+
               {/* Main canvas (video + effects) */}
               <canvas
                 ref={canvasRef}
@@ -579,7 +588,7 @@ export function PreviewArea({
                   maxHeight: '100%'
                 }}
               />
-              
+
               {/* Error state */}
               {loadError && !isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center p-8">
@@ -596,7 +605,7 @@ export function PreviewArea({
                   </div>
                 </div>
               )}
-              
+
               {/* Loading skeleton */}
               {isLoading && !isVideoLoaded && !loadError && (
                 <div className="absolute inset-0 flex items-center justify-center p-8">
@@ -604,7 +613,7 @@ export function PreviewArea({
                     {/* Skeleton preview area with aspect ratio */}
                     <div className="relative aspect-video">
                       <Skeleton className="absolute inset-0 rounded-lg" />
-                      
+
                       {/* Loading indicator overlay */}
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
                         <div className="bg-background/80 backdrop-blur-sm rounded-lg p-6 shadow-lg">
@@ -614,7 +623,7 @@ export function PreviewArea({
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            
+
                             <div className="text-center">
                               <p className="text-sm font-medium">Loading video</p>
                               {currentRecording?.id && (
@@ -625,7 +634,7 @@ export function PreviewArea({
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Skeleton timeline indicator */}
                     <div className="mt-4 space-y-2">
                       <Skeleton className="h-1 w-full" />
@@ -639,7 +648,7 @@ export function PreviewArea({
               )}
             </>
           )}
-          
+
           {!currentRecording && (
             <div className="text-gray-500 text-center p-8">
               <p className="text-lg font-medium mb-2">No recording selected</p>
