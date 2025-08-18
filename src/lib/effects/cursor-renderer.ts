@@ -44,7 +44,6 @@ export class CursorRenderer {
   }> = new Map()
   
   // Base cursor sizes for normalization (standard cursor is ~24x24)
-  private readonly BASE_CURSOR_SIZE = 24
   private cursorScaleFactors: Map<CursorType, number> = new Map()
 
   private currentPosition = { x: 0, y: 0 }
@@ -88,25 +87,25 @@ export class CursorRenderer {
 
   private initializeCursorScaleFactors() {
     // Define scale factors to normalize cursor sizes
-    // These values normalize each cursor to approximately 24x24 base size
-    this.cursorScaleFactors.set(CursorType.ARROW, 0.14) // 170x230 -> ~24x32
-    this.cursorScaleFactors.set(CursorType.IBEAM, 0.27) // 90x180 -> ~24x48
-    this.cursorScaleFactors.set(CursorType.POINTING_HAND, 0.375) // 64x64 -> 24x24
-    this.cursorScaleFactors.set(CursorType.CLOSED_HAND, 0.375) // 64x64 -> 24x24
-    this.cursorScaleFactors.set(CursorType.OPEN_HAND, 0.375) // 64x64 -> 24x24
-    this.cursorScaleFactors.set(CursorType.CROSSHAIR, 0.5) // 48x48 -> 24x24
-    this.cursorScaleFactors.set(CursorType.RESIZE_LEFT, 0.5) // 48x48 -> 24x24
-    this.cursorScaleFactors.set(CursorType.RESIZE_RIGHT, 0.5) // 48x48 -> 24x24
-    this.cursorScaleFactors.set(CursorType.RESIZE_UP, 0.5) // 48x48 -> 24x24
-    this.cursorScaleFactors.set(CursorType.RESIZE_DOWN, 0.5) // 48x48 -> 24x24
-    this.cursorScaleFactors.set(CursorType.RESIZE_LEFT_RIGHT, 0.5) // 48x48 -> 24x24
-    this.cursorScaleFactors.set(CursorType.RESIZE_UP_DOWN, 0.5) // 48x48 -> 24x24
-    this.cursorScaleFactors.set(CursorType.CONTEXTUAL_MENU, 0.43) // 56x80 -> ~24x34
-    this.cursorScaleFactors.set(CursorType.DISAPPEARING_ITEM, 0.43) // 56x80 -> ~24x34
-    this.cursorScaleFactors.set(CursorType.DRAG_COPY, 0.43) // 56x80 -> ~24x34
-    this.cursorScaleFactors.set(CursorType.DRAG_LINK, 0.75) // 32x42 -> ~24x32
-    this.cursorScaleFactors.set(CursorType.OPERATION_NOT_ALLOWED, 0.43) // 56x80 -> ~24x34
-    this.cursorScaleFactors.set(CursorType.IBEAM_VERTICAL, 0.67) // 36x32 -> ~24x21
+    // These values normalize each cursor to approximately 48x48 base size (2x larger than before)
+    this.cursorScaleFactors.set(CursorType.ARROW, 0.28) // 170x230 -> ~48x64
+    this.cursorScaleFactors.set(CursorType.IBEAM, 0.54) // 90x180 -> ~48x96
+    this.cursorScaleFactors.set(CursorType.POINTING_HAND, 0.75) // 64x64 -> 48x48
+    this.cursorScaleFactors.set(CursorType.CLOSED_HAND, 0.75) // 64x64 -> 48x48
+    this.cursorScaleFactors.set(CursorType.OPEN_HAND, 0.75) // 64x64 -> 48x48
+    this.cursorScaleFactors.set(CursorType.CROSSHAIR, 1.0) // 48x48 -> 48x48
+    this.cursorScaleFactors.set(CursorType.RESIZE_LEFT, 1.0) // 48x48 -> 48x48
+    this.cursorScaleFactors.set(CursorType.RESIZE_RIGHT, 1.0) // 48x48 -> 48x48
+    this.cursorScaleFactors.set(CursorType.RESIZE_UP, 1.0) // 48x48 -> 48x48
+    this.cursorScaleFactors.set(CursorType.RESIZE_DOWN, 1.0) // 48x48 -> 48x48
+    this.cursorScaleFactors.set(CursorType.RESIZE_LEFT_RIGHT, 1.0) // 48x48 -> 48x48
+    this.cursorScaleFactors.set(CursorType.RESIZE_UP_DOWN, 1.0) // 48x48 -> 48x48
+    this.cursorScaleFactors.set(CursorType.CONTEXTUAL_MENU, 0.86) // 56x80 -> ~48x68
+    this.cursorScaleFactors.set(CursorType.DISAPPEARING_ITEM, 0.86) // 56x80 -> ~48x68
+    this.cursorScaleFactors.set(CursorType.DRAG_COPY, 0.86) // 56x80 -> ~48x68
+    this.cursorScaleFactors.set(CursorType.DRAG_LINK, 1.5) // 32x42 -> ~48x64
+    this.cursorScaleFactors.set(CursorType.OPERATION_NOT_ALLOWED, 0.86) // 56x80 -> ~48x68
+    this.cursorScaleFactors.set(CursorType.IBEAM_VERTICAL, 1.34) // 36x32 -> ~48x42
   }
 
   private preloadCursorImages() {
@@ -291,6 +290,7 @@ export class CursorRenderer {
         videoX = ((videoX - sx) / zoomWidth) * this.video.videoWidth
         videoY = ((videoY - sy) / zoomHeight) * this.video.videoHeight
         
+        // Store zoom scale to apply to cursor size
         zoomScale = zoomState.scale
       }
     }
@@ -308,7 +308,9 @@ export class CursorRenderer {
     const oldY = this.currentPosition.y
     
     // Map video-space coordinates to canvas-space coordinates
-    const smoothingFactor = this.options.smoothing ? 0.25 : 1
+    // Use a much lower smoothing factor for that "gliding on ice" effect
+    // Lower values = more smoothing/lag, creating a buttery smooth motion
+    const smoothingFactor = this.options.smoothing ? 0.12 : 1
     const scaledTargetX = this.videoOffset.x + (videoX * scaleX)
     const scaledTargetY = this.videoOffset.y + (videoY * scaleY)
     this.currentPosition.x += (scaledTargetX - this.currentPosition.x) * smoothingFactor
@@ -337,8 +339,8 @@ export class CursorRenderer {
       this.renderMotionBlur()
     }
 
-    // Render cursor
-    this.renderCursor()
+    // Render cursor with zoom scale
+    this.renderCursor(zoomScale)
 
     // Debug info
     if (this.options.showDebug) {
@@ -402,16 +404,24 @@ export class CursorRenderer {
     t: number
   ): CursorPoint {
     // Catmull-Rom spline interpolation for smooth curves
+    // Use tension parameter for tighter control (0.5 = standard, lower = tighter)
+    const tension = 0.5
     const t2 = t * t
     const t3 = t2 * t
     
-    const v0 = (p2.x - p0.x) * 0.5
-    const v1 = (p3.x - p1.x) * 0.5
-    const x = p1.x + v0 * t + (3 * (p2.x - p1.x) - 2 * v0 - v1) * t2 + (2 * (p1.x - p2.x) + v0 + v1) * t3
+    // Apply easing to t for even smoother motion
+    // Use ease-in-out cubic for natural acceleration/deceleration
+    const easedT = t < 0.5
+      ? 4 * t * t * t
+      : 1 - Math.pow(-2 * t + 2, 3) / 2
     
-    const v0y = (p2.y - p0.y) * 0.5
-    const v1y = (p3.y - p1.y) * 0.5
-    const y = p1.y + v0y * t + (3 * (p2.y - p1.y) - 2 * v0y - v1y) * t2 + (2 * (p1.y - p2.y) + v0y + v1y) * t3
+    const v0 = (p2.x - p0.x) * tension
+    const v1 = (p3.x - p1.x) * tension
+    const x = p1.x + v0 * easedT + (3 * (p2.x - p1.x) - 2 * v0 - v1) * t2 + (2 * (p1.x - p2.x) + v0 + v1) * t3
+    
+    const v0y = (p2.y - p0.y) * tension
+    const v1y = (p3.y - p1.y) * tension
+    const y = p1.y + v0y * easedT + (3 * (p2.y - p1.y) - 2 * v0y - v1y) * t2 + (2 * (p1.y - p2.y) + v0y + v1y) * t3
     
     return {
       x: x,
@@ -455,6 +465,7 @@ export class CursorRenderer {
       if (this.currentCursorImage) {
         const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
         const baseScale = this.cursorScaleFactors.get(this.currentCursorType) || 0.5
+        // Don't apply zoom to motion blur trail
         const finalScale = baseScale * (this.options.size || 1.0)
         const hotspotX = hotspot.x * finalScale
         const hotspotY = hotspot.y * finalScale
@@ -490,7 +501,7 @@ export class CursorRenderer {
     }
   }
 
-  private renderCursor() {
+  private renderCursor(zoomScale: number = 1.0) {
     if (!this.ctx || !this.currentCursorImage || !this.currentCursorImage.complete) return
 
     this.ctx.save()
@@ -501,8 +512,9 @@ export class CursorRenderer {
     // Get base scale factor for this cursor type to normalize its size
     const baseScale = this.cursorScaleFactors.get(this.currentCursorType) || 0.5
     
-    // Apply user size option on top of base normalization
-    const finalScale = baseScale * (this.options.size || 1.0)
+    // Apply user size option AND zoom scale on top of base normalization
+    // The cursor should scale with zoom just like in Screen Studio
+    const finalScale = baseScale * (this.options.size || 1.0) * zoomScale
     
     // Scale hotspot based on final cursor size
     const hotspotX = hotspot.x * finalScale

@@ -10,6 +10,7 @@ import type { Clip, Recording, ClipEffects } from '@/types/project'
 interface PreviewAreaProps {
   videoRef: RefObject<HTMLVideoElement>
   canvasRef: RefObject<HTMLCanvasElement>
+  backgroundCanvasRef: RefObject<HTMLCanvasElement>
   effectsEngine: EffectsEngine | null
   cursorRenderer: CursorRenderer | null
   backgroundRenderer: BackgroundRenderer | null
@@ -23,6 +24,7 @@ interface PreviewAreaProps {
 export function PreviewArea({
   videoRef,
   canvasRef,
+  backgroundCanvasRef,
   effectsEngine,
   cursorRenderer,
   backgroundRenderer,
@@ -56,18 +58,87 @@ export function PreviewArea({
   const latestBackgroundRendererRef = useRef(backgroundRenderer)
   const latestLocalEffectsRef = useRef(localEffects)
   const lastBackgroundOptionsRef = useRef<string>("")
+  const backgroundNeedsUpdate = useRef(true)
   
   // Update refs when props change
   useEffect(() => {
     latestClipRef.current = selectedClip
     latestEffectsEngineRef.current = effectsEngine
     latestBackgroundRendererRef.current = backgroundRenderer
+    backgroundNeedsUpdate.current = true // Mark background for update when renderer changes
     latestLocalEffectsRef.current = localEffects
   }, [selectedClip, effectsEngine, backgroundRenderer, localEffects])
+
+  // Render background to background canvas (static, only when needed)
+  const renderBackgroundOnce = useCallback(() => {
+    const bgCanvas = backgroundCanvasRef.current
+    const canvas = canvasRef.current
+    if (!bgCanvas || !canvas) return
+    
+    const bgCtx = bgCanvas.getContext('2d')
+    if (!bgCtx) return
+    
+    // Match background canvas size to main canvas
+    if (bgCanvas.width !== canvas.width || bgCanvas.height !== canvas.height) {
+      bgCanvas.width = canvas.width
+      bgCanvas.height = canvas.height
+    }
+    
+    // Clear background canvas first
+    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height)
+    
+    // Get background renderer
+    const currentBackgroundRenderer = latestBackgroundRendererRef.current
+    if (!currentBackgroundRenderer) {
+      // No background renderer - fill with black
+      bgCtx.fillStyle = '#000'
+      bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height)
+      return
+    }
+    
+    // Use localEffects if available, otherwise use clip effects
+    const currentLocalEffects = latestLocalEffectsRef.current
+    const currentClip = latestClipRef.current
+    const effectsToUse = currentLocalEffects || currentClip?.effects
+    
+    // Get background options from effects
+    const clipBg = effectsToUse?.background || {
+      type: 'gradient',
+      gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
+      padding: 80
+    }
+    
+    const bgOptions = {
+      type: clipBg.type === 'color' ? 'solid' : 
+            clipBg.type === 'none' ? 'solid' : 
+            clipBg.type as any,
+      color: clipBg.type === 'none' ? '#000000' : clipBg.color,
+      gradient: clipBg.gradient ? {
+        type: 'linear' as const,
+        colors: clipBg.gradient.colors,
+        angle: clipBg.gradient.angle
+      } : undefined,
+      image: clipBg.image,
+      blur: clipBg.blur,
+      padding: clipBg.padding || 80,
+      borderRadius: 16
+    }
+    
+    // Update background renderer options
+    currentBackgroundRenderer.updateOptions(bgOptions)
+    
+    // Apply background without video (just the background)
+    currentBackgroundRenderer.applyBackground(bgCtx, undefined, 0, 0, bgCanvas.width, bgCanvas.height)
+    
+    // Mark background as updated
+    backgroundNeedsUpdate.current = false
+    lastBackgroundOptionsRef.current = JSON.stringify(bgOptions)
+  }, [backgroundCanvasRef, canvasRef])
 
   // Main rendering function - now stable, doesn't depend on changing props
   const renderFrame = useCallback(() => {
     const canvas = canvasRef.current
+    const bgCanvas = backgroundCanvasRef.current
     const video = videoRef.current
     if (!canvas || !video) return
 
@@ -75,6 +146,11 @@ export function PreviewArea({
     if (!ctx) return
 
     const currentTimeMs = video.currentTime * 1000
+
+    // Check if background needs update
+    if (backgroundNeedsUpdate.current) {
+      renderBackgroundOnce()
+    }
 
     try {
       // Use refs for latest values without recreating callback
@@ -86,31 +162,8 @@ export function PreviewArea({
       // Use localEffects if available, otherwise use clip effects
       const effectsToUse = currentLocalEffects || currentClip?.effects
       
-      // Get background options from clip effects
-      const clipBg = effectsToUse?.background || {
-        type: 'gradient',
-        gradient: { colors: ['#0F172A', '#1E293B'], angle: 135 },
-        padding: 80
-      }
-
-      const bgOptions = {
-        type: clipBg.type === 'color' ? 'solid' : 
-              clipBg.type === 'none' ? 'solid' : 
-              clipBg.type as any,
-        color: clipBg.type === 'none' ? '#000000' : clipBg.color,
-        gradient: clipBg.gradient ? {
-          type: 'linear' as const,
-          colors: clipBg.gradient.colors,
-          angle: clipBg.gradient.angle
-        } : undefined,
-        image: clipBg.image,
-        blur: clipBg.blur,
-        padding: clipBg.padding || 80,
-        borderRadius: 16
-      }
-
       // Calculate video dimensions with padding
-      const padding = bgOptions.padding || 0
+      const padding = effectsToUse?.background?.padding || 80
       
       // Check if video has valid dimensions
       const videoIsReady = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0
@@ -146,29 +199,25 @@ export function PreviewArea({
         cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
       }
 
-      // Check if background options actually changed
-      const bgOptionsString = JSON.stringify(bgOptions)
-      const backgroundChanged = bgOptionsString !== lastBackgroundOptionsRef.current
+      // Check if background needs update by comparing effects
+      const effectsString = JSON.stringify(effectsToUse?.background)
+      if (effectsString !== lastBackgroundOptionsRef.current) {
+        backgroundNeedsUpdate.current = true
+        lastBackgroundOptionsRef.current = effectsString
+        renderBackgroundOnce()
+      }
       
-      // Apply background first if background renderer exists
-      if (currentBackgroundRenderer) {
-        // Only update background options if they actually changed
-        if (backgroundChanged) {
-          console.log('📐 Background options changed, updating renderer', {
-            ...bgOptions,
-            gradientColors: bgOptions.gradient?.colors,
-            effectsToUse: effectsToUse?.background
-          })
-          currentBackgroundRenderer.updateOptions(bgOptions)
-          lastBackgroundOptionsRef.current = bgOptionsString
-        }
+      // Draw the static background from background canvas
+      if (bgCanvas && bgCanvas.width === canvas.width && bgCanvas.height === canvas.height) {
+        ctx.drawImage(bgCanvas, 0, 0)
+      }
 
-        // Only draw video if it's ready
-        if (videoIsReady) {
-          // Only use temp canvas if we have zoom effects
-          const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
+      // Only draw video if it's ready
+      if (videoIsReady && currentBackgroundRenderer) {
+        // Only use temp canvas if we have zoom effects
+        const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
 
-          if (hasZoomEffect && currentEffectsEngine) {
+        if (hasZoomEffect && currentEffectsEngine) {
             // Reuse cached temporary canvas for zoom effects
             if (!tempCanvasRef.current ||
               tempCanvasRef.current.width !== videoWidth ||
@@ -222,64 +271,34 @@ export function PreviewArea({
             // Restore context state (only needed if we used save earlier)
             tempCtx.restore()
 
-            // Apply background with the zoomed video frame
-            currentBackgroundRenderer.applyBackground(
-              ctx,
-              tempCanvas,
-              offsetX,
-              offsetY,
-              drawWidth,
-              drawHeight
-            )
-          } else {
-            // No zoom - draw directly, much faster
-            currentBackgroundRenderer.applyBackground(
-              ctx,
-              video,
-              offsetX,
-              offsetY,
-              drawWidth,
-              drawHeight
-            )
-          }
+          // Draw zoomed video with border radius clipping
+          ctx.save()
+          ctx.beginPath()
+          ctx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
+          ctx.clip()
+          ctx.drawImage(tempCanvas, offsetX, offsetY, drawWidth, drawHeight)
+          ctx.restore()
         } else {
-          // Video not ready - just draw background without video frame
-          currentBackgroundRenderer.applyBackground(
-            ctx,
-            undefined, // No video frame
-            offsetX,
-            offsetY,
-            drawWidth,
-            drawHeight
-          )
-        }
-      } else {
-        // No background renderer - clear to black
-        ctx.fillStyle = '#000'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        
-        // Draw video if ready
-        if (videoIsReady) {
+          // No zoom - draw video directly with border radius
+          ctx.save()
+          ctx.beginPath()
+          ctx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
+          ctx.clip()
           ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
+          ctx.restore()
         }
       }
     } catch (err) {
       // Don't clear canvas on error - keep last frame visible
     }
-  }, []) // No dependencies - use refs for all changing values
+  }, [backgroundCanvasRef, renderBackgroundOnce]) // Only stable deps
 
 
   // Handle effect updates - force re-render when effects change
   useEffect(() => {
     if (isVideoLoaded) {
-      console.log('🎨 Background effect changed, forcing render', {
-        isPlaying,
-        gradient: localEffects?.background?.gradient || selectedClip?.effects?.background?.gradient,
-        localColors: localEffects?.background?.gradient?.colors,
-        clipColors: selectedClip?.effects?.background?.gradient?.colors
-      })
-      // Force a render when effects change, whether playing or paused
-      // Call directly, don't use requestAnimationFrame
+      // Mark background for update and force a render
+      backgroundNeedsUpdate.current = true
       renderFrame()
     }
   }, [
@@ -287,9 +306,12 @@ export function PreviewArea({
     localEffects?.background?.gradient?.colors?.[1],
     selectedClip?.effects?.background?.gradient?.colors?.[0], 
     selectedClip?.effects?.background?.gradient?.colors?.[1],
+    localEffects?.background?.type,
+    selectedClip?.effects?.background?.type,
+    localEffects?.background?.padding,
+    selectedClip?.effects?.background?.padding,
     isVideoLoaded, 
-    renderFrame, 
-    isPlaying
+    renderFrame
   ])
 
   // Main effect: Handle canvas and effects initialization
@@ -309,9 +331,7 @@ export function PreviewArea({
     
     // Listen for force render events
     const handleForceRender = () => {
-      console.log('🔄 Force render event received, isVideoLoaded:', isVideoLoaded)
       if (isVideoLoaded) {
-        // Call renderFrame directly for immediate update
         renderFrame()
       }
     }
@@ -353,6 +373,9 @@ export function PreviewArea({
           // Mark as loaded - effects are initialized by parent
           setIsVideoLoaded(true)
           setIsLoading(false)
+          
+          // Render initial background
+          backgroundNeedsUpdate.current = true
         }
 
         // Always render frame when video is ready
@@ -367,8 +390,6 @@ export function PreviewArea({
       checkVideoReady()
     }
 
-    // Removed handleTimeUpdate - not needed, was causing double rendering
-    
     const handleError = () => {
       // Video error occurred
       setIsLoading(false)
@@ -521,8 +542,6 @@ export function PreviewArea({
     const video = videoRef.current
     if (!video || !selectedClip) return
 
-    // Video end handling is now managed by WorkspaceManager
-    // which controls the overall playback state
   }, [isPlaying, isVideoLoaded, selectedClip])
 
   // Cleanup cached canvases on unmount
@@ -540,14 +559,24 @@ export function PreviewArea({
         <div className="relative w-full h-full flex items-center justify-center">
           {currentRecording && (
             <>
+              {/* Background canvas (static layer) */}
+              <canvas
+                ref={backgroundCanvasRef}
+                className="absolute"
+                style={{
+                  display: 'none', // Hidden, only used for compositing
+                  pointerEvents: 'none'
+                }}
+              />
+              
+              {/* Main canvas (video + effects) */}
               <canvas
                 ref={canvasRef}
                 className="shadow-2xl"
                 style={{
                   display: isVideoLoaded ? 'block' : 'none',
                   maxWidth: '100%',
-                  maxHeight: '100%',
-                  backgroundColor: '#000'
+                  maxHeight: '100%'
                 }}
               />
               
@@ -610,8 +639,6 @@ export function PreviewArea({
               )}
             </>
           )}
-          
-          {/* Video element is now managed by parent WorkspaceManager */}
           
           {!currentRecording && (
             <div className="text-gray-500 text-center p-8">

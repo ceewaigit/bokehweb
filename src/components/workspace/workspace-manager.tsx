@@ -110,6 +110,7 @@ export function WorkspaceManager() {
   // Centralized refs for video and rendering
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const backgroundCanvasRef = useRef<HTMLCanvasElement>(null)
   const effectsEngineRef = useRef<EffectsEngine | null>(null)
   const cursorRendererRef = useRef<CursorRenderer | null>(null)
   const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
@@ -788,6 +789,7 @@ export function WorkspaceManager() {
               <PreviewArea
                 videoRef={videoRef}
                 canvasRef={canvasRef}
+                backgroundCanvasRef={backgroundCanvasRef}
                 effectsEngine={effectsEngineRef.current}
                 cursorRenderer={cursorRendererRef.current}
                 backgroundRenderer={backgroundRendererRef.current}

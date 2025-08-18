@@ -199,10 +199,7 @@ export class BackgroundRenderer {
     const { width, height } = ctx.canvas
     const padding = this.options.padding || 0
 
-    // Always clear and redraw - background should always be visible
-    ctx.clearRect(0, 0, width, height)
-
-    // Apply background
+    // Apply background (no clearing - background is persistent)
     switch (this.options.type) {
       case 'solid':
         ctx.fillStyle = this.options.color || '#000000'
