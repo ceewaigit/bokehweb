@@ -46,6 +46,9 @@ export function PreviewArea({
 
   // Track video position for cursor alignment
   const videoPositionRef = useRef({ x: 0, y: 0, width: 0, height: 0 })
+  
+  // Track cursor canvas element
+  const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -222,9 +225,54 @@ export function PreviewArea({
       // Store video position for cursor renderer
       videoPositionRef.current = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight }
 
-      // Update cursor renderer if it exists
+      // Update cursor renderer and manage cursor canvas
       if (cursorRenderer && videoIsReady) {
         cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
+        
+        // Get the cursor canvas from the renderer
+        const cursorCanvas = cursorRenderer.canvasElement
+        
+        // Attach cursor canvas if we have one and it's not already attached
+        if (cursorCanvas && cursorCanvas !== cursorCanvasRef.current) {
+          const parentElement = canvas.parentElement
+          
+          if (parentElement) {
+            // Remove old cursor canvas if exists
+            if (cursorCanvasRef.current && cursorCanvasRef.current.parentElement) {
+              cursorCanvasRef.current.remove()
+            }
+            
+            // Set up the cursor canvas with proper dimensions and positioning
+            cursorCanvas.width = canvas.width
+            cursorCanvas.height = canvas.height
+            cursorCanvas.style.position = 'absolute'
+            cursorCanvas.style.top = '0'
+            cursorCanvas.style.left = '0'
+            cursorCanvas.style.width = canvas.style.width || ''
+            cursorCanvas.style.height = canvas.style.height || ''
+            cursorCanvas.style.maxWidth = '100%'
+            cursorCanvas.style.maxHeight = '100%'
+            cursorCanvas.style.objectFit = 'contain'
+            cursorCanvas.style.pointerEvents = 'none'
+            cursorCanvas.style.zIndex = '100'
+            
+            // Ensure parent has relative positioning
+            parentElement.style.position = 'relative'
+            
+            // Append cursor canvas to DOM
+            parentElement.appendChild(cursorCanvas)
+            cursorCanvasRef.current = cursorCanvas
+          }
+        } else if (cursorCanvasRef.current) {
+          // Update dimensions if canvas already attached
+          if (cursorCanvasRef.current.width !== canvas.width || 
+              cursorCanvasRef.current.height !== canvas.height) {
+            cursorCanvasRef.current.width = canvas.width
+            cursorCanvasRef.current.height = canvas.height
+            cursorCanvasRef.current.style.width = canvas.style.width || ''
+            cursorCanvasRef.current.style.height = canvas.style.height || ''
+          }
+        }
       }
 
       // Check if background needs update by comparing effects
@@ -235,15 +283,15 @@ export function PreviewArea({
         renderBackgroundOnce()
       }
 
-      // Clear canvas and draw background
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      
-      if (bgCanvas && bgCanvas.width === canvas.width && bgCanvas.height === canvas.height) {
-        ctx.drawImage(bgCanvas, 0, 0)
-      }
-
-      // Only draw video if it's ready and has a valid source
+      // Only clear and redraw if we can actually draw the video
+      // This prevents blank frames when video state temporarily changes
       if (videoIsReady && currentBackgroundRenderer && video.src && !video.error) {
+        // Clear canvas and draw background
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        
+        if (bgCanvas && bgCanvas.width === canvas.width && bgCanvas.height === canvas.height) {
+          ctx.drawImage(bgCanvas, 0, 0)
+        }
         // Only use temp canvas if we have zoom effects
         const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
 
@@ -499,51 +547,17 @@ export function PreviewArea({
     }
   }, [isVideoLoaded, renderFrame])
 
-  // Handle video element play/pause state and sync during playback
+  // Handle video element play/pause state - sync is handled by workspace-manager
   useEffect(() => {
     const video = videoRef.current
     if (!video || !isVideoLoaded || !selectedClip) return
 
-    if (isPlaying) {
-      // Continuously sync video time during playback
-      const syncVideoTime = () => {
-        if (!isPlaying) return
-
-        // Map timeline time to video time
-        const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
-        const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
-
-        // Clamp to clip bounds
-        const minTime = selectedClip.sourceIn / 1000
-        const maxTime = selectedClip.sourceOut / 1000
-        const targetTime = Math.min(Math.max(sourceTime, minTime), maxTime)
-
-        // Update video time if significantly different (allow small drift for smooth playback)
-        if (Math.abs(video.currentTime - targetTime) > 0.1) {
-          video.currentTime = targetTime
-        }
-
-        // Ensure video is playing
-        if (video.paused && targetTime < maxTime) {
-          video.play().catch(() => {
-            // Video play failed, likely due to browser restrictions
-          })
-        }
-      }
-
-      // Initial sync and play
-      syncVideoTime()
-
-      // Set up interval to keep video in sync
-      const syncInterval = setInterval(syncVideoTime, 100) // Sync every 100ms
-
-      return () => {
-        clearInterval(syncInterval)
-      }
-    } else {
+    // Let workspace-manager handle the sync logic to avoid conflicts
+    // This component just responds to play/pause state
+    if (!isPlaying) {
       video.pause()
     }
-  }, [isPlaying, isVideoLoaded, selectedClip, currentTime])
+  }, [isPlaying, isVideoLoaded, selectedClip])
 
   // Sync video time with timeline currentTime when scrubbing (not playing)
   useEffect(() => {
@@ -599,6 +613,12 @@ export function PreviewArea({
       // Clean up cached canvases
       tempCanvasRef.current = null
       tempCtxRef.current = null
+      
+      // Clean up cursor canvas
+      if (cursorCanvasRef.current && cursorCanvasRef.current.parentElement) {
+        cursorCanvasRef.current.remove()
+        cursorCanvasRef.current = null
+      }
 
       // Cancel any pending animation frames
       if (animationFrameRef.current) {

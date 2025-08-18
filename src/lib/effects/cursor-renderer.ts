@@ -117,6 +117,11 @@ export class CursorRenderer {
     })
   }
 
+  // Getter for canvas element
+  get canvasElement(): HTMLCanvasElement | null {
+    return this.canvas
+  }
+
   attachToVideo(video: HTMLVideoElement, events: CursorEvent[]): HTMLCanvasElement {
     this.video = video
     this.events = events
