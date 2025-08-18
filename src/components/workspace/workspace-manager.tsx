@@ -259,17 +259,6 @@ export function WorkspaceManager() {
           // The preview area will handle updating the video position
           const mainCanvas = canvasRef.current
 
-          // Defer if canvas not ready
-          if (mainCanvas.width === 300 && mainCanvas.height === 150) {
-            cursorCanvasRef.current = cursorCanvas
-            setTimeout(() => {
-              if (canvasRef.current && canvasRef.current.width > 300) {
-                attachCursorCanvas()
-              }
-            }, 200)
-            return
-          }
-
           // Function to attach cursor canvas with proper dimensions
           const attachCursorCanvas = () => {
             const mainCanvas = canvasRef.current
@@ -323,6 +312,17 @@ export function WorkspaceManager() {
             if (cursorRendererRef.current) {
               cursorRendererRef.current.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
             }
+          }
+
+          // Defer if canvas not ready
+          if (mainCanvas.width === 300 && mainCanvas.height === 150) {
+            cursorCanvasRef.current = cursorCanvas
+            setTimeout(() => {
+              if (canvasRef.current && canvasRef.current.width > 300) {
+                attachCursorCanvas()
+              }
+            }, 200)
+            return
           }
           
           // Call the attachment function
