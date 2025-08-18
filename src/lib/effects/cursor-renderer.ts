@@ -122,6 +122,12 @@ export class CursorRenderer {
     return this.canvas
   }
 
+  // Update events after initialization
+  updateEvents(events: CursorEvent[]) {
+    this.events = events
+    this.preprocessEvents()
+  }
+
   attachToVideo(video: HTMLVideoElement, events: CursorEvent[]): HTMLCanvasElement {
     this.video = video
     this.events = events
@@ -341,7 +347,10 @@ export class CursorRenderer {
   }
 
   private getInterpolatedPosition(currentTime: number): CursorPoint | null {
-    if (this.sortedPoints.length === 0) return null
+    if (this.sortedPoints.length === 0) {
+      // Return a default center position when no events
+      return { x: 0.5, y: 0.5, timestamp: currentTime }
+    }
 
     // Binary search for the right time range
     let left = 0

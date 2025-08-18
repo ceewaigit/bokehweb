@@ -214,27 +214,29 @@ export function WorkspaceManager() {
         setCursorRenderer(null)
       }
 
-      // Initialize cursor renderer
-      if (clipEffects?.cursor?.visible && selectedRecording.metadata?.mouseEvents) {
+      // Initialize cursor renderer when cursor is visible
+      if (clipEffects?.cursor?.visible) {
         const newCursorRenderer = new CursorRenderer({
           size: clipEffects.cursor.size,
           clickColor: '#007AFF',
           smoothing: true
         })
 
-        // Convert metadata format for cursor renderer
+        // Convert metadata format for cursor renderer (if available)
         const videoWidth = videoRef.current.videoWidth || 1920
         const videoHeight = videoRef.current.videoHeight || 1080
 
-        const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
-          ...e,
-          // Pass raw coordinates - cursor renderer will handle scaling
-          mouseX: e.x,
-          mouseY: e.y,
-          eventType: 'mouse' as const,
-          screenWidth: e.screenWidth,
-          screenHeight: e.screenHeight
-        }))
+        // Use mouse events if available, otherwise empty array
+        const cursorEvents = selectedRecording.metadata?.mouseEvents ? 
+          selectedRecording.metadata.mouseEvents.map((e: any) => ({
+            ...e,
+            // Pass raw coordinates - cursor renderer will handle scaling
+            mouseX: e.x,
+            mouseY: e.y,
+            eventType: 'mouse' as const,
+            screenWidth: e.screenWidth,
+            screenHeight: e.screenHeight
+          })) : []
 
         // Pass video dimensions for proper normalization
         // The cursor positions are relative to the actual video content
@@ -340,6 +342,19 @@ export function WorkspaceManager() {
     if (selectedRecording && videoRef.current && videoRef.current.readyState >= 2) {
       // Don't force full init, only update what changed
       initializeEffects(false)
+
+      // Update cursor events if they become available later
+      if (cursorRenderer && selectedRecording.metadata?.mouseEvents && selectedRecording.metadata.mouseEvents.length > 0) {
+        const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
+          ...e,
+          mouseX: e.x,
+          mouseY: e.y,
+          eventType: 'mouse' as const,
+          screenWidth: e.screenWidth,
+          screenHeight: e.screenHeight
+        }))
+        cursorRenderer.updateEvents(cursorEvents)
+      }
 
       // Update video position if cursor renderer exists
       if (cursorRenderer && canvasRef.current && canvasRef.current.width > 300) {
