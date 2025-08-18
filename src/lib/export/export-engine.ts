@@ -308,8 +308,8 @@ export class ExportEngine {
       }
 
       if (enableBackground) {
-        // Use Screen Studio preset by default
-        const bgOptions = clipEffects?.background || {
+        // Build background options from clip effects
+        const bgBase = clipEffects?.background || {
           preset: 'screenStudio',
           type: 'gradient',
           gradient: {
@@ -318,8 +318,21 @@ export class ExportEngine {
             angle: 135
           },
           padding: 60,
-          borderRadius: 16,
-          shadow: {
+          borderRadius: 16
+        }
+        
+        // Merge video shadow settings if available
+        const videoShadow = clipEffects?.video?.shadow
+        const bgOptions = {
+          ...bgBase,
+          shadow: videoShadow ? {
+            enabled: videoShadow.enabled,
+            color: videoShadow.color || 'rgba(0, 0, 0, 0.5)',
+            blur: videoShadow.blur || 40,
+            offsetX: videoShadow.offset?.x || 0,
+            offsetY: videoShadow.offset?.y || 20
+          } : {
+            // Default shadow if no video shadow settings
             enabled: true,
             color: 'rgba(0, 0, 0, 0.5)',
             blur: 50,

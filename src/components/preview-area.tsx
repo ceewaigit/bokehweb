@@ -108,6 +108,9 @@ export function PreviewArea({
       padding: 80
     }
 
+    // Get video effects (shadow) from localEffects or clip
+    const videoEffects = effectsToUse?.video
+    
     const bgOptions = {
       type: clipBg.type === 'color' ? 'solid' :
         clipBg.type === 'none' ? 'solid' :
@@ -121,7 +124,16 @@ export function PreviewArea({
       image: clipBg.image,
       blur: clipBg.blur,
       padding: clipBg.padding || 80,
-      borderRadius: 16
+      borderRadius: 16,
+      // Include shadow settings from video effects
+      shadow: videoEffects?.shadow ? {
+        enabled: videoEffects.shadow.enabled,
+        color: videoEffects.shadow.color || 'rgba(0, 0, 0, 0.5)',
+        blur: videoEffects.shadow.blur || 40,
+        offsetX: videoEffects.shadow.offset?.x || 0,
+        offsetY: videoEffects.shadow.offset?.y || 20,
+        spread: 0
+      } : undefined
     }
 
     // Update background renderer options
@@ -302,7 +314,7 @@ export function PreviewArea({
         }
       }
     } catch (err) {
-      // Silent fail - keep last frame visible
+      console.error('Preview render error:', err)
     }
   }, [backgroundCanvasRef, renderBackgroundOnce]) // Only stable deps
 
@@ -323,6 +335,13 @@ export function PreviewArea({
     selectedClip?.effects?.background?.type,
     localEffects?.background?.padding,
     selectedClip?.effects?.background?.padding,
+    // Shadow effect dependencies
+    localEffects?.video?.shadow?.enabled,
+    selectedClip?.effects?.video?.shadow?.enabled,
+    localEffects?.video?.shadow?.blur,
+    selectedClip?.effects?.video?.shadow?.blur,
+    localEffects?.video?.shadow?.offset?.y,
+    selectedClip?.effects?.video?.shadow?.offset?.y,
     isVideoLoaded,
     renderFrame
   ])
@@ -440,10 +459,13 @@ export function PreviewArea({
       cancelAnimationFrame(animationFrameRef.current)
     }
 
+
     if (isPlaying) {
       const animate = () => {
         if (!isPlaying) return
+        
         renderFrame()
+        
         animationFrameRef.current = requestAnimationFrame(animate)
       }
       animationFrameRef.current = requestAnimationFrame(animate)
