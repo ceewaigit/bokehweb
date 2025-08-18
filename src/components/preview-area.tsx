@@ -225,11 +225,21 @@ export function PreviewArea({
         // Get the cursor canvas from the renderer
         const cursorCanvas = cursorRenderer.canvasElement
         
+        console.log('PreviewArea: Cursor canvas check', {
+          hasCursorRenderer: !!cursorRenderer,
+          hasCursorCanvas: !!cursorCanvas,
+          currentCanvasRef: !!cursorCanvasRef.current,
+          isSameCanvas: cursorCanvas === cursorCanvasRef.current,
+          parentElement: !!canvas.parentElement
+        })
+        
         // Attach cursor canvas if we have one and it's not already attached
         if (cursorCanvas && cursorCanvas !== cursorCanvasRef.current) {
           const parentElement = canvas.parentElement
           
           if (parentElement) {
+            console.log('PreviewArea: Attaching cursor canvas to DOM')
+            
             // Remove old cursor canvas if exists
             if (cursorCanvasRef.current && cursorCanvasRef.current.parentElement) {
               cursorCanvasRef.current.remove()
@@ -257,6 +267,7 @@ export function PreviewArea({
             cursorCanvasRef.current = cursorCanvas
             
             // Confirm canvas is attached and ready to render
+            console.log('PreviewArea: Calling confirmAttached on cursor renderer')
             cursorRenderer.confirmAttached()
           }
         } else if (cursorCanvasRef.current) {
@@ -267,6 +278,10 @@ export function PreviewArea({
             cursorCanvasRef.current.height = canvas.height
             cursorCanvasRef.current.style.width = canvas.style.width || ''
             cursorCanvasRef.current.style.height = canvas.style.height || ''
+          }
+          // Also confirm attached in case it was missed
+          if (cursorCanvas === cursorCanvasRef.current) {
+            cursorRenderer.confirmAttached()
           }
         }
       }

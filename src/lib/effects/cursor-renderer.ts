@@ -146,6 +146,12 @@ export class CursorRenderer {
     this.video = video
     this.events = events
 
+    console.log('CursorRenderer.attachToVideo called', {
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+      eventCount: events.length
+    })
+
     // Pre-process events into sorted points for efficient lookup
     this.preprocessEvents()
 
@@ -166,6 +172,12 @@ export class CursorRenderer {
       this.ctx.imageSmoothingEnabled = true
       this.ctx.imageSmoothingQuality = 'high'
     }
+
+    console.log('CursorRenderer: Canvas created', {
+      canvas: this.canvas,
+      ctx: !!this.ctx,
+      sortedPointsCount: this.sortedPoints.length
+    })
 
     // Start the animation loop
     this.startAnimationLoop()
