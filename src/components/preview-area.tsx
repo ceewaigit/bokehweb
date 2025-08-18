@@ -225,6 +225,13 @@ export function PreviewArea({
       // Store video position for cursor renderer
       videoPositionRef.current = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight }
 
+      console.log('PreviewArea render check:', {
+        hasCursorRenderer: !!cursorRenderer,
+        videoIsReady,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height
+      })
+
       // Update cursor renderer and manage cursor canvas
       if (cursorRenderer && videoIsReady) {
         cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
