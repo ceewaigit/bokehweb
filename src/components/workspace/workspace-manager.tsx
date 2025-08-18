@@ -113,7 +113,8 @@ export function WorkspaceManager() {
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null)
   const effectsEngineRef = useRef<EffectsEngine | null>(null)
   const cursorRendererRef = useRef<CursorRenderer | null>(null)
-  const backgroundRendererRef = useRef<BackgroundRenderer | null>(null)
+  // Initialize background renderer immediately
+  const backgroundRendererRef = useRef<BackgroundRenderer | null>(new BackgroundRenderer())
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const prevEffectsRef = useRef<ClipEffects | undefined>()
@@ -311,10 +312,7 @@ export function WorkspaceManager() {
       }
     }
 
-    // Initialize background renderer only if needed
-    if (!backgroundRendererRef.current || forceFullInit) {
-      backgroundRendererRef.current = new BackgroundRenderer()
-    }
+    // Background renderer is already initialized in useRef
 
     // Store current effects for next comparison
     prevEffectsRef.current = clipEffects
