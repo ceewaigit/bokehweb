@@ -51,82 +51,81 @@ export default function RecordingDock() {
     updateSettings
   } = useRecordingStore()
 
+  // Initialize styles and window size on mount
   useEffect(() => {
-    // Force transparent background for this component
-    document.body.style.backgroundColor = 'transparent'
+    // Force transparent background - simplified without redundancy
     document.body.style.background = 'transparent'
-    document.documentElement.style.backgroundColor = 'transparent'
+    document.body.style.margin = '0'
+    document.body.style.padding = '0'
     document.documentElement.style.background = 'transparent'
+    document.documentElement.style.margin = '0'
+    document.documentElement.style.padding = '0'
 
     // Remove any background classes
     document.body.classList.remove('bg-background')
     document.body.classList.add('bg-transparent')
     document.documentElement.classList.add('bg-transparent')
 
-    // Update recording settings with both audio and source selection
+    // Set initial window size
+    if (window.electronAPI?.resizeRecordButton) {
+      window.electronAPI.resizeRecordButton({ width: BASE_WIDTH, height: BASE_HEIGHT })
+    }
+  }, []) // Run once on mount
+
+  // Update recording settings when audio or source changes
+  useEffect(() => {
     updateSettings({
       audioInput: micEnabled ? 'system' : 'none',
       area: selectedSource
     })
   }, [micEnabled, selectedSource, updateSettings])
 
-  // Dynamically resize window when dropdown expands/collapses
+  // Resize window when dropdown expands/collapses
   useEffect(() => {
     if (window.electronAPI?.resizeRecordButton) {
       const targetHeight = isExpanded ? EXPANDED_HEIGHT : BASE_HEIGHT
-      window.electronAPI.resizeRecordButton({ height: targetHeight })
+      window.electronAPI.resizeRecordButton({ width: BASE_WIDTH, height: targetHeight })
     }
   }, [isExpanded])
 
-  const handleStartRecording = async () => {
+  const handleStartRecording = () => {
     // Show countdown
     let count = 3
     setCountdown(count)
 
     // Hide the dock during countdown for cleaner experience
-    await window.electronAPI?.minimizeRecordButton?.()
+    window.electronAPI?.minimizeRecordButton?.()
 
     // Show fullscreen countdown
-    if (window.electronAPI?.showCountdown) {
-      await window.electronAPI.showCountdown(count)
-    }
+    window.electronAPI?.showCountdown?.(count)
 
-    const countdownInterval = setInterval(async () => {
+    const countdownInterval = setInterval(() => {
       count--
 
       if (count <= 0) {
         clearInterval(countdownInterval)
         setCountdown(null)
 
-        // Hide countdown
-        if (window.electronAPI?.hideCountdown) {
-          await window.electronAPI.hideCountdown()
-        }
+        // Hide countdown and show dock again
+        window.electronAPI?.hideCountdown?.()
+        window.electronAPI?.showRecordButton?.()
 
-        // Show dock again and start recording
-        await window.electronAPI?.showRecordButton?.()
-
-        // Use the centralized recording hook
-        await startRecording()
+        // Start recording
+        startRecording()
         setIsExpanded(false)
       } else {
         setCountdown(count)
-
         // Update countdown display
-        if (window.electronAPI?.showCountdown) {
-          await window.electronAPI.showCountdown(count)
-        }
+        window.electronAPI?.showCountdown?.(count)
       }
     }, 1000)
   }
 
-  const handleStopRecording = async () => {
-    await stopRecording()
+  const handleStopRecording = () => {
+    stopRecording()
     // Open workspace after recording stops
-    await window.electronAPI?.openWorkspace?.()
+    window.electronAPI?.openWorkspace?.()
   }
-
-  // Duration is already in milliseconds, formatTime expects milliseconds
 
   return (
     <>
@@ -152,10 +151,10 @@ export default function RecordingDock() {
         )}
       </AnimatePresence>
 
-      {/* Main Dock */}
-      <div className="fixed inset-x-0 top-4 flex justify-center pointer-events-none z-[2147483647] bg-transparent">
+      {/* Main Dock - Positioned to fit window exactly */}
+      <div className="fixed inset-0 flex items-start justify-center pointer-events-none z-[2147483647] bg-transparent p-0 m-0">
         <motion.div
-          className="pointer-events-auto"
+          className="pointer-events-auto mt-4"
           initial={{ y: -100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
@@ -258,8 +257,8 @@ export default function RecordingDock() {
                     onClick={handleStartRecording}
                     title="Start Recording"
                   >
-                    <div className="absolute inset-0 rounded-full bg-red-400 animate-ping opacity-20" />
-                    <Circle size={20} className="text-white fill-white" />
+                    <div className="absolute inset-0 rounded-full bg-red-400 animate-pulse opacity-30 pointer-events-none scale-90" />
+                    <Circle size={20} className="text-white fill-white relative z-10" />
                   </button>
 
                   {/* Workspace Button */}

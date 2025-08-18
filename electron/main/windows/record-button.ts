@@ -30,8 +30,8 @@ export function createRecordButton(): BrowserWindow {
 
   const recordButton = new BrowserWindow({
     width: 700,
-    height: 100,
-    x: Math.floor(display.workAreaSize.width / 2 - 300),
+    height: 150, // Match BASE_HEIGHT in component
+    x: Math.floor(display.workAreaSize.width / 2 - 350), // Center based on 700px width
     y: 20,
     frame: false,
     transparent: true,

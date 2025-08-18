@@ -10,14 +10,6 @@ export interface BackgroundOptions {
   blur?: number
   padding?: number
   borderRadius?: number
-  shadow?: {
-    enabled: boolean
-    color: string
-    blur: number
-    offsetX: number
-    offsetY: number
-    spread?: number
-  }
   // Screen Studio-like presets
   preset?: 'screenStudio' | 'minimal' | 'colorful' | 'dark' | 'light'
 }
@@ -37,28 +29,13 @@ export class BackgroundRenderer {
         angle: 135
       },
       padding: 120,
-      borderRadius: 16,
-      shadow: {
-        enabled: true,
-        color: 'rgba(0, 0, 0, 0.5)',
-        blur: 50,
-        offsetX: 0,
-        offsetY: 25,
-        spread: -10
-      }
+      borderRadius: 16
     },
     minimal: {
       type: 'solid' as const,
       color: '#FAFAFA',
       padding: 40,
-      borderRadius: 12,
-      shadow: {
-        enabled: true,
-        color: 'rgba(0, 0, 0, 0.15)',
-        blur: 30,
-        offsetX: 0,
-        offsetY: 10
-      }
+      borderRadius: 12
     },
     colorful: {
       type: 'gradient' as const,
@@ -68,14 +45,7 @@ export class BackgroundRenderer {
         angle: 45
       },
       padding: 50,
-      borderRadius: 20,
-      shadow: {
-        enabled: true,
-        color: 'rgba(102, 126, 234, 0.4)',
-        blur: 60,
-        offsetX: 0,
-        offsetY: 30
-      }
+      borderRadius: 20
     },
     dark: {
       type: 'gradient' as const,
@@ -85,14 +55,7 @@ export class BackgroundRenderer {
         angle: 0
       },
       padding: 45,
-      borderRadius: 14,
-      shadow: {
-        enabled: true,
-        color: 'rgba(0, 0, 0, 0.8)',
-        blur: 40,
-        offsetX: 0,
-        offsetY: 20
-      }
+      borderRadius: 14
     },
     light: {
       type: 'gradient' as const,
@@ -102,14 +65,7 @@ export class BackgroundRenderer {
         angle: 180
       },
       padding: 50,
-      borderRadius: 16,
-      shadow: {
-        enabled: true,
-        color: 'rgba(0, 0, 0, 0.1)',
-        blur: 25,
-        offsetX: 0,
-        offsetY: 15
-      }
+      borderRadius: 16
     }
   }
 
@@ -255,44 +211,6 @@ export class BackgroundRenderer {
       const frameY = videoY ?? padding
       const frameWidth = videoWidth ?? (width - padding * 2)
       const frameHeight = videoHeight ?? (height - padding * 2)
-
-      // Draw shadow first (behind the video)
-      if (this.options.shadow?.enabled) {
-        ctx.save()
-
-        // Create shadow by drawing a blurred shape behind the video
-        const shadowOffsetX = this.options.shadow.offsetX || 0
-        const shadowOffsetY = this.options.shadow.offsetY || 0
-        const shadowBlur = this.options.shadow.blur || 40
-        const shadowColor = this.options.shadow.color || 'rgba(0, 0, 0, 0.5)'
-
-        // Draw shadow shape
-        ctx.filter = `blur(${shadowBlur}px)`
-        ctx.fillStyle = shadowColor
-
-        if (this.options.borderRadius && this.options.borderRadius > 0) {
-          // Draw rounded rectangle for shadow
-          this.roundRect(
-            ctx,
-            frameX + shadowOffsetX,
-            frameY + shadowOffsetY,
-            frameWidth,
-            frameHeight,
-            this.options.borderRadius
-          )
-          ctx.fill()
-        } else {
-          // Draw regular rectangle for shadow
-          ctx.fillRect(
-            frameX + shadowOffsetX,
-            frameY + shadowOffsetY,
-            frameWidth,
-            frameHeight
-          )
-        }
-
-        ctx.restore()
-      }
 
       // Draw the video frame with clipping for rounded corners
       ctx.save()

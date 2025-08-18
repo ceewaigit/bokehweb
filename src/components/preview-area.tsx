@@ -40,10 +40,10 @@ export function PreviewArea({
   // Canvas for full composition (background + video) - used for zoom effects
   const compositionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const compositionCtxRef = useRef<CanvasRenderingContext2D | null>(null)
-  
+
   // Cache the main canvas context to avoid recreating it
   const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null)
-  
+
   // Track cursor canvas element
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
@@ -113,9 +113,9 @@ export function PreviewArea({
       padding: 80
     }
 
-    // Get video effects (shadow) from localEffects or clip
+    // Get video effects (shadow and corner radius) from localEffects or clip
     const videoEffects = effectsToUse?.video
-    
+
     const bgOptions = {
       type: clipBg.type === 'color' ? 'solid' :
         clipBg.type === 'none' ? 'solid' :
@@ -129,16 +129,7 @@ export function PreviewArea({
       image: clipBg.image,
       blur: clipBg.blur,
       padding: clipBg.padding || 80,
-      borderRadius: 16,
-      // Include shadow settings from video effects
-      shadow: videoEffects?.shadow ? {
-        enabled: videoEffects.shadow.enabled,
-        color: videoEffects.shadow.color || 'rgba(0, 0, 0, 0.5)',
-        blur: videoEffects.shadow.blur || 40,
-        offsetX: videoEffects.shadow.offset?.x || 0,
-        offsetY: videoEffects.shadow.offset?.y || 20,
-        spread: 0
-      } : undefined
+      borderRadius: videoEffects?.cornerRadius || 16  // Use video corner radius
     }
 
     // Update background renderer options
@@ -191,12 +182,15 @@ export function PreviewArea({
       // Use localEffects if available, otherwise use clip effects
       const effectsToUse = currentLocalEffects || currentClip?.effects
 
+      // Get video effects for use throughout rendering
+      const videoEffects = effectsToUse?.video
+
       // Calculate video dimensions with padding
       const padding = effectsToUse?.background?.padding || 80
 
       // Check if video has valid dimensions
       const videoIsReady = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0
-      
+
       const videoAspect = videoIsReady ? (video.videoWidth / video.videoHeight) : (canvas.width / canvas.height)
       const availableWidth = canvas.width - (padding * 2)
       const availableHeight = canvas.height - (padding * 2)
@@ -224,22 +218,22 @@ export function PreviewArea({
       const currentCursorRenderer = latestCursorRendererRef.current
       if (currentCursorRenderer && videoIsReady) {
         currentCursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
-        
+
         // Get the cursor canvas from the renderer
         const cursorCanvas = currentCursorRenderer.canvasElement
-        
-        
+
+
         // Attach cursor canvas if we have one and it's not already attached
         if (cursorCanvas && cursorCanvas !== cursorCanvasRef.current) {
           const parentElement = canvas.parentElement
-          
+
           if (parentElement) {
-            
+
             // Remove old cursor canvas if exists
             if (cursorCanvasRef.current && cursorCanvasRef.current.parentElement) {
               cursorCanvasRef.current.remove()
             }
-            
+
             // Set up the cursor canvas with proper dimensions and positioning
             cursorCanvas.width = canvas.width
             cursorCanvas.height = canvas.height
@@ -253,21 +247,21 @@ export function PreviewArea({
             cursorCanvas.style.objectFit = 'contain'
             cursorCanvas.style.pointerEvents = 'none'
             cursorCanvas.style.zIndex = '100'
-            
+
             // Ensure parent has relative positioning
             parentElement.style.position = 'relative'
-            
+
             // Append cursor canvas to DOM
             parentElement.appendChild(cursorCanvas)
             cursorCanvasRef.current = cursorCanvas
-            
+
             // Confirm canvas is attached and ready to render
             currentCursorRenderer.confirmAttached()
           }
         } else if (cursorCanvasRef.current) {
           // Update dimensions if canvas already attached
-          if (cursorCanvasRef.current.width !== canvas.width || 
-              cursorCanvasRef.current.height !== canvas.height) {
+          if (cursorCanvasRef.current.width !== canvas.width ||
+            cursorCanvasRef.current.height !== canvas.height) {
             cursorCanvasRef.current.width = canvas.width
             cursorCanvasRef.current.height = canvas.height
             cursorCanvasRef.current.style.width = canvas.style.width || ''
@@ -289,7 +283,7 @@ export function PreviewArea({
       if (videoIsReady && currentBackgroundRenderer && video.src && !video.error) {
         // Check if we have zoom effects
         const hasZoomEffect = effectsToUse?.zoom?.enabled && currentEffectsEngine
-        
+
         if (hasZoomEffect && currentEffectsEngine) {
           // Create or reuse composition canvas for full scene (background + video)
           if (!compositionCanvasRef.current ||
@@ -311,7 +305,7 @@ export function PreviewArea({
           compCtx.globalAlpha = 1
           compCtx.globalCompositeOperation = 'source-over'
           compCtx.setTransform(1, 0, 0, 1, 0, 0)
-          
+
           // Only update composition if video is ready
           if (video.readyState >= 2) {
             // Draw full composition: background first
@@ -319,11 +313,28 @@ export function PreviewArea({
             if (bgCanvas && bgCanvas.width === compCanvas.width && bgCanvas.height === compCanvas.height) {
               compCtx.drawImage(bgCanvas, 0, 0)
             }
-            
+
+            // Draw shadow if enabled
+            if (videoEffects?.shadow?.enabled) {
+              compCtx.save()
+              compCtx.filter = `blur(${videoEffects.shadow.blur}px)`
+              compCtx.fillStyle = videoEffects.shadow.color
+              compCtx.beginPath()
+              compCtx.roundRect(
+                offsetX + videoEffects.shadow.offset.x,
+                offsetY + videoEffects.shadow.offset.y,
+                drawWidth,
+                drawHeight,
+                videoEffects.cornerRadius
+              )
+              compCtx.fill()
+              compCtx.restore()
+            }
+
             // Draw video on top of background with border radius
             compCtx.save()
             compCtx.beginPath()
-            compCtx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
+            compCtx.roundRect(offsetX, offsetY, drawWidth, drawHeight, videoEffects?.cornerRadius || 16)
             compCtx.clip()
             compCtx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
             compCtx.restore()
@@ -331,7 +342,7 @@ export function PreviewArea({
 
           // Now apply zoom to the entire composition
           const clipRelativeTime = currentTimeMs - (currentClip?.sourceIn || 0)
-          
+
           // Get interpolated mouse position for smart panning
           const mousePos = currentEffectsEngine.getMousePositionAtTime(clipRelativeTime)
           const zoomState = currentEffectsEngine.getZoomState(clipRelativeTime, mousePos)
@@ -368,15 +379,32 @@ export function PreviewArea({
           // No zoom effects - use original rendering path
           // Clear canvas and draw background
           ctx.clearRect(0, 0, canvas.width, canvas.height)
-          
+
           if (bgCanvas && bgCanvas.width === canvas.width && bgCanvas.height === canvas.height) {
             ctx.drawImage(bgCanvas, 0, 0)
           }
-          
+
+          // Draw shadow if enabled
+          if (videoEffects?.shadow?.enabled) {
+            ctx.save()
+            ctx.filter = `blur(${videoEffects.shadow.blur}px)`
+            ctx.fillStyle = videoEffects.shadow.color
+            ctx.beginPath()
+            ctx.roundRect(
+              offsetX + videoEffects.shadow.offset.x,
+              offsetY + videoEffects.shadow.offset.y,
+              drawWidth,
+              drawHeight,
+              videoEffects.cornerRadius
+            )
+            ctx.fill()
+            ctx.restore()
+          }
+
           // Draw video directly with border radius
           ctx.save()
           ctx.beginPath()
-          ctx.roundRect(offsetX, offsetY, drawWidth, drawHeight, 16)
+          ctx.roundRect(offsetX, offsetY, drawWidth, drawHeight, videoEffects?.cornerRadius || 16)
           ctx.clip()
           ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight)
           ctx.restore()
@@ -411,6 +439,11 @@ export function PreviewArea({
     selectedClip?.effects?.video?.shadow?.blur,
     localEffects?.video?.shadow?.offset?.y,
     selectedClip?.effects?.video?.shadow?.offset?.y,
+    localEffects?.video?.shadow?.offset?.x,
+    selectedClip?.effects?.video?.shadow?.offset?.x,
+    // Corner radius dependencies
+    localEffects?.video?.cornerRadius,
+    selectedClip?.effects?.video?.cornerRadius,
     isVideoLoaded,
     renderFrame
   ])
@@ -470,17 +503,17 @@ export function PreviewArea({
           // Update canvas dimensions
           canvas.width = canvasWidth
           canvas.height = canvasHeight
-          
+
           // Reset cached context when canvas size changes
           canvasCtxRef.current = null
-          
+
           // Mark as loaded - effects are initialized by parent
           setIsVideoLoaded(true)
           setIsLoading(false)
 
           // Render initial background and frame immediately
           backgroundNeedsUpdate.current = true
-          
+
           // Force immediate render
           requestAnimationFrame(() => {
             renderFrame()
@@ -535,9 +568,9 @@ export function PreviewArea({
     if (isPlaying) {
       const animate = () => {
         if (!isPlaying) return
-        
+
         renderFrame()
-        
+
         animationFrameRef.current = requestAnimationFrame(animate)
       }
       animationFrameRef.current = requestAnimationFrame(animate)
@@ -553,7 +586,7 @@ export function PreviewArea({
       }
     }
   }, [isPlaying, isVideoLoaded, renderFrame])
-  
+
   // Force render when video becomes loaded
   useEffect(() => {
     if (isVideoLoaded) {
@@ -627,7 +660,7 @@ export function PreviewArea({
       // Clean up composition canvas
       compositionCanvasRef.current = null
       compositionCtxRef.current = null
-      
+
       // Clean up cursor canvas
       if (cursorCanvasRef.current && cursorCanvasRef.current.parentElement) {
         cursorCanvasRef.current.remove()
