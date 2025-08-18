@@ -42,6 +42,10 @@ export class CursorRenderer {
     opacity: number
     startTime: number
   }> = new Map()
+  
+  // Base cursor sizes for normalization (standard cursor is ~24x24)
+  private readonly BASE_CURSOR_SIZE = 24
+  private cursorScaleFactors: Map<CursorType, number> = new Map()
 
   private currentPosition = { x: 0, y: 0 }
   private velocity = { x: 0, y: 0 }
@@ -65,7 +69,7 @@ export class CursorRenderer {
 
   constructor(private options: CursorOptions = {}) {
     this.options = {
-      size: 0.5,  // Reduced to 0.5 for proper cursor size
+      size: 1.0,  // Default size multiplier (1.0 = normal size)
       color: '#000000',
       clickColor: '#007AFF',
       smoothing: true,
@@ -75,8 +79,34 @@ export class CursorRenderer {
       ...options
     }
 
+    // Initialize cursor scale factors based on actual image sizes
+    this.initializeCursorScaleFactors()
+    
     // Preload all cursor images
     this.preloadCursorImages()
+  }
+
+  private initializeCursorScaleFactors() {
+    // Define scale factors to normalize cursor sizes
+    // These values normalize each cursor to approximately 24x24 base size
+    this.cursorScaleFactors.set(CursorType.ARROW, 0.14) // 170x230 -> ~24x32
+    this.cursorScaleFactors.set(CursorType.IBEAM, 0.27) // 90x180 -> ~24x48
+    this.cursorScaleFactors.set(CursorType.POINTING_HAND, 0.375) // 64x64 -> 24x24
+    this.cursorScaleFactors.set(CursorType.CLOSED_HAND, 0.375) // 64x64 -> 24x24
+    this.cursorScaleFactors.set(CursorType.OPEN_HAND, 0.375) // 64x64 -> 24x24
+    this.cursorScaleFactors.set(CursorType.CROSSHAIR, 0.5) // 48x48 -> 24x24
+    this.cursorScaleFactors.set(CursorType.RESIZE_LEFT, 0.5) // 48x48 -> 24x24
+    this.cursorScaleFactors.set(CursorType.RESIZE_RIGHT, 0.5) // 48x48 -> 24x24
+    this.cursorScaleFactors.set(CursorType.RESIZE_UP, 0.5) // 48x48 -> 24x24
+    this.cursorScaleFactors.set(CursorType.RESIZE_DOWN, 0.5) // 48x48 -> 24x24
+    this.cursorScaleFactors.set(CursorType.RESIZE_LEFT_RIGHT, 0.5) // 48x48 -> 24x24
+    this.cursorScaleFactors.set(CursorType.RESIZE_UP_DOWN, 0.5) // 48x48 -> 24x24
+    this.cursorScaleFactors.set(CursorType.CONTEXTUAL_MENU, 0.43) // 56x80 -> ~24x34
+    this.cursorScaleFactors.set(CursorType.DISAPPEARING_ITEM, 0.43) // 56x80 -> ~24x34
+    this.cursorScaleFactors.set(CursorType.DRAG_COPY, 0.43) // 56x80 -> ~24x34
+    this.cursorScaleFactors.set(CursorType.DRAG_LINK, 0.75) // 32x42 -> ~24x32
+    this.cursorScaleFactors.set(CursorType.OPERATION_NOT_ALLOWED, 0.43) // 56x80 -> ~24x34
+    this.cursorScaleFactors.set(CursorType.IBEAM_VERTICAL, 0.67) // 36x32 -> ~24x21
   }
 
   private preloadCursorImages() {
@@ -424,11 +454,12 @@ export class CursorRenderer {
       
       if (this.currentCursorImage) {
         const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
-        const scale = this.options.size || 1.0
-        const hotspotX = hotspot.x * scale
-        const hotspotY = hotspot.y * scale
-        const cursorWidth = this.currentCursorImage.width * scale
-        const cursorHeight = this.currentCursorImage.height * scale
+        const baseScale = this.cursorScaleFactors.get(this.currentCursorType) || 0.5
+        const finalScale = baseScale * (this.options.size || 1.0)
+        const hotspotX = hotspot.x * finalScale
+        const hotspotY = hotspot.y * finalScale
+        const cursorWidth = this.currentCursorImage.width * finalScale
+        const cursorHeight = this.currentCursorImage.height * finalScale
         
         this.ctx!.drawImage(
           this.currentCursorImage,
@@ -466,11 +497,16 @@ export class CursorRenderer {
     
     // Get proper hotspot for current cursor type
     const hotspot = CURSOR_HOTSPOTS[this.currentCursorType]
-    const scale = this.options.size || 1.0
     
-    // Scale hotspot based on cursor size
-    const hotspotX = hotspot.x * scale
-    const hotspotY = hotspot.y * scale
+    // Get base scale factor for this cursor type to normalize its size
+    const baseScale = this.cursorScaleFactors.get(this.currentCursorType) || 0.5
+    
+    // Apply user size option on top of base normalization
+    const finalScale = baseScale * (this.options.size || 1.0)
+    
+    // Scale hotspot based on final cursor size
+    const hotspotX = hotspot.x * finalScale
+    const hotspotY = hotspot.y * finalScale
     
     // Constrain cursor position to video bounds if video offset is set
     let renderX = this.currentPosition.x
@@ -489,8 +525,8 @@ export class CursorRenderer {
     this.ctx.imageSmoothingEnabled = true
     
     // Draw cursor image with proper scaling
-    const cursorWidth = this.currentCursorImage.width * scale
-    const cursorHeight = this.currentCursorImage.height * scale
+    const cursorWidth = this.currentCursorImage.width * finalScale
+    const cursorHeight = this.currentCursorImage.height * finalScale
     this.ctx.drawImage(this.currentCursorImage, x, y, cursorWidth, cursorHeight)
     
     this.ctx.restore()
