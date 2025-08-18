@@ -30,10 +30,6 @@ export class EffectsEngine {
   private width = 1920
   private height = 1080
 
-  // Simple camera position for smooth tracking
-  private cameraPosition = { x: 0.5, y: 0.5 }
-  private readonly CAMERA_SMOOTHING = 0.15
-
   // Activity detection parameters (mutable for regeneration)
   private idleThresholdMs = 1500 // Time before considering mouse idle
   private activityThreshold = 0.05 // Normalized distance to trigger activity
@@ -152,7 +148,6 @@ export class EffectsEngine {
 
     const elapsed = timestamp - activeZoom.startTime
     const effectDuration = activeZoom.endTime - activeZoom.startTime
-    const mousePos = this.getMousePosition(timestamp)
 
     let x: number, y: number, scale: number
 
@@ -164,8 +159,6 @@ export class EffectsEngine {
       scale = 1.0 + (activeZoom.scale - 1.0) * eased
       x = 0.5 + (activeZoom.targetX - 0.5) * eased
       y = 0.5 + (activeZoom.targetY - 0.5) * eased
-
-      this.cameraPosition = { x, y }
     }
     // Outro phase - zoom out
     else if (elapsed > effectDuration - activeZoom.outroMs) {
@@ -174,21 +167,14 @@ export class EffectsEngine {
       const eased = easeInQuad(progress)
 
       scale = activeZoom.scale - (activeZoom.scale - 1.0) * eased
-      x = this.cameraPosition.x + (0.5 - this.cameraPosition.x) * eased
-      y = this.cameraPosition.y + (0.5 - this.cameraPosition.y) * eased
-
-      this.cameraPosition = { x, y }
+      x = activeZoom.targetX + (0.5 - activeZoom.targetX) * eased
+      y = activeZoom.targetY + (0.5 - activeZoom.targetY) * eased
     }
-    // Tracking phase - follow mouse smoothly
+    // Hold phase - stay fixed on target area
     else {
       scale = activeZoom.scale
-
-      // Smooth camera tracking
-      this.cameraPosition.x += (mousePos.x - this.cameraPosition.x) * this.CAMERA_SMOOTHING
-      this.cameraPosition.y += (mousePos.y - this.cameraPosition.y) * this.CAMERA_SMOOTHING
-
-      x = this.cameraPosition.x
-      y = this.cameraPosition.y
+      x = activeZoom.targetX
+      y = activeZoom.targetY
     }
 
     return { x, y, scale }
@@ -404,9 +390,6 @@ export class EffectsEngine {
   setZoomEffects(zoomBlocks: any[]) {
     // Remove all existing zoom effects
     this.effects = this.effects.filter(e => e.type !== 'zoom')
-
-    // Reset camera position when changing zoom effects
-    this.cameraPosition = { x: 0.5, y: 0.5 }
 
     // Add new zoom effects from blocks
     if (zoomBlocks && zoomBlocks.length > 0) {
