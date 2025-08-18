@@ -223,8 +223,8 @@ export function WorkspaceManager() {
         })
 
         // Convert metadata format for cursor renderer
-        const videoWidth = videoRef.current.videoWidth
-        const videoHeight = videoRef.current.videoHeight
+        const videoWidth = videoRef.current.videoWidth || 1920
+        const videoHeight = videoRef.current.videoHeight || 1080
 
         const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
           ...e,

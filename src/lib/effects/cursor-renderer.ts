@@ -174,8 +174,8 @@ export class CursorRenderer {
       .map((event, index) => {
         // Use recording dimensions directly for normalization
         // The mouse coordinates should already be in the correct coordinate space
-        const x = event.mouseX / this.recordingWidth
-        const y = event.mouseY / this.recordingHeight
+        const x = this.recordingWidth > 0 ? event.mouseX / this.recordingWidth : 0
+        const y = this.recordingHeight > 0 ? event.mouseY / this.recordingHeight : 0
 
         const point: CursorPoint = {
           x,
@@ -186,8 +186,8 @@ export class CursorRenderer {
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevX = prevEvent.mouseX / this.recordingWidth
-          const prevY = prevEvent.mouseY / this.recordingHeight
+          const prevX = this.recordingWidth > 0 ? prevEvent.mouseX / this.recordingWidth : 0
+          const prevY = this.recordingHeight > 0 ? prevEvent.mouseY / this.recordingHeight : 0
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {

@@ -43,9 +43,6 @@ export function PreviewArea({
   
   // Cache the main canvas context to avoid recreating it
   const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null)
-
-  // Track video position for cursor alignment
-  const videoPositionRef = useRef({ x: 0, y: 0, width: 0, height: 0 })
   
   // Track cursor canvas element
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -63,7 +60,7 @@ export function PreviewArea({
   const latestEffectsEngineRef = useRef(effectsEngine)
   const latestBackgroundRendererRef = useRef(backgroundRenderer)
   const latestLocalEffectsRef = useRef(localEffects)
-  const lastBackgroundOptionsRef = useRef<string>("")
+  const lastBackgroundEffectsRef = useRef<string>("")
   const backgroundNeedsUpdate = useRef(true)
 
   // Update refs when props change
@@ -150,7 +147,6 @@ export function PreviewArea({
 
     // Mark background as updated
     backgroundNeedsUpdate.current = false
-    lastBackgroundOptionsRef.current = JSON.stringify(bgOptions)
   }, [backgroundCanvasRef, canvasRef])
 
   // Main rendering function - now stable, doesn't depend on changing props
@@ -198,10 +194,8 @@ export function PreviewArea({
 
       // Check if video has valid dimensions
       const videoIsReady = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0
-      const videoWidth = videoIsReady ? video.videoWidth : canvas.width
-      const videoHeight = videoIsReady ? video.videoHeight : canvas.height
-
-      const videoAspect = videoWidth / videoHeight
+      
+      const videoAspect = videoIsReady ? (video.videoWidth / video.videoHeight) : (canvas.width / canvas.height)
       const availableWidth = canvas.width - (padding * 2)
       const availableHeight = canvas.height - (padding * 2)
       const availableAspect = availableWidth / availableHeight
@@ -222,15 +216,7 @@ export function PreviewArea({
         offsetY = padding
       }
 
-      // Store video position for cursor renderer
-      videoPositionRef.current = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight }
 
-      console.log('PreviewArea render check:', {
-        hasCursorRenderer: !!cursorRenderer,
-        videoIsReady,
-        canvasWidth: canvas.width,
-        canvasHeight: canvas.height
-      })
 
       // Update cursor renderer and manage cursor canvas
       if (cursorRenderer && videoIsReady) {
@@ -238,17 +224,10 @@ export function PreviewArea({
         
         // Get the cursor canvas from the renderer
         const cursorCanvas = cursorRenderer.canvasElement
-        console.log('Cursor canvas check:', { 
-          hasCursorRenderer: !!cursorRenderer, 
-          hasCursorCanvas: !!cursorCanvas,
-          currentRef: !!cursorCanvasRef.current,
-          isSame: cursorCanvas === cursorCanvasRef.current
-        })
         
         // Attach cursor canvas if we have one and it's not already attached
         if (cursorCanvas && cursorCanvas !== cursorCanvasRef.current) {
           const parentElement = canvas.parentElement
-          console.log('Parent element:', !!parentElement, 'Attaching cursor canvas')
           
           if (parentElement) {
             // Remove old cursor canvas if exists
@@ -291,9 +270,9 @@ export function PreviewArea({
 
       // Check if background needs update by comparing effects
       const effectsString = JSON.stringify(effectsToUse?.background)
-      if (effectsString !== lastBackgroundOptionsRef.current) {
+      if (effectsString !== lastBackgroundEffectsRef.current) {
         backgroundNeedsUpdate.current = true
-        lastBackgroundOptionsRef.current = effectsString
+        lastBackgroundEffectsRef.current = effectsString
         renderBackgroundOnce()
       }
 
