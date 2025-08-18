@@ -225,14 +225,12 @@ export function WorkspaceManager() {
         // Use mouse events if available, otherwise empty array
         const cursorEvents = selectedRecording.metadata?.mouseEvents ? 
           selectedRecording.metadata.mouseEvents.map((e: any) => ({
-            ...e,
-            // Pass raw coordinates - cursor renderer will handle scaling
+            timestamp: e.timestamp,
             mouseX: e.x,
             mouseY: e.y,
             eventType: 'mouse' as const,
-            screenWidth: e.screenWidth,
-            screenHeight: e.screenHeight,
-            scaleFactor: e.scaleFactor // Pass scale factor for proper coordinate conversion
+            cursorType: e.cursorType,
+            scaleFactor: e.scaleFactor
           })) : []
         
         // Set video dimensions from recording (same as effects-engine)
@@ -345,13 +343,12 @@ export function WorkspaceManager() {
       // Update cursor events if they become available later
       if (cursorRenderer && selectedRecording.metadata?.mouseEvents && selectedRecording.metadata.mouseEvents.length > 0) {
         const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
-          ...e,
+          timestamp: e.timestamp,
           mouseX: e.x,
           mouseY: e.y,
           eventType: 'mouse' as const,
-          screenWidth: e.screenWidth,
-          screenHeight: e.screenHeight,
-          scaleFactor: e.scaleFactor // Include scale factor
+          cursorType: e.cursorType,
+          scaleFactor: e.scaleFactor
         }))
         cursorRenderer.updateEvents(cursorEvents)
       }
@@ -682,8 +679,8 @@ export function WorkspaceManager() {
   return (
     <>
       <div className="fixed inset-0 flex flex-col bg-background" style={{ width: '100vw', height: '100vh' }}>
-        {/* Top Toolbar - 8vh height */}
-        <div className="flex-shrink-0 border-b bg-card/50 overflow-hidden" style={{ height: '8vh', minHeight: '56px' }}>
+        {/* Top Toolbar - Compact with macOS traffic light padding */}
+        <div className="flex-shrink-0 border-b bg-card/50 overflow-hidden" style={{ height: '48px', paddingLeft: '80px' }}>
           <Toolbar
             project={currentProject}
             onToggleProperties={handleToggleProperties}
@@ -712,12 +709,12 @@ export function WorkspaceManager() {
           />
         </div>
 
-        {/* Main Content Area - 92vh height */}
-        <div className="flex" style={{ height: '92vh' }}>
+        {/* Main Content Area - Use remaining height */}
+        <div className="flex" style={{ height: 'calc(100vh - 48px)' }}>
           {/* Main Editor Section */}
           <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
-            {/* Preview Area - 55vh height */}
-            <div className="bg-background border-b overflow-hidden" style={{ height: '55vh' }}>
+            {/* Preview Area - 60% of remaining height */}
+            <div className="bg-background border-b overflow-hidden" style={{ height: '60%' }}>
               <PreviewArea
                 videoRef={videoRef}
                 canvasRef={canvasRef}
@@ -733,8 +730,8 @@ export function WorkspaceManager() {
               />
             </div>
 
-            {/* Timeline Section - 37vh height */}
-            <div className="bg-card/50 overflow-hidden" style={{ height: '37vh' }}>
+            {/* Timeline Section - 40% of remaining height */}
+            <div className="bg-card/50 overflow-hidden" style={{ height: '40%' }}>
               <TimelineCanvas
                 className="h-full w-full"
                 currentProject={currentProject}
@@ -756,7 +753,7 @@ export function WorkspaceManager() {
           {isPropertiesOpen && (
             <div
               className="bg-card border-l overflow-hidden"
-              style={{ width: `${propertiesPanelWidth}px`, height: '92vh' }}
+              style={{ width: `${propertiesPanelWidth}px`, height: 'calc(100vh - 48px)' }}
             >
               <EffectsSidebar
                 className="h-full w-full"

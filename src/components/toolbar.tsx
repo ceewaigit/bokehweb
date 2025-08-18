@@ -55,27 +55,27 @@ export function Toolbar({
   }
 
   return (
-    <div className="h-full w-full flex items-center px-4 gap-2 overflow-hidden">
+    <div className="h-full w-full flex items-center px-2 gap-1 overflow-hidden">
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        {/* Logo/Brand */}
-        <div className="flex items-center px-2 py-1">
-          <FileVideo className="w-5 h-5 text-primary mr-2 flex-shrink-0" />
-          <span className="font-semibold text-sm bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent whitespace-nowrap">
+        {/* Logo/Brand - More compact */}
+        <div className="flex items-center px-1">
+          <FileVideo className="w-4 h-4 text-primary mr-1.5 flex-shrink-0" />
+          <span className="font-semibold text-xs bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent whitespace-nowrap">
             Screen Studio
           </span>
         </div>
 
-        <Separator orientation="vertical" className="h-8" />
+        <Separator orientation="vertical" className="h-6" />
 
-        {/* Project Actions */}
+        {/* Project Actions - Compact */}
         <Button
           variant="ghost"
           size="sm"
           onClick={onNewProject}
-          className="text-xs"
+          className="text-xs h-8 px-2"
         >
-          <Folder className="w-4 h-4 mr-1 flex-shrink-0" />
+          <Folder className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">New</span>
         </Button>
 
@@ -104,9 +104,9 @@ export function Toolbar({
               console.log('File dialog not available in browser')
             }
           }}
-          className="text-xs"
+          className="text-xs h-8 px-2"
         >
-          <FolderOpen className="w-4 h-4 mr-1 flex-shrink-0" />
+          <FolderOpen className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">Open</span>
         </Button>
 
@@ -116,11 +116,11 @@ export function Toolbar({
           onClick={onSaveProject}
           disabled={!project}
           className={cn(
-            "text-xs",
+            "text-xs h-8 px-2",
             hasUnsavedChanges && "animate-pulse"
           )}
         >
-          <Save className="w-4 h-4 mr-1 flex-shrink-0" />
+          <Save className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">
             {hasUnsavedChanges ? "Save Changes" : "Save"}
           </span>
@@ -174,15 +174,15 @@ export function Toolbar({
             variant="ghost"
             size="icon"
             className={cn(
-              "w-8 h-8",
+              "w-7 h-7",
               settings.audioInput === 'system' || settings.audioInput === 'both'
                 ? "text-primary"
                 : "text-muted-foreground"
             )}
           >
             {settings.audioInput === 'none' ?
-              <VolumeX className="w-4 h-4" /> :
-              <Volume2 className="w-4 h-4" />
+              <VolumeX className="w-3.5 h-3.5" /> :
+              <Volume2 className="w-3.5 h-3.5" />
             }
           </Button>
 
@@ -190,20 +190,20 @@ export function Toolbar({
             variant="ghost"
             size="icon"
             className={cn(
-              "w-8 h-8",
+              "w-7 h-7",
               settings.audioInput === 'microphone' || settings.audioInput === 'both'
                 ? "text-primary"
                 : "text-muted-foreground"
             )}
           >
             {settings.audioInput === 'microphone' || settings.audioInput === 'both' ?
-              <Mic className="w-4 h-4" /> :
-              <MicOff className="w-4 h-4" />
+              <Mic className="w-3.5 h-3.5" /> :
+              <MicOff className="w-3.5 h-3.5" />
             }
           </Button>
         </div>
 
-        <Separator orientation="vertical" className="h-8" />
+        <Separator orientation="vertical" className="h-6" />
 
         {/* Export Button */}
         <Button
@@ -211,9 +211,9 @@ export function Toolbar({
           size="sm"
           disabled={!project || !project.timeline.tracks[0]?.clips?.length}
           onClick={onExport}
-          className="text-xs font-medium"
+          className="text-xs font-medium h-8 px-2"
         >
-          <Download className="w-4 h-4 mr-1 flex-shrink-0" />
+          <Download className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">Export</span>
         </Button>
 
@@ -222,11 +222,11 @@ export function Toolbar({
           variant="ghost"
           size="icon"
           onClick={handleToggleProperties}
-          className="w-8 h-8"
+          className="w-7 h-7"
         >
           {propertiesOpen ?
-            <PanelRightClose className="w-4 h-4" /> :
-            <PanelRight className="w-4 h-4" />
+            <PanelRightClose className="w-3.5 h-3.5" /> :
+            <PanelRight className="w-3.5 h-3.5" />
           }
         </Button>
 
@@ -234,9 +234,9 @@ export function Toolbar({
         <Button
           variant="ghost"
           size="icon"
-          className="w-8 h-8"
+          className="w-7 h-7"
         >
-          <Settings className="w-4 h-4" />
+          <Settings className="w-3.5 h-3.5" />
         </Button>
       </div>
     </div>

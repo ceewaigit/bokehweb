@@ -1,14 +1,13 @@
 import type { MouseEvent } from '@/types/project'
 import { CursorType, electronToCustomCursor, getCursorImagePath, CURSOR_HOTSPOTS } from './cursor-types'
 
-interface CursorEvent extends Omit<MouseEvent, 'x' | 'y'> {
+interface CursorEvent {
+  timestamp: number
   mouseX: number
   mouseY: number
   eventType: 'mouse' | 'click' | 'scroll' | 'key'
-  screenWidth: number
-  screenHeight: number
   cursorType?: string  // Track cursor type for each event
-  scaleFactor?: number  // Device pixel ratio for coordinate conversion
+  scaleFactor?: number  // Device pixel ratio - mouse coords are scaled by this
 }
 
 interface CursorOptions {
@@ -180,6 +179,7 @@ export class CursorRenderer {
   setVideoDimensions(width: number, height: number) {
     this.videoWidth = width
     this.videoHeight = height
+    console.log('Cursor renderer video dimensions:', width, height)
     // Reprocess events with new dimensions
     this.preprocessEvents()
   }
@@ -190,12 +190,23 @@ export class CursorRenderer {
   }
 
   private preprocessEvents() {
+    // Debug first few events
+    if (this.events.length > 0) {
+      console.log('First cursor event:', this.events[0])
+      console.log('Normalizing with video dimensions:', this.videoWidth, this.videoHeight)
+    }
+    
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Normalize using video dimensions, just like effects-engine does
-        // The mouse coordinates are in screen space but we normalize to video space
-        const x = this.videoWidth > 0 ? event.mouseX / this.videoWidth : 0
-        const y = this.videoHeight > 0 ? event.mouseY / this.videoHeight : 0
+        // Mouse coordinates are in physical pixels (scaled by device pixel ratio)
+        // Video dimensions are in logical pixels
+        // We need to account for this scale difference
+        const scaleFactor = event.scaleFactor || 1
+        const scaledVideoWidth = this.videoWidth * scaleFactor
+        const scaledVideoHeight = this.videoHeight * scaleFactor
+        
+        const x = scaledVideoWidth > 0 ? event.mouseX / scaledVideoWidth : 0
+        const y = scaledVideoHeight > 0 ? event.mouseY / scaledVideoHeight : 0
 
         const point: CursorPoint = {
           x,
@@ -206,8 +217,11 @@ export class CursorRenderer {
         // Calculate velocity from previous point (in normalized space)
         if (index > 0) {
           const prevEvent = this.events[index - 1]
-          const prevX = this.videoWidth > 0 ? prevEvent.mouseX / this.videoWidth : 0
-          const prevY = this.videoHeight > 0 ? prevEvent.mouseY / this.videoHeight : 0
+          const prevScaleFactor = prevEvent.scaleFactor || 1
+          const prevScaledWidth = this.videoWidth * prevScaleFactor
+          const prevScaledHeight = this.videoHeight * prevScaleFactor
+          const prevX = prevScaledWidth > 0 ? prevEvent.mouseX / prevScaledWidth : 0
+          const prevY = prevScaledHeight > 0 ? prevEvent.mouseY / prevScaledHeight : 0
           const dt = (event.timestamp - prevEvent.timestamp) / 1000
           if (dt > 0) {
             point.velocity = {
@@ -582,8 +596,11 @@ export class CursorRenderer {
 
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
       // Normalize coordinates the same way as cursor position
-      const normalizedX = this.videoWidth > 0 ? clickEvent.mouseX / this.videoWidth : 0
-      const normalizedY = this.videoHeight > 0 ? clickEvent.mouseY / this.videoHeight : 0
+      const scaleFactor = clickEvent.scaleFactor || 1
+      const scaledVideoWidth = this.videoWidth * scaleFactor
+      const scaledVideoHeight = this.videoHeight * scaleFactor
+      const normalizedX = scaledVideoWidth > 0 ? clickEvent.mouseX / scaledVideoWidth : 0
+      const normalizedY = scaledVideoHeight > 0 ? clickEvent.mouseY / scaledVideoHeight : 0
       const videoX = normalizedX * this.video.videoWidth
       const videoY = normalizedY * this.video.videoHeight
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
