@@ -507,19 +507,20 @@ export class EffectsEngine {
     mousePos: { x: number; y: number },
     scale: number
   ): { x: number; y: number } {
-    // Calculate visible frame dimensions
+    // Mouse position and currentCenter are already in normalized coordinates (0-1)
+    // Calculate visible frame dimensions in normalized space
     const frameWidth = 1.0 / scale
     const frameHeight = 1.0 / scale
 
-    // Zone-based configuration for cluster-aware panning
-    const deadZone = 0.25 // Center 25% - no movement
-    const gentleZone = 0.4 // 25-40% - very gentle drift
-    const activeZone = 0.45 // 40-45% - moderate following
-    // Beyond 45% - aggressive following to keep in frame
+    // Zone-based configuration - more aggressive following
+    const deadZone = 0.15 // Center 15% - reduced dead zone
+    const gentleZone = 0.3 // 15-30% - gentle drift
+    const activeZone = 0.4 // 30-40% - moderate following
+    // Beyond 40% - aggressive following to keep in frame
     
-    const maxPanDistance = 0.3 // Reduced from 0.5 for more stable framing
+    const maxPanDistance = 0.4 // Allow more freedom to follow mouse
 
-    // Calculate frame boundaries
+    // Calculate frame boundaries in normalized space
     const leftEdge = currentCenter.x - frameWidth / 2
     const rightEdge = currentCenter.x + frameWidth / 2
     const topEdge = currentCenter.y - frameHeight / 2
@@ -533,11 +534,10 @@ export class EffectsEngine {
     let targetY = currentCenter.y
 
     if (mouseOutside) {
-      // Mouse is outside - use spring physics for natural catch-up
-      const springStiffness = 0.25
-      const damping = 0.85
-      targetX = currentCenter.x + (mousePos.x - currentCenter.x) * springStiffness * damping
-      targetY = currentCenter.y + (mousePos.y - currentCenter.y) * springStiffness * damping
+      // Mouse is outside - aggressively pull camera to follow
+      const pullStrength = 0.5 // Much stronger pull
+      targetX = currentCenter.x + (mousePos.x - currentCenter.x) * pullStrength
+      targetY = currentCenter.y + (mousePos.y - currentCenter.y) * pullStrength
     } else {
       // Mouse is inside - use zone-based panning for stability
       
@@ -550,19 +550,19 @@ export class EffectsEngine {
         // Dead zone - no horizontal movement
         targetX = currentCenter.x
       } else if (relX < gentleZone) {
-        // Gentle zone - very slight drift
+        // Gentle zone - slight drift
         const zoneProgress = (relX - deadZone) / (gentleZone - deadZone)
-        const drift = frameWidth * 0.002 * zoneProgress
+        const drift = frameWidth * 0.01 * zoneProgress // Increased from 0.002
         targetX = currentCenter.x + (mousePos.x > currentCenter.x ? drift : -drift)
       } else if (relX < activeZone) {
         // Active zone - moderate following
         const zoneProgress = (relX - gentleZone) / (activeZone - gentleZone)
-        const follow = frameWidth * (0.005 + 0.015 * zoneProgress)
+        const follow = frameWidth * (0.02 + 0.04 * zoneProgress) // Increased from 0.005 + 0.015
         targetX = currentCenter.x + (mousePos.x > currentCenter.x ? follow : -follow)
       } else {
         // Danger zone - aggressive following
         const urgency = Math.min((relX - activeZone) / (1 - activeZone), 1)
-        const follow = frameWidth * (0.02 + 0.03 * urgency)
+        const follow = frameWidth * (0.06 + 0.08 * urgency) // Increased from 0.02 + 0.03
         targetX = currentCenter.x + (mousePos.x > currentCenter.x ? follow : -follow)
       }
       
@@ -571,19 +571,19 @@ export class EffectsEngine {
         // Dead zone - no vertical movement
         targetY = currentCenter.y
       } else if (relY < gentleZone) {
-        // Gentle zone - very slight drift
+        // Gentle zone - slight drift
         const zoneProgress = (relY - deadZone) / (gentleZone - deadZone)
-        const drift = frameHeight * 0.002 * zoneProgress
+        const drift = frameHeight * 0.01 * zoneProgress // Increased from 0.002
         targetY = currentCenter.y + (mousePos.y > currentCenter.y ? drift : -drift)
       } else if (relY < activeZone) {
         // Active zone - moderate following
         const zoneProgress = (relY - gentleZone) / (activeZone - gentleZone)
-        const follow = frameHeight * (0.005 + 0.015 * zoneProgress)
+        const follow = frameHeight * (0.02 + 0.04 * zoneProgress) // Increased from 0.005 + 0.015
         targetY = currentCenter.y + (mousePos.y > currentCenter.y ? follow : -follow)
       } else {
         // Danger zone - aggressive following
         const urgency = Math.min((relY - activeZone) / (1 - activeZone), 1)
-        const follow = frameHeight * (0.02 + 0.03 * urgency)
+        const follow = frameHeight * (0.06 + 0.08 * urgency) // Increased from 0.02 + 0.03
         targetY = currentCenter.y + (mousePos.y > currentCenter.y ? follow : -follow)
       }
     }
@@ -593,8 +593,8 @@ export class EffectsEngine {
       Math.pow(targetX - this.lastPanPosition.x, 2) + 
       Math.pow(targetY - this.lastPanPosition.y, 2)
     )
-    const basePanSpeed = mouseOutside ? 0.22 : 0.12
-    const adaptiveSpeed = basePanSpeed * (1 + distToTarget * 2)
+    const basePanSpeed = mouseOutside ? 0.4 : 0.25 // Increased from 0.22 : 0.12
+    const adaptiveSpeed = basePanSpeed * (1 + distToTarget * 3) // Increased multiplier
     
     // Smooth transition with adaptive speed
     let newX = this.lastPanPosition.x + (targetX - this.lastPanPosition.x) * adaptiveSpeed

@@ -189,6 +189,16 @@ export class CursorRenderer {
   }
 
   private preprocessEvents() {
+    // Log first event to debug
+    if (this.events.length > 0) {
+      const first = this.events[0] as any
+      console.log('Debug cursor mapping:', {
+        mousePos: { x: first.mouseX, y: first.mouseY },
+        captureArea: { x: first.captureX, y: first.captureY, w: first.captureWidth, h: first.captureHeight },
+        video: { w: this.videoWidth, h: this.videoHeight }
+      })
+    }
+    
     this.sortedPoints = this.events
       .map((event, index) => {
         // Get capture area bounds from metadata
@@ -197,17 +207,17 @@ export class CursorRenderer {
         const captureWidth = (event as any).captureWidth
         const captureHeight = (event as any).captureHeight
         
-        // Normalize coordinates based on capture bounds or video dimensions
+        // Normalize coordinates
         let x, y
         
         if (captureWidth && captureHeight) {
-          // Transform from screen space to normalized space using capture bounds
-          const relativeX = event.mouseX - (captureX || 0)
-          const relativeY = event.mouseY - (captureY || 0)
-          x = relativeX / captureWidth
-          y = relativeY / captureHeight
+          // We have screen dimensions - use them
+          // The mouse coordinates should already be relative to the capture area
+          // since they come from the same screen
+          x = event.mouseX / captureWidth
+          y = event.mouseY / captureHeight
         } else {
-          // Fallback to video dimensions
+          // No capture info - assume coordinates match video dimensions
           x = event.mouseX / this.videoWidth
           y = event.mouseY / this.videoHeight
         }
@@ -215,6 +225,10 @@ export class CursorRenderer {
         // Clamp to 0-1 range
         x = Math.max(0, Math.min(1, x))
         y = Math.max(0, Math.min(1, y))
+        
+        if (index === 0) {
+          console.log('First normalized:', { x, y })
+        }
 
         const point: CursorPoint = {
           x,

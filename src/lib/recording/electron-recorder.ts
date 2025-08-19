@@ -588,7 +588,7 @@ export class ElectronRecorder {
           this.captureArea = {
             fullBounds: screen.bounds,
             workArea: screen.workArea,
-            scaleFactor: screen.scaleFactor || 1
+            scaleFactor: screen.scaleFactor ?? 1
           }
 
           logger.info('Screen info captured', {
@@ -663,11 +663,11 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'mouse',
           velocity,
-          captureX: data.displayBounds?.x || this.captureArea?.fullBounds?.x || 0,
-          captureY: data.displayBounds?.y || this.captureArea?.fullBounds?.y || 0,
-          captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
-          captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
-          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
+          captureX: data.displayBounds?.x ?? this.captureArea?.fullBounds?.x,
+          captureY: data.displayBounds?.y ?? this.captureArea?.fullBounds?.y,
+          captureWidth: data.displayBounds?.width ?? this.captureArea?.fullBounds?.width,
+          captureHeight: data.displayBounds?.height ?? this.captureArea?.fullBounds?.height,
+          scaleFactor: data.scaleFactor ?? this.captureArea?.scaleFactor
         })
 
         // Update last position
@@ -690,11 +690,11 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'click',
           key: data.button,
-          captureX: data.displayBounds?.x || this.captureArea?.fullBounds?.x || 0,
-          captureY: data.displayBounds?.y || this.captureArea?.fullBounds?.y || 0,
-          captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
-          captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
-          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
+          captureX: data.displayBounds?.x ?? this.captureArea?.fullBounds?.x,
+          captureY: data.displayBounds?.y ?? this.captureArea?.fullBounds?.y,
+          captureWidth: data.displayBounds?.width ?? this.captureArea?.fullBounds?.width,
+          captureHeight: data.displayBounds?.height ?? this.captureArea?.fullBounds?.height,
+          scaleFactor: data.scaleFactor ?? this.captureArea?.scaleFactor
         })
 
         // Update position on click (use transformed coordinates)
@@ -713,9 +713,9 @@ export class ElectronRecorder {
           mouseX: data.x || this.lastMouseX,
           mouseY: data.y || this.lastMouseY,
           eventType: 'scroll',
-          scrollDelta: { x: data.deltaX || 0, y: data.deltaY || 0 },
-          captureX: this.captureArea?.fullBounds?.x || 0,
-          captureY: this.captureArea?.fullBounds?.y || 0,
+          scrollDelta: { x: data.deltaX ?? 0, y: data.deltaY ?? 0 },
+          captureX: this.captureArea?.fullBounds?.x,
+          captureY: this.captureArea?.fullBounds?.y,
           captureWidth: this.captureArea?.fullBounds?.width,
           captureHeight: this.captureArea?.fullBounds?.height
         })
