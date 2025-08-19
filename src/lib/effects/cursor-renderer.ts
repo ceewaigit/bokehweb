@@ -206,20 +206,27 @@ export class CursorRenderer {
         const captureY = (event as any).captureY
         const captureWidth = (event as any).captureWidth
         const captureHeight = (event as any).captureHeight
+        const scaleFactor = (event as any).scaleFactor || 1
         
         // Normalize coordinates
         let x, y
         
         if (captureWidth && captureHeight) {
-          // We have screen dimensions - use them
-          // The mouse coordinates should already be relative to the capture area
-          // since they come from the same screen
-          x = event.mouseX / captureWidth
-          y = event.mouseY / captureHeight
+          // We have screen dimensions in logical pixels
+          // The video is recorded at physical pixel resolution (logical * scaleFactor)
+          // Mouse coords are in logical pixels, so we normalize against logical dimensions
+          const relativeX = event.mouseX - (captureX || 0)
+          const relativeY = event.mouseY - (captureY || 0)
+          x = relativeX / captureWidth
+          y = relativeY / captureHeight
         } else {
-          // No capture info - assume coordinates match video dimensions
-          x = event.mouseX / this.videoWidth
-          y = event.mouseY / this.videoHeight
+          // No capture info - the video dimensions might be in physical pixels
+          // while mouse coords are in logical pixels
+          // Divide video dimensions by scale factor to get logical dimensions
+          const logicalWidth = this.videoWidth / scaleFactor
+          const logicalHeight = this.videoHeight / scaleFactor
+          x = event.mouseX / logicalWidth
+          y = event.mouseY / logicalHeight
         }
         
         // Clamp to 0-1 range
@@ -227,7 +234,7 @@ export class CursorRenderer {
         y = Math.max(0, Math.min(1, y))
         
         if (index === 0) {
-          console.log('First normalized:', { x, y })
+          console.log('First normalized:', { x, y }, 'scale:', scaleFactor)
         }
 
         const point: CursorPoint = {
