@@ -28,8 +28,11 @@ export interface ElectronMetadata {
   screenId?: string
   velocity?: { x: number; y: number } // pixels per second
   scrollDelta?: { x: number; y: number }
-  screenWidth?: number
-  screenHeight?: number
+  // Capture area bounds for coordinate transformation
+  captureX?: number
+  captureY?: number
+  captureWidth?: number
+  captureHeight?: number
   scaleFactor?: number
 }
 
@@ -640,14 +643,9 @@ export class ElectronRecorder {
           }
         }
 
-        // Transform logical pixels to video coordinate space
-        // data.x/y are already in logical pixels from screen.getCursorScreenPoint()
-        // Keep them as-is since video dimensions are also in logical pixels
+        // Mouse coordinates are in logical pixels from screen.getCursorScreenPoint()
         const transformedX = data.x
         const transformedY = data.y
-
-        // Store scaleFactor for reference but don't apply it to coordinates
-        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
 
         this.metadata.push({
           timestamp,
@@ -655,13 +653,15 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'mouse',
           velocity,
-          // Store the logical screen dimensions for reference
-          screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
-          screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
+          // Store capture area bounds for proper coordinate transformation
+          captureX: this.captureArea?.fullBounds?.x || 0,
+          captureY: this.captureArea?.fullBounds?.y || 0,
+          captureWidth: this.captureArea?.fullBounds?.width || data.displayBounds?.width,
+          captureHeight: this.captureArea?.fullBounds?.height || data.displayBounds?.height,
           scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
-        // Update last position (use transformed coordinates for consistency)
+        // Update last position
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
         this.lastMouseTime = now
@@ -672,11 +672,9 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        // Keep coordinates in logical pixels (no transformation needed)
+        // Coordinates are in logical pixels
         const transformedX = data.x
         const transformedY = data.y
-
-        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
 
         this.metadata.push({
           timestamp,
@@ -684,9 +682,11 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'click',
           key: data.button, // Store which button was clicked
-          // Store the logical screen dimensions for reference
-          screenWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width || screen.width,
-          screenHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height || screen.height,
+          // Store capture area bounds for proper coordinate transformation
+          captureX: this.captureArea?.fullBounds?.x || 0,
+          captureY: this.captureArea?.fullBounds?.y || 0,
+          captureWidth: this.captureArea?.fullBounds?.width || data.displayBounds?.width,
+          captureHeight: this.captureArea?.fullBounds?.height || data.displayBounds?.height,
           scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
@@ -707,9 +707,11 @@ export class ElectronRecorder {
           mouseY: data.y || this.lastMouseY,
           eventType: 'scroll',
           scrollDelta: { x: data.deltaX || 0, y: data.deltaY || 0 },
-          // Add screen dimensions for proper coordinate normalization
-          screenWidth: this.captureArea?.fullBounds?.width || screen.width,
-          screenHeight: this.captureArea?.fullBounds?.height || screen.height
+          // Store capture area bounds for consistency
+          captureX: this.captureArea?.fullBounds?.x || 0,
+          captureY: this.captureArea?.fullBounds?.y || 0,
+          captureWidth: this.captureArea?.fullBounds?.width,
+          captureHeight: this.captureArea?.fullBounds?.height
         })
       }
     }

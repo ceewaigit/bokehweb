@@ -23,6 +23,21 @@ interface MouseEvent {
   type: 'move' | 'click'
 }
 
+interface MouseCluster {
+  events: MouseEvent[]
+  startTime: number
+  endTime: number
+  center: { x: number; y: number }
+  boundingBox: { 
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  density: number // How tightly grouped the events are
+  stability: number // How long mouse stayed in region
+}
+
 export class EffectsEngine {
   private effects: ZoomEffect[] = []
   private events: MouseEvent[] = []
@@ -32,10 +47,12 @@ export class EffectsEngine {
   private interpolatedMouseCache = new Map<number, { x: number; y: number }>()
   private lastPanPosition = { x: 0.5, y: 0.5 } // Track last pan position for smooth transitions
 
-  // Activity detection parameters (mutable for regeneration)
-  private idleThresholdMs = 1500 // Time before considering mouse idle
-  private activityThreshold = 0.05 // Normalized distance to trigger activity
-  private velocityThreshold = 30 // Pixels/second to maintain zoom
+  // Cluster detection parameters
+  private readonly MIN_CLUSTER_TIME = 800 // Minimum time in cluster to trigger zoom (ms)
+  private readonly MAX_CLUSTER_SIZE = 0.4 // Maximum cluster size as fraction of screen
+  private readonly MIN_CLUSTER_EVENTS = 5 // Minimum events to form a cluster
+  private readonly CLUSTER_TIME_WINDOW = 2000 // Time window to analyze for clusters (ms)
+  private readonly CLUSTER_MERGE_DISTANCE = 0.15 // Distance to merge nearby clusters
   private readonly MIN_ZOOM_DURATION = 1000 // Minimum zoom time
   private readonly MAX_ZOOM_DURATION = 8000 // Maximum zoom time
   private readonly MIN_GAP_BETWEEN_ZOOMS = 2000 // Minimum gap between zoom effects
@@ -76,66 +93,247 @@ export class EffectsEngine {
 
     this.events.sort((a, b) => a.timestamp - b.timestamp)
 
-    // Use activity-based zoom detection by default
-    this.detectActivityBasedZooms()
+    // Use cluster-based zoom detection for more intelligent zooming
+    this.detectClusterBasedZooms()
   }
 
   /**
-   * Activity-based zoom detection - creates zoom effects based on mouse activity patterns
-   * This mimics Screen Studio behavior where zooms persist during activity and end when idle
+   * Cluster-based zoom detection - intelligently detects when mouse stays in a region
+   * This mimics Screen Studio's smart zooming behavior
    */
-  private detectActivityBasedZooms(): void {
+  private detectClusterBasedZooms(): void {
     this.effects = []
-
-    // Detect activity periods
-    const activityPeriods = this.detectActivityPeriods()
-
-    if (activityPeriods.length === 0) return
-
-    // Convert activity periods to zoom effects
-    activityPeriods.forEach(period => {
-      const duration = period.end - period.start
-
-      // Skip very short periods
-      if (duration < this.MIN_ZOOM_DURATION) return
-
-      // Cap duration at maximum
-      const zoomDuration = Math.min(duration + 500, this.MAX_ZOOM_DURATION) // Add buffer for outro
-
-      // Find the focal point - prioritize clicks, then use center of activity
-      let targetX = 0.5
-      let targetY = 0.5
-
-      const clickEvent = period.events.find(e => e.type === 'click')
-      if (clickEvent) {
-        targetX = clickEvent.x / this.width
-        targetY = clickEvent.y / this.height
-      } else {
-        // Use average position of significant movements
-        const avgX = period.events.reduce((sum, e) => sum + e.x, 0) / period.events.length
-        const avgY = period.events.reduce((sum, e) => sum + e.y, 0) / period.events.length
-        targetX = avgX / this.width
-        targetY = avgY / this.height
+    
+    // Detect mouse clusters
+    const clusters = this.detectMouseClusters()
+    
+    if (clusters.length === 0) return
+    
+    // Convert stable clusters to zoom effects
+    clusters.forEach(cluster => {
+      // Only zoom if cluster is stable and properly sized
+      const clusterDuration = cluster.endTime - cluster.startTime
+      const normalizedWidth = cluster.boundingBox.width / this.width
+      const normalizedHeight = cluster.boundingBox.height / this.height
+      const clusterSize = Math.max(normalizedWidth, normalizedHeight)
+      
+      // Skip if cluster is too large or too brief
+      if (clusterSize > this.MAX_CLUSTER_SIZE || clusterDuration < this.MIN_CLUSTER_TIME) {
+        return
       }
-
+      
+      // Calculate optimal zoom scale based on cluster size
+      let zoomScale = 2.0
+      if (clusterSize < 0.15) {
+        zoomScale = 2.5 // Small cluster - zoom in more
+      } else if (clusterSize < 0.25) {
+        zoomScale = 2.0 // Medium cluster
+      } else {
+        zoomScale = 1.5 // Large cluster - gentle zoom
+      }
+      
+      // Center the zoom on the cluster
+      const targetX = cluster.center.x / this.width
+      const targetY = cluster.center.y / this.height
+      
       // Ensure zoom doesn't exceed video duration
-      const effectiveDuration = Math.min(zoomDuration, this.duration - period.start - 500)
-
+      const effectiveDuration = Math.min(
+        clusterDuration + 1000, // Add buffer for outro
+        this.MAX_ZOOM_DURATION,
+        this.duration - cluster.startTime - 500
+      )
+      
       if (effectiveDuration > this.MIN_ZOOM_DURATION) {
         this.effects.push({
-          id: `zoom-activity-${period.start}`,
+          id: `zoom-cluster-${cluster.startTime}`,
           type: 'zoom',
-          startTime: period.start,
-          endTime: period.start + effectiveDuration,
+          startTime: cluster.startTime,
+          endTime: cluster.startTime + effectiveDuration,
           targetX,
           targetY,
-          scale: 2.0,
-          introMs: 300,
-          outroMs: 400
+          scale: zoomScale,
+          introMs: 400, // Slightly slower intro for smoother feel
+          outroMs: 500  // Slower outro
         })
       }
     })
+    
+    // Merge overlapping zoom effects
+    this.mergeOverlappingZooms()
   }
+
+  /**
+   * Detect mouse clusters using spatial-temporal analysis
+   */
+  private detectMouseClusters(): MouseCluster[] {
+    if (this.events.length < this.MIN_CLUSTER_EVENTS) return []
+    
+    const clusters: MouseCluster[] = []
+    let i = 0
+    
+    while (i < this.events.length) {
+      // Collect events within time window
+      const windowStart = this.events[i].timestamp
+      const windowEnd = windowStart + this.CLUSTER_TIME_WINDOW
+      const windowEvents: MouseEvent[] = []
+      
+      let j = i
+      while (j < this.events.length && this.events[j].timestamp <= windowEnd) {
+        windowEvents.push(this.events[j])
+        j++
+      }
+      
+      // Check if we have enough events
+      if (windowEvents.length >= this.MIN_CLUSTER_EVENTS) {
+        // Calculate bounding box and center
+        const cluster = this.analyzeCluster(windowEvents)
+        
+        // Check cluster quality
+        if (cluster.density > 0.3 && cluster.stability > 0.5) {
+          // Check if this cluster should be merged with the previous one
+          if (clusters.length > 0) {
+            const lastCluster = clusters[clusters.length - 1]
+            const distance = this.calculateClusterDistance(lastCluster, cluster)
+            
+            if (distance < this.CLUSTER_MERGE_DISTANCE) {
+              // Merge clusters
+              this.mergeClusters(lastCluster, cluster)
+            } else {
+              clusters.push(cluster)
+            }
+          } else {
+            clusters.push(cluster)
+          }
+          
+          // Skip ahead to avoid overlapping clusters
+          i = j - 1
+        }
+      }
+      
+      i++
+    }
+    
+    return clusters
+  }
+  
+  /**
+   * Analyze a set of events to create a cluster
+   */
+  private analyzeCluster(events: MouseEvent[]): MouseCluster {
+    // Calculate bounding box
+    let minX = Infinity, maxX = -Infinity
+    let minY = Infinity, maxY = -Infinity
+    let sumX = 0, sumY = 0
+    
+    events.forEach(event => {
+      minX = Math.min(minX, event.x)
+      maxX = Math.max(maxX, event.x)
+      minY = Math.min(minY, event.y)
+      maxY = Math.max(maxY, event.y)
+      sumX += event.x
+      sumY += event.y
+    })
+    
+    const boundingBox = {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    }
+    
+    // Calculate center (weighted by event density)
+    const center = {
+      x: sumX / events.length,
+      y: sumY / events.length
+    }
+    
+    // Calculate density (how tightly grouped events are)
+    const area = boundingBox.width * boundingBox.height
+    const maxArea = this.width * this.height
+    const density = area > 0 ? 1 - (area / maxArea) : 1
+    
+    // Calculate stability (based on time spread and movement patterns)
+    const timeSpan = events[events.length - 1].timestamp - events[0].timestamp
+    const expectedEvents = timeSpan / 50 // Assuming ~20fps event rate
+    const stability = Math.min(1, events.length / Math.max(1, expectedEvents))
+    
+    return {
+      events,
+      startTime: events[0].timestamp,
+      endTime: events[events.length - 1].timestamp,
+      center,
+      boundingBox,
+      density,
+      stability
+    }
+  }
+  
+  /**
+   * Calculate distance between two clusters
+   */
+  private calculateClusterDistance(cluster1: MouseCluster, cluster2: MouseCluster): number {
+    const dx = (cluster1.center.x - cluster2.center.x) / this.width
+    const dy = (cluster1.center.y - cluster2.center.y) / this.height
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+  
+  /**
+   * Merge two clusters together
+   */
+  private mergeClusters(target: MouseCluster, source: MouseCluster): void {
+    // Combine events
+    target.events.push(...source.events)
+    target.events.sort((a, b) => a.timestamp - b.timestamp)
+    
+    // Update time range
+    target.startTime = Math.min(target.startTime, source.startTime)
+    target.endTime = Math.max(target.endTime, source.endTime)
+    
+    // Recalculate bounding box and center
+    const merged = this.analyzeCluster(target.events)
+    target.boundingBox = merged.boundingBox
+    target.center = merged.center
+    target.density = merged.density
+    target.stability = merged.stability
+  }
+  
+  /**
+   * Merge overlapping zoom effects
+   */
+  private mergeOverlappingZooms(): void {
+    if (this.effects.length < 2) return
+    
+    // Sort by start time
+    this.effects.sort((a, b) => a.startTime - b.startTime)
+    
+    const merged: ZoomEffect[] = []
+    let current = this.effects[0]
+    
+    for (let i = 1; i < this.effects.length; i++) {
+      const next = this.effects[i]
+      
+      // Check for overlap or very close effects
+      if (current.endTime >= next.startTime - 500) {
+        // Merge effects - extend current to cover both
+        current.endTime = Math.max(current.endTime, next.endTime)
+        // Use weighted average for target position
+        const currentWeight = (current.endTime - current.startTime)
+        const nextWeight = (next.endTime - next.startTime)
+        const totalWeight = currentWeight + nextWeight
+        current.targetX = (current.targetX * currentWeight + next.targetX * nextWeight) / totalWeight
+        current.targetY = (current.targetY * currentWeight + next.targetY * nextWeight) / totalWeight
+      } else {
+        merged.push(current)
+        current = next
+      }
+    }
+    
+    merged.push(current)
+    this.effects = merged
+  }
+
+  // Note: Old activity-based detection removed in favor of cluster-based approach
+  // The cluster-based approach better mimics Screen Studio's intelligent zoom behavior
 
 
   /**
@@ -291,10 +489,13 @@ export class EffectsEngine {
     const frameWidth = 1.0 / scale
     const frameHeight = 1.0 / scale
 
-    // Configuration
-    const edgeMargin = 0.35 // Start panning when mouse is 35% from edge (earlier)
-    const panSpeed = 0.18 // How much to pan per frame (faster)
-    const maxPanDistance = 0.5 // Maximum distance from original zoom target (more freedom)
+    // Zone-based configuration for cluster-aware panning
+    const deadZone = 0.25 // Center 25% - no movement
+    const gentleZone = 0.4 // 25-40% - very gentle drift
+    const activeZone = 0.45 // 40-45% - moderate following
+    // Beyond 45% - aggressive following to keep in frame
+    
+    const maxPanDistance = 0.3 // Reduced from 0.5 for more stable framing
 
     // Calculate frame boundaries
     const leftEdge = currentCenter.x - frameWidth / 2
@@ -310,63 +511,88 @@ export class EffectsEngine {
     let targetY = currentCenter.y
 
     if (mouseOutside) {
-      // Mouse is outside - pan more aggressively to bring it back
-      // Move towards mouse with stronger pull
-      const pullFactor = 0.4 // Doubled from 0.2 for faster catch-up
-      targetX = currentCenter.x + (mousePos.x - currentCenter.x) * pullFactor
-      targetY = currentCenter.y + (mousePos.y - currentCenter.y) * pullFactor
+      // Mouse is outside - use spring physics for natural catch-up
+      const springStiffness = 0.25
+      const damping = 0.85
+      targetX = currentCenter.x + (mousePos.x - currentCenter.x) * springStiffness * damping
+      targetY = currentCenter.y + (mousePos.y - currentCenter.y) * springStiffness * damping
     } else {
-      // Mouse is inside - check if near edges
-      const marginX = frameWidth * edgeMargin
-      const marginY = frameHeight * edgeMargin
-
-      // Distance from edges
-      const distFromLeft = mousePos.x - leftEdge
-      const distFromRight = rightEdge - mousePos.x
-      const distFromTop = mousePos.y - topEdge
-      const distFromBottom = bottomEdge - mousePos.y
-
-      // Pan horizontally if near edges
-      if (distFromLeft < marginX && distFromLeft > 0) {
-        const urgency = 1.0 - (distFromLeft / marginX)
-        targetX = currentCenter.x - urgency * frameWidth * 0.05 // Increased from 0.02
-      } else if (distFromRight < marginX && distFromRight > 0) {
-        const urgency = 1.0 - (distFromRight / marginX)
-        targetX = currentCenter.x + urgency * frameWidth * 0.05 // Increased from 0.02
+      // Mouse is inside - use zone-based panning for stability
+      
+      // Calculate relative position within frame (0 = center, 1 = edge)
+      const relX = Math.abs(mousePos.x - currentCenter.x) / (frameWidth / 2)
+      const relY = Math.abs(mousePos.y - currentCenter.y) / (frameHeight / 2)
+      
+      // Horizontal panning based on zones
+      if (relX < deadZone) {
+        // Dead zone - no horizontal movement
+        targetX = currentCenter.x
+      } else if (relX < gentleZone) {
+        // Gentle zone - very slight drift
+        const zoneProgress = (relX - deadZone) / (gentleZone - deadZone)
+        const drift = frameWidth * 0.002 * zoneProgress
+        targetX = currentCenter.x + (mousePos.x > currentCenter.x ? drift : -drift)
+      } else if (relX < activeZone) {
+        // Active zone - moderate following
+        const zoneProgress = (relX - gentleZone) / (activeZone - gentleZone)
+        const follow = frameWidth * (0.005 + 0.015 * zoneProgress)
+        targetX = currentCenter.x + (mousePos.x > currentCenter.x ? follow : -follow)
+      } else {
+        // Danger zone - aggressive following
+        const urgency = Math.min((relX - activeZone) / (1 - activeZone), 1)
+        const follow = frameWidth * (0.02 + 0.03 * urgency)
+        targetX = currentCenter.x + (mousePos.x > currentCenter.x ? follow : -follow)
       }
-
-      // Pan vertically if near edges
-      if (distFromTop < marginY && distFromTop > 0) {
-        const urgency = 1.0 - (distFromTop / marginY)
-        targetY = currentCenter.y - urgency * frameHeight * 0.05 // Increased from 0.02
-      } else if (distFromBottom < marginY && distFromBottom > 0) {
-        const urgency = 1.0 - (distFromBottom / marginY)
-        targetY = currentCenter.y + urgency * frameHeight * 0.05 // Increased from 0.02
+      
+      // Vertical panning based on zones
+      if (relY < deadZone) {
+        // Dead zone - no vertical movement
+        targetY = currentCenter.y
+      } else if (relY < gentleZone) {
+        // Gentle zone - very slight drift
+        const zoneProgress = (relY - deadZone) / (gentleZone - deadZone)
+        const drift = frameHeight * 0.002 * zoneProgress
+        targetY = currentCenter.y + (mousePos.y > currentCenter.y ? drift : -drift)
+      } else if (relY < activeZone) {
+        // Active zone - moderate following
+        const zoneProgress = (relY - gentleZone) / (activeZone - gentleZone)
+        const follow = frameHeight * (0.005 + 0.015 * zoneProgress)
+        targetY = currentCenter.y + (mousePos.y > currentCenter.y ? follow : -follow)
+      } else {
+        // Danger zone - aggressive following
+        const urgency = Math.min((relY - activeZone) / (1 - activeZone), 1)
+        const follow = frameHeight * (0.02 + 0.03 * urgency)
+        targetY = currentCenter.y + (mousePos.y > currentCenter.y ? follow : -follow)
       }
     }
 
-    // Smooth transition from last position
-    let newX = this.lastPanPosition.x + (targetX - this.lastPanPosition.x) * panSpeed
-    let newY = this.lastPanPosition.y + (targetY - this.lastPanPosition.y) * panSpeed
+    // Adaptive smoothing based on distance from target
+    const distToTarget = Math.sqrt(
+      Math.pow(targetX - this.lastPanPosition.x, 2) + 
+      Math.pow(targetY - this.lastPanPosition.y, 2)
+    )
+    const basePanSpeed = mouseOutside ? 0.22 : 0.12
+    const adaptiveSpeed = basePanSpeed * (1 + distToTarget * 2)
+    
+    // Smooth transition with adaptive speed
+    let newX = this.lastPanPosition.x + (targetX - this.lastPanPosition.x) * adaptiveSpeed
+    let newY = this.lastPanPosition.y + (targetY - this.lastPanPosition.y) * adaptiveSpeed
 
-    // Limit pan distance from original zoom target
+    // Limit pan distance from original zoom target for stability
     const activeZoom = this.effects.find(e =>
       e.type === 'zoom' && e.targetX !== undefined
     )
 
     if (activeZoom) {
-      const maxPanX = maxPanDistance
-      const maxPanY = maxPanDistance
-
-      // Clamp to maximum distance
+      // Clamp to maximum distance from zoom target
       const distX = newX - activeZoom.targetX
       const distY = newY - activeZoom.targetY
 
-      if (Math.abs(distX) > maxPanX) {
-        newX = activeZoom.targetX + Math.sign(distX) * maxPanX
+      if (Math.abs(distX) > maxPanDistance) {
+        newX = activeZoom.targetX + Math.sign(distX) * maxPanDistance
       }
-      if (Math.abs(distY) > maxPanY) {
-        newY = activeZoom.targetY + Math.sign(distY) * maxPanY
+      if (Math.abs(distY) > maxPanDistance) {
+        newY = activeZoom.targetY + Math.sign(distY) * maxPanDistance
       }
     }
 
@@ -405,71 +631,7 @@ export class EffectsEngine {
     return Math.sqrt(dx * dx + dy * dy)
   }
 
-  /**
-   * Detect activity periods in mouse events
-   */
-  private detectActivityPeriods(): Array<{ start: number; end: number; events: MouseEvent[] }> {
-    if (this.events.length < 2) return []
-
-    const periods: Array<{ start: number; end: number; events: MouseEvent[] }> = []
-    let currentPeriod: { start: number; end: number; events: MouseEvent[] } | null = null
-    let lastActivityTime = 0
-
-    for (let i = 1; i < this.events.length; i++) {
-      const prevEvent = this.events[i - 1]
-      const currEvent = this.events[i]
-
-      const velocity = this.calculateVelocity(prevEvent, currEvent)
-      const distance = this.calculateNormalizedDistance(prevEvent, currEvent)
-      const timeSinceLastActivity = currEvent.timestamp - lastActivityTime
-
-      // Check if this is significant activity
-      const isActivity = (
-        currEvent.type === 'click' ||
-        velocity > this.velocityThreshold ||
-        distance > this.activityThreshold
-      )
-
-      if (isActivity) {
-        lastActivityTime = currEvent.timestamp
-
-        // Start new period if none exists or if too much time has passed
-        if (!currentPeriod || timeSinceLastActivity > this.MIN_GAP_BETWEEN_ZOOMS) {
-          // Close previous period if it exists
-          if (currentPeriod) {
-            periods.push(currentPeriod)
-          }
-
-          currentPeriod = {
-            start: currEvent.timestamp,
-            end: currEvent.timestamp,
-            events: [currEvent]
-          }
-        } else {
-          // Extend current period
-          currentPeriod.end = currEvent.timestamp
-          currentPeriod.events.push(currEvent)
-        }
-      } else if (currentPeriod) {
-        // Check if idle threshold has been reached
-        const idleTime = currEvent.timestamp - currentPeriod.end
-
-        if (idleTime > this.idleThresholdMs) {
-          // Close current period
-          periods.push(currentPeriod)
-          currentPeriod = null
-          lastActivityTime = 0
-        }
-      }
-    }
-
-    // Close any remaining period
-    if (currentPeriod) {
-      periods.push(currentPeriod)
-    }
-
-    return periods
-  }
+  // Note: detectActivityPeriods removed - using cluster-based detection instead
 
   /**
    * Apply zoom to canvas
@@ -582,10 +744,10 @@ export class EffectsEngine {
   }
 
   /**
-   * Detect zoom effects using activity-based algorithm
+   * Detect zoom effects using cluster-based algorithm
    */
   detectZoomEffects(): void {
-    this.detectActivityBasedZooms()
+    this.detectClusterBasedZooms()
   }
 
 
@@ -593,36 +755,13 @@ export class EffectsEngine {
    * Regenerate effects with different parameters
    */
   regenerateEffects(options?: {
-    idleThresholdMs?: number
-    activityThreshold?: number
-    velocityThreshold?: number
     zoomScale?: number
   }): void {
     // Clear cache when regenerating
     this.interpolatedMouseCache.clear()
     this.lastPanPosition = { x: 0.5, y: 0.5 }
 
-    const {
-      idleThresholdMs,
-      activityThreshold,
-      velocityThreshold,
-      zoomScale = 2.0
-    } = options || {}
-
-    // Temporarily override thresholds if provided
-    const originalIdleThreshold = this.idleThresholdMs
-    const originalActivityThreshold = this.activityThreshold
-    const originalVelocityThreshold = this.velocityThreshold
-
-    if (idleThresholdMs !== undefined) {
-      this.idleThresholdMs = idleThresholdMs
-    }
-    if (activityThreshold !== undefined) {
-      this.activityThreshold = activityThreshold
-    }
-    if (velocityThreshold !== undefined) {
-      this.velocityThreshold = velocityThreshold
-    }
+    const { zoomScale = 2.0 } = options || {}
 
     // Regenerate effects
     this.detectZoomEffects()
@@ -633,11 +772,6 @@ export class EffectsEngine {
         effect.scale = zoomScale
       })
     }
-
-    // Restore original thresholds
-    this.idleThresholdMs = originalIdleThreshold
-    this.activityThreshold = originalActivityThreshold
-    this.velocityThreshold = originalVelocityThreshold
   }
 
   /**

@@ -6,6 +6,7 @@ import { CursorRenderer } from '@/lib/effects/cursor-renderer'
 import { BackgroundRenderer } from '@/lib/effects/background-renderer'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Clip, Recording, ClipEffects } from '@/types/project'
+import { calculateVideoPosition } from '@/lib/utils/video-dimensions'
 
 interface PreviewAreaProps {
   videoRef: RefObject<HTMLVideoElement>
@@ -190,27 +191,17 @@ export function PreviewArea({
 
       // Check if video has valid dimensions
       const videoIsReady = video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0
-
-      const videoAspect = videoIsReady ? (video.videoWidth / video.videoHeight) : (canvas.width / canvas.height)
-      const availableWidth = canvas.width - (padding * 2)
-      const availableHeight = canvas.height - (padding * 2)
-      const availableAspect = availableWidth / availableHeight
-
-      let drawWidth, drawHeight, offsetX, offsetY
-
-      if (videoAspect > availableAspect) {
-        // Video is wider
-        drawWidth = availableWidth
-        drawHeight = availableWidth / videoAspect
-        offsetX = padding
-        offsetY = padding + (availableHeight - drawHeight) / 2
-      } else {
-        // Video is taller
-        drawHeight = availableHeight
-        drawWidth = availableHeight * videoAspect
-        offsetX = padding + (availableWidth - drawWidth) / 2
-        offsetY = padding
-      }
+      
+      const videoWidth = videoIsReady ? video.videoWidth : canvas.width
+      const videoHeight = videoIsReady ? video.videoHeight : canvas.height
+      
+      const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
+        videoWidth,
+        videoHeight,
+        canvas.width,
+        canvas.height,
+        padding
+      )
 
 
 
