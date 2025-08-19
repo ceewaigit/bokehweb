@@ -177,16 +177,8 @@ export const useProjectStore = create<ProjectStore>()(
       set((state) => {
         if (!state.currentProject) return
 
-        // Ensure complete recording
-        const completeRecording = {
-          ...recording,
-          metadata: recording.metadata || {
-            mouseEvents: [],
-            keyboardEvents: [],
-            clickEvents: [],
-            screenEvents: []
-          }
-        }
+        // Recording must have proper metadata structure
+        const completeRecording = recording
 
         state.currentProject.recordings.push(completeRecording)
 
@@ -221,9 +213,8 @@ export const useProjectStore = create<ProjectStore>()(
           clip.startTime + clip.duration
         )
 
-        // Create blob URL and store metadata
-        const blobUrl = globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
-        // Note: blob URL is automatically cached by the manager
+        // Create blob URL (automatically cached by the manager)
+        globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
         if (completeRecording.metadata) {
           globalBlobManager.storeMetadata(completeRecording.id, completeRecording.metadata)
         }

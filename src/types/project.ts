@@ -6,6 +6,7 @@
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { EffectsEngine } from '@/lib/effects/effects-engine'
+import { logger } from '@/lib/utils/logger'
 
 export interface Project {
   version: string
@@ -325,7 +326,7 @@ export async function saveProject(project: Project, customPath?: string): Promis
       RecordingStorage.setProject(projectCopy.id, projectData)
       RecordingStorage.setProjectPath(projectCopy.id, projectFilePath)
 
-      console.log(`Project saved to: ${projectFilePath}`)
+      logger.info(`Project saved to: ${projectFilePath}`)
       return projectFilePath
     } catch (error) {
       console.error('Failed to save project file:', error)
@@ -348,14 +349,9 @@ export async function saveRecordingWithProject(
   projectName?: string,
   captureArea?: CaptureArea
 ): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
-  console.log('saveRecordingWithProject called')
-  console.log('window.electronAPI:', window.electronAPI)
-  console.log('saveRecording available:', !!window.electronAPI?.saveRecording)
-  console.log('getRecordingsDirectory available:', !!window.electronAPI?.getRecordingsDirectory)
   
   if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
-    console.error('Electron API not available for saving')
-    console.error('window.electronAPI:', window.electronAPI)
+    logger.error('Electron API not available for saving')
     return null
   }
 
@@ -379,15 +375,15 @@ export async function saveRecordingWithProject(
     // Get proper video duration (blob URLs may show Infinity initially)
     await new Promise<void>((resolve) => {
       video.onloadedmetadata = () => {
-        console.log('Video metadata loaded, initial duration:', video.duration)
+        logger.debug('Video metadata loaded, initial duration:', video.duration)
         
         // If duration is not finite, seek to get it
         if (!isFinite(video.duration)) {
-          console.log('Duration is Infinity, seeking to end to get actual duration...')
+          logger.debug('Duration is Infinity, seeking to end to get actual duration...')
           video.currentTime = Number.MAX_SAFE_INTEGER
           
           video.onseeked = () => {
-            console.log('After seeking, duration is:', video.duration)
+            logger.debug('After seeking, duration is:', video.duration)
             // Remove the event listener to prevent infinite loop
             video.onseeked = null
             video.currentTime = 0 // Reset to start
@@ -417,15 +413,20 @@ export async function saveRecordingWithProject(
     const project = createProject(baseName)
 
     // Process metadata into proper format
+    // Get the logical screen dimensions from the first event with capture info
+    const firstEventWithCapture = metadata.find(m => m.captureWidth && m.captureHeight)
+    const logicalWidth = firstEventWithCapture?.captureWidth || width
+    const logicalHeight = firstEventWithCapture?.captureHeight || height
+    
     const mouseEvents = metadata
       .filter(m => m.eventType === 'mouse')
       .map(m => ({
         timestamp: m.timestamp,
         x: m.mouseX,
         y: m.mouseY,
-        // Keep original screen dimensions if available, otherwise use video dimensions
-        screenWidth: m.screenWidth || width,
-        screenHeight: m.screenHeight || height
+        // Store logical screen dimensions for proper cursor alignment
+        screenWidth: logicalWidth,
+        screenHeight: logicalHeight
       }))
 
     const clickEvents = metadata
@@ -489,7 +490,7 @@ export async function saveRecordingWithProject(
     // Use the engine's public method
     const zoomBlocks = effectsEngine.getZoomBlocks(mockRecording)
 
-    console.log(`📹 Generated ${zoomBlocks.length} zoom blocks`)
+    logger.debug(`Generated ${zoomBlocks.length} zoom blocks`)
 
     // Detect cursor activity to set visibility intelligently
     const hasCursorActivity = mouseEvents.length > 5 // Has meaningful mouse movement

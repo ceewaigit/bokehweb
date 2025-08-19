@@ -189,53 +189,29 @@ export class CursorRenderer {
   }
 
   private preprocessEvents() {
-    // Log first event to debug
-    if (this.events.length > 0) {
-      const first = this.events[0] as any
-      console.log('Debug cursor mapping:', {
-        mousePos: { x: first.mouseX, y: first.mouseY },
-        captureArea: { x: first.captureX, y: first.captureY, w: first.captureWidth, h: first.captureHeight },
-        video: { w: this.videoWidth, h: this.videoHeight }
-      })
-    }
-    
     this.sortedPoints = this.events
       .map((event, index) => {
-        // Get capture area bounds from metadata
-        const captureX = (event as any).captureX
-        const captureY = (event as any).captureY
-        const captureWidth = (event as any).captureWidth
-        const captureHeight = (event as any).captureHeight
-        const scaleFactor = (event as any).scaleFactor || 1
+        // When loading from a project file, we have screenWidth/screenHeight
+        // When playing directly from recording, we might have captureWidth/captureHeight
+        const screenWidth = (event as any).screenWidth || (event as any).captureWidth
+        const screenHeight = (event as any).screenHeight || (event as any).captureHeight
         
         // Normalize coordinates
         let x, y
         
-        if (captureWidth && captureHeight) {
-          // We have screen dimensions in logical pixels
-          // The video is recorded at physical pixel resolution (logical * scaleFactor)
-          // Mouse coords are in logical pixels, so we normalize against logical dimensions
-          const relativeX = event.mouseX - (captureX || 0)
-          const relativeY = event.mouseY - (captureY || 0)
-          x = relativeX / captureWidth
-          y = relativeY / captureHeight
+        if (screenWidth && screenHeight) {
+          // Normalize using the screen dimensions stored with the event
+          x = event.mouseX / screenWidth
+          y = event.mouseY / screenHeight
         } else {
-          // No capture info - the video dimensions might be in physical pixels
-          // while mouse coords are in logical pixels
-          // Divide video dimensions by scale factor to get logical dimensions
-          const logicalWidth = this.videoWidth / scaleFactor
-          const logicalHeight = this.videoHeight / scaleFactor
-          x = event.mouseX / logicalWidth
-          y = event.mouseY / logicalHeight
+          // Fallback to video dimensions
+          x = event.mouseX / this.videoWidth
+          y = event.mouseY / this.videoHeight
         }
         
         // Clamp to 0-1 range
         x = Math.max(0, Math.min(1, x))
         y = Math.max(0, Math.min(1, y))
-        
-        if (index === 0) {
-          console.log('First normalized:', { x, y }, 'scale:', scaleFactor)
-        }
 
         const point: CursorPoint = {
           x,

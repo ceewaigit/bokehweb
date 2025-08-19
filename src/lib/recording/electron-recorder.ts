@@ -655,10 +655,10 @@ export class ElectronRecorder {
           }
         }
 
-        // Apply scale factor to convert logical pixels to physical pixels
-        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
-        const transformedX = data.x * scaleFactor
-        const transformedY = data.y * scaleFactor
+        // Don't scale the coordinates - keep them in logical pixels
+        // The video player will handle the scaling
+        const transformedX = data.x
+        const transformedY = data.y
 
         this.metadata.push({
           timestamp,
@@ -666,9 +666,10 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'mouse',
           velocity,
+          // Store logical screen dimensions
           captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
           captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
-          scaleFactor
+          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
         // Update last position
@@ -682,10 +683,9 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        // Apply scale factor to convert logical pixels to physical pixels
-        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
-        const transformedX = data.x * scaleFactor
-        const transformedY = data.y * scaleFactor
+        // Don't scale the coordinates - keep them in logical pixels
+        const transformedX = data.x
+        const transformedY = data.y
 
         this.metadata.push({
           timestamp,
@@ -695,7 +695,7 @@ export class ElectronRecorder {
           key: data.button,
           captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
           captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
-          scaleFactor
+          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
         // Update position on click (use transformed coordinates)
