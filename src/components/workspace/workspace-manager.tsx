@@ -560,6 +560,36 @@ export function WorkspaceManager() {
 
   const handleEffectChange = useCallback((effects: ClipEffects) => {
     if (selectedClipId) {
+      // Check if this is a zoom regeneration request
+      if (effects.zoom?.regenerate && effectsEngineRef.current && selectedRecording) {
+        // Re-initialize the effects engine to regenerate zoom detection
+        effectsEngineRef.current.initializeFromRecording(selectedRecording)
+        
+        // Get the newly generated zoom effects and convert to blocks
+        const zoomEffects = effectsEngineRef.current.getEffects()
+        const newZoomBlocks = zoomEffects.map(effect => ({
+          id: effect.id || `zoom-${effect.startTime}`,
+          startTime: effect.startTime,
+          endTime: effect.endTime,
+          introMs: effect.introMs || 400,
+          outroMs: effect.outroMs || 500,
+          scale: effect.scale || 2.0,
+          targetX: effect.targetX || 0.5,
+          targetY: effect.targetY || 0.5,
+          mode: 'auto' as const  // Mark as auto-detected
+        }))
+        
+        // Update effects with new zoom blocks
+        effects = {
+          ...effects,
+          zoom: {
+            ...effects.zoom,
+            blocks: newZoomBlocks,
+            regenerate: undefined // Clear the regenerate flag
+          }
+        }
+      }
+
       // Store effects locally instead of saving immediately
       setLocalEffects(effects)
       setHasUnsavedChanges(true)
@@ -581,7 +611,7 @@ export function WorkspaceManager() {
         canvasRef.current.dispatchEvent(event)
       }
     }
-  }, [selectedClipId])
+  }, [selectedClipId, selectedRecording])
 
   const handleToggleProperties = useCallback(() => {
     toggleProperties()

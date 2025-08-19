@@ -60,7 +60,10 @@ export class EffectsEngine {
    * Initialize from recording
    */
   initializeFromRecording(recording: any): void {
-    if (!recording) return
+    if (!recording) {
+      console.error('[ERROR] No recording provided to effects engine');
+      return
+    }
 
     this.duration = recording.duration || 0
     
@@ -76,12 +79,13 @@ export class EffectsEngine {
       this.width = recording.metadata.width
       this.height = recording.metadata.height
     } else {
-      // Fallback to defaults
-      this.width = 1920
-      this.height = 1080
+      // NO FALLBACK - fail loudly
+      console.error('[ERROR] No video dimensions found in recording!', {
+        recording,
+        metadata: recording.metadata
+      });
+      throw new Error('Video dimensions not found in recording. Cannot initialize effects engine.');
     }
-
-    console.log(`[DEBUG] Effects engine initialized with dimensions: ${this.width}x${this.height}, duration: ${this.duration}ms`);
 
     // Clear interpolation cache when reinitializing
     this.interpolatedMouseCache.clear()
@@ -118,32 +122,23 @@ export class EffectsEngine {
    * This mimics Screen Studio's smart zooming behavior
    */
   private detectClusterBasedZooms(): void {
-    console.log('[DEBUG] detectClusterBasedZooms called');
     this.effects = []
     
     // Detect mouse clusters
     const clusters = this.detectMouseClusters()
     
-    console.log(`[DEBUG] Found ${clusters.length} clusters`);
-    
-    if (clusters.length === 0) {
-      console.log('[DEBUG] No clusters found, returning');
-      return
-    }
+    if (clusters.length === 0) return
     
     // Convert stable clusters to zoom effects
-    clusters.forEach((cluster, idx) => {
+    clusters.forEach(cluster => {
       // Only zoom if cluster is stable and properly sized
       const clusterDuration = cluster.endTime - cluster.startTime
       const normalizedWidth = cluster.boundingBox.width / this.width
       const normalizedHeight = cluster.boundingBox.height / this.height
       const clusterSize = Math.max(normalizedWidth, normalizedHeight)
       
-      console.log(`[DEBUG] Cluster ${idx}: duration=${clusterDuration}ms, size=${clusterSize.toFixed(3)}, width=${normalizedWidth.toFixed(3)}, height=${normalizedHeight.toFixed(3)}`);
-      
       // Skip if cluster is too large or too brief
       if (clusterSize > this.MAX_CLUSTER_SIZE || clusterDuration < this.MIN_CLUSTER_TIME) {
-        console.log(`[DEBUG] Skipping cluster ${idx}: size > ${this.MAX_CLUSTER_SIZE} or duration < ${this.MIN_CLUSTER_TIME}`);
         return
       }
       
@@ -157,13 +152,9 @@ export class EffectsEngine {
         zoomScale = 1.5 // Large cluster - gentle zoom
       }
       
-      console.log(`[DEBUG] Cluster ${idx} zoom scale: ${zoomScale}`);
-      
       // Center the zoom on the cluster
       const targetX = cluster.center.x / this.width
       const targetY = cluster.center.y / this.height
-      
-      console.log(`[DEBUG] Cluster ${idx} target: x=${targetX.toFixed(3)}, y=${targetY.toFixed(3)}`);
       
       // Ensure zoom doesn't exceed video duration
       const effectiveDuration = Math.min(
@@ -172,11 +163,7 @@ export class EffectsEngine {
         this.duration - cluster.startTime - 500
       )
       
-      console.log(`[DEBUG] Cluster ${idx} effective duration: ${effectiveDuration}ms (min required: ${this.MIN_ZOOM_DURATION}ms)`);
-      console.log(`[DEBUG] Video duration: ${this.duration}ms, cluster start: ${cluster.startTime}ms`);
-      
       if (effectiveDuration > this.MIN_ZOOM_DURATION) {
-        console.log(`[DEBUG] Creating zoom effect for cluster ${idx}`);
         this.effects.push({
           id: `zoom-cluster-${cluster.startTime}`,
           type: 'zoom',
@@ -188,33 +175,18 @@ export class EffectsEngine {
           introMs: 400, // Slightly slower intro for smoother feel
           outroMs: 500  // Slower outro
         })
-      } else {
-        console.log(`[DEBUG] Skipping zoom for cluster ${idx}: duration too short`);
       }
     })
     
     // Merge overlapping zoom effects
     this.mergeOverlappingZooms()
-    
-    console.log(`[DEBUG] Final zoom effects count: ${this.effects.length}`);
-    if (this.effects.length > 0) {
-      this.effects.forEach((effect, i) => {
-        console.log(`[DEBUG] Effect ${i}: start=${effect.startTime}, end=${effect.endTime}, scale=${effect.scale}, target=(${effect.targetX?.toFixed(2)}, ${effect.targetY?.toFixed(2)})`);
-      });
-    }
   }
 
   /**
    * Detect mouse clusters using spatial-temporal analysis
    */
   private detectMouseClusters(): MouseCluster[] {
-    console.log('[DEBUG] detectMouseClusters called');
-    console.log(`[DEBUG] Total events: ${this.events.length}, Min required: ${this.MIN_CLUSTER_EVENTS}`);
-    
-    if (this.events.length < this.MIN_CLUSTER_EVENTS) {
-      console.log('[DEBUG] Not enough events for cluster detection');
-      return []
-    }
+    if (this.events.length < this.MIN_CLUSTER_EVENTS) return []
     
     const clusters: MouseCluster[] = []
     let i = 0
@@ -231,60 +203,38 @@ export class EffectsEngine {
         j++
       }
       
-      console.log(`[DEBUG] Window ${i}: ${windowEvents.length} events from ${windowStart}ms to ${windowEnd}ms`);
-      
       // Check if we have enough events
       if (windowEvents.length >= this.MIN_CLUSTER_EVENTS) {
         // Calculate bounding box and center
         const cluster = this.analyzeCluster(windowEvents)
         
-        console.log(`[DEBUG] Cluster analysis:`, {
-          density: cluster.density.toFixed(3),
-          stability: cluster.stability.toFixed(3),
-          boundingBox: {
-            width: cluster.boundingBox.width,
-            height: cluster.boundingBox.height
-          },
-          center: cluster.center,
-          duration: cluster.endTime - cluster.startTime
-        });
-        
         // Check cluster quality - be more lenient with stability
         // Lower stability threshold since mouse events might not be perfectly regular
         if (cluster.density > 0.3 && cluster.stability > 0.35) {
-          console.log('[DEBUG] Cluster passes quality check!');
           
           // Check if this cluster should be merged with the previous one
           if (clusters.length > 0) {
             const lastCluster = clusters[clusters.length - 1]
             const distance = this.calculateClusterDistance(lastCluster, cluster)
             
-            console.log(`[DEBUG] Distance to previous cluster: ${distance.toFixed(3)}`);
-            
             if (distance < this.CLUSTER_MERGE_DISTANCE) {
               // Merge clusters
-              console.log('[DEBUG] Merging with previous cluster');
               this.mergeClusters(lastCluster, cluster)
             } else {
-              console.log('[DEBUG] Adding as new cluster');
               clusters.push(cluster)
             }
           } else {
-            console.log('[DEBUG] Adding first cluster');
             clusters.push(cluster)
           }
           
           // Skip ahead to avoid overlapping clusters
           i = j - 1
-        } else {
-          console.log('[DEBUG] Cluster failed quality check (density > 0.3, stability > 0.35)');
         }
       }
       
       i++
     }
     
-    console.log(`[DEBUG] Total clusters detected: ${clusters.length}`);
     return clusters
   }
   

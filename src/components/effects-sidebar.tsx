@@ -291,6 +291,26 @@ export function EffectsSidebar({
               />
             </div>
 
+            {/* Reset Zoom Detection Button */}
+            <div className="pt-4 border-t border-border">
+              <button
+                onClick={() => {
+                  // Trigger zoom detection reset
+                  updateEffect('zoom', { 
+                    ...effects.zoom,
+                    blocks: [], // Clear existing blocks
+                    regenerate: Date.now() // Add timestamp to trigger regeneration
+                  })
+                }}
+                className="w-full px-3 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
+              >
+                Reset Zoom Detection
+              </button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Re-analyze mouse movements to detect zoom areas
+              </p>
+            </div>
+
           </div>
         )}
 

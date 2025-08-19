@@ -149,6 +149,7 @@ export interface ClipEffects {
     sensitivity: number
     maxZoom: number
     smoothing: number
+    regenerate?: number  // Timestamp to trigger regeneration
   }
 
   // Cursor styling

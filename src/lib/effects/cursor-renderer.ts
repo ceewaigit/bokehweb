@@ -189,21 +189,6 @@ export class CursorRenderer {
   }
 
   private preprocessEvents() {
-    // Debug first few events to understand the coordinate issue
-    if (this.events.length > 0) {
-      const firstEvent = this.events[0] as any
-      console.log('First event raw:', {
-        mouseX: firstEvent.mouseX,
-        mouseY: firstEvent.mouseY,
-        captureX: firstEvent.captureX,
-        captureY: firstEvent.captureY,
-        captureWidth: firstEvent.captureWidth,
-        captureHeight: firstEvent.captureHeight,
-        videoWidth: this.videoWidth,
-        videoHeight: this.videoHeight
-      })
-    }
-    
     this.sortedPoints = this.events
       .map((event, index) => {
         // Get capture area bounds from metadata
@@ -212,30 +197,24 @@ export class CursorRenderer {
         const captureWidth = (event as any).captureWidth
         const captureHeight = (event as any).captureHeight
         
-        // Check if we actually have capture bounds
-        const hasCaptureInfo = captureWidth !== undefined && captureHeight !== undefined
-        
+        // Normalize coordinates based on capture bounds or video dimensions
         let x, y
         
-        if (hasCaptureInfo) {
-          // We have capture info - transform from screen space to normalized space
-          // Mouse coords are in screen space, capture bounds tell us the recording area
+        if (captureWidth && captureHeight) {
+          // Transform from screen space to normalized space using capture bounds
           const relativeX = event.mouseX - (captureX || 0)
           const relativeY = event.mouseY - (captureY || 0)
-          x = captureWidth > 0 ? Math.max(0, Math.min(1, relativeX / captureWidth)) : 0
-          y = captureHeight > 0 ? Math.max(0, Math.min(1, relativeY / captureHeight)) : 0
+          x = relativeX / captureWidth
+          y = relativeY / captureHeight
         } else {
-          // No capture info - the mouse coordinates are in screen space
-          // We need to get the actual screen dimensions somehow
-          // For now, assume the video dimensions match the screen dimensions
-          x = this.videoWidth > 0 ? event.mouseX / this.videoWidth : 0
-          y = this.videoHeight > 0 ? event.mouseY / this.videoHeight : 0
+          // Fallback to video dimensions
+          x = event.mouseX / this.videoWidth
+          y = event.mouseY / this.videoHeight
         }
         
-        // Debug first point
-        if (index === 0) {
-          console.log('First point normalized:', { x, y }, 'hasCaptureInfo:', hasCaptureInfo)
-        }
+        // Clamp to 0-1 range
+        x = Math.max(0, Math.min(1, x))
+        y = Math.max(0, Math.min(1, y))
 
         const point: CursorPoint = {
           x,
@@ -619,26 +598,17 @@ export class CursorRenderer {
     )
 
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      // Apply same coordinate transformation logic as cursor position
+      // Apply same coordinate transformation as cursor position
       const captureX = (clickEvent as any).captureX
       const captureY = (clickEvent as any).captureY
-      const captureWidth = (clickEvent as any).captureWidth
-      const captureHeight = (clickEvent as any).captureHeight
-      const hasCaptureInfo = captureWidth !== undefined && captureHeight !== undefined
+      const captureWidth = (clickEvent as any).captureWidth || this.videoWidth
+      const captureHeight = (clickEvent as any).captureHeight || this.videoHeight
       
-      let normalizedX, normalizedY
-      
-      if (hasCaptureInfo) {
-        // Transform from screen space to normalized space using capture bounds
-        const relativeX = clickEvent.mouseX - (captureX || 0)
-        const relativeY = clickEvent.mouseY - (captureY || 0)
-        normalizedX = captureWidth > 0 ? Math.max(0, Math.min(1, relativeX / captureWidth)) : 0
-        normalizedY = captureHeight > 0 ? Math.max(0, Math.min(1, relativeY / captureHeight)) : 0
-      } else {
-        // No capture info - use video dimensions
-        normalizedX = this.videoWidth > 0 ? clickEvent.mouseX / this.videoWidth : 0
-        normalizedY = this.videoHeight > 0 ? clickEvent.mouseY / this.videoHeight : 0
-      }
+      // Transform and normalize
+      const relativeX = clickEvent.mouseX - (captureX || 0)
+      const relativeY = clickEvent.mouseY - (captureY || 0)
+      const normalizedX = Math.max(0, Math.min(1, relativeX / captureWidth))
+      const normalizedY = Math.max(0, Math.min(1, relativeY / captureHeight))
       const videoX = normalizedX * this.video.videoWidth
       const videoY = normalizedY * this.video.videoHeight
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1

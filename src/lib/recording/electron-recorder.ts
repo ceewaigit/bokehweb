@@ -26,9 +26,8 @@ export interface ElectronMetadata {
   eventType: 'mouse' | 'click' | 'keypress' | 'scroll'
   key?: string
   screenId?: string
-  velocity?: { x: number; y: number } // pixels per second
+  velocity?: { x: number; y: number }
   scrollDelta?: { x: number; y: number }
-  // Capture area bounds for coordinate transformation
   captureX?: number
   captureY?: number
   captureWidth?: number
@@ -569,7 +568,6 @@ export class ElectronRecorder {
       // Get screen information from Electron
       if (window.electronAPI?.getScreens) {
         const screens = await window.electronAPI.getScreens()
-        logger.debug(`Getting screen info for source: ${sourceId}, available screens: ${screens.length}`)
 
         // Find the screen that matches our source
         // Source ID format is usually "screen:ID:0" 
@@ -579,13 +577,11 @@ export class ElectronRecorder {
         if (screenIdMatch && screens.length > 0) {
           const screenId = parseInt(screenIdMatch[1])
           screen = screens.find((s: any) => s.id === screenId)
-          logger.debug(`Looking for screen with ID ${screenId}, found: ${!!screen}`)
         }
         
-        // Always use primary screen as fallback
+        // Use primary screen as fallback
         if (!screen && screens.length > 0) {
           screen = screens[0]
-          logger.debug('Using primary screen as fallback')
         }
 
         if (screen) {
@@ -658,7 +654,6 @@ export class ElectronRecorder {
           }
         }
 
-        // Mouse coordinates are in logical pixels from screen.getCursorScreenPoint()
         const transformedX = data.x
         const transformedY = data.y
 
@@ -668,11 +663,10 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'mouse',
           velocity,
-          // Store capture area bounds for proper coordinate transformation
-          captureX: this.captureArea?.fullBounds?.x || 0,
-          captureY: this.captureArea?.fullBounds?.y || 0,
-          captureWidth: this.captureArea?.fullBounds?.width || data.displayBounds?.width,
-          captureHeight: this.captureArea?.fullBounds?.height || data.displayBounds?.height,
+          captureX: data.displayBounds?.x || this.captureArea?.fullBounds?.x || 0,
+          captureY: data.displayBounds?.y || this.captureArea?.fullBounds?.y || 0,
+          captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
+          captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
           scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
@@ -687,7 +681,6 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        // Coordinates are in logical pixels
         const transformedX = data.x
         const transformedY = data.y
 
@@ -696,12 +689,11 @@ export class ElectronRecorder {
           mouseX: transformedX,
           mouseY: transformedY,
           eventType: 'click',
-          key: data.button, // Store which button was clicked
-          // Store capture area bounds for proper coordinate transformation
-          captureX: this.captureArea?.fullBounds?.x || 0,
-          captureY: this.captureArea?.fullBounds?.y || 0,
-          captureWidth: this.captureArea?.fullBounds?.width || data.displayBounds?.width,
-          captureHeight: this.captureArea?.fullBounds?.height || data.displayBounds?.height,
+          key: data.button,
+          captureX: data.displayBounds?.x || this.captureArea?.fullBounds?.x || 0,
+          captureY: data.displayBounds?.y || this.captureArea?.fullBounds?.y || 0,
+          captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
+          captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
           scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
         })
 
@@ -722,7 +714,6 @@ export class ElectronRecorder {
           mouseY: data.y || this.lastMouseY,
           eventType: 'scroll',
           scrollDelta: { x: data.deltaX || 0, y: data.deltaY || 0 },
-          // Store capture area bounds for consistency
           captureX: this.captureArea?.fullBounds?.x || 0,
           captureY: this.captureArea?.fullBounds?.y || 0,
           captureWidth: this.captureArea?.fullBounds?.width,
