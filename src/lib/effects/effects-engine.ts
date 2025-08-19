@@ -90,48 +90,25 @@ export class EffectsEngine {
     // Clear interpolation cache when reinitializing
     this.interpolatedMouseCache.clear()
 
-    // Convert metadata to events
+    // Convert metadata to events - expect proper format only
     this.events = []
 
-    // Handle both formats: new (mouseEvents/clickEvents) and old (flat array)
     if (recording.metadata?.mouseEvents) {
-      // New format with separate arrays
       this.events.push(...recording.metadata.mouseEvents.map((e: any) => ({
         timestamp: e.timestamp,
         x: e.x,
         y: e.y,
         type: 'move' as const
       })))
-    } else if (Array.isArray(recording.metadata)) {
-      // Old format: flat array from electron-recorder
-      this.events.push(...recording.metadata
-        .filter((m: any) => m.eventType === 'mouse')
-        .map((m: any) => ({
-          timestamp: m.timestamp,
-          x: m.mouseX,
-          y: m.mouseY,
-          type: 'move' as const
-        })))
     }
 
     if (recording.metadata?.clickEvents) {
-      // New format with separate arrays
       this.events.push(...recording.metadata.clickEvents.map((e: any) => ({
         timestamp: e.timestamp,
         x: e.x,
         y: e.y,
         type: 'click' as const
       })))
-    } else if (Array.isArray(recording.metadata)) {
-      // Old format: flat array from electron-recorder
-      this.events.push(...recording.metadata
-        .filter((m: any) => m.eventType === 'click')
-        .map((m: any) => ({
-          timestamp: m.timestamp,
-          x: m.mouseX,
-          y: m.mouseY,
-          type: 'click' as const
-        })))
     }
 
     this.events.sort((a, b) => a.timestamp - b.timestamp)

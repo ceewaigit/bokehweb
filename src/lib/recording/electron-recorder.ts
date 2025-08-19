@@ -656,20 +656,9 @@ export class ElectronRecorder {
         }
 
         // Apply scale factor to convert logical pixels to physical pixels
-        const scaleFactor = data.scaleFactor ?? this.captureArea?.scaleFactor ?? 1
+        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
         const transformedX = data.x * scaleFactor
         const transformedY = data.y * scaleFactor
-        
-        // Debug: Log what we're storing
-        if (this.metadata.length === 0) {
-          console.log('Storing metadata with:', {
-            originalCoords: { x: data.x, y: data.y },
-            transformedCoords: { x: transformedX, y: transformedY },
-            displayBounds: data.displayBounds,
-            scaleFactor: scaleFactor,
-            captureArea: this.captureArea
-          })
-        }
 
         this.metadata.push({
           timestamp,
@@ -677,11 +666,9 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'mouse',
           velocity,
-          captureX: data.displayBounds?.x ?? this.captureArea?.fullBounds?.x,
-          captureY: data.displayBounds?.y ?? this.captureArea?.fullBounds?.y,
-          captureWidth: data.displayBounds?.width ?? this.captureArea?.fullBounds?.width,
-          captureHeight: data.displayBounds?.height ?? this.captureArea?.fullBounds?.height,
-          scaleFactor: data.scaleFactor ?? this.captureArea?.scaleFactor
+          captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
+          captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
+          scaleFactor
         })
 
         // Update last position
@@ -696,7 +683,7 @@ export class ElectronRecorder {
         const timestamp = Date.now() - this.startTime
 
         // Apply scale factor to convert logical pixels to physical pixels
-        const scaleFactor = data.scaleFactor ?? this.captureArea?.scaleFactor ?? 1
+        const scaleFactor = data.scaleFactor || this.captureArea?.scaleFactor || 1
         const transformedX = data.x * scaleFactor
         const transformedY = data.y * scaleFactor
 
@@ -706,11 +693,9 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'click',
           key: data.button,
-          captureX: data.displayBounds?.x ?? this.captureArea?.fullBounds?.x,
-          captureY: data.displayBounds?.y ?? this.captureArea?.fullBounds?.y,
-          captureWidth: data.displayBounds?.width ?? this.captureArea?.fullBounds?.width,
-          captureHeight: data.displayBounds?.height ?? this.captureArea?.fullBounds?.height,
-          scaleFactor: data.scaleFactor ?? this.captureArea?.scaleFactor
+          captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
+          captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
+          scaleFactor
         })
 
         // Update position on click (use transformed coordinates)

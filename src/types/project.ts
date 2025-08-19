@@ -416,37 +416,32 @@ export async function saveRecordingWithProject(
     // Create project with recording
     const project = createProject(baseName)
 
-    // Debug: Log raw metadata
-    console.log('=== RAW METADATA SAMPLE ===')
-    console.log('First 3 raw metadata events:', metadata.slice(0, 3))
-    
     // Process metadata into proper format
-    // IMPORTANT: Preserve original screen dimensions for proper cursor alignment
     const mouseEvents = metadata
-      .filter(m => m.eventType === 'mouse' || m.type === 'move')
+      .filter(m => m.eventType === 'mouse')
       .map(m => ({
-        timestamp: m.timestamp || m.t || 0,
-        x: m.mouseX || m.x || 0,
-        y: m.mouseY || m.y || 0,
+        timestamp: m.timestamp,
+        x: m.mouseX,
+        y: m.mouseY,
         // Keep original screen dimensions if available, otherwise use video dimensions
         screenWidth: m.screenWidth || width,
         screenHeight: m.screenHeight || height
       }))
 
     const clickEvents = metadata
-      .filter(m => m.eventType === 'click' || m.type === 'click')
+      .filter(m => m.eventType === 'click')
       .map(m => ({
-        timestamp: m.timestamp || m.t || 0,
-        x: m.mouseX || m.x || 0,
-        y: m.mouseY || m.y || 0,
-        button: 'left' as const
+        timestamp: m.timestamp,
+        x: m.mouseX,
+        y: m.mouseY,
+        button: m.key || 'left' as const
       }))
 
     const keyboardEvents = metadata
       .filter(m => m.eventType === 'keypress')
       .map(m => ({
-        timestamp: m.timestamp || m.t || 0,
-        key: m.key || '',
+        timestamp: m.timestamp,
+        key: m.key,
         modifiers: []
       }))
 
@@ -553,24 +548,6 @@ export async function saveRecordingWithProject(
 
     project.timeline.duration = duration
 
-    // Debug: Log the project structure
-    console.log('=== PROJECT STRUCTURE ===')
-    console.log('Recording metadata sample (first 3 events):', {
-      mouseEvents: recording.metadata.mouseEvents.slice(0, 3),
-      captureArea: recording.captureArea
-    })
-    console.log('Total events:', {
-      mouse: recording.metadata.mouseEvents.length,
-      clicks: recording.metadata.clickEvents.length,
-      keyboard: recording.metadata.keyboardEvents.length
-    })
-    console.log('Video info:', {
-      width: recording.width,
-      height: recording.height,
-      duration: recording.duration,
-      fps: recording.frameRate
-    })
-    
     // Save project file
     const projectFileName = `${baseName}.ssproj`
     const projectPath = await saveProject(project, projectFileName)

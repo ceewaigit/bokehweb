@@ -35,6 +35,11 @@ async function loadProjectRecording(
   }
 
   const project = recording.project
+  
+  // Debug: Log the entire project structure
+  console.log('=== LOADING PROJECT FILE ===')
+  console.log('Project:', JSON.stringify(project, null, 2))
+  
   setLoadingMessage('Creating project...')
   newProject(project.name)
 
