@@ -349,9 +349,7 @@ export async function saveRecordingWithProject(
   projectName?: string,
   captureArea?: CaptureArea
 ): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
-  
   if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
-    logger.error('Electron API not available for saving')
     return null
   }
 
@@ -375,18 +373,11 @@ export async function saveRecordingWithProject(
     // Get proper video duration (blob URLs may show Infinity initially)
     await new Promise<void>((resolve) => {
       video.onloadedmetadata = () => {
-        logger.debug('Video metadata loaded, initial duration:', video.duration)
-        
-        // If duration is not finite, seek to get it
         if (!isFinite(video.duration)) {
-          logger.debug('Duration is Infinity, seeking to end to get actual duration...')
           video.currentTime = Number.MAX_SAFE_INTEGER
-          
           video.onseeked = () => {
-            logger.debug('After seeking, duration is:', video.duration)
-            // Remove the event listener to prevent infinite loop
             video.onseeked = null
-            video.currentTime = 0 // Reset to start
+            video.currentTime = 0
             resolve()
           }
         } else {
@@ -489,8 +480,6 @@ export async function saveRecordingWithProject(
 
     // Use the engine's public method
     const zoomBlocks = effectsEngine.getZoomBlocks(mockRecording)
-
-    logger.debug(`Generated ${zoomBlocks.length} zoom blocks`)
 
     // Detect cursor activity to set visibility intelligently
     const hasCursorActivity = mouseEvents.length > 5 // Has meaningful mouse movement

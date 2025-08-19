@@ -666,10 +666,9 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'mouse',
           velocity,
-          // Store logical screen dimensions
-          captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
-          captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
-          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
+          captureWidth: data.displayBounds?.width,
+          captureHeight: data.displayBounds?.height,
+          scaleFactor: data.scaleFactor
         })
 
         // Update last position

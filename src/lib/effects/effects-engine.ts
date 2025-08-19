@@ -42,8 +42,10 @@ export class EffectsEngine {
   private effects: ZoomEffect[] = []
   private events: MouseEvent[] = []
   private duration = 0
-  private width = 1920
+  private width = 1920  // Video dimensions
   private height = 1080
+  private logicalWidth = 1920  // Logical/screen dimensions for mouse coordinates
+  private logicalHeight = 1080
   private interpolatedMouseCache = new Map<number, { x: number; y: number }>()
   private lastPanPosition = { x: 0.5, y: 0.5 } // Track last pan position for smooth transitions
 
@@ -93,7 +95,14 @@ export class EffectsEngine {
     // Convert metadata to events - expect proper format only
     this.events = []
 
-    if (recording.metadata?.mouseEvents) {
+    // Get logical dimensions from mouse events if available
+    if (recording.metadata?.mouseEvents && recording.metadata.mouseEvents.length > 0) {
+      const firstEvent = recording.metadata.mouseEvents[0]
+      if (firstEvent.screenWidth && firstEvent.screenHeight) {
+        this.logicalWidth = firstEvent.screenWidth
+        this.logicalHeight = firstEvent.screenHeight
+      }
+      
       this.events.push(...recording.metadata.mouseEvents.map((e: any) => ({
         timestamp: e.timestamp,
         x: e.x,
@@ -133,8 +142,8 @@ export class EffectsEngine {
     clusters.forEach(cluster => {
       // Only zoom if cluster is stable and properly sized
       const clusterDuration = cluster.endTime - cluster.startTime
-      const normalizedWidth = cluster.boundingBox.width / this.width
-      const normalizedHeight = cluster.boundingBox.height / this.height
+      const normalizedWidth = cluster.boundingBox.width / this.logicalWidth
+      const normalizedHeight = cluster.boundingBox.height / this.logicalHeight
       const clusterSize = Math.max(normalizedWidth, normalizedHeight)
       
       // Skip if cluster is too large or too brief
@@ -152,9 +161,10 @@ export class EffectsEngine {
         zoomScale = 1.5 // Large cluster - gentle zoom
       }
       
-      // Center the zoom on the cluster
-      const targetX = cluster.center.x / this.width
-      const targetY = cluster.center.y / this.height
+      // Center the zoom on the cluster using logical dimensions
+      // Mouse coordinates are in logical space, so normalize with logical dimensions
+      const targetX = cluster.center.x / this.logicalWidth
+      const targetY = cluster.center.y / this.logicalHeight
       
       // Ensure zoom doesn't exceed video duration
       const effectiveDuration = Math.min(
@@ -271,7 +281,7 @@ export class EffectsEngine {
     
     // Calculate density (how tightly grouped events are)
     const area = boundingBox.width * boundingBox.height
-    const maxArea = this.width * this.height
+    const maxArea = this.logicalWidth * this.logicalHeight
     const density = area > 0 ? 1 - (area / maxArea) : 1
     
     // Calculate stability (based on time spread and movement patterns)
@@ -294,8 +304,8 @@ export class EffectsEngine {
    * Calculate distance between two clusters
    */
   private calculateClusterDistance(cluster1: MouseCluster, cluster2: MouseCluster): number {
-    const dx = (cluster1.center.x - cluster2.center.x) / this.width
-    const dy = (cluster1.center.y - cluster2.center.y) / this.height
+    const dx = (cluster1.center.x - cluster2.center.x) / this.logicalWidth
+    const dy = (cluster1.center.y - cluster2.center.y) / this.logicalHeight
     return Math.sqrt(dx * dx + dy * dy)
   }
   
@@ -451,15 +461,15 @@ export class EffectsEngine {
     // If we only have one event or timestamp is outside range
     if (!prevEvent) {
       return this.events[0] ? {
-        x: this.events[0].x / this.width,
-        y: this.events[0].y / this.height
+        x: this.events[0].x / this.logicalWidth,
+        y: this.events[0].y / this.logicalHeight
       } : null
     }
 
     if (!nextEvent) {
       return {
-        x: prevEvent.x / this.width,
-        y: prevEvent.y / this.height
+        x: prevEvent.x / this.logicalWidth,
+        y: prevEvent.y / this.logicalHeight
       }
     }
 
@@ -467,8 +477,8 @@ export class EffectsEngine {
     const timeDiff = nextEvent.timestamp - prevEvent.timestamp
     if (timeDiff === 0) {
       return {
-        x: prevEvent.x / this.width,
-        y: prevEvent.y / this.height
+        x: prevEvent.x / this.logicalWidth,
+        y: prevEvent.y / this.logicalHeight
       }
     }
 
@@ -481,8 +491,8 @@ export class EffectsEngine {
     const interpolatedY = prevEvent.y + (nextEvent.y - prevEvent.y) * smoothProgress
 
     const result = {
-      x: interpolatedX / this.width,
-      y: interpolatedY / this.height
+      x: interpolatedX / this.logicalWidth,
+      y: interpolatedY / this.logicalHeight
     }
 
     // Cache the result for performance
