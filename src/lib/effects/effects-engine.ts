@@ -55,7 +55,6 @@ export class EffectsEngine {
   private readonly CLUSTER_MERGE_DISTANCE = 0.15 // Distance to merge nearby clusters
   private readonly MIN_ZOOM_DURATION = 1000 // Minimum zoom time
   private readonly MAX_ZOOM_DURATION = 8000 // Maximum zoom time
-  private readonly MIN_GAP_BETWEEN_ZOOMS = 2000 // Minimum gap between zoom effects
 
   /**
    * Initialize from recording
@@ -102,23 +101,32 @@ export class EffectsEngine {
    * This mimics Screen Studio's smart zooming behavior
    */
   private detectClusterBasedZooms(): void {
+    console.log('[DEBUG] detectClusterBasedZooms called');
     this.effects = []
     
     // Detect mouse clusters
     const clusters = this.detectMouseClusters()
     
-    if (clusters.length === 0) return
+    console.log(`[DEBUG] Found ${clusters.length} clusters`);
+    
+    if (clusters.length === 0) {
+      console.log('[DEBUG] No clusters found, returning');
+      return
+    }
     
     // Convert stable clusters to zoom effects
-    clusters.forEach(cluster => {
+    clusters.forEach((cluster, idx) => {
       // Only zoom if cluster is stable and properly sized
       const clusterDuration = cluster.endTime - cluster.startTime
       const normalizedWidth = cluster.boundingBox.width / this.width
       const normalizedHeight = cluster.boundingBox.height / this.height
       const clusterSize = Math.max(normalizedWidth, normalizedHeight)
       
+      console.log(`[DEBUG] Cluster ${idx}: duration=${clusterDuration}ms, size=${clusterSize.toFixed(3)}, width=${normalizedWidth.toFixed(3)}, height=${normalizedHeight.toFixed(3)}`);
+      
       // Skip if cluster is too large or too brief
       if (clusterSize > this.MAX_CLUSTER_SIZE || clusterDuration < this.MIN_CLUSTER_TIME) {
+        console.log(`[DEBUG] Skipping cluster ${idx}: size > ${this.MAX_CLUSTER_SIZE} or duration < ${this.MIN_CLUSTER_TIME}`);
         return
       }
       
@@ -166,7 +174,13 @@ export class EffectsEngine {
    * Detect mouse clusters using spatial-temporal analysis
    */
   private detectMouseClusters(): MouseCluster[] {
-    if (this.events.length < this.MIN_CLUSTER_EVENTS) return []
+    console.log('[DEBUG] detectMouseClusters called');
+    console.log(`[DEBUG] Total events: ${this.events.length}, Min required: ${this.MIN_CLUSTER_EVENTS}`);
+    
+    if (this.events.length < this.MIN_CLUSTER_EVENTS) {
+      console.log('[DEBUG] Not enough events for cluster detection');
+      return []
+    }
     
     const clusters: MouseCluster[] = []
     let i = 0
@@ -183,36 +197,59 @@ export class EffectsEngine {
         j++
       }
       
+      console.log(`[DEBUG] Window ${i}: ${windowEvents.length} events from ${windowStart}ms to ${windowEnd}ms`);
+      
       // Check if we have enough events
       if (windowEvents.length >= this.MIN_CLUSTER_EVENTS) {
         // Calculate bounding box and center
         const cluster = this.analyzeCluster(windowEvents)
         
+        console.log(`[DEBUG] Cluster analysis:`, {
+          density: cluster.density.toFixed(3),
+          stability: cluster.stability.toFixed(3),
+          boundingBox: {
+            width: cluster.boundingBox.width,
+            height: cluster.boundingBox.height
+          },
+          center: cluster.center,
+          duration: cluster.endTime - cluster.startTime
+        });
+        
         // Check cluster quality
         if (cluster.density > 0.3 && cluster.stability > 0.5) {
+          console.log('[DEBUG] Cluster passes quality check!');
+          
           // Check if this cluster should be merged with the previous one
           if (clusters.length > 0) {
             const lastCluster = clusters[clusters.length - 1]
             const distance = this.calculateClusterDistance(lastCluster, cluster)
             
+            console.log(`[DEBUG] Distance to previous cluster: ${distance.toFixed(3)}`);
+            
             if (distance < this.CLUSTER_MERGE_DISTANCE) {
               // Merge clusters
+              console.log('[DEBUG] Merging with previous cluster');
               this.mergeClusters(lastCluster, cluster)
             } else {
+              console.log('[DEBUG] Adding as new cluster');
               clusters.push(cluster)
             }
           } else {
+            console.log('[DEBUG] Adding first cluster');
             clusters.push(cluster)
           }
           
           // Skip ahead to avoid overlapping clusters
           i = j - 1
+        } else {
+          console.log('[DEBUG] Cluster failed quality check (density > 0.3, stability > 0.5)');
         }
       }
       
       i++
     }
     
+    console.log(`[DEBUG] Total clusters detected: ${clusters.length}`);
     return clusters
   }
   
@@ -608,30 +645,7 @@ export class EffectsEngine {
     return { x: newX, y: newY }
   }
 
-  /**
-   * Calculate velocity between two mouse events
-   */
-  private calculateVelocity(event1: MouseEvent, event2: MouseEvent): number {
-    const dx = event2.x - event1.x
-    const dy = event2.y - event1.y
-    const dt = (event2.timestamp - event1.timestamp) / 1000 // Convert to seconds
-
-    if (dt === 0) return 0
-
-    const distance = Math.sqrt(dx * dx + dy * dy)
-    return distance / dt // Pixels per second
-  }
-
-  /**
-   * Calculate normalized distance between two points
-   */
-  private calculateNormalizedDistance(event1: MouseEvent, event2: MouseEvent): number {
-    const dx = (event2.x - event1.x) / this.width
-    const dy = (event2.y - event1.y) / this.height
-    return Math.sqrt(dx * dx + dy * dy)
-  }
-
-  // Note: detectActivityPeriods removed - using cluster-based detection instead
+  // Note: velocity and distance calculations removed - using cluster-based detection instead
 
   /**
    * Apply zoom to canvas
