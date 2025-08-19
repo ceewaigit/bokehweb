@@ -657,6 +657,15 @@ export class ElectronRecorder {
 
         const transformedX = data.x
         const transformedY = data.y
+        
+        // Debug: Log what we're storing
+        if (this.metadata.length === 0) {
+          console.log('Storing metadata with:', {
+            displayBounds: data.displayBounds,
+            scaleFactor: data.scaleFactor,
+            captureArea: this.captureArea
+          })
+        }
 
         this.metadata.push({
           timestamp,
