@@ -363,18 +363,22 @@ export function PreviewArea({
           if (zoomState.scale > 1.0) {
             // Clear main canvas before drawing
             ctx.clearRect(0, 0, canvas.width, canvas.height)
-            // Calculate the zoom target point in canvas space
-            const targetX = canvas.width * zoomState.x
-            const targetY = canvas.height * zoomState.y
+            // Calculate the zoom center point in canvas space
+            const centerX = canvas.width * zoomState.x
+            const centerY = canvas.height * zoomState.y
 
             // Calculate the zoomed region dimensions
             const zoomWidth = canvas.width / zoomState.scale
             const zoomHeight = canvas.height / zoomState.scale
 
             // Calculate the top-left corner of the region to draw
-            // This keeps the target point centered in the view
-            const sx = Math.max(0, Math.min(canvas.width - zoomWidth, targetX - zoomWidth / 2))
-            const sy = Math.max(0, Math.min(canvas.height - zoomHeight, targetY - zoomHeight / 2))
+            // This keeps the center point in the middle of the zoom window
+            let sx = centerX - (zoomWidth / 2)
+            let sy = centerY - (zoomHeight / 2)
+            
+            // Clamp to canvas bounds
+            sx = Math.max(0, Math.min(canvas.width - zoomWidth, sx))
+            sy = Math.max(0, Math.min(canvas.height - zoomHeight, sy))
 
             // Draw the zoomed portion of the full composition
             ctx.drawImage(

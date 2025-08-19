@@ -291,22 +291,31 @@ export class CursorRenderer {
         // When zoomed, we need to transform the cursor position
         // to match how the video is transformed
 
-        // Calculate the zoom target point in video space
-        const targetX = this.video.videoWidth * zoomState.x
-        const targetY = this.video.videoHeight * zoomState.y
+        // Calculate the zoom center point in video space
+        const centerX = this.video.videoWidth * zoomState.x
+        const centerY = this.video.videoHeight * zoomState.y
 
         // Calculate the zoomed region dimensions
         const zoomWidth = this.video.videoWidth / zoomState.scale
         const zoomHeight = this.video.videoHeight / zoomState.scale
 
-        // Calculate the top-left corner of the zoomed region
-        const sx = Math.max(0, Math.min(this.video.videoWidth - zoomWidth, targetX - zoomWidth / 2))
-        const sy = Math.max(0, Math.min(this.video.videoHeight - zoomHeight, targetY - zoomHeight / 2))
+        // Calculate the actual top-left corner of the zoomed region
+        // This should match exactly what preview-area.tsx does
+        let sx = centerX - (zoomWidth / 2)
+        let sy = centerY - (zoomHeight / 2)
+        
+        // Apply the same clamping as in preview-area
+        sx = Math.max(0, Math.min(this.video.videoWidth - zoomWidth, sx))
+        sy = Math.max(0, Math.min(this.video.videoHeight - zoomHeight, sy))
 
-        // Transform cursor position from zoomed space to display space
-        // The cursor position needs to be adjusted based on the zoom
-        videoX = ((videoX - sx) / zoomWidth) * this.video.videoWidth
-        videoY = ((videoY - sy) / zoomHeight) * this.video.videoHeight
+        // Transform cursor position from video space to zoomed display space
+        // The cursor needs to be translated and scaled relative to the zoom window
+        const relativeX = (videoX - sx) / zoomWidth
+        const relativeY = (videoY - sy) / zoomHeight
+        
+        // Map to full video dimensions (which fill the canvas during zoom)
+        videoX = relativeX * this.video.videoWidth
+        videoY = relativeY * this.video.videoHeight
 
         // Store zoom scale to apply to cursor size
         zoomScale = zoomState.scale

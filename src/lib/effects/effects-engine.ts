@@ -623,10 +623,17 @@ export class EffectsEngine {
     }
 
     // Ensure we don't pan outside the video bounds
+    // Add a small buffer (5%) to prevent cursor cutoff at edges
+    const buffer = 0.05
     const halfFrameWidth = frameWidth / 2
     const halfFrameHeight = frameHeight / 2
-    newX = Math.max(halfFrameWidth, Math.min(1.0 - halfFrameWidth, newX))
-    newY = Math.max(halfFrameHeight, Math.min(1.0 - halfFrameHeight, newY))
+    const minX = Math.max(halfFrameWidth - buffer, 0)
+    const maxX = Math.min(1.0 - halfFrameWidth + buffer, 1.0)
+    const minY = Math.max(halfFrameHeight - buffer, 0)
+    const maxY = Math.min(1.0 - halfFrameHeight + buffer, 1.0)
+    
+    newX = Math.max(minX, Math.min(maxX, newX))
+    newY = Math.max(minY, Math.min(maxY, newY))
 
     // Store for next frame
     this.lastPanPosition = { x: newX, y: newY }
@@ -656,8 +663,18 @@ export class EffectsEngine {
     const centerX = zoom.x * sourceWidth
     const centerY = zoom.y * sourceHeight
 
-    const sx = Math.max(0, centerX - (zoomWidth / 2))
-    const sy = Math.max(0, centerY - (zoomHeight / 2))
+    // Calculate source rectangle with clamping
+    let sx = centerX - (zoomWidth / 2)
+    let sy = centerY - (zoomHeight / 2)
+    
+    // Clamp to source bounds with a small buffer for cursor visibility
+    sx = Math.max(-zoomWidth * 0.05, Math.min(sourceWidth - zoomWidth * 0.95, sx))
+    sy = Math.max(-zoomHeight * 0.05, Math.min(sourceHeight - zoomHeight * 0.95, sy))
+    
+    // Ensure we don't go outside source bounds
+    sx = Math.max(0, Math.min(sourceWidth - zoomWidth, sx))
+    sy = Math.max(0, Math.min(sourceHeight - zoomHeight, sy))
+    
     const sw = Math.min(zoomWidth, sourceWidth - sx)
     const sh = Math.min(zoomHeight, sourceHeight - sy)
 
