@@ -633,6 +633,11 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const now = Date.now()
         const timestamp = now - this.startTime
+        
+        // Debug what we're receiving
+        if (this.metadata.length === 0) {
+          console.log('First mouse event data:', data)
+        }
 
         // Calculate distance from last position
         const dx = this.lastMouseX >= 0 ? data.x - this.lastMouseX : 0
