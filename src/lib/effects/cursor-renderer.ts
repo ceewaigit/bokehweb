@@ -284,14 +284,13 @@ export class CursorRenderer {
     // Apply zoom transformations if effects engine is available
     let zoomScale = 1.0
     if (this.effectsEngine) {
-      // Get interpolated mouse position for smart panning
-      const mousePos = this.effectsEngine.getMousePositionAtTime(videoTime)
-      const zoomState = this.effectsEngine.getZoomState(videoTime, mousePos)
+      // Get the ACTUAL zoom state including panning
+      // Don't recalculate mouse position - the zoom state already accounts for it
+      const zoomState = this.effectsEngine.getZoomState(videoTime, targetPos)
+      
       if (zoomState && zoomState.scale > 1.0) {
-        // When zoomed, we need to transform the cursor position
-        // to match how the video is transformed
-
-        // Calculate the zoom center point in video space
+        // The zoomState.x and zoomState.y are the ACTUAL panned center
+        // after smart panning has been applied
         const centerX = this.video.videoWidth * zoomState.x
         const centerY = this.video.videoHeight * zoomState.y
 
@@ -299,21 +298,19 @@ export class CursorRenderer {
         const zoomWidth = this.video.videoWidth / zoomState.scale
         const zoomHeight = this.video.videoHeight / zoomState.scale
 
-        // Calculate the actual top-left corner of the zoomed region
-        // This should match exactly what preview-area.tsx does
+        // Calculate the actual visible region (this matches preview-area.tsx exactly)
         let sx = centerX - (zoomWidth / 2)
         let sy = centerY - (zoomHeight / 2)
         
-        // Apply the same clamping as in preview-area
+        // Apply the same clamping as preview-area
         sx = Math.max(0, Math.min(this.video.videoWidth - zoomWidth, sx))
         sy = Math.max(0, Math.min(this.video.videoHeight - zoomHeight, sy))
 
-        // Transform cursor position from video space to zoomed display space
-        // The cursor needs to be translated and scaled relative to the zoom window
+        // Transform cursor from original video space to zoomed view space
         const relativeX = (videoX - sx) / zoomWidth
         const relativeY = (videoY - sy) / zoomHeight
         
-        // Map to full video dimensions (which fill the canvas during zoom)
+        // Map to canvas dimensions 
         videoX = relativeX * this.video.videoWidth
         videoY = relativeY * this.video.videoHeight
 

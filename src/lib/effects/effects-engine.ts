@@ -516,13 +516,13 @@ export class EffectsEngine {
     const frameWidth = 1.0 / scale
     const frameHeight = 1.0 / scale
 
-    // Zone-based configuration - more aggressive following
-    const deadZone = 0.15 // Center 15% - reduced dead zone
-    const gentleZone = 0.3 // 15-30% - gentle drift
-    const activeZone = 0.4 // 30-40% - moderate following
-    // Beyond 40% - aggressive following to keep in frame
+    // Zone-based configuration - much more aggressive following
+    const deadZone = 0.05 // Center 5% - very small dead zone
+    const gentleZone = 0.15 // 5-15% - gentle drift
+    const activeZone = 0.30 // 15-30% - moderate following
+    // Beyond 30% - very aggressive following to keep cursor in frame
     
-    const maxPanDistance = 0.4 // Allow more freedom to follow mouse
+    const maxPanDistance = 0.5 // Allow maximum freedom to follow mouse
 
     // Calculate frame boundaries in normalized space
     const leftEdge = currentCenter.x - frameWidth / 2
@@ -556,17 +556,17 @@ export class EffectsEngine {
       } else if (relX < gentleZone) {
         // Gentle zone - slight drift
         const zoneProgress = (relX - deadZone) / (gentleZone - deadZone)
-        const drift = frameWidth * 0.01 * zoneProgress // Increased from 0.002
+        const drift = frameWidth * 0.02 * zoneProgress // Much more responsive
         targetX = currentCenter.x + (mousePos.x > currentCenter.x ? drift : -drift)
       } else if (relX < activeZone) {
         // Active zone - moderate following
         const zoneProgress = (relX - gentleZone) / (activeZone - gentleZone)
-        const follow = frameWidth * (0.02 + 0.04 * zoneProgress) // Increased from 0.005 + 0.015
+        const follow = frameWidth * (0.05 + 0.10 * zoneProgress) // Significantly increased
         targetX = currentCenter.x + (mousePos.x > currentCenter.x ? follow : -follow)
       } else {
-        // Danger zone - aggressive following
+        // Danger zone - very aggressive following to keep cursor visible
         const urgency = Math.min((relX - activeZone) / (1 - activeZone), 1)
-        const follow = frameWidth * (0.06 + 0.08 * urgency) // Increased from 0.02 + 0.03
+        const follow = frameWidth * (0.15 + 0.20 * urgency) // Much more aggressive
         targetX = currentCenter.x + (mousePos.x > currentCenter.x ? follow : -follow)
       }
       
@@ -577,17 +577,17 @@ export class EffectsEngine {
       } else if (relY < gentleZone) {
         // Gentle zone - slight drift
         const zoneProgress = (relY - deadZone) / (gentleZone - deadZone)
-        const drift = frameHeight * 0.01 * zoneProgress // Increased from 0.002
+        const drift = frameHeight * 0.02 * zoneProgress // Much more responsive
         targetY = currentCenter.y + (mousePos.y > currentCenter.y ? drift : -drift)
       } else if (relY < activeZone) {
         // Active zone - moderate following
         const zoneProgress = (relY - gentleZone) / (activeZone - gentleZone)
-        const follow = frameHeight * (0.02 + 0.04 * zoneProgress) // Increased from 0.005 + 0.015
+        const follow = frameHeight * (0.05 + 0.10 * zoneProgress) // Significantly increased
         targetY = currentCenter.y + (mousePos.y > currentCenter.y ? follow : -follow)
       } else {
-        // Danger zone - aggressive following
+        // Danger zone - very aggressive following to keep cursor visible
         const urgency = Math.min((relY - activeZone) / (1 - activeZone), 1)
-        const follow = frameHeight * (0.06 + 0.08 * urgency) // Increased from 0.02 + 0.03
+        const follow = frameHeight * (0.15 + 0.20 * urgency) // Much more aggressive
         targetY = currentCenter.y + (mousePos.y > currentCenter.y ? follow : -follow)
       }
     }

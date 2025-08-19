@@ -230,20 +230,22 @@ export function PreviewArea({
             cursorCanvas.width = canvas.width
             cursorCanvas.height = canvas.height
             
-            // Get the actual rendered position and size of the main canvas
-            const canvasRect = canvas.getBoundingClientRect()
-            const parentRect = parentElement.getBoundingClientRect()
+            // Position cursor canvas to exactly overlay the main canvas
+            const updateCursorCanvasPosition = () => {
+              const canvasRect = canvas.getBoundingClientRect()
+              const parentRect = parentElement.getBoundingClientRect()
+              
+              const relativeTop = canvasRect.top - parentRect.top
+              const relativeLeft = canvasRect.left - parentRect.left
+              
+              cursorCanvas.style.position = 'absolute'
+              cursorCanvas.style.top = `${relativeTop}px`
+              cursorCanvas.style.left = `${relativeLeft}px`
+              cursorCanvas.style.width = `${canvasRect.width}px`
+              cursorCanvas.style.height = `${canvasRect.height}px`
+            }
             
-            // Calculate the relative position within the parent
-            const relativeTop = canvasRect.top - parentRect.top
-            const relativeLeft = canvasRect.left - parentRect.left
-            
-            // Set cursor canvas styles to exactly match the main canvas
-            cursorCanvas.style.position = 'absolute'
-            cursorCanvas.style.top = `${relativeTop}px`
-            cursorCanvas.style.left = `${relativeLeft}px`
-            cursorCanvas.style.width = `${canvasRect.width}px`
-            cursorCanvas.style.height = `${canvasRect.height}px`
+            updateCursorCanvasPosition()
             cursorCanvas.style.pointerEvents = 'none'
             cursorCanvas.style.zIndex = '100'
 
@@ -257,28 +259,26 @@ export function PreviewArea({
             // Confirm canvas is attached and ready to render
             currentCursorRenderer.confirmAttached()
           }
-        } else if (cursorCanvasRef.current) {
+        } else if (cursorCanvasRef.current && canvas.parentElement) {
           // Update dimensions and position if canvas already attached
-          const canvasRect = canvas.getBoundingClientRect()
-          const parentRect = canvas.parentElement?.getBoundingClientRect()
-          
-          if (parentRect) {
-            const relativeTop = canvasRect.top - parentRect.top
-            const relativeLeft = canvasRect.left - parentRect.left
-            
-            // Update canvas internal dimensions if needed
-            if (cursorCanvasRef.current.width !== canvas.width ||
-              cursorCanvasRef.current.height !== canvas.height) {
-              cursorCanvasRef.current.width = canvas.width
-              cursorCanvasRef.current.height = canvas.height
-            }
-            
-            // Always update position and size to match main canvas
-            cursorCanvasRef.current.style.top = `${relativeTop}px`
-            cursorCanvasRef.current.style.left = `${relativeLeft}px`
-            cursorCanvasRef.current.style.width = `${canvasRect.width}px`
-            cursorCanvasRef.current.style.height = `${canvasRect.height}px`
+          // Update canvas internal dimensions if needed
+          if (cursorCanvasRef.current.width !== canvas.width ||
+            cursorCanvasRef.current.height !== canvas.height) {
+            cursorCanvasRef.current.width = canvas.width
+            cursorCanvasRef.current.height = canvas.height
           }
+          
+          // Update position to match main canvas
+          const canvasRect = canvas.getBoundingClientRect()
+          const parentRect = canvas.parentElement.getBoundingClientRect()
+          
+          const relativeTop = canvasRect.top - parentRect.top
+          const relativeLeft = canvasRect.left - parentRect.left
+          
+          cursorCanvasRef.current.style.top = `${relativeTop}px`
+          cursorCanvasRef.current.style.left = `${relativeLeft}px`
+          cursorCanvasRef.current.style.width = `${canvasRect.width}px`
+          cursorCanvasRef.current.style.height = `${canvasRect.height}px`
         }
       }
 
