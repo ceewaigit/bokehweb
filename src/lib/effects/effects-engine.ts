@@ -63,8 +63,25 @@ export class EffectsEngine {
     if (!recording) return
 
     this.duration = recording.duration || 0
-    this.width = recording.width || 1920
-    this.height = recording.height || 1080
+    
+    // Try to get dimensions from multiple possible locations
+    // Check recording.metadata first since that's where actual video dimensions are stored
+    if (recording.metadata?.videoWidth && recording.metadata?.videoHeight) {
+      this.width = recording.metadata.videoWidth
+      this.height = recording.metadata.videoHeight
+    } else if (recording.width && recording.height) {
+      this.width = recording.width
+      this.height = recording.height
+    } else if (recording.metadata?.width && recording.metadata?.height) {
+      this.width = recording.metadata.width
+      this.height = recording.metadata.height
+    } else {
+      // Fallback to defaults
+      this.width = 1920
+      this.height = 1080
+    }
+
+    console.log(`[DEBUG] Effects engine initialized with dimensions: ${this.width}x${this.height}, duration: ${this.duration}ms`);
 
     // Clear interpolation cache when reinitializing
     this.interpolatedMouseCache.clear()
@@ -140,9 +157,13 @@ export class EffectsEngine {
         zoomScale = 1.5 // Large cluster - gentle zoom
       }
       
+      console.log(`[DEBUG] Cluster ${idx} zoom scale: ${zoomScale}`);
+      
       // Center the zoom on the cluster
       const targetX = cluster.center.x / this.width
       const targetY = cluster.center.y / this.height
+      
+      console.log(`[DEBUG] Cluster ${idx} target: x=${targetX.toFixed(3)}, y=${targetY.toFixed(3)}`);
       
       // Ensure zoom doesn't exceed video duration
       const effectiveDuration = Math.min(
@@ -151,7 +172,11 @@ export class EffectsEngine {
         this.duration - cluster.startTime - 500
       )
       
+      console.log(`[DEBUG] Cluster ${idx} effective duration: ${effectiveDuration}ms (min required: ${this.MIN_ZOOM_DURATION}ms)`);
+      console.log(`[DEBUG] Video duration: ${this.duration}ms, cluster start: ${cluster.startTime}ms`);
+      
       if (effectiveDuration > this.MIN_ZOOM_DURATION) {
+        console.log(`[DEBUG] Creating zoom effect for cluster ${idx}`);
         this.effects.push({
           id: `zoom-cluster-${cluster.startTime}`,
           type: 'zoom',
@@ -163,11 +188,20 @@ export class EffectsEngine {
           introMs: 400, // Slightly slower intro for smoother feel
           outroMs: 500  // Slower outro
         })
+      } else {
+        console.log(`[DEBUG] Skipping zoom for cluster ${idx}: duration too short`);
       }
     })
     
     // Merge overlapping zoom effects
     this.mergeOverlappingZooms()
+    
+    console.log(`[DEBUG] Final zoom effects count: ${this.effects.length}`);
+    if (this.effects.length > 0) {
+      this.effects.forEach((effect, i) => {
+        console.log(`[DEBUG] Effect ${i}: start=${effect.startTime}, end=${effect.endTime}, scale=${effect.scale}, target=(${effect.targetX?.toFixed(2)}, ${effect.targetY?.toFixed(2)})`);
+      });
+    }
   }
 
   /**
@@ -215,8 +249,9 @@ export class EffectsEngine {
           duration: cluster.endTime - cluster.startTime
         });
         
-        // Check cluster quality
-        if (cluster.density > 0.3 && cluster.stability > 0.5) {
+        // Check cluster quality - be more lenient with stability
+        // Lower stability threshold since mouse events might not be perfectly regular
+        if (cluster.density > 0.3 && cluster.stability > 0.35) {
           console.log('[DEBUG] Cluster passes quality check!');
           
           // Check if this cluster should be merged with the previous one
@@ -242,7 +277,7 @@ export class EffectsEngine {
           // Skip ahead to avoid overlapping clusters
           i = j - 1
         } else {
-          console.log('[DEBUG] Cluster failed quality check (density > 0.3, stability > 0.5)');
+          console.log('[DEBUG] Cluster failed quality check (density > 0.3, stability > 0.35)');
         }
       }
       

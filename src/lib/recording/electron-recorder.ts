@@ -569,31 +569,46 @@ export class ElectronRecorder {
       // Get screen information from Electron
       if (window.electronAPI?.getScreens) {
         const screens = await window.electronAPI.getScreens()
+        logger.debug(`Getting screen info for source: ${sourceId}, available screens: ${screens.length}`)
 
         // Find the screen that matches our source
         // Source ID format is usually "screen:ID:0" 
         const screenIdMatch = sourceId.match(/screen:(\d+):/)
+        let screen = null
+        
         if (screenIdMatch && screens.length > 0) {
           const screenId = parseInt(screenIdMatch[1])
-          const screen = screens.find((s: any) => s.id === screenId) || screens[0]
-
-          if (screen) {
-            this.captureArea = {
-              fullBounds: screen.bounds,
-              workArea: screen.workArea,
-              scaleFactor: screen.scaleFactor || 1
-            }
-
-            logger.info('Screen info captured', {
-              fullBounds: this.captureArea.fullBounds,
-              workArea: this.captureArea.workArea,
-              dockHeight: this.captureArea.fullBounds.height - this.captureArea.workArea.height
-            })
-          }
+          screen = screens.find((s: any) => s.id === screenId)
+          logger.debug(`Looking for screen with ID ${screenId}, found: ${!!screen}`)
         }
+        
+        // Always use primary screen as fallback
+        if (!screen && screens.length > 0) {
+          screen = screens[0]
+          logger.debug('Using primary screen as fallback')
+        }
+
+        if (screen) {
+          this.captureArea = {
+            fullBounds: screen.bounds,
+            workArea: screen.workArea,
+            scaleFactor: screen.scaleFactor || 1
+          }
+
+          logger.info('Screen info captured', {
+            sourceId,
+            fullBounds: this.captureArea.fullBounds,
+            workArea: this.captureArea.workArea,
+            scaleFactor: this.captureArea.scaleFactor
+          })
+        } else {
+          logger.warn('No screen found, capture area will be undefined')
+        }
+      } else {
+        logger.warn('getScreens API not available')
       }
     } catch (error) {
-      logger.warn('Could not capture screen info, dock exclusion will not be available', error)
+      logger.warn('Could not capture screen info, capture area will be undefined', error)
     }
   }
 

@@ -207,37 +207,34 @@ export class CursorRenderer {
     this.sortedPoints = this.events
       .map((event, index) => {
         // Get capture area bounds from metadata
-        const captureX = (event as any).captureX || 0
-        const captureY = (event as any).captureY || 0
-        const captureWidth = (event as any).captureWidth || this.videoWidth
-        const captureHeight = (event as any).captureHeight || this.videoHeight
+        const captureX = (event as any).captureX
+        const captureY = (event as any).captureY
+        const captureWidth = (event as any).captureWidth
+        const captureHeight = (event as any).captureHeight
         
-        // Check if we actually have capture bounds, or if they're just defaults
-        const hasCaptureInfo = (event as any).captureWidth !== undefined
+        // Check if we actually have capture bounds
+        const hasCaptureInfo = captureWidth !== undefined && captureHeight !== undefined
         
         let x, y
         
-        if (hasCaptureInfo && captureX === 0 && captureY === 0 && captureWidth && captureHeight) {
-          // We have capture info and it starts at origin - this means full screen capture
-          // Just normalize directly
-          x = captureWidth > 0 ? event.mouseX / captureWidth : 0
-          y = captureHeight > 0 ? event.mouseY / captureHeight : 0
-        } else if (hasCaptureInfo) {
-          // We have capture info for a windowed/region capture
-          // Transform from screen space to capture space
-          const relativeX = event.mouseX - captureX
-          const relativeY = event.mouseY - captureY
+        if (hasCaptureInfo) {
+          // We have capture info - transform from screen space to normalized space
+          // Mouse coords are in screen space, capture bounds tell us the recording area
+          const relativeX = event.mouseX - (captureX || 0)
+          const relativeY = event.mouseY - (captureY || 0)
           x = captureWidth > 0 ? Math.max(0, Math.min(1, relativeX / captureWidth)) : 0
           y = captureHeight > 0 ? Math.max(0, Math.min(1, relativeY / captureHeight)) : 0
         } else {
-          // No capture info - assume mouse coords are already relative to video
+          // No capture info - the mouse coordinates are in screen space
+          // We need to get the actual screen dimensions somehow
+          // For now, assume the video dimensions match the screen dimensions
           x = this.videoWidth > 0 ? event.mouseX / this.videoWidth : 0
           y = this.videoHeight > 0 ? event.mouseY / this.videoHeight : 0
         }
         
         // Debug first point
         if (index === 0) {
-          console.log('First point normalized:', { x, y })
+          console.log('First point normalized:', { x, y }, 'hasCaptureInfo:', hasCaptureInfo)
         }
 
         const point: CursorPoint = {
@@ -623,26 +620,22 @@ export class CursorRenderer {
 
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
       // Apply same coordinate transformation logic as cursor position
-      const captureX = (clickEvent as any).captureX || 0
-      const captureY = (clickEvent as any).captureY || 0
-      const captureWidth = (clickEvent as any).captureWidth || this.videoWidth
-      const captureHeight = (clickEvent as any).captureHeight || this.videoHeight
-      const hasCaptureInfo = (clickEvent as any).captureWidth !== undefined
+      const captureX = (clickEvent as any).captureX
+      const captureY = (clickEvent as any).captureY
+      const captureWidth = (clickEvent as any).captureWidth
+      const captureHeight = (clickEvent as any).captureHeight
+      const hasCaptureInfo = captureWidth !== undefined && captureHeight !== undefined
       
       let normalizedX, normalizedY
       
-      if (hasCaptureInfo && captureX === 0 && captureY === 0 && captureWidth && captureHeight) {
-        // Full screen capture - normalize directly
-        normalizedX = captureWidth > 0 ? clickEvent.mouseX / captureWidth : 0
-        normalizedY = captureHeight > 0 ? clickEvent.mouseY / captureHeight : 0
-      } else if (hasCaptureInfo) {
-        // Windowed/region capture - transform to capture space
-        const relativeX = clickEvent.mouseX - captureX
-        const relativeY = clickEvent.mouseY - captureY
+      if (hasCaptureInfo) {
+        // Transform from screen space to normalized space using capture bounds
+        const relativeX = clickEvent.mouseX - (captureX || 0)
+        const relativeY = clickEvent.mouseY - (captureY || 0)
         normalizedX = captureWidth > 0 ? Math.max(0, Math.min(1, relativeX / captureWidth)) : 0
         normalizedY = captureHeight > 0 ? Math.max(0, Math.min(1, relativeY / captureHeight)) : 0
       } else {
-        // No capture info - assume coords are relative to video
+        // No capture info - use video dimensions
         normalizedX = this.videoWidth > 0 ? clickEvent.mouseX / this.videoWidth : 0
         normalizedY = this.videoHeight > 0 ? clickEvent.mouseY / this.videoHeight : 0
       }
