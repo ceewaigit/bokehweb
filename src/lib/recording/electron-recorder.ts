@@ -655,14 +655,18 @@ export class ElectronRecorder {
           }
         }
 
-        const transformedX = data.x
-        const transformedY = data.y
+        // Apply scale factor to convert logical pixels to physical pixels
+        const scaleFactor = data.scaleFactor ?? this.captureArea?.scaleFactor ?? 1
+        const transformedX = data.x * scaleFactor
+        const transformedY = data.y * scaleFactor
         
         // Debug: Log what we're storing
         if (this.metadata.length === 0) {
           console.log('Storing metadata with:', {
+            originalCoords: { x: data.x, y: data.y },
+            transformedCoords: { x: transformedX, y: transformedY },
             displayBounds: data.displayBounds,
-            scaleFactor: data.scaleFactor,
+            scaleFactor: scaleFactor,
             captureArea: this.captureArea
           })
         }
@@ -691,8 +695,10 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        const transformedX = data.x
-        const transformedY = data.y
+        // Apply scale factor to convert logical pixels to physical pixels
+        const scaleFactor = data.scaleFactor ?? this.captureArea?.scaleFactor ?? 1
+        const transformedX = data.x * scaleFactor
+        const transformedY = data.y * scaleFactor
 
         this.metadata.push({
           timestamp,

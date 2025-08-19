@@ -416,6 +416,10 @@ export async function saveRecordingWithProject(
     // Create project with recording
     const project = createProject(baseName)
 
+    // Debug: Log raw metadata
+    console.log('=== RAW METADATA SAMPLE ===')
+    console.log('First 3 raw metadata events:', metadata.slice(0, 3))
+    
     // Process metadata into proper format
     // IMPORTANT: Preserve original screen dimensions for proper cursor alignment
     const mouseEvents = metadata
@@ -476,8 +480,8 @@ export async function saveRecordingWithProject(
       metadata: {
         mouseEvents: mouseEvents.map(e => ({
           timestamp: e.timestamp,
-          x: e.x * width,
-          y: e.y * height,
+          x: e.x,  // Coordinates are already scaled in electron-recorder
+          y: e.y,  // No multiplication needed!
           screenWidth: width,
           screenHeight: height
         })),
@@ -549,6 +553,24 @@ export async function saveRecordingWithProject(
 
     project.timeline.duration = duration
 
+    // Debug: Log the project structure
+    console.log('=== PROJECT STRUCTURE ===')
+    console.log('Recording metadata sample (first 3 events):', {
+      mouseEvents: recording.metadata.mouseEvents.slice(0, 3),
+      captureArea: recording.captureArea
+    })
+    console.log('Total events:', {
+      mouse: recording.metadata.mouseEvents.length,
+      clicks: recording.metadata.clickEvents.length,
+      keyboard: recording.metadata.keyboardEvents.length
+    })
+    console.log('Video info:', {
+      width: recording.width,
+      height: recording.height,
+      duration: recording.duration,
+      fps: recording.frameRate
+    })
+    
     // Save project file
     const projectFileName = `${baseName}.ssproj`
     const projectPath = await saveProject(project, projectFileName)
