@@ -74,9 +74,9 @@ export interface CursorHotspot {
  * Other cursors vary in size but most are around 2x-3x scale
  */
 export const CURSOR_HOTSPOTS: Record<CursorType, CursorHotspot> = {
-  [CursorType.ARROW]: { x: 20, y: 20 }, // Arrow tip at 5x scale from original 4,4
+  [CursorType.ARROW]: { x: 5, y: 5 }, // Arrow tip position in the actual image
   [CursorType.IBEAM]: { x: 45, y: 90 }, // Center of I-beam (90x180 image)
-  [CursorType.POINTING_HAND]: { x: 18, y: 12 }, // Finger tip (64x64 image, ~3x scale)
+  [CursorType.POINTING_HAND]: { x: 18, y: 5 }, // Finger tip (adjusted for better alignment)
   [CursorType.CLOSED_HAND]: { x: 32, y: 32 }, // Center of fist (64x64 image)
   [CursorType.OPEN_HAND]: { x: 32, y: 32 }, // Center of palm (64x64 image)
   [CursorType.CROSSHAIR]: { x: 24, y: 24 }, // Center intersection (48x48 image)
