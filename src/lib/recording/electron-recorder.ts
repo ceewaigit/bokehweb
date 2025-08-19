@@ -183,7 +183,7 @@ export class ElectronRecorder {
             } else if (track.kind === 'video' && this.isRecording && this.mediaRecorder) {
               // Video track ended unexpectedly - force save what we have
               logger.error('Video track ended unexpectedly - forcing save')
-              console.log('VIDEO TRACK ENDED - chunks available:', this.chunks.length)
+              logger.info('Video track ended - chunks available:', this.chunks.length)
 
               // Force MediaRecorder to give us any pending data
               if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
@@ -196,13 +196,12 @@ export class ElectronRecorder {
 
               // Wait a brief moment for any pending chunks
               setTimeout(() => {
-                console.log('After requestData - chunks available:', this.chunks.length)
+                logger.debug('After requestData - chunks available:', this.chunks.length)
 
                 // Create blob immediately from chunks we have
                 if (this.chunks.length > 0) {
                   const emergencyBlob = new Blob(this.chunks, { type: 'video/webm' })
                   logger.info(`Creating emergency blob: ${emergencyBlob.size} bytes from ${this.chunks.length} chunks`)
-                  console.log(`EMERGENCY BLOB CREATED: ${emergencyBlob.size} bytes from ${this.chunks.length} chunks`)
 
                   // Directly trigger save without waiting for onstop
                   const duration = Date.now() - this.startTime
@@ -222,7 +221,6 @@ export class ElectronRecorder {
                   })
                 } else {
                   logger.error('NO CHUNKS AVAILABLE FOR EMERGENCY SAVE')
-                  console.error('NO CHUNKS TO SAVE - Recording lost!')
                 }
 
                 // Still try to stop MediaRecorder normally
@@ -293,7 +291,6 @@ export class ElectronRecorder {
         if (event.data && event.data.size > 0) {
           this.chunks.push(event.data)
           logger.debug(`Recording chunk #${this.chunks.length}: ${event.data.size} bytes, total chunks: ${this.chunks.length}`)
-          console.log(`CHUNK RECEIVED #${this.chunks.length}: ${event.data.size} bytes`)
 
           // Auto-save every 5 chunks as backup
           if (this.chunks.length % 5 === 0) {
@@ -305,16 +302,15 @@ export class ElectronRecorder {
 
       this.mediaRecorder.onstart = () => {
         logger.debug('MediaRecorder started')
-        console.log('MEDIARECORDER STARTED')
 
         // Immediately request data to start collecting chunks
         setTimeout(() => {
           if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
             try {
               this.mediaRecorder.requestData()
-              console.log('Initial data request sent')
+              logger.debug('Initial data request sent')
             } catch (e) {
-              console.warn('Could not request initial data:', e)
+              logger.warn('Could not request initial data:', e)
             }
           }
         }, 50)
@@ -322,12 +318,11 @@ export class ElectronRecorder {
 
       this.mediaRecorder.onerror = (event: any) => {
         logger.error('MediaRecorder error:', event)
-        console.error('MEDIARECORDER ERROR:', event)
 
         // Try to save whatever we have so far
         if (this.chunks.length > 0) {
           const emergencyBlob = new Blob(this.chunks, { type: mimeType })
-          console.log(`MEDIARECORDER ERROR - Saving ${this.chunks.length} chunks, ${emergencyBlob.size} bytes`)
+          logger.info(`MediaRecorder error - saving ${this.chunks.length} chunks, ${emergencyBlob.size} bytes`)
 
           const duration = Date.now() - this.startTime
           const result: ElectronRecordingResult = {
@@ -340,7 +335,7 @@ export class ElectronRecorder {
           }
 
           this.emergencySave(result).catch(err => {
-            console.error('Emergency save on error failed:', err)
+            logger.error('Emergency save on error failed:', err)
           })
         }
 
@@ -382,7 +377,6 @@ export class ElectronRecorder {
       this.dataRequestInterval = dataRequestInterval
 
       logger.info('Screen recording started successfully')
-      console.log('Recording started with periodic data requests')
 
     } catch (error) {
       this.cleanup()
@@ -392,7 +386,6 @@ export class ElectronRecorder {
 
   private async emergencySave(result: ElectronRecordingResult) {
     logger.info('EMERGENCY SAVE TRIGGERED - Attempting to save recording')
-    console.log('EMERGENCY SAVE - blob size:', result.video.size, 'bytes')
 
     // Import the save function dynamically to avoid circular dependency
     const { saveRecordingWithProject } = await import('@/types/project')
@@ -410,7 +403,6 @@ export class ElectronRecorder {
       const saved = await saveRecordingWithProject(result.video, result.metadata, projectName)
       if (saved) {
         logger.info(`✅ EMERGENCY RECORDING SAVED: video=${saved.videoPath}`)
-        console.log('✅ EMERGENCY SAVE SUCCESS:', saved.videoPath)
 
         // Show user notification that emergency save worked
         if (window.electronAPI?.showMessageBox) {
@@ -423,11 +415,9 @@ export class ElectronRecorder {
         }
       } else {
         logger.error('❌ EMERGENCY SAVE FAILED: saveRecordingWithProject returned null')
-        console.error('❌ EMERGENCY SAVE FAILED')
       }
     } catch (error) {
       logger.error('❌ EMERGENCY SAVE ERROR:', error)
-      console.error('❌ EMERGENCY SAVE ERROR:', error)
     }
   }
 
@@ -444,7 +434,6 @@ export class ElectronRecorder {
         const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
 
         logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
-        console.log('MediaRecorder onstop fired - blob created:', video.size, 'bytes')
 
         // Don't save here - let the consumer (use-recording.ts) handle saving
         // This was causing duplicate saves with different timestamp formats
@@ -692,9 +681,9 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'click',
           key: data.button,
-          captureWidth: data.displayBounds?.width || this.captureArea?.fullBounds?.width,
-          captureHeight: data.displayBounds?.height || this.captureArea?.fullBounds?.height,
-          scaleFactor: data.scaleFactor || this.captureArea?.scaleFactor || 1
+          captureWidth: data.displayBounds?.width,
+          captureHeight: data.displayBounds?.height,
+          scaleFactor: data.scaleFactor
         })
 
         // Update position on click (use transformed coordinates)
@@ -710,10 +699,10 @@ export class ElectronRecorder {
       if (this.isRecording && data.deltaX !== 0 || data.deltaY !== 0) {
         this.metadata.push({
           timestamp: Date.now() - this.startTime,
-          mouseX: data.x || this.lastMouseX,
-          mouseY: data.y || this.lastMouseY,
+          mouseX: data.x,
+          mouseY: data.y,
           eventType: 'scroll',
-          scrollDelta: { x: data.deltaX ?? 0, y: data.deltaY ?? 0 },
+          scrollDelta: { x: data.deltaX, y: data.deltaY },
           captureX: this.captureArea?.fullBounds?.x,
           captureY: this.captureArea?.fullBounds?.y,
           captureWidth: this.captureArea?.fullBounds?.width,

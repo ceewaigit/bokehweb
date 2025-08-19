@@ -63,8 +63,7 @@ export class EffectsEngine {
    */
   initializeFromRecording(recording: any): void {
     if (!recording) {
-      console.error('[ERROR] No recording provided to effects engine');
-      return
+      throw new Error('No recording provided to effects engine');
     }
 
     this.duration = recording.duration || 0
@@ -81,11 +80,6 @@ export class EffectsEngine {
       this.width = recording.metadata.width
       this.height = recording.metadata.height
     } else {
-      // NO FALLBACK - fail loudly
-      console.error('[ERROR] No video dimensions found in recording!', {
-        recording,
-        metadata: recording.metadata
-      });
       throw new Error('Video dimensions not found in recording. Cannot initialize effects engine.');
     }
 

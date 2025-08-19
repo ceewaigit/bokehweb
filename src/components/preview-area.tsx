@@ -47,6 +47,7 @@ export function PreviewArea({
 
   // Track cursor canvas element
   const cursorCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
 
   const [isVideoLoaded, setIsVideoLoaded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -228,14 +229,21 @@ export function PreviewArea({
             // Set up the cursor canvas with proper dimensions and positioning
             cursorCanvas.width = canvas.width
             cursorCanvas.height = canvas.height
+            
+            // Get the actual rendered position and size of the main canvas
+            const canvasRect = canvas.getBoundingClientRect()
+            const parentRect = parentElement.getBoundingClientRect()
+            
+            // Calculate the relative position within the parent
+            const relativeTop = canvasRect.top - parentRect.top
+            const relativeLeft = canvasRect.left - parentRect.left
+            
+            // Set cursor canvas styles to exactly match the main canvas
             cursorCanvas.style.position = 'absolute'
-            cursorCanvas.style.top = '0'
-            cursorCanvas.style.left = '0'
-            cursorCanvas.style.width = canvas.style.width || ''
-            cursorCanvas.style.height = canvas.style.height || ''
-            cursorCanvas.style.maxWidth = '100%'
-            cursorCanvas.style.maxHeight = '100%'
-            cursorCanvas.style.objectFit = 'contain'
+            cursorCanvas.style.top = `${relativeTop}px`
+            cursorCanvas.style.left = `${relativeLeft}px`
+            cursorCanvas.style.width = `${canvasRect.width}px`
+            cursorCanvas.style.height = `${canvasRect.height}px`
             cursorCanvas.style.pointerEvents = 'none'
             cursorCanvas.style.zIndex = '100'
 
@@ -250,13 +258,26 @@ export function PreviewArea({
             currentCursorRenderer.confirmAttached()
           }
         } else if (cursorCanvasRef.current) {
-          // Update dimensions if canvas already attached
-          if (cursorCanvasRef.current.width !== canvas.width ||
-            cursorCanvasRef.current.height !== canvas.height) {
-            cursorCanvasRef.current.width = canvas.width
-            cursorCanvasRef.current.height = canvas.height
-            cursorCanvasRef.current.style.width = canvas.style.width || ''
-            cursorCanvasRef.current.style.height = canvas.style.height || ''
+          // Update dimensions and position if canvas already attached
+          const canvasRect = canvas.getBoundingClientRect()
+          const parentRect = canvas.parentElement?.getBoundingClientRect()
+          
+          if (parentRect) {
+            const relativeTop = canvasRect.top - parentRect.top
+            const relativeLeft = canvasRect.left - parentRect.left
+            
+            // Update canvas internal dimensions if needed
+            if (cursorCanvasRef.current.width !== canvas.width ||
+              cursorCanvasRef.current.height !== canvas.height) {
+              cursorCanvasRef.current.width = canvas.width
+              cursorCanvasRef.current.height = canvas.height
+            }
+            
+            // Always update position and size to match main canvas
+            cursorCanvasRef.current.style.top = `${relativeTop}px`
+            cursorCanvasRef.current.style.left = `${relativeLeft}px`
+            cursorCanvasRef.current.style.width = `${canvasRect.width}px`
+            cursorCanvasRef.current.style.height = `${canvasRect.height}px`
           }
         }
       }
@@ -462,6 +483,28 @@ export function PreviewArea({
     }
     canvas.addEventListener('forceRender', handleForceRender)
 
+    // Set up ResizeObserver to track canvas size changes
+    if (!resizeObserverRef.current) {
+      resizeObserverRef.current = new ResizeObserver(() => {
+        // Update cursor canvas position when main canvas resizes
+        if (cursorCanvasRef.current && canvas.parentElement) {
+          const canvasRect = canvas.getBoundingClientRect()
+          const parentRect = canvas.parentElement.getBoundingClientRect()
+          
+          const relativeTop = canvasRect.top - parentRect.top
+          const relativeLeft = canvasRect.left - parentRect.left
+          
+          cursorCanvasRef.current.style.top = `${relativeTop}px`
+          cursorCanvasRef.current.style.left = `${relativeLeft}px`
+          cursorCanvasRef.current.style.width = `${canvasRect.width}px`
+          cursorCanvasRef.current.style.height = `${canvasRect.height}px`
+        }
+      })
+    }
+    
+    // Start observing the main canvas
+    resizeObserverRef.current.observe(canvas)
+
     // Check if this is a new recording
     const isNewRecording = initializedRecordingRef.current !== currentRecording.id
 
@@ -543,6 +586,10 @@ export function PreviewArea({
         cancelAnimationFrame(animationFrameRef.current)
       }
 
+      // Clean up ResizeObserver
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect()
+      }
     }
   }, [currentRecording?.id]) // Remove renderFrame dependency
 
@@ -662,6 +709,12 @@ export function PreviewArea({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = undefined
+      }
+
+      // Clean up ResizeObserver
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect()
+        resizeObserverRef.current = null
       }
     }
   }, [])
