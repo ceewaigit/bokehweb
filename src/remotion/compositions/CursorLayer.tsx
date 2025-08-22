@@ -164,9 +164,12 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     rawY = rawY - displayBounds.y;
   }
 
-  // Normalize to video dimensions (accounting for retina displays)
-  const normalizedX = rawX / (displayBounds?.width || videoWidth);
-  const normalizedY = rawY / (displayBounds?.height || videoHeight);
+  // Normalize using screen dimensions from the event (not video dimensions)
+  // This accounts for Retina displays where video is 2x screen size
+  const screenWidth = currentEvent?.screenWidth || videoWidth / 2;
+  const screenHeight = currentEvent?.screenHeight || videoHeight / 2;
+  const normalizedX = rawX / screenWidth;
+  const normalizedY = rawY / screenHeight;
 
   // Map to displayed video position
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;

@@ -149,7 +149,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           });
 
           // Update smooth pan with ice-like movement (high smoothing)
-          const iceSmoothingFactor = 0.08; // Lower = more ice-like
+          const iceSmoothingFactor = 0.05; // Lower = more ice-like, smoother movement
           smoothPan.x += (panOffset.x - smoothPan.x) * iceSmoothingFactor;
           smoothPan.y += (panOffset.y - smoothPan.y) * iceSmoothingFactor;
 
