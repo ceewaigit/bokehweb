@@ -148,8 +148,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             }
           });
 
-          // Update smooth pan with ice-like movement (high smoothing)
-          const iceSmoothingFactor = 0.05; // Lower = more ice-like, smoother movement
+          // Update smooth pan with more responsive movement to follow mouse outside frame
+          const iceSmoothingFactor = 0.15; // Higher value for faster camera catch-up when mouse moves outside
           smoothPan.x += (panOffset.x - smoothPan.x) * iceSmoothingFactor;
           smoothPan.y += (panOffset.y - smoothPan.y) * iceSmoothingFactor;
 

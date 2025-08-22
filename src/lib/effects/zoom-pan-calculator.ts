@@ -14,13 +14,13 @@ interface PanOffset {
 
 export class ZoomPanCalculator {
   // Dead zone where no panning occurs (center of screen)
-  private readonly DEAD_ZONE_RATIO = 0.15  // 15% of screen dimensions - smaller for more responsive panning
+  private readonly DEAD_ZONE_RATIO = 0.08  // 8% of screen dimensions - much smaller for more responsive panning
   
   // Maximum pan distance as ratio of zoomed area
-  private readonly MAX_PAN_RATIO = 0.4  // Allow more panning range
+  private readonly MAX_PAN_RATIO = 0.7  // Allow much wider panning range to follow mouse outside frame
   
   // Smoothing factor for pan transitions
-  private readonly PAN_SMOOTHING = 0.12  // Slightly less smoothing for more responsiveness
+  private readonly PAN_SMOOTHING = 0.25  // Faster response to catch up with mouse movements
   
   // Edge resistance factor
   private readonly EDGE_RESISTANCE = 0.8  // Less resistance at edges

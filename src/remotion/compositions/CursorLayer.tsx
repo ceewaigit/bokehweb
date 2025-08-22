@@ -65,17 +65,21 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // Get interpolated cursor position
+  // Get interpolated cursor position with smooth lag
   const cursorPosition = useMemo(() => {
     if (cursorEvents.length === 0) return null;
 
-    // Find surrounding events
+    // Apply lag - cursor follows behind for smooth, natural movement
+    const lagMs = 60; // Cursor lags behind by this amount (like Screen Studio)
+    const laggedTime = Math.max(0, currentTimeMs - lagMs);
+
+    // Find surrounding events for the lagged time
     let prevEvent = null;
     let nextEvent = null;
 
     for (let i = 0; i < cursorEvents.length; i++) {
       const event = cursorEvents[i];
-      if (event.timestamp <= currentTimeMs) {
+      if (event.timestamp <= laggedTime) {
         prevEvent = event;
       } else {
         nextEvent = event;
@@ -106,14 +110,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       };
     }
 
-    const progress = (currentTimeMs - prevEvent.timestamp) / timeDiff;
+    const progress = (laggedTime - prevEvent.timestamp) / timeDiff;
 
-    // Use exponential easing for Screen Studio-like smooth movement
-    const easeOutExpo = (t: number) => {
-      return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+    // Use smooth cubic easing for natural, flowing movement
+    const easeInOutQuad = (t: number) => {
+      return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
     };
 
-    const smoothProgress = easeOutExpo(Math.max(0, Math.min(1, progress)));
+    const smoothProgress = easeInOutQuad(Math.max(0, Math.min(1, progress)));
 
     return {
       x: prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress,
@@ -187,18 +191,31 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   cursorX -= hotspot.x * hotspotScale;
   cursorY -= hotspot.y * hotspotScale;
 
-  // Apply zoom transformation if active
+  // Apply zoom transformation to match video layer exactly
   if (zoom.scale > 1) {
+    // The video is scaled from its center, so cursor needs same transformation
     const videoCenterX = videoOffset.x + videoOffset.width / 2;
     const videoCenterY = videoOffset.y + videoOffset.height / 2;
-
-    cursorX = videoCenterX + (cursorX - videoCenterX) * zoom.scale;
-    cursorY = videoCenterY + (cursorY - videoCenterY) * zoom.scale;
-
-    const panX = (zoom.x - 0.5) * videoOffset.width * (zoom.scale - 1);
-    const panY = (zoom.y - 0.5) * videoOffset.height * (zoom.scale - 1);
-    cursorX += panX;
-    cursorY += panY;
+    
+    // Scale cursor position relative to video center
+    const scaledX = videoCenterX + (cursorX - videoCenterX) * zoom.scale;
+    const scaledY = videoCenterY + (cursorY - videoCenterY) * zoom.scale;
+    
+    // Apply the same pan as the video (based on zoom target)
+    // The video zooms toward (zoom.x, zoom.y) and pans to keep it centered
+    const zoomPointX = zoom.x * videoOffset.width;
+    const zoomPointY = zoom.y * videoOffset.height;
+    const centerX = videoOffset.width / 2;
+    const centerY = videoOffset.height / 2;
+    
+    // Calculate the pan offset (same as VideoLayer)
+    const offsetFromCenterX = zoomPointX - centerX;
+    const offsetFromCenterY = zoomPointY - centerY;
+    const panX = -offsetFromCenterX * (zoom.scale - 1);
+    const panY = -offsetFromCenterY * (zoom.scale - 1);
+    
+    cursorX = scaledX + panX;
+    cursorY = scaledY + panY;
   }
 
   // Calculate click animation scale
