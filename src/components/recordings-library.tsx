@@ -93,7 +93,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
       setLoading(true)
       if (window.electronAPI?.loadRecordings) {
         const files = await window.electronAPI.loadRecordings()
-        console.log('📁 Files received from electron:', files)
         const recordingsList: Recording[] = []
 
         for (const file of files) {
@@ -126,13 +125,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   recording.name = recording.project.name
                 }
 
-                // Log what we loaded for debugging
-                console.log('Loaded project:', {
-                  name: recording.project?.name,
-                  duration: recording.project?.timeline?.duration,
-                  recordings: recording.project?.recordings?.length,
-                  clips: recording.project?.timeline?.tracks?.reduce((acc: number, t: any) => acc + (t.clips?.length || 0), 0)
-                })
               }
             }
           } catch (e) {
@@ -145,7 +137,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
         // Remove duplicates - files with same timestamp (within 2 seconds) are considered duplicates
         // Prefer the one with simpler name (without ISO format)
-        console.log(`📋 Found ${recordingsList.length} total projects, checking for duplicates...`)
         const uniqueRecordings = recordingsList.reduce((acc: Recording[], current) => {
           const duplicate = acc.find(r =>
             Math.abs(r.timestamp.getTime() - current.timestamp.getTime()) < 2000 && // Within 2 seconds
@@ -163,8 +154,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           return acc
         }, [])
 
-        console.log(`✅ After deduplication: ${uniqueRecordings.length} unique projects`)
-
         // Sort by timestamp, newest first
         uniqueRecordings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         setRecordings(uniqueRecordings)
@@ -181,8 +170,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               if (!videoPath.startsWith('/')) {
                 videoPath = `${projectDir}/${videoPath}`
               }
-              
-              console.log('Loading thumbnail from:', videoPath, 'for project at:', recording.path)
               
               await generateThumbnail(recording, videoPath)
               // Update state with thumbnail

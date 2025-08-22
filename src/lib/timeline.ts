@@ -316,5 +316,4 @@ export const TimelineKeyboardShortcuts = {
   deselect: 'Escape',
 }
 
-// Export for compatibility
 export const createDragBoundFunc = createClipDragBoundFunc

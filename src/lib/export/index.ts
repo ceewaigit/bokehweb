@@ -4,4 +4,4 @@
  */
 
 export { ExportEngine } from './export-engine'
-export type { ExportProgress, ExportOptions } from './export-engine'
+export type { ExportProgress } from './export-engine'

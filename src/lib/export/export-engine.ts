@@ -15,29 +15,6 @@ export interface ExportProgress {
   totalFrames?: number
 }
 
-export interface ExportOptions {
-  format?: 'mp4' | 'webm' | 'gif' | 'mov'
-  quality?: 'low' | 'medium' | 'high' | 'ultra'
-  framerate?: number
-  resolution?: { width: number; height: number }
-  enableCursor?: boolean
-  enableZoom?: boolean
-  enableEffects?: boolean
-  enableBackground?: boolean
-  enableKeystrokes?: boolean
-  background?: {
-    type: 'solid' | 'gradient' | 'blur'
-    color?: string
-    gradient?: {
-      colors: string[]
-      angle?: number
-    }
-    padding?: number
-    borderRadius?: number
-    shadow?: boolean
-  }
-}
-
 export class ExportEngine {
   private remotionExporter: RemotionExportEngine
 
@@ -52,7 +29,6 @@ export class ExportEngine {
   async exportProject(
     project: Project,
     settings: ExportSettings,
-    options: ExportOptions = {},
     onProgress?: (progress: ExportProgress) => void
   ): Promise<Blob> {
     const videoClips = project.timeline.tracks

@@ -1,14 +1,12 @@
 /**
  * Export using Remotion's renderMedia
  * Leverages all the Remotion compositions for consistent rendering
+ * NOTE: This is only used in Electron environment for actual video export
  */
 
-import { renderMedia, selectComposition } from '@remotion/renderer'
-import { bundle } from '@remotion/bundler'
-import type { Project, Clip } from '@/types/project'
+import type { Project } from '@/types/project'
 import type { ExportSettings } from '@/types'
 import { globalBlobManager } from '../security/blob-url-manager'
-import path from 'path'
 
 // Use the same ExportProgress type from export-engine
 import type { ExportProgress } from './export-engine'
@@ -21,6 +19,17 @@ export class RemotionExportEngine {
     onProgress?: (progress: ExportProgress) => void
   ): Promise<Blob> {
     try {
+      // This export engine only works in Electron environment
+      // In browser, we use Remotion Player for preview only
+      if (typeof window === 'undefined' || !window.electronAPI) {
+        throw new Error('Export is only available in the desktop app')
+      }
+
+      // Dynamic imports for Electron environment
+      const { renderMedia, selectComposition } = await import('@remotion/renderer')
+      const { bundle } = await import('@remotion/bundler')
+      const path = await import('path')
+      
       onProgress?.({
         progress: 0,
         stage: 'preparing',
@@ -154,19 +163,5 @@ export class RemotionExportEngine {
       })
       throw error
     }
-  }
-
-  /**
-   * Export with all clips merged
-   */
-  async exportFullProject(
-    project: Project,
-    settings: ExportSettings,
-    onProgress?: (progress: ExportProgress) => void
-  ): Promise<Blob> {
-    // For multiple clips, we would need to create a sequence composition
-    // that combines all clips with their proper timing
-    // For now, delegate to single clip export
-    return this.exportProject(project, settings, onProgress)
   }
 }

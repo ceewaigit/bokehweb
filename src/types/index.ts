@@ -17,7 +17,7 @@ export interface RecordingSettings {
 export type {
   Project,
   Recording,
-  Clip as TimelineClip, // Alias for backward compatibility
+  Clip as TimelineClip,
   ProjectSettings,
   KeyboardEvent,
   MouseEvent,
@@ -31,19 +31,11 @@ export type {
   ZoomBlock
 } from './project'
 
-// Keep KeyframeData here as it's not in project.ts
+// Keyframe interface for animations
 export interface KeyframeData {
   time: number
   value: any
   easing?: 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out'
-}
-
-// Keep Animation here temporarily for compatibility
-export interface Animation {
-  id: string
-  property: string
-  keyframes: KeyframeData[]
-  target: string
 }
 
 export interface ExportSettings {

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { ExportEngine, type ExportProgress, type ExportOptions } from '@/lib/export'
+import { ExportEngine, type ExportProgress } from '@/lib/export'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import type { ExportSettings, Project } from '@/types'
@@ -79,23 +79,12 @@ export const useExportStore = create<ExportStore>((set, get) => {
           RecordingStorage.getMetadata(videoClip.recordingId) : null
         const hasMetadata = !!metadata
 
-        // Use unified export engine with appropriate options
+        // Use unified export engine
         const engine = getEngine()
-
-        const exportOptions: ExportOptions = {
-          format: exportSettings.format as 'mp4' | 'webm' | 'gif' | 'mov',
-          quality: exportSettings.quality as 'low' | 'medium' | 'high' | 'ultra',
-          framerate: exportSettings.framerate,
-          resolution: exportSettings.resolution,
-          enableCursor: hasMetadata,
-          enableZoom: hasMetadata,
-          enableEffects: hasMetadata
-        }
 
         const blob = await engine.exportProject(
           project,
           exportSettings,
-          exportOptions,
           (progress) => set({
             progress: {
               ...progress,
@@ -133,37 +122,16 @@ export const useExportStore = create<ExportStore>((set, get) => {
       set({ isExporting: true, progress: null, lastExport: null })
 
       try {
-        // Get first video clip
-        const videoClip = project.timeline.tracks
-          .filter(track => track.type === 'video')
-          .flatMap(track => track.clips)[0]
-
-        if (!videoClip) {
-          throw new Error('No video clips found')
+        // Export as GIF by changing the format
+        const gifSettings = {
+          ...exportSettings,
+          format: 'gif' as const,
+          framerate: 10
         }
 
-        const recording = project.recordings.find(r => r.id === videoClip.recordingId)
-        if (!recording) {
-          throw new Error('Recording not found')
-        }
-
-        // Get video blob
-        let videoBlob: Blob
-        const blobUrl = RecordingStorage.getBlobUrl(recording.id)
-        if (blobUrl) {
-          const response = await fetch(blobUrl)
-          videoBlob = await response.blob()
-        } else {
-          throw new Error('No video source found')
-        }
-
-        const blob = await engine.exportAsGIF(
-          videoBlob,
-          {
-            width: exportSettings.resolution.width,
-            height: exportSettings.resolution.height,
-            fps: 10
-          },
+        const blob = await engine.exportProject(
+          project,
+          gifSettings,
           (progress) => set({
             progress: {
               ...progress,
