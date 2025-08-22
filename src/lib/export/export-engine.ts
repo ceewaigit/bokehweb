@@ -1,9 +1,9 @@
 /**
- * Export Engine - Simplified to use Remotion
- * All rendering is now handled by RemotionExportEngine
+ * Export Engine
+ * Handles video export with effects
  */
 
-import { RemotionExportEngine } from './remotion-export'
+import { ClientExportEngine } from './client-export'
 import type { ExportSettings } from '@/types'
 import type { Project } from '@/types/project'
 
@@ -16,15 +16,14 @@ export interface ExportProgress {
 }
 
 export class ExportEngine {
-  private remotionExporter: RemotionExportEngine
+  private exporter: ClientExportEngine
 
   constructor() {
-    this.remotionExporter = new RemotionExportEngine()
+    this.exporter = new ClientExportEngine()
   }
 
   /**
-   * Export project using Remotion
-   * All effects and rendering handled by Remotion compositions
+   * Export project with all effects applied
    */
   async exportProject(
     project: Project,
@@ -39,7 +38,6 @@ export class ExportEngine {
       throw new Error('No video clips to export')
     }
 
-    // Use Remotion export for all exports
-    return this.remotionExporter.exportProject(project, settings, onProgress)
+    return this.exporter.exportProject(project, settings, onProgress)
   }
 }
