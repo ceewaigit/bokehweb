@@ -13,7 +13,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   effects,
   cursorEvents,
   clickEvents,
-  keystrokeEvents,
+  keystrokeEvents: _keystrokeEvents, // Not yet implemented
   videoWidth,
   videoHeight
 }) => {

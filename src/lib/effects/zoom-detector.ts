@@ -22,15 +22,17 @@ interface MouseCluster {
 }
 
 export class ZoomDetector {
-  private readonly MIN_CLUSTER_TIME = 600 // Minimum time in cluster to trigger zoom (ms)
-  private readonly MAX_CLUSTER_SIZE = 0.35 // Maximum cluster size as fraction of screen
-  private readonly MIN_CLUSTER_EVENTS = 4 // Minimum events to form a cluster
+  private readonly MIN_CLUSTER_TIME = 800 // Minimum time in cluster to trigger zoom (ms)
+  private readonly MAX_CLUSTER_SIZE = 0.2 // Maximum cluster size as fraction of screen (20%)
+  private readonly MIN_CLUSTER_EVENTS = 8 // Minimum events to form a cluster
   private readonly CLUSTER_TIME_WINDOW = 1500 // Time window to analyze for clusters (ms)
-  private readonly CLUSTER_MERGE_DISTANCE = 0.2 // Distance to merge nearby clusters
-  private readonly MIN_ZOOM_DURATION = 800 // Minimum zoom time
+  private readonly CLUSTER_MERGE_DISTANCE = 0.15 // Distance to merge nearby clusters
+  private readonly MIN_ZOOM_DURATION = 1000 // Minimum zoom time
   private readonly MAX_ZOOM_DURATION = 10000 // Maximum zoom time
-  private readonly MOVEMENT_THRESHOLD = 0.15 // Threshold for significant movement
+  private readonly MOVEMENT_THRESHOLD = 0.1 // Threshold for significant movement (10% of screen)
   private readonly VELOCITY_WEIGHT = 0.3 // Weight for velocity in clustering
+  private readonly MIN_DENSITY = 0.4 // Minimum density to consider a valid cluster
+  private readonly MIN_STABILITY = 0.5 // Minimum stability for zoom
 
   detectZoomBlocks(
     mouseEvents: MouseEvent[],
@@ -65,11 +67,14 @@ export class ZoomDetector {
       }
 
       // Calculate optimal zoom scale based on cluster size
-      let zoomScale = 2.0
-      if (clusterSize < 0.15) {
-        zoomScale = 2.5 // Small cluster - zoom in more
-      } else if (clusterSize < 0.25) {
-        zoomScale = 2.0 // Medium cluster
+      // Be more conservative with zoom levels
+      let zoomScale = 1.5
+      if (clusterSize < 0.08) {
+        zoomScale = 2.5 // Very small cluster - zoom in more
+      } else if (clusterSize < 0.12) {
+        zoomScale = 2.0 // Small cluster
+      } else if (clusterSize < 0.16) {
+        zoomScale = 1.75 // Medium cluster
       } else {
         zoomScale = 1.5 // Large cluster - gentle zoom
       }
@@ -130,7 +135,7 @@ export class ZoomDetector {
         const activityCenters = this.kMeansClustering(windowEvents, videoWidth, videoHeight)
 
         for (const center of activityCenters) {
-          if (center.density > 0.25 && center.stability > 0.3) {
+          if (center.density > this.MIN_DENSITY && center.stability > this.MIN_STABILITY) {
             // Check if this is a continuation of movement or a new cluster
             const shouldMerge = clusters.length > 0 &&
               this.shouldMergeWithPrevious(clusters[clusters.length - 1], center, videoWidth, videoHeight)
@@ -301,7 +306,15 @@ export class ZoomDetector {
 
     const area = boundingBox.width * boundingBox.height
     const maxArea = videoWidth * videoHeight
-    const density = area > 0 ? 1 - (area / maxArea) : 1
+    
+    // Calculate density - clusters with smaller areas have higher density
+    // Penalize clusters that span too much of the screen
+    const normalizedWidth = boundingBox.width / videoWidth
+    const normalizedHeight = boundingBox.height / videoHeight
+    const maxDimension = Math.max(normalizedWidth, normalizedHeight)
+    
+    // If cluster spans more than 30% of screen in any dimension, it's not dense
+    const density = maxDimension > 0.3 ? 0 : (1 - (area / maxArea))
 
     const timeSpan = events[events.length - 1].timestamp - events[0].timestamp
     const expectedEvents = timeSpan / 50 // Assuming ~20fps event rate

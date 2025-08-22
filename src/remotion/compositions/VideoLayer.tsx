@@ -128,8 +128,6 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
             smoothPanRef.current.x = panOffset.x;
             smoothPanRef.current.y = panOffset.y;
           }
-
-          console.log('[VideoLayer] Smooth pan after:', { ...smoothPan });
         }
       }
 
@@ -168,17 +166,6 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       const finalTranslateX = (scaleCompensationX + panX) / scale;
       const finalTranslateY = (scaleCompensationY + panY) / scale;
       transform = `scale(${scale}) translate(${finalTranslateX}px, ${finalTranslateY}px)`;
-
-      console.log('[VideoLayer] Transform calculation:', {
-        zoomCenter: { x: zoomCenterX, y: zoomCenterY },
-        scaleCompensation: { x: scaleCompensationX, y: scaleCompensationY },
-        pan: { x: panX, y: panY },
-        translateBeforeScale: { x: scaleCompensationX + panX, y: scaleCompensationY + panY },
-        translateAfterScale: { x: finalTranslateX, y: finalTranslateY },
-        scale,
-        smoothPan,
-        activeBlockTarget: { x: activeBlock.targetX, y: activeBlock.targetY }
-      });
     }
   }
 

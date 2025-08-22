@@ -1,31 +1,15 @@
 /**
  * Zoom Pan Calculator
- * Handles dynamic camera panning during zoom based on mouse position
- * Implements Screen Studio-like intelligent following behavior
+ * Handles edge-based camera panning during zoom
  */
 
 import type { MouseEvent } from '@/types/project'
 
-interface PanOffset {
-  x: number  // Normalized offset (-1 to 1)
-  y: number  // Normalized offset (-1 to 1)
-}
-
-
 export class ZoomPanCalculator {
-  // Edge trigger zone - when mouse gets within this distance of viewport edge, start panning
   private readonly EDGE_TRIGGER_RATIO = 0.25  // Pan when mouse is within 25% of edge
-  
-  // Maximum pan speed
   private readonly MAX_PAN_SPEED = 0.02  // Max pan per frame
-  
-  // Smoothing factor for pan transitions
   private readonly PAN_SMOOTHING = 0.15  // Smooth, cinematic panning
   
-  /**
-   * Calculate pan offset based on mouse position during zoom
-   * Returns normalized pan values that should be applied to the zoom transform
-   */
   calculatePanOffset(
     mouseX: number,
     mouseY: number,
@@ -34,7 +18,7 @@ export class ZoomPanCalculator {
     zoomScale: number,
     currentPanX: number = 0,
     currentPanY: number = 0
-  ): PanOffset {
+  ): { x: number; y: number } {
     // Normalize mouse position to 0-1 range
     const normalizedX = mouseX / videoWidth
     const normalizedY = mouseY / videoHeight
@@ -96,14 +80,6 @@ export class ZoomPanCalculator {
     // Apply smoothing for cinematic motion
     const smoothedPanX = currentPanX + (targetPanX - currentPanX) * this.PAN_SMOOTHING
     const smoothedPanY = currentPanY + (targetPanY - currentPanY) * this.PAN_SMOOTHING
-    
-    console.log('[PanCalculator] Edge-based pan:', {
-      mouseNorm: { x: normalizedX, y: normalizedY },
-      viewport: { left: viewportLeft, right: viewportRight, top: viewportTop, bottom: viewportBottom },
-      edgeDist: { left: distToLeft, right: distToRight, top: distToTop, bottom: distToBottom },
-      targetPan: { x: targetPanX, y: targetPanY },
-      smoothedPan: { x: smoothedPanX, y: smoothedPanY }
-    })
     
     return {
       x: smoothedPanX,
