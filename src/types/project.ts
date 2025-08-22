@@ -488,7 +488,7 @@ export async function saveRecordingWithProject(
         cursor: {
           visible: hasCursorActivity, // Only show cursor if there was mouse activity
           style: 'macOS',
-          size: 1.2,
+          size: 3,
           color: '#ffffff',
           clickEffects: hasClicks, // Only enable click effects if there were actual clicks
           motionBlur: hasCursorActivity // Only enable motion blur if cursor was moving

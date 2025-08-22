@@ -92,20 +92,18 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             const screenWidth = currentEvent.screenWidth;
             const screenHeight = currentEvent.screenHeight;
             
-            // Calculate dynamic pan offset based on current mouse position
-            const panOffset = zoomPanCalculator.calculatePanOffset(
-              mousePos.x,
-              mousePos.y,
-              screenWidth,
-              screenHeight,
-              scale,
-              smoothPanRef.current.x,
-              smoothPanRef.current.y
-            );
+            // Normalize mouse position to 0-1 range
+            const normalizedMouseX = mousePos.x / screenWidth;
+            const normalizedMouseY = mousePos.y / screenHeight;
             
-            // Update smooth pan with direct assignment for immediate following
-            smoothPanRef.current.x = panOffset.x;
-            smoothPanRef.current.y = panOffset.y;
+            // Calculate offset from center (0.5, 0.5) - this is where we want to pan to
+            const targetPanX = normalizedMouseX - 0.5;
+            const targetPanY = normalizedMouseY - 0.5;
+            
+            // Apply smoothing for fluid motion
+            const smoothingFactor = 0.3;
+            smoothPanRef.current.x += (targetPanX - smoothPanRef.current.x) * smoothingFactor;
+            smoothPanRef.current.y += (targetPanY - smoothPanRef.current.y) * smoothingFactor;
           }
         }
 

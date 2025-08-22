@@ -56,23 +56,23 @@ export class ZoomPanCalculator {
       currentPan: { x: currentPanX, y: currentPanY }
     })
     
-    // Direct pan calculation - follow mouse more aggressively
-    // The pan should move the view to keep mouse near center
-    let targetPanX = centerDistX * 0.8  // Pan 80% of the way to center the mouse
-    let targetPanY = centerDistY * 0.8
+    // For zoom following, we want the pan to be the mouse position offset from center
+    // This will make the zoom center on the mouse position
+    let targetPanX = centerDistX  // Use full offset to center on mouse
+    let targetPanY = centerDistY
     
     // Apply small dead zone only for very small movements
-    const deadZone = 0.02  // 2% dead zone
+    const deadZone = 0.01  // 1% dead zone for more responsive following
     if (Math.abs(centerDistX) < deadZone) {
-      targetPanX = 0
+      targetPanX = currentPanX  // Keep current pan for small movements
     }
     if (Math.abs(centerDistY) < deadZone) {
-      targetPanY = 0
+      targetPanY = currentPanY
     }
     
-    // Smooth transitions but with higher responsiveness
-    const smoothedPanX = currentPanX + (targetPanX - currentPanX) * 0.4
-    const smoothedPanY = currentPanY + (targetPanY - currentPanY) * 0.4
+    // Use more aggressive smoothing for immediate following
+    const smoothedPanX = currentPanX + (targetPanX - currentPanX) * 0.7
+    const smoothedPanY = currentPanY + (targetPanY - currentPanY) * 0.7
     
     return {
       x: smoothedPanX,
