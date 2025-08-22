@@ -200,13 +200,13 @@ export function EffectsSidebar({
           </div>
         )}
 
-        {activeTab === 'cursor' && (
+        {activeTab === 'cursor' && effects?.cursor && (
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center justify-between">
                 Show cursor
                 <Switch
-                  checked={effects.cursor.visible}
+                  checked={effects.cursor.visible ?? true}
                   onCheckedChange={(checked) =>
                     updateEffect('cursor', { visible: checked })
                   }
@@ -217,7 +217,7 @@ export function EffectsSidebar({
             <div className="space-y-2">
               <label className="text-sm font-medium">Cursor size</label>
               <Slider
-                value={[effects.cursor.size]}
+                value={[effects.cursor.size ?? 1.0]}
                 onValueChange={([value]) => updateEffect('cursor', { size: value })}
                 min={0.5}
                 max={3}
@@ -230,7 +230,7 @@ export function EffectsSidebar({
               <label className="text-sm font-medium flex items-center justify-between">
                 Click effects
                 <Switch
-                  checked={effects.cursor.clickEffects}
+                  checked={effects.cursor.clickEffects ?? false}
                   onCheckedChange={(checked) =>
                     updateEffect('cursor', { clickEffects: checked })
                   }
@@ -242,7 +242,7 @@ export function EffectsSidebar({
               <label className="text-sm font-medium flex items-center justify-between">
                 Motion blur
                 <Switch
-                  checked={effects.cursor.motionBlur}
+                  checked={effects.cursor.motionBlur ?? false}
                   onCheckedChange={(checked) =>
                     updateEffect('cursor', { motionBlur: checked })
                   }
@@ -252,13 +252,13 @@ export function EffectsSidebar({
           </div>
         )}
 
-        {activeTab === 'zoom' && (
+        {activeTab === 'zoom' && effects?.zoom && (
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center justify-between">
                 Auto zoom
                 <Switch
-                  checked={effects.zoom.enabled}
+                  checked={effects.zoom.enabled ?? false}
                   onCheckedChange={(checked) =>
                     updateEffect('zoom', { enabled: checked })
                   }
@@ -269,20 +269,20 @@ export function EffectsSidebar({
             <div className="space-y-2">
               <label className="text-sm font-medium">Max zoom</label>
               <Slider
-                value={[effects.zoom.maxZoom]}
+                value={[effects.zoom.maxZoom ?? 2.0]}
                 onValueChange={([value]) => updateEffect('zoom', { maxZoom: value })}
                 min={1}
                 max={4}
                 step={0.1}
                 className="w-full"
               />
-              <span className="text-xs text-muted-foreground">{effects.zoom.maxZoom.toFixed(1)}x</span>
+              <span className="text-xs text-muted-foreground">{(effects.zoom.maxZoom ?? 2.0).toFixed(1)}x</span>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Zoom sensitivity</label>
               <Slider
-                value={[effects.zoom.sensitivity]}
+                value={[effects.zoom.sensitivity ?? 1.0]}
                 onValueChange={([value]) => updateEffect('zoom', { sensitivity: value })}
                 min={0.1}
                 max={2}

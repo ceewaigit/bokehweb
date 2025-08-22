@@ -71,9 +71,14 @@ export class ZoomDetector {
         zoomScale = 1.5 // Large cluster - gentle zoom
       }
 
-      // Center the zoom on the cluster
-      const targetX = cluster.center.x / videoWidth
-      const targetY = cluster.center.y / videoHeight
+      // Center the zoom on the cluster using screen dimensions from events
+      // Get screen dimensions from the cluster's events
+      const clusterEvent = cluster.events[Math.floor(cluster.events.length / 2)]
+      const screenWidth = clusterEvent.screenWidth || videoWidth
+      const screenHeight = clusterEvent.screenHeight || videoHeight
+      
+      const targetX = cluster.center.x / screenWidth
+      const targetY = cluster.center.y / screenHeight
 
       // Ensure zoom doesn't exceed video duration
       const effectiveDuration = Math.min(

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useRef } from 'react';
 import { Video, AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
@@ -16,6 +16,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
+  
+  // Track previous pan position for smooth ice-like interpolation
+  const smoothPanRef = useRef({ x: 0, y: 0 });
+  const smoothPan = smoothPanRef.current;
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
@@ -52,8 +56,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       const outroMs = activeBlock.outroMs || 300;
 
       if (elapsed < introMs) {
-        // Intro phase - zoom in with dynamic mouse tracking
+        // Intro phase - zoom in with smoother easing
         const progress = elapsed / introMs;
+        // Use smoother easing for more natural zoom like Screen Studio
+        const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
         scale = interpolate(
           progress,
           [0, 1],
@@ -61,7 +67,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
-            easing: (t: number) => 1 - Math.pow(2, -10 * t) // easeOutExpo
+            easing: easeOutCubic
           }
         );
 
@@ -93,9 +99,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
         translateX = interpolate(progress, [0, 1], [0, -targetX * width * (scale - 1)]);
         translateY = interpolate(progress, [0, 1], [0, -targetY * height * (scale - 1)]);
       } else if (elapsed > blockDuration - outroMs) {
-        // Outro phase - zoom out with smooth return
+        // Outro phase - zoom out with smoother return
         const outroElapsed = elapsed - (blockDuration - outroMs);
         const progress = outroElapsed / outroMs;
+        // Use smoother easing for natural zoom out
+        const easeInOutCubic = (t: number) => t < 0.5 
+          ? 4 * t * t * t 
+          : 1 - Math.pow(-2 * t + 2, 3) / 2;
         scale = interpolate(
           progress,
           [0, 1],
@@ -103,7 +113,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
-            easing: (t: number) => t * t // easeInQuad for smooth outro
+            easing: easeInOutCubic
           }
         );
 
@@ -144,28 +154,41 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           currentTimeMs
         );
         
-        if (mousePos) {
+        if (mousePos && mouseEvents.length > 0) {
+          // Get the screen dimensions from mouse events (accounts for scaling)
+          const currentEvent = mouseEvents.find(e => e.timestamp <= currentTimeMs) || mouseEvents[0];
+          const screenWidth = currentEvent.screenWidth;
+          const screenHeight = currentEvent.screenHeight;
+          
           // Calculate dynamic pan offset based on current mouse position
+          // Use screen dimensions, not video dimensions
           const panOffset = zoomPanCalculator.calculatePanOffset(
             mousePos.x,
             mousePos.y,
-            videoWidth,
-            videoHeight,
-            scale
+            screenWidth,
+            screenHeight,
+            scale,
+            smoothPan.x,
+            smoothPan.y
           );
+          
+          // Update smooth pan with ice-like movement (high smoothing)
+          const iceSmoothingFactor = 0.08; // Lower = more ice-like
+          smoothPan.x += (panOffset.x - smoothPan.x) * iceSmoothingFactor;
+          smoothPan.y += (panOffset.y - smoothPan.y) * iceSmoothingFactor;
           
           // Apply initial target position plus dynamic pan
           const baseTargetX = (activeBlock.targetX || 0.5) - 0.5;
           const baseTargetY = (activeBlock.targetY || 0.5) - 0.5;
           
-          // Combine base position with dynamic pan
-          const dynamicTargetX = baseTargetX + panOffset.x;
-          const dynamicTargetY = baseTargetY + panOffset.y;
+          // Combine base position with smooth dynamic pan
+          const dynamicTargetX = baseTargetX + smoothPan.x;
+          const dynamicTargetY = baseTargetY + smoothPan.y;
           
           translateX = -dynamicTargetX * width * (scale - 1);
           translateY = -dynamicTargetY * height * (scale - 1);
         } else {
-          // Fallback to static position if no mouse data
+          // Fallback if no mouse data
           const targetX = (activeBlock.targetX || 0.5) - 0.5;
           const targetY = (activeBlock.targetY || 0.5) - 0.5;
           translateX = -targetX * width * (scale - 1);
