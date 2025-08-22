@@ -115,6 +115,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             zoom={zoomState}
             videoWidth={videoWidth}
             videoHeight={videoHeight}
+            cursorEffects={effects?.cursor}
           />
         </Sequence>
       )}

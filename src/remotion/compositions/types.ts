@@ -46,4 +46,5 @@ export interface CursorLayerProps {
   };
   videoWidth: number;
   videoHeight: number;
+  cursorEffects?: ClipEffects['cursor'];
 }

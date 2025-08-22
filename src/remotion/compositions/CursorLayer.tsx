@@ -38,7 +38,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   videoOffset,
   zoom = { scale: 1, x: 0.5, y: 0.5 },
   videoWidth,
-  videoHeight
+  videoHeight,
+  cursorEffects
 }) => {
   const { width, height } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -175,10 +176,13 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;
   let cursorY = videoOffset.y + normalizedY * videoOffset.height;
 
+  // Apply cursor size from effects
+  const cursorSize = cursorEffects?.size ?? 1.0;
+  
   // Apply cursor hotspot offset for accurate positioning
   const hotspot = CURSOR_HOTSPOTS[cursorType];
   const dimensions = CURSOR_DIMENSIONS[cursorType];
-  const hotspotScale = dimensions.width / 48; // Most cursors are designed at 48px reference
+  const hotspotScale = (dimensions.width / 48) * cursorSize; // Scale with cursor size
 
   cursorX -= hotspot.x * hotspotScale;
   cursorY -= hotspot.y * hotspotScale;
@@ -220,10 +224,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
           position: 'absolute',
           left: cursorX,
           top: cursorY,
-          width: dimensions.width,
-          height: dimensions.height,
+          width: dimensions.width * cursorSize,
+          height: dimensions.height * cursorSize,
           transform: `scale(${clickScale})`,
-          transformOrigin: `${CURSOR_HOTSPOTS[cursorType].x}px ${CURSOR_HOTSPOTS[cursorType].y}px`,
+          transformOrigin: `${CURSOR_HOTSPOTS[cursorType].x * cursorSize}px ${CURSOR_HOTSPOTS[cursorType].y * cursorSize}px`,
           zIndex: 100,
           pointerEvents: 'none',
           filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25)) drop-shadow(0 1px 3px rgba(0,0,0,0.15))',
