@@ -42,8 +42,11 @@ export class ZoomDetector {
       return []
     }
 
-    // Detect mouse clusters
-    const clusters = this.detectMouseClusters(mouseEvents, videoWidth, videoHeight)
+    // Detect mouse clusters - use screen dimensions from events, not video dimensions
+    // Video dimensions are often 2x screen dimensions on Retina displays
+    const screenWidth = mouseEvents[0]?.screenWidth || videoWidth
+    const screenHeight = mouseEvents[0]?.screenHeight || videoHeight
+    const clusters = this.detectMouseClusters(mouseEvents, screenWidth, screenHeight)
 
     if (clusters.length === 0) return []
 
@@ -52,8 +55,8 @@ export class ZoomDetector {
     // Convert stable clusters to zoom blocks
     clusters.forEach(cluster => {
       const clusterDuration = cluster.endTime - cluster.startTime
-      const normalizedWidth = cluster.boundingBox.width / videoWidth
-      const normalizedHeight = cluster.boundingBox.height / videoHeight
+      const normalizedWidth = cluster.boundingBox.width / screenWidth
+      const normalizedHeight = cluster.boundingBox.height / screenHeight
       const clusterSize = Math.max(normalizedWidth, normalizedHeight)
 
       // Skip if cluster is too large or too brief
@@ -71,15 +74,12 @@ export class ZoomDetector {
         zoomScale = 1.5 // Large cluster - gentle zoom
       }
 
-      // Center the zoom on the cluster using screen dimensions from events
-      // Get screen dimensions from the cluster's events
-      const clusterEvent = cluster.events[Math.floor(cluster.events.length / 2)]
-      const screenWidth = clusterEvent.screenWidth || videoWidth
-      const screenHeight = clusterEvent.screenHeight || videoHeight
-      
+      // Center the zoom on the cluster
+      // The cluster center is already in screen coordinates
+      // We should normalize using the same screen dimensions used for clustering
       const targetX = cluster.center.x / screenWidth
       const targetY = cluster.center.y / screenHeight
-      
+
       console.log('[ZoomDetector] Creating zoom block:', {
         clusterCenter: cluster.center,
         screenDimensions: { screenWidth, screenHeight },
@@ -137,13 +137,13 @@ export class ZoomDetector {
       if (windowEvents.length >= this.MIN_CLUSTER_EVENTS) {
         // Use k-means to find activity centers
         const activityCenters = this.kMeansClustering(windowEvents, videoWidth, videoHeight)
-        
+
         for (const center of activityCenters) {
           if (center.density > 0.25 && center.stability > 0.3) {
             // Check if this is a continuation of movement or a new cluster
-            const shouldMerge = clusters.length > 0 && 
+            const shouldMerge = clusters.length > 0 &&
               this.shouldMergeWithPrevious(clusters[clusters.length - 1], center, videoWidth, videoHeight)
-            
+
             if (shouldMerge) {
               this.mergeClusters(clusters[clusters.length - 1], center, videoWidth, videoHeight)
             } else {
@@ -151,7 +151,7 @@ export class ZoomDetector {
             }
           }
         }
-        
+
         // Skip ahead based on cluster detection
         if (activityCenters.length > 0) {
           i = j - Math.floor(this.MIN_CLUSTER_EVENTS / 2)
@@ -197,7 +197,7 @@ export class ZoomDetector {
       const sumDist = distances.reduce((a, b) => a + b, 0)
       let target = Math.random() * sumDist
       let idx = 0
-      
+
       for (let i = 0; i < distances.length; i++) {
         target -= distances[i]
         if (target <= 0) {
@@ -205,25 +205,25 @@ export class ZoomDetector {
           break
         }
       }
-      
+
       centers.push({ x: events[idx].x, y: events[idx].y })
     }
 
     // K-means iterations
     let clusters: MouseEvent[][] = []
     const maxIterations = 15
-    
+
     for (let iter = 0; iter < maxIterations; iter++) {
       // Assign events to clusters
       clusters = Array(k).fill(null).map(() => [])
-      
+
       events.forEach(event => {
         let minDist = Infinity
         let assignedCluster = 0
-        
+
         centers.forEach((center, idx) => {
           const dist = Math.sqrt(
-            Math.pow(event.x - center.x, 2) + 
+            Math.pow(event.x - center.x, 2) +
             Math.pow(event.y - center.y, 2)
           )
           if (dist < minDist) {
@@ -231,25 +231,25 @@ export class ZoomDetector {
             assignedCluster = idx
           }
         })
-        
+
         clusters[assignedCluster].push(event)
       })
-      
+
       // Update centers
       let converged = true
       clusters.forEach((cluster, idx) => {
         if (cluster.length > 0) {
           const newX = cluster.reduce((sum, e) => sum + e.x, 0) / cluster.length
           const newY = cluster.reduce((sum, e) => sum + e.y, 0) / cluster.length
-          
+
           if (Math.abs(newX - centers[idx].x) > 1 || Math.abs(newY - centers[idx].y) > 1) {
             converged = false
           }
-          
+
           centers[idx] = { x: newX, y: newY }
         }
       })
-      
+
       if (converged) break
     }
 
@@ -337,16 +337,16 @@ export class ZoomDetector {
     const dx = (currentCluster.center.x - previousCluster.center.x) / videoWidth
     const dy = (currentCluster.center.y - previousCluster.center.y) / videoHeight
     const spatialDistance = Math.sqrt(dx * dx + dy * dy)
-    
+
     // Calculate temporal distance
     const timeDiff = currentCluster.startTime - previousCluster.endTime
-    
+
     // Check if this is a continuation of movement
     const isContinuation = timeDiff < 500 && spatialDistance < this.CLUSTER_MERGE_DISTANCE
-    
+
     // Check if movement is following a path
     const isFollowingPath = timeDiff < 1000 && spatialDistance < this.MOVEMENT_THRESHOLD * 2
-    
+
     return isContinuation || isFollowingPath
   }
 

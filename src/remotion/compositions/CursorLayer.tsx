@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { CursorLayerProps } from './types';
-import { 
-  CursorType, 
-  CURSOR_HOTSPOTS, 
-  getCursorImagePath, 
-  electronToCustomCursor 
+import {
+  CursorType,
+  CURSOR_HOTSPOTS,
+  getCursorImagePath,
+  electronToCustomCursor
 } from '../../lib/effects/cursor-types';
 
 // Cursor dimensions for proper aspect ratio
@@ -111,7 +111,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const easeOutExpo = (t: number) => {
       return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
     };
-    
+
     const smoothProgress = easeOutExpo(Math.max(0, Math.min(1, progress)));
 
     return {
@@ -132,12 +132,12 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   if (!cursorPosition) return null;
 
   // Get cursor metadata from the event (scale factor, display bounds)
-  const currentEvent = cursorEvents.find(e => 
+  const currentEvent = cursorEvents.find(e =>
     Math.abs(e.timestamp - currentTimeMs) < 50
   );
   const scaleFactor = (currentEvent as any)?.scaleFactor || 1;
   const displayBounds = (currentEvent as any)?.displayBounds;
-  
+
   console.log('[CursorLayer] Cursor metadata:', {
     cursorPosition,
     currentEvent: currentEvent ? {
@@ -152,42 +152,42 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     videoSize: { videoWidth, videoHeight },
     videoOffset
   });
-  
+
   // The cursor position comes from screen coordinates
   // We need to map it relative to the video recording area
   let rawX = cursorPosition.x;
   let rawY = cursorPosition.y;
-  
+
   // If we have display bounds, adjust for multi-monitor setups
   if (displayBounds) {
     rawX = rawX - displayBounds.x;
     rawY = rawY - displayBounds.y;
   }
-  
+
   // Normalize to video dimensions (accounting for retina displays)
   const normalizedX = rawX / (displayBounds?.width || videoWidth);
   const normalizedY = rawY / (displayBounds?.height || videoHeight);
-  
+
   // Map to displayed video position
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;
   let cursorY = videoOffset.y + normalizedY * videoOffset.height;
-  
+
   // Apply cursor hotspot offset for accurate positioning
   const hotspot = CURSOR_HOTSPOTS[cursorType];
   const dimensions = CURSOR_DIMENSIONS[cursorType];
   const hotspotScale = dimensions.width / 48; // Most cursors are designed at 48px reference
-  
+
   cursorX -= hotspot.x * hotspotScale;
   cursorY -= hotspot.y * hotspotScale;
-  
+
   // Apply zoom transformation if active
   if (zoom.scale > 1) {
     const videoCenterX = videoOffset.x + videoOffset.width / 2;
     const videoCenterY = videoOffset.y + videoOffset.height / 2;
-    
+
     cursorX = videoCenterX + (cursorX - videoCenterX) * zoom.scale;
     cursorY = videoCenterY + (cursorY - videoCenterY) * zoom.scale;
-    
+
     const panX = (zoom.x - 0.5) * videoOffset.width * (zoom.scale - 1);
     const panY = (zoom.y - 0.5) * videoOffset.height * (zoom.scale - 1);
     cursorX += panX;
@@ -199,7 +199,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     if (!activeClick) return 1;
     const clickProgress = (currentTimeMs - activeClick.timestamp) / 150; // 150ms animation
     if (clickProgress > 1) return 1;
-    
+
     // Subtle pulse: 1.0 -> 0.95 -> 1.0
     if (clickProgress < 0.5) {
       return 1 - (clickProgress * 0.1); // Scale down to 0.95

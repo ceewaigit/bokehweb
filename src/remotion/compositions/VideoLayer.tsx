@@ -16,7 +16,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
-  
+
   // Track previous pan position for smooth ice-like interpolation
   const smoothPanRef = useRef({ x: 0, y: 0 });
   const smoothPan = smoothPanRef.current;
@@ -49,8 +49,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 
       // Calculate zoom interpolation with easing
       let scale = 1;
-      let translateX = 0;
-      let translateY = 0;
 
       const introMs = activeBlock.introMs || 300;
       const outroMs = activeBlock.outroMs || 300;
@@ -81,41 +79,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             easing: easeOutCubic
           }
         );
-
-        // Get interpolated mouse position for smooth intro
-        const mousePos = zoomPanCalculator.interpolateMousePosition(
-          mouseEvents,
-          currentTimeMs
-        );
-        
-        let targetX = (activeBlock.targetX || 0.5) - 0.5;
-        let targetY = (activeBlock.targetY || 0.5) - 0.5;
-        
-        if (mousePos && progress > 0.3) {
-          // Start following mouse after 30% of intro for smoother transition
-          const panOffset = zoomPanCalculator.calculatePanOffset(
-            mousePos.x,
-            mousePos.y,
-            videoWidth,
-            videoHeight,
-            scale
-          );
-          
-          // Blend between initial target and mouse position
-          const blendFactor = (progress - 0.3) / 0.7;
-          targetX = targetX * (1 - blendFactor) + (targetX + panOffset.x * 0.5) * blendFactor;
-          targetY = targetY * (1 - blendFactor) + (targetY + panOffset.y * 0.5) * blendFactor;
-        }
-        
-        translateX = interpolate(progress, [0, 1], [0, -targetX * width * (scale - 1)]);
-        translateY = interpolate(progress, [0, 1], [0, -targetY * height * (scale - 1)]);
       } else if (elapsed > blockDuration - outroMs) {
         // Outro phase - zoom out with smoother return
         const outroElapsed = elapsed - (blockDuration - outroMs);
         const progress = outroElapsed / outroMs;
         // Use smoother easing for natural zoom out
-        const easeInOutCubic = (t: number) => t < 0.5 
-          ? 4 * t * t * t 
+        const easeInOutCubic = (t: number) => t < 0.5
+          ? 4 * t * t * t
           : 1 - Math.pow(-2 * t + 2, 3) / 2;
         scale = interpolate(
           progress,
@@ -127,50 +97,22 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             easing: easeInOutCubic
           }
         );
-
-        // Get current mouse position for smooth transition out
-        const mousePos = zoomPanCalculator.interpolateMousePosition(
-          mouseEvents,
-          currentTimeMs
-        );
-        
-        let currentX = (activeBlock.targetX || 0.5) - 0.5;
-        let currentY = (activeBlock.targetY || 0.5) - 0.5;
-        
-        if (mousePos && progress < 0.7) {
-          // Continue following mouse during early outro
-          const panOffset = zoomPanCalculator.calculatePanOffset(
-            mousePos.x,
-            mousePos.y,
-            videoWidth,
-            videoHeight,
-            scale
-          );
-          
-          // Gradually reduce mouse influence during outro
-          const influenceFactor = 1 - (progress / 0.7);
-          currentX += panOffset.x * influenceFactor * 0.5;
-          currentY += panOffset.y * influenceFactor * 0.5;
-        }
-        
-        translateX = interpolate(progress, [0, 1], [-currentX * width * (activeBlock.scale - 1), 0]);
-        translateY = interpolate(progress, [0, 1], [-currentY * height * (activeBlock.scale - 1), 0]);
       } else {
         // Hold phase - implement dynamic panning based on mouse position
         scale = activeBlock.scale || 2;
-        
+
         // Get interpolated mouse position at current time
         const mousePos = zoomPanCalculator.interpolateMousePosition(
           mouseEvents,
           currentTimeMs
         );
-        
+
         if (mousePos && mouseEvents.length > 0) {
           // Get the screen dimensions from mouse events (accounts for scaling)
           const currentEvent = mouseEvents.find(e => e.timestamp <= currentTimeMs) || mouseEvents[0];
           const screenWidth = currentEvent.screenWidth;
           const screenHeight = currentEvent.screenHeight;
-          
+
           console.log('[VideoLayer] Hold phase debug:', {
             mousePos,
             currentEvent: {
@@ -184,7 +126,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             canvasSize: { width, height },
             scale
           });
-          
+
           // Calculate dynamic pan offset based on current mouse position
           // Use screen dimensions, not video dimensions
           const panOffset = zoomPanCalculator.calculatePanOffset(
@@ -196,7 +138,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             smoothPan.x,
             smoothPan.y
           );
-          
+
           console.log('[VideoLayer] Pan calculation:', {
             panOffset,
             smoothPanBefore: { ...smoothPan },
@@ -205,73 +147,65 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
               y: mousePos.y / screenHeight
             }
           });
-          
+
           // Update smooth pan with ice-like movement (high smoothing)
           const iceSmoothingFactor = 0.08; // Lower = more ice-like
           smoothPan.x += (panOffset.x - smoothPan.x) * iceSmoothingFactor;
           smoothPan.y += (panOffset.y - smoothPan.y) * iceSmoothingFactor;
-          
+
           console.log('[VideoLayer] Smooth pan after:', { ...smoothPan });
-          
+
           // Apply initial target position plus dynamic pan
           const baseTargetX = (activeBlock.targetX || 0.5) - 0.5;
           const baseTargetY = (activeBlock.targetY || 0.5) - 0.5;
-          
+
           // Combine base position with smooth dynamic pan
           const dynamicTargetX = baseTargetX + smoothPan.x;
           const dynamicTargetY = baseTargetY + smoothPan.y;
-          
-          translateX = -dynamicTargetX * width * (scale - 1);
-          translateY = -dynamicTargetY * height * (scale - 1);
-          
+
           console.log('[VideoLayer] Final transform:', {
             baseTarget: { x: baseTargetX, y: baseTargetY },
             dynamicTarget: { x: dynamicTargetX, y: dynamicTargetY },
-            translate: { x: translateX, y: translateY },
             scaleMinusOne: scale - 1,
             width,
             height
           });
-        } else {
-          // Fallback if no mouse data
-          const targetX = (activeBlock.targetX || 0.5) - 0.5;
-          const targetY = (activeBlock.targetY || 0.5) - 0.5;
-          translateX = -targetX * width * (scale - 1);
-          translateY = -targetY * height * (scale - 1);
         }
       }
 
       // The zoom should be relative to the video content, not the canvas
       // We need to consider that the video is positioned at offsetX, offsetY
       // and has size drawWidth x drawHeight
-      
+
       // Calculate the zoom center point in video coordinates (0-1)
+      // IMPORTANT: activeBlock.targetX/Y are already normalized (0-1)
       const zoomCenterX = activeBlock.targetX || 0.5;
       const zoomCenterY = activeBlock.targetY || 0.5;
-      
-      // Calculate the translation needed to keep the zoom center in place
-      // Formula: We want to move the zoom center to the center of the viewport
-      // Then scale, then move back
-      const translateToCenter = {
-        x: (0.5 - zoomCenterX) * drawWidth,
-        y: (0.5 - zoomCenterY) * drawHeight
-      };
-      
-      // Add dynamic pan offset
-      const panX = smoothPan.x * drawWidth * (scale - 1) / scale;
-      const panY = smoothPan.y * drawHeight * (scale - 1) / scale;
-      
-      // Combine translations
-      const finalTranslateX = translateToCenter.x + panX;
-      const finalTranslateY = translateToCenter.y + panY;
-      
-      transform = `translate(${finalTranslateX}px, ${finalTranslateY}px) scale(${scale})`;
-      
+
+      // The zoom center is where we want to focus (0-1 normalized)
+      // We need to translate so that point stays in the same place after scaling
+
+      // Calculate how much to shift to keep the zoom point fixed
+      // When we scale from the center, a point at (zoomCenterX, zoomCenterY) moves
+      // We need to compensate for this movement
+      const scaleCompensationX = (0.5 - zoomCenterX) * drawWidth * (scale - 1);
+      const scaleCompensationY = (0.5 - zoomCenterY) * drawHeight * (scale - 1);
+
+      // Add dynamic pan offset (if mouse has moved from original cluster)
+      const panX = smoothPan.x * drawWidth;
+      const panY = smoothPan.y * drawHeight;
+
+      // Apply transform - translate needs to be divided by scale when scale is applied first
+      const finalTranslateX = (scaleCompensationX + panX) / scale;
+      const finalTranslateY = (scaleCompensationY + panY) / scale;
+      transform = `scale(${scale}) translate(${finalTranslateX}px, ${finalTranslateY}px)`;
+
       console.log('[VideoLayer] Transform calculation:', {
         zoomCenter: { x: zoomCenterX, y: zoomCenterY },
-        translateToCenter,
+        scaleCompensation: { x: scaleCompensationX, y: scaleCompensationY },
         pan: { x: panX, y: panY },
-        finalTranslate: { x: finalTranslateX, y: finalTranslateY },
+        translateBeforeScale: { x: scaleCompensationX + panX, y: scaleCompensationY + panY },
+        translateAfterScale: { x: finalTranslateX, y: finalTranslateY },
         scale,
         smoothPan,
         activeBlockTarget: { x: activeBlock.targetX, y: activeBlock.targetY }
