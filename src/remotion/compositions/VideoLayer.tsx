@@ -183,13 +183,22 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       const zoomCenterY = activeBlock.targetY || 0.5;
 
       // The zoom center is where we want to focus (0-1 normalized)
-      // We need to translate so that point stays in the same place after scaling
-
-      // Calculate how much to shift to keep the zoom point fixed
-      // When we scale from the center, a point at (zoomCenterX, zoomCenterY) moves
-      // We need to compensate for this movement
-      const scaleCompensationX = (0.5 - zoomCenterX) * drawWidth * (scale - 1);
-      const scaleCompensationY = (0.5 - zoomCenterY) * drawHeight * (scale - 1);
+      // Convert to pixel coordinates relative to video container
+      const zoomPointX = zoomCenterX * drawWidth;
+      const zoomPointY = zoomCenterY * drawHeight;
+      
+      // Calculate the center of the video container
+      const centerX = drawWidth / 2;
+      const centerY = drawHeight / 2;
+      
+      // Calculate offset from center to zoom point
+      const offsetFromCenterX = zoomPointX - centerX;
+      const offsetFromCenterY = zoomPointY - centerY;
+      
+      // When scaling from center, point moves by (scale - 1) * offset
+      // To keep it in place, translate in opposite direction
+      const scaleCompensationX = -offsetFromCenterX * (scale - 1);
+      const scaleCompensationY = -offsetFromCenterY * (scale - 1);
 
       // Add dynamic pan offset (if mouse has moved from original cluster)
       const panX = smoothPan.x * drawWidth;
