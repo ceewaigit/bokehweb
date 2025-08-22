@@ -217,13 +217,14 @@ export function EffectsSidebar({
             <div className="space-y-2">
               <label className="text-sm font-medium">Cursor size</label>
               <Slider
-                value={[effects.cursor.size ?? 1.0]}
+                value={[effects.cursor.size ?? 2.0]}
                 onValueChange={([value]) => updateEffect('cursor', { size: value })}
-                min={0.5}
-                max={3}
+                min={1}
+                max={4}
                 step={0.1}
                 className="w-full"
               />
+              <span className="text-xs text-muted-foreground">{(effects.cursor.size ?? 2.0).toFixed(1)}x</span>
             </div>
 
             <div className="space-y-2">

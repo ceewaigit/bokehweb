@@ -134,14 +134,14 @@ export function PropertiesPanel() {
                 <div>
                   <label className="text-xs">Cursor Size</label>
                   <Slider
-                    value={[selectedClip.effects?.cursor?.size || 1.0]}
+                    value={[selectedClip.effects?.cursor?.size || 2.0]}
                     onValueChange={([value]) => {
                       updateClipEffects(selectedClip.id, {
                         cursor: { ...selectedClip.effects?.cursor, size: value }
                       })
                     }}
-                    min={0.5}
-                    max={2.0}
+                    min={1}
+                    max={4}
                     step={0.1}
                     className="mt-2"
                   />

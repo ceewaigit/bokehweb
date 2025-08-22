@@ -108,8 +108,15 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
         );
 
         if (mousePos && mouseEvents.length > 0) {
-          // Get the screen dimensions from mouse events (accounts for scaling)
-          const currentEvent = mouseEvents.find(e => e.timestamp <= currentTimeMs) || mouseEvents[0];
+          // Get the most recent mouse event for screen dimensions
+          // Find the last event before or at current time
+          let currentEvent = mouseEvents[0];
+          for (let i = mouseEvents.length - 1; i >= 0; i--) {
+            if (mouseEvents[i].timestamp <= currentTimeMs) {
+              currentEvent = mouseEvents[i];
+              break;
+            }
+          }
           const screenWidth = currentEvent.screenWidth;
           const screenHeight = currentEvent.screenHeight;
 
@@ -148,8 +155,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             }
           });
 
-          // Update smooth pan with more responsive movement to follow mouse outside frame
-          const iceSmoothingFactor = 0.15; // Higher value for faster camera catch-up when mouse moves outside
+          // Update smooth pan with very responsive movement to keep mouse in frame
+          const iceSmoothingFactor = 0.25; // Much higher for immediate camera response
           smoothPan.x += (panOffset.x - smoothPan.x) * iceSmoothingFactor;
           smoothPan.y += (panOffset.y - smoothPan.y) * iceSmoothingFactor;
 
