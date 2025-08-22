@@ -4,7 +4,6 @@ import { VideoLayer } from './VideoLayer';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CursorLayer } from './CursorLayer';
 import type { MainCompositionProps } from './types';
-import { calculateVideoPosition } from '@/lib/utils/video-dimensions';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -17,15 +16,37 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
-  // Calculate video position based on padding
-  const padding = effects?.background?.padding || 80;
-  const videoPosition = calculateVideoPosition(
-    width,
-    height,
-    width,
-    height,
-    padding
-  );
+  // Calculate video position based on padding - must match VideoLayer calculation
+  const padding = effects?.background?.padding || 0;
+  
+  // Calculate video position with padding - maintain aspect ratio
+  const availableWidth = width - (padding * 2);
+  const availableHeight = height - (padding * 2);
+  
+  // Assume 16:9 aspect ratio for the video (should match VideoLayer)
+  const videoAspectRatio = 16 / 9;
+  const containerAspectRatio = availableWidth / availableHeight;
+  
+  let drawWidth: number;
+  let drawHeight: number;
+  let offsetX: number;
+  let offsetY: number;
+  
+  if (videoAspectRatio > containerAspectRatio) {
+    // Video is wider than container - fit by width
+    drawWidth = availableWidth;
+    drawHeight = availableWidth / videoAspectRatio;
+    offsetX = padding;
+    offsetY = padding + (availableHeight - drawHeight) / 2;
+  } else {
+    // Video is taller than container - fit by height
+    drawHeight = availableHeight;
+    drawWidth = availableHeight * videoAspectRatio;
+    offsetX = padding + (availableWidth - drawWidth) / 2;
+    offsetY = padding;
+  }
+  
+  const videoPosition = { drawWidth, drawHeight, offsetX, offsetY };
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
@@ -93,7 +114,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             videoUrl={videoUrl}
             startFrom={clip?.sourceIn ? clip.sourceIn / 1000 : 0}
             endAt={clip?.sourceOut ? clip.sourceOut / 1000 : undefined}
-            effects={effects?.video}
+            effects={effects}
             zoom={effects?.zoom}
             currentFrame={frame}
           />

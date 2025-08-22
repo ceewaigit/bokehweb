@@ -13,7 +13,7 @@ export interface VideoLayerProps {
   videoUrl: string;
   startFrom?: number;
   endAt?: number;
-  effects?: ClipEffects['video'];
+  effects?: ClipEffects | null;
   zoom?: ClipEffects['zoom'];
   currentFrame: number;
 }

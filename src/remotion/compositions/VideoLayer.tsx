@@ -1,7 +1,6 @@
 import React from 'react';
 import { Video, AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
-import { calculateVideoPosition } from '@/lib/utils/video-dimensions';
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
@@ -17,15 +16,35 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
 
-  // Calculate video position with padding
-  const padding = 80; // Default padding, will come from effects
-  const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
-    width,
-    height,
-    width,
-    height,
-    padding
-  );
+  // Get actual padding from effects or use default
+  const padding = effects?.background?.padding || 0;
+  
+  // Calculate video position with padding - maintain aspect ratio
+  const availableWidth = width - (padding * 2);
+  const availableHeight = height - (padding * 2);
+  
+  // Assume 16:9 aspect ratio for the video (we should get this from metadata)
+  const videoAspectRatio = 16 / 9;
+  const containerAspectRatio = availableWidth / availableHeight;
+  
+  let drawWidth: number;
+  let drawHeight: number;
+  let offsetX: number;
+  let offsetY: number;
+  
+  if (videoAspectRatio > containerAspectRatio) {
+    // Video is wider than container - fit by width
+    drawWidth = availableWidth;
+    drawHeight = availableWidth / videoAspectRatio;
+    offsetX = padding;
+    offsetY = padding + (availableHeight - drawHeight) / 2;
+  } else {
+    // Video is taller than container - fit by height
+    drawHeight = availableHeight;
+    drawWidth = availableHeight * videoAspectRatio;
+    offsetX = padding + (availableWidth - drawWidth) / 2;
+    offsetY = padding;
+  }
 
   // Apply zoom if enabled
   let transform = '';
@@ -96,31 +115,27 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
         // Smart panning can be added here if needed
       }
 
-      transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+      // Apply transform to the video itself, not the container
+      // The translate values need to be adjusted for the actual video size
+      const actualTranslateX = translateX * (drawWidth / width);
+      const actualTranslateY = translateY * (drawHeight / height);
+      transform = `scale(${scale}) translate(${actualTranslateX}px, ${actualTranslateY}px)`;
     }
   }
 
   // Apply corner radius if specified
-  const cornerRadius = effects?.cornerRadius || 16;
-  const borderRadiusStyle = `${cornerRadius}px`;
+  const cornerRadius = effects?.video?.cornerRadius || 0;
+  const borderRadiusStyle = cornerRadius > 0 ? `${cornerRadius}px` : '0';
 
   // Apply shadow if enabled
-  const shadowStyle = effects?.shadow?.enabled
+  const shadowStyle = effects?.video?.shadow?.enabled
     ? {
-      filter: `drop-shadow(${effects.shadow.offset.x}px ${effects.shadow.offset.y}px ${effects.shadow.blur}px ${effects.shadow.color})`
+      filter: `drop-shadow(${effects.video.shadow.offset.x}px ${effects.video.shadow.offset.y}px ${effects.video.shadow.blur}px ${effects.video.shadow.color})`
     }
     : {};
 
   return (
-    <AbsoluteFill
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        transform,
-        transformOrigin: 'center',
-      }}
-    >
+    <AbsoluteFill>
       <div
         style={{
           position: 'absolute',
@@ -130,6 +145,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           height: drawHeight,
           borderRadius: borderRadiusStyle,
           overflow: 'hidden',
+          transform,
+          transformOrigin: 'center center',
           ...shadowStyle
         }}
       >
