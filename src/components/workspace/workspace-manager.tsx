@@ -310,7 +310,7 @@ export function WorkspaceManager() {
           selectedRecording.height || 1080,
           selectedRecording.duration
         )
-        
+
         effects = {
           ...effects,
           zoom: {

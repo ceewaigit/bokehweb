@@ -270,7 +270,7 @@ try {
 } catch (error) {
   // Fallback for cases where contextIsolation might be disabled
   console.warn('Failed to use contextBridge, falling back to direct assignment:', error)
-  ; (globalThis as any).electronAPI = electronAPI
+    ; (globalThis as any).electronAPI = electronAPI
 }
 
 // Export types for TypeScript support

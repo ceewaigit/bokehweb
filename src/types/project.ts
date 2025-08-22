@@ -293,12 +293,12 @@ export function createProject(name: string): Project {
 export async function saveProject(project: Project, customPath?: string): Promise<string | null> {
   // Create a copy of the project to avoid mutating the original
   const projectCopy = { ...project }
-  
+
   // Check if running in Electron environment
   if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
     try {
       const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-      
+
       // Use existing filePath if available, otherwise create new one
       let projectFilePath: string
       if (projectCopy.filePath && !customPath) {
@@ -312,7 +312,7 @@ export async function saveProject(project: Project, customPath?: string): Promis
 
       // Update the copy's filePath
       projectCopy.filePath = projectFilePath
-      
+
       // Stringify the copy with the updated filePath
       const projectData = JSON.stringify(projectCopy, null, 2)
 
@@ -408,7 +408,7 @@ export async function saveRecordingWithProject(
     const firstEventWithCapture = metadata.find(m => m.captureWidth && m.captureHeight)
     const logicalWidth = firstEventWithCapture?.captureWidth || width
     const logicalHeight = firstEventWithCapture?.captureHeight || height
-    
+
     const mouseEvents = metadata
       .filter(m => m.eventType === 'mouse')
       .map(m => ({
@@ -549,7 +549,7 @@ export async function loadProject(filePath: string): Promise<Project> {
         const decoder = new TextDecoder()
         const projectData = decoder.decode(result.data as ArrayBuffer)
         const project = JSON.parse(projectData) as Project
-        
+
         // Set the filePath so we can update the same file later
         project.filePath = filePath
 

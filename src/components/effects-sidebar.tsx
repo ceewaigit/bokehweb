@@ -37,11 +37,11 @@ interface EffectsSidebarProps {
   onEffectChange: (effects: ClipEffects) => void
 }
 
-export function EffectsSidebar({ 
+export function EffectsSidebar({
   className,
   selectedClip,
   effects,
-  onEffectChange 
+  onEffectChange
 }: EffectsSidebarProps) {
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
@@ -56,7 +56,7 @@ export function EffectsSidebar({
 
   const updateEffect = (category: string, updates: any) => {
     if (!effects) return
-    
+
     // For background gradients, deep merge to ensure gradient colors update
     if (category === 'background' && updates.gradient) {
       onEffectChange({
@@ -296,7 +296,7 @@ export function EffectsSidebar({
               <button
                 onClick={() => {
                   // Trigger zoom detection reset
-                  updateEffect('zoom', { 
+                  updateEffect('zoom', {
                     ...effects.zoom,
                     blocks: [], // Clear existing blocks
                     regenerate: Date.now() // Add timestamp to trigger regeneration

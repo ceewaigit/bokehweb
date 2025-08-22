@@ -33,15 +33,15 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const { width, height } = useVideoConfig();
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
-  
+
   // Determine current cursor type from events
   const cursorType = useMemo(() => {
     if (!cursorEvents || cursorEvents.length === 0) return 'arrow';
-    
+
     // Find the event closest to current time
     let closestEvent = cursorEvents[0];
     let minDiff = Math.abs(closestEvent.timestamp - currentTimeMs);
-    
+
     for (const event of cursorEvents) {
       const diff = Math.abs(event.timestamp - currentTimeMs);
       if (diff < minDiff) {
@@ -49,7 +49,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         closestEvent = event;
       }
     }
-    
+
     return (closestEvent as any)?.cursorType || 'arrow';
   }, [cursorEvents, currentTimeMs]);
 
@@ -95,10 +95,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
 
     const progress = (currentTimeMs - prevEvent.timestamp) / timeDiff;
-    
+
     // Smooth interpolation
     const smoothProgress = progress * progress * (3 - 2 * progress);
-    
+
     return {
       x: prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress,
       y: prevEvent.y + (nextEvent.y - prevEvent.y) * smoothProgress
@@ -109,8 +109,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const activeClick = useMemo(() => {
     return clickEvents.find(click => {
       const clickDuration = 300; // ms for click animation
-      return currentTimeMs >= click.timestamp && 
-             currentTimeMs <= click.timestamp + clickDuration;
+      return currentTimeMs >= click.timestamp &&
+        currentTimeMs <= click.timestamp + clickDuration;
     });
   }, [clickEvents, currentTimeMs]);
 
@@ -124,7 +124,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     // When zoomed, adjust cursor position relative to zoom center
     const zoomCenterX = width * zoom.x;
     const zoomCenterY = height * zoom.y;
-    
+
     // Scale cursor position around zoom center
     cursorX = zoomCenterX + (cursorX - zoomCenterX) * zoom.scale;
     cursorY = zoomCenterY + (cursorY - zoomCenterY) * zoom.scale;
@@ -174,7 +174,7 @@ const ClickRipple: React.FC<{
   color: string;
 }> = ({ x, y, timestamp, currentTimeMs, color }) => {
   const progress = (currentTimeMs - timestamp) / 300; // 300ms animation
-  
+
   const scale = interpolate(
     progress,
     [0, 1],
@@ -183,7 +183,7 @@ const ClickRipple: React.FC<{
       extrapolateRight: 'clamp'
     }
   );
-  
+
   const opacity = interpolate(
     progress,
     [0, 0.5, 1],

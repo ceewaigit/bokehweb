@@ -42,13 +42,13 @@ export function registerMouseTrackingHandlers(): void {
 
       // Get the BrowserWindow from the sender
       targetWindow = BrowserWindow.fromWebContents(event.sender)
-      
+
       // Set up cursor-changed event listener for cursor type detection
       if (targetWindow) {
         const handleCursorChange = (_event: any, type: string) => {
           currentCursorType = type
         }
-        
+
         // Remove any existing listener first
         targetWindow.webContents.removeListener('cursor-changed', handleCursorChange)
         // Add the new listener
@@ -77,7 +77,7 @@ export function registerMouseTrackingHandlers(): void {
             // Get the display to find out the screen bounds
             const currentDisplay = screen.getDisplayNearestPoint(currentPosition)
             const scaleFactor = currentDisplay.scaleFactor || 1
-            
+
             // Calculate velocity and acceleration for smooth interpolation
             let velocity = { x: 0, y: 0 }
             let acceleration = { x: 0, y: 0 }
@@ -249,8 +249,8 @@ function startClickDetection(): void {
     // @ts-ignore - uiohook-napi type definitions may be incomplete
     uIOhook.on('mousedown', handleMouseDown)
 
-    // Store the handler for cleanup
-    (global as any).uiohookMouseHandler = handleMouseDown
+      // Store the handler for cleanup
+      (global as any).uiohookMouseHandler = handleMouseDown
 
   } catch (error) {
     console.error('❌ Failed to start global click detection:', error)
@@ -260,7 +260,7 @@ function startClickDetection(): void {
 
 function stopClickDetection(): void {
   clickDetectionActive = false
-  
+
   try {
     // Remove the mouse handler if it exists
     if ((global as any).uiohookMouseHandler) {
@@ -286,7 +286,7 @@ export function cleanupMouseTracking(): void {
     isMouseTracking = false
   }
   stopClickDetection()
-  
+
   // Ensure uiohook is fully cleaned up
   if (uiohookStarted) {
     try {

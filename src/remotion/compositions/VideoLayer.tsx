@@ -13,10 +13,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
-  
+
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
-  
+
   // Calculate video position with padding
   const padding = 80; // Default padding, will come from effects
   const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
@@ -26,29 +26,29 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     height,
     padding
   );
-  
+
   // Apply zoom if enabled
   let transform = '';
   let clipPath = '';
-  
+
   if (zoom?.enabled && zoom.blocks) {
     // Find active zoom block
     const activeBlock = zoom.blocks.find(
       block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
     );
-    
+
     if (activeBlock) {
       const blockDuration = activeBlock.endTime - activeBlock.startTime;
       const elapsed = currentTimeMs - activeBlock.startTime;
-      
+
       // Calculate zoom interpolation with easing
       let scale = 1;
       let translateX = 0;
       let translateY = 0;
-      
+
       const introMs = activeBlock.introMs || 300;
       const outroMs = activeBlock.outroMs || 300;
-      
+
       if (elapsed < introMs) {
         // Intro phase - zoom in
         const progress = elapsed / introMs;
@@ -62,7 +62,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             easing: (t: number) => 1 - Math.pow(2, -10 * t) // easeOutExpo
           }
         );
-        
+
         const targetX = (activeBlock.targetX || 0.5) - 0.5;
         const targetY = (activeBlock.targetY || 0.5) - 0.5;
         translateX = interpolate(progress, [0, 1], [0, -targetX * width * (scale - 1)]);
@@ -80,7 +80,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             extrapolateRight: 'clamp'
           }
         );
-        
+
         const targetX = (activeBlock.targetX || 0.5) - 0.5;
         const targetY = (activeBlock.targetY || 0.5) - 0.5;
         translateX = interpolate(progress, [0, 1], [-targetX * width * (activeBlock.scale - 1), 0]);
@@ -92,23 +92,23 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
         const targetY = (activeBlock.targetY || 0.5) - 0.5;
         translateX = -targetX * width * (scale - 1);
         translateY = -targetY * height * (scale - 1);
-        
+
         // Smart panning can be added here if needed
       }
-      
+
       transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
     }
   }
-  
+
   // Apply corner radius if specified
   const cornerRadius = effects?.cornerRadius || 16;
   const borderRadiusStyle = `${cornerRadius}px`;
-  
+
   // Apply shadow if enabled
   const shadowStyle = effects?.shadow?.enabled
     ? {
-        filter: `drop-shadow(${effects.shadow.offset.x}px ${effects.shadow.offset.y}px ${effects.shadow.blur}px ${effects.shadow.color})`
-      }
+      filter: `drop-shadow(${effects.shadow.offset.x}px ${effects.shadow.offset.y}px ${effects.shadow.blur}px ${effects.shadow.color})`
+    }
     : {};
 
   return (

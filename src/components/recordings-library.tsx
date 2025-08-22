@@ -165,12 +165,12 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               // Resolve video path relative to project file location
               const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
               let videoPath = recording.project.recordings[0].filePath
-              
+
               // If the video path is relative, make it absolute relative to the project
               if (!videoPath.startsWith('/')) {
                 videoPath = `${projectDir}/${videoPath}`
               }
-              
+
               await generateThumbnail(recording, videoPath)
               // Update state with thumbnail
               setRecordings(prev => {

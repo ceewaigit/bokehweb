@@ -30,7 +30,7 @@ export default function RecordingDock() {
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
   const [selectedSource, setSelectedSource] = useState<'fullscreen' | 'window' | 'region'>('fullscreen')
-  
+
   // Reference to the dock container for measuring
   const dockContainerRef = useRef<HTMLDivElement>(null)
 
@@ -62,11 +62,11 @@ export default function RecordingDock() {
         background: transparent !important;
       }
     `
-    
+
     const styleEl = document.createElement('style')
     styleEl.textContent = styles
     document.head.appendChild(styleEl)
-    
+
     return () => styleEl.remove()
   }, [])
 
@@ -82,21 +82,21 @@ export default function RecordingDock() {
   useEffect(() => {
     const dockElement = dockContainerRef.current
     if (!dockElement || !window.electronAPI?.setWindowContentSize) return
-    
+
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0]
       if (!entry) return
-      
+
       const { width, height } = entry.contentRect
       // Add small buffer for shadows
       const buffer = 20
-      
+
       window.electronAPI?.setWindowContentSize?.({
         width: Math.ceil(width + buffer),
         height: Math.ceil(height + buffer)
       })
     })
-    
+
     observer.observe(dockElement)
     return () => observer.disconnect()
   }, [])
@@ -206,8 +206,8 @@ export default function RecordingDock() {
                   <div className="flex items-center gap-1 px-2">
                     <button
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${selectedSource === 'fullscreen'
-                          ? 'bg-white/20 text-white'
-                          : 'text-white/60 hover:text-white hover:bg-white/10'
+                        ? 'bg-white/20 text-white'
+                        : 'text-white/60 hover:text-white hover:bg-white/10'
                         }`}
                       onClick={() => setSelectedSource('fullscreen')}
                     >
@@ -216,8 +216,8 @@ export default function RecordingDock() {
                     </button>
                     <button
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${selectedSource === 'window'
-                          ? 'bg-white/20 text-white'
-                          : 'text-white/60 hover:text-white hover:bg-white/10'
+                        ? 'bg-white/20 text-white'
+                        : 'text-white/60 hover:text-white hover:bg-white/10'
                         }`}
                       onClick={() => setSelectedSource('window')}
                     >
@@ -226,8 +226,8 @@ export default function RecordingDock() {
                     </button>
                     <button
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${selectedSource === 'region'
-                          ? 'bg-white/20 text-white'
-                          : 'text-white/60 hover:text-white hover:bg-white/10'
+                        ? 'bg-white/20 text-white'
+                        : 'text-white/60 hover:text-white hover:bg-white/10'
                         }`}
                       onClick={() => setSelectedSource('region')}
                     >
@@ -242,8 +242,8 @@ export default function RecordingDock() {
                   {/* Audio Controls */}
                   <button
                     className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${micEnabled
-                        ? 'bg-white/20 text-white'
-                        : 'text-white/40 hover:text-white/60 hover:bg-white/10'
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/40 hover:text-white/60 hover:bg-white/10'
                       }`}
                     onClick={() => setMicEnabled(!micEnabled)}
                     title={micEnabled ? 'Disable Microphone' : 'Enable Microphone'}
@@ -254,8 +254,8 @@ export default function RecordingDock() {
                   {/* Camera Control */}
                   <button
                     className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${cameraEnabled
-                        ? 'bg-white/20 text-white'
-                        : 'text-white/40 hover:text-white/60 hover:bg-white/10'
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/40 hover:text-white/60 hover:bg-white/10'
                       }`}
                     onClick={() => setCameraEnabled(!cameraEnabled)}
                     title={cameraEnabled ? 'Disable Camera' : 'Enable Camera'}

@@ -50,7 +50,7 @@ export class TimelineUtils {
 
   static getTrackY(trackType: 'video' | 'zoom' | 'audio', hasZoomTrack: boolean = false): number {
     const videoY = TIMELINE_LAYOUT.RULER_HEIGHT
-    
+
     switch (trackType) {
       case 'video':
         return videoY
@@ -158,18 +158,18 @@ export class ZoomBlockUtils {
     clipDuration: number
   ): { startTime: number; endTime: number } {
     const duration = endTime - startTime
-    
+
     if (startTime < 0) {
       return { startTime: 0, endTime: Math.min(duration, clipDuration) }
     }
-    
+
     if (endTime > clipDuration) {
-      return { 
+      return {
         startTime: Math.max(0, clipDuration - duration),
         endTime: clipDuration
       }
     }
-    
+
     return { startTime, endTime }
   }
 
@@ -189,22 +189,22 @@ export class ZoomBlockUtils {
     if (side === 'left') {
       // Find the maximum we can extend left
       let minStart = 0
-      
+
       // Check for blocks to the left
       for (const other of otherBlocks) {
         if (other.endTime <= block.startTime) {
           minStart = Math.max(minStart, other.endTime)
         }
       }
-      
+
       // Don't allow shrinking too much (minimum 100ms duration)
       const maxStart = block.endTime - 100
-      
+
       return { min: minStart, max: maxStart }
     } else {
       // Find the maximum we can extend right
       let maxEnd = clipDuration
-      
+
       // Check for blocks to the right
       for (const other of otherBlocks) {
         if (other.startTime >= block.endTime) {
@@ -212,10 +212,10 @@ export class ZoomBlockUtils {
           break
         }
       }
-      
+
       // Don't allow shrinking too much (minimum 100ms duration)
       const minEnd = block.startTime + 100
-      
+
       return { min: minEnd, max: maxEnd }
     }
   }
@@ -229,7 +229,7 @@ export function createClipDragBoundFunc(
 ) {
   return (pos: { x: number; y: number }) => {
     let newX = Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pos.x)
-    
+
     if (snapToGrid) {
       const time = TimelineUtils.pixelToTime(
         newX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
@@ -238,7 +238,7 @@ export function createClipDragBoundFunc(
       const snappedTime = TimelineUtils.snapToGrid(time)
       newX = TimelineUtils.timeToPixel(snappedTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
     }
-    
+
     return {
       x: newX,
       y: trackY + TIMELINE_LAYOUT.TRACK_PADDING
@@ -259,13 +259,13 @@ export function createZoomBlockDragBoundFunc(
     // Convert pixel position to time relative to clip start
     const requestedTime = Math.max(0, TimelineUtils.pixelToTime(pos.x - clipX, pixelsPerMs))
     const requestedEnd = requestedTime + duration
-    
+
     // Check boundaries first
     let validStartTime = requestedTime
     if (requestedEnd > clipDuration) {
       validStartTime = Math.max(0, clipDuration - duration)
     }
-    
+
     // Check for overlaps with other blocks
     const otherBlocks = allBlocks.filter(b => b.id !== blockId)
     for (const block of otherBlocks) {
@@ -278,7 +278,7 @@ export function createZoomBlockDragBoundFunc(
           // Try positioning after this block
           validStartTime = block.endTime
         }
-        
+
         // Check if new position is valid
         const newEnd = validStartTime + duration
         if (newEnd > clipDuration) {
@@ -290,13 +290,13 @@ export function createZoomBlockDragBoundFunc(
         }
       }
     }
-    
+
     // Ensure we don't go negative or past clip duration
     validStartTime = Math.max(0, Math.min(validStartTime, clipDuration - duration))
-    
+
     // Convert back to pixels
     const validX = clipX + TimelineUtils.timeToPixel(validStartTime, pixelsPerMs)
-    
+
     return {
       x: validX,
       y: trackY // Keep on same track

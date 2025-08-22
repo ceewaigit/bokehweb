@@ -1,7 +1,6 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { MainComposition } from './compositions/MainComposition';
-import type { MainCompositionProps } from './compositions/types';
 
 export const RemotionRoot: React.FC = () => {
   return (

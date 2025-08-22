@@ -56,10 +56,10 @@ export class BlobURLManager {
     }
 
     logger.debug(`Blob URL created: ${description || 'unnamed'}, size: ${blob.size} bytes`)
-    
+
     // Schedule automatic cleanup for old entries
     this.scheduleCleanup()
-    
+
     return url
   }
 
@@ -101,7 +101,7 @@ export class BlobURLManager {
   cleanup(): void {
     const count = this.entries.size
     const size = this.totalSize
-    
+
     this.entries.forEach(entry => {
       try {
         URL.revokeObjectURL(entry.url)
@@ -109,10 +109,10 @@ export class BlobURLManager {
         logger.error('Error revoking URL during cleanup:', error)
       }
     })
-    
+
     this.entries.clear()
     this.totalSize = 0
-    
+
     if (count > 0) {
       logger.info(`Cleaned up ${count} blob URLs, freed ${Math.round(size / 1024 / 1024)}MB`)
     }
@@ -122,17 +122,17 @@ export class BlobURLManager {
     // Remove oldest entries first
     const sortedEntries = Array.from(this.entries.values())
       .sort((a, b) => a.createdAt - b.createdAt)
-    
+
     const targetSize = this.maxSize * 0.7 // Free up to 70% capacity
     let freedSize = 0
-    
+
     for (const entry of sortedEntries) {
       if (this.totalSize <= targetSize) break
-      
+
       this.revoke(entry.url)
       freedSize += entry.size
     }
-    
+
     if (freedSize > 0) {
       logger.warn(`Emergency cleanup: freed ${Math.round(freedSize / 1024 / 1024)}MB`)
     }
@@ -140,12 +140,12 @@ export class BlobURLManager {
 
   private scheduleCleanup(): void {
     if (this.cleanupTimer) return
-    
+
     // Clean up entries older than 5 minutes
     this.cleanupTimer = setTimeout(() => {
       const now = Date.now()
       const maxAge = 5 * 60 * 1000 // 5 minutes
-      
+
       let cleaned = 0
       this.entries.forEach(entry => {
         if (now - entry.createdAt > maxAge) {
@@ -153,13 +153,13 @@ export class BlobURLManager {
           cleaned++
         }
       })
-      
+
       if (cleaned > 0) {
         logger.debug(`Auto-cleanup: removed ${cleaned} old blob URLs`)
       }
-      
+
       this.cleanupTimer = null
-      
+
       // Schedule next cleanup if there are still entries
       if (this.entries.size > 0) {
         this.scheduleCleanup()
@@ -220,15 +220,15 @@ export class BlobURLManager {
       // try to fetch just the first byte to check validity
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 100) // Quick timeout
-      
-      const response = await fetch(url, { 
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Range': 'bytes=0-0' }, // Request only first byte
         signal: controller.signal
       })
-      
+
       clearTimeout(timeoutId)
-      
+
       // If we can fetch even one byte, the blob URL is valid
       return response.ok || response.status === 206 // 206 is partial content
     } catch (error) {
@@ -256,10 +256,10 @@ export class BlobURLManager {
         const recordingsDir = await window.electronAPI.getRecordingsDirectory()
         fullPath = `${recordingsDir}/${filePath}`
       }
-      
+
       logger.debug(`Loading video: ${recordingId} from ${fullPath}`)
       const result = await window.electronAPI.readLocalFile(fullPath)
-      
+
       if (!result?.success || !result.data) {
         logger.error(`Failed to read file: ${filePath}`)
         return null
@@ -268,10 +268,10 @@ export class BlobURLManager {
       // Create blob and URL
       const blob = new Blob([result.data], { type: 'video/webm' })
       const blobUrl = this.create(blob, `recording-${recordingId}`)
-      
+
       // Cache for future use
       RecordingStorage.setBlobUrl(recordingId, blobUrl)
-      
+
       logger.info(`Video loaded: ${recordingId}`)
       return blobUrl
     } catch (error) {
@@ -294,17 +294,17 @@ export class BlobURLManager {
     await Promise.all(
       recordings.map(async rec => {
         // Load video
-        const loadPromise = rec.filePath ? 
+        const loadPromise = rec.filePath ?
           this.loadVideo(rec.id, rec.filePath).catch(err => {
             logger.error(`Failed to load ${rec.id}:`, err)
             return null
           }) : Promise.resolve(null)
-        
+
         // Store metadata if provided
         if (rec.metadata) {
           RecordingStorage.setMetadata(rec.id, rec.metadata)
         }
-        
+
         return loadPromise
       })
     )

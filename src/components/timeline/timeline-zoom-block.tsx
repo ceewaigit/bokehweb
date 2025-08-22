@@ -51,14 +51,14 @@ export const TimelineZoomBlock = React.memo(({
   // Use the provided height prop instead of hardcoded value
   const blockHeight = height
   const handleSize = 8
-  
+
   // Calculate intro/outro widths as proportion of total width
   const totalDuration = endTime - startTime
   const introWidth = (introMs / totalDuration) * width
   const outroWidth = (outroMs / totalDuration) * width
-  
+
   // Create drag bound function with collision detection
-  const dragBoundFunc = React.useMemo(() => 
+  const dragBoundFunc = React.useMemo(() =>
     createZoomBlockDragBoundFunc(
       blockId,
       totalDuration,
@@ -69,7 +69,7 @@ export const TimelineZoomBlock = React.memo(({
       pixelsPerMs
     ), [blockId, totalDuration, allBlocks, clipDuration, clipX, y, pixelsPerMs]
   )
-  
+
   return (
     <Group
       x={x}
@@ -92,7 +92,7 @@ export const TimelineZoomBlock = React.memo(({
         stroke={isSelected ? '#fff' : undefined}
         strokeWidth={isSelected ? 2 : 0}
       />
-      
+
       {/* Intro section (zoom in) */}
       <Rect
         x={0}
@@ -103,7 +103,7 @@ export const TimelineZoomBlock = React.memo(({
         cornerRadius={[8, 0, 0, 8]}
         opacity={0.8}
       />
-      
+
       {/* Outro section (zoom out) */}
       <Rect
         x={width - outroWidth}
@@ -114,7 +114,7 @@ export const TimelineZoomBlock = React.memo(({
         cornerRadius={[0, 8, 8, 0]}
         opacity={0.8}
       />
-      
+
       {/* Zoom level indicator */}
       <Group x={10} y={blockHeight / 2 - 8}>
         <Rect
@@ -134,7 +134,7 @@ export const TimelineZoomBlock = React.memo(({
           fontFamily="system-ui"
         />
       </Group>
-      
+
       {/* Auto label if applicable */}
       <Text
         x={width - 40}
@@ -144,7 +144,7 @@ export const TimelineZoomBlock = React.memo(({
         fill="rgba(255,255,255,0.8)"
         fontFamily="system-ui"
       />
-      
+
       {/* Intro/outro duration indicators */}
       {isSelected && (
         <>
@@ -165,7 +165,7 @@ export const TimelineZoomBlock = React.memo(({
               onIntroChange(Math.round(newIntroMs))
             }}
           />
-          
+
           {/* Outro handle */}
           <Line
             points={[width - outroWidth, 0, width - outroWidth, blockHeight]}
@@ -183,7 +183,7 @@ export const TimelineZoomBlock = React.memo(({
               onOutroChange(Math.round(newOutroMs))
             }}
           />
-          
+
           {/* Resize handles with collision detection */}
           <Rect
             x={-handleSize / 2}
@@ -203,7 +203,7 @@ export const TimelineZoomBlock = React.memo(({
               )
               const minX = clipX + TimelineUtils.timeToPixel(bounds.min - startTime, pixelsPerMs) - handleSize / 2
               const maxX = clipX + TimelineUtils.timeToPixel(bounds.max - startTime, pixelsPerMs) - handleSize / 2
-              
+
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
                 y: y + blockHeight / 2 - handleSize / 2
@@ -216,7 +216,7 @@ export const TimelineZoomBlock = React.memo(({
               onResize(newWidth, 'left')
             }}
           />
-          
+
           <Rect
             x={width - handleSize / 2}
             y={blockHeight / 2 - handleSize / 2}
@@ -235,7 +235,7 @@ export const TimelineZoomBlock = React.memo(({
               )
               const minX = TimelineUtils.timeToPixel(bounds.min - startTime, pixelsPerMs) - handleSize / 2
               const maxX = TimelineUtils.timeToPixel(bounds.max - startTime, pixelsPerMs) - handleSize / 2
-              
+
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
                 y: y + blockHeight / 2 - handleSize / 2

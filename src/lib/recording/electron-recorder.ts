@@ -562,12 +562,12 @@ export class ElectronRecorder {
         // Source ID format is usually "screen:ID:0" 
         const screenIdMatch = sourceId.match(/screen:(\d+):/)
         let screen = null
-        
+
         if (screenIdMatch && screens.length > 0) {
           const screenId = parseInt(screenIdMatch[1])
           screen = screens.find((s: any) => s.id === screenId)
         }
-        
+
         // Use primary screen as fallback
         if (!screen && screens.length > 0) {
           screen = screens[0]
@@ -622,7 +622,7 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const now = Date.now()
         const timestamp = now - this.startTime
-        
+
 
         // Calculate distance from last position
         const dx = this.lastMouseX >= 0 ? data.x - this.lastMouseX : 0

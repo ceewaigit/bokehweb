@@ -31,9 +31,9 @@ interface ToolbarProps {
   hasUnsavedChanges?: boolean
 }
 
-export function Toolbar({ 
+export function Toolbar({
   project,
-  onToggleProperties, 
+  onToggleProperties,
   onExport,
   onNewProject,
   onSaveProject,

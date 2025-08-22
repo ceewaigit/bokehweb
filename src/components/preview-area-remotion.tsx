@@ -4,6 +4,8 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { Player, PlayerRef } from '@remotion/player'
 import { MainComposition } from '@/remotion/compositions/MainComposition'
 import { Skeleton } from '@/components/ui/skeleton'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 import type { Clip, Recording, ClipEffects } from '@/types/project'
 
 interface PreviewAreaRemotionProps {
@@ -37,22 +39,40 @@ export function PreviewAreaRemotion({
       return
     }
 
-    setIsLoading(true)
-    setLoadError(null)
+    const loadVideo = async () => {
+      setIsLoading(true)
+      setLoadError(null)
 
-    // In production, we'll need to get the blob URL from the blob manager
-    // For now, use the file path directly
-    if (selectedRecording.filePath) {
-      // Convert file path to file:// URL for Remotion
-      const url = selectedRecording.filePath.startsWith('file://') 
-        ? selectedRecording.filePath 
-        : `file://${selectedRecording.filePath}`;
-      setVideoUrl(url);
-      setIsLoading(false);
-    } else {
-      setLoadError('No video file available');
-      setIsLoading(false);
+      try {
+        // Get blob URL from recording storage
+        const blobUrl = RecordingStorage.getBlobUrl(selectedRecording.id)
+        
+        if (blobUrl) {
+          // Already loaded
+          setVideoUrl(blobUrl)
+        } else if (selectedRecording.filePath) {
+          // Load the video file
+          const url = await globalBlobManager.ensureVideoLoaded(
+            selectedRecording.id,
+            selectedRecording.filePath
+          )
+          
+          if (url) {
+            setVideoUrl(url)
+          } else {
+            setLoadError('Failed to load video file')
+          }
+        } else {
+          setLoadError('No video file available')
+        }
+      } catch (error) {
+        setLoadError(`Failed to load video: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    loadVideo()
   }, [selectedRecording]);
 
   // Sync playback state

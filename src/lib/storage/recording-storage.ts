@@ -43,8 +43,8 @@ export class RecordingStorage {
    */
   static setMetadata(recordingId: string, metadata: any): void {
     try {
-      const metadataStr = typeof metadata === 'string' 
-        ? metadata 
+      const metadataStr = typeof metadata === 'string'
+        ? metadata
         : JSON.stringify(metadata)
       localStorage.setItem(`${this.METADATA_PREFIX}${recordingId}`, metadataStr)
       logger.debug(`Stored metadata for recording ${recordingId}`)
@@ -114,7 +114,7 @@ export class RecordingStorage {
    */
   static clearAllBlobUrls(): void {
     const keysToRemove: string[] = []
-    
+
     // Find all blob URL keys
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
@@ -122,12 +122,12 @@ export class RecordingStorage {
         keysToRemove.push(key)
       }
     }
-    
+
     // Remove all blob URL entries
     keysToRemove.forEach(key => {
       localStorage.removeItem(key)
     })
-    
+
     if (keysToRemove.length > 0) {
       logger.info(`Cleared ${keysToRemove.length} cached blob URLs on startup`)
     }

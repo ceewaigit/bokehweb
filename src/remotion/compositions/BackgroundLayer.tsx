@@ -35,7 +35,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
           const percentage = (index / (colors.length - 1)) * 100;
           return `${color} ${percentage}%`;
         }).join(', ');
-        
+
         backgroundStyle = {
           background: `linear-gradient(${angle}deg, ${gradientColors})`
         };
@@ -50,7 +50,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat'
         };
-        
+
         // Apply blur if specified
         if (effects.blur) {
           backgroundStyle.filter = `blur(${effects.blur}px)`;

@@ -26,8 +26,8 @@ export function PropertiesPanel() {
   // Get the first selected clip for editing (multi-select shows first clip's properties)
   const selectedClip = selectedClips.length > 0 && currentProject
     ? currentProject.timeline.tracks
-        .flatMap(t => t.clips)
-        .find(c => c.id === selectedClips[0])
+      .flatMap(t => t.clips)
+      .find(c => c.id === selectedClips[0])
     : null
 
   const tabs = [

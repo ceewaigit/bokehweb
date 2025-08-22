@@ -16,7 +16,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
-  
+
   // Calculate video position based on padding
   const padding = effects?.background?.padding || 80;
   const videoPosition = calculateVideoPosition(
@@ -29,11 +29,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
-  
+
   // Get zoom state if zoom is enabled
   const zoomEnabled = effects?.zoom?.enabled;
   const zoomBlocks = effects?.zoom?.blocks || [];
-  
+
   // Find active zoom block
   let zoomState = { scale: 1, x: 0.5, y: 0.5 };
   if (zoomEnabled && clip) {
@@ -41,21 +41,21 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     const activeZoomBlock = zoomBlocks.find(
       block => clipRelativeTime >= block.startTime && clipRelativeTime <= block.endTime
     );
-    
+
     if (activeZoomBlock) {
       // Calculate zoom interpolation
       const blockDuration = activeZoomBlock.endTime - activeZoomBlock.startTime;
       const blockProgress = (clipRelativeTime - activeZoomBlock.startTime) / blockDuration;
-      
+
       // Apply intro/outro transitions
       let scale = activeZoomBlock.scale || 2;
       let x = activeZoomBlock.targetX || 0.5;
       let y = activeZoomBlock.targetY || 0.5;
-      
+
       const introMs = activeZoomBlock.introMs || 300;
       const outroMs = activeZoomBlock.outroMs || 300;
       const elapsed = clipRelativeTime - activeZoomBlock.startTime;
-      
+
       if (elapsed < introMs) {
         // Intro phase
         const introProgress = elapsed / introMs;
@@ -70,7 +70,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         x = activeZoomBlock.targetX + (0.5 - activeZoomBlock.targetX) * outroProgress;
         y = activeZoomBlock.targetY + (0.5 - activeZoomBlock.targetY) * outroProgress;
       }
-      
+
       zoomState = { scale, x, y };
     }
   }
@@ -79,7 +79,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {/* Background Layer */}
       <Sequence from={0}>
-        <BackgroundLayer 
+        <BackgroundLayer
           effects={effects?.background}
           videoWidth={width}
           videoHeight={height}

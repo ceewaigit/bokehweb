@@ -140,8 +140,8 @@ export const useProjectStore = create<ProjectStore>()(
 
         // Load all videos and metadata in one call
         await globalBlobManager.loadVideos(
-          project.recordings.map(r => ({ 
-            id: r.id, 
+          project.recordings.map(r => ({
+            id: r.id,
             filePath: r.filePath,
             metadata: r.metadata
           }))
@@ -187,7 +187,7 @@ export const useProjectStore = create<ProjectStore>()(
           completeRecording.height || 1080,
           completeRecording.duration
         )
-        
+
         const clipEffects = {
           ...SCREEN_STUDIO_CLIP_EFFECTS,
           zoom: {
