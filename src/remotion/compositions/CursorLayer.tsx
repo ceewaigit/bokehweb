@@ -1,25 +1,33 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { CursorLayerProps } from './types';
+import { 
+  CursorType, 
+  CURSOR_HOTSPOTS, 
+  getCursorImagePath, 
+  electronToCustomCursor 
+} from '../../lib/effects/cursor-types';
 
-// Map cursor types to image paths
-const CURSOR_IMAGES: Record<string, string> = {
-  arrow: '/cursors/arrow.png',
-  pointer: '/cursors/pointingHand.png',
-  text: '/cursors/iBeam.png',
-  crosshair: '/cursors/crosshair.png',
-  'closed-hand': '/cursors/closedHand.png',
-  'open-hand': '/cursors/openHand.png',
-  'resize-left': '/cursors/resizeLeft.png',
-  'resize-right': '/cursors/resizeRight.png',
-  'resize-up': '/cursors/resizeUp.png',
-  'resize-down': '/cursors/resizeDown.png',
-  'resize-left-right': '/cursors/resizeLeftRight.png',
-  'resize-up-down': '/cursors/resizeUpDown.png',
-  'not-allowed': '/cursors/operationNotAllowed.png',
-  'context-menu': '/cursors/contextualMenu.png',
-  copy: '/cursors/dragCopy.png',
-  link: '/cursors/dragLink.png'
+// Cursor dimensions for proper aspect ratio
+const CURSOR_DIMENSIONS: Record<CursorType, { width: number; height: number }> = {
+  [CursorType.ARROW]: { width: 24, height: 32 },
+  [CursorType.IBEAM]: { width: 16, height: 32 },
+  [CursorType.POINTING_HAND]: { width: 28, height: 28 },
+  [CursorType.CLOSED_HAND]: { width: 28, height: 28 },
+  [CursorType.OPEN_HAND]: { width: 32, height: 32 },
+  [CursorType.CROSSHAIR]: { width: 24, height: 24 },
+  [CursorType.RESIZE_LEFT]: { width: 24, height: 24 },
+  [CursorType.RESIZE_RIGHT]: { width: 24, height: 24 },
+  [CursorType.RESIZE_UP]: { width: 24, height: 24 },
+  [CursorType.RESIZE_DOWN]: { width: 24, height: 24 },
+  [CursorType.RESIZE_LEFT_RIGHT]: { width: 32, height: 24 },
+  [CursorType.RESIZE_UP_DOWN]: { width: 24, height: 32 },
+  [CursorType.CONTEXTUAL_MENU]: { width: 24, height: 32 },
+  [CursorType.DISAPPEARING_ITEM]: { width: 24, height: 32 },
+  [CursorType.DRAG_COPY]: { width: 24, height: 32 },
+  [CursorType.DRAG_LINK]: { width: 24, height: 32 },
+  [CursorType.OPERATION_NOT_ALLOWED]: { width: 28, height: 28 },
+  [CursorType.IBEAM_VERTICAL]: { width: 32, height: 16 }
 };
 
 export const CursorLayer: React.FC<CursorLayerProps> = ({
@@ -38,7 +46,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Determine current cursor type from events
   const cursorType = useMemo(() => {
-    if (!cursorEvents || cursorEvents.length === 0) return 'arrow';
+    if (!cursorEvents || cursorEvents.length === 0) return CursorType.ARROW;
 
     // Find the event closest to current time
     let closestEvent = cursorEvents[0];
@@ -52,7 +60,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       }
     }
 
-    return (closestEvent as any)?.cursorType || 'arrow';
+    const electronType = (closestEvent as any)?.cursorType || 'default';
+    return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
   // Get interpolated cursor position
@@ -98,15 +107,12 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
     const progress = (currentTimeMs - prevEvent.timestamp) / timeDiff;
 
-    // Use cubic bezier for ultra-smooth interpolation (ease-in-out)
-    // This creates a more natural, gliding cursor movement
-    const easeInOutCubic = (t: number) => {
-      return t < 0.5 
-        ? 4 * t * t * t 
-        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    // Use exponential easing for Screen Studio-like smooth movement
+    const easeOutExpo = (t: number) => {
+      return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
     };
     
-    const smoothProgress = easeInOutCubic(Math.max(0, Math.min(1, progress)));
+    const smoothProgress = easeOutExpo(Math.max(0, Math.min(1, progress)));
 
     return {
       x: prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress,
@@ -125,115 +131,88 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   if (!cursorPosition) return null;
 
-  // The cursor position is in the original video coordinates (0 to videoWidth/Height)
-  // We need to map it to the displayed video position
+  // Get cursor metadata from the event (scale factor, display bounds)
+  const currentEvent = cursorEvents.find(e => 
+    Math.abs(e.timestamp - currentTimeMs) < 50
+  );
+  const scaleFactor = (currentEvent as any)?.scaleFactor || 1;
+  const displayBounds = (currentEvent as any)?.displayBounds;
   
-  // First, normalize cursor position to 0-1 range based on original video size
-  const normalizedX = cursorPosition.x / videoWidth;
-  const normalizedY = cursorPosition.y / videoHeight;
+  // The cursor position comes from screen coordinates
+  // We need to map it relative to the video recording area
+  let rawX = cursorPosition.x;
+  let rawY = cursorPosition.y;
   
-  // Then scale to the displayed video size and add offset
+  // If we have display bounds, adjust for multi-monitor setups
+  if (displayBounds) {
+    rawX = rawX - displayBounds.x;
+    rawY = rawY - displayBounds.y;
+  }
+  
+  // Normalize to video dimensions (accounting for retina displays)
+  const normalizedX = rawX / (displayBounds?.width || videoWidth);
+  const normalizedY = rawY / (displayBounds?.height || videoHeight);
+  
+  // Map to displayed video position
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;
   let cursorY = videoOffset.y + normalizedY * videoOffset.height;
   
+  // Apply cursor hotspot offset for accurate positioning
+  const hotspot = CURSOR_HOTSPOTS[cursorType];
+  const dimensions = CURSOR_DIMENSIONS[cursorType];
+  const hotspotScale = dimensions.width / 48; // Most cursors are designed at 48px reference
+  
+  cursorX -= hotspot.x * hotspotScale;
+  cursorY -= hotspot.y * hotspotScale;
+  
   // Apply zoom transformation if active
   if (zoom.scale > 1) {
-    // When zoomed, the video itself is scaled and transformed
-    // We need to apply the same transformation to the cursor
     const videoCenterX = videoOffset.x + videoOffset.width / 2;
     const videoCenterY = videoOffset.y + videoOffset.height / 2;
     
-    // Apply zoom scale around video center
     cursorX = videoCenterX + (cursorX - videoCenterX) * zoom.scale;
     cursorY = videoCenterY + (cursorY - videoCenterY) * zoom.scale;
     
-    // Apply zoom translation (pan)
     const panX = (zoom.x - 0.5) * videoOffset.width * (zoom.scale - 1);
     const panY = (zoom.y - 0.5) * videoOffset.height * (zoom.scale - 1);
     cursorX += panX;
     cursorY += panY;
   }
 
+  // Calculate click animation scale
+  const clickScale = useMemo(() => {
+    if (!activeClick) return 1;
+    const clickProgress = (currentTimeMs - activeClick.timestamp) / 150; // 150ms animation
+    if (clickProgress > 1) return 1;
+    
+    // Subtle pulse: 1.0 -> 0.95 -> 1.0
+    if (clickProgress < 0.5) {
+      return 1 - (clickProgress * 0.1); // Scale down to 0.95
+    } else {
+      return 0.95 + ((clickProgress - 0.5) * 0.1); // Scale back up to 1.0
+    }
+  }, [activeClick, currentTimeMs]);
+
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
-      {/* Cursor with smooth motion */}
+      {/* Cursor with proper dimensions and smooth motion */}
       <Img
-        src={CURSOR_IMAGES[cursorType] || CURSOR_IMAGES.arrow}
+        src={getCursorImagePath(cursorType)}
         style={{
           position: 'absolute',
           left: cursorX,
           top: cursorY,
-          width: 32,
-          height: 32,
-          transform: 'scale(1.2)',
+          width: dimensions.width,
+          height: dimensions.height,
+          transform: `scale(${clickScale})`,
+          transformOrigin: `${CURSOR_HOTSPOTS[cursorType].x}px ${CURSOR_HOTSPOTS[cursorType].y}px`,
           zIndex: 100,
           pointerEvents: 'none',
-          // Add subtle drop shadow for depth
-          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
-          // Smooth transitions for any sudden changes
-          transition: 'none', // Disabled because we're using interpolation
-          willChange: 'left, top' // Optimize for animation
+          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25)) drop-shadow(0 1px 3px rgba(0,0,0,0.15))',
+          imageRendering: 'crisp-edges',
+          willChange: 'transform, left, top'
         }}
       />
-
-      {/* Click ripple animation */}
-      {activeClick && (
-        <ClickRipple
-          x={cursorX}
-          y={cursorY}
-          timestamp={activeClick.timestamp}
-          currentTimeMs={currentTimeMs}
-          color="#007AFF"
-        />
-      )}
     </AbsoluteFill>
-  );
-};
-
-// Click ripple component
-const ClickRipple: React.FC<{
-  x: number;
-  y: number;
-  timestamp: number;
-  currentTimeMs: number;
-  color: string;
-}> = ({ x, y, timestamp, currentTimeMs, color }) => {
-  const progress = (currentTimeMs - timestamp) / 300; // 300ms animation
-
-  const scale = interpolate(
-    progress,
-    [0, 1],
-    [0.5, 2],
-    {
-      extrapolateRight: 'clamp'
-    }
-  );
-
-  const opacity = interpolate(
-    progress,
-    [0, 0.5, 1],
-    [0.8, 0.4, 0],
-    {
-      extrapolateRight: 'clamp'
-    }
-  );
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        left: x,
-        top: y,
-        width: 40,
-        height: 40,
-        transform: `translate(-50%, -50%) scale(${scale})`,
-        opacity,
-        borderRadius: '50%',
-        border: `2px solid ${color}`,
-        backgroundColor: `${color}33`,
-        pointerEvents: 'none',
-        zIndex: 99
-      }}
-    />
   );
 };

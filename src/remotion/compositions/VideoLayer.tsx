@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Video, AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
+import { calculateVideoPosition } from './utils/video-position';
+import { zoomPanCalculator } from '@/lib/effects/zoom-pan-calculator';
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
@@ -8,9 +10,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   endAt,
   effects,
   zoom,
-  currentFrame,
   videoWidth,
-  videoHeight
+  videoHeight,
+  mouseEvents = []
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -18,39 +20,18 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
 
-  // Get actual padding from effects or use default
+  // Calculate video position using shared utility
   const padding = effects?.background?.padding || 0;
-  
-  // Calculate video position with padding - maintain aspect ratio
-  const availableWidth = width - (padding * 2);
-  const availableHeight = height - (padding * 2);
-  
-  // Use actual video aspect ratio
-  const videoAspectRatio = videoWidth / videoHeight;
-  const containerAspectRatio = availableWidth / availableHeight;
-  
-  let drawWidth: number;
-  let drawHeight: number;
-  let offsetX: number;
-  let offsetY: number;
-  
-  if (videoAspectRatio > containerAspectRatio) {
-    // Video is wider than container - fit by width
-    drawWidth = availableWidth;
-    drawHeight = availableWidth / videoAspectRatio;
-    offsetX = padding;
-    offsetY = padding + (availableHeight - drawHeight) / 2;
-  } else {
-    // Video is taller than container - fit by height
-    drawHeight = availableHeight;
-    drawWidth = availableHeight * videoAspectRatio;
-    offsetX = padding + (availableWidth - drawWidth) / 2;
-    offsetY = padding;
-  }
+  const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
+    width,
+    height,
+    videoWidth,
+    videoHeight,
+    padding
+  );
 
   // Apply zoom if enabled
   let transform = '';
-  let clipPath = '';
 
   if (zoom?.enabled && zoom.blocks) {
     // Find active zoom block
@@ -71,7 +52,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       const outroMs = activeBlock.outroMs || 300;
 
       if (elapsed < introMs) {
-        // Intro phase - zoom in
+        // Intro phase - zoom in with dynamic mouse tracking
         const progress = elapsed / introMs;
         scale = interpolate(
           progress,
@@ -84,12 +65,35 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           }
         );
 
-        const targetX = (activeBlock.targetX || 0.5) - 0.5;
-        const targetY = (activeBlock.targetY || 0.5) - 0.5;
+        // Get interpolated mouse position for smooth intro
+        const mousePos = zoomPanCalculator.interpolateMousePosition(
+          mouseEvents,
+          currentTimeMs
+        );
+        
+        let targetX = (activeBlock.targetX || 0.5) - 0.5;
+        let targetY = (activeBlock.targetY || 0.5) - 0.5;
+        
+        if (mousePos && progress > 0.3) {
+          // Start following mouse after 30% of intro for smoother transition
+          const panOffset = zoomPanCalculator.calculatePanOffset(
+            mousePos.x,
+            mousePos.y,
+            videoWidth,
+            videoHeight,
+            scale
+          );
+          
+          // Blend between initial target and mouse position
+          const blendFactor = (progress - 0.3) / 0.7;
+          targetX = targetX * (1 - blendFactor) + (targetX + panOffset.x * 0.5) * blendFactor;
+          targetY = targetY * (1 - blendFactor) + (targetY + panOffset.y * 0.5) * blendFactor;
+        }
+        
         translateX = interpolate(progress, [0, 1], [0, -targetX * width * (scale - 1)]);
         translateY = interpolate(progress, [0, 1], [0, -targetY * height * (scale - 1)]);
       } else if (elapsed > blockDuration - outroMs) {
-        // Outro phase - zoom out
+        // Outro phase - zoom out with smooth return
         const outroElapsed = elapsed - (blockDuration - outroMs);
         const progress = outroElapsed / outroMs;
         scale = interpolate(
@@ -98,23 +102,75 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           [activeBlock.scale || 2, 1],
           {
             extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp'
+            extrapolateRight: 'clamp',
+            easing: (t: number) => t * t // easeInQuad for smooth outro
           }
         );
 
-        const targetX = (activeBlock.targetX || 0.5) - 0.5;
-        const targetY = (activeBlock.targetY || 0.5) - 0.5;
-        translateX = interpolate(progress, [0, 1], [-targetX * width * (activeBlock.scale - 1), 0]);
-        translateY = interpolate(progress, [0, 1], [-targetY * height * (activeBlock.scale - 1), 0]);
+        // Get current mouse position for smooth transition out
+        const mousePos = zoomPanCalculator.interpolateMousePosition(
+          mouseEvents,
+          currentTimeMs
+        );
+        
+        let currentX = (activeBlock.targetX || 0.5) - 0.5;
+        let currentY = (activeBlock.targetY || 0.5) - 0.5;
+        
+        if (mousePos && progress < 0.7) {
+          // Continue following mouse during early outro
+          const panOffset = zoomPanCalculator.calculatePanOffset(
+            mousePos.x,
+            mousePos.y,
+            videoWidth,
+            videoHeight,
+            scale
+          );
+          
+          // Gradually reduce mouse influence during outro
+          const influenceFactor = 1 - (progress / 0.7);
+          currentX += panOffset.x * influenceFactor * 0.5;
+          currentY += panOffset.y * influenceFactor * 0.5;
+        }
+        
+        translateX = interpolate(progress, [0, 1], [-currentX * width * (activeBlock.scale - 1), 0]);
+        translateY = interpolate(progress, [0, 1], [-currentY * height * (activeBlock.scale - 1), 0]);
       } else {
-        // Hold phase
+        // Hold phase - implement dynamic panning based on mouse position
         scale = activeBlock.scale || 2;
-        const targetX = (activeBlock.targetX || 0.5) - 0.5;
-        const targetY = (activeBlock.targetY || 0.5) - 0.5;
-        translateX = -targetX * width * (scale - 1);
-        translateY = -targetY * height * (scale - 1);
-
-        // Smart panning can be added here if needed
+        
+        // Get interpolated mouse position at current time
+        const mousePos = zoomPanCalculator.interpolateMousePosition(
+          mouseEvents,
+          currentTimeMs
+        );
+        
+        if (mousePos) {
+          // Calculate dynamic pan offset based on current mouse position
+          const panOffset = zoomPanCalculator.calculatePanOffset(
+            mousePos.x,
+            mousePos.y,
+            videoWidth,
+            videoHeight,
+            scale
+          );
+          
+          // Apply initial target position plus dynamic pan
+          const baseTargetX = (activeBlock.targetX || 0.5) - 0.5;
+          const baseTargetY = (activeBlock.targetY || 0.5) - 0.5;
+          
+          // Combine base position with dynamic pan
+          const dynamicTargetX = baseTargetX + panOffset.x;
+          const dynamicTargetY = baseTargetY + panOffset.y;
+          
+          translateX = -dynamicTargetX * width * (scale - 1);
+          translateY = -dynamicTargetY * height * (scale - 1);
+        } else {
+          // Fallback to static position if no mouse data
+          const targetX = (activeBlock.targetX || 0.5) - 0.5;
+          const targetY = (activeBlock.targetY || 0.5) - 0.5;
+          translateX = -targetX * width * (scale - 1);
+          translateY = -targetY * height * (scale - 1);
+        }
       }
 
       // Apply transform to the video itself, not the container

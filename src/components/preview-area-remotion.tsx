@@ -46,7 +46,7 @@ export function PreviewAreaRemotion({
       try {
         // Get blob URL from recording storage
         const blobUrl = RecordingStorage.getBlobUrl(selectedRecording.id)
-        
+
         if (blobUrl) {
           // Already loaded
           setVideoUrl(blobUrl)
@@ -56,7 +56,7 @@ export function PreviewAreaRemotion({
             selectedRecording.id,
             selectedRecording.filePath
           )
-          
+
           if (url) {
             setVideoUrl(url)
           } else {
@@ -105,7 +105,7 @@ export function PreviewAreaRemotion({
 
     const updateInterval = setInterval(() => {
       if (!playerRef.current) return;
-      
+
       const currentFrame = playerRef.current.getCurrentFrame();
       const frameRate = 30;
       const clipProgress = (currentFrame / frameRate) * 1000;
@@ -117,6 +117,34 @@ export function PreviewAreaRemotion({
     return () => clearInterval(updateInterval);
   }, [selectedClip, onTimeUpdate, isPlaying]);
 
+  // Get video dimensions and padding
+  const videoWidth = selectedRecording?.width || 1920;
+  const videoHeight = selectedRecording?.height || 1080;
+  const padding = (localEffects || selectedClip?.effects)?.background?.padding || 0;
+
+  // Calculate composition size to maintain video aspect ratio with padding
+  // We want the composition to match the video aspect ratio
+  const videoAspectRatio = videoWidth / videoHeight;
+
+  // Use a base size and scale to maintain aspect ratio
+  const baseSize = 1920; // Base width for standard videos
+  let compositionWidth: number;
+  let compositionHeight: number;
+
+  if (videoAspectRatio > 1) {
+    // Landscape video
+    compositionWidth = baseSize;
+    compositionHeight = Math.round(baseSize / videoAspectRatio);
+  } else {
+    // Portrait or square video
+    compositionHeight = baseSize;
+    compositionWidth = Math.round(baseSize * videoAspectRatio);
+  }
+
+  // Add padding to composition size
+  compositionWidth += padding * 2;
+  compositionHeight += padding * 2;
+
   // Calculate composition props
   const compositionProps = {
     videoUrl: videoUrl || '',
@@ -125,12 +153,12 @@ export function PreviewAreaRemotion({
     cursorEvents: selectedRecording?.metadata?.mouseEvents || [],
     clickEvents: selectedRecording?.metadata?.clickEvents || [],
     keystrokeEvents: (selectedRecording?.metadata as any)?.keystrokeEvents || [],
-    videoWidth: selectedRecording?.width || 1920,
-    videoHeight: selectedRecording?.height || 1080
+    videoWidth,
+    videoHeight
   };
 
   // Calculate duration in frames
-  const durationInFrames = selectedClip 
+  const durationInFrames = selectedClip
     ? Math.ceil((selectedClip.duration / 1000) * 30) // 30fps
     : 900; // Default 30 seconds
 
@@ -204,8 +232,8 @@ export function PreviewAreaRemotion({
               component={MainComposition as any}
               inputProps={compositionProps}
               durationInFrames={durationInFrames}
-              compositionWidth={1920}
-              compositionHeight={1080}
+              compositionWidth={compositionWidth}
+              compositionHeight={compositionHeight}
               fps={30}
               style={{
                 width: '100%',

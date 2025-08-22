@@ -4,6 +4,7 @@ import { VideoLayer } from './VideoLayer';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CursorLayer } from './CursorLayer';
 import type { MainCompositionProps } from './types';
+import { calculateVideoPosition } from './utils/video-position';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -18,37 +19,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
-  // Calculate video position based on padding - must match VideoLayer calculation
+  // Calculate video position for cursor layer
   const padding = effects?.background?.padding || 0;
-  
-  // Calculate video position with padding - maintain aspect ratio
-  const availableWidth = width - (padding * 2);
-  const availableHeight = height - (padding * 2);
-  
-  // Use actual video aspect ratio
-  const videoAspectRatio = videoWidth / videoHeight;
-  const containerAspectRatio = availableWidth / availableHeight;
-  
-  let drawWidth: number;
-  let drawHeight: number;
-  let offsetX: number;
-  let offsetY: number;
-  
-  if (videoAspectRatio > containerAspectRatio) {
-    // Video is wider than container - fit by width
-    drawWidth = availableWidth;
-    drawHeight = availableWidth / videoAspectRatio;
-    offsetX = padding;
-    offsetY = padding + (availableHeight - drawHeight) / 2;
-  } else {
-    // Video is taller than container - fit by height
-    drawHeight = availableHeight;
-    drawWidth = availableHeight * videoAspectRatio;
-    offsetX = padding + (availableWidth - drawWidth) / 2;
-    offsetY = padding;
-  }
-  
-  const videoPosition = { drawWidth, drawHeight, offsetX, offsetY };
+  const videoPosition = calculateVideoPosition(width, height, videoWidth, videoHeight, padding);
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
@@ -118,9 +91,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             endAt={clip?.sourceOut ? clip.sourceOut / 1000 : undefined}
             effects={effects}
             zoom={effects?.zoom}
-            currentFrame={frame}
             videoWidth={videoWidth}
             videoHeight={videoHeight}
+            mouseEvents={cursorEvents}
           />
         </Sequence>
       )}

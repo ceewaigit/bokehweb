@@ -17,9 +17,9 @@ export interface VideoLayerProps {
   endAt?: number;
   effects?: ClipEffects | null;
   zoom?: ClipEffects['zoom'];
-  currentFrame: number;
   videoWidth: number;
   videoHeight: number;
+  mouseEvents?: MouseEvent[];
 }
 
 export interface BackgroundLayerProps {
