@@ -138,6 +138,21 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const scaleFactor = (currentEvent as any)?.scaleFactor || 1;
   const displayBounds = (currentEvent as any)?.displayBounds;
   
+  console.log('[CursorLayer] Cursor metadata:', {
+    cursorPosition,
+    currentEvent: currentEvent ? {
+      x: currentEvent.x,
+      y: currentEvent.y,
+      screenWidth: currentEvent.screenWidth,
+      screenHeight: currentEvent.screenHeight,
+      timestamp: currentEvent.timestamp
+    } : null,
+    scaleFactor,
+    displayBounds,
+    videoSize: { videoWidth, videoHeight },
+    videoOffset
+  });
+  
   // The cursor position comes from screen coordinates
   // We need to map it relative to the video recording area
   let rawX = cursorPosition.x;

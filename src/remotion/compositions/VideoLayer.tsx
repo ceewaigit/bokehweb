@@ -55,6 +55,17 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       const introMs = activeBlock.introMs || 300;
       const outroMs = activeBlock.outroMs || 300;
 
+      console.log('[VideoLayer] Zoom block active:', {
+        blockId: activeBlock.id,
+        targetX: activeBlock.targetX,
+        targetY: activeBlock.targetY,
+        scale: activeBlock.scale,
+        elapsed,
+        introMs,
+        outroMs,
+        currentTimeMs
+      });
+
       if (elapsed < introMs) {
         // Intro phase - zoom in with smoother easing
         const progress = elapsed / introMs;
@@ -160,6 +171,20 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           const screenWidth = currentEvent.screenWidth;
           const screenHeight = currentEvent.screenHeight;
           
+          console.log('[VideoLayer] Hold phase debug:', {
+            mousePos,
+            currentEvent: {
+              x: currentEvent.x,
+              y: currentEvent.y,
+              screenWidth: currentEvent.screenWidth,
+              screenHeight: currentEvent.screenHeight,
+              timestamp: currentEvent.timestamp
+            },
+            videoSize: { videoWidth, videoHeight },
+            canvasSize: { width, height },
+            scale
+          });
+          
           // Calculate dynamic pan offset based on current mouse position
           // Use screen dimensions, not video dimensions
           const panOffset = zoomPanCalculator.calculatePanOffset(
@@ -172,10 +197,21 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             smoothPan.y
           );
           
+          console.log('[VideoLayer] Pan calculation:', {
+            panOffset,
+            smoothPanBefore: { ...smoothPan },
+            normalizedMousePos: {
+              x: mousePos.x / screenWidth,
+              y: mousePos.y / screenHeight
+            }
+          });
+          
           // Update smooth pan with ice-like movement (high smoothing)
           const iceSmoothingFactor = 0.08; // Lower = more ice-like
           smoothPan.x += (panOffset.x - smoothPan.x) * iceSmoothingFactor;
           smoothPan.y += (panOffset.y - smoothPan.y) * iceSmoothingFactor;
+          
+          console.log('[VideoLayer] Smooth pan after:', { ...smoothPan });
           
           // Apply initial target position plus dynamic pan
           const baseTargetX = (activeBlock.targetX || 0.5) - 0.5;
@@ -187,6 +223,15 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           
           translateX = -dynamicTargetX * width * (scale - 1);
           translateY = -dynamicTargetY * height * (scale - 1);
+          
+          console.log('[VideoLayer] Final transform:', {
+            baseTarget: { x: baseTargetX, y: baseTargetY },
+            dynamicTarget: { x: dynamicTargetX, y: dynamicTargetY },
+            translate: { x: translateX, y: translateY },
+            scaleMinusOne: scale - 1,
+            width,
+            height
+          });
         } else {
           // Fallback if no mouse data
           const targetX = (activeBlock.targetX || 0.5) - 0.5;
@@ -196,11 +241,41 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
         }
       }
 
-      // Apply transform to the video itself, not the container
-      // The translate values need to be adjusted for the actual video size
-      const actualTranslateX = translateX * (drawWidth / width);
-      const actualTranslateY = translateY * (drawHeight / height);
-      transform = `scale(${scale}) translate(${actualTranslateX}px, ${actualTranslateY}px)`;
+      // The zoom should be relative to the video content, not the canvas
+      // We need to consider that the video is positioned at offsetX, offsetY
+      // and has size drawWidth x drawHeight
+      
+      // Calculate the zoom center point in video coordinates (0-1)
+      const zoomCenterX = activeBlock.targetX || 0.5;
+      const zoomCenterY = activeBlock.targetY || 0.5;
+      
+      // Calculate the translation needed to keep the zoom center in place
+      // Formula: We want to move the zoom center to the center of the viewport
+      // Then scale, then move back
+      const translateToCenter = {
+        x: (0.5 - zoomCenterX) * drawWidth,
+        y: (0.5 - zoomCenterY) * drawHeight
+      };
+      
+      // Add dynamic pan offset
+      const panX = smoothPan.x * drawWidth * (scale - 1) / scale;
+      const panY = smoothPan.y * drawHeight * (scale - 1) / scale;
+      
+      // Combine translations
+      const finalTranslateX = translateToCenter.x + panX;
+      const finalTranslateY = translateToCenter.y + panY;
+      
+      transform = `translate(${finalTranslateX}px, ${finalTranslateY}px) scale(${scale})`;
+      
+      console.log('[VideoLayer] Transform calculation:', {
+        zoomCenter: { x: zoomCenterX, y: zoomCenterY },
+        translateToCenter,
+        pan: { x: panX, y: panY },
+        finalTranslate: { x: finalTranslateX, y: finalTranslateY },
+        scale,
+        smoothPan,
+        activeBlockTarget: { x: activeBlock.targetX, y: activeBlock.targetY }
+      });
     }
   }
 
@@ -227,7 +302,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           borderRadius: borderRadiusStyle,
           overflow: 'hidden',
           transform,
-          transformOrigin: 'center center',
+          transformOrigin: '50% 50%',
           ...shadowStyle
         }}
       >

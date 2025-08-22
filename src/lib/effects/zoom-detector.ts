@@ -79,6 +79,15 @@ export class ZoomDetector {
       
       const targetX = cluster.center.x / screenWidth
       const targetY = cluster.center.y / screenHeight
+      
+      console.log('[ZoomDetector] Creating zoom block:', {
+        clusterCenter: cluster.center,
+        screenDimensions: { screenWidth, screenHeight },
+        videoDimensions: { videoWidth, videoHeight },
+        normalizedTarget: { targetX, targetY },
+        clusterBounds: cluster.boundingBox,
+        zoomScale
+      })
 
       // Ensure zoom doesn't exceed video duration
       const effectiveDuration = Math.min(

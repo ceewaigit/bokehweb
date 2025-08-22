@@ -46,6 +46,15 @@ export class ZoomPanCalculator {
     const centerDistX = normalizedX - 0.5
     const centerDistY = normalizedY - 0.5
     
+    console.log('[PanCalculator] Input:', {
+      mousePos: { x: mouseX, y: mouseY },
+      videoDimensions: { width: videoWidth, height: videoHeight },
+      normalized: { x: normalizedX, y: normalizedY },
+      centerDist: { x: centerDistX, y: centerDistY },
+      zoomScale,
+      currentPan: { x: currentPanX, y: currentPanY }
+    })
+    
     // Apply dead zone
     const deadZoneX = this.DEAD_ZONE_RATIO / 2
     const deadZoneY = this.DEAD_ZONE_RATIO / 2
