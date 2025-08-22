@@ -36,7 +36,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   currentFrame,
   fps,
   videoOffset,
-  zoom = { scale: 1, x: 0.5, y: 0.5 },
+  zoom = { scale: 1, x: 0.5, y: 0.5, panX: 0, panY: 0 },
   videoWidth,
   videoHeight,
   cursorEffects
@@ -208,14 +208,18 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const centerX = videoOffset.width / 2;
     const centerY = videoOffset.height / 2;
     
-    // Calculate the pan offset (same as VideoLayer)
+    // Calculate the static pan offset (same as VideoLayer)
     const offsetFromCenterX = zoomPointX - centerX;
     const offsetFromCenterY = zoomPointY - centerY;
-    const panX = -offsetFromCenterX * (zoom.scale - 1);
-    const panY = -offsetFromCenterY * (zoom.scale - 1);
+    const staticPanX = -offsetFromCenterX * (zoom.scale - 1);
+    const staticPanY = -offsetFromCenterY * (zoom.scale - 1);
     
-    cursorX = scaledX + panX;
-    cursorY = scaledY + panY;
+    // Add dynamic pan from mouse movement (provided by MainComposition)
+    const dynamicPanX = (zoom.panX || 0) * videoOffset.width;
+    const dynamicPanY = (zoom.panY || 0) * videoOffset.height;
+    
+    cursorX = scaledX + staticPanX + dynamicPanX;
+    cursorY = scaledY + staticPanY + dynamicPanY;
   }
 
   // Calculate click animation scale

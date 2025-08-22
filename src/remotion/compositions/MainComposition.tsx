@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useRef, useMemo } from 'react';
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { VideoLayer } from './VideoLayer';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CursorLayer } from './CursorLayer';
 import type { MainCompositionProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
+import { zoomPanCalculator } from '@/lib/effects/zoom-pan-calculator';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -18,6 +19,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
+  
+  // Track dynamic pan state across frames
+  const smoothPanRef = useRef({ x: 0, y: 0 });
 
   // Calculate video position for cursor layer
   const padding = effects?.background?.padding || 0;
@@ -30,46 +34,93 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const zoomEnabled = effects?.zoom?.enabled;
   const zoomBlocks = effects?.zoom?.blocks || [];
 
-  // Find active zoom block
-  let zoomState = { scale: 1, x: 0.5, y: 0.5 };
-  if (zoomEnabled && clip) {
-    const clipRelativeTime = currentTimeMs;
-    const activeZoomBlock = zoomBlocks.find(
-      block => clipRelativeTime >= block.startTime && clipRelativeTime <= block.endTime
-    );
+  // Calculate complete zoom state including dynamic pan
+  const completeZoomState = useMemo(() => {
+    let zoomState = { scale: 1, x: 0.5, y: 0.5, panX: 0, panY: 0 };
+    
+    if (zoomEnabled && clip) {
+      const clipRelativeTime = currentTimeMs;
+      const activeZoomBlock = zoomBlocks.find(
+        block => clipRelativeTime >= block.startTime && clipRelativeTime <= block.endTime
+      );
 
-    if (activeZoomBlock) {
-      // Calculate zoom interpolation
-      const blockDuration = activeZoomBlock.endTime - activeZoomBlock.startTime;
-      const blockProgress = (clipRelativeTime - activeZoomBlock.startTime) / blockDuration;
+      if (activeZoomBlock) {
+        // Calculate zoom interpolation
+        const blockDuration = activeZoomBlock.endTime - activeZoomBlock.startTime;
+        const elapsed = clipRelativeTime - activeZoomBlock.startTime;
 
-      // Apply intro/outro transitions
-      let scale = activeZoomBlock.scale || 2;
-      let x = activeZoomBlock.targetX || 0.5;
-      let y = activeZoomBlock.targetY || 0.5;
+        // Apply intro/outro transitions
+        let scale = activeZoomBlock.scale || 2;
+        let x = activeZoomBlock.targetX || 0.5;
+        let y = activeZoomBlock.targetY || 0.5;
 
-      const introMs = activeZoomBlock.introMs || 300;
-      const outroMs = activeZoomBlock.outroMs || 300;
-      const elapsed = clipRelativeTime - activeZoomBlock.startTime;
+        const introMs = activeZoomBlock.introMs || 300;
+        const outroMs = activeZoomBlock.outroMs || 300;
 
-      if (elapsed < introMs) {
-        // Intro phase
-        const introProgress = elapsed / introMs;
-        scale = 1 + (scale - 1) * easeOutExpo(introProgress);
-        x = 0.5 + (x - 0.5) * easeOutExpo(introProgress);
-        y = 0.5 + (y - 0.5) * easeOutExpo(introProgress);
-      } else if (elapsed > blockDuration - outroMs) {
-        // Outro phase
-        const outroElapsed = elapsed - (blockDuration - outroMs);
-        const outroProgress = outroElapsed / outroMs;
-        scale = activeZoomBlock.scale - (activeZoomBlock.scale - 1) * outroProgress;
-        x = activeZoomBlock.targetX + (0.5 - activeZoomBlock.targetX) * outroProgress;
-        y = activeZoomBlock.targetY + (0.5 - activeZoomBlock.targetY) * outroProgress;
+        if (elapsed < introMs) {
+          // Intro phase
+          const introProgress = elapsed / introMs;
+          scale = 1 + (scale - 1) * easeOutExpo(introProgress);
+          x = 0.5 + (x - 0.5) * easeOutExpo(introProgress);
+          y = 0.5 + (y - 0.5) * easeOutExpo(introProgress);
+        } else if (elapsed > blockDuration - outroMs) {
+          // Outro phase
+          const outroElapsed = elapsed - (blockDuration - outroMs);
+          const outroProgress = outroElapsed / outroMs;
+          scale = activeZoomBlock.scale - (activeZoomBlock.scale - 1) * outroProgress;
+          x = activeZoomBlock.targetX + (0.5 - activeZoomBlock.targetX) * outroProgress;
+          y = activeZoomBlock.targetY + (0.5 - activeZoomBlock.targetY) * outroProgress;
+        } else {
+          // Hold phase - calculate dynamic pan
+          scale = activeZoomBlock.scale || 2;
+          
+          // Get interpolated mouse position at current time
+          const mousePos = zoomPanCalculator.interpolateMousePosition(
+            cursorEvents,
+            currentTimeMs
+          );
+          
+          if (mousePos && cursorEvents.length > 0) {
+            // Get the most recent mouse event for screen dimensions
+            let currentEvent = cursorEvents[0];
+            for (let i = cursorEvents.length - 1; i >= 0; i--) {
+              if (cursorEvents[i].timestamp <= currentTimeMs) {
+                currentEvent = cursorEvents[i];
+                break;
+              }
+            }
+            const screenWidth = currentEvent.screenWidth;
+            const screenHeight = currentEvent.screenHeight;
+            
+            // Calculate dynamic pan offset based on current mouse position
+            const panOffset = zoomPanCalculator.calculatePanOffset(
+              mousePos.x,
+              mousePos.y,
+              screenWidth,
+              screenHeight,
+              scale,
+              smoothPanRef.current.x,
+              smoothPanRef.current.y
+            );
+            
+            // Update smooth pan with direct assignment for immediate following
+            smoothPanRef.current.x = panOffset.x;
+            smoothPanRef.current.y = panOffset.y;
+          }
+        }
+
+        zoomState = { 
+          scale, 
+          x, 
+          y, 
+          panX: smoothPanRef.current.x,
+          panY: smoothPanRef.current.y
+        };
       }
-
-      zoomState = { scale, x, y };
     }
-  }
+    
+    return zoomState;
+  }, [zoomEnabled, clip, zoomBlocks, currentTimeMs, cursorEvents]);
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
@@ -94,6 +145,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             videoWidth={videoWidth}
             videoHeight={videoHeight}
             mouseEvents={cursorEvents}
+            preCalculatedPan={completeZoomState.scale > 1 ? { x: completeZoomState.panX, y: completeZoomState.panY } : undefined}
           />
         </Sequence>
       )}
@@ -112,7 +164,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               width: videoPosition.drawWidth,
               height: videoPosition.drawHeight
             }}
-            zoom={zoomState}
+            zoom={completeZoomState}
             videoWidth={videoWidth}
             videoHeight={videoHeight}
             cursorEffects={effects?.cursor}

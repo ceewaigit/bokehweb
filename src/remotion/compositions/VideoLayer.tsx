@@ -4,7 +4,7 @@ import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/zoom-pan-calculator';
 
-export const VideoLayer: React.FC<VideoLayerProps> = ({
+export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: number; y: number } }> = ({
   videoUrl,
   startFrom = 0,
   endAt,
@@ -12,14 +12,16 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   zoom,
   videoWidth,
   videoHeight,
-  mouseEvents = []
+  mouseEvents = [],
+  preCalculatedPan
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
   // Track previous pan position for smooth ice-like interpolation
+  // Use pre-calculated pan if provided (from MainComposition), otherwise track locally
   const smoothPanRef = useRef({ x: 0, y: 0 });
-  const smoothPan = smoothPanRef.current;
+  const smoothPan = preCalculatedPan || smoothPanRef.current;
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
@@ -52,17 +54,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 
       const introMs = activeBlock.introMs || 300;
       const outroMs = activeBlock.outroMs || 300;
-
-      console.log('[VideoLayer] Zoom block active:', {
-        blockId: activeBlock.id,
-        targetX: activeBlock.targetX,
-        targetY: activeBlock.targetY,
-        scale: activeBlock.scale,
-        elapsed,
-        introMs,
-        outroMs,
-        currentTimeMs
-      });
 
       if (elapsed < introMs) {
         // Intro phase - zoom in with smoother easing
@@ -101,64 +92,43 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
         // Hold phase - implement dynamic panning based on mouse position
         scale = activeBlock.scale || 2;
 
-        // Get interpolated mouse position at current time
-        const mousePos = zoomPanCalculator.interpolateMousePosition(
-          mouseEvents,
-          currentTimeMs
-        );
-
-        if (mousePos && mouseEvents.length > 0) {
-          // Get the most recent mouse event for screen dimensions
-          // Find the last event before or at current time
-          let currentEvent = mouseEvents[0];
-          for (let i = mouseEvents.length - 1; i >= 0; i--) {
-            if (mouseEvents[i].timestamp <= currentTimeMs) {
-              currentEvent = mouseEvents[i];
-              break;
-            }
-          }
-          const screenWidth = currentEvent.screenWidth;
-          const screenHeight = currentEvent.screenHeight;
-
-          console.log('[VideoLayer] Hold phase debug:', {
-            mousePos,
-            currentEvent: {
-              x: currentEvent.x,
-              y: currentEvent.y,
-              screenWidth: currentEvent.screenWidth,
-              screenHeight: currentEvent.screenHeight,
-              timestamp: currentEvent.timestamp
-            },
-            videoSize: { videoWidth, videoHeight },
-            canvasSize: { width, height },
-            scale
-          });
-
-          // Calculate dynamic pan offset based on current mouse position
-          // Use screen dimensions, not video dimensions
-          const panOffset = zoomPanCalculator.calculatePanOffset(
-            mousePos.x,
-            mousePos.y,
-            screenWidth,
-            screenHeight,
-            scale,
-            smoothPan.x,
-            smoothPan.y
+        // Only calculate pan locally if not provided from parent
+        if (!preCalculatedPan) {
+          // Get interpolated mouse position at current time
+          const mousePos = zoomPanCalculator.interpolateMousePosition(
+            mouseEvents,
+            currentTimeMs
           );
 
-          console.log('[VideoLayer] Pan calculation:', {
-            panOffset,
-            smoothPanBefore: { ...smoothPan },
-            normalizedMousePos: {
-              x: mousePos.x / screenWidth,
-              y: mousePos.y / screenHeight
+          if (mousePos && mouseEvents.length > 0) {
+            // Get the most recent mouse event for screen dimensions
+            // Find the last event before or at current time
+            let currentEvent = mouseEvents[0];
+            for (let i = mouseEvents.length - 1; i >= 0; i--) {
+              if (mouseEvents[i].timestamp <= currentTimeMs) {
+                currentEvent = mouseEvents[i];
+                break;
+              }
             }
-          });
+            const screenWidth = currentEvent.screenWidth;
+            const screenHeight = currentEvent.screenHeight;
 
-          // Update smooth pan with very responsive movement to keep mouse in frame
-          const iceSmoothingFactor = 0.25; // Much higher for immediate camera response
-          smoothPan.x += (panOffset.x - smoothPan.x) * iceSmoothingFactor;
-          smoothPan.y += (panOffset.y - smoothPan.y) * iceSmoothingFactor;
+            // Calculate dynamic pan offset based on current mouse position
+            // Use screen dimensions, not video dimensions
+            const panOffset = zoomPanCalculator.calculatePanOffset(
+              mousePos.x,
+              mousePos.y,
+              screenWidth,
+              screenHeight,
+              scale,
+              smoothPanRef.current.x,
+              smoothPanRef.current.y
+            );
+
+            // Update smooth pan with direct assignment for immediate following
+            smoothPanRef.current.x = panOffset.x;
+            smoothPanRef.current.y = panOffset.y;
+          }
 
           console.log('[VideoLayer] Smooth pan after:', { ...smoothPan });
 

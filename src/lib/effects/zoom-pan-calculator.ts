@@ -43,6 +43,7 @@ export class ZoomPanCalculator {
     const normalizedY = mouseY / videoHeight
     
     // Calculate distance from center (0.5, 0.5)
+    // This is how far we need to pan to center the mouse
     const centerDistX = normalizedX - 0.5
     const centerDistY = normalizedY - 0.5
     
@@ -55,44 +56,23 @@ export class ZoomPanCalculator {
       currentPan: { x: currentPanX, y: currentPanY }
     })
     
-    // Apply dead zone
-    const deadZoneX = this.DEAD_ZONE_RATIO / 2
-    const deadZoneY = this.DEAD_ZONE_RATIO / 2
+    // Direct pan calculation - follow mouse more aggressively
+    // The pan should move the view to keep mouse near center
+    let targetPanX = centerDistX * 0.8  // Pan 80% of the way to center the mouse
+    let targetPanY = centerDistY * 0.8
     
-    let targetPanX = 0
-    let targetPanY = 0
-    
-    // Calculate horizontal pan
-    if (Math.abs(centerDistX) > deadZoneX) {
-      const beyondDeadZone = centerDistX > 0 
-        ? centerDistX - deadZoneX 
-        : centerDistX + deadZoneX
-      
-      // Scale pan amount based on zoom level
-      const maxPanX = this.MAX_PAN_RATIO * (zoomScale - 1) / zoomScale
-      targetPanX = beyondDeadZone * maxPanX / (0.5 - deadZoneX)
-      
-      // Apply edge resistance
-      targetPanX = this.applyEdgeResistance(targetPanX, normalizedX)
+    // Apply small dead zone only for very small movements
+    const deadZone = 0.02  // 2% dead zone
+    if (Math.abs(centerDistX) < deadZone) {
+      targetPanX = 0
+    }
+    if (Math.abs(centerDistY) < deadZone) {
+      targetPanY = 0
     }
     
-    // Calculate vertical pan
-    if (Math.abs(centerDistY) > deadZoneY) {
-      const beyondDeadZone = centerDistY > 0 
-        ? centerDistY - deadZoneY 
-        : centerDistY + deadZoneY
-      
-      // Scale pan amount based on zoom level
-      const maxPanY = this.MAX_PAN_RATIO * (zoomScale - 1) / zoomScale
-      targetPanY = beyondDeadZone * maxPanY / (0.5 - deadZoneY)
-      
-      // Apply edge resistance
-      targetPanY = this.applyEdgeResistance(targetPanY, normalizedY)
-    }
-    
-    // Smooth transitions
-    const smoothedPanX = this.smoothTransition(currentPanX, targetPanX)
-    const smoothedPanY = this.smoothTransition(currentPanY, targetPanY)
+    // Smooth transitions but with higher responsiveness
+    const smoothedPanX = currentPanX + (targetPanX - currentPanX) * 0.4
+    const smoothedPanY = currentPanY + (targetPanY - currentPanY) * 0.4
     
     return {
       x: smoothedPanX,

@@ -43,6 +43,8 @@ export interface CursorLayerProps {
     scale: number;
     x: number;
     y: number;
+    panX?: number;
+    panY?: number;
   };
   videoWidth: number;
   videoHeight: number;
