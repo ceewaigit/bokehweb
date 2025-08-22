@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from 'react'
 import { Toolbar } from '../toolbar'
-import { PreviewArea } from '../preview-area'
+import { PreviewAreaRemotion } from '../preview-area-remotion'
 import dynamic from 'next/dynamic'
 
 const TimelineCanvas = dynamic(
@@ -15,12 +15,8 @@ import { RecordingsLibrary } from '../recordings-library'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { EffectsEngine } from '@/lib/effects/effects-engine'
-import { CursorRenderer } from '@/lib/effects/cursor-renderer'
-import { BackgroundRenderer } from '@/lib/effects/background-renderer'
 import type { Clip, ClipEffects, ZoomBlock } from '@/types/project'
 import { DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
-import { calculateVideoPosition } from '@/lib/utils/video-dimensions'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -206,23 +202,10 @@ export function WorkspaceManager() {
 
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
-
-    // Sync with effects engine immediately for real-time preview
-    if (effectsEngineRef.current && newEffects.zoom.enabled) {
-      effectsEngineRef.current.setZoomEffects(updatedBlocks)
-    }
   }, [localEffects, selectedClip?.effects])
 
-  // Centralized refs for video and rendering
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const backgroundCanvasRef = useRef<HTMLCanvasElement>(null)
-  const effectsEngineRef = useRef<EffectsEngine | null>(null)
-  const [cursorRenderer, setCursorRenderer] = useState<CursorRenderer | null>(null)
-  // Initialize background renderer immediately
-  const backgroundRendererRef = useRef<BackgroundRenderer | null>(new BackgroundRenderer())
+  // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
-  const prevEffectsRef = useRef<ClipEffects | undefined>()
 
   const selectedRecording = selectedClip && currentProject
     ? currentProject.recordings.find(r => r.id === selectedClip.recordingId)
@@ -233,42 +216,24 @@ export function WorkspaceManager() {
 
   // Define handlePause first since it's used in useEffect
   const handlePause = useCallback(() => {
-    const video = videoRef.current
-    if (video) {
-      video.pause()
-    }
     storePause()
   }, [storePause])
 
   // Sync video playback with timeline
   useEffect(() => {
-    const video = videoRef.current
-    if (!video || !selectedClip || !isPlaying) return
+    if (!selectedClip || !isPlaying) return
 
-    // Update video time continuously during playback
+    // Playback sync is now handled by Remotion Player
     const syncInterval = setInterval(() => {
-      if (!isPlaying || !video) return
+      if (!isPlaying) return
 
-      // Don't try to play if video isn't ready
-      if (video.readyState < 2) return
-
+      // Just monitor for clip boundaries
       const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
       const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
       const maxTime = selectedClip.sourceOut / 1000
 
       if (sourceTime <= maxTime) {
-        // Larger tolerance for sync to avoid constant seeking (0.5s instead of 0.1s)
-        // This prevents the video decoder from constantly resetting
-        if (Math.abs(video.currentTime - sourceTime) > 0.5) {
-          video.currentTime = sourceTime
-        }
-
-        // Ensure video is playing (but not if it has ended)
-        if (video.paused && !video.ended) {
-          video.play().catch(() => {
-            // Ignore play failures during sync
-          })
-        }
+        // All video sync is handled by Remotion
       } else {
         // Reached end of clip
         handlePause()
@@ -285,108 +250,6 @@ export function WorkspaceManager() {
   }, [isPlaying, currentTime, selectedClip, handlePause])
 
 
-  // Initialize effects when recording and clip change
-  const initializeEffects = useCallback((forceFullInit = false) => {
-    if (!selectedRecording || !videoRef.current) return
-
-    const clipEffects = activeEffects || selectedClip?.effects
-    const prevEffects = prevEffectsRef.current
-
-    // Initialize effects engine if needed
-    if (!effectsEngineRef.current || forceFullInit) {
-      effectsEngineRef.current = new EffectsEngine()
-      effectsEngineRef.current.initializeFromRecording(selectedRecording)
-    }
-
-    // Sync zoom blocks with effects engine
-    if (clipEffects?.zoom?.enabled && clipEffects.zoom.blocks) {
-      effectsEngineRef.current.setZoomEffects(clipEffects.zoom.blocks)
-    } else if (!clipEffects?.zoom?.enabled) {
-      // Clear zoom effects if zoom is disabled
-      effectsEngineRef.current.clearEffects()
-    }
-
-    // Check if cursor visibility changed (requires recreation)
-    const cursorVisibilityChanged = forceFullInit ||
-      prevEffects?.cursor?.visible !== clipEffects?.cursor?.visible
-
-    // Check if cursor settings changed (can be updated in place)
-    const cursorSettingsChanged = !cursorVisibilityChanged && cursorRenderer && (
-      prevEffects?.cursor?.size !== clipEffects?.cursor?.size ||
-      prevEffects?.cursor?.color !== clipEffects?.cursor?.color
-    )
-
-    if (cursorVisibilityChanged) {
-      // Clean up previous cursor renderer only when visibility changes
-      if (cursorRenderer) {
-        cursorRenderer.dispose()
-        setCursorRenderer(null)
-      }
-
-      // Initialize cursor renderer when cursor is visible
-      if (clipEffects?.cursor?.visible) {
-        const DEFAULT_CLICK_COLOR = '#007AFF'
-        const newCursorRenderer = new CursorRenderer({
-          size: clipEffects.cursor.size,
-          clickColor: clipEffects.cursor.color || DEFAULT_CLICK_COLOR,
-          smoothing: true
-        })
-
-        // Use mouse events if available, otherwise empty array
-        const cursorEvents = selectedRecording.metadata?.mouseEvents ? 
-          selectedRecording.metadata.mouseEvents.map((e: any) => ({
-            timestamp: e.timestamp,
-            mouseX: e.x,
-            mouseY: e.y,
-            eventType: 'mouse' as const,
-            cursorType: e.cursorType,
-            scaleFactor: e.scaleFactor,
-            // Pass through screen dimensions for proper normalization
-            screenWidth: e.screenWidth,
-            screenHeight: e.screenHeight
-          })) : []
-        
-        // Set video dimensions from recording (same as effects-engine)
-        if (!selectedRecording.width || !selectedRecording.height) {
-          console.error('Invalid recording dimensions:', {
-            width: selectedRecording.width,
-            height: selectedRecording.height,
-            recordingId: selectedRecording.id
-          })
-          return
-        }
-        newCursorRenderer.setVideoDimensions(
-          selectedRecording.width,
-          selectedRecording.height
-        )
-
-        // Pass effects engine for zoom support
-        if (effectsEngineRef.current) {
-          newCursorRenderer.setEffectsEngine(effectsEngineRef.current)
-        }
-
-        // Just attach the video, don't manage the canvas DOM
-        // Let preview-area handle canvas positioning since it knows the actual padding/dimensions
-        newCursorRenderer.attachToVideo(
-          videoRef.current,
-          cursorEvents
-        )
-        
-        // Set the state to trigger re-render
-        setCursorRenderer(newCursorRenderer)
-      }
-    } else if (cursorSettingsChanged) {
-      // Update existing cursor renderer settings without recreating
-      const DEFAULT_CLICK_COLOR = '#007AFF'
-      cursorRenderer.updateOptions({
-        size: clipEffects?.cursor?.size,
-        clickColor: clipEffects?.cursor?.color || DEFAULT_CLICK_COLOR
-      })
-    }
-
-    // Store current effects for next comparison
-    prevEffectsRef.current = clipEffects
-  }, [selectedRecording, activeEffects])
 
   // Track when component is mounted
   useEffect(() => {
@@ -400,167 +263,31 @@ export function WorkspaceManager() {
       return
     }
 
-    const video = videoRef.current
-    if (video && video.src && video.readyState >= 2) {
-      initializeEffects(true)
-      return
-    }
-
     const loadVideo = async () => {
-      // Try multiple times to get the video element
-      let attempts = 0;
-      const maxAttempts = 10;
-
-      const tryGetVideo = async () => {
-        const video = videoRef.current;
-
-        if (!video && attempts < maxAttempts) {
-          attempts++;
-          await new Promise(resolve => setTimeout(resolve, 100));
-          return tryGetVideo();
-        }
-
-        if (!video) return;
-
-        return video;
-      }
-
-      const video = await tryGetVideo();
-      if (!video) return;
-
       if (!selectedRecording.filePath) return
 
-      const blobUrl = await globalBlobManager.ensureVideoLoaded(
+      // Ensure video is loaded in blob manager for Remotion to use
+      await globalBlobManager.ensureVideoLoaded(
         selectedRecording.id,
         selectedRecording.filePath
       )
-
-      if (blobUrl) {
-
-        // Ensure video element is in DOM
-        if (!video.isConnected) return
-
-        video.src = blobUrl
-        video.load()
-
-        // Initialize effects after video is loaded
-        video.addEventListener('loadedmetadata', () => {
-          initializeEffects(true)
-        }, { once: true })
-      }
     }
 
     loadVideo()
-  }, [selectedRecording?.id, selectedRecording?.filePath, initializeEffects, isMounted])
-
-  // Re-initialize effects when active effects change
-  useEffect(() => {
-    if (selectedRecording && videoRef.current && videoRef.current.readyState >= 2) {
-      // Don't force full init, only update what changed
-      initializeEffects(false)
-
-      // Update cursor events if they become available later
-      if (cursorRenderer && selectedRecording.metadata?.mouseEvents && selectedRecording.metadata.mouseEvents.length > 0) {
-        const cursorEvents = selectedRecording.metadata.mouseEvents.map((e: any) => ({
-          timestamp: e.timestamp,
-          mouseX: e.x,
-          mouseY: e.y,
-          eventType: 'mouse' as const,
-          cursorType: e.cursorType,
-          scaleFactor: e.scaleFactor
-        }))
-        cursorRenderer.updateEvents(cursorEvents)
-      }
-
-      // Update video position if cursor renderer exists
-      if (cursorRenderer && canvasRef.current && canvasRef.current.width > 300 && videoRef.current) {
-          const padding = activeEffects?.background?.padding || 80
-          
-          // Only update if we have valid video dimensions
-          if (!videoRef.current.videoWidth || !videoRef.current.videoHeight) {
-            return
-          }
-          
-          const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
-            videoRef.current.videoWidth,
-            videoRef.current.videoHeight,
-            canvasRef.current.width,
-            canvasRef.current.height,
-            padding
-          )
-
-          cursorRenderer.updateVideoPosition(offsetX, offsetY, drawWidth, drawHeight)
-      }
-    }
-  }, [activeEffects, initializeEffects, selectedRecording])
+  }, [selectedRecording?.id, selectedRecording?.filePath, isMounted])
 
 
-  // Cleanup effects on unmount
-  useEffect(() => {
-    return () => {
-      if (cursorRenderer) {
-        cursorRenderer.dispose()
-      }
-      if (backgroundRendererRef.current) {
-        backgroundRendererRef.current.dispose()
-      }
-    }
-  }, [])
 
 
   // Centralized playback control
   const handlePlay = useCallback(() => {
-    const video = videoRef.current
-    if (!video || !selectedClip || !selectedRecording) return
-
-    if (video.readyState < 2) { // HAVE_CURRENT_DATA
-
-      // Wait for video to be ready, then play
-      const handleCanPlay = () => {
-        video.removeEventListener('canplay', handleCanPlay)
-
-        // Map timeline time to video time
-        const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
-        const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
-        video.currentTime = sourceTime
-
-        video.play().then(() => {
-          storePlay()
-        }).catch(() => {
-          storePause()
-        })
-      }
-
-      video.addEventListener('canplay', handleCanPlay)
-      return
-    }
-
-    // Video is ready, play immediately
-    const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
-    const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
-
-    // Set video time and play
-    video.currentTime = sourceTime
-    video.play().then(() => {
-      storePlay()
-    }).catch(() => {
-      storePause()
-    })
-  }, [selectedClip, selectedRecording, currentTime, storePlay, storePause])
+    if (!selectedClip || !selectedRecording) return
+    storePlay()
+  }, [selectedClip, selectedRecording, storePlay])
 
   const handleSeek = useCallback((time: number) => {
     storeSeek(time)
-
-    // Update video position if we have one
-    const video = videoRef.current
-    if (video && selectedClip) {
-      const clipProgress = Math.max(0, time - selectedClip.startTime)
-      const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
-      const minTime = selectedClip.sourceIn / 1000
-      const maxTime = selectedClip.sourceOut / 1000
-      video.currentTime = Math.min(Math.max(sourceTime, minTime), maxTime)
-    }
-  }, [storeSeek, selectedClip])
+  }, [storeSeek])
 
   const handleClipSelect = useCallback((clipId: string) => {
     // Reset local effects when switching clips
@@ -572,32 +299,24 @@ export function WorkspaceManager() {
 
   const handleEffectChange = useCallback((effects: ClipEffects) => {
     if (selectedClipId) {
-      // Check if this is a zoom regeneration request
-      if (effects.zoom?.regenerate && effectsEngineRef.current && selectedRecording) {
-        // Re-initialize the effects engine to regenerate zoom detection
-        effectsEngineRef.current.initializeFromRecording(selectedRecording)
+      // Handle zoom regeneration request
+      if (effects.zoom?.regenerate && selectedRecording) {
+        // Use ZoomDetector to regenerate zoom blocks
+        const { ZoomDetector } = require('@/lib/effects/zoom-detector')
+        const zoomDetector = new ZoomDetector()
+        const newZoomBlocks = zoomDetector.detectZoomBlocks(
+          selectedRecording.metadata?.mouseEvents || [],
+          selectedRecording.width || 1920,
+          selectedRecording.height || 1080,
+          selectedRecording.duration
+        )
         
-        // Get the newly generated zoom effects and convert to blocks
-        const zoomEffects = effectsEngineRef.current.getEffects()
-        const newZoomBlocks = zoomEffects.map(effect => ({
-          id: effect.id || `zoom-${effect.startTime}`,
-          startTime: effect.startTime,
-          endTime: effect.endTime,
-          introMs: effect.introMs || 400,
-          outroMs: effect.outroMs || 500,
-          scale: effect.scale || 2.0,
-          targetX: effect.targetX || 0.5,
-          targetY: effect.targetY || 0.5,
-          mode: 'auto' as const  // Mark as auto-detected
-        }))
-        
-        // Update effects with new zoom blocks
         effects = {
           ...effects,
           zoom: {
             ...effects.zoom,
             blocks: newZoomBlocks,
-            regenerate: undefined // Clear the regenerate flag
+            regenerate: undefined
           }
         }
       }
@@ -607,21 +326,7 @@ export function WorkspaceManager() {
       setHasUnsavedChanges(true)
 
       // Sync zoom effects with engine for real-time preview
-      if (effectsEngineRef.current) {
-        if (effects.zoom?.enabled && effects.zoom.blocks) {
-          effectsEngineRef.current.setZoomEffects(effects.zoom.blocks)
-        } else {
-          effectsEngineRef.current.clearEffects()
-        }
-      }
-
-      // Don't update backgroundRenderer here - let preview-area handle it
-      // Just trigger a re-render
-      if (canvasRef.current) {
-        // Trigger a render by calling renderFrame through preview area
-        const event = new CustomEvent('forceRender')
-        canvasRef.current.dispatchEvent(event)
-      }
+      // Effects are now handled by Remotion components
     }
   }, [selectedClipId, selectedRecording])
 
@@ -744,18 +449,14 @@ export function WorkspaceManager() {
           <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
             {/* Preview Area - 60% of remaining height */}
             <div className="bg-background border-b overflow-hidden" style={{ height: '60%' }}>
-              <PreviewArea
-                videoRef={videoRef}
-                canvasRef={canvasRef}
-                backgroundCanvasRef={backgroundCanvasRef}
-                effectsEngine={effectsEngineRef.current}
-                cursorRenderer={cursorRenderer}
-                backgroundRenderer={backgroundRendererRef.current}
+              <PreviewAreaRemotion
                 selectedClip={selectedClip}
                 selectedRecording={selectedRecording}
                 currentTime={currentTime}
                 isPlaying={isPlaying}
                 localEffects={localEffects}
+                onTimeUpdate={(time) => storeSeek(time)}
+                onPlayingChange={(playing) => playing ? storePlay() : storePause()}
               />
             </div>
 
@@ -801,22 +502,6 @@ export function WorkspaceManager() {
         />
       </div>
 
-      {/* Hidden video element for playback control - must be OUTSIDE and ALWAYS present */}
-      <video
-        ref={videoRef}
-        style={{
-          position: 'absolute',
-          width: '1px',
-          height: '1px',
-          left: '-9999px',
-          top: '-9999px',
-          visibility: 'hidden'
-        }}
-        muted
-        playsInline
-        crossOrigin="anonymous"
-        preload="auto"
-      />
     </>
   )
 }

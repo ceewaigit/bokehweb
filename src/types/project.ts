@@ -5,7 +5,7 @@
 
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { EffectsEngine } from '@/lib/effects/effects-engine'
+import { ZoomDetector } from '@/lib/effects/zoom-detector'
 import { logger } from '@/lib/utils/logger'
 
 export interface Project {
@@ -456,30 +456,14 @@ export async function saveRecordingWithProject(
 
     project.recordings.push(recording)
 
-    // Generate zoom effects using EffectsEngine - clean and simple!
-    const effectsEngine = new EffectsEngine()
-
-    // Create a mock recording object with the data we have
-    const mockRecording = {
-      duration,
+    // Generate zoom blocks using ZoomDetector
+    const zoomDetector = new ZoomDetector()
+    const zoomBlocks = zoomDetector.detectZoomBlocks(
+      mouseEvents,
       width,
       height,
-      metadata: {
-        mouseEvents: mouseEvents.map(e => ({
-          timestamp: e.timestamp,
-          x: e.x,  // Coordinates are already scaled in electron-recorder
-          y: e.y,  // No multiplication needed!
-          screenWidth: width,
-          screenHeight: height
-        })),
-        clickEvents: clickEvents,
-        keyboardEvents: keyboardEvents,
-        screenEvents: []
-      }
-    }
-
-    // Use the engine's public method
-    const zoomBlocks = effectsEngine.getZoomBlocks(mockRecording)
+      duration
+    )
 
     // Detect cursor activity to set visibility intelligently
     const hasCursorActivity = mouseEvents.length > 5 // Has meaningful mouse movement

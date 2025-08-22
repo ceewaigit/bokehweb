@@ -13,7 +13,7 @@ import {
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
-import { EffectsEngine } from '@/lib/effects/effects-engine'
+import { ZoomDetector } from '@/lib/effects/zoom-detector'
 
 interface ProjectStore {
   // State
@@ -23,7 +23,6 @@ interface ProjectStore {
   zoom: number
   selectedClipId: string | null
   selectedClips: string[]
-  effectsEngine: EffectsEngine | null
   playbackInterval: number | null
 
   // Core Actions
@@ -57,7 +56,6 @@ interface ProjectStore {
   setZoom: (zoom: number) => void
 
   // Effects Engine
-  setEffectsEngine: (engine: EffectsEngine | null) => void
   regenerateZoomEffects: (options?: any) => void
 
   // Getters
@@ -118,7 +116,6 @@ export const useProjectStore = create<ProjectStore>()(
     zoom: 1.0,
     selectedClipId: null,
     selectedClips: [],
-    effectsEngine: null,
     playbackInterval: null,
 
     newProject: (name) => {
@@ -182,13 +179,20 @@ export const useProjectStore = create<ProjectStore>()(
 
         state.currentProject.recordings.push(completeRecording)
 
-        // Generate effects
-        const effectsEngine = new EffectsEngine()
+        // Generate zoom effects
+        const zoomDetector = new ZoomDetector()
+        const zoomBlocks = zoomDetector.detectZoomBlocks(
+          completeRecording.metadata?.mouseEvents || [],
+          completeRecording.width || 1920,
+          completeRecording.height || 1080,
+          completeRecording.duration
+        )
+        
         const clipEffects = {
           ...SCREEN_STUDIO_CLIP_EFFECTS,
           zoom: {
             ...SCREEN_STUDIO_CLIP_EFFECTS.zoom,
-            blocks: effectsEngine.getZoomBlocks(completeRecording)
+            blocks: zoomBlocks
           }
         }
 
@@ -630,24 +634,22 @@ export const useProjectStore = create<ProjectStore>()(
       return currentProject.recordings.find(r => r.id === clip.recordingId) || null
     },
 
-    setEffectsEngine: (engine) => {
-      set((state) => {
-        state.effectsEngine = engine
-      })
-    },
 
     regenerateZoomEffects: (options) => {
-      const { effectsEngine, getCurrentRecording, selectedClipId, currentProject } = get()
-      if (!effectsEngine || !selectedClipId || !currentProject) return
+      const { getCurrentRecording, selectedClipId, currentProject } = get()
+      if (!selectedClipId || !currentProject) return
 
       const recording = getCurrentRecording()
       if (!recording) return
 
-      // Regenerate effects based on options
-      effectsEngine.regenerateEffects(options)
-
-      // Update the clip's zoom blocks
-      const zoomBlocks = effectsEngine.getZoomBlocks(recording)
+      // Regenerate zoom blocks using ZoomDetector
+      const zoomDetector = new ZoomDetector()
+      const zoomBlocks = zoomDetector.detectZoomBlocks(
+        recording.metadata?.mouseEvents || [],
+        recording.width || 1920,
+        recording.height || 1080,
+        recording.duration
+      )
 
       set((state) => {
         if (!state.currentProject) return
