@@ -113,20 +113,20 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
             const screenWidth = currentEvent.screenWidth;
             const screenHeight = currentEvent.screenHeight;
 
-            // Normalize mouse position to 0-1 range
-            // This gives us where the mouse is on the screen
-            const normalizedMouseX = mousePos.x / screenWidth;
-            const normalizedMouseY = mousePos.y / screenHeight;
+            // Use the edge-based pan calculator
+            const panOffset = zoomPanCalculator.calculatePanOffset(
+              mousePos.x,
+              mousePos.y,
+              screenWidth,
+              screenHeight,
+              scale,
+              smoothPanRef.current.x,
+              smoothPanRef.current.y
+            );
             
-            // Calculate offset from center (0.5, 0.5)
-            // This is how much we need to pan to center on the mouse
-            const targetPanX = normalizedMouseX - 0.5;
-            const targetPanY = normalizedMouseY - 0.5;
-            
-            // Apply smoothing for fluid motion
-            const smoothingFactor = 0.3; // Higher = more responsive
-            smoothPanRef.current.x += (targetPanX - smoothPanRef.current.x) * smoothingFactor;
-            smoothPanRef.current.y += (targetPanY - smoothPanRef.current.y) * smoothingFactor;
+            // Update smooth pan with calculated offset
+            smoothPanRef.current.x = panOffset.x;
+            smoothPanRef.current.y = panOffset.y;
           }
 
           console.log('[VideoLayer] Smooth pan after:', { ...smoothPan });
@@ -138,18 +138,9 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       // and has size drawWidth x drawHeight
 
       // Calculate the zoom center point in video coordinates (0-1)
-      // If we have dynamic pan, use the mouse position as the zoom center
-      let zoomCenterX = activeBlock.targetX || 0.5;
-      let zoomCenterY = activeBlock.targetY || 0.5;
-      
-      // During hold phase, follow the mouse position
-      if (elapsed >= (activeBlock.introMs || 300) && 
-          elapsed <= blockDuration - (activeBlock.outroMs || 300)) {
-        // Use the smoothPan to adjust the zoom center dynamically
-        // This makes the zoom follow the mouse
-        zoomCenterX = 0.5 + smoothPan.x;
-        zoomCenterY = 0.5 + smoothPan.y;
-      }
+      // Keep the zoom center fixed at the initial target
+      const zoomCenterX = activeBlock.targetX || 0.5;
+      const zoomCenterY = activeBlock.targetY || 0.5;
 
       // The zoom center is where we want to focus (0-1 normalized)
       // Convert to pixel coordinates relative to video container
@@ -169,14 +160,13 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       const scaleCompensationX = -offsetFromCenterX * (scale - 1);
       const scaleCompensationY = -offsetFromCenterY * (scale - 1);
 
-      // Don't add additional pan offset since we're already adjusting the zoom center
-      // The pan is now built into the zoomCenterX/Y calculation above
-      const panX = 0;
-      const panY = 0;
+      // Add the dynamic pan offset calculated from mouse position
+      const panX = smoothPan.x * drawWidth;
+      const panY = smoothPan.y * drawHeight;
 
       // Apply transform - translate needs to be divided by scale when scale is applied first
-      const finalTranslateX = scaleCompensationX / scale;
-      const finalTranslateY = scaleCompensationY / scale;
+      const finalTranslateX = (scaleCompensationX + panX) / scale;
+      const finalTranslateY = (scaleCompensationY + panY) / scale;
       transform = `scale(${scale}) translate(${finalTranslateX}px, ${finalTranslateY}px)`;
 
       console.log('[VideoLayer] Transform calculation:', {

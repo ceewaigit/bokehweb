@@ -13,18 +13,15 @@ interface PanOffset {
 
 
 export class ZoomPanCalculator {
-  // Dead zone where no panning occurs (center of screen)
-  private readonly DEAD_ZONE_RATIO = 0.05  // 5% of screen dimensions - very small for immediate response
+  // Edge trigger zone - when mouse gets within this distance of viewport edge, start panning
+  private readonly EDGE_TRIGGER_RATIO = 0.25  // Pan when mouse is within 25% of edge
   
-  // Maximum pan distance as ratio of zoomed area
-  private readonly MAX_PAN_RATIO = 1.0  // Allow full screen panning to follow mouse anywhere
+  // Maximum pan speed
+  private readonly MAX_PAN_SPEED = 0.02  // Max pan per frame
   
   // Smoothing factor for pan transitions
-  private readonly PAN_SMOOTHING = 0.35  // Much faster response for immediate following
+  private readonly PAN_SMOOTHING = 0.15  // Smooth, cinematic panning
   
-  // Edge resistance factor
-  private readonly EDGE_RESISTANCE = 0.8  // Less resistance at edges
-
   /**
    * Calculate pan offset based on mouse position during zoom
    * Returns normalized pan values that should be applied to the zoom transform
@@ -42,37 +39,71 @@ export class ZoomPanCalculator {
     const normalizedX = mouseX / videoWidth
     const normalizedY = mouseY / videoHeight
     
-    // Calculate distance from center (0.5, 0.5)
-    // This is how far we need to pan to center the mouse
-    const centerDistX = normalizedX - 0.5
-    const centerDistY = normalizedY - 0.5
+    // Calculate the visible viewport in normalized coordinates
+    // When zoomed 2x, we can see 50% of the content (1/scale)
+    const viewportWidth = 1 / zoomScale
+    const viewportHeight = 1 / zoomScale
     
-    console.log('[PanCalculator] Input:', {
-      mousePos: { x: mouseX, y: mouseY },
-      videoDimensions: { width: videoWidth, height: videoHeight },
-      normalized: { x: normalizedX, y: normalizedY },
-      centerDist: { x: centerDistX, y: centerDistY },
-      zoomScale,
-      currentPan: { x: currentPanX, y: currentPanY }
+    // Calculate current viewport bounds based on current pan
+    // Pan of 0,0 means centered at 0.5,0.5
+    const viewportLeft = 0.5 - viewportWidth/2 - currentPanX
+    const viewportRight = 0.5 + viewportWidth/2 - currentPanX
+    const viewportTop = 0.5 - viewportHeight/2 - currentPanY
+    const viewportBottom = 0.5 + viewportHeight/2 - currentPanY
+    
+    // Calculate how close the mouse is to each edge of the viewport
+    const distToLeft = normalizedX - viewportLeft
+    const distToRight = viewportRight - normalizedX
+    const distToTop = normalizedY - viewportTop
+    const distToBottom = viewportBottom - normalizedY
+    
+    // Calculate edge trigger threshold
+    const edgeTriggerX = viewportWidth * this.EDGE_TRIGGER_RATIO
+    const edgeTriggerY = viewportHeight * this.EDGE_TRIGGER_RATIO
+    
+    // Calculate target pan based on edge proximity
+    let targetPanX = currentPanX
+    let targetPanY = currentPanY
+    
+    // Pan horizontally if near edges
+    if (distToLeft < edgeTriggerX && normalizedX < 0.5) {
+      // Near left edge, pan left
+      const edgeStrength = 1 - (distToLeft / edgeTriggerX)
+      targetPanX = currentPanX + (edgeStrength * this.MAX_PAN_SPEED)
+      // Clamp to prevent over-panning
+      targetPanX = Math.min(targetPanX, 0.5 - viewportWidth/2)
+    } else if (distToRight < edgeTriggerX && normalizedX > 0.5) {
+      // Near right edge, pan right  
+      const edgeStrength = 1 - (distToRight / edgeTriggerX)
+      targetPanX = currentPanX - (edgeStrength * this.MAX_PAN_SPEED)
+      // Clamp to prevent over-panning
+      targetPanX = Math.max(targetPanX, -(0.5 - viewportWidth/2))
+    }
+    
+    // Pan vertically if near edges
+    if (distToTop < edgeTriggerY && normalizedY < 0.5) {
+      // Near top edge, pan up
+      const edgeStrength = 1 - (distToTop / edgeTriggerY)
+      targetPanY = currentPanY + (edgeStrength * this.MAX_PAN_SPEED)
+      targetPanY = Math.min(targetPanY, 0.5 - viewportHeight/2)
+    } else if (distToBottom < edgeTriggerY && normalizedY > 0.5) {
+      // Near bottom edge, pan down
+      const edgeStrength = 1 - (distToBottom / edgeTriggerY)
+      targetPanY = currentPanY - (edgeStrength * this.MAX_PAN_SPEED)
+      targetPanY = Math.max(targetPanY, -(0.5 - viewportHeight/2))
+    }
+    
+    // Apply smoothing for cinematic motion
+    const smoothedPanX = currentPanX + (targetPanX - currentPanX) * this.PAN_SMOOTHING
+    const smoothedPanY = currentPanY + (targetPanY - currentPanY) * this.PAN_SMOOTHING
+    
+    console.log('[PanCalculator] Edge-based pan:', {
+      mouseNorm: { x: normalizedX, y: normalizedY },
+      viewport: { left: viewportLeft, right: viewportRight, top: viewportTop, bottom: viewportBottom },
+      edgeDist: { left: distToLeft, right: distToRight, top: distToTop, bottom: distToBottom },
+      targetPan: { x: targetPanX, y: targetPanY },
+      smoothedPan: { x: smoothedPanX, y: smoothedPanY }
     })
-    
-    // For zoom following, we want the pan to be the mouse position offset from center
-    // This will make the zoom center on the mouse position
-    let targetPanX = centerDistX  // Use full offset to center on mouse
-    let targetPanY = centerDistY
-    
-    // Apply small dead zone only for very small movements
-    const deadZone = 0.01  // 1% dead zone for more responsive following
-    if (Math.abs(centerDistX) < deadZone) {
-      targetPanX = currentPanX  // Keep current pan for small movements
-    }
-    if (Math.abs(centerDistY) < deadZone) {
-      targetPanY = currentPanY
-    }
-    
-    // Use more aggressive smoothing for immediate following
-    const smoothedPanX = currentPanX + (targetPanX - currentPanX) * 0.7
-    const smoothedPanY = currentPanY + (targetPanY - currentPanY) * 0.7
     
     return {
       x: smoothedPanX,
@@ -126,20 +157,6 @@ export class ZoomPanCalculator {
     }
   }
 
-  private applyEdgeResistance(panValue: number, normalizedPos: number): number {
-    // Apply resistance when approaching edges
-    const edgeDistance = Math.min(normalizedPos, 1 - normalizedPos)
-    const resistanceFactor = edgeDistance < 0.1 
-      ? this.EDGE_RESISTANCE * (edgeDistance / 0.1)
-      : 1
-    
-    return panValue * resistanceFactor
-  }
-
-  private smoothTransition(current: number, target: number): number {
-    // Exponential smoothing for natural movement
-    return current + (target - current) * this.PAN_SMOOTHING
-  }
 }
 
 export const zoomPanCalculator = new ZoomPanCalculator()
