@@ -7,6 +7,8 @@ export interface MainCompositionProps {
   cursorEvents: MouseEvent[];
   clickEvents: ClickEvent[];
   keystrokeEvents: any[];
+  videoWidth: number;
+  videoHeight: number;
 }
 
 export interface VideoLayerProps {
@@ -16,6 +18,8 @@ export interface VideoLayerProps {
   effects?: ClipEffects | null;
   zoom?: ClipEffects['zoom'];
   currentFrame: number;
+  videoWidth: number;
+  videoHeight: number;
 }
 
 export interface BackgroundLayerProps {
@@ -40,4 +44,6 @@ export interface CursorLayerProps {
     x: number;
     y: number;
   };
+  videoWidth: number;
+  videoHeight: number;
 }

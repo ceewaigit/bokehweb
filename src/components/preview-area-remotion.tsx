@@ -124,7 +124,9 @@ export function PreviewAreaRemotion({
     effects: localEffects || selectedClip?.effects || null,
     cursorEvents: selectedRecording?.metadata?.mouseEvents || [],
     clickEvents: selectedRecording?.metadata?.clickEvents || [],
-    keystrokeEvents: (selectedRecording?.metadata as any)?.keystrokeEvents || []
+    keystrokeEvents: (selectedRecording?.metadata as any)?.keystrokeEvents || [],
+    videoWidth: selectedRecording?.width || 1920,
+    videoHeight: selectedRecording?.height || 1080
   };
 
   // Calculate duration in frames

@@ -28,7 +28,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   currentFrame,
   fps,
   videoOffset,
-  zoom = { scale: 1, x: 0.5, y: 0.5 }
+  zoom = { scale: 1, x: 0.5, y: 0.5 },
+  videoWidth,
+  videoHeight
 }) => {
   const { width, height } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -96,8 +98,15 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
     const progress = (currentTimeMs - prevEvent.timestamp) / timeDiff;
 
-    // Smooth interpolation
-    const smoothProgress = progress * progress * (3 - 2 * progress);
+    // Use cubic bezier for ultra-smooth interpolation (ease-in-out)
+    // This creates a more natural, gliding cursor movement
+    const easeInOutCubic = (t: number) => {
+      return t < 0.5 
+        ? 4 * t * t * t 
+        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    };
+    
+    const smoothProgress = easeInOutCubic(Math.max(0, Math.min(1, progress)));
 
     return {
       x: prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress,
@@ -116,27 +125,38 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   if (!cursorPosition) return null;
 
-  // Apply zoom transformation to cursor position
-  let cursorX = cursorPosition.x;
-  let cursorY = cursorPosition.y;
-
+  // The cursor position is in the original video coordinates (0 to videoWidth/Height)
+  // We need to map it to the displayed video position
+  
+  // First, normalize cursor position to 0-1 range based on original video size
+  const normalizedX = cursorPosition.x / videoWidth;
+  const normalizedY = cursorPosition.y / videoHeight;
+  
+  // Then scale to the displayed video size and add offset
+  let cursorX = videoOffset.x + normalizedX * videoOffset.width;
+  let cursorY = videoOffset.y + normalizedY * videoOffset.height;
+  
+  // Apply zoom transformation if active
   if (zoom.scale > 1) {
-    // When zoomed, adjust cursor position relative to zoom center
-    const zoomCenterX = width * zoom.x;
-    const zoomCenterY = height * zoom.y;
-
-    // Scale cursor position around zoom center
-    cursorX = zoomCenterX + (cursorX - zoomCenterX) * zoom.scale;
-    cursorY = zoomCenterY + (cursorY - zoomCenterY) * zoom.scale;
+    // When zoomed, the video itself is scaled and transformed
+    // We need to apply the same transformation to the cursor
+    const videoCenterX = videoOffset.x + videoOffset.width / 2;
+    const videoCenterY = videoOffset.y + videoOffset.height / 2;
+    
+    // Apply zoom scale around video center
+    cursorX = videoCenterX + (cursorX - videoCenterX) * zoom.scale;
+    cursorY = videoCenterY + (cursorY - videoCenterY) * zoom.scale;
+    
+    // Apply zoom translation (pan)
+    const panX = (zoom.x - 0.5) * videoOffset.width * (zoom.scale - 1);
+    const panY = (zoom.y - 0.5) * videoOffset.height * (zoom.scale - 1);
+    cursorX += panX;
+    cursorY += panY;
   }
-
-  // Adjust cursor position to video offset
-  cursorX = videoOffset.x + (cursorX / width) * videoOffset.width;
-  cursorY = videoOffset.y + (cursorY / height) * videoOffset.height;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
-      {/* Cursor using actual image files */}
+      {/* Cursor with smooth motion */}
       <Img
         src={CURSOR_IMAGES[cursorType] || CURSOR_IMAGES.arrow}
         style={{
@@ -147,7 +167,12 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
           height: 32,
           transform: 'scale(1.2)',
           zIndex: 100,
-          pointerEvents: 'none'
+          pointerEvents: 'none',
+          // Add subtle drop shadow for depth
+          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))',
+          // Smooth transitions for any sudden changes
+          transition: 'none', // Disabled because we're using interpolation
+          willChange: 'left, top' // Optimize for animation
         }}
       />
 

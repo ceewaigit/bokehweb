@@ -11,7 +11,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   effects,
   cursorEvents,
   clickEvents,
-  keystrokeEvents
+  keystrokeEvents,
+  videoWidth,
+  videoHeight
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
@@ -23,8 +25,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const availableWidth = width - (padding * 2);
   const availableHeight = height - (padding * 2);
   
-  // Assume 16:9 aspect ratio for the video (should match VideoLayer)
-  const videoAspectRatio = 16 / 9;
+  // Use actual video aspect ratio
+  const videoAspectRatio = videoWidth / videoHeight;
   const containerAspectRatio = availableWidth / availableHeight;
   
   let drawWidth: number;
@@ -117,6 +119,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             effects={effects}
             zoom={effects?.zoom}
             currentFrame={frame}
+            videoWidth={videoWidth}
+            videoHeight={videoHeight}
           />
         </Sequence>
       )}
@@ -136,6 +140,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               height: videoPosition.drawHeight
             }}
             zoom={zoomState}
+            videoWidth={videoWidth}
+            videoHeight={videoHeight}
           />
         </Sequence>
       )}

@@ -8,7 +8,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   endAt,
   effects,
   zoom,
-  currentFrame
+  currentFrame,
+  videoWidth,
+  videoHeight
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -23,8 +25,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const availableWidth = width - (padding * 2);
   const availableHeight = height - (padding * 2);
   
-  // Assume 16:9 aspect ratio for the video (we should get this from metadata)
-  const videoAspectRatio = 16 / 9;
+  // Use actual video aspect ratio
+  const videoAspectRatio = videoWidth / videoHeight;
   const containerAspectRatio = availableWidth / availableHeight;
   
   let drawWidth: number;
