@@ -144,6 +144,24 @@ export function PreviewArea({
     backgroundNeedsUpdate.current = false
   }, [backgroundCanvasRef, canvasRef])
 
+  // Helper function to sync cursor canvas position with main canvas
+  const syncCursorCanvasPosition = useCallback(() => {
+    const canvas = canvasRef.current
+    const cursorCanvas = cursorCanvasRef.current
+    if (!canvas || !cursorCanvas || !canvas.parentElement) return
+    
+    const canvasRect = canvas.getBoundingClientRect()
+    const parentRect = canvas.parentElement.getBoundingClientRect()
+    
+    const relativeTop = canvasRect.top - parentRect.top
+    const relativeLeft = canvasRect.left - parentRect.left
+    
+    cursorCanvas.style.top = `${relativeTop}px`
+    cursorCanvas.style.left = `${relativeLeft}px`
+    cursorCanvas.style.width = `${canvasRect.width}px`
+    cursorCanvas.style.height = `${canvasRect.height}px`
+  }, [])
+
   // Main rendering function - now stable, doesn't depend on changing props
   const renderFrame = useCallback(() => {
     const canvas = canvasRef.current
@@ -230,24 +248,13 @@ export function PreviewArea({
             cursorCanvas.width = canvas.width
             cursorCanvas.height = canvas.height
             
-            // Position cursor canvas to exactly overlay the main canvas
-            const updateCursorCanvasPosition = () => {
-              const canvasRect = canvas.getBoundingClientRect()
-              const parentRect = parentElement.getBoundingClientRect()
-              
-              const relativeTop = canvasRect.top - parentRect.top
-              const relativeLeft = canvasRect.left - parentRect.left
-              
-              cursorCanvas.style.position = 'absolute'
-              cursorCanvas.style.top = `${relativeTop}px`
-              cursorCanvas.style.left = `${relativeLeft}px`
-              cursorCanvas.style.width = `${canvasRect.width}px`
-              cursorCanvas.style.height = `${canvasRect.height}px`
-            }
-            
-            updateCursorCanvasPosition()
+            // Set initial styles
+            cursorCanvas.style.position = 'absolute'
             cursorCanvas.style.pointerEvents = 'none'
             cursorCanvas.style.zIndex = '100'
+            
+            // Position cursor canvas to exactly overlay the main canvas
+            syncCursorCanvasPosition()
 
             // Ensure parent has relative positioning
             parentElement.style.position = 'relative'
@@ -260,8 +267,7 @@ export function PreviewArea({
             currentCursorRenderer.confirmAttached()
           }
         } else if (cursorCanvasRef.current && canvas.parentElement) {
-          // Update dimensions and position if canvas already attached
-          // Update canvas internal dimensions if needed
+          // Update dimensions if needed
           if (cursorCanvasRef.current.width !== canvas.width ||
             cursorCanvasRef.current.height !== canvas.height) {
             cursorCanvasRef.current.width = canvas.width
@@ -269,16 +275,7 @@ export function PreviewArea({
           }
           
           // Update position to match main canvas
-          const canvasRect = canvas.getBoundingClientRect()
-          const parentRect = canvas.parentElement.getBoundingClientRect()
-          
-          const relativeTop = canvasRect.top - parentRect.top
-          const relativeLeft = canvasRect.left - parentRect.left
-          
-          cursorCanvasRef.current.style.top = `${relativeTop}px`
-          cursorCanvasRef.current.style.left = `${relativeLeft}px`
-          cursorCanvasRef.current.style.width = `${canvasRect.width}px`
-          cursorCanvasRef.current.style.height = `${canvasRect.height}px`
+          syncCursorCanvasPosition()
         }
       }
 
@@ -491,18 +488,7 @@ export function PreviewArea({
     if (!resizeObserverRef.current) {
       resizeObserverRef.current = new ResizeObserver(() => {
         // Update cursor canvas position when main canvas resizes
-        if (cursorCanvasRef.current && canvas.parentElement) {
-          const canvasRect = canvas.getBoundingClientRect()
-          const parentRect = canvas.parentElement.getBoundingClientRect()
-          
-          const relativeTop = canvasRect.top - parentRect.top
-          const relativeLeft = canvasRect.left - parentRect.left
-          
-          cursorCanvasRef.current.style.top = `${relativeTop}px`
-          cursorCanvasRef.current.style.left = `${relativeLeft}px`
-          cursorCanvasRef.current.style.width = `${canvasRect.width}px`
-          cursorCanvasRef.current.style.height = `${canvasRect.height}px`
-        }
+        syncCursorCanvasPosition()
       })
     }
     

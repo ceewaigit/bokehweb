@@ -75,6 +75,30 @@ export class CursorRenderer {
     this.preloadCursorImages()
   }
 
+  /**
+   * Update cursor size without recreating the renderer
+   */
+  updateSize(size: number) {
+    this.options.size = size
+  }
+
+  /**
+   * Update click color without recreating the renderer
+   */
+  updateClickColor(color: string) {
+    this.options.clickColor = color
+  }
+
+  /**
+   * Update multiple options at once
+   */
+  updateOptions(options: Partial<CursorOptions>) {
+    this.options = {
+      ...this.options,
+      ...options
+    }
+  }
+
   private initializeCursorScaleFactors() {
     // Define scale factors to normalize cursor sizes
     // These values normalize each cursor to approximately 48x48 base size (2x larger than before)
@@ -191,27 +215,17 @@ export class CursorRenderer {
   private preprocessEvents() {
     this.sortedPoints = this.events
       .map((event, index) => {
-        // When loading from a project file, we have screenWidth/screenHeight
-        // When playing directly from recording, we might have captureWidth/captureHeight
-        const screenWidth = (event as any).screenWidth || (event as any).captureWidth
-        const screenHeight = (event as any).screenHeight || (event as any).captureHeight
+        // Get screen dimensions from event
+        const screenWidth = (event as any).screenWidth
+        const screenHeight = (event as any).screenHeight
         
-        // Normalize coordinates
-        let x, y
+        // Normalize coordinates using screen dimensions if available, otherwise video dimensions
+        const normWidth = screenWidth || this.videoWidth
+        const normHeight = screenHeight || this.videoHeight
         
-        if (screenWidth && screenHeight) {
-          // Normalize using the screen dimensions stored with the event
-          x = event.mouseX / screenWidth
-          y = event.mouseY / screenHeight
-        } else {
-          // Fallback to video dimensions
-          x = event.mouseX / this.videoWidth
-          y = event.mouseY / this.videoHeight
-        }
-        
-        // Clamp to 0-1 range
-        x = Math.max(0, Math.min(1, x))
-        y = Math.max(0, Math.min(1, y))
+        // Normalize and clamp to 0-1 range
+        const x = Math.max(0, Math.min(1, event.mouseX / normWidth))
+        const y = Math.max(0, Math.min(1, event.mouseY / normHeight))
 
         const point: CursorPoint = {
           x,
@@ -284,9 +298,11 @@ export class CursorRenderer {
     // Apply zoom transformations if effects engine is available
     let zoomScale = 1.0
     if (this.effectsEngine) {
-      // Get the ACTUAL zoom state including panning
-      // Don't recalculate mouse position - the zoom state already accounts for it
-      const zoomState = this.effectsEngine.getZoomState(videoTime, targetPos)
+      // Get the actual mouse position from the effects engine
+      const mousePos = this.effectsEngine.getMousePositionAtTime(videoTime)
+      
+      // Get the zoom state with the correct mouse position for panning
+      const zoomState = this.effectsEngine.getZoomState(videoTime, mousePos)
       
       if (zoomState && zoomState.scale > 1.0) {
         // The zoomState.x and zoomState.y are the ACTUAL panned center
@@ -310,10 +326,12 @@ export class CursorRenderer {
         const relativeX = (videoX - sx) / zoomWidth
         const relativeY = (videoY - sy) / zoomHeight
         
-        // Map to canvas dimensions 
-        videoX = relativeX * this.video.videoWidth
-        videoY = relativeY * this.video.videoHeight
-
+        // Map directly to the padded video dimensions (not full video dimensions)
+        // This avoids double transformation when we later scale by videoOffset
+        videoX = relativeX * this.videoOffset.width
+        videoY = relativeY * this.videoOffset.height
+        
+        // Now videoX/videoY are already in canvas space, so we'll skip the scaling below
         // Store zoom scale to apply to cursor size
         zoomScale = zoomState.scale
       }
@@ -321,8 +339,10 @@ export class CursorRenderer {
 
 
     // Calculate scaling to map from video space to canvas space
-    const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
-    const scaleY = this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
+    // Only apply scaling if we're not zoomed (zoom already transformed to canvas space)
+    const isZoomed = zoomScale > 1.0
+    const scaleX = !isZoomed && this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1
+    const scaleY = !isZoomed && this.videoOffset.height > 0 ? this.videoOffset.height / this.video.videoHeight : 1
 
     // Calculate frame delta time for smooth animation
     const deltaTime = this.lastFrameTime ? (renderTime - this.lastFrameTime) / 1000 : 0.016
@@ -338,8 +358,10 @@ export class CursorRenderer {
     const baseSmoothing = 0.035 // Much lower for ice-gliding effect
 
     // Calculate distance to target for dynamic smoothing
-    const scaledTargetX = this.videoOffset.x + (videoX * scaleX)
-    const scaledTargetY = this.videoOffset.y + (videoY * scaleY)
+    // When zoomed, videoX/videoY are already in canvas space relative to video area
+    // When not zoomed, we need to scale and offset them
+    const scaledTargetX = isZoomed ? (this.videoOffset.x + videoX) : (this.videoOffset.x + (videoX * scaleX))
+    const scaledTargetY = isZoomed ? (this.videoOffset.y + videoY) : (this.videoOffset.y + (videoY * scaleY))
     const dx = scaledTargetX - this.currentPosition.x
     const dy = scaledTargetY - this.currentPosition.y
     const distance = Math.sqrt(dx * dx + dy * dy)
@@ -601,17 +623,13 @@ export class CursorRenderer {
     )
 
     if (clickEvent && !this.clickAnimations.has(`click-${clickEvent.timestamp}`)) {
-      // Apply same coordinate transformation as cursor position
-      const captureX = (clickEvent as any).captureX
-      const captureY = (clickEvent as any).captureY
-      const captureWidth = (clickEvent as any).captureWidth || this.videoWidth
-      const captureHeight = (clickEvent as any).captureHeight || this.videoHeight
+      // Get screen dimensions for normalization
+      const screenWidth = (clickEvent as any).screenWidth || this.videoWidth
+      const screenHeight = (clickEvent as any).screenHeight || this.videoHeight
       
-      // Transform and normalize
-      const relativeX = clickEvent.mouseX - (captureX || 0)
-      const relativeY = clickEvent.mouseY - (captureY || 0)
-      const normalizedX = Math.max(0, Math.min(1, relativeX / captureWidth))
-      const normalizedY = Math.max(0, Math.min(1, relativeY / captureHeight))
+      // Normalize click position
+      const normalizedX = Math.max(0, Math.min(1, clickEvent.mouseX / screenWidth))
+      const normalizedY = Math.max(0, Math.min(1, clickEvent.mouseY / screenHeight))
       const videoX = normalizedX * this.video.videoWidth
       const videoY = normalizedY * this.video.videoHeight
       const scaleX = this.videoOffset.width > 0 ? this.videoOffset.width / this.video.videoWidth : 1

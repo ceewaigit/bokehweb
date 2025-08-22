@@ -1,5 +1,5 @@
 /**
- * Effects Engine - Simple orchestration of video effects
+ * Effects Engine - orchestration of video effects
  */
 
 import { easeOutExpo, easeInQuad } from '@/lib/utils/easing'

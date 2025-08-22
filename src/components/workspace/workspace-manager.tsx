@@ -306,14 +306,18 @@ export function WorkspaceManager() {
       effectsEngineRef.current.clearEffects()
     }
 
-    // Only reinitialize cursor if cursor settings changed or force init
-    const cursorChanged = forceFullInit ||
-      prevEffects?.cursor?.visible !== clipEffects?.cursor?.visible ||
+    // Check if cursor visibility changed (requires recreation)
+    const cursorVisibilityChanged = forceFullInit ||
+      prevEffects?.cursor?.visible !== clipEffects?.cursor?.visible
+
+    // Check if cursor settings changed (can be updated in place)
+    const cursorSettingsChanged = !cursorVisibilityChanged && cursorRenderer && (
       prevEffects?.cursor?.size !== clipEffects?.cursor?.size ||
       prevEffects?.cursor?.color !== clipEffects?.cursor?.color
+    )
 
-    if (cursorChanged) {
-      // Clean up previous cursor renderer
+    if (cursorVisibilityChanged) {
+      // Clean up previous cursor renderer only when visibility changes
       if (cursorRenderer) {
         cursorRenderer.dispose()
         setCursorRenderer(null)
@@ -321,9 +325,10 @@ export function WorkspaceManager() {
 
       // Initialize cursor renderer when cursor is visible
       if (clipEffects?.cursor?.visible) {
+        const DEFAULT_CLICK_COLOR = '#007AFF'
         const newCursorRenderer = new CursorRenderer({
           size: clipEffects.cursor.size,
-          clickColor: '#007AFF',
+          clickColor: clipEffects.cursor.color || DEFAULT_CLICK_COLOR,
           smoothing: true
         })
 
@@ -370,6 +375,13 @@ export function WorkspaceManager() {
         // Set the state to trigger re-render
         setCursorRenderer(newCursorRenderer)
       }
+    } else if (cursorSettingsChanged) {
+      // Update existing cursor renderer settings without recreating
+      const DEFAULT_CLICK_COLOR = '#007AFF'
+      cursorRenderer.updateOptions({
+        size: clipEffects?.cursor?.size,
+        clickColor: clipEffects?.cursor?.color || DEFAULT_CLICK_COLOR
+      })
     }
 
     // Store current effects for next comparison
