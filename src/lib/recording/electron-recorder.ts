@@ -244,6 +244,32 @@ export class ElectronRecorder {
         audioTracks: this.stream.getAudioTracks().length
       })
 
+      // For window sources, update capture area with actual video dimensions
+      if (this.captureArea?.sourceType === 'window' && this.captureArea.fullBounds.width === 0) {
+        const videoTrack = this.stream.getVideoTracks()[0]
+        if (videoTrack) {
+          const settings = videoTrack.getSettings()
+          if (settings.width && settings.height) {
+            this.captureArea.fullBounds = {
+              x: 0,
+              y: 0,
+              width: settings.width,
+              height: settings.height
+            }
+            this.captureArea.workArea = {
+              x: 0,
+              y: 0,
+              width: settings.width,
+              height: settings.height
+            }
+            logger.info('Window dimensions detected from video stream', {
+              width: settings.width,
+              height: settings.height
+            })
+          }
+        }
+      }
+
       // Set up MediaRecorder with optimized settings for stability
       // Use VP8 for better compatibility and stability with ScreenCaptureKit
       let mimeType = 'video/webm;codecs=vp8'
@@ -559,17 +585,18 @@ export class ElectronRecorder {
       const isWindow = !sourceId.startsWith('screen:')
       
       if (isWindow) {
-        // For window recording, store the source type
-        // Actual bounds come from the video stream dimensions
+        // For window recording, we'll detect bounds from the video stream
+        // since window bounds APIs might not be available
+        // Set temporary placeholder that will be updated once stream starts
         this.captureArea = {
-          fullBounds: { x: 0, y: 0, width: 0, height: 0 },
-          workArea: { x: 0, y: 0, width: 0, height: 0 },
+          fullBounds: areaSelection || { x: 0, y: 0, width: 0, height: 0 },
+          workArea: areaSelection || { x: 0, y: 0, width: 0, height: 0 },
           scaleFactor: 1,
           sourceType: 'window',
           sourceId: sourceId
         }
         
-        logger.info('Window recording mode', { sourceId })
+        logger.info('Window recording mode', { sourceId, areaSelection })
       } else if (window.electronAPI?.getScreens) {
         // Get screen information from Electron
         const screens = await window.electronAPI.getScreens()
@@ -593,7 +620,7 @@ export class ElectronRecorder {
               workArea: areaSelection,
               scaleFactor: screen.scaleFactor ?? 1,
               sourceType: 'screen',
-              sourceId: sourceId
+              sourceId: `area:${areaSelection.x},${areaSelection.y},${areaSelection.width},${areaSelection.height}` // Keep area info for cursor type detection
             }
             
             logger.info('Area selection captured', {
@@ -792,6 +819,12 @@ export class ElectronRecorder {
     }
 
     // Start native tracking with source information
+    logger.info('Starting mouse tracking with:', {
+      sourceId: this.captureArea?.sourceId,
+      sourceType: this.captureArea?.sourceType,
+      isAreaRecording: this.captureArea?.sourceId?.includes('area:')
+    })
+    
     const result = await window.electronAPI.startMouseTracking({
       intervalMs: 16, // 60fps
       sourceId: this.captureArea?.sourceId,
