@@ -189,19 +189,20 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           }
         }
 
-        // Get current mouse position for zoom center
+        // Get mouse position at zoom START for zoom center (not current position)
+        // This ensures zoom centers on where the mouse was when zoom started
         let x = 0.5;
         let y = 0.5;
         if (cursorEvents.length > 0) {
-          const currentMousePos = zoomPanCalculator.interpolateMousePosition(
+          const zoomStartMousePos = zoomPanCalculator.interpolateMousePosition(
             cursorEvents,
-            currentTimeMs
+            activeZoomBlock.startTime  // Use zoom block start time, not current time
           );
-          if (currentMousePos) {
+          if (zoomStartMousePos) {
             const captureWidth = cursorEvents[0].captureWidth || videoWidth;
             const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-            x = currentMousePos.x / captureWidth;
-            y = currentMousePos.y / captureHeight;
+            x = zoomStartMousePos.x / captureWidth;
+            y = zoomStartMousePos.y / captureHeight;
           }
         }
 
