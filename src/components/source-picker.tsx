@@ -146,7 +146,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
             className="fixed inset-0 flex items-center justify-center z-[2147483650] p-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-background/95 backdrop-blur-2xl rounded-xl shadow-2xl border border-border/50 w-[80vw] max-w-4xl h-[80vh] max-h-[650px] overflow-hidden">
+            <div className="bg-background/95 backdrop-blur-2xl rounded-xl shadow-2xl border border-border/50 w-[80vw] max-w-4xl h-[80vh] max-h-[650px] overflow-hidden flex flex-col">
               {/* Compact header */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
                 <div className="flex items-center gap-2">
@@ -166,7 +166,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
               </div>
 
               {/* Content */}
-              <div className="p-3 overflow-y-auto max-h-[calc(85vh-90px)] scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent">
+              <div className="flex-1 min-h-0 p-3 overflow-y-auto scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent">
                 {loading ? (
                   <div className="flex flex-col items-center justify-center py-12">
                     <div className="relative">
@@ -397,7 +397,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
               </div>
 
               {/* Compact footer */}
-              <div className="flex items-center justify-between px-4 py-2 border-t border-border/50 bg-background/30">
+              <div className="flex items-center justify-between px-4 py-2 border-t border-border/50 bg-background/30 shrink-0">
                 <div className="text-[9px] text-muted-foreground">
                   {selectedId && (
                     <span className="font-medium">

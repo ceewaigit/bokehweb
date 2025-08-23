@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
 import type { Clip, Recording } from '@/types/project'
-import { TIMELINE_LAYOUT, TimelineUtils, createDragBoundFunc } from '@/lib/timeline'
+import { TIMELINE_LAYOUT, TimelineUtils, createClipDragBoundFunc } from '@/lib/timeline'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 
@@ -131,7 +131,7 @@ export const TimelineClip = React.memo(({
       x={clipX}
       y={trackY + TIMELINE_LAYOUT.TRACK_PADDING}
       draggable
-      dragBoundFunc={createDragBoundFunc(trackY, pixelsPerMs)}
+      dragBoundFunc={createClipDragBoundFunc(trackY, pixelsPerMs)}
       onDragEnd={(e) => {
         const newX = e.target.x()
         const newTime = TimelineUtils.pixelToTime(
