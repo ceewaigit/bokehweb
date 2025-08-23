@@ -64,8 +64,8 @@ export function EffectsSidebar({
 
   if (!selectedClip || !effects) {
     return (
-      <div className={cn("bg-background border-l border-border p-4", className)}>
-        <p className="text-sm text-muted-foreground">Select a clip to edit effects</p>
+      <div className={cn("bg-card/30 backdrop-blur-md border-l border-border/50 p-4", className)}>
+        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">No clip selected</p>
       </div>
     )
   }
@@ -95,78 +95,85 @@ export function EffectsSidebar({
   }
 
   return (
-    <div className={cn("bg-background border-l border-border flex flex-col", className)}>
+    <div className={cn("bg-gradient-to-b from-background/95 to-background/90 backdrop-blur-xl border-l border-border/50 flex flex-col", className)}>
       {/* Selection Indicator */}
       {selectedEffectLayer && (
-        <div className="px-3 py-2 bg-accent/50 border-b border-border text-sm">
-          <span className="text-muted-foreground">Editing: </span>
-          <span className="font-medium">
+        <div className="px-3 py-1.5 bg-primary/5 border-b border-border/30">
+          <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-medium">
             {selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id ? 
               `Zoom Block` : 
-              selectedEffectLayer.type.charAt(0).toUpperCase() + selectedEffectLayer.type.slice(1)} Effect
+              selectedEffectLayer.type} Layer
           </span>
         </div>
       )}
       
       {/* Section Tabs */}
-      <div className="flex flex-col gap-1 p-2 border-b border-border">
+      <div className="flex gap-0.5 p-2 border-b border-border/30">
         <button
           onClick={() => setActiveTab('background')}
           className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
-            activeTab === 'background' ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            activeTab === 'background' 
+              ? "bg-primary/10 text-primary shadow-sm" 
+              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
           )}
         >
-          <Palette className="w-4 h-4" />
-          Background
+          <Palette className="w-3 h-3" />
+          <span className="hidden sm:inline">BG</span>
         </button>
         <button
           onClick={() => setActiveTab('cursor')}
           className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
-            activeTab === 'cursor' ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            activeTab === 'cursor' 
+              ? "bg-primary/10 text-primary shadow-sm" 
+              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
           )}
         >
-          <MousePointer className="w-4 h-4" />
-          Cursor
+          <MousePointer className="w-3 h-3" />
+          <span className="hidden sm:inline">Cursor</span>
         </button>
         <button
           onClick={() => setActiveTab('zoom')}
           className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
-            activeTab === 'zoom' ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            activeTab === 'zoom' 
+              ? "bg-primary/10 text-primary shadow-sm" 
+              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
           )}
         >
-          <Camera className="w-4 h-4" />
-          Zoom & Motion
+          <Camera className="w-3 h-3" />
+          <span className="hidden sm:inline">Zoom</span>
         </button>
         <button
           onClick={() => setActiveTab('shape')}
           className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors",
-            activeTab === 'shape' ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            activeTab === 'shape' 
+              ? "bg-primary/10 text-primary shadow-sm" 
+              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
           )}
         >
-          <Square className="w-4 h-4" />
-          Shape
+          <Square className="w-3 h-3" />
+          <span className="hidden sm:inline">Shape</span>
         </button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {activeTab === 'background' && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Background Type Tabs */}
-            <div className="flex gap-2 p-1 bg-muted rounded-lg">
-              {(['wallpaper', 'gradient', 'color', 'image'] as const).map(type => (
+            <div className="flex gap-1 p-0.5 bg-card/50 rounded-md">
+              {(['gradient', 'color', 'image'] as const).map(type => (
                 <button
                   key={type}
                   onClick={() => setBackgroundType(type)}
                   className={cn(
-                    "flex-1 py-1.5 px-3 rounded text-sm capitalize transition-colors",
+                    "flex-1 py-1 px-2 rounded-sm text-[10px] uppercase tracking-wider font-medium transition-all",
                     backgroundType === type
-                      ? "bg-background shadow-sm"
-                      : "hover:bg-background/50"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {type}
@@ -176,9 +183,9 @@ export function EffectsSidebar({
 
             {/* Wallpaper Grid */}
             {backgroundType === 'gradient' && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium">Wallpaper</h3>
-                <div className="grid grid-cols-4 gap-2">
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Presets</h3>
+                <div className="grid grid-cols-5 gap-1.5">
                   {WALLPAPERS.map(wallpaper => (
                     <button
                       key={wallpaper.id}
@@ -190,23 +197,23 @@ export function EffectsSidebar({
                           angle: 135
                         }
                       })}
-                      className="aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-primary transition-all"
+                      className="aspect-square rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105"
                       style={{
                         background: `linear-gradient(135deg, ${wallpaper.colors[0]}, ${wallpaper.colors[1]})`
                       }}
                     />
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Background gradients were created by raycast.com
+                <p className="text-[9px] text-muted-foreground/50 italic">
+                  Gradients by raycast.com
                 </p>
               </div>
             )}
 
             {/* Background Blur */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center justify-between">
-                Background blur
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Blur</span>
                 <Switch
                   checked={effects.background.blur ? effects.background.blur > 0 : false}
                   onCheckedChange={(checked) =>
@@ -229,10 +236,10 @@ export function EffectsSidebar({
         )}
 
         {activeTab === 'cursor' && effects?.cursor && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center justify-between">
-                Show cursor
+          <div className="space-y-3">
+            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Visibility</span>
                 <Switch
                   checked={effects.cursor.visible ?? true}
                   onCheckedChange={(checked) =>
@@ -242,8 +249,8 @@ export function EffectsSidebar({
               </label>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Cursor size</label>
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Size</label>
               <Slider
                 value={[effects.cursor.size ?? 2.0]}
                 onValueChange={([value]) => updateEffect('cursor', { size: value })}
@@ -252,12 +259,12 @@ export function EffectsSidebar({
                 step={0.1}
                 className="w-full"
               />
-              <span className="text-xs text-muted-foreground">{(effects.cursor.size ?? 2.0).toFixed(1)}x</span>
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{(effects.cursor.size ?? 2.0).toFixed(1)}x</span>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center justify-between">
-                Click effects
+            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Click Ripple</span>
                 <Switch
                   checked={effects.cursor.clickEffects ?? false}
                   onCheckedChange={(checked) =>
@@ -267,9 +274,9 @@ export function EffectsSidebar({
               </label>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center justify-between">
-                Motion blur
+            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Motion Blur</span>
                 <Switch
                   checked={effects.cursor.motionBlur ?? false}
                   onCheckedChange={(checked) =>
@@ -282,19 +289,19 @@ export function EffectsSidebar({
         )}
 
         {activeTab === 'zoom' && effects?.zoom && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Show specific zoom block controls if one is selected */}
             {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && effects.zoom.blocks && (
               <>
-                <div className="p-3 bg-accent/20 rounded-lg space-y-3">
-                  <h4 className="text-sm font-medium">Selected Zoom Block</h4>
+                <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
+                  <h4 className="text-xs font-medium uppercase tracking-wider text-primary/80">Block Settings</h4>
                   {(() => {
                     const block = effects.zoom.blocks.find((b: any) => b.id === selectedEffectLayer.id)
                     if (!block) return null
                     return (
                       <>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Zoom Level</label>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Scale</label>
                           <Slider
                             value={[block.scale]}
                             onValueChange={([value]) => {
@@ -308,11 +315,11 @@ export function EffectsSidebar({
                             step={0.1}
                             className="w-full"
                           />
-                          <span className="text-xs text-muted-foreground">{block.scale.toFixed(1)}x</span>
+                          <span className="text-[10px] text-muted-foreground/70 font-mono">{block.scale.toFixed(1)}x</span>
                         </div>
                         
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Intro Duration</label>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Intro</label>
                           <Slider
                             value={[block.introMs]}
                             onValueChange={([value]) => {
@@ -326,11 +333,11 @@ export function EffectsSidebar({
                             step={50}
                             className="w-full"
                           />
-                          <span className="text-xs text-muted-foreground">{block.introMs}ms</span>
+                          <span className="text-[10px] text-muted-foreground/70 font-mono">{block.introMs}ms</span>
                         </div>
                         
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Outro Duration</label>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Outro</label>
                           <Slider
                             value={[block.outroMs]}
                             onValueChange={([value]) => {
@@ -344,19 +351,19 @@ export function EffectsSidebar({
                             step={50}
                             className="w-full"
                           />
-                          <span className="text-xs text-muted-foreground">{block.outroMs}ms</span>
+                          <span className="text-[10px] text-muted-foreground/70 font-mono">{block.outroMs}ms</span>
                         </div>
                       </>
                     )
                   })()}
                 </div>
-                <div className="border-t border-border pt-4" />
+                <div className="border-t border-border/30 pt-3" />
               </>
             )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center justify-between">
-                Auto zoom
+            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Auto Zoom</span>
                 <Switch
                   checked={effects.zoom.enabled ?? false}
                   onCheckedChange={(checked) =>
@@ -366,8 +373,8 @@ export function EffectsSidebar({
               </label>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Max zoom</label>
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Max Scale</label>
               <Slider
                 value={[effects.zoom.maxZoom ?? 2.0]}
                 onValueChange={([value]) => updateEffect('zoom', { maxZoom: value })}
@@ -376,11 +383,11 @@ export function EffectsSidebar({
                 step={0.1}
                 className="w-full"
               />
-              <span className="text-xs text-muted-foreground">{(effects.zoom.maxZoom ?? 2.0).toFixed(1)}x</span>
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{(effects.zoom.maxZoom ?? 2.0).toFixed(1)}x</span>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Zoom sensitivity</label>
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Sensitivity</label>
               <Slider
                 value={[effects.zoom.sensitivity ?? 1.0]}
                 onValueChange={([value]) => updateEffect('zoom', { sensitivity: value })}
@@ -392,7 +399,7 @@ export function EffectsSidebar({
             </div>
 
             {/* Reset Zoom Detection Button */}
-            <div className="pt-4 border-t border-border">
+            <div className="pt-3 border-t border-border/30">
               <button
                 onClick={() => {
                   // Trigger zoom detection reset
@@ -402,12 +409,12 @@ export function EffectsSidebar({
                     regenerate: Date.now() // Add timestamp to trigger regeneration
                   })
                 }}
-                className="w-full px-3 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
+                className="w-full px-2 py-1.5 text-[10px] uppercase tracking-wider font-medium bg-card/50 hover:bg-card/70 border border-border/30 rounded-md transition-all"
               >
                 Reset Zoom Detection
               </button>
-              <p className="text-xs text-muted-foreground mt-2">
-                Re-analyze mouse movements to detect zoom areas
+              <p className="text-[9px] text-muted-foreground/60 mt-1.5 italic">
+                Re-analyze movements
               </p>
             </div>
 
@@ -415,9 +422,9 @@ export function EffectsSidebar({
         )}
 
         {activeTab === 'shape' && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Padding</label>
+          <div className="space-y-3">
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Padding</label>
               <Slider
                 value={[effects.background.padding || 0]}
                 onValueChange={([value]) => updateEffect('background', {
@@ -429,22 +436,22 @@ export function EffectsSidebar({
                 step={5}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{effects.background.padding || 0}px</span>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.padding || 0}px</span>
                 <button
                   onClick={() => updateEffect('background', {
                     ...effects.background,
                     padding: 80
                   })}
-                  className="text-primary hover:underline"
+                  className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
                 >
                   Reset
                 </button>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Corner radius</label>
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corners</label>
               <Slider
                 value={[effects.video.cornerRadius]}
                 onValueChange={([value]) => updateEffect('video', { cornerRadius: value })}
@@ -453,12 +460,12 @@ export function EffectsSidebar({
                 step={1}
                 className="w-full"
               />
-              <span className="text-xs text-muted-foreground">{effects.video.cornerRadius}px</span>
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.cornerRadius}px</span>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center justify-between">
-                Shadow
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Shadow</span>
                 <Switch
                   checked={effects.video.shadow.enabled}
                   onCheckedChange={(checked) =>
@@ -472,7 +479,7 @@ export function EffectsSidebar({
               {effects.video.shadow.enabled && (
                 <>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Blur</label>
+                    <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Blur</label>
                     <Slider
                       value={[effects.video.shadow.blur]}
                       onValueChange={([value]) =>
@@ -486,11 +493,11 @@ export function EffectsSidebar({
                       step={5}
                       className="w-full"
                     />
-                    <span className="text-xs text-muted-foreground">{effects.video.shadow.blur}px</span>
+                    <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.shadow.blur}px</span>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Offset Y</label>
+                    <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Y Offset</label>
                     <Slider
                       value={[effects.video.shadow.offset.y]}
                       onValueChange={([value]) =>
@@ -507,7 +514,7 @@ export function EffectsSidebar({
                       step={5}
                       className="w-full"
                     />
-                    <span className="text-xs text-muted-foreground">{effects.video.shadow.offset.y}px</span>
+                    <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.shadow.offset.y}px</span>
                   </div>
                 </>
               )}
