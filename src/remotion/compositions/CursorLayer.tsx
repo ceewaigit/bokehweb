@@ -36,7 +36,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   clickEvents,
   fps,
   videoOffset,
-  zoom = { scale: 1, x: 0.5, y: 0.5, panX: 0, panY: 0 },
+  zoom,
+  zoomState,
   videoWidth,
   videoHeight,
   cursorEffects
@@ -281,79 +282,52 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorX = cursorTipX;
   let cursorY = cursorTipY;
 
-  // Apply zoom transformation using the SAME utility as the video
-  if (zoom && zoom.scale && Math.abs(zoom.scale - 1) > 0.001) {
-    // Create a temporary zoom block to use the standard transform calculation
-    const zoomBlock = {
-      id: 'cursor-zoom',
-      startTime: 0,
-      endTime: 1000,
-      scale: zoom.scale,
-      targetX: zoom.x || 0.5,
-      targetY: zoom.y || 0.5,
-      introMs: 0,
-      outroMs: 0,
-      mode: 'manual' as const
-    };
-    
-    // Use the EXACT same transform calculation as the video
-    const zoomTransform = calculateZoomTransform(
-      zoomBlock,
-      500, // Current time (middle of animation)
-      videoOffset.width,
-      videoOffset.height,
-      { x: zoom.panX || 0, y: zoom.panY || 0 }
+  // Apply zoom transformation EXACTLY like VideoLayer does
+  if (zoom?.enabled && zoom.blocks) {
+    // Find active zoom block - same as VideoLayer
+    const activeBlock = zoom.blocks.find(
+      block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
     );
     
-    // Apply the zoom to the cursor position using the standard utility
-    const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
-    cursorX = transformedPos.x;
-    cursorY = transformedPos.y;
+    if (activeBlock) {
+      // Use pre-calculated pan from zoomState if available
+      const smoothPan = zoomState ? { x: zoomState.panX || 0, y: zoomState.panY || 0 } : { x: 0, y: 0 };
+      
+      // Calculate zoom transformation using the EXACT same parameters as VideoLayer
+      const zoomTransform = calculateZoomTransform(
+        activeBlock,
+        currentTimeMs,  // Use actual time, not fixed 500
+        videoOffset.width,  // Use video dimensions, same as VideoLayer
+        videoOffset.height,
+        smoothPan
+      );
+      
+      // Apply the zoom to the cursor position
+      const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
+      cursorX = transformedPos.x;
+      cursorY = transformedPos.y;
+    }
   }
   
-  // Debug logging - log always to see what's happening
-  if (frame % 30 === 0 && zoom) {
-    const zoomTransformDebug = zoom.scale && Math.abs(zoom.scale - 1) > 0.001 ? calculateZoomTransform(
-      {
-        id: 'cursor-zoom',
-        startTime: 0,
-        endTime: 1000,
-        scale: zoom.scale,
-        targetX: zoom.x || 0.5,
-        targetY: zoom.y || 0.5,
-        introMs: 0,
-        outroMs: 0,
-        mode: 'manual' as const
-      },
-      500,
-      videoOffset.width,
-      videoOffset.height,
-      { x: zoom.panX || 0, y: zoom.panY || 0 }
-    ) : null;
+  // Debug logging
+  if (frame % 30 === 0) {
+    const activeBlock = zoom?.enabled && zoom.blocks ? 
+      zoom.blocks.find(block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime) : null;
     
-    console.log('🎯 Cursor Debug:', {
-      input: {
-        cursorPos: cursorPosition,
-        normalized: { x: normalizedX.toFixed(3), y: normalizedY.toFixed(3) },
-        cursorInVideo: { x: cursorInVideoX.toFixed(0), y: cursorInVideoY.toFixed(0) },
-        cursorTip: { x: cursorTipX.toFixed(0), y: cursorTipY.toFixed(0) }
-      },
-      videoOffset,
-      zoom: {
-        scale: zoom.scale,
-        x: zoom.x,
-        y: zoom.y,
-        panX: zoom.panX,
-        panY: zoom.panY
-      },
-      transform: zoomTransformDebug,
-      output: {
-        final: { x: cursorX.toFixed(0), y: cursorY.toFixed(0) },
-        afterHotspot: { 
-          x: (cursorX - hotspot.x * renderedWidth).toFixed(0), 
-          y: (cursorY - hotspot.y * renderedHeight).toFixed(0) 
-        }
-      }
+    console.log('🎯 Cursor Alignment:', {
+      time: currentTimeMs.toFixed(0),
+      activeZoom: activeBlock ? {
+        scale: activeBlock.scale,
+        target: { x: activeBlock.targetX, y: activeBlock.targetY }
+      } : 'none',
+      cursorTip: { x: cursorTipX.toFixed(0), y: cursorTipY.toFixed(0) },
+      transformed: { x: cursorX.toFixed(0), y: cursorY.toFixed(0) },
+      hotspot: { x: (hotspot.x * renderedWidth).toFixed(0), y: (hotspot.y * renderedHeight).toFixed(0) },
+      zoomState: zoomState ? {
+        scale: zoomState.scale.toFixed(2),
+        panX: zoomState.panX?.toFixed(2),
+        panY: zoomState.panY?.toFixed(2)
+      } : 'none'
     });
   }
   

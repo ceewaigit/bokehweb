@@ -237,7 +237,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               width: videoPosition.drawWidth,
               height: videoPosition.drawHeight
             }}
-            zoom={completeZoomState}
+            zoom={effects?.zoom}  // Pass the same zoom config as VideoLayer
+            zoomState={completeZoomState}  // Also pass the calculated state for pan
             videoWidth={videoWidth}
             videoHeight={videoHeight}
             cursorEffects={effects?.cursor}

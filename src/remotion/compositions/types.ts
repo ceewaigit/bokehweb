@@ -47,7 +47,8 @@ export interface CursorLayerProps {
     width: number;
     height: number;
   };
-  zoom?: {
+  zoom?: ClipEffects['zoom'];  // Use the same zoom structure as VideoLayer
+  zoomState?: {  // Add the complete zoom state for manual zoom
     scale: number;
     x: number;
     y: number;
