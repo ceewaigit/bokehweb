@@ -52,6 +52,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const smoothingBufferRef = useRef<Array<{x: number, y: number, time: number}>>([]);
   const filteredPositionRef = useRef<{x: number, y: number}>({ x: 0, y: 0 });
   const lastRawPositionRef = useRef<{x: number, y: number} | null>(null);
+  const frameCountRef = useRef(0);
 
   // Determine current cursor type from events
   const cursorType = useMemo(() => {
@@ -73,33 +74,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // Ultra-smooth exponential filter for professional quality
-  const applyExponentialFilter = (current: number, target: number, alpha: number): number => {
-    return current + (target - current) * alpha;
-  };
-  
-  // Butterworth low-pass filter to remove all jitter
-  const butterworthFilter = (values: number[], cutoff: number = 0.1): number => {
-    if (values.length === 0) return 0;
-    if (values.length === 1) return values[0];
-    
-    // 2nd order Butterworth coefficients
-    const a = Math.exp(-2 * Math.PI * cutoff);
-    const a2 = a * a;
-    const r = 2 * a * Math.cos(2 * Math.PI * cutoff * Math.sqrt(2));
-    
-    let filtered = values[0];
-    let prev1 = values[0];
-    let prev2 = values[0];
-    
-    for (let i = 1; i < values.length; i++) {
-      filtered = values[i] * (1 - r + a2) + r * prev1 - a2 * prev2;
-      prev2 = prev1;
-      prev1 = filtered;
-    }
-    
-    return filtered;
-  };
+  // No need for complex filters - simple exponential smoothing works best
 
   // Get interpolated cursor position with ultra-heavy smoothing
   const cursorPosition = useMemo(() => {
@@ -157,15 +132,15 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       // Add to smoothing buffer
       smoothingBufferRef.current.push({ x: rawX, y: rawY, time: targetTime });
       
-      // Keep buffer size limited (last 200ms of data)
-      const cutoffTime = targetTime - 200;
+      // Keep buffer size limited (last 500ms of data for smoother averaging)
+      const cutoffTime = targetTime - 500;
       smoothingBufferRef.current = smoothingBufferRef.current.filter(
         pos => pos.time > cutoffTime
       );
       
       if (smoothingBufferRef.current.length > 0) {
-        // Apply heavy moving average
-        const bufferSize = Math.min(smoothingBufferRef.current.length, 12); // Average over last 12 frames
+        // Apply heavy moving average with larger buffer for smoother movement
+        const bufferSize = Math.min(smoothingBufferRef.current.length, 30); // Average over last 30 frames for ultra smoothness
         const recentBuffer = smoothingBufferRef.current.slice(-bufferSize);
         
         // Weighted moving average (more recent = higher weight)
@@ -183,28 +158,24 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         const avgX = weightedX / totalWeight;
         const avgY = weightedY / totalWeight;
         
-        // Apply Butterworth low-pass filter
-        const xValues = recentBuffer.map(p => p.x);
-        const yValues = recentBuffer.map(p => p.y);
-        const filteredX = butterworthFilter(xValues, 0.05); // Very low cutoff for maximum smoothing
-        const filteredY = butterworthFilter(yValues, 0.05);
+        // Simple but VERY heavy exponential smoothing is most effective
+        const smoothingAlpha = 0.008; // ULTRA low alpha for maximum smoothing like skating on ice
+        filteredPositionRef.current.x = filteredPositionRef.current.x + (avgX - filteredPositionRef.current.x) * smoothingAlpha;
+        filteredPositionRef.current.y = filteredPositionRef.current.y + (avgY - filteredPositionRef.current.y) * smoothingAlpha;
         
-        // Blend moving average with Butterworth filter
-        const blendedX = avgX * 0.6 + filteredX * 0.4;
-        const blendedY = avgY * 0.6 + filteredY * 0.4;
-        
-        // Apply exponential smoothing for final output
-        const smoothingAlpha = 0.08; // Very low alpha for heavy smoothing
-        filteredPositionRef.current.x = applyExponentialFilter(
-          filteredPositionRef.current.x,
-          blendedX,
-          smoothingAlpha
-        );
-        filteredPositionRef.current.y = applyExponentialFilter(
-          filteredPositionRef.current.y,
-          blendedY,
-          smoothingAlpha
-        );
+        // Debug log to verify smoothing is working
+        frameCountRef.current++;
+        if (frameCountRef.current % 30 === 0) {
+          const lag = Math.sqrt(
+            Math.pow(filteredPositionRef.current.x - rawX, 2) + 
+            Math.pow(filteredPositionRef.current.y - rawY, 2)
+          );
+          console.log('🎯 Smoothing Active:', 
+            'Raw:', rawX.toFixed(0), rawY.toFixed(0),
+            '→ Smooth:', filteredPositionRef.current.x.toFixed(0), filteredPositionRef.current.y.toFixed(0),
+            '| Lag:', lag.toFixed(0) + 'px'
+          );
+        }
       }
     }
     
@@ -214,7 +185,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       x: filteredPositionRef.current.x,
       y: filteredPositionRef.current.y
     };
-  }, [cursorEvents, currentTimeMs, butterworthFilter, applyExponentialFilter]);
+  }, [cursorEvents, currentTimeMs]);
 
   // Check for active click animation
   const activeClick = useMemo(() => {
@@ -302,9 +273,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const renderedWidth = dimensions.width * cursorSize;
   const renderedHeight = dimensions.height * cursorSize;
 
-  // Initialize the cursor position for rendering
-  let cursorX = cursorTipX;
-  let cursorY = cursorTipY;
+  // Calculate cursor render position (top-left corner)
+  // We need to apply hotspot offset BEFORE zoom transformation
+  // because the cursor tip position needs to be transformed, not the corner
+  let cursorX = cursorTipX - (hotspot.x * renderedWidth);
+  let cursorY = cursorTipY - (hotspot.y * renderedHeight);
 
   // Apply zoom transformation if needed
   if (zoom.scale > 1) {
@@ -328,16 +301,13 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       { x: zoom.panX || 0, y: zoom.panY || 0 }
     );
 
-    // Transform the cursor tip position
-    const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
-    cursorX = transformedPos.x;
-    cursorY = transformedPos.y;
+    // Transform ONLY the cursor tip position (not the corner)
+    const transformedTip = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
+    
+    // Now apply the hotspot offset in screen space to get the final corner position
+    cursorX = transformedTip.x - (hotspot.x * renderedWidth);
+    cursorY = transformedTip.y - (hotspot.y * renderedHeight);
   }
-  
-  // Apply hotspot offset AFTER zoom transformation
-  // The offset is in screen space, not zoomed space
-  cursorX -= hotspot.x * renderedWidth;
-  cursorY -= hotspot.y * renderedHeight;
 
   // Create motion blur filter based on velocity
   const motionBlurFilter = useMemo(() => {
