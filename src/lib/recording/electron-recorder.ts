@@ -659,14 +659,12 @@ export class ElectronRecorder {
     let isWithinBounds = true
     
     if (!this.captureArea) {
-      // Full screen recording - use scaled coordinates based on display scale factor
-      // The mouse coordinates from Electron are in logical pixels
-      // We need to scale them to match the video's physical pixels
+      // Full screen recording - scale coordinates if needed
       if (data.scaleFactor && data.scaleFactor > 1) {
         transformedX = data.x * data.scaleFactor
         transformedY = data.y * data.scaleFactor
       }
-      // Use full video dimensions (must be set by this point)
+      
       if (!this.videoWidth || !this.videoHeight) {
         throw new Error('Video dimensions not available for coordinate transformation')
       }
@@ -674,24 +672,20 @@ export class ElectronRecorder {
       const captureH = this.videoHeight
       return { transformedX, transformedY, isWithinBounds, captureW, captureH }
     } else if (this.captureArea.fullBounds) {
-      // Window or area recording - check bounds and adjust coordinates
+      // Window or area recording - adjust coordinates relative to capture area
       isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
                       data.x < this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
                       data.y >= this.captureArea.fullBounds.y &&
                       data.y < this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
       
-      // Adjust mouse coordinates to be relative to the capture area
       transformedX = data.x - this.captureArea.fullBounds.x
       transformedY = data.y - this.captureArea.fullBounds.y
       
-      // Use capture area dimensions
       const captureW = this.captureArea.fullBounds.width
       const captureH = this.captureArea.fullBounds.height
       return { transformedX, transformedY, isWithinBounds, captureW, captureH }
     }
     
-    // This should never be reached - either we have no capture area (full screen)
-    // or we have a capture area with bounds
     throw new Error('Invalid recording state: capture area exists but has no bounds')
   }
 

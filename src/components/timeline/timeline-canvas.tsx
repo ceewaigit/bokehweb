@@ -75,6 +75,12 @@ export function TimelineCanvas({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const colors = useTimelineColors()
+  
+  // Force re-render when theme changes by using colors as part of key
+  const themeKey = React.useMemo(() => {
+    // Create a simple hash from primary color to detect theme changes
+    return colors.primary + colors.background
+  }, [colors.primary, colors.background])
 
   // Calculate timeline dimensions
   const duration = currentProject?.timeline?.duration || 10000
@@ -268,6 +274,7 @@ export function TimelineCanvas({
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       >
         <Stage
+          key={themeKey}
           width={stageWidth}
           height={totalHeight}
           onMouseDown={handleStageClick}

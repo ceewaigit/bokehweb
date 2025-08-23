@@ -132,11 +132,15 @@ async function initializeDefaultWallpaper() {
     try {
       const dataUrl = await window.electronAPI.loadWallpaperImage(wallpaperPath)
       if (dataUrl) {
+        // Update both the wallpaper data and switch type to wallpaper
         DEFAULT_CLIP_EFFECTS.background.wallpaper = dataUrl
+        DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
         SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
+        SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
       }
     } catch (error) {
       console.error('Failed to load default wallpaper:', error)
+      // Keep gradient as fallback if wallpaper fails to load
     }
   }
 }

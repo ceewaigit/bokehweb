@@ -3,6 +3,8 @@
  * These functions retrieve CSS variable values at runtime for Konva canvas rendering
  */
 
+import * as React from 'react'
+
 export const getTimelineColors = () => {
   if (typeof window === 'undefined') {
     // Fallback for SSR
@@ -90,8 +92,50 @@ const getDefaultColors = () => ({
   zoomBlockHover: 'hsl(258, 100%, 55%)',
 })
 
-// Hook for React components
+// Hook for React components that updates when theme changes
 export const useTimelineColors = () => {
-  const colors = getTimelineColors()
+  const [colors, setColors] = React.useState(getTimelineColors())
+  
+  React.useEffect(() => {
+    // Update colors when theme changes
+    const updateColors = () => {
+      // Small delay to ensure CSS variables have updated
+      setTimeout(() => {
+        setColors(getTimelineColors())
+      }, 10)
+    }
+    
+    // Initial update
+    updateColors()
+    
+    // Listen for theme changes via class mutations on document element
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          // Theme class changed, update colors
+          updateColors()
+        }
+      })
+    })
+    
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+    
+    // Also listen for storage events for theme changes from other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'theme') {
+        updateColors()
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+    
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [])
+  
   return colors
 }

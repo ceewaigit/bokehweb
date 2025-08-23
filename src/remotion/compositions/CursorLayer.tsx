@@ -103,6 +103,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
 
     if (!nextEvent) {
+      // Use last known position without jump
       return {
         x: prevEvent.x,
         y: prevEvent.y
@@ -116,6 +117,17 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         x: prevEvent.x,
         y: prevEvent.y
       };
+    }
+
+    // Handle large jumps (teleports/screen changes)
+    const distanceX = Math.abs(nextEvent.x - prevEvent.x);
+    const distanceY = Math.abs(nextEvent.y - prevEvent.y);
+    
+    if (distanceX > 500 || distanceY > 500) {
+      const rawProgress = (targetTime - prevEvent.timestamp) / timeDiff;
+      return rawProgress < 0.5 ? 
+        { x: prevEvent.x, y: prevEvent.y } : 
+        { x: nextEvent.x, y: nextEvent.y };
     }
 
     const rawProgress = (targetTime - prevEvent.timestamp) / timeDiff;
@@ -181,23 +193,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   if (!cursorPosition) return null;
 
-  // Get current event for screen dimensions
-  const currentEvent = cursorEvents.find(e =>
-    Math.abs(e.timestamp - currentTimeMs) < 50
-  );
+  // Get capture dimensions from first event
+  const firstEvent = cursorEvents[0];
+  const captureWidth = firstEvent?.captureWidth || videoWidth;
+  const captureHeight = firstEvent?.captureHeight || videoHeight;
 
-  // Get capture dimensions from the event metadata
-  // These represent the actual recording area dimensions
-  const captureWidth = currentEvent?.captureWidth || videoWidth;
-  const captureHeight = currentEvent?.captureHeight || videoHeight;
-
-  // Calculate normalized position (0-1 range)
-  // Positions are already capture-relative from the recording
-  // so we normalize against the capture dimensions
+  // Normalize and map cursor position to video
   const normalizedX = cursorPosition.x / captureWidth;
   const normalizedY = cursorPosition.y / captureHeight;
-
-  // Map to displayed video position (before zoom)
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;
   let cursorY = videoOffset.y + normalizedY * videoOffset.height;
   
@@ -241,20 +244,18 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return { speed: Math.min(speed * 50, 20), angle }; // Cap max blur
   }, [frame]);
 
-  // Apply cursor size from effects
-  const cursorSize = cursorEffects?.size ?? 1.0;
+  // Apply cursor size from effects (default to 4.0 as per new config)
+  const cursorSize = cursorEffects?.size ?? 4.0;
 
   // Apply cursor hotspot offset for accurate positioning
   const hotspot = CURSOR_HOTSPOTS[cursorType];
-  const dimensions = CURSOR_DIMENSIONS[cursorType];
-  const hotspotScale = (dimensions.width / 48) * cursorSize; // Scale with cursor size
+  
+  // Scale hotspot directly with cursor size
+  cursorX -= hotspot.x * cursorSize;
+  cursorY -= hotspot.y * cursorSize;
 
-  cursorX -= hotspot.x * hotspotScale;
-  cursorY -= hotspot.y * hotspotScale;
-
-  // Apply the exact same zoom transformation as the video
+  // Apply zoom transformation if needed
   if (zoom.scale > 1) {
-    // Build a zoom block with all required fields for the transform calculation
     const zoomBlock = {
       id: 'cursor-zoom-temp',
       startTime: 0,
@@ -267,16 +268,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       mode: 'manual' as const
     };
 
-    // Use the shared utility to calculate transform (matches VideoLayer exactly)
     const zoomTransform = calculateZoomTransform(
       zoomBlock,
-      500, // Middle of zoom (fully zoomed)
+      500,
       videoOffset.width,
       videoOffset.height,
       { x: zoom.panX || 0, y: zoom.panY || 0 }
     );
 
-    // Apply the transformation to cursor position
     const transformedPos = applyZoomToPoint(cursorX, cursorY, videoOffset, zoomTransform);
     cursorX = transformedPos.x;
     cursorY = transformedPos.y;
@@ -294,6 +293,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const blurAmount = Math.min(motionVelocity.speed, 8);
     return `${baseFilter} blur(${blurAmount * 0.15}px)`;
   }, [motionVelocity]);
+
+  // Get cursor dimensions for rendering
+  const dimensions = CURSOR_DIMENSIONS[cursorType];
 
   // Generate motion trail for smooth gliding effect
   const motionTrail = useMemo(() => {
@@ -331,7 +333,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
     
     return trails;
-  }, [motionVelocity, cursorX, cursorY, cursorType, dimensions, cursorSize, clickScale]);
+  }, [motionVelocity, cursorX, cursorY, cursorType, cursorSize, clickScale]);
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>

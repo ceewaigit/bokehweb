@@ -18,8 +18,6 @@ let mouseHistory: Array<{ x: number; y: number; time: number }> = []
 let uiohookStarted = false
 let currentCursorType = 'default'  // Track current cursor type
 let targetWindow: BrowserWindow | null = null  // Track the window for cursor-changed events
-let lastKnownCursorType = 'default'  // Last known cursor type from window events
-let cursorTypeHistory: { type: string; timestamp: number }[] = []  // Track cursor type history
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -63,16 +61,8 @@ export function registerMouseTrackingHandlers(): void {
       // We'll also track all cursor types for better debugging
       if (targetWindow) {
         const handleCursorChange = (_event: any, type: string) => {
-          // Log all cursor changes with proper type mapping
           const previousType = currentCursorType
           currentCursorType = type
-          lastKnownCursorType = type  // Store as last known type
-          
-          // Add to history
-          cursorTypeHistory.push({ type, timestamp: Date.now() })
-          if (cursorTypeHistory.length > 10) {
-            cursorTypeHistory.shift()
-          }
           
           // Map Electron cursor types to more descriptive names for logging
           const cursorTypeMap: Record<string, string> = {
@@ -109,10 +99,8 @@ export function registerMouseTrackingHandlers(): void {
           const mappedType = cursorTypeMap[type] || type
           const previousMapped = cursorTypeMap[previousType] || previousType
           
-          // Only log significant cursor changes in development
-          if (previousType !== type && process.env.NODE_ENV === 'development') {
-            console.log(`Cursor: ${previousMapped} → ${mappedType}`)
-          }
+          // Always log cursor changes to debug the issue
+          console.log(`Cursor: ${previousMapped} → ${mappedType} (raw: ${previousType} → ${type})`)
         }
 
         // Remove any existing listener first
@@ -188,24 +176,15 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
-            // Infer cursor type when outside app window
-            let effectiveCursorType = currentCursorType || 'default'
+            // For screen/window recording, we can't detect the actual cursor type
+            // being displayed in the recorded content, only our app's cursor
+            // So default to 'default' (arrow) for all screen recordings
+            let effectiveCursorType = 'default'
             
-            // If cursor is outside our window, try to infer the cursor type
-            // based on velocity and recent history
-            if (targetWindow && !targetWindow.isFocused()) {
-              // Check if there was a recent cursor type change
-              const recentType = cursorTypeHistory.length > 0 
-                ? cursorTypeHistory[cursorTypeHistory.length - 1]
-                : null
-                
-              if (recentType && (Date.now() - recentType.timestamp) < 1000) {
-                // Use recent cursor type if it was changed within last second
-                effectiveCursorType = recentType.type
-              } else {
-                // Otherwise use the last known type
-                effectiveCursorType = lastKnownCursorType
-              }
+            // Only use detected cursor type if we're recording our own window
+            // and the source is our app itself (not practical for most use cases)
+            if (sourceType === 'window' && sourceId && sourceId.includes('Screen Studio')) {
+              effectiveCursorType = currentCursorType || 'default'
             }
             
             // Only log in development mode
@@ -268,8 +247,6 @@ export function registerMouseTrackingHandlers(): void {
       mouseHistory = []
       lastMousePosition = null
       currentCursorType = 'default'
-      lastKnownCursorType = 'default'
-      cursorTypeHistory = []
 
       mouseEventSender = null
 
@@ -324,9 +301,9 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
 
-      // Use the current cursor type as detected
-      // Default to 'default' if no cursor type is set
-      const effectiveCursorType = currentCursorType || 'default';
+      // For screen/window recording, always use default cursor
+      // We can't detect the actual cursor in the recorded content
+      const effectiveCursorType = 'default'
 
       // Send click event with proper coordinates
       mouseEventSender.send('mouse-click', {

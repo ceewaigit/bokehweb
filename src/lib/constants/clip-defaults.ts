@@ -17,8 +17,12 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
     motionBlur: false
   },
   background: {
-    type: 'wallpaper',
+    type: 'gradient',
     wallpaperPath: '/System/Library/Desktop Pictures/Sonoma.heic',
+    gradient: {
+      colors: ['#2D3748', '#1A202C'], // Sonoma-like gradient
+      angle: 135
+    },
     padding: 60
   },
   video: {
@@ -50,8 +54,12 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
     motionBlur: true
   },
   background: {
-    type: 'wallpaper',
+    type: 'gradient',
     wallpaperPath: '/System/Library/Desktop Pictures/Sonoma.heic',
+    gradient: {
+      colors: ['#2D3748', '#1A202C'], // Sonoma-like gradient
+      angle: 135
+    },
     padding: 120
   },
   video: {
