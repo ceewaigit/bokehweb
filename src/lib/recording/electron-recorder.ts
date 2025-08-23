@@ -34,6 +34,8 @@ export interface ElectronMetadata {
   isWithinBounds?: boolean  // Whether cursor is within capture area
   scaleFactor?: number
   cursorType?: string  // Track cursor type for accurate rendering
+  sourceBounds?: { x: number; y: number; width: number; height: number }  // Window/area bounds for coordinate mapping
+  sourceType?: 'screen' | 'window' | 'area'  // Type of source being recorded
 }
 
 export class ElectronRecorder {
@@ -591,14 +593,14 @@ export class ElectronRecorder {
       if (isWindow) {
         console.log('🪟 Window source detected in captureScreenInfo')
         
-        // For window recording, try to get window bounds
+        // For window recording, try to get window bounds and store in capture area
         if (window.electronAPI?.getSourceBounds) {
           try {
             const windowBounds = await window.electronAPI.getSourceBounds(sourceId)
             console.log('🪟 Window bounds retrieved:', windowBounds)
             
             if (windowBounds) {
-              // Store window bounds as capture area for coordinate mapping
+              // Store window bounds for metadata
               this.captureArea = {
                 fullBounds: windowBounds,
                 workArea: windowBounds,
@@ -607,27 +609,23 @@ export class ElectronRecorder {
                 sourceId
               }
               
-              console.log('🪟 Window recording - capture area set:', this.captureArea)
+              console.log('🪟 Window recording - bounds will be saved in metadata:', windowBounds)
               logger.info('Window recording mode with bounds', { 
                 sourceId, 
-                bounds: windowBounds,
-                captureArea: this.captureArea
+                bounds: windowBounds
               })
             } else {
-              // Fallback if bounds not available
+              // No bounds available
               this.captureArea = undefined
-              console.log('🪟 Window bounds not available - will use full video dimensions')
+              console.log('🪟 Window bounds not available')
               logger.info('Window recording mode without bounds', { sourceId })
             }
           } catch (error) {
             console.warn('🪟 Failed to get window bounds:', error)
             this.captureArea = undefined
-            logger.warn('Could not get window bounds, using full video dimensions', { sourceId, error })
           }
         } else {
-          // API not available
           this.captureArea = undefined
-          console.log('🪟 getSourceBounds API not available - will use full video dimensions')
           logger.info('Window recording mode (no bounds API)', { sourceId })
         }
       } else if (window.electronAPI?.getScreens) {
@@ -780,7 +778,9 @@ export class ElectronRecorder {
             captureHeight: this.captureArea?.fullBounds?.height,
             isWithinBounds,  // Whether cursor is within capture area
             scaleFactor: data.scaleFactor,
-            cursorType: data.cursorType  // Save cursor type from main process
+            cursorType: data.cursorType,  // Save cursor type from main process
+            sourceBounds: this.captureArea?.fullBounds,  // Include source bounds for later use
+            sourceType: this.captureArea?.sourceType  // Include source type
           })
         }
 
@@ -822,7 +822,9 @@ export class ElectronRecorder {
             captureWidth: this.captureArea?.fullBounds?.width,
             captureHeight: this.captureArea?.fullBounds?.height,
             scaleFactor: data.scaleFactor,
-            cursorType: data.cursorType  // Save cursor type for click events too
+            cursorType: data.cursorType,  // Save cursor type for click events too
+            sourceBounds: this.captureArea?.fullBounds,  // Include source bounds
+            sourceType: this.captureArea?.sourceType  // Include source type
           })
         }
 

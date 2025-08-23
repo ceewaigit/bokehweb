@@ -413,10 +413,14 @@ export async function saveRecordingWithProject(
     // Create project with recording
     const project = createProject(baseName)
 
-    // Get capture dimensions for the recording
+    // Get capture dimensions and bounds for the recording
     const firstEventWithCapture = metadata.find(m => m.captureWidth && m.captureHeight)
     const captureWidth = firstEventWithCapture?.captureWidth || width
     const captureHeight = firstEventWithCapture?.captureHeight || height
+    
+    // Extract source bounds from metadata if available
+    const firstEventWithBounds = metadata.find(m => m.sourceBounds)
+    const sourceBounds = firstEventWithBounds?.sourceBounds
 
     const mouseEvents = metadata
       .filter(m => m.eventType === 'mouse')
@@ -446,6 +450,15 @@ export async function saveRecordingWithProject(
         modifiers: []
       }))
 
+    // Reconstruct captureArea from source bounds if available, otherwise use the passed captureArea
+    const reconstructedCaptureArea = sourceBounds ? {
+      fullBounds: sourceBounds,
+      workArea: sourceBounds,
+      scaleFactor: 1,
+      sourceType: firstEventWithBounds?.sourceType || 'screen',
+      sourceId: ''
+    } : captureArea
+
     // Add recording to project - store just the filename, not absolute path
     const recording: Recording = {
       id: recordingId,
@@ -454,13 +467,13 @@ export async function saveRecordingWithProject(
       width,
       height,
       frameRate: detectedFrameRate,
-      captureArea,
+      captureArea: reconstructedCaptureArea,
       metadata: {
         mouseEvents,
         keyboardEvents,
         clickEvents,
         screenEvents: [],
-        captureArea  // Also store in metadata for easy access during export
+        captureArea: reconstructedCaptureArea  // Also store in metadata for easy access during export
       }
     }
 

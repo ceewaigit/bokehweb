@@ -1,7 +1,7 @@
 import React from 'react'
 import { Rect, Group, Text, Line } from 'react-konva'
 import type { ZoomBlock } from '@/types/project'
-import { createZoomBlockDragBoundFunc, ZoomBlockUtils, TimelineUtils } from '@/lib/timeline'
+import { createZoomBlockDragBoundFunc, TimelineUtils } from '@/lib/timeline'
 
 interface TimelineZoomBlockProps {
   x: number
@@ -48,7 +48,7 @@ export const TimelineZoomBlock = React.memo(({
   onIntroChange,
   onOutroChange
 }: TimelineZoomBlockProps) => {
-  const handleSize = 8
+  const handleSize = 12 // Bigger handles for easier grabbing
 
   // Calculate intro/outro widths as proportion of total width
   const totalDuration = endTime - startTime
@@ -186,65 +186,88 @@ export const TimelineZoomBlock = React.memo(({
             }}
           />
 
-          {/* Resize handles with collision detection */}
+          {/* Resize handles with full collision detection */}
+          {/* Left handle */}
           <Rect
             x={-handleSize / 2}
             y={height / 2 - handleSize / 2}
             width={handleSize}
             height={handleSize}
             fill="white"
+            stroke="rgba(0,0,0,0.3)"
+            strokeWidth={1}
+            cornerRadius={2}
             cursor="ew-resize"
             draggable
             dragBoundFunc={(pos) => {
-              // Get resize bounds with collision detection
-              const bounds = ZoomBlockUtils.getResizeBounds(
-                { id: blockId, startTime, endTime, introMs, outroMs, scale, targetX: 0.5, targetY: 0.5, mode: 'auto' },
-                'left',
-                allBlocks,
-                clipDuration
-              )
-              const minX = clipX + TimelineUtils.timeToPixel(bounds.min - startTime, pixelsPerMs) - handleSize / 2
-              const maxX = clipX + TimelineUtils.timeToPixel(bounds.max - startTime, pixelsPerMs) - handleSize / 2
-
+              // Find the maximum we can move left (minimum start time)
+              let minStartTime = 0
+              
+              // Check for collision with other blocks to the left
+              const sortedBlocks = allBlocks
+                .filter(b => b.id !== blockId && b.endTime <= startTime)
+                .sort((a, b) => b.endTime - a.endTime)
+              
+              if (sortedBlocks.length > 0) {
+                // Can't move past the nearest block to the left
+                minStartTime = sortedBlocks[0].endTime
+              }
+              
+              // Calculate position constraints
+              const minX = TimelineUtils.timeToPixel(minStartTime - startTime, pixelsPerMs) - handleSize / 2
+              const maxX = width - TimelineUtils.timeToPixel(100, pixelsPerMs) - handleSize / 2 // Min 100ms duration
+              
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
                 y: y + height / 2 - handleSize / 2
               }
             }}
             onDragEnd={(e) => {
-              const deltaX = e.target.x() - (-handleSize / 2)
+              const handleX = e.target.x() + handleSize / 2
+              const deltaX = handleX - 0
               const newWidth = width - deltaX
-              // For left handle, we need to update both position and width
               onResize(newWidth, 'left')
             }}
           />
 
+          {/* Right handle */}
           <Rect
             x={width - handleSize / 2}
             y={height / 2 - handleSize / 2}
             width={handleSize}
             height={handleSize}
             fill="white"
+            stroke="rgba(0,0,0,0.3)"
+            strokeWidth={1}
+            cornerRadius={2}
             cursor="ew-resize"
             draggable
             dragBoundFunc={(pos) => {
-              // Get resize bounds with collision detection
-              const bounds = ZoomBlockUtils.getResizeBounds(
-                { id: blockId, startTime, endTime, introMs, outroMs, scale, targetX: 0.5, targetY: 0.5, mode: 'auto' },
-                'right',
-                allBlocks,
-                clipDuration
-              )
-              const minX = TimelineUtils.timeToPixel(bounds.min - startTime, pixelsPerMs) - handleSize / 2
-              const maxX = TimelineUtils.timeToPixel(bounds.max - startTime, pixelsPerMs) - handleSize / 2
-
+              // Find the maximum we can extend right
+              let maxEndTime = clipDuration
+              
+              // Check for collision with other blocks to the right
+              const sortedBlocks = allBlocks
+                .filter(b => b.id !== blockId && b.startTime >= endTime)
+                .sort((a, b) => a.startTime - b.startTime)
+              
+              if (sortedBlocks.length > 0) {
+                // Can't extend past the nearest block to the right
+                maxEndTime = Math.min(maxEndTime, sortedBlocks[0].startTime)
+              }
+              
+              // Calculate position constraints
+              const minX = TimelineUtils.timeToPixel(100, pixelsPerMs) - handleSize / 2 // Min 100ms duration
+              const maxX = TimelineUtils.timeToPixel(maxEndTime - startTime, pixelsPerMs) - handleSize / 2
+              
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
                 y: y + height / 2 - handleSize / 2
               }
             }}
             onDragEnd={(e) => {
-              const newWidth = e.target.x() + handleSize / 2
+              const handleX = e.target.x() + handleSize / 2
+              const newWidth = handleX
               onResize(newWidth, 'right')
             }}
           />

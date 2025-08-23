@@ -397,8 +397,10 @@ export function TimelineCanvas({
                   }}
                   onResize={(newWidth, side) => {
                     if (side === 'right') {
+                      // Simple: just extend the end time
+                      const newEndTime = block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
                       const updates = {
-                        endTime: block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
+                        endTime: Math.min(newEndTime, selectedClip.duration) // Don't exceed clip duration
                       }
                       if (onZoomBlockUpdate) {
                         onZoomBlockUpdate(selectedClip.id, block.id, updates)
@@ -406,13 +408,13 @@ export function TimelineCanvas({
                         updateZoomBlock(selectedClip.id, block.id, updates)
                       }
                     } else if (side === 'left') {
-                      const oldDuration = block.endTime - block.startTime
-                      const widthDiff = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs) - newWidth
-                      const newStartTime = block.startTime + TimelineUtils.pixelToTime(widthDiff, pixelsPerMs)
-
+                      // Keep end time fixed, move start time
+                      const currentWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
+                      const deltaWidth = currentWidth - newWidth
+                      const newStartTime = block.startTime + TimelineUtils.pixelToTime(deltaWidth, pixelsPerMs)
+                      
                       const updates = {
-                        startTime: Math.max(0, newStartTime),
-                        endTime: Math.max(0, newStartTime) + oldDuration
+                        startTime: Math.max(0, newStartTime) // Don't go negative
                       }
                       if (onZoomBlockUpdate) {
                         onZoomBlockUpdate(selectedClip.id, block.id, updates)

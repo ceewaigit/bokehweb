@@ -70,153 +70,7 @@ export class TimelineUtils {
   }
 }
 
-// Zoom block collision detection utilities
-export class ZoomBlockUtils {
-  /**
-   * Check if two zoom blocks overlap
-   */
-  static blocksOverlap(block1: ZoomBlock, block2: ZoomBlock): boolean {
-    if (block1.id === block2.id) return false
-    return block1.startTime < block2.endTime && block1.endTime > block2.startTime
-  }
-
-  /**
-   * Check if a zoom block overlaps with any other blocks
-   */
-  static hasOverlap(
-    blockId: string,
-    startTime: number,
-    endTime: number,
-    allBlocks: ZoomBlock[]
-  ): boolean {
-    return allBlocks.some(block => {
-      if (block.id === blockId) return false
-      return startTime < block.endTime && endTime > block.startTime
-    })
-  }
-
-  /**
-   * Find the next valid position for a zoom block to avoid overlaps
-   */
-  static findNextValidPosition(
-    blockId: string,
-    desiredStart: number,
-    duration: number,
-    allBlocks: ZoomBlock[],
-    clipDuration: number
-  ): number {
-    const otherBlocks = allBlocks
-      .filter(b => b.id !== blockId)
-      .sort((a, b) => a.startTime - b.startTime)
-
-    // Check if desired position works
-    const desiredEnd = desiredStart + duration
-    if (!this.hasOverlap(blockId, desiredStart, desiredEnd, allBlocks)) {
-      // Make sure it fits within clip bounds
-      if (desiredEnd <= clipDuration) {
-        return desiredStart
-      }
-      // If it extends past clip, try to fit it at the end
-      const adjustedStart = Math.max(0, clipDuration - duration)
-      if (!this.hasOverlap(blockId, adjustedStart, clipDuration, allBlocks)) {
-        return adjustedStart
-      }
-    }
-
-    // Find gaps between blocks
-    let lastEnd = 0
-    for (const block of otherBlocks) {
-      const gapStart = lastEnd
-      const gapEnd = block.startTime
-      const gapSize = gapEnd - gapStart
-
-      if (gapSize >= duration && desiredStart < gapEnd) {
-        // Found a suitable gap
-        return Math.max(gapStart, desiredStart)
-      }
-      lastEnd = block.endTime
-    }
-
-    // Check gap after last block
-    if (lastEnd + duration <= clipDuration) {
-      return lastEnd
-    }
-
-    // No valid position found, return original
-    return desiredStart
-  }
-
-  /**
-   * Constrain zoom block within clip boundaries
-   */
-  static constrainToClip(
-    startTime: number,
-    endTime: number,
-    clipDuration: number
-  ): { startTime: number; endTime: number } {
-    const duration = endTime - startTime
-
-    if (startTime < 0) {
-      return { startTime: 0, endTime: Math.min(duration, clipDuration) }
-    }
-
-    if (endTime > clipDuration) {
-      return {
-        startTime: Math.max(0, clipDuration - duration),
-        endTime: clipDuration
-      }
-    }
-
-    return { startTime, endTime }
-  }
-
-  /**
-   * Get valid resize bounds for a zoom block
-   */
-  static getResizeBounds(
-    block: ZoomBlock,
-    side: 'left' | 'right',
-    allBlocks: ZoomBlock[],
-    clipDuration: number
-  ): { min: number; max: number } {
-    const otherBlocks = allBlocks
-      .filter(b => b.id !== block.id)
-      .sort((a, b) => a.startTime - b.startTime)
-
-    if (side === 'left') {
-      // Find the maximum we can extend left
-      let minStart = 0
-
-      // Check for blocks to the left
-      for (const other of otherBlocks) {
-        if (other.endTime <= block.startTime) {
-          minStart = Math.max(minStart, other.endTime)
-        }
-      }
-
-      // Don't allow shrinking too much (minimum 100ms duration)
-      const maxStart = block.endTime - 100
-
-      return { min: minStart, max: maxStart }
-    } else {
-      // Find the maximum we can extend right
-      let maxEnd = clipDuration
-
-      // Check for blocks to the right
-      for (const other of otherBlocks) {
-        if (other.startTime >= block.endTime) {
-          maxEnd = Math.min(maxEnd, other.startTime)
-          break
-        }
-      }
-
-      // Don't allow shrinking too much (minimum 100ms duration)
-      const minEnd = block.startTime + 100
-
-      return { min: minEnd, max: maxEnd }
-    }
-  }
-}
+// Removed unused ZoomBlockUtils class - collision detection is now handled inline in components
 
 // Drag handler factories
 export function createClipDragBoundFunc(
@@ -257,38 +111,52 @@ export function createZoomBlockDragBoundFunc(
     const requestedTime = Math.max(0, TimelineUtils.pixelToTime(pos.x - clipX, pixelsPerMs))
     const requestedEnd = requestedTime + duration
 
-    // Check boundaries first
+    // First check clip boundaries
     let validStartTime = requestedTime
     if (requestedEnd > clipDuration) {
-      validStartTime = Math.max(0, clipDuration - duration)
+      validStartTime = clipDuration - duration
+    }
+    if (validStartTime < 0) {
+      validStartTime = 0
     }
 
-    // Check for overlaps with other blocks
-    const otherBlocks = allBlocks.filter(b => b.id !== blockId)
-    for (const block of otherBlocks) {
-      // Check if requested position would overlap with this block
-      if (validStartTime < block.endTime && validStartTime + duration > block.startTime) {
-        // Try positioning before this block
-        if (block.startTime - duration >= 0) {
-          validStartTime = Math.max(0, block.startTime - duration)
-        } else {
-          // Try positioning after this block
-          validStartTime = block.endTime
-        }
+    // Sort other blocks by start time for efficient collision checking
+    const otherBlocks = allBlocks
+      .filter(b => b.id !== blockId)
+      .sort((a, b) => a.startTime - b.startTime)
 
-        // Check if new position is valid
-        const newEnd = validStartTime + duration
-        if (newEnd > clipDuration) {
-          // Can't fit after this block, stay at original position
-          const currentBlock = allBlocks.find(b => b.id === blockId)
-          if (currentBlock) {
-            validStartTime = currentBlock.startTime
+    // Check for overlaps and find valid position
+    for (const block of otherBlocks) {
+      const proposedEnd = validStartTime + duration
+      
+      // Check if we would overlap with this block
+      if (validStartTime < block.endTime && proposedEnd > block.startTime) {
+        // We have a collision - decide whether to place before or after
+        const gapBefore = block.startTime
+        const gapAfter = clipDuration - block.endTime
+        
+        // Try to place in the direction of the drag
+        if (requestedTime < block.startTime) {
+          // User is dragging left, try to place before
+          if (gapBefore >= duration) {
+            validStartTime = Math.max(0, block.startTime - duration)
+          } else if (gapAfter >= duration) {
+            // Can't fit before, place after
+            validStartTime = block.endTime
+          }
+        } else {
+          // User is dragging right, try to place after
+          if (gapAfter >= duration) {
+            validStartTime = block.endTime
+          } else if (gapBefore >= duration) {
+            // Can't fit after, place before
+            validStartTime = Math.max(0, block.startTime - duration)
           }
         }
       }
     }
 
-    // Ensure we don't go negative or past clip duration
+    // Final boundary check
     validStartTime = Math.max(0, Math.min(validStartTime, clipDuration - duration))
 
     // Convert back to pixels
@@ -296,7 +164,7 @@ export function createZoomBlockDragBoundFunc(
 
     return {
       x: validX,
-      y: trackY // Keep on same track
+      y: trackY
     }
   }
 }
@@ -313,4 +181,3 @@ export const TimelineKeyboardShortcuts = {
   deselect: 'Escape',
 }
 
-export const createDragBoundFunc = createClipDragBoundFunc
