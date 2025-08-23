@@ -139,16 +139,16 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
     const speed = distance / timeDiff;
     
-    // Adaptive smoothing based on movement type
-    let smoothingFactor = 0.85; // Base smoothing
+    // MUCH STRONGER smoothing for butter-smooth motion
+    let smoothingFactor = 0.98; // Very heavy base smoothing
     
-    // Quick movements get less smoothing to maintain responsiveness
+    // Even quick movements get significant smoothing
     if (speed > 2) {
-      smoothingFactor = 0.6;
+      smoothingFactor = 0.92; // Still very smooth even for fast moves
     }
-    // Very slow movements get maximum smoothing to eliminate shake
+    // Slow movements get maximum smoothing to completely eliminate shake
     else if (speed < 0.5) {
-      smoothingFactor = 0.95;
+      smoothingFactor = 0.995; // Almost complete smoothing for slow moves
     }
     
     // Handle teleports/jumps
@@ -292,10 +292,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const hotspot = CURSOR_HOTSPOTS[cursorType];
   const dimensions = CURSOR_DIMENSIONS[cursorType];
   
-  // Calculate the actual rendered size of the cursor
-  const renderedWidth = dimensions.width * cursorSize;
-  const renderedHeight = dimensions.height * cursorSize;
-
   // Track the effective zoom scale for scaling the cursor
   let effectiveZoomScale = 1;
 
@@ -328,9 +324,13 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     cursorY = transformedPos.y;
   }
   
-  // Apply hotspot offset WITHOUT scaling by zoom
-  // The cursor position has already been transformed by zoom, so we only need
-  // to offset by the rendered cursor size, not scaled again
+  // Calculate the actual rendered size of the cursor WITH zoom scaling
+  // The cursor should scale proportionally with the video zoom
+  const renderedWidth = dimensions.width * cursorSize * effectiveZoomScale;
+  const renderedHeight = dimensions.height * cursorSize * effectiveZoomScale;
+  
+  // Apply hotspot offset using the zoom-scaled cursor size
+  // This ensures the cursor tip aligns correctly at all zoom levels
   cursorX -= hotspot.x * renderedWidth;
   cursorY -= hotspot.y * renderedHeight;
 
@@ -368,8 +368,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
             position: 'absolute',
             left: cursorX + offsetX,
             top: cursorY + offsetY,
-            width: dimensions.width * cursorSize,
-            height: dimensions.height * cursorSize,
+            width: renderedWidth,
+            height: renderedHeight,
             transform: `scale(${clickScale * (1 - i * 0.1)})`,
             transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
             opacity,
@@ -383,7 +383,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
     
     return trails;
-  }, [motionVelocity, cursorX, cursorY, cursorType, cursorSize, clickScale]);
+  }, [motionVelocity, cursorX, cursorY, cursorType, renderedWidth, renderedHeight, hotspot, clickScale]);
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
@@ -397,8 +397,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
           position: 'absolute',
           left: cursorX,
           top: cursorY,
-          width: dimensions.width * cursorSize,
-          height: dimensions.height * cursorSize,
+          width: renderedWidth,
+          height: renderedHeight,
           transform: `scale(${clickScale})`,
           transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
           zIndex: 100,

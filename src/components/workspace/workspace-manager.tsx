@@ -126,16 +126,19 @@ async function loadProjectRecording(
 
 // Initialize default wallpaper on app startup
 async function initializeDefaultWallpaper() {
+  console.log('Initializing wallpaper, API available:', !!window.electronAPI?.loadWallpaperImage)
   if (!window.electronAPI?.loadWallpaperImage) return
   
   try {
     const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
+    console.log('Wallpaper loaded:', !!dataUrl, 'Length:', dataUrl?.length)
     if (dataUrl) {
       // Simply update the defaults - new clips will get it automatically
       DEFAULT_CLIP_EFFECTS.background.wallpaper = dataUrl
       DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
       SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
       SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
+      console.log('Updated defaults to wallpaper type')
     }
   } catch (error) {
     console.error('Failed to load default wallpaper:', error)
