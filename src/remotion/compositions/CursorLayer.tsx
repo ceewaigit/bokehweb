@@ -8,7 +8,6 @@ import {
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
 import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
-import { smoothStep } from '../../lib/utils/easing';
 
 // Cursor dimensions for proper aspect ratio
 const CURSOR_DIMENSIONS: Record<CursorType, { width: number; height: number }> = {
@@ -48,6 +47,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Store previous positions for motion trail and smoothing
   const positionHistoryRef = useRef<Array<{x: number, y: number, time: number}>>([]);
   const lastFrameRef = useRef<number>(-1);
+  
+  // Heavy smoothing buffers for butter-smooth movement
+  const smoothingBufferRef = useRef<Array<{x: number, y: number, time: number}>>([]);
+  const filteredPositionRef = useRef<{x: number, y: number}>({ x: 0, y: 0 });
+  const lastRawPositionRef = useRef<{x: number, y: number} | null>(null);
 
   // Determine current cursor type from events
   const cursorType = useMemo(() => {
@@ -69,149 +73,148 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // Professional easing for Screen Studio quality smoothing
-  const screenStudioEase = (t: number) => {
-    // Custom easing that matches Screen Studio's professional feel
-    if (t < 0.5) {
-      return 4 * t * t * t;
-    } else {
-      const f = ((2 * t) - 2);
-      return 1 + f * f * f / 2;
+  // Ultra-smooth exponential filter for professional quality
+  const applyExponentialFilter = (current: number, target: number, alpha: number): number => {
+    return current + (target - current) * alpha;
+  };
+  
+  // Butterworth low-pass filter to remove all jitter
+  const butterworthFilter = (values: number[], cutoff: number = 0.1): number => {
+    if (values.length === 0) return 0;
+    if (values.length === 1) return values[0];
+    
+    // 2nd order Butterworth coefficients
+    const a = Math.exp(-2 * Math.PI * cutoff);
+    const a2 = a * a;
+    const r = 2 * a * Math.cos(2 * Math.PI * cutoff * Math.sqrt(2));
+    
+    let filtered = values[0];
+    let prev1 = values[0];
+    let prev2 = values[0];
+    
+    for (let i = 1; i < values.length; i++) {
+      filtered = values[i] * (1 - r + a2) + r * prev1 - a2 * prev2;
+      prev2 = prev1;
+      prev1 = filtered;
     }
+    
+    return filtered;
   };
 
-  // Get interpolated cursor position with professional smoothing
+  // Get interpolated cursor position with ultra-heavy smoothing
   const cursorPosition = useMemo(() => {
     if (cursorEvents.length === 0) return null;
 
     const targetTime = currentTimeMs;
     
-    // Collect multiple events for better smoothing (look-ahead window)
-    const windowSize = 150; // ms window for analysis
-    const relevantEvents = cursorEvents.filter(e => 
-      Math.abs(e.timestamp - targetTime) <= windowSize
-    ).sort((a, b) => a.timestamp - b.timestamp);
-
-    // Find surrounding events for interpolation
-    let prevEvent = null;
-    let nextEvent = null;
-    let futureEvents = []; // Look ahead for trajectory prediction
-
-    for (let i = 0; i < cursorEvents.length; i++) {
-      const event = cursorEvents[i];
-      if (event.timestamp <= targetTime) {
-        prevEvent = event;
-      } else if (!nextEvent) {
-        nextEvent = event;
-        // Collect future events for trajectory
-        for (let j = i; j < Math.min(i + 3, cursorEvents.length); j++) {
-          futureEvents.push(cursorEvents[j]);
-        }
+    // Find the raw position at current time
+    let rawX = 0;
+    let rawY = 0;
+    let foundPosition = false;
+    
+    for (let i = 0; i < cursorEvents.length - 1; i++) {
+      const curr = cursorEvents[i];
+      const next = cursorEvents[i + 1];
+      
+      if (targetTime >= curr.timestamp && targetTime <= next.timestamp) {
+        const t = (targetTime - curr.timestamp) / (next.timestamp - curr.timestamp);
+        rawX = curr.x + (next.x - curr.x) * t;
+        rawY = curr.y + (next.y - curr.y) * t;
+        foundPosition = true;
         break;
       }
     }
-
-    if (!prevEvent) {
-      return cursorEvents[0] ? {
-        x: cursorEvents[0].x,
-        y: cursorEvents[0].y
-      } : null;
-    }
-
-    if (!nextEvent) {
-      return {
-        x: prevEvent.x,
-        y: prevEvent.y
-      };
-    }
-
-    const timeDiff = nextEvent.timestamp - prevEvent.timestamp;
-    if (timeDiff === 0) {
-      return {
-        x: prevEvent.x,
-        y: prevEvent.y
-      };
-    }
-
-    // Detect movement patterns for adaptive smoothing
-    const deltaX = nextEvent.x - prevEvent.x;
-    const deltaY = nextEvent.y - prevEvent.y;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-    const speed = distance / timeDiff;
     
-    // MUCH STRONGER smoothing for butter-smooth motion
-    let smoothingFactor = 0.98; // Very heavy base smoothing
-    
-    // Even quick movements get significant smoothing
-    if (speed > 2) {
-      smoothingFactor = 0.92; // Still very smooth even for fast moves
-    }
-    // Slow movements get maximum smoothing to completely eliminate shake
-    else if (speed < 0.5) {
-      smoothingFactor = 0.995; // Almost complete smoothing for slow moves
+    if (!foundPosition) {
+      if (targetTime <= cursorEvents[0].timestamp) {
+        rawX = cursorEvents[0].x;
+        rawY = cursorEvents[0].y;
+      } else {
+        const last = cursorEvents[cursorEvents.length - 1];
+        rawX = last.x;
+        rawY = last.y;
+      }
     }
     
-    // Handle teleports/jumps
-    if (distance > 400) {
-      const rawProgress = (targetTime - prevEvent.timestamp) / timeDiff;
-      return rawProgress < 0.5 ? 
-        { x: prevEvent.x, y: prevEvent.y } : 
-        { x: nextEvent.x, y: nextEvent.y };
+    // Initialize filtered position on first frame
+    if (!lastRawPositionRef.current) {
+      lastRawPositionRef.current = { x: rawX, y: rawY };
+      filteredPositionRef.current = { x: rawX, y: rawY };
+      smoothingBufferRef.current = [];
     }
-
-    const rawProgress = (targetTime - prevEvent.timestamp) / timeDiff;
-    const clampedProgress = Math.max(0, Math.min(1, rawProgress));
     
-    // Apply professional easing
-    const easedProgress = screenStudioEase(clampedProgress);
+    // Detect large jumps (teleports)
+    const lastRaw = lastRawPositionRef.current;
+    const jumpDistance = Math.sqrt(
+      Math.pow(rawX - lastRaw.x, 2) + Math.pow(rawY - lastRaw.y, 2)
+    );
     
-    // Calculate predicted trajectory using future events
-    let trajectoryX = deltaX / timeDiff;
-    let trajectoryY = deltaY / timeDiff;
-    
-    if (futureEvents.length >= 2) {
-      const futureVelX = (futureEvents[1].x - futureEvents[0].x) / 
-                         (futureEvents[1].timestamp - futureEvents[0].timestamp);
-      const futureVelY = (futureEvents[1].y - futureEvents[0].y) / 
-                         (futureEvents[1].timestamp - futureEvents[0].timestamp);
+    if (jumpDistance > 400) {
+      // Reset on large jumps
+      filteredPositionRef.current = { x: rawX, y: rawY };
+      smoothingBufferRef.current = [];
+    } else {
+      // Add to smoothing buffer
+      smoothingBufferRef.current.push({ x: rawX, y: rawY, time: targetTime });
       
-      // Blend current and future velocities for smoother prediction
-      trajectoryX = trajectoryX * 0.7 + futureVelX * 0.3;
-      trajectoryY = trajectoryY * 0.7 + futureVelY * 0.3;
+      // Keep buffer size limited (last 200ms of data)
+      const cutoffTime = targetTime - 200;
+      smoothingBufferRef.current = smoothingBufferRef.current.filter(
+        pos => pos.time > cutoffTime
+      );
+      
+      if (smoothingBufferRef.current.length > 0) {
+        // Apply heavy moving average
+        const bufferSize = Math.min(smoothingBufferRef.current.length, 12); // Average over last 12 frames
+        const recentBuffer = smoothingBufferRef.current.slice(-bufferSize);
+        
+        // Weighted moving average (more recent = higher weight)
+        let weightedX = 0;
+        let weightedY = 0;
+        let totalWeight = 0;
+        
+        recentBuffer.forEach((pos, index) => {
+          const weight = Math.pow(1.5, index); // Exponential weights
+          weightedX += pos.x * weight;
+          weightedY += pos.y * weight;
+          totalWeight += weight;
+        });
+        
+        const avgX = weightedX / totalWeight;
+        const avgY = weightedY / totalWeight;
+        
+        // Apply Butterworth low-pass filter
+        const xValues = recentBuffer.map(p => p.x);
+        const yValues = recentBuffer.map(p => p.y);
+        const filteredX = butterworthFilter(xValues, 0.05); // Very low cutoff for maximum smoothing
+        const filteredY = butterworthFilter(yValues, 0.05);
+        
+        // Blend moving average with Butterworth filter
+        const blendedX = avgX * 0.6 + filteredX * 0.4;
+        const blendedY = avgY * 0.6 + filteredY * 0.4;
+        
+        // Apply exponential smoothing for final output
+        const smoothingAlpha = 0.08; // Very low alpha for heavy smoothing
+        filteredPositionRef.current.x = applyExponentialFilter(
+          filteredPositionRef.current.x,
+          blendedX,
+          smoothingAlpha
+        );
+        filteredPositionRef.current.y = applyExponentialFilter(
+          filteredPositionRef.current.y,
+          blendedY,
+          smoothingAlpha
+        );
+      }
     }
     
-    // Catmull-Rom spline for professional smoothness
-    const t = easedProgress;
-    const t2 = t * t;
-    const t3 = t2 * t;
+    lastRawPositionRef.current = { x: rawX, y: rawY };
     
-    // Calculate tangents for Catmull-Rom
-    const tension = 0.5 * smoothingFactor;
-    const v0x = trajectoryX * timeDiff * tension;
-    const v0y = trajectoryY * timeDiff * tension;
-    const v1x = trajectoryX * timeDiff * tension;
-    const v1y = trajectoryY * timeDiff * tension;
-    
-    // Catmull-Rom coefficients
-    const a = 2 * t3 - 3 * t2 + 1;
-    const b = t3 - 2 * t2 + t;
-    const c = -2 * t3 + 3 * t2;
-    const d = t3 - t2;
-    
-    // Final smoothed position
-    const smoothX = prevEvent.x * a + v0x * b + nextEvent.x * c + v1x * d;
-    const smoothY = prevEvent.y * a + v0y * b + nextEvent.y * c + v1y * d;
-    
-    // Apply final smoothing filter to eliminate micro-jitter
-    const alpha = smoothingFactor;
-    const filteredX = prevEvent.x * (1 - alpha) + smoothX * alpha;
-    const filteredY = prevEvent.y * (1 - alpha) + smoothY * alpha;
-
     return {
-      x: smoothX,
-      y: smoothY
+      x: filteredPositionRef.current.x,
+      y: filteredPositionRef.current.y
     };
-  }, [cursorEvents, currentTimeMs]);
+  }, [cursorEvents, currentTimeMs, butterworthFilter, applyExponentialFilter]);
 
   // Check for active click animation
   const activeClick = useMemo(() => {
@@ -242,8 +245,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Normalize and map cursor position to video
   const normalizedX = cursorPosition.x / captureWidth;
   const normalizedY = cursorPosition.y / captureHeight;
-  let cursorX = videoOffset.x + normalizedX * videoOffset.width;
-  let cursorY = videoOffset.y + normalizedY * videoOffset.height;
+  
+  // Calculate the base cursor position (where the cursor tip should be)
+  let cursorTipX = videoOffset.x + normalizedX * videoOffset.width;
+  let cursorTipY = videoOffset.y + normalizedY * videoOffset.height;
   
   // Update position history for motion trail calculation
   useEffect(() => {
@@ -252,8 +257,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       
       // Add current position to history
       positionHistoryRef.current.push({
-        x: cursorX,
-        y: cursorY,
+        x: cursorTipX,
+        y: cursorTipY,
         time: currentTimeMs
       });
       
@@ -263,7 +268,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         pos => pos.time > cutoffTime
       );
     }
-  }, [frame, cursorX, cursorY, currentTimeMs, cursorPosition]);
+  }, [frame, cursorTipX, cursorTipY, currentTimeMs, cursorPosition]);
   
   // Calculate motion velocity for blur effect
   const motionVelocity = useMemo(() => {
@@ -285,20 +290,24 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return { speed: Math.min(speed * 50, 20), angle }; // Cap max blur
   }, [frame]);
 
-  // Apply cursor size from effects (default to 3.0 to match UI)
-  const cursorSize = cursorEffects?.size ?? 3.0;
+  // Apply cursor size from effects (default to 4.0 to match UI)
+  const cursorSize = cursorEffects?.size ?? 4.0;
   
   // Get cursor hotspot and dimensions
   const hotspot = CURSOR_HOTSPOTS[cursorType];
   const dimensions = CURSOR_DIMENSIONS[cursorType];
   
-  // Track the effective zoom scale for scaling the cursor
-  let effectiveZoomScale = 1;
+  // Calculate the rendered size of the cursor (NOT scaled by zoom)
+  // The cursor maintains consistent visual size regardless of zoom
+  const renderedWidth = dimensions.width * cursorSize;
+  const renderedHeight = dimensions.height * cursorSize;
+
+  // Initialize the cursor position for rendering
+  let cursorX = cursorTipX;
+  let cursorY = cursorTipY;
 
   // Apply zoom transformation if needed
   if (zoom.scale > 1) {
-    effectiveZoomScale = zoom.scale;
-    
     const zoomBlock = {
       id: 'cursor-zoom-temp',
       startTime: 0,
@@ -319,18 +328,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       { x: zoom.panX || 0, y: zoom.panY || 0 }
     );
 
-    const transformedPos = applyZoomToPoint(cursorX, cursorY, videoOffset, zoomTransform);
+    // Transform the cursor tip position
+    const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
     cursorX = transformedPos.x;
     cursorY = transformedPos.y;
   }
   
-  // Calculate the actual rendered size of the cursor WITH zoom scaling
-  // The cursor should scale proportionally with the video zoom
-  const renderedWidth = dimensions.width * cursorSize * effectiveZoomScale;
-  const renderedHeight = dimensions.height * cursorSize * effectiveZoomScale;
-  
-  // Apply hotspot offset using the zoom-scaled cursor size
-  // This ensures the cursor tip aligns correctly at all zoom levels
+  // Apply hotspot offset AFTER zoom transformation
+  // The offset is in screen space, not zoomed space
   cursorX -= hotspot.x * renderedWidth;
   cursorY -= hotspot.y * renderedHeight;
 
