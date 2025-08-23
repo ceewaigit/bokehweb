@@ -73,6 +73,8 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
   };
 
   // Only apply capture area cropping if it has valid dimensions
+  console.log('🎬 VideoLayer render - Capture area:', captureArea, 'Video dimensions:', videoWidth, 'x', videoHeight)
+  
   if (captureArea?.width && captureArea?.height && captureArea.width > 0 && captureArea.height > 0) {
     // Scale video to show only the capture area
     const scale = Math.min(drawWidth / captureArea.width, drawHeight / captureArea.height);
@@ -85,6 +87,15 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       top: -(captureArea.y * scale) + (drawHeight - captureArea.height * scale) / 2,
       objectFit: 'none' as const
     };
+    
+    console.log('📏 Applying capture area cropping:', {
+      captureArea,
+      scale,
+      videoStyle,
+      drawDimensions: { drawWidth, drawHeight }
+    })
+  } else {
+    console.log('⚠️ No valid capture area, using full video')
   }
 
   return (

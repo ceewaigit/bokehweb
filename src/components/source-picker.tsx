@@ -159,80 +159,75 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
 
           {/* Dialog with glassmorphic design */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-0 flex items-center justify-center z-[2147483650] p-4"
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ type: "spring", damping: 30, stiffness: 400 }}
+            className="fixed inset-0 flex items-center justify-center z-[2147483650] p-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-background/95 backdrop-blur-3xl rounded-2xl shadow-2xl border border-border w-[90vw] max-w-6xl h-[90vh] max-h-[800px] overflow-hidden">
-              {/* Minimal header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/20 backdrop-blur-xl flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-primary" />
+            <div className="bg-background/95 backdrop-blur-2xl rounded-xl shadow-2xl border border-border/50 w-[85vw] max-w-5xl h-[85vh] max-h-[700px] overflow-hidden">
+              {/* Compact header */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded bg-primary/15 flex items-center justify-center">
+                    <Sparkles className="w-3.5 h-3.5 text-primary" />
                   </div>
-                  <div>
-                    <h2 className="text-sm font-medium text-foreground">Select Source</h2>
-                    <p className="text-[10px] text-muted-foreground">Choose a screen or window to record</p>
-                  </div>
+                  <h2 className="text-xs font-medium text-foreground">Select Recording Source</h2>
                 </div>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={onClose}
-                  className="h-8 w-8 p-0 rounded-lg hover:bg-accent"
+                  className="h-6 w-6 p-0 rounded hover:bg-accent/50"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </Button>
               </div>
 
               {/* Content */}
-              <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)] scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+              <div className="p-3 overflow-y-auto max-h-[calc(85vh-100px)] scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent">
                 {loading ? (
-                  <div className="flex flex-col items-center justify-center py-20">
+                  <div className="flex flex-col items-center justify-center py-12">
                     <div className="relative">
-                      <div className="w-12 h-12 rounded-xl bg-muted/30 backdrop-blur-xl border border-border" />
-                      <Loader2 className="absolute inset-0 m-auto w-6 h-6 text-primary animate-spin" />
+                      <div className="w-10 h-10 rounded-lg bg-muted/20 border border-border/50" />
+                      <Loader2 className="absolute inset-0 m-auto w-5 h-5 text-primary animate-spin" />
                     </div>
-                    <p className="mt-4 text-xs text-muted-foreground font-medium">Loading sources...</p>
+                    <p className="mt-3 text-[11px] text-muted-foreground font-medium">Loading sources...</p>
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {/* Area Selection Option */}
                     {areaOption && (
                       <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="w-6 h-6 rounded bg-muted/30 backdrop-blur-xl flex items-center justify-center">
-                            <Maximize2 className="w-3.5 h-3.5 text-muted-foreground" />
-                          </div>
-                          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Maximize2 className="w-3 h-3 text-muted-foreground" />
+                          <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                             Custom Area
                           </h3>
-                          <div className="flex-1 h-px bg-border" />
+                          <div className="flex-1 h-px bg-border/30" />
                         </div>
                         <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.99 }}
                           onClick={() => setSelectedId(areaOption.id)}
                           className={cn(
-                            "relative w-full rounded-xl overflow-hidden transition-all duration-200",
-                            "bg-card/50 backdrop-blur-xl border",
+                            "relative w-full rounded-lg overflow-hidden transition-all duration-200",
+                            "bg-card/30 border",
                             selectedId === areaOption.id
-                              ? "border-primary shadow-2xl shadow-primary/20 bg-primary/10"
-                              : "border-border hover:border-primary/50 hover:bg-accent/50"
+                              ? "border-primary shadow-lg shadow-primary/15 bg-primary/8"
+                              : "border-border/50 hover:border-primary/40 hover:bg-accent/30"
                           )}
                         >
-                          <div className="aspect-video relative">
-                            <div className="w-full h-full bg-gradient-to-br from-muted/20 to-transparent flex flex-col items-center justify-center gap-3">
-                              <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center">
-                                <Maximize2 className="w-8 h-8 text-primary" />
+                          <div className="aspect-[21/9] relative">
+                            <div className="w-full h-full bg-gradient-to-br from-muted/10 to-transparent flex items-center justify-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+                                <Maximize2 className="w-5 h-5 text-primary" />
                               </div>
-                              <div className="text-center">
-                                <p className="text-sm font-medium text-foreground">Select Screen Area</p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Click and drag to select a custom recording area
+                              <div>
+                                <p className="text-xs font-medium text-foreground">Select Screen Area</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  Click and drag to select custom area
                                 </p>
                               </div>
                             </div>
@@ -244,10 +239,10 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                   initial={{ scale: 0, opacity: 0 }}
                                   animate={{ scale: 1, opacity: 1 }}
                                   exit={{ scale: 0, opacity: 0 }}
-                                  className="absolute top-3 right-3"
+                                  className="absolute top-2 right-2"
                                 >
-                                  <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/50">
-                                    <Check className="w-3.5 h-3.5 text-primary-foreground" strokeWidth={3} />
+                                  <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-md shadow-primary/30">
+                                    <Check className="w-3 h-3 text-primary-foreground" strokeWidth={3} />
                                   </div>
                                 </motion.div>
                               )}
@@ -260,33 +255,31 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                     {/* Screens Section */}
                     {screens.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="w-6 h-6 rounded bg-muted/30 backdrop-blur-xl flex items-center justify-center">
-                            <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
-                          </div>
-                          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Monitor className="w-3 h-3 text-muted-foreground" />
+                          <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                             Displays
                           </h3>
-                          <div className="flex-1 h-px bg-border" />
+                          <div className="flex-1 h-px bg-border/30" />
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-2">
                           {screens.map((source) => (
                             <motion.button
                               key={source.id}
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
+                              whileHover={{ scale: 1.01 }}
+                              whileTap={{ scale: 0.99 }}
                               onClick={() => setSelectedId(source.id)}
                               onMouseEnter={() => setHoveredId(source.id)}
                               onMouseLeave={() => setHoveredId(null)}
                               className={cn(
-                                "relative rounded-xl overflow-hidden transition-all duration-200",
-                                "bg-card/50 backdrop-blur-xl border",
+                                "relative rounded-lg overflow-hidden transition-all duration-200",
+                                "bg-card/30 border",
                                 selectedId === source.id
-                                  ? "border-primary shadow-2xl shadow-primary/20 bg-primary/10"
-                                  : "border-border hover:border-primary/50 hover:bg-accent/50"
+                                  ? "border-primary shadow-lg shadow-primary/15 bg-primary/8"
+                                  : "border-border/50 hover:border-primary/40 hover:bg-accent/30"
                               )}
                             >
-                              <div className="aspect-video relative">
+                              <div className="aspect-[16/10] relative">
                                 {source.thumbnail ? (
                                   <>
                                     <img 
@@ -304,11 +297,11 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                 )}
                                 
                                 {/* Name overlay */}
-                                <div className="absolute bottom-0 left-0 right-0 p-3">
-                                  <p className="text-xs font-medium text-foreground truncate text-left">
+                                <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/50 to-transparent">
+                                  <p className="text-[11px] font-medium text-white truncate text-left">
                                     {source.name}
                                   </p>
-                                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  <p className="text-[9px] text-white/70">
                                     Full Display
                                   </p>
                                 </div>
@@ -320,10 +313,10 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                       initial={{ scale: 0, opacity: 0 }}
                                       animate={{ scale: 1, opacity: 1 }}
                                       exit={{ scale: 0, opacity: 0 }}
-                                      className="absolute top-3 right-3"
+                                      className="absolute top-2 right-2"
                                     >
-                                      <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/50">
-                                        <Check className="w-3.5 h-3.5 text-primary-foreground" strokeWidth={3} />
+                                      <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-md shadow-primary/30">
+                                        <Check className="w-3 h-3 text-primary-foreground" strokeWidth={3} />
                                       </div>
                                     </motion.div>
                                   )}
@@ -350,33 +343,31 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                     {/* Windows Section */}
                     {windows.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="w-6 h-6 rounded bg-muted/30 backdrop-blur-xl flex items-center justify-center">
-                            <AppWindow className="w-3.5 h-3.5 text-muted-foreground" />
-                          </div>
-                          <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <AppWindow className="w-3 h-3 text-muted-foreground" />
+                          <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                             Applications
                           </h3>
-                          <div className="flex-1 h-px bg-border" />
+                          <div className="flex-1 h-px bg-border/30" />
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
                           {windows.map((source) => (
                             <motion.button
                               key={source.id}
-                              whileHover={{ scale: 1.03 }}
-                              whileTap={{ scale: 0.97 }}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
                               onClick={() => setSelectedId(source.id)}
                               onMouseEnter={() => setHoveredId(source.id)}
                               onMouseLeave={() => setHoveredId(null)}
                               className={cn(
-                                "relative rounded-lg overflow-hidden transition-all duration-200",
-                                "bg-card/50 backdrop-blur-xl border",
+                                "relative rounded overflow-hidden transition-all duration-150",
+                                "bg-card/20 border",
                                 selectedId === source.id
-                                  ? "border-primary/50 shadow-xl shadow-primary/20 bg-primary/5"
-                                  : "border-white/[0.08] hover:border-white/20 hover:bg-white/[0.05]"
+                                  ? "border-primary/40 shadow-md shadow-primary/10 bg-primary/5"
+                                  : "border-border/30 hover:border-primary/30 hover:bg-accent/20"
                               )}
                             >
-                              <div className="aspect-[4/3] relative">
+                              <div className="aspect-square relative">
                                 {source.thumbnail ? (
                                   <>
                                     <img 
@@ -387,15 +378,15 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                                   </>
                                 ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-muted/20 to-transparent flex items-center justify-center">
-                                    <AppWindow className="w-8 h-8 text-muted-foreground/30" />
+                                  <div className="w-full h-full bg-gradient-to-br from-muted/10 to-transparent flex items-center justify-center">
+                                    <AppWindow className="w-6 h-6 text-muted-foreground/25" />
                                   </div>
                                 )}
                                 
                                 {/* Compact name */}
-                                <div className="absolute bottom-0 left-0 right-0 p-2">
-                                  <p className="text-[10px] font-medium text-foreground truncate">
-                                    {source.name}
+                                <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/40 to-transparent">
+                                  <p className="text-[9px] font-medium text-white truncate">
+                                    {source.name.split(' - ')[0]}
                                   </p>
                                 </div>
 
@@ -406,10 +397,10 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                       initial={{ scale: 0, opacity: 0 }}
                                       animate={{ scale: 1, opacity: 1 }}
                                       exit={{ scale: 0, opacity: 0 }}
-                                      className="absolute top-2 right-2"
+                                      className="absolute top-1 right-1"
                                     >
-                                      <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/50">
-                                        <Check className="w-3 h-3 text-primary-foreground" strokeWidth={3} />
+                                      <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center shadow-md shadow-primary/30">
+                                        <Check className="w-2.5 h-2.5 text-primary-foreground" strokeWidth={3} />
                                       </div>
                                     </motion.div>
                                   )}
@@ -447,24 +438,22 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                 )}
               </div>
 
-              {/* Footer with glassmorphic buttons */}
-              <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-background/50 backdrop-blur-xl">
-                <div className="text-[10px] text-muted-foreground">
+              {/* Compact footer */}
+              <div className="flex items-center justify-between px-4 py-2 border-t border-border/50 bg-background/30">
+                <div className="text-[9px] text-muted-foreground">
                   {selectedId && (
-                    <span>
-                      Selected: <span className="font-medium text-foreground">
-                        {sources.find(s => s.id === selectedId)?.name}
-                      </span>
+                    <span className="font-medium">
+                      {sources.find(s => s.id === selectedId)?.name?.split(' - ')[0]}
                     </span>
                   )}
                 </div>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={onClose}
-                    className="h-8 px-4 text-xs hover:bg-accent"
+                    className="h-7 px-3 text-[11px] hover:bg-accent/50"
                   >
                     Cancel
                   </Button>
@@ -473,13 +462,13 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                     onClick={handleSelect}
                     disabled={!selectedId}
                     className={cn(
-                      "h-8 px-6 text-xs font-medium transition-all",
+                      "h-7 px-4 text-[11px] font-medium transition-all",
                       selectedId
-                        ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-                        : "bg-muted text-muted-foreground cursor-not-allowed"
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/15"
+                        : "bg-muted/50 text-muted-foreground cursor-not-allowed"
                     )}
                   >
-                    <Check className="w-3 h-3 mr-1.5" />
+                    <Check className="w-2.5 h-2.5 mr-1" />
                     Start Recording
                   </Button>
                 </div>

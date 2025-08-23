@@ -139,14 +139,14 @@ export function registerMouseTrackingHandlers(): void {
             const isAreaRecording = sourceId?.includes('area:');
             const effectiveCursorType = isAreaRecording ? 'default' : currentCursorType;
             
-            // Debug logging
-            if (isAreaRecording) {
-              console.log('🖱️ Area recording cursor:', {
+            // Debug logging - log every 50th event
+            if (mouseHistory.length % 50 === 0) {
+              console.log('🖱️ Mouse tracking state:', {
                 sourceId,
                 sourceType,
+                isAreaRecording,
                 currentCursorType,
-                effectiveCursorType,
-                isAreaRecording
+                effectiveCursorType
               });
             }
 

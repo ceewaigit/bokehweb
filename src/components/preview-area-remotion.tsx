@@ -168,6 +168,17 @@ export function PreviewAreaRemotion({
   compositionHeight += padding * 2;
 
   // Calculate composition props
+  const captureAreaToUse = selectedRecording?.captureArea?.fullBounds || undefined
+  
+  console.log('🎯 PreviewArea - Capture area data:', {
+    fullCaptureArea: selectedRecording?.captureArea,
+    fullBounds: selectedRecording?.captureArea?.fullBounds,
+    captureAreaToUse,
+    videoWidth,
+    videoHeight,
+    recordingId: selectedRecording?.id
+  })
+  
   const compositionProps = {
     videoUrl: videoUrl || '',
     clip: selectedClip,
@@ -177,7 +188,7 @@ export function PreviewAreaRemotion({
     keystrokeEvents: (selectedRecording?.metadata as any)?.keystrokeEvents || [],
     videoWidth,
     videoHeight,
-    captureArea: selectedRecording?.captureArea?.fullBounds || undefined
+    captureArea: captureAreaToUse
   };
 
   // Calculate duration in frames

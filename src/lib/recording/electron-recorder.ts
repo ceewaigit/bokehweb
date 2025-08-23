@@ -164,6 +164,12 @@ export class ElectronRecorder {
       }
 
       logger.info(`Using ${recordingSettings.area} source: ${primarySource.name} (${primarySource.id})`)
+      console.log('🎯 Selected source:', {
+        name: primarySource.name,
+        id: primarySource.id,
+        area: recordingSettings.area,
+        captureAreaBounds
+      })
 
       // Capture screen dimensions for dock exclusion
       await this.captureScreenInfo(primarySource.id, captureAreaBounds)
@@ -245,11 +251,19 @@ export class ElectronRecorder {
       })
 
       // For window sources, update capture area with actual video dimensions
-      if (this.captureArea?.sourceType === 'window' && this.captureArea.fullBounds.width === 0) {
-        const videoTrack = this.stream.getVideoTracks()[0]
-        if (videoTrack) {
-          const settings = videoTrack.getSettings()
+      const videoTrack = this.stream.getVideoTracks()[0]
+      if (videoTrack) {
+        const settings = videoTrack.getSettings()
+        console.log('🎥 Video track settings:', settings)
+        logger.info('Video track settings', settings)
+        
+        if (this.captureArea?.sourceType === 'window') {
+          console.log('📐 Window source detected, current capture area:', this.captureArea)
+          
           if (settings.width && settings.height) {
+            const oldBounds = { ...this.captureArea.fullBounds }
+            
+            // Always update window bounds from video stream
             this.captureArea.fullBounds = {
               x: 0,
               y: 0,
@@ -262,12 +276,25 @@ export class ElectronRecorder {
               width: settings.width,
               height: settings.height
             }
-            logger.info('Window dimensions detected from video stream', {
-              width: settings.width,
-              height: settings.height
+            
+            console.log('🔄 Updated window capture area:', {
+              old: oldBounds,
+              new: this.captureArea.fullBounds,
+              sourceId: this.captureArea.sourceId
+            })
+            
+            logger.info('Window dimensions updated from video stream', {
+              oldWidth: oldBounds.width,
+              oldHeight: oldBounds.height,
+              newWidth: settings.width,
+              newHeight: settings.height,
+              sourceId: this.captureArea.sourceId
             })
           }
         }
+      } else {
+        console.log('⚠️ No video track found in stream')
+        logger.warn('No video track found in stream')
       }
 
       // Set up MediaRecorder with optimized settings for stability
@@ -423,8 +450,13 @@ export class ElectronRecorder {
         const duration = Date.now() - this.startTime
         const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
 
+        console.log('🏁 Recording stopped - Final capture area:', this.captureArea)
         logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
+        logger.info('Final capture area', this.captureArea)
 
+        // Store capture area before cleanup
+        const finalCaptureArea = this.captureArea
+        
         this.cleanup()
 
         const effectsApplied = ['electron-desktop-capture']
@@ -432,11 +464,13 @@ export class ElectronRecorder {
           effectsApplied.push('mouse-tracking', 'metadata-recording')
         }
 
+        console.log('📦 Returning recording result with capture area:', finalCaptureArea)
+        
         resolve({
           video,
           duration,
           metadata: this.metadata,
-          captureArea: this.captureArea,
+          captureArea: finalCaptureArea,
           effectsApplied,
           processingTime: 0
         })
@@ -580,11 +614,15 @@ export class ElectronRecorder {
   }
 
   private async captureScreenInfo(sourceId: string, areaSelection?: { x: number; y: number; width: number; height: number }): Promise<void> {
+    console.log('📍 captureScreenInfo called:', { sourceId, areaSelection })
+    
     try {
       // Determine if this is a window or screen recording
       const isWindow = !sourceId.startsWith('screen:')
       
       if (isWindow) {
+        console.log('🪟 Window source detected in captureScreenInfo')
+        
         // For window recording, we'll detect bounds from the video stream
         // since window bounds APIs might not be available
         // Set temporary placeholder that will be updated once stream starts
@@ -596,7 +634,8 @@ export class ElectronRecorder {
           sourceId: sourceId
         }
         
-        logger.info('Window recording mode', { sourceId, areaSelection })
+        console.log('🪟 Initial window capture area set:', this.captureArea)
+        logger.info('Window recording mode', { sourceId, areaSelection, captureArea: this.captureArea })
       } else if (window.electronAPI?.getScreens) {
         // Get screen information from Electron
         const screens = await window.electronAPI.getScreens()
@@ -615,16 +654,24 @@ export class ElectronRecorder {
         if (screen) {
           // If we have an area selection, use those bounds instead
           if (areaSelection) {
+            const areaSourceId = `area:${areaSelection.x},${areaSelection.y},${areaSelection.width},${areaSelection.height}`;
             this.captureArea = {
               fullBounds: areaSelection,
               workArea: areaSelection,
               scaleFactor: screen.scaleFactor ?? 1,
               sourceType: 'screen',
-              sourceId: `area:${areaSelection.x},${areaSelection.y},${areaSelection.width},${areaSelection.height}` // Keep area info for cursor type detection
+              sourceId: areaSourceId // Keep area info for cursor type detection
             }
             
+            console.log('📐 AREA RECORDING DETECTED:', {
+              originalSourceId: sourceId,
+              areaSourceId,
+              areaSelection,
+              captureArea: this.captureArea
+            })
+            
             logger.info('Area selection captured', {
-              sourceId,
+              sourceId: areaSourceId,
               sourceType: 'area',
               bounds: areaSelection,
               scaleFactor: this.captureArea.scaleFactor
