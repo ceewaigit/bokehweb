@@ -69,9 +69,20 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // Smooth easing function for gliding effect
+  // Ultra-smooth easing functions for ice-skating effect
   const easeInOutQuart = (t: number) => 
     t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+  
+  // Cubic bezier for buttery smooth motion
+  const cubicBezier = (t: number, p1: number = 0.25, p2: number = 0.1) => {
+    const p0 = 0, p3 = 1;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    return p0 * (1 - t) * (1 - t) * (1 - t) +
+           3 * p1 * (1 - t) * (1 - t) * t +
+           3 * p2 * (1 - t) * t2 +
+           p3 * t3;
+  };
 
   // Get interpolated cursor position with smooth gliding
   const cursorPosition = useMemo(() => {
@@ -133,8 +144,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const rawProgress = (targetTime - prevEvent.timestamp) / timeDiff;
     const clampedProgress = Math.max(0, Math.min(1, rawProgress));
     
-    // Apply smooth easing for gliding effect
-    const easedProgress = easeInOutQuart(clampedProgress);
+    // Use cubic bezier for ultra-smooth ice-skating motion
+    const easedProgress = cubicBezier(clampedProgress, 0.23, 0.03);
     
     // Calculate velocities for momentum-based smoothing
     let velocityX = 0;
@@ -148,21 +159,32 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       }
     }
 
-    // Calculate target velocities
+    // Calculate target velocities with damping
     const targetVelocityX = (nextEvent.x - prevEvent.x) / timeDiff;
     const targetVelocityY = (nextEvent.y - prevEvent.y) / timeDiff;
     
-    // Smooth velocity transitions for ice-like gliding
-    const velocityBlend = smoothStep(clampedProgress);
+    // Ultra-smooth velocity blending for ice-skating feel
+    const velocityBlend = cubicBezier(clampedProgress, 0.1, 0.01);
     const smoothVelocityX = velocityX * (1 - velocityBlend) + targetVelocityX * velocityBlend;
     const smoothVelocityY = velocityY * (1 - velocityBlend) + targetVelocityY * velocityBlend;
     
-    // Calculate position with velocity influence for smoother motion
-    const baseX = prevEvent.x + (nextEvent.x - prevEvent.x) * easedProgress;
-    const baseY = prevEvent.y + (nextEvent.y - prevEvent.y) * easedProgress;
+    // Hermite interpolation for extra smoothness
+    const h1 = 2 * easedProgress * easedProgress * easedProgress - 3 * easedProgress * easedProgress + 1;
+    const h2 = -2 * easedProgress * easedProgress * easedProgress + 3 * easedProgress * easedProgress;
+    const h3 = easedProgress * easedProgress * easedProgress - 2 * easedProgress * easedProgress + easedProgress;
+    const h4 = easedProgress * easedProgress * easedProgress - easedProgress * easedProgress;
     
-    // Add subtle momentum influence for gliding effect
-    const momentumFactor = 0.05 * (1 - clampedProgress); // Decreases as we approach target
+    // Calculate position with Hermite interpolation for maximum smoothness
+    const tangentScale = timeDiff * 0.3; // Control point influence
+    const baseX = prevEvent.x * h1 + nextEvent.x * h2 + 
+                  smoothVelocityX * tangentScale * h3 + 
+                  targetVelocityX * tangentScale * h4;
+    const baseY = prevEvent.y * h1 + nextEvent.y * h2 + 
+                  smoothVelocityY * tangentScale * h3 + 
+                  targetVelocityY * tangentScale * h4;
+    
+    // Add very subtle momentum for ice-gliding effect
+    const momentumFactor = 0.02 * Math.pow(1 - clampedProgress, 2);
     const momentumX = smoothVelocityX * momentumFactor * timeDiff;
     const momentumY = smoothVelocityY * momentumFactor * timeDiff;
 
