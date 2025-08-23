@@ -7,7 +7,7 @@ import {
   getCursorImagePath,
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
-import { applyZoomToPoint } from './utils/zoom-transform';
+import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
 
 // Cursor dimensions for proper aspect ratio
 const CURSOR_DIMENSIONS: Record<CursorType, { width: number; height: number }> = {
@@ -212,13 +212,18 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const captureWidth = firstEvent?.captureWidth || videoWidth;
   const captureHeight = firstEvent?.captureHeight || videoHeight;
 
-  // Normalize and map cursor position to video
+  // Normalize cursor position (0-1 range within the capture area)
   const normalizedX = cursorPosition.x / captureWidth;
   const normalizedY = cursorPosition.y / captureHeight;
 
-  // Calculate the base cursor position (where the cursor tip should be)
-  let cursorTipX = videoOffset.x + normalizedX * videoOffset.width;
-  let cursorTipY = videoOffset.y + normalizedY * videoOffset.height;
+  // Calculate the cursor position within the video content area (before zoom)
+  // This is relative to the video content, not the screen
+  const cursorInVideoX = normalizedX * videoOffset.width;
+  const cursorInVideoY = normalizedY * videoOffset.height;
+  
+  // Initialize cursor tip position in screen coordinates
+  let cursorTipX = videoOffset.x + cursorInVideoX;
+  let cursorTipY = videoOffset.y + cursorInVideoY;
 
   // Update position history for motion trail calculation
   useEffect(() => {
@@ -276,48 +281,48 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorX = cursorTipX;
   let cursorY = cursorTipY;
 
-  // Apply zoom transformation if needed
-  if (zoom && zoom.scale > 1) {
-    // Create a zoom transform that matches exactly what the video uses
-    // The video calculates its transform based on the video dimensions, not videoOffset
-    const zoomTransform = {
+  // Apply zoom transformation using the SAME utility as the video
+  if (zoom && zoom.scale && Math.abs(zoom.scale - 1) > 0.001) {
+    // Create a temporary zoom block to use the standard transform calculation
+    const zoomBlock = {
+      id: 'cursor-zoom',
+      startTime: 0,
+      endTime: 1000,
       scale: zoom.scale,
-      scaleCompensationX: 0,
-      scaleCompensationY: 0,
-      panX: (zoom.panX || 0) * videoOffset.width * zoom.scale,
-      panY: (zoom.panY || 0) * videoOffset.height * zoom.scale
+      targetX: zoom.x || 0.5,
+      targetY: zoom.y || 0.5,
+      introMs: 0,
+      outroMs: 0,
+      mode: 'manual' as const
     };
     
-    // Calculate zoom center compensation
-    const zoomCenterX = (zoom.x || 0.5) * videoOffset.width;
-    const zoomCenterY = (zoom.y || 0.5) * videoOffset.height;
-    const centerX = videoOffset.width / 2;
-    const centerY = videoOffset.height / 2;
-    const offsetFromCenterX = zoomCenterX - centerX;
-    const offsetFromCenterY = zoomCenterY - centerY;
+    // Use the EXACT same transform calculation as the video
+    const zoomTransform = calculateZoomTransform(
+      zoomBlock,
+      500, // Current time (middle of animation)
+      videoOffset.width,
+      videoOffset.height,
+      { x: zoom.panX || 0, y: zoom.panY || 0 }
+    );
     
-    zoomTransform.scaleCompensationX = -offsetFromCenterX * (zoom.scale - 1);
-    zoomTransform.scaleCompensationY = -offsetFromCenterY * (zoom.scale - 1);
-
-    // Transform the cursor tip position exactly like the video content
-    const transformedTip = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
-    cursorX = transformedTip.x;
-    cursorY = transformedTip.y;
-    
-    // Debug logging
-    if (frame % 30 === 0) {
-      console.log('🎯 Cursor Zoom Debug:', {
-        zoom: zoom.scale.toFixed(2),
-        cursorTip: { x: cursorTipX.toFixed(0), y: cursorTipY.toFixed(0) },
-        transformed: { x: cursorX.toFixed(0), y: cursorY.toFixed(0) },
-        videoOffset,
-        zoomTransform,
-        hotspotOffset: { 
-          x: (hotspot.x * renderedWidth).toFixed(0), 
-          y: (hotspot.y * renderedHeight).toFixed(0) 
-        }
-      });
-    }
+    // Apply the zoom to the cursor position using the standard utility
+    const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
+    cursorX = transformedPos.x;
+    cursorY = transformedPos.y;
+  }
+  
+  // Debug logging - log always to see what's happening
+  if (frame % 30 === 0 && zoom) {
+    console.log('🎯 Cursor Alignment:', {
+      zoomScale: zoom.scale?.toFixed(3) || 'none',
+      cursorTip: { x: cursorTipX.toFixed(0), y: cursorTipY.toFixed(0) },
+      finalPos: { x: cursorX.toFixed(0), y: cursorY.toFixed(0) },
+      hotspotOffset: { 
+        x: (hotspot.x * renderedWidth).toFixed(0), 
+        y: (hotspot.y * renderedHeight).toFixed(0) 
+      },
+      applied: Math.abs((zoom.scale || 1) - 1) > 0.001 ? 'YES' : 'NO'
+    });
   }
   
   // Apply hotspot offset AFTER transformation
