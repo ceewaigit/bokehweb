@@ -143,26 +143,32 @@ export function applyZoomToPoint(
     return { x: pointX, y: pointY };
   }
 
+  // The video div is transformed with CSS transform and transformOrigin: '50% 50%'
+  // This means the video scales from its center, then translates
+  
   // Get the center of the video (transform origin)
   const videoCenterX = videoOffset.x + videoOffset.width / 2;
   const videoCenterY = videoOffset.y + videoOffset.height / 2;
 
-  // Translate point relative to video center (not origin)
-  const relativeX = pointX - videoCenterX;
-  const relativeY = pointY - videoCenterY;
+  // First, get the point relative to the video's top-left corner
+  const relativeToVideoX = pointX - videoOffset.x;
+  const relativeToVideoY = pointY - videoOffset.y;
 
-  // Scale the position from center
-  const scaledX = relativeX * zoomTransform.scale;
-  const scaledY = relativeY * zoomTransform.scale;
+  // Now scale this position (video scales from its center)
+  // After scaling, a point at (x,y) relative to video top-left becomes:
+  // newX = centerX + (x - centerX) * scale
+  // Which simplifies to: newX = x * scale + centerX * (1 - scale)
+  const scaledRelativeX = relativeToVideoX * zoomTransform.scale + (videoOffset.width / 2) * (1 - zoomTransform.scale);
+  const scaledRelativeY = relativeToVideoY * zoomTransform.scale + (videoOffset.height / 2) * (1 - zoomTransform.scale);
 
-  // Apply the translation
+  // Apply the translation that was applied to the video
   const totalTranslateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
   const totalTranslateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
 
-  // Add back relative to video center
+  // Final position in screen coordinates
   return {
-    x: videoCenterX + scaledX + totalTranslateX,
-    y: videoCenterY + scaledY + totalTranslateY
+    x: videoOffset.x + scaledRelativeX + totalTranslateX,
+    y: videoOffset.y + scaledRelativeY + totalTranslateY
   };
 }
 
