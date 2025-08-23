@@ -405,11 +405,14 @@ export async function saveRecordingWithProject(
     // Create project with recording
     const project = createProject(baseName)
 
-    // Process metadata into proper format
-    // Get the logical screen dimensions from the first event with capture info
+    // Get logical screen dimensions and source info from metadata
     const firstEventWithCapture = metadata.find(m => m.captureWidth && m.captureHeight)
     const logicalWidth = firstEventWithCapture?.captureWidth || width
     const logicalHeight = firstEventWithCapture?.captureHeight || height
+    
+    const firstEventWithSource = metadata.find(m => (m as any).sourceType)
+    const sourceType = (firstEventWithSource as any)?.sourceType || 'screen'
+    const sourceId = (firstEventWithSource as any)?.sourceId
 
     const mouseEvents = metadata
       .filter(m => m.eventType === 'mouse')
@@ -417,9 +420,10 @@ export async function saveRecordingWithProject(
         timestamp: m.timestamp,
         x: m.mouseX,
         y: m.mouseY,
-        // Store logical screen dimensions for proper cursor alignment
         screenWidth: logicalWidth,
-        screenHeight: logicalHeight
+        screenHeight: logicalHeight,
+        sourceType: (m as any).sourceType || sourceType,
+        sourceId: (m as any).sourceId || sourceId
       }))
 
     const clickEvents = metadata
@@ -428,7 +432,9 @@ export async function saveRecordingWithProject(
         timestamp: m.timestamp,
         x: m.mouseX,
         y: m.mouseY,
-        button: m.key || 'left' as const
+        button: m.key || 'left' as const,
+        sourceType: (m as any).sourceType || sourceType,
+        sourceId: (m as any).sourceId || sourceId
       }))
 
     const keyboardEvents = metadata

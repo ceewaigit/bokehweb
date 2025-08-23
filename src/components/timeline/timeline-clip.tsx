@@ -1,7 +1,9 @@
-import React from 'react'
-import { Group, Rect, Text } from 'react-konva'
+import React, { useEffect, useState, useRef } from 'react'
+import { Group, Rect, Text, Image } from 'react-konva'
 import type { Clip } from '@/types/project'
 import { TIMELINE_LAYOUT, TimelineUtils, createDragBoundFunc } from '@/lib/timeline'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
 
 interface TimelineClipProps {
   clip: Clip
@@ -28,6 +30,9 @@ export const TimelineClip = React.memo(({
   onDragEnd,
   onContextMenu
 }: TimelineClipProps) => {
+  const [thumbnails, setThumbnails] = useState<HTMLCanvasElement[]>([])
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  
   const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
   const clipWidth = Math.max(
     TIMELINE_LAYOUT.MIN_CLIP_WIDTH,
@@ -38,10 +43,83 @@ export const TimelineClip = React.memo(({
     ? TIMELINE_LAYOUT.VIDEO_TRACK_HEIGHT 
     : TIMELINE_LAYOUT.AUDIO_TRACK_HEIGHT
 
-  const fillColor = trackType === 'video' ? '#3b82f6' : '#10b981'
-  const strokeColor = isSelected 
-    ? '#fafafa'
-    : 'transparent'
+  // Load video and generate thumbnails for video clips
+  useEffect(() => {
+    if (trackType !== 'video' || !clip.filePath) return
+
+    const loadVideoThumbnails = async () => {
+      try {
+        // Get or load video URL
+        let blobUrl = RecordingStorage.getBlobUrl(clip.id)
+        if (!blobUrl && clip.filePath) {
+          blobUrl = await globalBlobManager.ensureVideoLoaded(clip.id, clip.filePath)
+        }
+        
+        if (!blobUrl) return
+
+        // Create video element
+        const video = document.createElement('video')
+        video.src = blobUrl
+        video.crossOrigin = 'anonymous'
+        video.muted = true
+        
+        // Wait for metadata
+        await new Promise((resolve, reject) => {
+          video.onloadedmetadata = resolve
+          video.onerror = reject
+          video.load()
+        })
+
+        videoRef.current = video
+
+        // Calculate how many thumbnails we need (one every 60px)
+        const thumbnailCount = Math.max(1, Math.floor(clipWidth / 60))
+        const timeInterval = clip.duration / thumbnailCount
+        const newThumbnails: HTMLCanvasElement[] = []
+
+        // Generate thumbnails
+        for (let i = 0; i < thumbnailCount; i++) {
+          const time = (i * timeInterval) / 1000 // Convert to seconds
+          
+          // Create canvas for this thumbnail
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          if (!ctx) continue
+
+          // Set size - keep aspect ratio
+          const aspectRatio = video.videoWidth / video.videoHeight
+          canvas.height = trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2
+          canvas.width = canvas.height * aspectRatio
+
+          // Seek and draw
+          await new Promise<void>((resolve) => {
+            const seekHandler = () => {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+              video.removeEventListener('seeked', seekHandler)
+              resolve()
+            }
+            video.addEventListener('seeked', seekHandler)
+            video.currentTime = time
+          })
+
+          newThumbnails.push(canvas)
+        }
+
+        setThumbnails(newThumbnails)
+      } catch (error) {
+        console.error('Failed to load video thumbnails:', error)
+      }
+    }
+
+    loadVideoThumbnails()
+
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.src = ''
+        videoRef.current = null
+      }
+    }
+  }, [clip.id, clip.filePath, clip.duration, clipWidth, trackHeight, trackType])
 
   return (
     <Group
@@ -65,28 +143,74 @@ export const TimelineClip = React.memo(({
         }
       }}
     >
+      {/* Clip background with rounded corners */}
       <Rect
         width={clipWidth}
         height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
-        fill={fillColor}
-        stroke={strokeColor}
-        strokeWidth={isSelected ? 2 : 0.5}
-        cornerRadius={4}
-        opacity={isSelected ? 1 : 0.85}
+        fill={
+          trackType === 'video' && thumbnails.length > 0 
+            ? 'transparent' 
+            : trackType === 'video' 
+              ? 'hsl(217, 91%, 60%)' 
+              : 'hsl(142, 71%, 45%)'
+        }
+        stroke={isSelected ? 'hsl(0, 0%, 98%)' : 'transparent'}
+        strokeWidth={isSelected ? 2 : 1}
+        cornerRadius={6}
+        opacity={0.95}
         shadowColor="black"
-        shadowBlur={isSelected ? 8 : 2}
-        shadowOpacity={0.2}
-        shadowOffsetY={1}
+        shadowBlur={isSelected ? 10 : 4}
+        shadowOpacity={0.3}
+        shadowOffsetY={2}
       />
 
+      {/* Video thumbnails */}
+      {trackType === 'video' && thumbnails.length > 0 && (
+        <Group clipFunc={(ctx) => {
+          // Clip to rounded rectangle
+          ctx.beginPath()
+          ctx.roundRect(0, 0, clipWidth, trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2, 6)
+          ctx.closePath()
+        }}>
+          {thumbnails.map((canvas, i) => (
+            <Image
+              key={i}
+              image={canvas}
+              x={i * 60}
+              y={0}
+              width={60}
+              height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+              opacity={0.9}
+            />
+          ))}
+          {/* Overlay gradient for better text visibility */}
+          <Rect
+            width={clipWidth}
+            height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+            fillLinearGradientEndPoint={{ x: 0, y: trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2 }}
+            fillLinearGradientColorStops={[
+              0, 'rgba(0,0,0,0.4)',
+              0.3, 'rgba(0,0,0,0)',
+              0.7, 'rgba(0,0,0,0)',
+              1, 'rgba(0,0,0,0.3)'
+            ]}
+          />
+        </Group>
+      )}
+
+      {/* Clip ID label */}
       <Text
-        x={6}
-        y={6}
+        x={8}
+        y={8}
         text={`${clip.id.slice(-4)}`}
-        fontSize={10}
+        fontSize={11}
         fill="white"
-        fontFamily="monospace"
+        fontFamily="system-ui"
         fontStyle="bold"
+        shadowColor="black"
+        shadowBlur={3}
+        shadowOpacity={0.8}
       />
 
       {/* Effect badges for video clips - clickable indicators */}
@@ -112,11 +236,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'zoom' ? "#3b82f6" : "#71717a"} 
+                fill={selectedEffectType === 'zoom' ? "hsl(217, 91%, 60%)" : "hsl(240, 5%, 45%)"} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'zoom' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="Z" fontSize={9} fill="white" fontFamily="monospace" fontStyle="bold" />
+              <Text x={5} y={3} text="Z" fontSize={9} fill="white" fontFamily="system-ui" fontStyle="bold" />
             </Group>
           )
           xOffset += 36
@@ -134,11 +258,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'cursor' ? "#10b981" : "#71717a"} 
+                fill={selectedEffectType === 'cursor' ? "hsl(142, 71%, 45%)" : "hsl(240, 5%, 45%)"} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'cursor' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="C" fontSize={9} fill="white" fontFamily="monospace" fontStyle="bold" />
+              <Text x={5} y={3} text="C" fontSize={9} fill="white" fontFamily="system-ui" fontStyle="bold" />
             </Group>
           )
           xOffset += 36
@@ -156,11 +280,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'background' ? "#a855f7" : "#71717a"} 
+                fill={selectedEffectType === 'background' ? "hsl(280, 65%, 60%)" : "hsl(240, 5%, 45%)"} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'background' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="B" fontSize={9} fill="white" fontFamily="monospace" fontStyle="bold" />
+              <Text x={5} y={3} text="B" fontSize={9} fill="white" fontFamily="system-ui" fontStyle="bold" />
             </Group>
           )
         }

@@ -231,7 +231,7 @@ export function TimelineCanvas({
   }
 
   return (
-    <div className={cn("flex flex-col h-full w-full bg-gradient-to-b from-background to-background/95", className)}>
+    <div className={cn("flex flex-col h-full w-full bg-background", className)}>
       <TimelineControls
         isPlaying={isPlaying}
         zoom={zoom}
@@ -254,12 +254,12 @@ export function TimelineCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto relative bg-background/50 backdrop-blur-sm"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-card/50"
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       >
         <Stage
-          width={stageSize.width}
-          height={Math.max(totalHeight, stageSize.height)}
+          width={Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)}
+          height={totalHeight}
           onMouseDown={handleStageClick}
         >
           {/* Background Layer */}
@@ -269,8 +269,8 @@ export function TimelineCanvas({
               y={0}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
               height={TIMELINE_LAYOUT.RULER_HEIGHT}
-              fill="#09090b"
-              opacity={0.95}
+              fill="hsl(240, 10%, 3.9%)"
+              opacity={1}
             />
 
             <TimelineTrack
@@ -448,11 +448,11 @@ export function TimelineCanvas({
       </div>
 
       {/* Timeline Info */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-t border-border/50 bg-card/30 backdrop-blur-md">
-        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-          {selectedClips.length > 0 ? `${selectedClips.length} selected` : 'No selection'}
+      <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-card">
+        <span className="text-xs font-medium text-muted-foreground">
+          {selectedClips.length > 0 ? `${selectedClips.length} SELECTED` : ''}
         </span>
-        <span className="text-[10px] font-mono text-foreground/70">
+        <span className="text-xs font-mono text-muted-foreground">
           {formatTime(currentTime)} / {formatTime(currentProject.timeline.duration)}
         </span>
       </div>

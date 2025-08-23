@@ -6,13 +6,12 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly EDGE_THRESHOLD = 0.25  // Start panning when mouse is within 25% of viewport edge
-  private readonly PAN_SMOOTHING = 0.08  // Slower, smoother interpolation for butter-smooth pan
-  private readonly MAX_PAN_OFFSET = 0.35  // Maximum pan from center (35% of half viewport)
+  private readonly PAN_SMOOTHING = 0.15  // Single smoothing value
+  private readonly MAX_PAN_OFFSET = 0.45  // Maximum pan from center
 
   /**
    * Calculate smooth pan offset based on mouse position
-   * Uses gentle, predictable movement for professional feel
+   * Follows mouse at edges and when it escapes viewport
    */
   calculateSmoothPan(
     mouseX: number,
@@ -23,81 +22,51 @@ export class ZoomPanCalculator {
     currentPanX: number = 0,
     currentPanY: number = 0
   ): { x: number; y: number } {
-    // Normalize mouse position to 0-1 range
-    const normalizedX = Math.max(0, Math.min(1, mouseX / videoWidth))
-    const normalizedY = Math.max(0, Math.min(1, mouseY / videoHeight))
+    // Normalize mouse position
+    const normalizedX = mouseX / videoWidth
+    const normalizedY = mouseY / videoHeight
 
-    // Calculate the visible viewport size in normalized coordinates
-    const viewportWidth = 1 / zoomScale
-    const viewportHeight = 1 / zoomScale
+    // Viewport size in normalized coordinates
+    const viewportSize = 1 / zoomScale
+    
+    // Current viewport bounds
+    const viewportLeft = 0.5 - currentPanX - viewportSize / 2
+    const viewportRight = 0.5 - currentPanX + viewportSize / 2
+    const viewportTop = 0.5 - currentPanY - viewportSize / 2
+    const viewportBottom = 0.5 - currentPanY + viewportSize / 2
 
-    // Calculate target pan to keep mouse in comfortable viewing area
-    let targetPanX = currentPanX  // Start with current position for stability
+    // Target pan to keep mouse visible
+    let targetPanX = currentPanX
     let targetPanY = currentPanY
 
-    // Calculate how close mouse is to edges of current viewport
-    const viewportCenterX = 0.5 - currentPanX
-    const viewportCenterY = 0.5 - currentPanY
+    // Edge margin (15% of viewport)
+    const margin = viewportSize * 0.15
 
-    const mouseInViewportX = (normalizedX - (viewportCenterX - viewportWidth / 2)) / viewportWidth
-    const mouseInViewportY = (normalizedY - (viewportCenterY - viewportHeight / 2)) / viewportHeight
-
-    // Use a larger comfort zone to reduce jitter
-    const comfortZone = 0.6  // Central 60% of viewport (more stable)
-    const comfortMin = (1 - comfortZone) / 2
-    const comfortMax = 1 - comfortMin
-
-    // Only pan if mouse is significantly outside comfort zone
-    const panThreshold = 0.05  // Dead zone to prevent micro-movements
-
-    if (mouseInViewportX < comfortMin - panThreshold) {
-      // Mouse too far left - pan left gently
-      const overshoot = comfortMin - mouseInViewportX
-      const offset = overshoot * viewportWidth * 0.5  // Reduced response
-      targetPanX = currentPanX + offset
-    } else if (mouseInViewportX > comfortMax + panThreshold) {
-      // Mouse too far right - pan right gently
-      const overshoot = mouseInViewportX - comfortMax
-      const offset = overshoot * viewportWidth * 0.5  // Reduced response
-      targetPanX = currentPanX - offset
+    // Pan when mouse approaches edges
+    if (normalizedX < viewportLeft + margin) {
+      targetPanX = 0.5 - normalizedX + margin
+    } else if (normalizedX > viewportRight - margin) {
+      targetPanX = 0.5 - normalizedX - margin
     }
 
-    if (mouseInViewportY < comfortMin - panThreshold) {
-      // Mouse too far up - pan up gently
-      const overshoot = comfortMin - mouseInViewportY
-      const offset = overshoot * viewportHeight * 0.5  // Reduced response
-      targetPanY = currentPanY + offset
-    } else if (mouseInViewportY > comfortMax + panThreshold) {
-      // Mouse too far down - pan down gently
-      const overshoot = mouseInViewportY - comfortMax
-      const offset = overshoot * viewportHeight * 0.5  // Reduced response
-      targetPanY = currentPanY - offset
+    if (normalizedY < viewportTop + margin) {
+      targetPanY = 0.5 - normalizedY + margin
+    } else if (normalizedY > viewportBottom - margin) {
+      targetPanY = 0.5 - normalizedY - margin
     }
 
-    // Clamp target pan to maximum bounds
-    const maxPanX = Math.min(this.MAX_PAN_OFFSET, (1 - viewportWidth) / 2)
-    const maxPanY = Math.min(this.MAX_PAN_OFFSET, (1 - viewportHeight) / 2)
+    // Clamp to bounds
+    const maxPan = Math.min(this.MAX_PAN_OFFSET, (1 - viewportSize) / 2)
+    targetPanX = Math.max(-maxPan, Math.min(maxPan, targetPanX))
+    targetPanY = Math.max(-maxPan, Math.min(maxPan, targetPanY))
 
-    targetPanX = Math.max(-maxPanX, Math.min(maxPanX, targetPanX))
-    targetPanY = Math.max(-maxPanY, Math.min(maxPanY, targetPanY))
-
-    // Apply smoothing with a gentle curve for butter-smooth movement
-    const smoothingFactor = this.PAN_SMOOTHING
+    // Smooth interpolation
     const deltaX = targetPanX - currentPanX
     const deltaY = targetPanY - currentPanY
-
-    // Only update if change is significant (reduces jitter)
-    const minChange = 0.0001
-    const newPanX = Math.abs(deltaX) > minChange
-      ? currentPanX + deltaX * smoothingFactor
-      : currentPanX
-    const newPanY = Math.abs(deltaY) > minChange
-      ? currentPanY + deltaY * smoothingFactor
-      : currentPanY
-
+    
     return {
-      x: newPanX,
-      y: newPanY
+      x: currentPanX + deltaX * this.PAN_SMOOTHING,
+      y: currentPanY + deltaY * this.PAN_SMOOTHING
     }
   }
 

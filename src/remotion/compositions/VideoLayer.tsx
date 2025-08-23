@@ -87,6 +87,10 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
             height: '100%',
             objectFit: 'cover'
           }}
+          onError={(e) => {
+            console.error('Video playback error in VideoLayer:', e)
+            // Don't throw - let Remotion handle gracefully
+          }}
         />
       </div>
     </AbsoluteFill>

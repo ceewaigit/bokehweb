@@ -161,29 +161,53 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   if (!cursorPosition) return null;
 
-  // Get cursor metadata from the event (display bounds)
+  // Get cursor metadata from the event (display bounds and source info)
   const currentEvent = cursorEvents.find(e =>
     Math.abs(e.timestamp - currentTimeMs) < 50
   );
   const displayBounds = (currentEvent as any)?.displayBounds;
+  const sourceType = (currentEvent as any)?.sourceType || 'screen';
+  const isWindowRecording = sourceType === 'window';
 
-  // The cursor position comes from screen coordinates
-  // We need to map it relative to the video recording area
+  // Get raw cursor position (screen coordinates)
   let rawX = cursorPosition.x;
   let rawY = cursorPosition.y;
 
-  // If we have display bounds, adjust for multi-monitor setups
+  // Adjust for multi-monitor setups
   if (displayBounds) {
-    rawX = rawX - displayBounds.x;
-    rawY = rawY - displayBounds.y;
+    rawX -= displayBounds.x;
+    rawY -= displayBounds.y;
   }
 
-  // Normalize using screen dimensions from the event (not video dimensions)
-  // This accounts for Retina displays where video is 2x screen size
-  const screenWidth = currentEvent?.screenWidth || videoWidth / 2;
-  const screenHeight = currentEvent?.screenHeight || videoHeight / 2;
-  const normalizedX = rawX / screenWidth;
-  const normalizedY = rawY / screenHeight;
+  // Determine screen dimensions based on recording type
+  let screenWidth, screenHeight;
+  
+  if (isWindowRecording) {
+    // For window recording, video dimensions = window dimensions
+    screenWidth = videoWidth;
+    screenHeight = videoHeight;
+  } else {
+    // For screen recording, use event dimensions (accounts for Retina displays)
+    screenWidth = currentEvent?.screenWidth || videoWidth / 2;
+    screenHeight = currentEvent?.screenHeight || videoHeight / 2;
+  }
+
+  // Calculate normalized position (0-1 range)
+  let normalizedX = rawX / screenWidth;
+  let normalizedY = rawY / screenHeight;
+
+  // For window recording, check if cursor is outside the window bounds
+  if (isWindowRecording) {
+    // Clamp cursor to window bounds (with a small margin for visibility)
+    const margin = 0.02; // 2% margin
+    normalizedX = Math.max(-margin, Math.min(1 + margin, normalizedX));
+    normalizedY = Math.max(-margin, Math.min(1 + margin, normalizedY));
+    
+    // If cursor is too far outside, hide it
+    if (normalizedX < -0.1 || normalizedX > 1.1 || normalizedY < -0.1 || normalizedY > 1.1) {
+      return null; // Don't render cursor when it's outside the window
+    }
+  }
 
   // Map to displayed video position (before zoom)
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;

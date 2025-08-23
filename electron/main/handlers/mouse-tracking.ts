@@ -13,6 +13,8 @@ let targetWindow: BrowserWindow | null = null  // Track the window for cursor-ch
 
 interface MouseTrackingOptions {
   intervalMs?: number
+  sourceId?: string
+  sourceType?: 'screen' | 'window'
 }
 
 interface MousePosition {
@@ -36,6 +38,8 @@ export function registerMouseTrackingHandlers(): void {
 
       // Use 8ms interval for 125Hz tracking (Screen Studio quality)
       const intervalMs = Math.max(8, Math.min(1000, parseInt(String(options.intervalMs)) || 8))
+      const sourceType = options.sourceType || 'screen'
+      const sourceId = options.sourceId
 
       mouseEventSender = event.sender
       isMouseTracking = true
@@ -55,8 +59,8 @@ export function registerMouseTrackingHandlers(): void {
         targetWindow.webContents.on('cursor-changed', handleCursorChange)
       }
 
-      // Start click detection using global mouse hooks
-      startClickDetection()
+      // Start click detection using global mouse hooks with source info
+      startClickDetection(sourceType, sourceId)
 
       let lastPosition: Electron.Point | null = null
       let lastVelocity = { x: 0, y: 0 }
@@ -135,7 +139,9 @@ export function registerMouseTrackingHandlers(): void {
               acceleration,
               displayBounds: positionData.displayBounds,
               scaleFactor: positionData.scaleFactor,
-              cursorType: currentCursorType  // Include current cursor type
+              cursorType: currentCursorType,  // Include current cursor type
+              sourceType: sourceType,  // Include source type for proper coordinate mapping
+              sourceId: sourceId
             } as MousePosition)
 
             lastPosition = currentPosition
@@ -213,7 +219,7 @@ export function registerMouseTrackingHandlers(): void {
   })
 }
 
-function startClickDetection(): void {
+function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string): void {
   if (clickDetectionActive) return
 
   clickDetectionActive = true
@@ -241,7 +247,9 @@ function startClickDetection(): void {
         button: event.button === 1 ? 'left' : event.button === 2 ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,
         scaleFactor: scaleFactor,
-        cursorType: currentCursorType  // Include current cursor type
+        cursorType: currentCursorType,  // Include current cursor type
+        sourceType: sourceType || 'screen',
+        sourceId: sourceId
       })
     }
 

@@ -13,11 +13,26 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
   const getTrackStyle = () => {
     switch (type) {
       case 'video':
-        return { bgFill: '#09090b', bgOpacity: 0.5, labelText: 'V', labelSize: 11 }
+        return { 
+          bgFill: 'hsl(240, 5%, 6%)', 
+          bgOpacity: 0.5, 
+          labelText: 'V', 
+          labelColor: 'hsl(240, 5%, 65%)'
+        }
       case 'zoom':
-        return { bgFill: '#3b82f6', bgOpacity: 0.08, labelText: 'Z', labelSize: 11 }
+        return { 
+          bgFill: 'hsl(221, 83%, 53%)', 
+          bgOpacity: 0.05, 
+          labelText: 'Z', 
+          labelColor: 'hsl(199, 89%, 48%)'
+        }
       case 'audio':
-        return { bgFill: '#09090b', bgOpacity: 0.4, labelText: 'A', labelSize: 11 }
+        return { 
+          bgFill: 'hsl(240, 5%, 6%)', 
+          bgOpacity: 0.3, 
+          labelText: 'A', 
+          labelColor: 'hsl(240, 5%, 65%)'
+        }
     }
   }
 
@@ -25,6 +40,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
 
   return (
     <Group>
+      {/* Track background */}
       <Rect
         x={0}
         y={y}
@@ -33,31 +49,37 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         fill={style.bgFill}
         opacity={style.bgOpacity}
       />
+      
+      {/* Track label background */}
       <Rect
         x={0}
         y={y}
         width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
         height={height}
-        fill="#18181b"
-        opacity={0.9}
+        fill="hsl(240, 10%, 10%)"
+        opacity={0.95}
       />
+      
+      {/* Track label border */}
       <Rect
         x={0}
         y={y}
         width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH - 1}
         height={height}
-        stroke="#27272a"
+        stroke="hsl(240, 5%, 20%)"
         strokeWidth={1}
         fill="transparent"
-        opacity={0.5}
+        opacity={0.6}
       />
+      
+      {/* Track label text */}
       <Text
         x={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH / 2 - 4}
         y={y + height / 2 - 5}
         text={style.labelText}
-        fontSize={style.labelSize}
-        fill={type === 'zoom' ? '#60a5fa' : '#a1a1aa'}
-        fontFamily="monospace"
+        fontSize={12}
+        fill={style.labelColor}
+        fontFamily="system-ui"
         fontStyle="bold"
       />
     </Group>

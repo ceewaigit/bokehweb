@@ -16,6 +16,8 @@ export interface ElectronRecordingResult {
     fullBounds: { x: number; y: number; width: number; height: number }
     workArea: { x: number; y: number; width: number; height: number }
     scaleFactor: number
+    sourceType?: 'screen' | 'window'
+    sourceId?: string
   }
 }
 
@@ -94,29 +96,18 @@ export class ElectronRecorder {
 
       let primarySource
 
-      // If a specific source ID is provided, use it
+      // If a specific source ID is provided, ALWAYS use it (no fallback)
       if (recordingSettings.sourceId) {
         primarySource = sources.find(s => s.id === recordingSettings.sourceId)
         if (!primarySource) {
-          logger.warn(`Specified source ${recordingSettings.sourceId} not found, falling back to auto-selection`)
-        } else {
-          logger.info(`Using user-selected source: ${primarySource.name} (${primarySource.id})`)
+          throw new Error(`Selected source ${recordingSettings.sourceId} is no longer available. Please select a different source.`)
         }
-      }
-      
-      // If no source found yet, auto-select based on area type
-      if (!primarySource) {
+        logger.info(`Using user-selected source: ${primarySource.name} (${primarySource.id})`)
+      } else {
+        // Only auto-select if no sourceId was provided
         if (recordingSettings.area === 'window') {
-          // For window recording, find first non-screen source
-          primarySource = sources.find((s) =>
-            !s.id.startsWith('screen:') &&
-            !s.name.toLowerCase().includes('entire screen')
-          )
-
-          if (!primarySource) {
-            logger.warn('No window sources available, falling back to screen')
-            primarySource = sources.find((s) => s.id.startsWith('screen:'))
-          }
+          // For window recording, user must select a source
+          throw new Error('Window recording requires selecting a specific window source')
         } else if (recordingSettings.area === 'region') {
           // For region recording, use the entire screen
           primarySource = sources.find((s) =>
@@ -132,12 +123,15 @@ export class ElectronRecorder {
             s.name.toLowerCase().includes('screen 1')
           )
         }
-      }
 
-      // Fallback to last source (usually the entire screen)
-      if (!primarySource) {
-        logger.warn('Could not find appropriate source, using last available source')
-        primarySource = sources[sources.length - 1]
+        // Fallback to first screen source if nothing found
+        if (!primarySource) {
+          primarySource = sources.find((s) => s.id.startsWith('screen:'))
+        }
+
+        if (!primarySource) {
+          throw new Error('No suitable recording source found. Please check screen recording permissions.')
+        }
       }
 
       logger.info(`Using ${recordingSettings.area} source: ${primarySource.name} (${primarySource.id})`)
@@ -575,43 +569,57 @@ export class ElectronRecorder {
 
   private async captureScreenInfo(sourceId: string): Promise<void> {
     try {
-      // Get screen information from Electron
-      if (window.electronAPI?.getScreens) {
+      // Determine if this is a window or screen recording
+      const isWindow = !sourceId.startsWith('screen:')
+      
+      if (isWindow) {
+        // For window recording, store the source type
+        // Actual bounds come from the video stream dimensions
+        this.captureArea = {
+          fullBounds: { x: 0, y: 0, width: 0, height: 0 },
+          workArea: { x: 0, y: 0, width: 0, height: 0 },
+          scaleFactor: 1,
+          sourceType: 'window',
+          sourceId: sourceId
+        }
+        
+        logger.info('Window recording mode', { sourceId })
+      } else if (window.electronAPI?.getScreens) {
+        // Get screen information from Electron
         const screens = await window.electronAPI.getScreens()
 
         // Find the screen that matches our source
         // Source ID format is usually "screen:ID:0" 
         const screenIdMatch = sourceId.match(/screen:(\d+):/)
-        let screen = null
-
-        if (screenIdMatch && screens.length > 0) {
-          const screenId = parseInt(screenIdMatch[1])
-          screen = screens.find((s) => s.id === screenId)
+        
+        if (!screenIdMatch) {
+          throw new Error(`Invalid screen source ID format: ${sourceId}`)
         }
 
-        // Use primary screen as fallback
-        if (!screen && screens.length > 0) {
-          screen = screens[0]
-        }
+        const screenId = parseInt(screenIdMatch[1])
+        const screen = screens.find((s) => s.id === screenId)
 
         if (screen) {
           this.captureArea = {
             fullBounds: screen.bounds,
             workArea: screen.workArea,
-            scaleFactor: screen.scaleFactor ?? 1
+            scaleFactor: screen.scaleFactor ?? 1,
+            sourceType: 'screen',
+            sourceId: sourceId
           }
 
           logger.info('Screen info captured', {
             sourceId,
+            sourceType: 'screen',
             fullBounds: this.captureArea.fullBounds,
             workArea: this.captureArea.workArea,
             scaleFactor: this.captureArea.scaleFactor
           })
         } else {
-          logger.warn('No screen found, capture area will be undefined')
+          throw new Error(`Screen with ID ${screenId} not found`)
         }
       } else {
-        logger.warn('getScreens API not available')
+        throw new Error('getScreens API not available')
       }
     } catch (error) {
       logger.warn('Could not capture screen info, capture area will be undefined', error)
@@ -665,8 +673,6 @@ export class ElectronRecorder {
           }
         }
 
-        // Don't scale the coordinates - keep them in logical pixels
-        // The video player will handle the scaling
         const transformedX = data.x
         const transformedY = data.y
 
@@ -678,10 +684,11 @@ export class ElectronRecorder {
           velocity,
           captureWidth: data.displayBounds?.width,
           captureHeight: data.displayBounds?.height,
-          scaleFactor: data.scaleFactor
-        })
+          scaleFactor: data.scaleFactor,
+          sourceType: data.sourceType,
+          sourceId: data.sourceId
+        } as any)
 
-        // Update last position
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
         this.lastMouseTime = now
@@ -692,7 +699,6 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        // Don't scale the coordinates - keep them in logical pixels
         const transformedX = data.x
         const transformedY = data.y
 
@@ -704,15 +710,14 @@ export class ElectronRecorder {
           key: data.button,
           captureWidth: data.displayBounds?.width,
           captureHeight: data.displayBounds?.height,
-          scaleFactor: data.scaleFactor
-        })
+          scaleFactor: data.scaleFactor,
+          sourceType: data.sourceType,
+          sourceId: data.sourceId
+        } as any)
 
-        // Update position on click (use transformed coordinates)
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
         this.lastMouseTime = Date.now()
-
-        logger.debug(`Global click captured at (${transformedX}, ${transformedY}), button: ${data.button}`)
       }
     }
 
@@ -741,9 +746,11 @@ export class ElectronRecorder {
       window.electronAPI.onScroll(handleScroll)
     }
 
-    // Start native tracking
+    // Start native tracking with source information
     const result = await window.electronAPI.startMouseTracking({
-      intervalMs: 16 // 60fps
+      intervalMs: 16, // 60fps
+      sourceId: this.captureArea?.sourceId,
+      sourceType: this.captureArea?.sourceType || 'screen'
     })
 
     if (!result.success) {

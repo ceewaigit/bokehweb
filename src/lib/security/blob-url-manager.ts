@@ -141,13 +141,24 @@ export class BlobURLManager {
   private scheduleCleanup(): void {
     if (this.cleanupTimer) return
 
-    // Clean up entries older than 5 minutes
+    // Clean up entries older than 30 minutes (was 5 minutes - too aggressive for video editing)
     this.cleanupTimer = setTimeout(() => {
       const now = Date.now()
-      const maxAge = 5 * 60 * 1000 // 5 minutes
+      const maxAge = 30 * 60 * 1000 // 30 minutes
 
       let cleaned = 0
       this.entries.forEach(entry => {
+        // Don't clean up recording videos that are likely in use
+        if (entry.description?.startsWith('recording-')) {
+          // Check if this recording is still in storage (being used)
+          const recordingId = entry.description.replace('recording-', '')
+          const cachedUrl = RecordingStorage.getBlobUrl(recordingId)
+          if (cachedUrl === entry.url) {
+            // Still in use, skip cleanup
+            return
+          }
+        }
+
         if (now - entry.createdAt > maxAge) {
           this.revoke(entry.url)
           cleaned++

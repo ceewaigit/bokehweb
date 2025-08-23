@@ -102,13 +102,14 @@ export default function RecordingDock() {
   }, [])
 
   const handleStartRecording = () => {
-    // If user selected window or needs to pick a source, show picker
-    if (selectedSource === 'window' || !selectedSourceId) {
+    // If user selected window, always show picker
+    if (selectedSource === 'window') {
       setShowSourcePicker(true)
       return
     }
 
-    // Proceed with countdown and recording
+    // For fullscreen or region, proceed directly
+    // The electron-recorder will auto-select the appropriate screen
     startCountdownAndRecord()
   }
 
