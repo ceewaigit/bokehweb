@@ -32,6 +32,42 @@ async function loadProjectRecording(
   }
 
   const project = recording.project
+  
+  // DEBUG: Log complete project metadata
+  console.log('📋 === PROJECT METADATA (Workspace) ===')
+  console.log('Project ID:', project.id)
+  console.log('Project Name:', project.name)
+  console.log('Project Path:', recording.path)
+  console.log('Total Recordings:', project.recordings?.length || 0)
+  
+  if (project.recordings && project.recordings.length > 0) {
+    project.recordings.forEach((rec: any, index: number) => {
+      console.log(`\n📹 Recording ${index}:`)
+      console.log('  - ID:', rec.id)
+      console.log('  - Video Path:', rec.filePath || rec.videoPath)
+      console.log('  - Duration:', rec.duration, 'ms')
+      console.log('  - Video Dimensions:', rec.videoWidth, 'x', rec.videoHeight)
+      console.log('  - Source Bounds:', rec.sourceBounds)
+      console.log('  - Capture Area:', rec.captureArea)
+      
+      if (rec.metadata && rec.metadata.length > 0) {
+        console.log('  - Metadata Events:', rec.metadata.length)
+        console.log('  - First Event:', rec.metadata[0])
+        
+        // Find unique capture dimensions
+        const captureWidths = [...new Set(rec.metadata.map((m: any) => m.captureWidth).filter(Boolean))]
+        const captureHeights = [...new Set(rec.metadata.map((m: any) => m.captureHeight).filter(Boolean))]
+        console.log('  - Capture Widths found:', captureWidths)
+        console.log('  - Capture Heights found:', captureHeights)
+        
+        // Check for events with sourceBounds
+        const eventsWithBounds = rec.metadata.filter((m: any) => m.sourceBounds).length
+        console.log('  - Events with sourceBounds:', eventsWithBounds)
+      }
+    })
+  }
+  console.log('📋 === END PROJECT METADATA ===\n')
+  
   setLoadingMessage('Creating project...')
   newProject(project.name)
 
