@@ -1,6 +1,7 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { MainComposition } from './compositions/MainComposition';
+import { DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -15,10 +16,12 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={{
           videoUrl: '',
           clip: null,
-          effects: null,
+          effects: DEFAULT_CLIP_EFFECTS,
           cursorEvents: [],
           clickEvents: [],
-          keystrokeEvents: []
+          keystrokeEvents: [],
+          videoWidth: 0, // Always overridden by actual recording
+          videoHeight: 0 // Always overridden by actual recording
         }}
       />
     </>

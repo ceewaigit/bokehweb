@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Video, AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
-import { zoomPanCalculator } from '@/lib/effects/zoom-pan-calculator';
+import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 
 export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: number; y: number } }> = ({
   videoUrl,
@@ -110,10 +110,12 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
                 break;
               }
             }
+            // Use screen dimensions from the mouse event
+            // These are the actual screen dimensions where the mouse is moving
             const screenWidth = currentEvent.screenWidth;
             const screenHeight = currentEvent.screenHeight;
 
-            // Use the edge-based pan calculator
+            // Calculate pan offset to follow mouse movement
             const panOffset = zoomPanCalculator.calculatePanOffset(
               mousePos.x,
               mousePos.y,

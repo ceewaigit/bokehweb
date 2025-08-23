@@ -5,7 +5,7 @@ import { BackgroundLayer } from './BackgroundLayer';
 import { CursorLayer } from './CursorLayer';
 import type { MainCompositionProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
-import { zoomPanCalculator } from '@/lib/effects/zoom-pan-calculator';
+import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -151,12 +151,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       )}
 
       {/* Cursor Layer */}
-      {cursorEvents.length > 0 && (
+      {cursorEvents.length > 0 && effects?.cursor?.visible !== false && (
         <Sequence from={0}>
           <CursorLayer
             cursorEvents={cursorEvents}
             clickEvents={clickEvents}
-            currentFrame={frame}
             fps={fps}
             videoOffset={{
               x: videoPosition.offsetX,

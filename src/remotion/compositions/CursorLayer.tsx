@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, useCurrentFrame } from 'remotion';
 import type { CursorLayerProps } from './types';
 import {
   CursorType,
@@ -33,7 +33,6 @@ const CURSOR_DIMENSIONS: Record<CursorType, { width: number; height: number }> =
 export const CursorLayer: React.FC<CursorLayerProps> = ({
   cursorEvents,
   clickEvents,
-  currentFrame,
   fps,
   videoOffset,
   zoom = { scale: 1, x: 0.5, y: 0.5, panX: 0, panY: 0 },
@@ -41,7 +40,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   videoHeight,
   cursorEffects
 }) => {
-  const { width, height } = useVideoConfig();
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
 
@@ -65,12 +63,12 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // Get interpolated cursor position with smooth lag
+  // Get interpolated cursor position with ice-like sliding effect
   const cursorPosition = useMemo(() => {
     if (cursorEvents.length === 0) return null;
 
-    // Apply lag - cursor follows behind for smooth, natural movement
-    const lagMs = 60; // Cursor lags behind by this amount (like Screen Studio)
+    // Much larger lag for ice-like sliding effect
+    const lagMs = 250; // Cursor slides behind by a significant amount
     const laggedTime = Math.max(0, currentTimeMs - lagMs);
 
     // Find surrounding events for the lagged time
@@ -112,13 +110,25 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
     const progress = (laggedTime - prevEvent.timestamp) / timeDiff;
 
-    // Use smooth cubic easing for natural, flowing movement
-    const easeInOutQuad = (t: number) => {
-      return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    // Ice-like easing function - very slow acceleration and deceleration
+    // This creates a sliding effect like the cursor is on ice
+    const iceEasing = (t: number) => {
+      // Using a combination of sine and exponential for ultra-smooth ice sliding
+      const clampedT = Math.max(0, Math.min(1, t));
+      
+      // Smooth exponential ease for ice-like physics
+      // Starts very slow, gradually builds momentum, then slowly decelerates
+      const exponentialEase = 1 - Math.pow(2, -10 * clampedT);
+      
+      // Add subtle sine wave for extra smoothness
+      const sineInfluence = (Math.sin((clampedT - 0.5) * Math.PI) + 1) / 2;
+      
+      // Combine both for ice-like movement
+      return exponentialEase * 0.7 + sineInfluence * 0.3;
     };
 
-    const smoothProgress = easeInOutQuad(Math.max(0, Math.min(1, progress)));
-
+    const smoothProgress = iceEasing(progress);
+    
     return {
       x: prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress,
       y: prevEvent.y + (nextEvent.y - prevEvent.y) * smoothProgress
@@ -212,11 +222,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const clickProgress = (currentTimeMs - activeClick.timestamp) / 150; // 150ms animation
     if (clickProgress > 1) return 1;
 
-    // Subtle pulse: 1.0 -> 0.95 -> 1.0
+    // Subtle pulse: 1.0 -> 0.90 -> 1.0
     if (clickProgress < 0.5) {
-      return 1 - (clickProgress * 0.1); // Scale down to 0.95
+      return 1 - (clickProgress * 0.2); // Scale down to 0.90
     } else {
-      return 0.95 + ((clickProgress - 0.5) * 0.1); // Scale back up to 1.0
+      return 0.90 + ((clickProgress - 0.5) * 0.2); // Scale back up to 1.0
     }
   }, [activeClick, currentTimeMs]);
 

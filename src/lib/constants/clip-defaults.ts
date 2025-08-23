@@ -22,7 +22,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
       colors: ['#f3f4f6', '#e5e7eb'],  // Light gray gradient
       angle: 135
     },
-    padding: 80  // Reasonable padding around video
+    padding: 60  // Default padding around video
   },
   video: {
     cornerRadius: 24,

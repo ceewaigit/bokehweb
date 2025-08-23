@@ -13,7 +13,7 @@ import {
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
-import { ZoomDetector } from '@/lib/effects/zoom-detector'
+import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 interface ProjectStore {
   // State
