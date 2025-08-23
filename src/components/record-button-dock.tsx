@@ -69,11 +69,11 @@ export function RecordButtonDock() {
     })
   }, [micEnabled, updateSettings])
 
-  // Size window initially to fit dock content
+  // Resize window to fit dock content whenever recording state or source picker changes
   useEffect(() => {
     if (!showSourcePicker && dockContainerRef.current) {
-      // One-time resize to fit the dock content
-      setTimeout(() => {
+      // Use ResizeObserver to detect size changes
+      const resizeObserver = new ResizeObserver(() => {
         if (dockContainerRef.current) {
           const rect = dockContainerRef.current.getBoundingClientRect()
           window.electronAPI?.setWindowContentSize?.({
@@ -81,9 +81,27 @@ export function RecordButtonDock() {
             height: Math.ceil(rect.height + 16)
           })
         }
+      })
+
+      // Initial resize
+      setTimeout(() => {
+        if (dockContainerRef.current) {
+          const rect = dockContainerRef.current.getBoundingClientRect()
+          window.electronAPI?.setWindowContentSize?.({
+            width: Math.ceil(rect.width + 16),
+            height: Math.ceil(rect.height + 16)
+          })
+        }
       }, 100)
+
+      // Observe the dock container for size changes
+      resizeObserver.observe(dockContainerRef.current)
+
+      return () => {
+        resizeObserver.disconnect()
+      }
     }
-  }, [showSourcePicker])
+  }, [showSourcePicker, isRecording, isPaused]) // Re-run when recording state changes
 
   const handleStartRecording = () => {
     // Show the source picker inline

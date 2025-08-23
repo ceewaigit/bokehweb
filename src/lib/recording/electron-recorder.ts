@@ -47,6 +47,7 @@ export class ElectronRecorder {
   private lastPauseTime = 0
   private metadata: ElectronMetadata[] = []
   private captureArea: ElectronRecordingResult['captureArea'] = undefined
+  private recordingSettings?: RecordingSettings
   private dataRequestInterval: NodeJS.Timeout | null = null
 
   // Mouse tracking optimization
@@ -64,6 +65,9 @@ export class ElectronRecorder {
     if (this.isRecording) {
       throw new Error('Already recording')
     }
+    
+    // Store recording settings for later use
+    this.recordingSettings = recordingSettings
 
     logger.info('Starting Electron-based screen recording')
 
@@ -164,12 +168,6 @@ export class ElectronRecorder {
       }
 
       logger.info(`Using ${recordingSettings.area} source: ${primarySource.name} (${primarySource.id})`)
-      console.log('🎯 Selected source:', {
-        name: primarySource.name,
-        id: primarySource.id,
-        area: recordingSettings.area,
-        captureAreaBounds
-      })
 
       // Capture screen dimensions for dock exclusion
       await this.captureScreenInfo(primarySource.id, captureAreaBounds)
@@ -825,16 +823,20 @@ export class ElectronRecorder {
     }
 
     // Start native tracking with source information
+    // For full screen/window recordings without captureArea, we still need to pass the source info
+    const sourceId = this.captureArea?.sourceId || this.recordingSettings?.sourceId || 'screen:unknown'
+    const sourceType = this.captureArea?.sourceType || (this.recordingSettings?.area === 'window' ? 'window' : 'screen')
+    
     logger.info('Starting mouse tracking with:', {
-      sourceId: this.captureArea?.sourceId,
-      sourceType: this.captureArea?.sourceType,
-      isAreaRecording: this.captureArea?.sourceId?.includes('area:')
+      sourceId,
+      sourceType,
+      isAreaRecording: sourceId?.includes('area:')
     })
     
     const result = await window.electronAPI.startMouseTracking({
       intervalMs: 16, // 60fps
-      sourceId: this.captureArea?.sourceId,
-      sourceType: this.captureArea?.sourceType || 'screen'
+      sourceId,
+      sourceType
     })
 
     if (!result.success) {

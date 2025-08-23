@@ -82,7 +82,20 @@ export function TimelineCanvas({
     currentProject?.timeline.tracks.find(t => t.type === 'video')?.clips.some(
       c => selectedClips.includes(c.id) && c.effects?.zoom?.enabled
     )
-  const totalHeight = Math.max(TimelineUtils.getTotalHeight(hasZoomTrack), stageSize.height)
+  
+  // Dynamic track heights based on available space
+  const availableHeight = stageSize.height
+  const rulerHeight = TIMELINE_LAYOUT.RULER_HEIGHT
+  const trackCount = 2 + (hasZoomTrack ? 1 : 0) // video + audio + optional zoom
+  const remainingHeight = availableHeight - rulerHeight
+  
+  // Distribute height proportionally
+  const videoTrackHeight = Math.max(80, Math.floor(remainingHeight * 0.45))
+  const audioTrackHeight = Math.max(60, Math.floor(remainingHeight * 0.35))
+  const zoomTrackHeight = hasZoomTrack ? Math.max(50, Math.floor(remainingHeight * 0.2)) : 0
+  
+  // Use full available height
+  const totalHeight = stageSize.height
   const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
 
   // Use keyboard shortcuts
@@ -273,31 +286,31 @@ export function TimelineCanvas({
               x={0}
               y={0}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
-              height={TIMELINE_LAYOUT.RULER_HEIGHT}
+              height={rulerHeight}
               fill="hsl(240, 10%, 3.9%)"
             />
 
             <TimelineTrack
               type="video"
-              y={TimelineUtils.getTrackY('video')}
+              y={rulerHeight}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
-              height={TIMELINE_LAYOUT.VIDEO_TRACK_HEIGHT}
+              height={videoTrackHeight}
             />
 
             {hasZoomTrack && (
               <TimelineTrack
                 type="zoom"
-                y={TimelineUtils.getTrackY('zoom')}
+                y={rulerHeight + videoTrackHeight}
                 width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
-                height={TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT}
+                height={zoomTrackHeight}
               />
             )}
 
             <TimelineTrack
               type="audio"
-              y={TimelineUtils.getTrackY('audio', hasZoomTrack)}
+              y={rulerHeight + videoTrackHeight + zoomTrackHeight}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
-              height={TIMELINE_LAYOUT.AUDIO_TRACK_HEIGHT}
+              height={audioTrackHeight}
             />
           </Layer>
 
@@ -323,7 +336,7 @@ export function TimelineCanvas({
                     clip={clip}
                     recording={recording}
                     trackType="video"
-                    trackY={TimelineUtils.getTrackY('video')}
+                    trackY={rulerHeight}
                     pixelsPerMs={pixelsPerMs}
                     isSelected={selectedClips.includes(clip.id)}
                     selectedEffectType={selectedClips.includes(clip.id) ? selectedEffectLayer?.type : null}
@@ -353,9 +366,9 @@ export function TimelineCanvas({
                   key={block.id}
                   blockId={block.id}
                   x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
-                  y={TimelineUtils.getTrackY('zoom') + TIMELINE_LAYOUT.TRACK_PADDING}
+                  y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
                   width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
-                  height={TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+                  height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
                   startTime={block.startTime}
                   endTime={block.endTime}
                   introMs={block.introMs}
@@ -428,7 +441,7 @@ export function TimelineCanvas({
                   key={clip.id}
                   clip={clip}
                   trackType="audio"
-                  trackY={TimelineUtils.getTrackY('audio', hasZoomTrack)}
+                  trackY={rulerHeight + videoTrackHeight + zoomTrackHeight}
                   pixelsPerMs={pixelsPerMs}
                   isSelected={selectedClips.includes(clip.id)}
                   onSelect={handleClipSelect}
