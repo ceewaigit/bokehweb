@@ -17,10 +17,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [resolvedTheme, setResolvedTheme] = useState<'dark' | 'light'>('dark')
 
   useEffect(() => {
-    // Load saved theme from localStorage
+    // Load saved theme from localStorage, default to dark
     const savedTheme = localStorage.getItem('theme') as Theme | null
     if (savedTheme) {
       setTheme(savedTheme)
+    } else {
+      // Set dark as default and save it
+      setTheme('dark')
+      localStorage.setItem('theme', 'dark')
     }
   }, [])
 

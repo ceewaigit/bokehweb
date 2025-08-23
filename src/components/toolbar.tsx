@@ -49,7 +49,7 @@ export function Toolbar({
     duration,
     status
   } = useRecordingStore()
-  
+
   const { theme, setTheme } = useTheme()
   const [propertiesOpen, setPropertiesOpen] = useState(true)
 
