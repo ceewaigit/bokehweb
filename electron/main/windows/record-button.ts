@@ -29,9 +29,9 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    width: 1, // Let content drive size
-    height: 1, // Let content drive size  
-    x: Math.floor(display.workAreaSize.width / 2), // Center horizontally
+    width: 300, // Reasonable initial width for dock
+    height: 56, // Reasonable initial height for dock  
+    x: Math.floor(display.workAreaSize.width / 2 - 150), // Center horizontally
     y: 20,
     frame: false,
     transparent: true,

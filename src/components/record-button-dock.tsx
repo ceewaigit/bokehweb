@@ -69,29 +69,19 @@ export function RecordButtonDock() {
     })
   }, [micEnabled, updateSettings])
 
-  // Dynamically size window based on actual content dimensions
+  // Size window initially to fit dock content
   useEffect(() => {
-    if (!showSourcePicker) {
-      // Only auto-size for the dock, not when source picker is open
-      const dockElement = dockContainerRef.current
-      if (!dockElement || !window.electronAPI?.setWindowContentSize) return
-
-      const observer = new ResizeObserver((entries) => {
-        const entry = entries[0]
-        if (!entry) return
-
-        const { width, height } = entry.contentRect
-        // Add small buffer for shadows
-        const buffer = 16
-
-        window.electronAPI?.setWindowContentSize?.({
-          width: Math.ceil(width + buffer),
-          height: Math.ceil(height + buffer)
-        })
-      })
-
-      observer.observe(dockElement)
-      return () => observer.disconnect()
+    if (!showSourcePicker && dockContainerRef.current) {
+      // One-time resize to fit the dock content
+      setTimeout(() => {
+        if (dockContainerRef.current) {
+          const rect = dockContainerRef.current.getBoundingClientRect()
+          window.electronAPI?.setWindowContentSize?.({
+            width: Math.ceil(rect.width + 16), // Add padding for shadow
+            height: Math.ceil(rect.height + 16)
+          })
+        }
+      }, 100)
     }
   }, [showSourcePicker])
 
@@ -134,7 +124,15 @@ export function RecordButtonDock() {
     
     // Determine the area type and sourceId based on selection
     if (sourceId === 'area:selection') {
+      // This shouldn't happen anymore as area selector is handled separately
       updateSettings({ area: 'region' })
+    } else if (sourceId.startsWith('area:')) {
+      // Parse area coordinates from sourceId like "area:100,100,800,600"
+      // The coordinates are encoded in the sourceId itself
+      updateSettings({ 
+        area: 'region',
+        sourceId // Pass the area coordinates as part of sourceId
+      })
     } else if (sourceId.startsWith('screen:')) {
       updateSettings({ area: 'fullscreen', sourceId })
     } else {

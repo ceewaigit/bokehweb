@@ -60,12 +60,16 @@ export function registerWindowControlHandlers(): void {
       const { screen } = require('electron')
       const display = screen.getPrimaryDisplay()
       
-      window.setContentSize(Math.round(dimensions.width), Math.round(dimensions.height))
-      
-      // Center the window horizontally after resizing
+      // Set bounds all at once to avoid multiple redraws
       const newX = Math.floor(display.workAreaSize.width / 2 - dimensions.width / 2)
       const currentY = window.getPosition()[1]
-      window.setPosition(newX, currentY)
+      
+      window.setBounds({
+        x: newX,
+        y: currentY,
+        width: Math.round(dimensions.width),
+        height: Math.round(dimensions.height)
+      }, true) // animate = true for smoother transition
       
       return { success: true }
     }

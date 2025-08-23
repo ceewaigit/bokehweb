@@ -6,6 +6,7 @@ import { Monitor, AppWindow, X, Check, Loader2, Sparkles, Maximize2 } from 'luci
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/utils/logger'
 import { Button } from '@/components/ui/button'
+import { AreaSelector } from './area-selector'
 
 interface Source {
   id: string
@@ -25,8 +26,8 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [showAreaSelector, setShowAreaSelector] = useState(false)
   const thumbnailCache = useRef<Map<string, string>>(new Map())
-  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -34,23 +35,22 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
     }
   }, [isOpen])
 
-  // Auto-resize window when source picker content changes
+  // Resize window once when opening
   useEffect(() => {
-    if (!isOpen || !containerRef.current) return
-
-    const observer = new ResizeObserver(() => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        // Add some padding for shadows and margins
-        window.electronAPI?.setWindowContentSize?.({
-          width: Math.ceil(rect.width + 32),
-          height: Math.ceil(rect.height + 32)
-        })
-      }
-    })
-
-    observer.observe(containerRef.current)
-    return () => observer.disconnect()
+    if (isOpen) {
+      // Get screen dimensions for proper sizing
+      const screenWidth = window.screen.availWidth
+      const screenHeight = window.screen.availHeight
+      
+      // Set to 90% of screen or max 1200x800
+      const width = Math.min(1200, screenWidth * 0.9)
+      const height = Math.min(800, screenHeight * 0.9)
+      
+      window.electronAPI?.setWindowContentSize?.({
+        width: Math.round(width),
+        height: Math.round(height)
+      })
+    }
   }, [isOpen])
 
   const loadSources = useCallback(async () => {
@@ -115,9 +115,22 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
 
   const handleSelect = () => {
     if (selectedId) {
-      onSelect(selectedId)
-      onClose()
+      if (selectedId === 'area:selection') {
+        // Open area selector overlay
+        setShowAreaSelector(true)
+        onClose() // Close the source picker
+      } else {
+        onSelect(selectedId)
+        onClose()
+      }
     }
+  }
+
+  const handleAreaSelect = (area: { x: number; y: number; width: number; height: number }) => {
+    // Create a custom source ID with the area dimensions
+    const areaSourceId = `area:${area.x},${area.y},${area.width},${area.height}`
+    onSelect(areaSourceId)
+    setShowAreaSelector(false)
   }
 
   const screens = sources.filter(s => s.type === 'screen')
@@ -125,9 +138,10 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
   const areaOption = sources.find(s => s.type === 'area')
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <>
           {/* Glassmorphic backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -139,7 +153,6 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
 
           {/* Dialog with glassmorphic design */}
           <motion.div
-            ref={containerRef}
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -470,5 +483,13 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
         </>
       )}
     </AnimatePresence>
+    
+    {/* Area Selector Overlay */}
+    <AreaSelector
+      isOpen={showAreaSelector}
+      onClose={() => setShowAreaSelector(false)}
+      onSelect={handleAreaSelect}
+    />
+  </>
   )
 }
