@@ -179,6 +179,20 @@ export class ElectronRecorder {
       // Get media stream from desktop capturer with audio support
       const hasAudio = recordingSettings.audioInput !== 'none'
 
+      // Get the actual resolution to use for constraints
+      // This prevents upscaling to 8K on high-res displays
+      let targetWidth: number | undefined
+      let targetHeight: number | undefined
+      
+      if (this.captureArea?.fullBounds) {
+        // Use the actual screen/window dimensions with scale factor
+        const scaleFactor = this.captureArea.scaleFactor || 1
+        targetWidth = Math.floor(this.captureArea.fullBounds.width * scaleFactor)
+        targetHeight = Math.floor(this.captureArea.fullBounds.height * scaleFactor)
+        
+        logger.info(`Setting capture resolution to ${targetWidth}x${targetHeight} (scale: ${scaleFactor})`)
+      }
+
       const constraints: any = {
         audio: hasAudio ? {
           mandatory: {
@@ -190,13 +204,13 @@ export class ElectronRecorder {
           mandatory: {
             chromeMediaSource: 'desktop',
             chromeMediaSourceId: primarySource.id,
-            // Request full resolution for Retina displays
-            minWidth: 1920,
-            maxWidth: 7680,  // Support up to 8K
-            minHeight: 1080,
-            maxHeight: 4320,  // Support up to 8K
-            minFrameRate: 30,
-            maxFrameRate: recordingSettings.framerate || 60
+            // Add resolution constraints to prevent upscaling
+            ...(targetWidth && targetHeight ? {
+              maxWidth: targetWidth,
+              maxHeight: targetHeight,
+              minWidth: targetWidth,
+              minHeight: targetHeight
+            } : {})
           }
         }
       }

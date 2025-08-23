@@ -140,12 +140,9 @@ export function RecordButtonDock() {
   const handleSourceSelect = (sourceId: string) => {
     setShowSourcePicker(false)
     
-    // Determine the area type and sourceId based on selection
     if (sourceId === 'area:selection') {
-      // This shouldn't happen anymore as area selector is handled separately
       updateSettings({ area: 'region' })
     } else if (sourceId.startsWith('area:')) {
-      // Parse area coordinates from sourceId like "area:100,100,800,600"
       updateSettings({ 
         area: 'region',
         sourceId
@@ -153,11 +150,9 @@ export function RecordButtonDock() {
     } else if (sourceId.startsWith('screen:')) {
       updateSettings({ area: 'fullscreen', sourceId })
     } else {
-      // Window selection
       updateSettings({ area: 'window', sourceId })
     }
     
-    // Small delay to ensure settings are updated before recording starts
     setTimeout(() => {
       startCountdownAndRecord()
     }, 100)
