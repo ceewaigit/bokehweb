@@ -73,7 +73,7 @@ export interface CursorHotspot {
  * These ratios work at any scale since they're proportional
  */
 export const CURSOR_HOTSPOTS: Record<CursorType, CursorHotspot> = {
-  [CursorType.ARROW]: { x: 0.1, y: 0.1 }, // Arrow tip is close to top-left corner
+  [CursorType.ARROW]: { x: 0.15, y: 0.12 }, // Arrow tip position fine-tuned
   [CursorType.IBEAM]: { x: 0.5, y: 0.5 }, // Center of I-beam
   [CursorType.POINTING_HAND]: { x: 0.64, y: 0.18 }, // Finger tip position
   [CursorType.CLOSED_HAND]: { x: 0.5, y: 0.5 }, // Center of fist

@@ -328,10 +328,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     cursorY = transformedPos.y;
   }
   
-  // Apply hotspot offset scaled by zoom
-  // When zoomed, everything is scaled including the cursor image
-  cursorX -= hotspot.x * renderedWidth * effectiveZoomScale;
-  cursorY -= hotspot.y * renderedHeight * effectiveZoomScale;
+  // Apply hotspot offset WITHOUT scaling by zoom
+  // The cursor position has already been transformed by zoom, so we only need
+  // to offset by the rendered cursor size, not scaled again
+  cursorX -= hotspot.x * renderedWidth;
+  cursorY -= hotspot.y * renderedHeight;
 
   // Create motion blur filter based on velocity
   const motionBlurFilter = useMemo(() => {
@@ -367,10 +368,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
             position: 'absolute',
             left: cursorX + offsetX,
             top: cursorY + offsetY,
-            width: dimensions.width * cursorSize * effectiveZoomScale,
-            height: dimensions.height * cursorSize * effectiveZoomScale,
+            width: dimensions.width * cursorSize,
+            height: dimensions.height * cursorSize,
             transform: `scale(${clickScale * (1 - i * 0.1)})`,
-            transformOrigin: `${hotspot.x * renderedWidth * effectiveZoomScale}px ${hotspot.y * renderedHeight * effectiveZoomScale}px`,
+            transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
             opacity,
             zIndex: 99 - i,
             pointerEvents: 'none',
@@ -396,10 +397,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
           position: 'absolute',
           left: cursorX,
           top: cursorY,
-          width: dimensions.width * cursorSize * effectiveZoomScale,
-          height: dimensions.height * cursorSize * effectiveZoomScale,
+          width: dimensions.width * cursorSize,
+          height: dimensions.height * cursorSize,
           transform: `scale(${clickScale})`,
-          transformOrigin: `${hotspot.x * renderedWidth * effectiveZoomScale}px ${hotspot.y * renderedHeight * effectiveZoomScale}px`,
+          transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
           zIndex: 100,
           pointerEvents: 'none',
           filter: motionBlurFilter,
