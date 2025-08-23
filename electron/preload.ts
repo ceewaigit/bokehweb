@@ -155,6 +155,9 @@ const electronAPI = {
   getMacOSWallpapers: (): Promise<{ wallpapers: any[], gradients: any[] }> =>
     ipcRenderer.invoke('get-macos-wallpapers'),
   
+  loadWallpaperImage: (imagePath: string): Promise<string> =>
+    ipcRenderer.invoke('load-wallpaper-image', imagePath),
+  
   // Native screen area selection
   selectScreenArea: (): Promise<{ 
     success: boolean

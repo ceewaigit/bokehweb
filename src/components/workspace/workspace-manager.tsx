@@ -165,7 +165,7 @@ export function WorkspaceManager() {
     .find(c => c.id === selectedClipId) || null
 
   // Handle zoom block updates for local state
-  const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
+  const handleZoomBlockUpdate = useCallback((_clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
     const currentEffects = localEffects || selectedClip?.effects || DEFAULT_CLIP_EFFECTS
     const currentZoom = currentEffects.zoom
 

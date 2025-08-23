@@ -176,7 +176,8 @@ export function PreviewAreaRemotion({
     clickEvents: selectedRecording?.metadata?.clickEvents || [],
     keystrokeEvents: (selectedRecording?.metadata as any)?.keystrokeEvents || [],
     videoWidth,
-    videoHeight
+    videoHeight,
+    captureArea: selectedRecording?.captureArea?.fullBounds
   };
 
   // Calculate duration in frames

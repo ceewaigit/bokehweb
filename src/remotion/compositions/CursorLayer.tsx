@@ -64,21 +64,20 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // Get interpolated cursor position with ice-like sliding effect
+  // Get interpolated cursor position
   const cursorPosition = useMemo(() => {
     if (cursorEvents.length === 0) return null;
 
-    // Much larger lag for ice-like sliding effect
-    const lagMs = 250; // Cursor slides behind by a significant amount
-    const laggedTime = Math.max(0, currentTimeMs - lagMs);
+    // Use current time directly for immediate response
+    const targetTime = currentTimeMs;
 
-    // Find surrounding events for the lagged time
+    // Find surrounding events
     let prevEvent = null;
     let nextEvent = null;
 
     for (let i = 0; i < cursorEvents.length; i++) {
       const event = cursorEvents[i];
-      if (event.timestamp <= laggedTime) {
+      if (event.timestamp <= targetTime) {
         prevEvent = event;
       } else {
         nextEvent = event;
@@ -109,26 +108,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       };
     }
 
-    const progress = (laggedTime - prevEvent.timestamp) / timeDiff;
-
-    // Ice-like easing function - very slow acceleration and deceleration
-    // This creates a sliding effect like the cursor is on ice
-    const iceEasing = (t: number) => {
-      // Using a combination of sine and exponential for ultra-smooth ice sliding
-      const clampedT = Math.max(0, Math.min(1, t));
-
-      // Smooth exponential ease for ice-like physics
-      // Starts very slow, gradually builds momentum, then slowly decelerates
-      const exponentialEase = 1 - Math.pow(2, -10 * clampedT);
-
-      // Add subtle sine wave for extra smoothness
-      const sineInfluence = (Math.sin((clampedT - 0.5) * Math.PI) + 1) / 2;
-
-      // Combine both for ice-like movement
-      return exponentialEase * 0.7 + sineInfluence * 0.3;
-    };
-
-    const smoothProgress = iceEasing(progress);
+    const progress = (targetTime - prevEvent.timestamp) / timeDiff;
+    
+    // Simple smoothstep interpolation
+    const smoothProgress = progress * progress * (3 - 2 * progress);
 
     return {
       x: prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress,
@@ -145,18 +128,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     });
   }, [clickEvents, currentTimeMs]);
 
-  // Calculate click animation scale - must be before early return for React hooks rules
+  // Calculate click animation scale
   const clickScale = useMemo(() => {
     if (!activeClick) return 1;
-    const clickProgress = (currentTimeMs - activeClick.timestamp) / 150; // 150ms animation
-    if (clickProgress > 1) return 1;
-
-    // Subtle pulse: 1.0 -> 0.90 -> 1.0
-    if (clickProgress < 0.5) {
-      return 1 - (clickProgress * 0.2); // Scale down to 0.90
-    } else {
-      return 0.90 + ((clickProgress - 0.5) * 0.2); // Scale back up to 1.0
-    }
+    const clickProgress = Math.min(1, (currentTimeMs - activeClick.timestamp) / 150);
+    // Subtle pulse animation
+    return clickProgress < 0.5 
+      ? 1 - (clickProgress * 0.2)
+      : 0.9 + ((clickProgress - 0.5) * 0.2);
   }, [activeClick, currentTimeMs]);
 
   if (!cursorPosition) return null;
@@ -179,18 +158,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     rawY -= displayBounds.y;
   }
 
-  // Determine screen dimensions based on recording type
-  let screenWidth, screenHeight;
-  
-  if (isWindowRecording) {
-    // For window recording, video dimensions = window dimensions
-    screenWidth = videoWidth;
-    screenHeight = videoHeight;
-  } else {
-    // For screen recording, use event dimensions (accounts for Retina displays)
-    screenWidth = currentEvent?.screenWidth || videoWidth / 2;
-    screenHeight = currentEvent?.screenHeight || videoHeight / 2;
-  }
+  // Determine screen dimensions
+  const screenWidth = isWindowRecording ? videoWidth : (currentEvent?.screenWidth || videoWidth);
+  const screenHeight = isWindowRecording ? videoHeight : (currentEvent?.screenHeight || videoHeight);
 
   // Calculate normalized position (0-1 range)
   let normalizedX = rawX / screenWidth;
@@ -256,7 +226,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
-      {/* Cursor with proper dimensions and smooth motion */}
       <Img
         src={getCursorImagePath(cursorType)}
         style={{

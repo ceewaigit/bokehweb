@@ -16,7 +16,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   clickEvents,
   keystrokeEvents: _keystrokeEvents, // Not yet implemented
   videoWidth,
-  videoHeight
+  videoHeight,
+  captureArea
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
@@ -217,6 +218,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             zoom={effects?.zoom}
             videoWidth={videoWidth}
             videoHeight={videoHeight}
+            captureArea={captureArea}
             preCalculatedPan={completeZoomState.scale > 1 ? { x: completeZoomState.panX, y: completeZoomState.panY } : undefined}
           />
         </Sequence>

@@ -150,7 +150,6 @@ export function registerSourceHandlers(): void {
     }
   })
 
-  // Get macOS wallpapers
   ipcMain.handle('get-macos-wallpapers', async () => {
     try {
       const wallpaperDirs = [
@@ -159,38 +158,27 @@ export function registerSourceHandlers(): void {
         path.join(process.env.HOME || '', 'Pictures')
       ]
       
-      const wallpapers: Array<{ name: string, path: string, thumbnail?: string }> = []
+      const wallpapers: Array<{ name: string, path: string }> = []
       
       for (const dir of wallpaperDirs) {
         try {
           const files = await fs.readdir(dir)
           for (const file of files) {
-            // Support common image formats
             if (file.match(/\.(heic|jpg|jpeg|png|tiff|gif)$/i)) {
               const fullPath = path.join(dir, file)
               const name = path.basename(file, path.extname(file))
               
-              // Check for thumbnail
-              const thumbnailPath = path.join(dir, '.thumbnails', file)
-              let hasThumbnail = false
-              try {
-                await fs.access(thumbnailPath)
-                hasThumbnail = true
-              } catch {}
-              
               wallpapers.push({
                 name: name.replace(/_/g, ' '),
-                path: `file://${fullPath}`,
-                thumbnail: hasThumbnail ? `file://${thumbnailPath}` : undefined
+                path: fullPath
               })
             }
           }
-        } catch (error) {
-          console.log(`Could not read directory ${dir}:`, error)
+        } catch {
+          // Directory not accessible, skip
         }
       }
       
-      // Add some default gradients that look like macOS wallpapers
       const macOSGradients = [
         { name: 'macOS Monterey', path: 'gradient:monterey', colors: ['#1C4E80', '#7C909C'] },
         { name: 'macOS Ventura', path: 'gradient:ventura', colors: ['#243B53', '#829AB1'] },
@@ -199,12 +187,42 @@ export function registerSourceHandlers(): void {
       ]
       
       return {
-        wallpapers: wallpapers.slice(0, 20), // Limit to first 20 wallpapers
+        wallpapers: wallpapers.slice(0, 20),
         gradients: macOSGradients
       }
     } catch (error) {
       console.error('Error getting macOS wallpapers:', error)
       return { wallpapers: [], gradients: [] }
+    }
+  })
+
+  ipcMain.handle('load-wallpaper-image', async (event: IpcMainInvokeEvent, imagePath: string) => {
+    try {
+      const allowedDirs = [
+        '/System/Library/Desktop Pictures',
+        '/Library/Desktop Pictures',
+        path.join(process.env.HOME || '', 'Pictures')
+      ]
+      
+      const isAllowed = allowedDirs.some(dir => imagePath.startsWith(dir))
+      if (!isAllowed) {
+        throw new Error('Access denied')
+      }
+      
+      const imageBuffer = await fs.readFile(imagePath)
+      const base64 = imageBuffer.toString('base64')
+      
+      const ext = path.extname(imagePath).toLowerCase()
+      let mimeType = 'image/jpeg'
+      if (ext === '.png') mimeType = 'image/png'
+      else if (ext === '.gif') mimeType = 'image/gif'
+      else if (ext === '.heic') mimeType = 'image/heic'
+      else if (ext === '.tiff' || ext === '.tif') mimeType = 'image/tiff'
+      
+      return `data:${mimeType};base64,${base64}`
+    } catch (error) {
+      console.error('Error loading wallpaper image:', error)
+      throw error
     }
   })
 
@@ -252,17 +270,17 @@ export function registerSourceHandlers(): void {
           await fs.unlink(tempFile)
         } catch {}
         
-        // For the position, we need to use a different approach
-        // Since screencapture doesn't give us the position directly,
-        // we'll use the mouse position as an approximation
-        const mousePos = screen.getCursorScreenPoint()
-        const display = screen.getDisplayNearestPoint(mousePos)
+        // LIMITATION: screencapture -i doesn't return the position of the selection
+        // Only the dimensions. We need the position for proper video cropping.
+        // For a proper implementation, we'd need to use native macOS APIs or
+        // a third-party tool that returns both dimensions AND position.
         
-        // Estimate the top-left position (this is approximate)
-        // In a real implementation, you might want to use native code
-        // or a more sophisticated approach
-        const x = Math.max(0, mousePos.x - Math.floor(width / 2))
-        const y = Math.max(0, mousePos.y - Math.floor(height / 2))
+        // TEMPORARY: Use (0,0) which means the selection starts at top-left
+        // This means area selection will only work properly if users select
+        // from the top-left corner of the screen
+        const x = 0
+        const y = 0
+        const display = screen.getPrimaryDisplay()
         
         console.log(`✅ Area selected: ${width}x${height} at approximately (${x}, ${y})`)
         

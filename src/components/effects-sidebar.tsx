@@ -210,22 +210,22 @@ export function EffectsSidebar({
                         {macOSWallpapers.wallpapers.slice(0, 12).map((wallpaper, index) => (
                           <button
                             key={index}
-                            onClick={() => updateEffect('background', {
-                              type: 'wallpaper',
-                              wallpaper: wallpaper.path
-                            })}
+                            onClick={async () => {
+                              try {
+                                const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
+                                if (dataUrl) {
+                                  updateEffect('background', {
+                                    type: 'wallpaper',
+                                    wallpaper: dataUrl
+                                  })
+                                }
+                              } catch (error) {
+                                console.error('Failed to load wallpaper:', error)
+                              }
+                            }}
                             className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group"
                             title={wallpaper.name}
                           >
-                            <img
-                              src={wallpaper.thumbnail || wallpaper.path}
-                              alt={wallpaper.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                // Fallback to gradient if image fails to load
-                                e.currentTarget.style.display = 'none'
-                              }}
-                            />
                             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
                             <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                               {wallpaper.name}

@@ -82,7 +82,8 @@ export function TimelineCanvas({
     currentProject?.timeline.tracks.find(t => t.type === 'video')?.clips.some(
       c => selectedClips.includes(c.id) && c.effects?.zoom?.enabled
     )
-  const totalHeight = TimelineUtils.getTotalHeight(hasZoomTrack)
+  const totalHeight = Math.max(TimelineUtils.getTotalHeight(hasZoomTrack), stageSize.height)
+  const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
 
   // Use keyboard shortcuts
   useTimelineKeyboard({
@@ -254,7 +255,7 @@ export function TimelineCanvas({
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       >
         <Stage
-          width={Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)}
+          width={stageWidth}
           height={totalHeight}
           onMouseDown={handleStageClick}
         >
@@ -263,10 +264,17 @@ export function TimelineCanvas({
             <Rect
               x={0}
               y={0}
+              width={stageWidth}
+              height={totalHeight}
+              fill="hsl(240, 10%, 2%)"
+            />
+            
+            <Rect
+              x={0}
+              y={0}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
               height={TIMELINE_LAYOUT.RULER_HEIGHT}
               fill="hsl(240, 10%, 3.9%)"
-              opacity={1}
             />
 
             <TimelineTrack
@@ -443,12 +451,12 @@ export function TimelineCanvas({
         </Stage>
       </div>
 
-      {/* Timeline Info */}
-      <div className="flex items-center justify-between px-4 py-2 border-t border-border bg-card">
-        <span className="text-xs font-medium text-muted-foreground">
+      {/* Timeline Info - Compact */}
+      <div className="flex items-center justify-between px-3 py-1 border-t border-border bg-card">
+        <span className="text-[10px] font-medium text-muted-foreground">
           {selectedClips.length > 0 ? `${selectedClips.length} SELECTED` : ''}
         </span>
-        <span className="text-xs font-mono text-muted-foreground">
+        <span className="text-[10px] font-mono text-muted-foreground">
           {formatTime(currentTime)} / {formatTime(currentProject.timeline.duration)}
         </span>
       </div>

@@ -236,7 +236,7 @@ export function useRecording() {
         const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
         
         // Save recording with project using consolidated function
-        const saved = await saveRecordingWithProject(result.video, result.metadata, projectName)
+        const saved = await saveRecordingWithProject(result.video, result.metadata, projectName, result.captureArea)
         
         if (saved) {
           logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)

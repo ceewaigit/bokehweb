@@ -21,7 +21,8 @@ export const RemotionRoot: React.FC = () => {
           clickEvents: [],
           keystrokeEvents: [],
           videoWidth: 0, // Always overridden by actual recording
-          videoHeight: 0 // Always overridden by actual recording
+          videoHeight: 0, // Always overridden by actual recording
+          captureArea: undefined
         }}
       />
     </>

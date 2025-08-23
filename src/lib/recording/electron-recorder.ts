@@ -35,6 +35,7 @@ export interface ElectronMetadata {
   captureWidth?: number
   captureHeight?: number
   scaleFactor?: number
+  cursorType?: string  // Track cursor type for accurate rendering
 }
 
 export class ElectronRecorder {
@@ -95,9 +96,31 @@ export class ElectronRecorder {
       }
 
       let primarySource
+      let captureAreaBounds: { x: number; y: number; width: number; height: number } | undefined
 
-      // If a specific source ID is provided, ALWAYS use it (no fallback)
-      if (recordingSettings.sourceId) {
+      // Check if this is an area selection
+      if (recordingSettings.sourceId?.startsWith('area:')) {
+        // Parse area coordinates from sourceId like "area:100,100,800,600"
+        const coords = recordingSettings.sourceId.replace('area:', '').split(',').map(Number)
+        if (coords.length === 4) {
+          const [x, y, width, height] = coords
+          captureAreaBounds = { x, y, width, height }
+          logger.info(`Area selection: ${width}x${height} at (${x}, ${y})`)
+          
+          // For area selection, use the primary screen source
+          primarySource = sources.find((s) =>
+            s.id.startsWith('screen:') ||
+            s.name.toLowerCase().includes('entire screen') ||
+            s.name.toLowerCase().includes('screen 1')
+          )
+          
+          if (!primarySource) {
+            throw new Error('No screen source found for area recording')
+          }
+        } else {
+          throw new Error('Invalid area coordinates in sourceId')
+        }
+      } else if (recordingSettings.sourceId) {
         primarySource = sources.find(s => s.id === recordingSettings.sourceId)
         if (!primarySource) {
           throw new Error(`Selected source ${recordingSettings.sourceId} is no longer available. Please select a different source.`)
@@ -132,7 +155,7 @@ export class ElectronRecorder {
       logger.info(`Using ${recordingSettings.area} source: ${primarySource.name} (${primarySource.id})`)
 
       // Capture screen dimensions for dock exclusion
-      await this.captureScreenInfo(primarySource.id)
+      await this.captureScreenInfo(primarySource.id, captureAreaBounds)
 
       // Check and request screen recording permission first
       await this.checkScreenRecordingPermission()
@@ -562,7 +585,7 @@ export class ElectronRecorder {
     }
   }
 
-  private async captureScreenInfo(sourceId: string): Promise<void> {
+  private async captureScreenInfo(sourceId: string, areaSelection?: { x: number; y: number; width: number; height: number }): Promise<void> {
     try {
       // Determine if this is a window or screen recording
       const isWindow = !sourceId.startsWith('screen:')
@@ -595,21 +618,39 @@ export class ElectronRecorder {
         const screen = screens.find((s) => s.id === screenId)
 
         if (screen) {
-          this.captureArea = {
-            fullBounds: screen.bounds,
-            workArea: screen.workArea,
-            scaleFactor: screen.scaleFactor ?? 1,
-            sourceType: 'screen',
-            sourceId: sourceId
-          }
+          // If we have an area selection, use those bounds instead
+          if (areaSelection) {
+            this.captureArea = {
+              fullBounds: areaSelection,
+              workArea: areaSelection,
+              scaleFactor: screen.scaleFactor ?? 1,
+              sourceType: 'screen',
+              sourceId: sourceId
+            }
+            
+            logger.info('Area selection captured', {
+              sourceId,
+              sourceType: 'area',
+              bounds: areaSelection,
+              scaleFactor: this.captureArea.scaleFactor
+            })
+          } else {
+            this.captureArea = {
+              fullBounds: screen.bounds,
+              workArea: screen.workArea,
+              scaleFactor: screen.scaleFactor ?? 1,
+              sourceType: 'screen',
+              sourceId: sourceId
+            }
 
-          logger.info('Screen info captured', {
-            sourceId,
-            sourceType: 'screen',
-            fullBounds: this.captureArea.fullBounds,
-            workArea: this.captureArea.workArea,
-            scaleFactor: this.captureArea.scaleFactor
-          })
+            logger.info('Screen info captured', {
+              sourceId,
+              sourceType: 'screen',
+              fullBounds: this.captureArea.fullBounds,
+              workArea: this.captureArea.workArea,
+              scaleFactor: this.captureArea.scaleFactor
+            })
+          }
         } else {
           throw new Error(`Screen with ID ${screenId} not found`)
         }
@@ -636,9 +677,7 @@ export class ElectronRecorder {
       logger.warn('Native mouse tracking not available')
     }
 
-    // No longer need document-level click listeners
-    // Global click detection is now handled by uiohook-napi in the main process
-    // which can capture clicks anywhere on the screen, not just in the browser window
+    // Global click detection handled by uiohook-napi in main process
 
     // Set up event listeners for native mouse events
     const handleMouseMove = (_event: unknown, data: any) => {
@@ -667,8 +706,15 @@ export class ElectronRecorder {
           }
         }
 
-        const transformedX = data.x
-        const transformedY = data.y
+        // If we have a capture area, transform coordinates to be relative to it
+        let transformedX = data.x
+        let transformedY = data.y
+        
+        if (this.captureArea?.fullBounds) {
+          // Adjust mouse coordinates to be relative to the capture area
+          transformedX = data.x - this.captureArea.fullBounds.x
+          transformedY = data.y - this.captureArea.fullBounds.y
+        }
 
         this.metadata.push({
           timestamp,
@@ -676,8 +722,8 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'mouse',
           velocity,
-          captureWidth: data.displayBounds?.width,
-          captureHeight: data.displayBounds?.height,
+          captureWidth: this.captureArea?.fullBounds?.width || data.displayBounds?.width,
+          captureHeight: this.captureArea?.fullBounds?.height || data.displayBounds?.height,
           scaleFactor: data.scaleFactor,
           sourceType: data.sourceType,
           sourceId: data.sourceId
@@ -693,8 +739,15 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        const transformedX = data.x
-        const transformedY = data.y
+        // If we have a capture area, transform coordinates to be relative to it
+        let transformedX = data.x
+        let transformedY = data.y
+        
+        if (this.captureArea?.fullBounds) {
+          // Adjust mouse coordinates to be relative to the capture area
+          transformedX = data.x - this.captureArea.fullBounds.x
+          transformedY = data.y - this.captureArea.fullBounds.y
+        }
 
         this.metadata.push({
           timestamp,
@@ -702,8 +755,8 @@ export class ElectronRecorder {
           mouseY: transformedY,
           eventType: 'click',
           key: data.button,
-          captureWidth: data.displayBounds?.width,
-          captureHeight: data.displayBounds?.height,
+          captureWidth: this.captureArea?.fullBounds?.width || data.displayBounds?.width,
+          captureHeight: this.captureArea?.fullBounds?.height || data.displayBounds?.height,
           scaleFactor: data.scaleFactor,
           sourceType: data.sourceType,
           sourceId: data.sourceId

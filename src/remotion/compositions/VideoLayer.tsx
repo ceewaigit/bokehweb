@@ -10,6 +10,7 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
   zoom,
   videoWidth,
   videoHeight,
+  captureArea,
   preCalculatedPan
 }) => {
   const { width, height, fps } = useVideoConfig();
@@ -64,6 +65,38 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
     }
     : {};
 
+  // Calculate video cropping for area selection
+  let videoStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover' as const
+  };
+
+  if (captureArea) {
+    // The video is the full screen, but we only want to show the selected area
+    // Calculate scale to fit the capture area into the container
+    const scaleX = drawWidth / captureArea.width;
+    const scaleY = drawHeight / captureArea.height;
+    const scale = Math.max(scaleX, scaleY);
+    
+    // Calculate the actual dimensions of the full video when scaled
+    const scaledVideoWidth = videoWidth * scale;
+    const scaledVideoHeight = videoHeight * scale;
+    
+    // Calculate offset to position the capture area correctly
+    const offsetLeft = -(captureArea.x * scale);
+    const offsetTop = -(captureArea.y * scale);
+    
+    videoStyle = {
+      position: 'absolute',
+      width: scaledVideoWidth,
+      height: scaledVideoHeight,
+      left: offsetLeft,
+      top: offsetTop,
+      objectFit: 'none' as const
+    };
+  }
+
   return (
     <AbsoluteFill>
       <div
@@ -82,11 +115,7 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       >
         <Video
           src={videoUrl}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover'
-          }}
+          style={videoStyle}
           onError={(e) => {
             console.error('Video playback error in VideoLayer:', e)
             // Don't throw - let Remotion handle gracefully
