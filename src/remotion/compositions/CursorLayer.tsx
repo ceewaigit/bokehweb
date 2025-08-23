@@ -324,24 +324,22 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   }
   
   // Debug logging
-  if (frame % 30 === 0) {
-    const activeBlock = zoom?.enabled && zoom.blocks ? 
-      zoom.blocks.find(block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime) : null;
-    
-    console.log('🎯 Cursor Alignment:', {
-      time: currentTimeMs.toFixed(0),
-      activeZoom: activeBlock ? {
-        scale: activeBlock.scale,
-        target: { x: activeBlock.targetX, y: activeBlock.targetY }
-      } : 'none',
-      cursorTip: { x: cursorTipX.toFixed(0), y: cursorTipY.toFixed(0) },
-      transformed: { x: cursorX.toFixed(0), y: cursorY.toFixed(0) },
-      hotspot: { x: (hotspot.x * renderedWidth).toFixed(0), y: (hotspot.y * renderedHeight).toFixed(0) },
-      zoomState: zoomState ? {
-        scale: zoomState.scale.toFixed(2),
-        panX: zoomState.panX?.toFixed(2),
-        panY: zoomState.panY?.toFixed(2)
-      } : 'none'
+  if (frame % 30 === 0 && zoomDebugInfo) {
+    console.log('🔍 Zoom Transform Details:', {
+      videoOffset,
+      zoomTransform: zoomDebugInfo.zoomTransform,
+      cursorTransform: {
+        before: zoomDebugInfo.beforeTransform,
+        after: zoomDebugInfo.afterTransform,
+        delta: {
+          x: zoomDebugInfo.afterTransform.x - zoomDebugInfo.beforeTransform.x,
+          y: zoomDebugInfo.afterTransform.y - zoomDebugInfo.beforeTransform.y
+        }
+      },
+      finalWithHotspot: {
+        x: (cursorX - hotspot.x * renderedWidth).toFixed(0),
+        y: (cursorY - hotspot.y * renderedHeight).toFixed(0)
+      }
     });
   }
   
