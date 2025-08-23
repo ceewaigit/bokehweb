@@ -7,6 +7,7 @@ import {
   getCursorImagePath,
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
+import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
 
 // Cursor dimensions for proper aspect ratio
 const CURSOR_DIMENSIONS: Record<CursorType, { width: number; height: number }> = {
@@ -201,33 +202,19 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Apply zoom transformation to match video layer exactly
   if (zoom.scale > 1) {
-    // The video is scaled from its center, so cursor needs same transformation
-    const videoCenterX = videoOffset.x + videoOffset.width / 2;
-    const videoCenterY = videoOffset.y + videoOffset.height / 2;
-    
-    // Scale cursor position relative to video center
-    const scaledX = videoCenterX + (cursorX - videoCenterX) * zoom.scale;
-    const scaledY = videoCenterY + (cursorY - videoCenterY) * zoom.scale;
-    
-    // Apply the same pan as the video (based on zoom target)
-    // The video zooms toward (zoom.x, zoom.y) and pans to keep it centered
-    const zoomPointX = zoom.x * videoOffset.width;
-    const zoomPointY = zoom.y * videoOffset.height;
-    const centerX = videoOffset.width / 2;
-    const centerY = videoOffset.height / 2;
-    
-    // Calculate the static pan offset (same as VideoLayer)
-    const offsetFromCenterX = zoomPointX - centerX;
-    const offsetFromCenterY = zoomPointY - centerY;
-    const staticPanX = -offsetFromCenterX * (zoom.scale - 1);
-    const staticPanY = -offsetFromCenterY * (zoom.scale - 1);
-    
-    // Add dynamic pan from mouse movement (provided by MainComposition)
-    const dynamicPanX = (zoom.panX || 0) * videoOffset.width;
-    const dynamicPanY = (zoom.panY || 0) * videoOffset.height;
-    
-    cursorX = scaledX + staticPanX + dynamicPanX;
-    cursorY = scaledY + staticPanY + dynamicPanY;
+    // Calculate the same zoom transform as the video
+    const zoomTransform = {
+      scale: zoom.scale,
+      scaleCompensationX: -(zoom.x * videoOffset.width - videoOffset.width / 2) * (zoom.scale - 1),
+      scaleCompensationY: -(zoom.y * videoOffset.height - videoOffset.height / 2) * (zoom.scale - 1),
+      panX: (zoom.panX || 0) * videoOffset.width * zoom.scale,
+      panY: (zoom.panY || 0) * videoOffset.height * zoom.scale
+    };
+
+    // Apply the transformation to cursor position
+    const transformedPos = applyZoomToPoint(cursorX, cursorY, videoOffset, zoomTransform);
+    cursorX = transformedPos.x;
+    cursorY = transformedPos.y;
   }
 
   return (

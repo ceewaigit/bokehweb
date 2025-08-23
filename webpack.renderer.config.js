@@ -3,6 +3,12 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+  devtool: process.env.NODE_ENV === 'production' ? false : 'source-map',
+  ignoreWarnings: [
+    // Ignore critical dependency warnings from @ffmpeg/ffmpeg
+    /Critical dependency: the request of a dependency is an expression/,
+  ],
   module: {
     rules: [
       {
@@ -39,6 +45,12 @@ module.exports = {
     alias: {
       '@': path.resolve(__dirname, 'src'),
     },
+    fallback: {
+      // Required for @ffmpeg/ffmpeg in browser environment
+      'fs': false,
+      'path': false,
+      'crypto': false,
+    },
   },
   plugins: [
     new CopyPlugin({
@@ -62,14 +74,25 @@ module.exports = {
       ],
     }),
   ],
-  target: 'electron-renderer',
+  target: 'web', // Use 'web' instead of 'electron-renderer' to avoid Node.js polyfills
+  node: false, // Disable all Node.js polyfills
   devServer: {
+    client: {
+      overlay: {
+        errors: true,
+        warnings: false,
+      },
+    },
+    devMiddleware: {
+      writeToDisk: true,
+    },
     static: {
       directory: path.join(__dirname, 'out'),
       publicPath: '/',
     },
     compress: true,
-    hot: true,
+    hot: false, // Disable HMR to prevent require errors
+    liveReload: false, // Disable live reload
     port: 3001,
   },
 };
