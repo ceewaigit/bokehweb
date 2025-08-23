@@ -244,13 +244,16 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return { speed: Math.min(speed * 50, 20), angle }; // Cap max blur
   }, [frame]);
 
-  // Apply cursor size from effects (default to 4.0 as per new config)
-  const cursorSize = cursorEffects?.size ?? 4.0;
+  // Apply cursor size from effects (default to 3.0 to match UI)
+  const cursorSize = cursorEffects?.size ?? 3.0;
 
   // Apply cursor hotspot offset for accurate positioning
   const hotspot = CURSOR_HOTSPOTS[cursorType];
+  const dimensions = CURSOR_DIMENSIONS[cursorType];
   
-  // Scale hotspot directly with cursor size
+  // The cursor hotspot offset should match how we scale the cursor image
+  // The cursor image is rendered at dimensions * cursorSize
+  // So the hotspot should also be scaled by cursorSize
   cursorX -= hotspot.x * cursorSize;
   cursorY -= hotspot.y * cursorSize;
 

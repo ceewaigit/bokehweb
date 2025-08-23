@@ -60,12 +60,21 @@ export function registerMouseTrackingHandlers(): void {
       // Note: This only works when cursor is over the app window
       // We'll also track all cursor types for better debugging
       if (targetWindow) {
+        // Reset to default when window loses focus
+        const handleBlur = () => {
+          currentCursorType = 'default'
+          logger.debug('Window blurred, resetting cursor to default')
+        }
+        
         const handleCursorChange = (_event: any, type: string) => {
-          const previousType = currentCursorType
-          currentCursorType = type
-          
-          // Map Electron cursor types to more descriptive names for logging
-          const cursorTypeMap: Record<string, string> = {
+          // Only update cursor type if window is focused
+          // This prevents stale cursor types when recording other windows
+          if (targetWindow && targetWindow.isFocused()) {
+            const previousType = currentCursorType
+            currentCursorType = type
+            
+            // Map Electron cursor types to more descriptive names for logging
+            const cursorTypeMap: Record<string, string> = {
             'default': 'arrow',
             'pointer': 'hand',
             'text': 'iBeam',
@@ -176,15 +185,13 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
-            // For screen/window recording, we can't detect the actual cursor type
-            // being displayed in the recorded content, only our app's cursor
-            // So default to 'default' (arrow) for all screen recordings
-            let effectiveCursorType = 'default'
+            // Use the detected cursor type when available
+            // This won't be perfect for screen recording but it's better than nothing
+            let effectiveCursorType = currentCursorType || 'default'
             
-            // Only use detected cursor type if we're recording our own window
-            // and the source is our app itself (not practical for most use cases)
-            if (sourceType === 'window' && sourceId && sourceId.includes('Screen Studio')) {
-              effectiveCursorType = currentCursorType || 'default'
+            // Debug log every 50th event to see what cursor type we're sending
+            if (mouseHistory.length % 50 === 0) {
+              logger.debug(`Sending cursor type: ${effectiveCursorType}`)
             }
             
             // Only log in development mode
@@ -201,7 +208,7 @@ export function registerMouseTrackingHandlers(): void {
               acceleration,
               displayBounds: positionData.displayBounds,
               scaleFactor: positionData.scaleFactor,
-              cursorType: effectiveCursorType,  // Use effective cursor type
+              cursorType: effectiveCursorType,  // Use detected cursor type
               sourceType: sourceType,  // Include source type for proper coordinate mapping
               sourceId: sourceId
             } as MousePosition)
@@ -301,9 +308,8 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
 
-      // For screen/window recording, always use default cursor
-      // We can't detect the actual cursor in the recorded content
-      const effectiveCursorType = 'default'
+      // Use the detected cursor type
+      const effectiveCursorType = currentCursorType || 'default'
 
       // Send click event with proper coordinates
       mouseEventSender.send('mouse-click', {
@@ -313,7 +319,7 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
         button: event.button === 1 ? 'left' : event.button === 2 ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,
         scaleFactor: scaleFactor,
-        cursorType: effectiveCursorType,  // Use effective cursor type
+        cursorType: effectiveCursorType,  // Use detected cursor type
         sourceType: sourceType || 'screen',
         sourceId: sourceId
       })

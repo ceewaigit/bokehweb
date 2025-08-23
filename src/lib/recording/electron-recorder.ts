@@ -756,7 +756,7 @@ export class ElectronRecorder {
         
         // Log first mouse event capture
         if (previousLength === 0) {
-          logger.info(`✅ First mouse event captured at (${transformedX.toFixed(1)}, ${transformedY.toFixed(1)})`)
+          logger.info(`✅ First mouse event captured at (${transformedX.toFixed(1)}, ${transformedY.toFixed(1)}) with cursor type: ${data.cursorType}`)
         }
         
         // Log every 100th mouse event to confirm capture

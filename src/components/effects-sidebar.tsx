@@ -332,14 +332,14 @@ export function EffectsSidebar({
             <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Size</label>
               <Slider
-                value={[effects.cursor.size ?? 4.0]}
+                value={[effects.cursor.size ?? 3.0]}
                 onValueChange={([value]) => updateEffect('cursor', { size: value })}
                 min={0.5}
                 max={8}
                 step={0.1}
                 className="w-full"
               />
-              <span className="text-[10px] text-muted-foreground/70 font-mono">{(effects.cursor.size ?? 4.0).toFixed(1)}x</span>
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{(effects.cursor.size ?? 3.0).toFixed(1)}x</span>
             </div>
 
             <div className="p-3 bg-card/30 rounded-lg border border-border/30">

@@ -137,6 +137,27 @@ async function initializeDefaultWallpaper() {
         DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
         SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
         SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
+        
+        // Update any existing clips that are still using gradient
+        const projectStore = useProjectStore.getState()
+        if (projectStore.currentProject) {
+          projectStore.currentProject.timeline.tracks.forEach(track => {
+            track.clips.forEach(clip => {
+              // Only update if clip is using gradient (hasn't been manually changed)
+              if (clip.effects?.background?.type === 'gradient' && 
+                  clip.effects?.background?.wallpaperPath === wallpaperPath) {
+                projectStore.updateClipEffects(clip.id, {
+                  ...clip.effects,
+                  background: {
+                    ...clip.effects.background,
+                    type: 'wallpaper',
+                    wallpaper: dataUrl
+                  }
+                })
+              }
+            })
+          })
+        }
       }
     } catch (error) {
       console.error('Failed to load default wallpaper:', error)
