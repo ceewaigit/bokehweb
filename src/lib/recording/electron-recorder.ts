@@ -250,47 +250,17 @@ export class ElectronRecorder {
         audioTracks: this.stream.getAudioTracks().length
       })
 
-      // For window sources, update capture area with actual video dimensions
+      // Log video track settings for debugging
       const videoTrack = this.stream.getVideoTracks()[0]
       if (videoTrack) {
         const settings = videoTrack.getSettings()
         console.log('🎥 Video track settings:', settings)
         logger.info('Video track settings', settings)
         
-        if (this.captureArea?.sourceType === 'window') {
-          console.log('📐 Window source detected, current capture area:', this.captureArea)
-          
-          if (settings.width && settings.height) {
-            const oldBounds = { ...this.captureArea.fullBounds }
-            
-            // Always update window bounds from video stream
-            this.captureArea.fullBounds = {
-              x: 0,
-              y: 0,
-              width: settings.width,
-              height: settings.height
-            }
-            this.captureArea.workArea = {
-              x: 0,
-              y: 0,
-              width: settings.width,
-              height: settings.height
-            }
-            
-            console.log('🔄 Updated window capture area:', {
-              old: oldBounds,
-              new: this.captureArea.fullBounds,
-              sourceId: this.captureArea.sourceId
-            })
-            
-            logger.info('Window dimensions updated from video stream', {
-              oldWidth: oldBounds.width,
-              oldHeight: oldBounds.height,
-              newWidth: settings.width,
-              newHeight: settings.height,
-              sourceId: this.captureArea.sourceId
-            })
-          }
+        // Don't set capture area for full screen or window recordings
+        // Let them use the full video dimensions
+        if (!this.captureArea) {
+          console.log('✅ No capture area set - will use full video dimensions')
         }
       } else {
         console.log('⚠️ No video track found in stream')
@@ -623,19 +593,12 @@ export class ElectronRecorder {
       if (isWindow) {
         console.log('🪟 Window source detected in captureScreenInfo')
         
-        // For window recording, we'll detect bounds from the video stream
-        // since window bounds APIs might not be available
-        // Set temporary placeholder that will be updated once stream starts
-        this.captureArea = {
-          fullBounds: areaSelection || { x: 0, y: 0, width: 0, height: 0 },
-          workArea: areaSelection || { x: 0, y: 0, width: 0, height: 0 },
-          scaleFactor: 1,
-          sourceType: 'window',
-          sourceId: sourceId
-        }
+        // For window recording, don't set any capture area initially
+        // We'll use the full video dimensions from the stream
+        this.captureArea = undefined
         
-        console.log('🪟 Initial window capture area set:', this.captureArea)
-        logger.info('Window recording mode', { sourceId, areaSelection, captureArea: this.captureArea })
+        console.log('🪟 Window recording - will use full video dimensions')
+        logger.info('Window recording mode', { sourceId, areaSelection })
       } else if (window.electronAPI?.getScreens) {
         // Get screen information from Electron
         const screens = await window.electronAPI.getScreens()
@@ -677,20 +640,16 @@ export class ElectronRecorder {
               scaleFactor: this.captureArea.scaleFactor
             })
           } else {
-            this.captureArea = {
-              fullBounds: screen.bounds,
-              workArea: screen.workArea,
-              scaleFactor: screen.scaleFactor ?? 1,
-              sourceType: 'screen',
-              sourceId: sourceId
-            }
-
-            logger.info('Screen info captured', {
+            // For full screen recording, don't set capture area
+            // We'll use the full video dimensions
+            this.captureArea = undefined
+            
+            console.log('🖥️ Full screen recording - will use full video dimensions')
+            logger.info('Full screen recording mode', {
               sourceId,
               sourceType: 'screen',
-              fullBounds: this.captureArea.fullBounds,
-              workArea: this.captureArea.workArea,
-              scaleFactor: this.captureArea.scaleFactor
+              screenBounds: screen.bounds,
+              scaleFactor: screen.scaleFactor ?? 1
             })
           }
         } else {

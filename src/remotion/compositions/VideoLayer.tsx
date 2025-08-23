@@ -72,18 +72,13 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
     objectFit: 'cover' as const
   };
 
-  // Only apply capture area cropping for partial screen recordings (not for window recordings)
+  // Only apply capture area cropping for area selections
   console.log('🎬 VideoLayer render - Capture area:', captureArea, 'Video dimensions:', videoWidth, 'x', videoHeight)
   
-  // Check if this is a partial screen recording (area selection) vs full window/screen
-  const isPartialCapture = captureArea && 
-    captureArea.width > 0 && 
-    captureArea.height > 0 &&
-    // Only crop if capture area is smaller than video dimensions
-    (captureArea.width < videoWidth || captureArea.height < videoHeight)
-  
-  if (isPartialCapture) {
-    // Scale video to show only the capture area
+  // Only crop if we have a specific capture area (for area selections)
+  // No capture area = full screen or window recording
+  if (captureArea && captureArea.width > 0 && captureArea.height > 0) {
+    // This is an area selection - apply cropping
     const scale = Math.min(drawWidth / captureArea.width, drawHeight / captureArea.height);
     
     videoStyle = {
@@ -95,19 +90,17 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       objectFit: 'none' as const
     };
     
-    console.log('📏 Applying capture area cropping (partial screen):', {
+    console.log('📏 Applying area selection cropping:', {
       captureArea,
       scale,
       videoStyle,
-      drawDimensions: { drawWidth, drawHeight },
-      isPartialCapture: true
+      drawDimensions: { drawWidth, drawHeight }
     })
   } else {
-    console.log('⚠️ Full window/screen recording - no cropping needed', {
+    console.log('✅ Full screen/window recording - using full video (no cropping)', {
       captureArea,
       videoWidth,
-      videoHeight,
-      isPartialCapture: false
+      videoHeight
     })
   }
 

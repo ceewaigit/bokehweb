@@ -134,18 +134,16 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
-            // For screen recordings, always use default cursor
-            // We can't reliably detect cursor type outside our window
-            // and the cursor-changed event from our own UI shouldn't affect recordings
-            const isScreenRecording = sourceType === 'screen';
-            const effectiveCursorType = isScreenRecording ? 'default' : currentCursorType;
+            // Use the current cursor type as detected
+            // Note: cursor-changed events only work when cursor is over our app window
+            // For other apps, this will remain as 'default'
+            const effectiveCursorType = currentCursorType;
             
             // Debug logging - log every 50th event
             if (mouseHistory.length % 50 === 0) {
               console.log('🖱️ Mouse tracking state:', {
                 sourceId,
                 sourceType,
-                isScreenRecording,
                 currentCursorType,
                 effectiveCursorType
               });
@@ -260,10 +258,8 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
 
-      // For screen recordings, always use default cursor
-      const effectiveCursorType = sourceType === 'screen' 
-        ? 'default' 
-        : currentCursorType;
+      // Use the current cursor type as detected
+      const effectiveCursorType = currentCursorType;
 
       // Send click event with proper coordinates
       mouseEventSender.send('mouse-click', {

@@ -166,7 +166,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
             className="fixed inset-0 flex items-center justify-center z-[2147483650] p-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-background/95 backdrop-blur-2xl rounded-xl shadow-2xl border border-border/50 w-[85vw] max-w-5xl h-[85vh] max-h-[700px] overflow-hidden">
+            <div className="bg-background/95 backdrop-blur-2xl rounded-xl shadow-2xl border border-border/50 w-[80vw] max-w-4xl h-[80vh] max-h-[650px] overflow-hidden">
               {/* Compact header */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
                 <div className="flex items-center gap-2">
@@ -186,7 +186,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
               </div>
 
               {/* Content */}
-              <div className="p-3 overflow-y-auto max-h-[calc(85vh-100px)] scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent">
+              <div className="p-3 overflow-y-auto max-h-[calc(85vh-90px)] scrollbar-thin scrollbar-thumb-border/50 scrollbar-track-transparent">
                 {loading ? (
                   <div className="flex flex-col items-center justify-center py-12">
                     <div className="relative">
@@ -196,73 +196,51 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                     <p className="mt-3 text-[11px] text-muted-foreground font-medium">Loading sources...</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {/* Area Selection Option */}
+                  <div className="space-y-3">
+                    {/* Compact Area Selection Option */}
                     {areaOption && (
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <Maximize2 className="w-3 h-3 text-muted-foreground" />
-                          <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                            Custom Area
-                          </h3>
-                          <div className="flex-1 h-px bg-border/30" />
-                        </div>
-                        <motion.button
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.99 }}
-                          onClick={() => setSelectedId(areaOption.id)}
-                          className={cn(
-                            "relative w-full rounded-lg overflow-hidden transition-all duration-200",
-                            "bg-card/30 border",
-                            selectedId === areaOption.id
-                              ? "border-primary shadow-lg shadow-primary/15 bg-primary/8"
-                              : "border-border/50 hover:border-primary/40 hover:bg-accent/30"
-                          )}
-                        >
-                          <div className="aspect-[21/9] relative">
-                            <div className="w-full h-full bg-gradient-to-br from-muted/10 to-transparent flex items-center justify-center gap-3">
-                              <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
-                                <Maximize2 className="w-5 h-5 text-primary" />
-                              </div>
-                              <div>
-                                <p className="text-xs font-medium text-foreground">Select Screen Area</p>
-                                <p className="text-[10px] text-muted-foreground mt-0.5">
-                                  Click and drag to select custom area
-                                </p>
-                              </div>
-                            </div>
-                            
-                            {/* Selection indicator */}
-                            <AnimatePresence>
-                              {selectedId === areaOption.id && (
-                                <motion.div
-                                  initial={{ scale: 0, opacity: 0 }}
-                                  animate={{ scale: 1, opacity: 1 }}
-                                  exit={{ scale: 0, opacity: 0 }}
-                                  className="absolute top-2 right-2"
-                                >
-                                  <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center shadow-md shadow-primary/30">
-                                    <Check className="w-3 h-3 text-primary-foreground" strokeWidth={3} />
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => setSelectedId(areaOption.id)}
+                        className={cn(
+                          "relative rounded-md overflow-hidden transition-all duration-150 mb-3",
+                          "bg-card/20 border",
+                          selectedId === areaOption.id
+                            ? "border-primary/50 bg-primary/10"
+                            : "border-border/40 hover:border-primary/30 hover:bg-accent/20"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <div className="w-7 h-7 rounded bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <Maximize2 className="w-3.5 h-3.5 text-primary" />
                           </div>
-                        </motion.button>
-                      </div>
+                          <div className="flex-1 text-left">
+                            <p className="text-[11px] font-medium text-foreground">Select Custom Area</p>
+                            <p className="text-[9px] text-muted-foreground">
+                              Click and drag to select a portion of the screen
+                            </p>
+                          </div>
+                          {selectedId === areaOption.id && (
+                            <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                              <Check className="w-2.5 h-2.5 text-primary-foreground" strokeWidth={3} />
+                            </div>
+                          )}
+                        </div>
+                      </motion.button>
                     )}
 
                     {/* Screens Section */}
                     {screens.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-1.5 mb-2">
+                        <div className="flex items-center gap-1.5 mb-1.5">
                           <Monitor className="w-3 h-3 text-muted-foreground" />
                           <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                             Displays
                           </h3>
                           <div className="flex-1 h-px bg-border/30" />
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
                           {screens.map((source) => (
                             <motion.button
                               key={source.id}
@@ -279,7 +257,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                   : "border-border/50 hover:border-primary/40 hover:bg-accent/30"
                               )}
                             >
-                              <div className="aspect-[16/10] relative">
+                              <div className="aspect-[16/11] relative">
                                 {source.thumbnail ? (
                                   <>
                                     <img 
@@ -297,11 +275,11 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                 )}
                                 
                                 {/* Name overlay */}
-                                <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/50 to-transparent">
-                                  <p className="text-[11px] font-medium text-white truncate text-left">
+                                <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/50 to-transparent">
+                                  <p className="text-[10px] font-medium text-white truncate text-left">
                                     {source.name}
                                   </p>
-                                  <p className="text-[9px] text-white/70">
+                                  <p className="text-[8px] text-white/60">
                                     Full Display
                                   </p>
                                 </div>
@@ -343,14 +321,14 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                     {/* Windows Section */}
                     {windows.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-1.5 mb-2">
+                        <div className="flex items-center gap-1.5 mb-1.5">
                           <AppWindow className="w-3 h-3 text-muted-foreground" />
                           <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                             Applications
                           </h3>
                           <div className="flex-1 h-px bg-border/30" />
                         </div>
-                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
+                        <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-1.5">
                           {windows.map((source) => (
                             <motion.button
                               key={source.id}
