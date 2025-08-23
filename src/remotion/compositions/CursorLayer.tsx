@@ -283,6 +283,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorY = cursorTipY;
 
   // Apply zoom transformation EXACTLY like VideoLayer does
+  let zoomDebugInfo = null;
   if (zoom?.enabled && zoom.blocks) {
     // Find active zoom block - same as VideoLayer
     const activeBlock = zoom.blocks.find(
@@ -302,10 +303,23 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         smoothPan
       );
       
+      // Store debug info
+      zoomDebugInfo = {
+        activeBlock,
+        smoothPan,
+        zoomTransform,
+        beforeTransform: { x: cursorTipX, y: cursorTipY },
+        afterTransform: { x: 0, y: 0 }  // Will be updated after transformation
+      } as any;
+      
       // Apply the zoom to the cursor position
       const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
       cursorX = transformedPos.x;
       cursorY = transformedPos.y;
+      
+      if (zoomDebugInfo) {
+        zoomDebugInfo.afterTransform = { x: cursorX, y: cursorY };
+      }
     }
   }
   
