@@ -218,7 +218,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const normalizedY = cursorPosition.y / captureHeight;
 
   // Calculate the cursor position within the video content area (before zoom)
-  // This is relative to the video content, not the screen
+  // Simply map the normalized position to the video display area
   const cursorInVideoX = normalizedX * videoOffset.width;
   const cursorInVideoY = normalizedY * videoOffset.height;
   
