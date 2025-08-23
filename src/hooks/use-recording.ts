@@ -112,8 +112,11 @@ export function useRecording() {
     try {
       setStatus('preparing')
 
+      // Get the current settings from the store to ensure we have the latest values
+      const currentSettings = useRecordingStore.getState().settings
+      
       // Start recording (enhancements are now applied during export, not recording)
-      await recorderRef.current.startRecording(settings)
+      await recorderRef.current.startRecording(currentSettings)
 
       setRecording(true)
       setStatus('recording')
@@ -136,7 +139,7 @@ export function useRecording() {
       setRecording(false)
       timer.stop()
     }
-  }, [isRecording, setRecording, setStatus, settings, handleRecordingError, timer, setDuration])
+  }, [isRecording, setRecording, setStatus, handleRecordingError, timer, setDuration])
 
   const stopRecording = useCallback(async () => {
     logger.debug('useRecording.stopRecording called')
