@@ -6,13 +6,14 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly EDGE_ZONE = 0.35  // Start panning when mouse is within 35% of viewport edge
-  private readonly CENTER_ZONE = 0.15  // Dead zone in center where no panning occurs
-  private readonly PAN_STRENGTH = 1.2  // How strongly to pan based on distance from edge
-  private readonly VELOCITY_DAMPING = 0.96  // Super smooth ice-like momentum
-  private readonly ACCELERATION = 0.003  // More responsive acceleration
+  private readonly EDGE_ZONE = 0.3  // Start panning when mouse is within 30% of viewport edge
+  private readonly CENTER_ZONE = 0.2  // Dead zone in center where no panning occurs
+  private readonly PAN_STRENGTH = 0.8  // How strongly to pan based on distance from edge
+  private readonly VELOCITY_DAMPING = 0.98  // Ultra smooth ice-like momentum (like butter)
+  private readonly ACCELERATION = 0.0008  // Gentle acceleration for smooth movement
   private readonly MAX_PAN_OFFSET = 0.45  // Maximum pan from center
-  private readonly LOOK_AHEAD = 0.15  // How much to pan ahead of mouse direction
+  private readonly LOOK_AHEAD = 0.12  // How much to pan ahead of mouse direction
+  private readonly VELOCITY_SMOOTHING = 0.7  // Smooth out velocity changes
   
   // New method that properly tracks velocity
   calculatePanOffsetWithVelocity(
@@ -113,13 +114,21 @@ export class ZoomPanCalculator {
       }
     }
     
-    // Update velocity with acceleration
-    let velocityX = currentVelocityX + accelX
-    let velocityY = currentVelocityY + accelY
+    // Smooth velocity changes to prevent jerkiness
+    const targetVelocityX = currentVelocityX + accelX
+    const targetVelocityY = currentVelocityY + accelY
+    
+    // Apply velocity smoothing for butter-smooth movement
+    let velocityX = currentVelocityX + (targetVelocityX - currentVelocityX) * this.VELOCITY_SMOOTHING
+    let velocityY = currentVelocityY + (targetVelocityY - currentVelocityY) * this.VELOCITY_SMOOTHING
     
     // Apply damping for ice-like gliding
     velocityX *= this.VELOCITY_DAMPING
     velocityY *= this.VELOCITY_DAMPING
+    
+    // Clamp very small velocities to zero to prevent drift
+    if (Math.abs(velocityX) < 0.0001) velocityX = 0
+    if (Math.abs(velocityY) < 0.0001) velocityY = 0
     
     // Update pan position with velocity
     let newPanX = currentPanX + velocityX
@@ -147,25 +156,8 @@ export class ZoomPanCalculator {
     }
   }
 
-  // Legacy method for backward compatibility
-  calculatePanOffset(
-    mouseX: number,
-    mouseY: number,
-    videoWidth: number,
-    videoHeight: number,
-    zoomScale: number,
-    currentPanX: number = 0,
-    currentPanY: number = 0
-  ): { x: number; y: number } {
-    const result = this.calculatePanOffsetWithVelocity(
-      mouseX, mouseY, videoWidth, videoHeight, zoomScale,
-      currentPanX, currentPanY, 0, 0
-    );
-    return { x: result.x, y: result.y };
-  }
-
   /**
-   * Interpolate mouse position at a specific time
+   * Interpolate mouse position with smooth cubic bezier curves
    */
   interpolateMousePosition(
     mouseEvents: MouseEvent[],
@@ -175,6 +167,59 @@ export class ZoomPanCalculator {
       return null
     }
     
+    // Need at least 4 points for smooth cubic interpolation
+    if (mouseEvents.length < 4) {
+      // Fallback to simple interpolation for few points
+      return this.simpleInterpolate(mouseEvents, timeMs)
+    }
+    
+    // Find the relevant segment
+    let segmentStart = 0
+    for (let i = 0; i < mouseEvents.length - 1; i++) {
+      if (mouseEvents[i].timestamp <= timeMs && mouseEvents[i + 1].timestamp > timeMs) {
+        segmentStart = i
+        break
+      }
+    }
+    
+    // Handle edge cases
+    if (timeMs <= mouseEvents[0].timestamp) {
+      return { x: mouseEvents[0].x, y: mouseEvents[0].y }
+    }
+    if (timeMs >= mouseEvents[mouseEvents.length - 1].timestamp) {
+      return { x: mouseEvents[mouseEvents.length - 1].x, y: mouseEvents[mouseEvents.length - 1].y }
+    }
+    
+    // Get 4 control points for cubic interpolation
+    const p0 = mouseEvents[Math.max(0, segmentStart - 1)]
+    const p1 = mouseEvents[segmentStart]
+    const p2 = mouseEvents[Math.min(mouseEvents.length - 1, segmentStart + 1)]
+    const p3 = mouseEvents[Math.min(mouseEvents.length - 1, segmentStart + 2)]
+    
+    // Calculate t value for current time
+    const segmentDuration = p2.timestamp - p1.timestamp
+    const t = segmentDuration > 0 ? (timeMs - p1.timestamp) / segmentDuration : 0
+    
+    // Catmull-Rom spline interpolation for smooth curves
+    const t2 = t * t
+    const t3 = t2 * t
+    
+    // Catmull-Rom coefficients
+    const v0 = (p2.x - p0.x) * 0.5
+    const v1 = (p3.x - p1.x) * 0.5
+    const x = p1.x + v0 * t + (3 * (p2.x - p1.x) - 2 * v0 - v1) * t2 + (2 * (p1.x - p2.x) + v0 + v1) * t3
+    
+    const v0y = (p2.y - p0.y) * 0.5
+    const v1y = (p3.y - p1.y) * 0.5
+    const y = p1.y + v0y * t + (3 * (p2.y - p1.y) - 2 * v0y - v1y) * t2 + (2 * (p1.y - p2.y) + v0y + v1y) * t3
+    
+    return { x, y }
+  }
+  
+  private simpleInterpolate(
+    mouseEvents: MouseEvent[],
+    timeMs: number
+  ): { x: number; y: number } {
     // Find surrounding events
     let before: MouseEvent | null = null
     let after: MouseEvent | null = null
@@ -188,7 +233,6 @@ export class ZoomPanCalculator {
       }
     }
     
-    // If we only have one event or time is outside range
     if (!before) {
       return { x: mouseEvents[0].x, y: mouseEvents[0].y }
     }
@@ -196,16 +240,19 @@ export class ZoomPanCalculator {
       return { x: before.x, y: before.y }
     }
     
-    // Linear interpolation between events
+    // Smooth interpolation with easing
     const timeDiff = after.timestamp - before.timestamp
     if (timeDiff === 0) {
       return { x: before.x, y: before.y }
     }
     
     const t = (timeMs - before.timestamp) / timeDiff
+    // Apply smoothstep for smoother transitions
+    const smoothT = t * t * (3 - 2 * t)
+    
     return {
-      x: before.x + (after.x - before.x) * t,
-      y: before.y + (after.y - before.y) * t
+      x: before.x + (after.x - before.x) * smoothT,
+      y: before.y + (after.y - before.y) * smoothT
     }
   }
 

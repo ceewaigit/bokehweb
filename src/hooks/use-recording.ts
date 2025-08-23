@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useProjectStore } from '@/stores/project-store'
-import { ScreenRecorder, type RecordingResult } from '@/lib/recording'
+import { ElectronRecorder, type ElectronRecordingResult } from '@/lib/recording'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
 import { saveRecordingWithProject } from '@/types/project'
@@ -26,7 +26,7 @@ const RECORDING_CONSTANTS = {
 } as const
 
 export function useRecording() {
-  const recorderRef = useRef<ScreenRecorder | null>(null)
+  const recorderRef = useRef<ElectronRecorder | null>(null)
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null)
 
   const {
@@ -48,7 +48,7 @@ export function useRecording() {
   })
 
   // Simple duration validation - no longer needed with proper MediaRecorder
-  const validateResult = useCallback((result: RecordingResult): boolean => {
+  const validateResult = useCallback((result: ElectronRecordingResult): boolean => {
     // Basic validation - just check that we have a video blob
     return result && result.video && result.video.size > 0
   }, [])
@@ -92,7 +92,7 @@ export function useRecording() {
   useEffect(() => {
     // Check if there's already a global recorder instance to prevent hot reload issues
     if (typeof window !== 'undefined' && (window as any).__screenRecorder) {
-      logger.debug('Reusing existing ScreenRecorder instance (hot reload protection)')
+      logger.debug('Reusing existing ElectronRecorder instance (hot reload protection)')
       recorderRef.current = (window as any).__screenRecorder
 
       // CRITICAL: If the existing recorder is actively recording, don't allow any new setup
@@ -103,12 +103,12 @@ export function useRecording() {
     } else if (!recorderRef.current) {
       // Only create new recorder if there's no global instance AND we're not recording
       if (typeof window !== 'undefined' && (window as any).__screenRecorderActive) {
-        logger.debug('Recording active globally, preventing new ScreenRecorder creation')
+        logger.debug('Recording active globally, preventing new ElectronRecorder creation')
         return
       }
 
       try {
-        recorderRef.current = new ScreenRecorder()
+        recorderRef.current = new ElectronRecorder()
         // Store globally to persist across hot reloads
         if (typeof window !== 'undefined') {
           (window as any).__screenRecorder = recorderRef.current

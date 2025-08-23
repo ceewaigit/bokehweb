@@ -148,7 +148,6 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             zoom={effects?.zoom}
             videoWidth={videoWidth}
             videoHeight={videoHeight}
-            mouseEvents={cursorEvents}
             preCalculatedPan={completeZoomState.scale > 1 ? { x: completeZoomState.panX, y: completeZoomState.panY } : undefined}
           />
         </Sequence>

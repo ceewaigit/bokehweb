@@ -302,7 +302,7 @@ export function WorkspaceManager() {
       // Handle zoom regeneration request
       if (effects.zoom?.regenerate && selectedRecording) {
         // Use ZoomDetector to regenerate zoom blocks
-        const { ZoomDetector } = require('@/lib/effects/zoom-detector')
+        const { ZoomDetector } = require('@/lib/effects/utils/zoom-detector')
         const zoomDetector = new ZoomDetector()
         const newZoomBlocks = zoomDetector.detectZoomBlocks(
           selectedRecording.metadata?.mouseEvents || [],
