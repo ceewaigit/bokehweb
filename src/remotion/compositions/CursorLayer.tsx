@@ -202,14 +202,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Apply the exact same zoom transformation as the video
   if (zoom.scale > 1) {
-    // The video div has transform applied from its center (transformOrigin: '50% 50%')
-    // We need to apply the same transform to the cursor
-    
-    // Get the center of the video (same as video's transform origin)
-    const videoCenterX = videoOffset.x + videoOffset.width / 2;
-    const videoCenterY = videoOffset.y + videoOffset.height / 2;
-    
-    // Calculate the same transform as in zoom-transform.ts
+    // Calculate the same transform as used by the video
     const zoomTransform = {
       scale: zoom.scale,
       scaleCompensationX: -(zoom.x * videoOffset.width - videoOffset.width / 2) * (zoom.scale - 1),
@@ -218,22 +211,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       panY: (zoom.panY || 0) * videoOffset.height * zoom.scale
     };
     
-    // Total translation
-    const translateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
-    const translateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
-    
-    // Apply transform: translate then scale (from video center)
-    // First, move cursor relative to video center
-    const relX = cursorX - videoCenterX;
-    const relY = cursorY - videoCenterY;
-    
-    // Apply scale
-    const scaledX = relX * zoom.scale;
-    const scaledY = relY * zoom.scale;
-    
-    // Apply translation and move back relative to video center
-    cursorX = videoCenterX + scaledX + translateX;
-    cursorY = videoCenterY + scaledY + translateY;
+    // Apply the transformation using the shared utility
+    const transformedPos = applyZoomToPoint(cursorX, cursorY, videoOffset, zoomTransform);
+    cursorX = transformedPos.x;
+    cursorY = transformedPos.y;
   }
 
   return (

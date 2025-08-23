@@ -141,6 +141,7 @@ export function calculateZoomTransform(
 
 /**
  * Apply zoom transformation to a point (for cursor positioning)
+ * Matches the video transform which uses transformOrigin: '50% 50%'
  */
 export function applyZoomToPoint(
   pointX: number,
@@ -152,11 +153,15 @@ export function applyZoomToPoint(
     return { x: pointX, y: pointY };
   }
 
-  // Translate point relative to video origin
-  const relativeX = pointX - videoOffset.x;
-  const relativeY = pointY - videoOffset.y;
+  // Get the center of the video (transform origin)
+  const videoCenterX = videoOffset.x + videoOffset.width / 2;
+  const videoCenterY = videoOffset.y + videoOffset.height / 2;
   
-  // Scale the position
+  // Translate point relative to video center (not origin)
+  const relativeX = pointX - videoCenterX;
+  const relativeY = pointY - videoCenterY;
+  
+  // Scale the position from center
   const scaledX = relativeX * zoomTransform.scale;
   const scaledY = relativeY * zoomTransform.scale;
   
@@ -164,10 +169,10 @@ export function applyZoomToPoint(
   const totalTranslateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
   const totalTranslateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
   
-  // Add back the video offset
+  // Add back relative to video center
   return {
-    x: videoOffset.x + scaledX + totalTranslateX,
-    y: videoOffset.y + scaledY + totalTranslateY
+    x: videoCenterX + scaledX + totalTranslateX,
+    y: videoCenterY + scaledY + totalTranslateY
   };
 }
 
