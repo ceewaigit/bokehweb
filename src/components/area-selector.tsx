@@ -18,6 +18,13 @@ export function AreaSelector({ isOpen, onClose, onSelect }: AreaSelectorProps) {
   const [screenBounds, setScreenBounds] = useState<{ width: number; height: number }>({ width: 0, height: 0 })
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  const handleCancel = useCallback(() => {
+    setStartPoint(null)
+    setEndPoint(null)
+    setIsSelecting(false)
+    onClose()
+  }, [onClose])
+
   useEffect(() => {
     if (isOpen) {
       // Get screen dimensions
@@ -89,13 +96,6 @@ export function AreaSelector({ isOpen, onClose, onSelect }: AreaSelectorProps) {
       setEndPoint(null)
     }
   }, [isSelecting, startPoint, endPoint, onSelect, onClose])
-
-  const handleCancel = useCallback(() => {
-    setStartPoint(null)
-    setEndPoint(null)
-    setIsSelecting(false)
-    onClose()
-  }, [onClose])
 
   const getSelectionStyle = () => {
     if (!startPoint || !endPoint) return {}

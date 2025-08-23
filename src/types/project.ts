@@ -7,6 +7,7 @@ import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { logger } from '@/lib/utils/logger'
+import { SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 
 export interface Project {
   version: string
@@ -487,39 +488,19 @@ export async function saveRecordingWithProject(
       sourceIn: 0,
       sourceOut: duration,
       effects: {
+        ...SCREEN_STUDIO_CLIP_EFFECTS,
         zoom: {
+          ...SCREEN_STUDIO_CLIP_EFFECTS.zoom,
           enabled: true,
-          blocks: zoomBlocks, // Use generated zoom blocks
-          sensitivity: 1.0,
-          maxZoom: 2.0,
-          smoothing: 0.1
+          blocks: zoomBlocks // Use generated zoom blocks
         },
         cursor: {
+          ...SCREEN_STUDIO_CLIP_EFFECTS.cursor,
           visible: hasCursorActivity, // Only show cursor if there was mouse activity
-          style: 'macOS',
-          size: 3,
-          color: '#ffffff',
           clickEffects: hasClicks, // Only enable click effects if there were actual clicks
-          motionBlur: hasCursorActivity // Only enable motion blur if cursor was moving
-        },
-        background: {
-          type: 'gradient',
-          gradient: {
-            colors: ['#f0f9ff', '#e0f2fe'],  // Light blue gradient
-            angle: 135
-          },
-          padding: 60
-        },
-        video: {
-          cornerRadius: 12,
-          shadow: {
-            enabled: true,
-            blur: 40,
-            color: '#000000',
-            offset: { x: 0, y: 20 }
-          }
-        },
-        annotations: []
+          motionBlur: hasCursorActivity, // Only enable motion blur if cursor was moving
+          size: 3 // Keep the size override for better visibility
+        }
       }
     }
 

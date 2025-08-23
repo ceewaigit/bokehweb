@@ -226,13 +226,17 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Apply the exact same zoom transformation as the video
   if (zoom.scale > 1) {
-    // Build a minimal zoom block for the transform calculation
+    // Build a zoom block with all required fields for the transform calculation
     const zoomBlock = {
+      id: 'cursor-zoom-temp',
       startTime: 0,
       endTime: 1000,
       scale: zoom.scale,
       targetX: zoom.x,
-      targetY: zoom.y
+      targetY: zoom.y,
+      introMs: 500,
+      outroMs: 500,
+      mode: 'manual' as const
     };
 
     // Use the shared utility to calculate transform (matches VideoLayer exactly)

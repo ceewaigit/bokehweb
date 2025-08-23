@@ -11,7 +11,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   cursor: {
     visible: true,
     style: 'default',
-    size: 2.0,  // Default 2x size for better visibility
+    size: 3.0,
     color: '#ffffff',
     clickEffects: false,
     motionBlur: false
@@ -47,7 +47,7 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
   cursor: {
     visible: true,
     style: 'macOS',
-    size: 2.0,  // Default 2x size matching Screen Studio
+    size: 3.0,
     color: '#ffffff',
     clickEffects: true,
     motionBlur: true

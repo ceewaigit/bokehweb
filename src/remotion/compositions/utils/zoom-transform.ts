@@ -3,22 +3,13 @@
  */
 
 import { interpolate } from 'remotion';
+import type { ZoomBlock } from '@/types/project';
 
 // Use smoothStep for all zoom transitions (like Screen Studio)
 export const smoothStep = (t: number): number => {
   const clampedT = Math.max(0, Math.min(1, t));
   return clampedT * clampedT * (3 - 2 * clampedT);
 };
-
-interface ZoomBlock {
-  startTime: number;
-  endTime: number;
-  scale?: number;
-  targetX?: number;
-  targetY?: number;
-  introMs?: number;
-  outroMs?: number;
-}
 
 interface ZoomState {
   scale: number;
