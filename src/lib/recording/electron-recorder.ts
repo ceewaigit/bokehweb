@@ -674,16 +674,22 @@ export class ElectronRecorder {
               scaleFactor: this.captureArea.scaleFactor
             })
           } else {
-            // For full screen recording, don't set capture area
-            // We'll use the full video dimensions
-            this.captureArea = undefined
+            // For full screen recording, store screen bounds but mark as full screen
+            this.captureArea = {
+              fullBounds: screen.bounds,
+              workArea: screen.workArea,
+              scaleFactor: screen.scaleFactor ?? 1,
+              sourceType: 'screen',
+              sourceId: sourceId
+            }
             
-            console.log('🖥️ Full screen recording - will use full video dimensions')
+            console.log('🖥️ Full screen recording - storing screen bounds:', screen.bounds)
             logger.info('Full screen recording mode', {
               sourceId,
               sourceType: 'screen',
               screenBounds: screen.bounds,
-              scaleFactor: screen.scaleFactor ?? 1
+              scaleFactor: screen.scaleFactor ?? 1,
+              captureArea: this.captureArea
             })
           }
         } else {
@@ -759,23 +765,10 @@ export class ElectronRecorder {
         }
 
         // Only record mouse events when within bounds
-        // For full screen recording, always record. For partial, only when in bounds.
         if (isWithinBounds) {
-          // Debug logging for cursor type
-          if (this.captureArea?.fullBounds && this.metadata.length % 50 === 0) {
-            console.log('📍 Recording cursor event:', {
-              cursorType: data.cursorType,
-              sourceType: data.sourceType,
-              sourceId: data.sourceId,
-              isWithinBounds,
-              x: transformedX,
-              y: transformedY
-            })
-          }
-          
           // For full screen recordings without captureArea, use video dimensions
-          const captureW = this.captureArea?.fullBounds?.width || this.videoWidth || data.displayBounds?.width
-          const captureH = this.captureArea?.fullBounds?.height || this.videoHeight || data.displayBounds?.height
+          const captureW = this.captureArea?.fullBounds?.width || this.videoWidth
+          const captureH = this.captureArea?.fullBounds?.height || this.videoHeight
           
           this.metadata.push({
             timestamp,
@@ -827,8 +820,8 @@ export class ElectronRecorder {
             mouseY: transformedY,  // Capture-relative position
             eventType: 'click',
             key: data.button,
-            captureWidth: this.captureArea?.fullBounds?.width,
-            captureHeight: this.captureArea?.fullBounds?.height,
+            captureWidth: this.captureArea?.fullBounds?.width || this.videoWidth,
+            captureHeight: this.captureArea?.fullBounds?.height || this.videoHeight,
             scaleFactor: data.scaleFactor,
             cursorType: data.cursorType,  // Save cursor type for click events too
             sourceBounds: this.captureArea?.fullBounds,  // Include source bounds

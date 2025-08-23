@@ -207,74 +207,71 @@ export function registerSourceHandlers(): void {
 
   ipcMain.handle('get-macos-wallpapers', async () => {
     const wallpapers = []
-    
-    // macOS version wallpapers only
-    const versionWallpapers = [
-      { name: 'Sonoma', filename: 'Sonoma.heic' },
-      { name: 'Ventura', filename: 'Ventura Graphic.madesktop' },
-      { name: 'Monterey', filename: 'Monterey Graphic.madesktop' },
-      { name: 'Big Sur', filename: 'Big Sur.madesktop' },
-      { name: 'Big Sur Graphic', filename: 'Big Sur Graphic.madesktop' },
-      { name: 'Catalina', filename: 'Catalina.madesktop' }
-    ]
-    
     const desktopPicturesPath = '/System/Library/Desktop Pictures'
     
-    try {
-      for (const wallpaper of versionWallpapers) {
-        const fullPath = path.join(desktopPicturesPath, wallpaper.filename)
+    // macOS version wallpapers we want to load
+    const versionWallpapers = [
+      'Sonoma.heic',
+      'Ventura Graphic.madesktop',
+      'Monterey Graphic.madesktop', 
+      'Big Sur.madesktop',
+      'Big Sur Graphic.madesktop',
+      'Catalina.madesktop'
+    ]
+    
+    for (const filename of versionWallpapers) {
+      try {
+        const fullPath = path.join(desktopPicturesPath, filename)
+        await fs.access(fullPath)
         
-        // Check if file exists
-        try {
-          await fs.access(fullPath)
-          
-          // For .heic files, we can load them directly
-          if (wallpaper.filename.endsWith('.heic')) {
-            wallpapers.push({
-              name: wallpaper.name,
-              path: fullPath,
-              thumbnail: null // Will generate thumbnail on demand
-            })
-          }
-          // For .madesktop (dynamic wallpapers), use the first frame
-          else if (wallpaper.filename.endsWith('.madesktop')) {
-            // These are bundles, so we'll skip them for now and use fallback gradients
+        let thumbnail = null
+        let actualImagePath = fullPath
+        
+        // Handle .madesktop files (XML with thumbnail path)
+        if (filename.endsWith('.madesktop')) {
+          try {
+            const xmlContent = await fs.readFile(fullPath, 'utf-8')
+            const thumbnailMatch = xmlContent.match(/<key>thumbnailPath<\/key>\s*<string>([^<]+)<\/string>/)
+            if (thumbnailMatch && thumbnailMatch[1]) {
+              const thumbPath = thumbnailMatch[1]
+              
+              // Generate small thumbnail (150px) from the thumbnail file
+              const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
+              execSync(`sips -Z 150 -s format jpeg "${thumbPath}" --out "${tempFile}"`, { stdio: 'ignore' })
+              const thumbBuffer = await fs.readFile(tempFile)
+              thumbnail = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`
+              await fs.unlink(tempFile).catch(() => {})
+              
+              // Use the thumbnail path as the actual image to load
+              actualImagePath = thumbPath
+            }
+          } catch (e) {
+            console.error('Failed to parse madesktop:', e)
             continue
           }
-        } catch {
-          // File doesn't exist, skip it
-          continue
+        } 
+        // Handle regular HEIC files
+        else if (filename.endsWith('.heic')) {
+          try {
+            const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
+            execSync(`sips -Z 150 -s format jpeg "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
+            const thumbBuffer = await fs.readFile(tempFile)
+            thumbnail = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`
+            await fs.unlink(tempFile).catch(() => {})
+          } catch {}
         }
-      }
-    } catch (error) {
-      console.error('Error scanning wallpapers:', error)
-    }
-    
-    // Add the Sonoma wallpaper if it exists (it's a .heic file we can use)
-    if (wallpapers.length === 0) {
-      // Fallback: Just add Sonoma if we found nothing
-      try {
-        const sonomaPath = path.join(desktopPicturesPath, 'Sonoma.heic')
-        await fs.access(sonomaPath)
+        
         wallpapers.push({
-          name: 'Sonoma',
-          path: sonomaPath,
-          thumbnail: null
+          name: filename.replace(/\.(heic|madesktop)$/, '').replace(' Graphic', ''),
+          path: actualImagePath,
+          thumbnail
         })
       } catch {}
     }
     
-    // Gradient fallbacks for macOS versions
-    const macOSGradients = [
-      { name: 'Sonoma', path: 'gradient:sonoma', colors: ['#2D3748', '#1A202C'] },
-      { name: 'Ventura', path: 'gradient:ventura', colors: ['#1E3A8A', '#312E81'] },
-      { name: 'Monterey', path: 'gradient:monterey', colors: ['#065F46', '#064E3B'] },
-      { name: 'Big Sur', path: 'gradient:bigsur', colors: ['#DC2626', '#991B1B'] }
-    ]
-    
     return {
       wallpapers,
-      gradients: macOSGradients
+      gradients: []
     }
   })
 

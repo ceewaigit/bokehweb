@@ -102,15 +102,15 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             );
 
             if (mousePos) {
-              const screenWidth = cursorEvents[0].screenWidth;
-              const screenHeight = cursorEvents[0].screenHeight;
+              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
+              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
 
               // Calculate edge-based pan with current scale
               const targetPan = zoomPanCalculator.calculateSmoothPan(
                 mousePos.x,
                 mousePos.y,
-                screenWidth,
-                screenHeight,
+                captureWidth,
+                captureHeight,
                 scale,
                 smoothPanRef.current.x,
                 smoothPanRef.current.y
@@ -145,16 +145,16 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           );
 
           if (mousePos && cursorEvents.length > 0) {
-            // Get screen dimensions from the first event
-            const screenWidth = cursorEvents[0].screenWidth;
-            const screenHeight = cursorEvents[0].screenHeight;
+            // Get capture dimensions from the first event
+            const captureWidth = cursorEvents[0].captureWidth || videoWidth;
+            const captureHeight = cursorEvents[0].captureHeight || videoHeight;
             
             // Use edge-based pan calculator
             const panOffset = zoomPanCalculator.calculateSmoothPan(
               mousePos.x,
               mousePos.y,
-              screenWidth,
-              screenHeight,
+              captureWidth,
+              captureHeight,
               scale,
               smoothPanRef.current.x,
               smoothPanRef.current.y

@@ -61,21 +61,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
 
     const electronType = closestEvent?.cursorType || 'default';
-    const mappedType = electronToCustomCursor(electronType);
-    
-    // Debug logging
-    if (frame % 60 === 0) {  // Log every 60 frames
-      console.log('🎯 Cursor type mapping:', {
-        frame,
-        electronType,
-        mappedType,
-        timestamp: closestEvent?.timestamp,
-        currentTimeMs
-      });
-    }
-    
-    return mappedType;
-  }, [cursorEvents, currentTimeMs, frame]);
+    return electronToCustomCursor(electronType);
+  }, [cursorEvents, currentTimeMs]);
 
   // Get interpolated cursor position
   const cursorPosition = useMemo(() => {
@@ -158,15 +145,16 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     Math.abs(e.timestamp - currentTimeMs) < 50
   );
 
-  // Get screen dimensions from the event
-  const screenWidth = currentEvent?.screenWidth || videoWidth;
-  const screenHeight = currentEvent?.screenHeight || videoHeight;
+  // Get capture dimensions from the event metadata
+  // These represent the actual recording area dimensions
+  const captureWidth = currentEvent?.captureWidth || videoWidth;
+  const captureHeight = currentEvent?.captureHeight || videoHeight;
 
   // Calculate normalized position (0-1 range)
   // Positions are already capture-relative from the recording
-  // so we normalize against the capture dimensions (which are stored in screenWidth/screenHeight)
-  const normalizedX = cursorPosition.x / screenWidth;
-  const normalizedY = cursorPosition.y / screenHeight;
+  // so we normalize against the capture dimensions
+  const normalizedX = cursorPosition.x / captureWidth;
+  const normalizedY = cursorPosition.y / captureHeight;
 
   // Map to displayed video position (before zoom)
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;

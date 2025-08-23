@@ -435,8 +435,8 @@ export async function saveRecordingWithProject(
         timestamp: m.timestamp,
         x: m.mouseX,  // Already capture-relative from electron-recorder
         y: m.mouseY,  // Already capture-relative from electron-recorder
-        screenWidth: captureWidth,  // Use capture dimensions for normalization
-        screenHeight: captureHeight,  // Use capture dimensions for normalization
+        captureWidth: m.captureWidth || captureWidth,  // Use event-specific dimensions
+        captureHeight: m.captureHeight || captureHeight,  // Use event-specific dimensions
         cursorType: m.cursorType  // Include cursor type for accurate rendering
       }))
 

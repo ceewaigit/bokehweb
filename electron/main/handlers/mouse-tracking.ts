@@ -25,8 +25,6 @@ interface MousePosition {
   acceleration?: { x: number; y: number }
 }
 
-// Store window bounds for cursor type detection
-let windowBounds: { x: number; y: number; width: number; height: number } | null = null
 
 export function registerMouseTrackingHandlers(): void {
   ipcMain.handle('start-mouse-tracking', async (event: IpcMainInvokeEvent, options: MouseTrackingOptions = {}) => {
@@ -50,35 +48,52 @@ export function registerMouseTrackingHandlers(): void {
       // Get the BrowserWindow from the sender
       targetWindow = BrowserWindow.fromWebContents(event.sender)
 
-      // Get window bounds if this is a window recording
-      windowBounds = null
-      if (sourceType === 'window' && sourceId && !sourceId.startsWith('screen:')) {
-        try {
-          const { desktopCapturer } = await import('electron')
-          const sources = await desktopCapturer.getSources({
-            types: ['window'],
-            thumbnailSize: { width: 1, height: 1 },
-            fetchWindowIcons: false
-          })
-          
-          const source = sources.find(s => s.id === sourceId)
-          if (source) {
-            const { getWindowBoundsForSource } = await import('../native/window-bounds')
-            windowBounds = await getWindowBoundsForSource(source.name)
-            console.log('🪟 Window bounds for cursor detection:', windowBounds)
-          }
-        } catch (error) {
-          console.warn('Failed to get window bounds for cursor detection:', error)
-        }
-      }
-
       // Set up cursor-changed event listener for cursor type detection
       // Note: This only works when cursor is over the app window
-      // For partial screen recordings, we'll default to arrow cursor
+      // We'll also track all cursor types for better debugging
       if (targetWindow) {
         const handleCursorChange = (_event: any, type: string) => {
-          console.log('🔄 Cursor changed to:', type)
+          // Log all cursor changes with proper type mapping
+          const previousType = currentCursorType
           currentCursorType = type
+          
+          // Map Electron cursor types to more descriptive names for logging
+          const cursorTypeMap: Record<string, string> = {
+            'default': 'arrow',
+            'pointer': 'hand',
+            'text': 'iBeam',
+            'ns-resize': 'resizeUpDown',
+            'ew-resize': 'resizeLeftRight',
+            'nesw-resize': 'resizeDiagonal',
+            'nwse-resize': 'resizeDiagonal',
+            'n-resize': 'resizeUp',
+            's-resize': 'resizeDown',
+            'e-resize': 'resizeRight',
+            'w-resize': 'resizeLeft',
+            'ne-resize': 'resizeUpRight',
+            'nw-resize': 'resizeUpLeft',
+            'se-resize': 'resizeDownRight',
+            'sw-resize': 'resizeDownLeft',
+            'move': 'openHand',
+            'grabbing': 'closedHand',
+            'grab': 'openHand',
+            'crosshair': 'crosshair',
+            'not-allowed': 'notAllowed',
+            'context-menu': 'contextMenu',
+            'copy': 'dragCopy',
+            'alias': 'dragLink',
+            'col-resize': 'resizeColumn',
+            'row-resize': 'resizeRow',
+            'all-scroll': 'move',
+            'zoom-in': 'zoomIn',
+            'zoom-out': 'zoomOut'
+          }
+          
+          const mappedType = cursorTypeMap[type] || type
+          const previousMapped = cursorTypeMap[previousType] || previousType
+          
+          // Always log cursor changes for debugging
+          console.log(`🔄 Cursor changed: ${previousMapped} → ${mappedType} (raw: ${previousType} → ${type})`)
         }
 
         // Remove any existing listener first
@@ -159,37 +174,18 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
-            // Determine cursor type based on window bounds if available
-            let effectiveCursorType = currentCursorType;
+            // Use the current cursor type as detected
+            // Note: cursor-changed events only work when cursor is over our app window
+            // Default to 'default' if no cursor type is set
+            const effectiveCursorType = currentCursorType || 'default';
             
-            // For window recording, detect if cursor is inside/outside window
-            if (sourceType === 'window' && windowBounds) {
-              const isInsideWindow = 
-                currentPosition.x >= windowBounds.x &&
-                currentPosition.x <= windowBounds.x + windowBounds.width &&
-                currentPosition.y >= windowBounds.y &&
-                currentPosition.y <= windowBounds.y + windowBounds.height;
-              
-              // When cursor is outside the window, it's typically an arrow
-              // When inside, we don't know the exact type, so use 'default' which maps to arrow
-              // This is a limitation without deeper OS integration
-              effectiveCursorType = isInsideWindow ? 'default' : 'arrow';
-              
-              // If we have cursor-changed events and cursor is over our app, use that
-              if (isInsideWindow && currentCursorType !== 'default') {
-                effectiveCursorType = currentCursorType;
-              }
-            }
-            
-            // Debug logging - log every 50th event
-            if (mouseHistory.length % 50 === 0) {
-              console.log('🖱️ Mouse tracking state:', {
-                sourceId,
+            // Debug logging - log cursor type changes and periodic position updates
+            if (mouseHistory.length % 100 === 0 || currentCursorType !== effectiveCursorType) {
+              console.log('🖱️ Mouse tracking:', {
+                position: { x: positionData.x, y: positionData.y },
+                cursorType: effectiveCursorType,
                 sourceType,
-                currentCursorType,
-                effectiveCursorType,
-                windowBounds: windowBounds ? { x: windowBounds.x, y: windowBounds.y, w: windowBounds.width, h: windowBounds.height } : null,
-                mousePos: { x: currentPosition.x, y: currentPosition.y }
+                scaleFactor: positionData.scaleFactor
               });
             }
 
@@ -303,7 +299,8 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const scaleFactor = currentDisplay.scaleFactor || 1
 
       // Use the current cursor type as detected
-      const effectiveCursorType = currentCursorType;
+      // Default to 'default' if no cursor type is set
+      const effectiveCursorType = currentCursorType || 'default';
 
       // Send click event with proper coordinates
       mouseEventSender.send('mouse-click', {
