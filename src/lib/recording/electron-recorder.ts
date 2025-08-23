@@ -611,7 +611,7 @@ export class ElectronRecorder {
               logger.info('Window recording mode without bounds', { sourceId })
             }
           } catch (error) {
-            console.warn('🪟 Failed to get window bounds:', error)
+            logger.warn('Failed to get window bounds:', error)
             this.captureArea = undefined
           }
         } else {
@@ -645,13 +645,6 @@ export class ElectronRecorder {
               sourceId: areaSourceId // Keep area info for cursor type detection
             }
             
-            console.log('📐 AREA RECORDING DETECTED:', {
-              originalSourceId: sourceId,
-              areaSourceId,
-              areaSelection,
-              captureArea: this.captureArea
-            })
-            
             logger.info('Area selection captured', {
               sourceId: areaSourceId,
               sourceType: 'area',
@@ -659,21 +652,15 @@ export class ElectronRecorder {
               scaleFactor: this.captureArea.scaleFactor
             })
           } else {
-            // For full screen recording, store screen bounds but mark as full screen
-            this.captureArea = {
-              fullBounds: screen.bounds,
-              workArea: screen.workArea,
-              scaleFactor: screen.scaleFactor ?? 1,
-              sourceType: 'screen',
-              sourceId: sourceId
-            }
+            // For full screen recording, don't set capture area
+            // The full video dimensions will be used
+            this.captureArea = undefined
             
-            logger.info('Full screen recording mode', {
+            logger.info('Full screen recording mode (using full video dimensions)', {
               sourceId,
               sourceType: 'screen',
               screenBounds: screen.bounds,
-              scaleFactor: screen.scaleFactor ?? 1,
-              captureArea: this.captureArea
+              scaleFactor: screen.scaleFactor ?? 1
             })
           }
         } else {
@@ -687,7 +674,7 @@ export class ElectronRecorder {
     }
   }
 
-  private transformCoordinates(data: { x: number; y: number }): { 
+  private transformCoordinates(data: { x: number; y: number; scaleFactor?: number }): { 
     transformedX: number
     transformedY: number
     isWithinBounds: boolean
@@ -698,21 +685,20 @@ export class ElectronRecorder {
     let transformedY = data.y
     let isWithinBounds = true
     
-    // For full screen recordings, we need to scale coordinates to match video dimensions
-    const isFullScreen = this.captureArea?.sourceType === 'screen' && !this.captureArea?.sourceId?.includes('area:')
-    
-    if (isFullScreen && this.videoWidth && this.videoHeight) {
-      // For full screen, use video dimensions directly
-      // Scale logical coordinates to video pixel coordinates
-      const screenBounds = this.captureArea?.fullBounds
-      if (screenBounds) {
-        const scaleX = this.videoWidth / screenBounds.width
-        const scaleY = this.videoHeight / screenBounds.height
-        transformedX = data.x * scaleX
-        transformedY = data.y * scaleY
+    if (!this.captureArea) {
+      // Full screen recording - use scaled coordinates based on display scale factor
+      // The mouse coordinates from Electron are in logical pixels
+      // We need to scale them to match the video's physical pixels
+      if (data.scaleFactor && data.scaleFactor > 1) {
+        transformedX = data.x * data.scaleFactor
+        transformedY = data.y * data.scaleFactor
       }
-    } else if (this.captureArea?.fullBounds) {
-      // For window/area recordings, check if cursor is within capture area
+      // Use full video dimensions
+      const captureW = this.videoWidth || 1920
+      const captureH = this.videoHeight || 1080
+      return { transformedX, transformedY, isWithinBounds, captureW, captureH }
+    } else if (this.captureArea.fullBounds) {
+      // Window or area recording - check bounds and adjust coordinates
       isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
                       data.x < this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
                       data.y >= this.captureArea.fullBounds.y &&
@@ -721,17 +707,16 @@ export class ElectronRecorder {
       // Adjust mouse coordinates to be relative to the capture area
       transformedX = data.x - this.captureArea.fullBounds.x
       transformedY = data.y - this.captureArea.fullBounds.y
+      
+      // Use capture area dimensions
+      const captureW = this.captureArea.fullBounds.width
+      const captureH = this.captureArea.fullBounds.height
+      return { transformedX, transformedY, isWithinBounds, captureW, captureH }
     }
     
-    // Use video dimensions for full screen, capture area for window/area recordings
-    // Default to 1920x1080 if dimensions are not available (shouldn't happen in practice)
-    const captureW = isFullScreen 
-      ? (this.videoWidth || 1920) 
-      : (this.captureArea?.fullBounds?.width || this.videoWidth || 1920)
-    const captureH = isFullScreen 
-      ? (this.videoHeight || 1080) 
-      : (this.captureArea?.fullBounds?.height || this.videoHeight || 1080)
-    
+    // Fallback (shouldn't reach here)
+    const captureW = this.videoWidth || 1920
+    const captureH = this.videoHeight || 1080
     return { transformedX, transformedY, isWithinBounds, captureW, captureH }
   }
 
