@@ -20,8 +20,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
   
-  // Track dynamic pan state across frames
-  const smoothPanRef = useRef({ x: 0, y: 0 });
+  // Track dynamic pan state and velocity across frames
+  const smoothPanRef = useRef({ x: 0, y: 0, velocityX: 0, velocityY: 0 });
 
   // Calculate video position for cursor layer
   const padding = effects?.background?.padding || 0;
@@ -92,20 +92,24 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             const screenWidth = currentEvent.screenWidth;
             const screenHeight = currentEvent.screenHeight;
             
-            // Use the edge-based pan calculator for consistent behavior
-            const panOffset = zoomPanCalculator.calculatePanOffset(
+            // Use velocity-based pan calculator for smooth ice-like gliding
+            const panOffset = zoomPanCalculator.calculatePanOffsetWithVelocity(
               mousePos.x,
               mousePos.y,
               screenWidth,
               screenHeight,
               scale,
               smoothPanRef.current.x,
-              smoothPanRef.current.y
+              smoothPanRef.current.y,
+              smoothPanRef.current.velocityX,
+              smoothPanRef.current.velocityY
             );
             
-            // Update smooth pan with calculated offset
+            // Update smooth pan and velocity with calculated offset
             smoothPanRef.current.x = panOffset.x;
             smoothPanRef.current.y = panOffset.y;
+            smoothPanRef.current.velocityX = panOffset.velocityX;
+            smoothPanRef.current.velocityY = panOffset.velocityY;
           }
         }
 

@@ -18,9 +18,9 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // Track previous pan position for smooth ice-like interpolation
+  // Track previous pan position and velocity for smooth ice-like interpolation
   // Use pre-calculated pan if provided (from MainComposition), otherwise track locally
-  const smoothPanRef = useRef({ x: 0, y: 0 });
+  const smoothPanRef = useRef({ x: 0, y: 0, velocityX: 0, velocityY: 0 });
   const smoothPan = preCalculatedPan || smoothPanRef.current;
 
   // Calculate current time in milliseconds
@@ -115,20 +115,24 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
             const screenWidth = currentEvent.screenWidth;
             const screenHeight = currentEvent.screenHeight;
 
-            // Calculate pan offset to follow mouse movement
-            const panOffset = zoomPanCalculator.calculatePanOffset(
+            // Calculate pan offset to follow mouse movement with velocity
+            const panOffset = zoomPanCalculator.calculatePanOffsetWithVelocity(
               mousePos.x,
               mousePos.y,
               screenWidth,
               screenHeight,
               scale,
               smoothPanRef.current.x,
-              smoothPanRef.current.y
+              smoothPanRef.current.y,
+              smoothPanRef.current.velocityX,
+              smoothPanRef.current.velocityY
             );
             
-            // Update smooth pan with calculated offset
+            // Update smooth pan and velocity with calculated offset
             smoothPanRef.current.x = panOffset.x;
             smoothPanRef.current.y = panOffset.y;
+            smoothPanRef.current.velocityX = panOffset.velocityX;
+            smoothPanRef.current.velocityY = panOffset.velocityY;
           }
         }
       }
