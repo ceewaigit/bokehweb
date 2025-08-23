@@ -175,20 +175,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         }
         filteredPositionRef.current.x = filteredPositionRef.current.x + (avgX - filteredPositionRef.current.x) * smoothingAlpha;
         filteredPositionRef.current.y = filteredPositionRef.current.y + (avgY - filteredPositionRef.current.y) * smoothingAlpha;
-
-        // Debug log to verify smoothing is working
-        frameCountRef.current++;
-        if (frameCountRef.current % 30 === 0) {
-          const lag = Math.sqrt(
-            Math.pow(filteredPositionRef.current.x - rawX, 2) +
-            Math.pow(filteredPositionRef.current.y - rawY, 2)
-          );
-          console.log('🎯 Smoothing Active:',
-            'Raw:', rawX.toFixed(0), rawY.toFixed(0),
-            '→ Smooth:', filteredPositionRef.current.x.toFixed(0), filteredPositionRef.current.y.toFixed(0),
-            '| Lag:', lag.toFixed(0) + 'px'
-          );
-        }
       }
     }
 
@@ -286,11 +272,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const renderedWidth = dimensions.width * cursorSize;
   const renderedHeight = dimensions.height * cursorSize;
 
-  // Calculate cursor render position (top-left corner)
-  // We need to apply hotspot offset BEFORE zoom transformation
-  // because the cursor tip position needs to be transformed, not the corner
-  let cursorX = cursorTipX - (hotspot.x * renderedWidth);
-  let cursorY = cursorTipY - (hotspot.y * renderedHeight);
+  // Initialize cursor position
+  let cursorX = cursorTipX;
+  let cursorY = cursorTipY;
 
   // Apply zoom transformation if needed
   if (zoom.scale > 1) {
@@ -314,13 +298,31 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       { x: zoom.panX || 0, y: zoom.panY || 0 }
     );
 
-    // Transform ONLY the cursor tip position (not the corner)
+    // Transform the cursor tip position exactly like the video content
     const transformedTip = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
-
-    // Now apply the hotspot offset in screen space to get the final corner position
-    cursorX = transformedTip.x - (hotspot.x * renderedWidth);
-    cursorY = transformedTip.y - (hotspot.y * renderedHeight);
+    cursorX = transformedTip.x;
+    cursorY = transformedTip.y;
+    
+    // Debug logging
+    if (frame % 30 === 0) {
+      console.log('🎯 Cursor Zoom Debug:', {
+        zoom: zoom.scale.toFixed(2),
+        cursorTip: { x: cursorTipX.toFixed(0), y: cursorTipY.toFixed(0) },
+        transformed: { x: cursorX.toFixed(0), y: cursorY.toFixed(0) },
+        videoOffset,
+        zoomTransform,
+        hotspotOffset: { 
+          x: (hotspot.x * renderedWidth).toFixed(0), 
+          y: (hotspot.y * renderedHeight).toFixed(0) 
+        }
+      });
+    }
   }
+  
+  // Apply hotspot offset AFTER transformation
+  // This positions the cursor image so the hotspot aligns with the transformed tip position
+  cursorX -= hotspot.x * renderedWidth;
+  cursorY -= hotspot.y * renderedHeight;
 
   // Create motion blur filter based on velocity
   const motionBlurFilter = useMemo(() => {
