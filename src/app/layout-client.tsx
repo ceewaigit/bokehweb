@@ -1,50 +1,22 @@
 'use client'
 
-import { Inter } from "next/font/google"
-import { usePathname } from "next/navigation"
 import { useEffect } from "react"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { ToastContainer } from "@/components/toast"
 import { RecordingStorage } from "@/lib/storage/recording-storage"
 import { ThemeProvider } from "@/contexts/theme-context"
 
-const inter = Inter({ 
-  subsets: ["latin"],
-  variable: "--font-inter",
-})
-
 export default function LayoutClient({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
-  const isRecordButton = pathname?.includes('/record-button')
-  
   // Clear invalid blob URLs on app startup
   useEffect(() => {
     // Only run once on initial mount
     RecordingStorage.clearAllBlobUrls()
   }, [])
   
-  // For record button, use minimal transparent layout
-  if (isRecordButton) {
-    return (
-      <div style={{ 
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'transparent',
-        backgroundColor: 'transparent'
-      }}>
-        {children}
-      </div>
-    )
-  }
-  
-  // For main app, use full layout
   return (
     <ThemeProvider>
       <ErrorBoundary>

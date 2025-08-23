@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import RecordButton from './app/record-button/page';
+import { RecordButtonDock } from './components/record-button-dock';
 import { WorkspaceManager } from './components/workspace/workspace-manager';
 import { ThemeProvider } from './contexts/theme-context';
 import { ErrorBoundary } from './components/error-boundary';
@@ -11,8 +11,8 @@ const isRecordButton = window.location.hash === '#/record-button';
 
 const App = () => {
   if (isRecordButton) {
-    // Record button doesn't need theme provider
-    return <RecordButton />;
+    // Record button renders as minimal component without any wrappers
+    return <RecordButtonDock />;
   }
 
   // Main app UI needs ThemeProvider

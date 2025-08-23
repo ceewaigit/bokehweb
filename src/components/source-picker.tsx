@@ -113,7 +113,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-background/80 backdrop-blur-2xl z-50"
+            className="fixed inset-0 bg-background/80 backdrop-blur-2xl z-[2147483649]"
             onClick={onClose}
           />
 
@@ -123,7 +123,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-0 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 flex items-center justify-center z-[2147483650] p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-background/95 backdrop-blur-3xl rounded-2xl shadow-2xl border border-border max-w-6xl w-full max-h-[90vh] overflow-hidden">

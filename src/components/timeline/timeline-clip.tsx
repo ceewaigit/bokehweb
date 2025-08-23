@@ -74,18 +74,29 @@ export const TimelineClip = React.memo(({
 
         videoRef.current = video
 
+        // Calculate thumbnail dimensions
+        const thumbHeight = trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2
+        const aspectRatio = video.videoWidth / video.videoHeight
+        const thumbWidth = Math.floor(thumbHeight * aspectRatio)
+        
+        // Calculate how many thumbnails we need based on clip width
+        const thumbnailCount = Math.max(1, Math.ceil(clipWidth / thumbWidth))
         const newThumbnails: HTMLCanvasElement[] = []
-
-        // Just create a single canvas with the first frame for now (KISS)
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-        if (ctx) {
-          // Set canvas to fill the clip width
-          canvas.width = clipWidth
-          canvas.height = trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2
-
-          // Draw video frame stretched to fill
-          video.currentTime = 0
+        
+        // Generate frames at different timestamps
+        for (let i = 0; i < thumbnailCount; i++) {
+          // Calculate which frame to show based on position in clip
+          const progress = i / Math.max(1, thumbnailCount - 1)
+          const timeInSeconds = (clip.sourceIn + progress * (clip.sourceOut - clip.sourceIn)) / 1000
+          
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          if (!ctx) continue
+          
+          canvas.width = thumbWidth
+          canvas.height = thumbHeight
+          
+          // Seek to the specific time and draw frame
           await new Promise<void>((resolve) => {
             const seekHandler = () => {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
@@ -93,8 +104,9 @@ export const TimelineClip = React.memo(({
               resolve()
             }
             video.addEventListener('seeked', seekHandler)
+            video.currentTime = timeInSeconds
           })
-
+          
           newThumbnails.push(canvas)
         }
 
@@ -157,30 +169,40 @@ export const TimelineClip = React.memo(({
         shadowOffsetY={2}
       />
 
-      {/* Video thumbnail */}
-      {trackType === 'video' && thumbnails[0] && (
+      {/* Video thumbnails */}
+      {trackType === 'video' && thumbnails.length > 0 && (
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
           ctx.roundRect(0, 0, clipWidth, trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2, 6)
           ctx.closePath()
         }}>
-          <Image
-            image={thumbnails[0]}
-            x={0}
-            y={0}
-            width={clipWidth}
-            height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
-            opacity={0.9}
-          />
-          {/* Simple gradient overlay for text visibility */}
+          {/* Render each thumbnail frame */}
+          {thumbnails.map((canvas, i) => {
+            const thumbHeight = trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2
+            const aspectRatio = canvas.width / canvas.height
+            const thumbWidth = Math.floor(thumbHeight * aspectRatio)
+            
+            return (
+              <Image
+                key={i}
+                image={canvas}
+                x={i * thumbWidth}
+                y={0}
+                width={thumbWidth}
+                height={thumbHeight}
+                opacity={0.95}
+              />
+            )
+          })}
+          {/* Gradient overlay for text visibility */}
           <Rect
             width={clipWidth}
-            height={20}
+            height={24}
             fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-            fillLinearGradientEndPoint={{ x: 0, y: 20 }}
+            fillLinearGradientEndPoint={{ x: 0, y: 24 }}
             fillLinearGradientColorStops={[
-              0, 'rgba(0,0,0,0.5)',
+              0, 'rgba(0,0,0,0.6)',
               1, 'rgba(0,0,0,0)'
             ]}
           />
