@@ -313,15 +313,47 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   
   // Debug logging - log always to see what's happening
   if (frame % 30 === 0 && zoom) {
-    console.log('🎯 Cursor Alignment:', {
-      zoomScale: zoom.scale?.toFixed(3) || 'none',
-      cursorTip: { x: cursorTipX.toFixed(0), y: cursorTipY.toFixed(0) },
-      finalPos: { x: cursorX.toFixed(0), y: cursorY.toFixed(0) },
-      hotspotOffset: { 
-        x: (hotspot.x * renderedWidth).toFixed(0), 
-        y: (hotspot.y * renderedHeight).toFixed(0) 
+    const zoomTransformDebug = zoom.scale && Math.abs(zoom.scale - 1) > 0.001 ? calculateZoomTransform(
+      {
+        id: 'cursor-zoom',
+        startTime: 0,
+        endTime: 1000,
+        scale: zoom.scale,
+        targetX: zoom.x || 0.5,
+        targetY: zoom.y || 0.5,
+        introMs: 0,
+        outroMs: 0,
+        mode: 'manual' as const
       },
-      applied: Math.abs((zoom.scale || 1) - 1) > 0.001 ? 'YES' : 'NO'
+      500,
+      videoOffset.width,
+      videoOffset.height,
+      { x: zoom.panX || 0, y: zoom.panY || 0 }
+    ) : null;
+    
+    console.log('🎯 Cursor Debug:', {
+      input: {
+        cursorPos: cursorPosition,
+        normalized: { x: normalizedX.toFixed(3), y: normalizedY.toFixed(3) },
+        cursorInVideo: { x: cursorInVideoX.toFixed(0), y: cursorInVideoY.toFixed(0) },
+        cursorTip: { x: cursorTipX.toFixed(0), y: cursorTipY.toFixed(0) }
+      },
+      videoOffset,
+      zoom: {
+        scale: zoom.scale,
+        x: zoom.x,
+        y: zoom.y,
+        panX: zoom.panX,
+        panY: zoom.panY
+      },
+      transform: zoomTransformDebug,
+      output: {
+        final: { x: cursorX.toFixed(0), y: cursorY.toFixed(0) },
+        afterHotspot: { 
+          x: (cursorX - hotspot.x * renderedWidth).toFixed(0), 
+          y: (cursorY - hotspot.y * renderedHeight).toFixed(0) 
+        }
+      }
     });
   }
   
