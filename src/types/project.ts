@@ -365,8 +365,9 @@ export async function saveRecordingWithProject(
     const buffer = await videoBlob.arrayBuffer()
     await window.electronAPI.saveRecording(videoFilePath, buffer)
 
-    // Get video metadata
-    const videoUrl = globalBlobManager.create(videoBlob, 'video-preview')
+    // Get video metadata - create temporary URL for duration check
+    // Use URL.createObjectURL directly to avoid BlobURLManager disposal issues
+    const videoUrl = URL.createObjectURL(videoBlob)
     const video = document.createElement('video')
     video.src = videoUrl
 
@@ -398,7 +399,8 @@ export async function saveRecordingWithProject(
     // Use default frame rate since browser detection is unreliable
     const detectedFrameRate = 30
 
-    globalBlobManager.revoke(videoUrl)
+    // Clean up temporary URL
+    URL.revokeObjectURL(videoUrl)
 
     // Create project with recording
     const project = createProject(baseName)

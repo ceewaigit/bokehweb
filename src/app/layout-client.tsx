@@ -6,6 +6,7 @@ import { useEffect } from "react"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { ToastContainer } from "@/components/toast"
 import { RecordingStorage } from "@/lib/storage/recording-storage"
+import { ThemeProvider } from "@/contexts/theme-context"
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -45,17 +46,19 @@ export default function LayoutClient({
   
   // For main app, use full layout
   return (
-    <ErrorBoundary>
-      <div className="h-screen w-screen overflow-hidden bg-background">
-        {/* Electron title bar spacer */}
-        <div className="h-10 w-full bg-background/80 backdrop-blur-sm border-b border-border/50 flex items-center justify-center drag-region">
-          <div className="text-sm font-medium text-muted-foreground">Screen Studio Pro</div>
+    <ThemeProvider>
+      <ErrorBoundary>
+        <div className="h-screen w-screen overflow-hidden bg-background">
+          {/* Electron title bar spacer */}
+          <div className="h-10 w-full bg-background/80 backdrop-blur-sm border-b border-border/50 flex items-center justify-center drag-region">
+            <div className="text-sm font-medium text-muted-foreground">Screen Studio Pro</div>
+          </div>
+          <div className="h-[calc(100vh-2.5rem)] w-full overflow-hidden">
+            {children}
+          </div>
         </div>
-        <div className="h-[calc(100vh-2.5rem)] w-full overflow-hidden">
-          {children}
-        </div>
-      </div>
-      <ToastContainer />
-    </ErrorBoundary>
+        <ToastContainer />
+      </ErrorBoundary>
+    </ThemeProvider>
   )
 }

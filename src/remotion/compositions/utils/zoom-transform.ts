@@ -4,13 +4,10 @@
 
 import { interpolate } from 'remotion';
 
-// Easing functions for smooth transitions
-export const easeOutExpo = (t: number): number => {
-  return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-};
-
-export const easeInExpo = (t: number): number => {
-  return t === 0 ? 0 : Math.pow(2, 10 * t - 10);
+// Use smoothStep for all zoom transitions (like Screen Studio)
+export const smoothStep = (t: number): number => {
+  const clampedT = Math.max(0, Math.min(1, t));
+  return clampedT * clampedT * (3 - 2 * clampedT);
 };
 
 interface ZoomBlock {
@@ -38,8 +35,8 @@ export function calculateZoomScale(
   elapsed: number,
   blockDuration: number,
   targetScale: number,
-  introMs: number = 400,
-  outroMs: number = 400
+  introMs: number = 500,
+  outroMs: number = 500
 ): number {
   if (elapsed < introMs) {
     // Intro phase - zoom in smoothly
@@ -51,7 +48,7 @@ export function calculateZoomScale(
       {
         extrapolateLeft: 'clamp',
         extrapolateRight: 'clamp',
-        easing: easeOutExpo
+        easing: smoothStep  // Use smoothStep for silky smooth zoom
       }
     );
   } else if (elapsed > blockDuration - outroMs) {
@@ -65,7 +62,7 @@ export function calculateZoomScale(
       {
         extrapolateLeft: 'clamp',
         extrapolateRight: 'clamp',
-        easing: easeInExpo
+        easing: smoothStep  // Use smoothStep for consistent smoothness
       }
     );
   } else {
@@ -96,7 +93,7 @@ export function calculateZoomTransform(
 
   const blockDuration = activeBlock.endTime - activeBlock.startTime;
   const elapsed = currentTimeMs - activeBlock.startTime;
-  
+
   // Calculate zoom scale
   const scale = calculateZoomScale(
     elapsed,
@@ -113,15 +110,15 @@ export function calculateZoomTransform(
   // Convert to pixel coordinates
   const zoomPointX = zoomCenterX * videoWidth;
   const zoomPointY = zoomCenterY * videoHeight;
-  
+
   // Calculate center of video
   const centerX = videoWidth / 2;
   const centerY = videoHeight / 2;
-  
+
   // Calculate offset from center to zoom point
   const offsetFromCenterX = zoomPointX - centerX;
   const offsetFromCenterY = zoomPointY - centerY;
-  
+
   // Scale compensation to keep zoom point fixed
   const scaleCompensationX = -offsetFromCenterX * (scale - 1);
   const scaleCompensationY = -offsetFromCenterY * (scale - 1);
@@ -156,19 +153,19 @@ export function applyZoomToPoint(
   // Get the center of the video (transform origin)
   const videoCenterX = videoOffset.x + videoOffset.width / 2;
   const videoCenterY = videoOffset.y + videoOffset.height / 2;
-  
+
   // Translate point relative to video center (not origin)
   const relativeX = pointX - videoCenterX;
   const relativeY = pointY - videoCenterY;
-  
+
   // Scale the position from center
   const scaledX = relativeX * zoomTransform.scale;
   const scaledY = relativeY * zoomTransform.scale;
-  
+
   // Apply the translation
   const totalTranslateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
   const totalTranslateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
-  
+
   // Add back relative to video center
   return {
     x: videoCenterX + scaledX + totalTranslateX,
@@ -183,9 +180,9 @@ export function getZoomTransformString(zoomTransform: ZoomState): string {
   if (zoomTransform.scale === 1) {
     return '';
   }
-  
+
   const translateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
   const translateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
-  
+
   return `translate(${translateX}px, ${translateY}px) scale(${zoomTransform.scale})`;
 }

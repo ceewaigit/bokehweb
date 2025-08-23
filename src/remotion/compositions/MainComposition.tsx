@@ -19,7 +19,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
-  
+
   // Track dynamic pan state separately for each zoom block
   const smoothPanRef = useRef({ x: 0, y: 0, lastBlockId: null as string | null });
 
@@ -37,7 +37,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   // Calculate complete zoom state including dynamic pan
   const completeZoomState = useMemo(() => {
     let zoomState = { scale: 1, x: 0.5, y: 0.5, panX: 0, panY: 0 };
-    
+
     if (zoomEnabled && clip) {
       const clipRelativeTime = currentTimeMs;
       const activeZoomBlock = zoomBlocks.find(
@@ -61,46 +61,73 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         let panX = 0;
         let panY = 0;
 
-        const introMs = activeZoomBlock.introMs || 400;
-        const outroMs = activeZoomBlock.outroMs || 400;
+        const introMs = activeZoomBlock.introMs || 500;  // Slightly longer for smoother transition
+        const outroMs = activeZoomBlock.outroMs || 500;
 
         if (elapsed < introMs) {
           // Intro phase - smooth zoom in
           const introProgress = elapsed / introMs;
-          const easedProgress = easeOutExpo(introProgress);
+          const easedProgress = smoothStep(introProgress);  // Use smoothstep for silky smooth transition
           scale = 1 + (scale - 1) * easedProgress;
-          
-          // Start panning gradually during intro
-          if (introProgress > 0.3) {  // Start pan after 30% of intro
-            const panProgress = (introProgress - 0.3) / 0.7;
-            panX = smoothPanRef.current.x * easeOutExpo(panProgress);
-            panY = smoothPanRef.current.y * easeOutExpo(panProgress);
+
+          // Calculate pan target during intro for smooth transition
+          if (cursorEvents.length > 0 && introProgress > 0.2) {
+            // Start calculating pan early but apply it gradually
+            const mousePos = zoomPanCalculator.interpolateMousePosition(
+              cursorEvents,
+              currentTimeMs
+            );
+
+            if (mousePos) {
+              const screenWidth = cursorEvents[0].screenWidth;
+              const screenHeight = cursorEvents[0].screenHeight;
+
+              // Calculate target pan but don't update the ref yet
+              const targetPan = zoomPanCalculator.calculateSmoothPan(
+                mousePos.x,
+                mousePos.y,
+                screenWidth,
+                screenHeight,
+                scale,  // Use current interpolated scale
+                smoothPanRef.current.x,
+                smoothPanRef.current.y
+              );
+
+              // Gradually apply pan during intro
+              const panProgress = (introProgress - 0.2) / 0.8;
+              const panEased = smoothStep(panProgress);
+              smoothPanRef.current.x = targetPan.x * panEased;
+              smoothPanRef.current.y = targetPan.y * panEased;
+              panX = smoothPanRef.current.x;
+              panY = smoothPanRef.current.y;
+            }
           }
         } else if (elapsed > blockDuration - outroMs) {
           // Outro phase - smooth zoom out
           const outroElapsed = elapsed - (blockDuration - outroMs);
           const outroProgress = outroElapsed / outroMs;
-          const easedProgress = easeInExpo(outroProgress);
+          const easedProgress = smoothStep(outroProgress);
           scale = activeZoomBlock.scale - (activeZoomBlock.scale - 1) * easedProgress;
-          
-          // Fade out pan during outro
-          panX = smoothPanRef.current.x * (1 - easedProgress);
-          panY = smoothPanRef.current.y * (1 - easedProgress);
+
+          // Fade out pan smoothly during outro
+          const fadeOutPan = 1 - easedProgress;
+          panX = smoothPanRef.current.x * fadeOutPan;
+          panY = smoothPanRef.current.y * fadeOutPan;
         } else {
           // Hold phase - full zoom with dynamic pan
           scale = activeZoomBlock.scale || 2;
-          
+
           // Get interpolated mouse position at current time
           const mousePos = zoomPanCalculator.interpolateMousePosition(
             cursorEvents,
             currentTimeMs
           );
-          
+
           if (mousePos && cursorEvents.length > 0) {
             // Get screen dimensions from the first event (they're consistent)
             const screenWidth = cursorEvents[0].screenWidth;
             const screenHeight = cursorEvents[0].screenHeight;
-            
+
             // Use simplified smooth pan calculator
             const panOffset = zoomPanCalculator.calculateSmoothPan(
               mousePos.x,
@@ -111,7 +138,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               smoothPanRef.current.x,
               smoothPanRef.current.y
             );
-            
+
             // Update smooth pan state
             smoothPanRef.current.x = panOffset.x;
             smoothPanRef.current.y = panOffset.y;
@@ -124,10 +151,10 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         const x = activeZoomBlock.targetX || 0.5;
         const y = activeZoomBlock.targetY || 0.5;
 
-        zoomState = { 
-          scale, 
-          x, 
-          y, 
+        zoomState = {
+          scale,
+          x,
+          y,
           panX,
           panY
         };
@@ -140,7 +167,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         }
       }
     }
-    
+
     return zoomState;
   }, [zoomEnabled, clip, zoomBlocks, currentTimeMs, cursorEvents]);
 
@@ -160,8 +187,6 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         <Sequence from={0}>
           <VideoLayer
             videoUrl={videoUrl}
-            startFrom={clip?.sourceIn ? clip.sourceIn / 1000 : 0}
-            endAt={clip?.sourceOut ? clip.sourceOut / 1000 : undefined}
             effects={effects}
             zoom={effects?.zoom}
             videoWidth={videoWidth}
@@ -196,11 +221,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   );
 };
 
-// Easing functions for smooth transitions
-function easeOutExpo(t: number): number {
-  return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-}
-
-function easeInExpo(t: number): number {
-  return t === 0 ? 0 : Math.pow(2, 10 * t - 10);
+// SmoothStep for ultra-smooth transitions
+function smoothStep(t: number): number {
+  const clampedT = Math.max(0, Math.min(1, t));
+  return clampedT * clampedT * (3 - 2 * clampedT);
 }

@@ -2,24 +2,28 @@
 
 import { useState } from 'react'
 import {
-  Settings,
   Folder,
   Save,
   Download,
-  Mic,
-  MicOff,
-  Volume2,
-  VolumeX,
   FolderOpen,
   FileVideo,
   PanelRightClose,
-  PanelRight
+  PanelRight,
+  Sun,
+  Moon,
+  Monitor
 } from 'lucide-react'
 import { Button } from './ui/button'
-import { Separator } from './ui/separator'
 import { useRecordingStore } from '@/stores/recording-store'
 import { cn, formatTime } from '@/lib/utils'
 import type { Project } from '@/types/project'
+import { useTheme } from '@/contexts/theme-context'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface ToolbarProps {
   project: Project | null
@@ -43,10 +47,10 @@ export function Toolbar({
   const {
     isRecording,
     duration,
-    status,
-    settings
+    status
   } = useRecordingStore()
-
+  
+  const { theme, setTheme } = useTheme()
   const [propertiesOpen, setPropertiesOpen] = useState(true)
 
   const handleToggleProperties = () => {
@@ -55,27 +59,27 @@ export function Toolbar({
   }
 
   return (
-    <div className="h-full w-full flex items-center px-2 gap-1 overflow-hidden">
+    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-card/50 backdrop-blur-xl border-b border-border/50">
       {/* Left Section - Project Controls */}
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         {/* Logo/Brand - More compact */}
-        <div className="flex items-center px-1">
-          <FileVideo className="w-4 h-4 text-primary mr-1.5 flex-shrink-0" />
-          <span className="font-semibold text-xs bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent whitespace-nowrap">
-            Screen Studio
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-md">
+          <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+          <span className="font-bold text-[10px] text-primary uppercase tracking-wider whitespace-nowrap">
+            Studio
           </span>
         </div>
 
-        <Separator orientation="vertical" className="h-6" />
+        <div className="w-px h-5 bg-border/30" />
 
         {/* Project Actions - Compact */}
         <Button
           variant="ghost"
           size="sm"
           onClick={onNewProject}
-          className="text-xs h-8 px-2"
+          className="h-7 px-2 text-[11px] font-medium hover:bg-card/50"
         >
-          <Folder className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+          <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">New</span>
         </Button>
 
@@ -104,9 +108,9 @@ export function Toolbar({
               console.log('File dialog not available in browser')
             }
           }}
-          className="text-xs h-8 px-2"
+          className="h-7 px-2 text-[11px] font-medium hover:bg-card/50"
         >
-          <FolderOpen className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+          <FolderOpen className="w-3 h-3 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">Open</span>
         </Button>
 
@@ -116,29 +120,29 @@ export function Toolbar({
           onClick={onSaveProject}
           disabled={!project}
           className={cn(
-            "text-xs h-8 px-2",
-            hasUnsavedChanges && "animate-pulse"
+            "h-7 px-2 text-[11px] font-medium",
+            hasUnsavedChanges ? "bg-primary/20 hover:bg-primary/30 border border-primary/30" : "hover:bg-card/50"
           )}
         >
-          <Save className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+          <Save className="w-3 h-3 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">
-            {hasUnsavedChanges ? "Save Changes" : "Save"}
+            Save
           </span>
           {hasUnsavedChanges && (
-            <span className="ml-1 w-2 h-2 bg-orange-500 rounded-full flex-shrink-0" />
+            <span className="ml-1 w-1.5 h-1.5 bg-primary rounded-full animate-pulse flex-shrink-0" />
           )}
         </Button>
       </div>
 
       {/* Center Section - Project Info and Status */}
-      <div className="flex-1 flex items-center justify-center gap-1 min-w-0 overflow-hidden">
+      <div className="flex-1 flex items-center justify-center gap-2 min-w-0 overflow-hidden">
         {/* Project Name and Time Display */}
         {project && (
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <span className="text-sm font-medium">{project.name}</span>
-            <span className="text-xs text-muted-foreground">•</span>
-            <div className="flex items-center gap-1 text-xs flex-shrink-0">
-              <span className="font-mono text-muted-foreground">
+          <div className="flex items-center gap-2 px-3 py-1 bg-background/50 rounded-md border border-border/20 flex-shrink-0">
+            <span className="text-[11px] font-semibold text-foreground/90">{project.name}</span>
+            <span className="text-[10px] text-muted-foreground/50">•</span>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <span className="font-mono text-[10px] text-muted-foreground/70">
                 {formatTime((project?.timeline?.duration || 0) / 1000)}
               </span>
             </div>
@@ -147,18 +151,18 @@ export function Toolbar({
 
         {/* Recording Status */}
         {status !== 'idle' && (
-          <div className="ml-4 flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-destructive/10 rounded-md border border-destructive/20 flex-shrink-0">
             <div className={cn(
-              "w-2 h-2 rounded-full",
+              "w-1.5 h-1.5 rounded-full",
               status === 'recording' && "bg-red-500 animate-pulse",
               status === 'processing' && "bg-yellow-500 animate-pulse",
               status === 'preparing' && "bg-blue-500 animate-pulse"
             )} />
-            <span className="text-xs font-medium capitalize">
-              {status === 'processing' ? 'Saving...' : status}
+            <span className="text-[10px] font-medium uppercase tracking-wider">
+              {status === 'processing' ? 'Saving' : status}
             </span>
             {isRecording && (
-              <span className="font-mono text-xs text-muted-foreground">
+              <span className="font-mono text-[10px] text-muted-foreground/70">
                 {formatTime(duration / 1000)}
               </span>
             )}
@@ -167,43 +171,8 @@ export function Toolbar({
       </div>
 
       {/* Right Section - Export and Settings */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        {/* Audio Controls */}
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "w-7 h-7",
-              settings.audioInput === 'system' || settings.audioInput === 'both'
-                ? "text-primary"
-                : "text-muted-foreground"
-            )}
-          >
-            {settings.audioInput === 'none' ?
-              <VolumeX className="w-3.5 h-3.5" /> :
-              <Volume2 className="w-3.5 h-3.5" />
-            }
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "w-7 h-7",
-              settings.audioInput === 'microphone' || settings.audioInput === 'both'
-                ? "text-primary"
-                : "text-muted-foreground"
-            )}
-          >
-            {settings.audioInput === 'microphone' || settings.audioInput === 'both' ?
-              <Mic className="w-3.5 h-3.5" /> :
-              <MicOff className="w-3.5 h-3.5" />
-            }
-          </Button>
-        </div>
-
-        <Separator orientation="vertical" className="h-6" />
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="w-px h-5 bg-border/30" />
 
         {/* Export Button */}
         <Button
@@ -211,32 +180,52 @@ export function Toolbar({
           size="sm"
           disabled={!project || !project.timeline.tracks[0]?.clips?.length}
           onClick={onExport}
-          className="text-xs font-medium h-8 px-2"
+          className="h-7 px-3 text-[11px] font-semibold bg-primary hover:bg-primary/90 shadow-sm"
         >
-          <Download className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+          <Download className="w-3 h-3 mr-1.5 flex-shrink-0" />
           <span className="whitespace-nowrap">Export</span>
         </Button>
+
+        {/* Theme Toggle */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 hover:bg-card/50"
+            >
+              {theme === 'light' && <Sun className="w-3.5 h-3.5" />}
+              {theme === 'dark' && <Moon className="w-3.5 h-3.5" />}
+              {theme === 'system' && <Monitor className="w-3.5 h-3.5" />}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuItem onClick={() => setTheme('light')} className="text-xs">
+              <Sun className="w-3 h-3 mr-2" />
+              Light
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme('dark')} className="text-xs">
+              <Moon className="w-3 h-3 mr-2" />
+              Dark
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme('system')} className="text-xs">
+              <Monitor className="w-3 h-3 mr-2" />
+              System
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* Properties Toggle */}
         <Button
           variant="ghost"
           size="icon"
           onClick={handleToggleProperties}
-          className="w-7 h-7"
+          className="h-7 w-7 hover:bg-card/50"
         >
           {propertiesOpen ?
             <PanelRightClose className="w-3.5 h-3.5" /> :
             <PanelRight className="w-3.5 h-3.5" />
           }
-        </Button>
-
-        {/* Settings */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="w-7 h-7"
-        >
-          <Settings className="w-3.5 h-3.5" />
         </Button>
       </div>
     </div>

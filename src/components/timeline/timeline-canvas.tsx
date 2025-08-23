@@ -211,7 +211,7 @@ export function TimelineCanvas({
     if (e.target === e.target.getStage()) {
       // Clear effect selection when clicking empty space
       clearEffectSelection()
-      
+
       const x = e.evt.offsetX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
       if (x > 0) {
         const time = TimelineUtils.pixelToTime(x, pixelsPerMs)
@@ -269,8 +269,8 @@ export function TimelineCanvas({
               y={0}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
               height={TIMELINE_LAYOUT.RULER_HEIGHT}
-              fill="hsl(var(--background))"
-              opacity={0.8}
+              fill="#09090b"
+              opacity={0.95}
             />
 
             <TimelineTrack

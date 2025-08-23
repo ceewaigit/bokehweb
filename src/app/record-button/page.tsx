@@ -134,10 +134,15 @@ export default function RecordingDock() {
     }, 1000)
   }
 
-  const handleStopRecording = () => {
-    stopRecording()
-    // Open workspace after recording stops
-    window.electronAPI?.openWorkspace?.()
+  const handleStopRecording = async () => {
+    // Stop recording and wait for it to complete
+    await stopRecording()
+    
+    // Small delay to ensure save completes before opening workspace
+    setTimeout(() => {
+      // Open workspace after recording stops
+      window.electronAPI?.openWorkspace?.()
+    }, 500)
   }
 
   return (

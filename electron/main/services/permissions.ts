@@ -9,17 +9,21 @@ export async function checkMediaPermissions(): Promise<void> {
     try {
       console.log('🔐 Checking macOS media permissions...')
 
+      // Screen recording permission (required for both video and system audio)
       const screenStatus = systemPreferences.getMediaAccessStatus('screen')
       console.log('🖥️ Screen recording permission:', screenStatus)
 
       if (screenStatus !== 'granted') {
         console.log('⚠️ Screen recording permission not granted')
+        console.log('📝 Note: Screen recording permission is required for both video AND system audio capture')
         global.screenRecordingPermission = screenStatus
         console.log('📝 Will show permission guide to user after window loads')
       } else {
         global.screenRecordingPermission = 'granted'
+        console.log('✅ System audio capture enabled via screen recording permission')
       }
 
+      // Microphone permission (for voice recording)
       try {
         const microphoneStatus = await systemPreferences.askForMediaAccess('microphone')
         console.log('🎤 Microphone permission:', microphoneStatus ? 'granted' : 'denied')

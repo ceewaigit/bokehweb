@@ -116,7 +116,7 @@ export const useProjectStore = create<ProjectStore>()(
     currentProject: null,
     currentTime: 0,
     isPlaying: false,
-    zoom: 1.0,
+    zoom: 0.5,
     selectedClipId: null,
     selectedClips: [],
     selectedEffectLayer: null,

@@ -41,19 +41,19 @@ export const TimelinePlayhead = React.memo(({
     >
       <Line
         points={[0, 0, 0, totalHeight]}
-        stroke="hsl(var(--destructive))"
+        stroke="#ef4444"
         strokeWidth={1.5}
         hitStrokeWidth={8}
-        opacity={0.9}
+        opacity={1}
       />
       <Rect
         x={-5}
         y={-1}
         width={10}
         height={10}
-        fill="hsl(var(--destructive))"
+        fill="#ef4444"
         rotation={45}
-        opacity={0.9}
+        opacity={1}
       />
     </Group>
   )

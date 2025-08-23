@@ -147,9 +147,14 @@ export class ElectronRecorder {
 
       // ALWAYS use the mandatory format - this is what works universally
       // Electron extends the standard MediaStreamConstraints
-      // Note: Desktop audio often fails, so we'll add microphone instead
+      // Request system audio along with video
       const constraints: any = {
-        audio: false, // Don't request desktop audio - it's unreliable
+        audio: hasAudio ? {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: primarySource.id
+          }
+        } : false,
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
@@ -209,8 +214,9 @@ export class ElectronRecorder {
               }
             })
           } else {
-            logger.warn('⚠️ No system audio captured - this is a macOS limitation')
-            logger.info('Attempting to add microphone as audio source...')
+            logger.warn('⚠️ System audio not available on macOS through Web APIs')
+            logger.info('Note: macOS requires a virtual audio device (like BlackHole) for system audio capture')
+            logger.info('Falling back to microphone audio instead...')
             
             try {
               const audioStream = await navigator.mediaDevices.getUserMedia({

@@ -116,20 +116,20 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const iceEasing = (t: number) => {
       // Using a combination of sine and exponential for ultra-smooth ice sliding
       const clampedT = Math.max(0, Math.min(1, t));
-      
+
       // Smooth exponential ease for ice-like physics
       // Starts very slow, gradually builds momentum, then slowly decelerates
       const exponentialEase = 1 - Math.pow(2, -10 * clampedT);
-      
+
       // Add subtle sine wave for extra smoothness
       const sineInfluence = (Math.sin((clampedT - 0.5) * Math.PI) + 1) / 2;
-      
+
       // Combine both for ice-like movement
       return exponentialEase * 0.7 + sineInfluence * 0.3;
     };
 
     const smoothProgress = iceEasing(progress);
-    
+
     return {
       x: prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress,
       y: prevEvent.y + (nextEvent.y - prevEvent.y) * smoothProgress
@@ -191,7 +191,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Apply cursor size from effects
   const cursorSize = cursorEffects?.size ?? 1.0;
-  
+
   // Apply cursor hotspot offset for accurate positioning
   const hotspot = CURSOR_HOTSPOTS[cursorType];
   const dimensions = CURSOR_DIMENSIONS[cursorType];
@@ -202,16 +202,25 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Apply the exact same zoom transformation as the video
   if (zoom.scale > 1) {
-    // Calculate the same transform as used by the video
-    const zoomTransform = {
+    // Build a minimal zoom block for the transform calculation
+    const zoomBlock = {
+      startTime: 0,
+      endTime: 1000,
       scale: zoom.scale,
-      scaleCompensationX: -(zoom.x * videoOffset.width - videoOffset.width / 2) * (zoom.scale - 1),
-      scaleCompensationY: -(zoom.y * videoOffset.height - videoOffset.height / 2) * (zoom.scale - 1),
-      panX: (zoom.panX || 0) * videoOffset.width * zoom.scale,
-      panY: (zoom.panY || 0) * videoOffset.height * zoom.scale
+      targetX: zoom.x,
+      targetY: zoom.y
     };
-    
-    // Apply the transformation using the shared utility
+
+    // Use the shared utility to calculate transform (matches VideoLayer exactly)
+    const zoomTransform = calculateZoomTransform(
+      zoomBlock,
+      500, // Middle of zoom (fully zoomed)
+      videoOffset.width,
+      videoOffset.height,
+      { x: zoom.panX || 0, y: zoom.panY || 0 }
+    );
+
+    // Apply the transformation to cursor position
     const transformedPos = applyZoomToPoint(cursorX, cursorY, videoOffset, zoomTransform);
     cursorX = transformedPos.x;
     cursorY = transformedPos.y;

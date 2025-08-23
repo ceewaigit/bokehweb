@@ -6,8 +6,6 @@ import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-tra
 
 export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: number; y: number } }> = ({
   videoUrl,
-  startFrom = 0,
-  endAt,
   effects,
   zoom,
   videoWidth,
@@ -84,8 +82,6 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       >
         <Video
           src={videoUrl}
-          startFrom={startFrom * fps}
-          endAt={endAt ? endAt * fps : undefined}
           style={{
             width: '100%',
             height: '100%',

@@ -38,9 +38,9 @@ export const TimelineClip = React.memo(({
     ? TIMELINE_LAYOUT.VIDEO_TRACK_HEIGHT 
     : TIMELINE_LAYOUT.AUDIO_TRACK_HEIGHT
 
-  const fillColor = trackType === 'video' ? 'hsl(var(--primary))' : 'hsl(var(--accent))'
+  const fillColor = trackType === 'video' ? '#3b82f6' : '#10b981'
   const strokeColor = isSelected 
-    ? 'hsl(var(--primary-foreground))'
+    ? '#fafafa'
     : 'transparent'
 
   return (
@@ -84,7 +84,7 @@ export const TimelineClip = React.memo(({
         y={6}
         text={`${clip.id.slice(-4)}`}
         fontSize={10}
-        fill="hsl(var(--background))"
+        fill="white"
         fontFamily="monospace"
         fontStyle="bold"
       />
@@ -112,11 +112,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'zoom' ? "hsl(var(--primary))" : "hsl(var(--muted))"} 
+                fill={selectedEffectType === 'zoom' ? "#3b82f6" : "#71717a"} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'zoom' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="Z" fontSize={9} fill="hsl(var(--background))" fontFamily="monospace" fontStyle="bold" />
+              <Text x={5} y={3} text="Z" fontSize={9} fill="white" fontFamily="monospace" fontStyle="bold" />
             </Group>
           )
           xOffset += 36
@@ -134,11 +134,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'cursor' ? "hsl(var(--accent))" : "hsl(var(--muted))"} 
+                fill={selectedEffectType === 'cursor' ? "#10b981" : "#71717a"} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'cursor' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="C" fontSize={9} fill="hsl(var(--background))" fontFamily="monospace" fontStyle="bold" />
+              <Text x={5} y={3} text="C" fontSize={9} fill="white" fontFamily="monospace" fontStyle="bold" />
             </Group>
           )
           xOffset += 36
@@ -156,11 +156,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'background' ? "hsl(var(--secondary))" : "hsl(var(--muted))"} 
+                fill={selectedEffectType === 'background' ? "#a855f7" : "#71717a"} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'background' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="B" fontSize={9} fill="hsl(var(--background))" fontFamily="monospace" fontStyle="bold" />
+              <Text x={5} y={3} text="B" fontSize={9} fill="white" fontFamily="monospace" fontStyle="bold" />
             </Group>
           )
         }
