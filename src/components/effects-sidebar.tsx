@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import {
   Camera,
   Palette,
@@ -34,6 +34,7 @@ interface EffectsSidebarProps {
   className?: string
   selectedClip: Clip | null
   effects: ClipEffects | undefined
+  selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
   onEffectChange: (effects: ClipEffects) => void
 }
 
@@ -41,10 +42,25 @@ export function EffectsSidebar({
   className,
   selectedClip,
   effects,
+  selectedEffectLayer,
   onEffectChange
 }: EffectsSidebarProps) {
+  // Auto-switch tab based on selected effect layer
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
+
+  // Update active tab when effect layer is selected
+  React.useEffect(() => {
+    if (selectedEffectLayer?.type) {
+      if (selectedEffectLayer.type === 'zoom') {
+        setActiveTab('zoom')
+      } else if (selectedEffectLayer.type === 'cursor') {
+        setActiveTab('cursor')
+      } else if (selectedEffectLayer.type === 'background') {
+        setActiveTab('background')
+      }
+    }
+  }, [selectedEffectLayer])
 
   if (!selectedClip || !effects) {
     return (
@@ -80,6 +96,18 @@ export function EffectsSidebar({
 
   return (
     <div className={cn("bg-background border-l border-border flex flex-col", className)}>
+      {/* Selection Indicator */}
+      {selectedEffectLayer && (
+        <div className="px-3 py-2 bg-accent/50 border-b border-border text-sm">
+          <span className="text-muted-foreground">Editing: </span>
+          <span className="font-medium">
+            {selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id ? 
+              `Zoom Block` : 
+              selectedEffectLayer.type.charAt(0).toUpperCase() + selectedEffectLayer.type.slice(1)} Effect
+          </span>
+        </div>
+      )}
+      
       {/* Section Tabs */}
       <div className="flex flex-col gap-1 p-2 border-b border-border">
         <button
@@ -255,6 +283,77 @@ export function EffectsSidebar({
 
         {activeTab === 'zoom' && effects?.zoom && (
           <div className="space-y-4">
+            {/* Show specific zoom block controls if one is selected */}
+            {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && effects.zoom.blocks && (
+              <>
+                <div className="p-3 bg-accent/20 rounded-lg space-y-3">
+                  <h4 className="text-sm font-medium">Selected Zoom Block</h4>
+                  {(() => {
+                    const block = effects.zoom.blocks.find((b: any) => b.id === selectedEffectLayer.id)
+                    if (!block) return null
+                    return (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Zoom Level</label>
+                          <Slider
+                            value={[block.scale]}
+                            onValueChange={([value]) => {
+                              const updatedBlocks = effects.zoom.blocks?.map((b: any) => 
+                                b.id === block.id ? { ...b, scale: value } : b
+                              )
+                              updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                            }}
+                            min={1}
+                            max={4}
+                            step={0.1}
+                            className="w-full"
+                          />
+                          <span className="text-xs text-muted-foreground">{block.scale.toFixed(1)}x</span>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Intro Duration</label>
+                          <Slider
+                            value={[block.introMs]}
+                            onValueChange={([value]) => {
+                              const updatedBlocks = effects.zoom.blocks?.map((b: any) => 
+                                b.id === block.id ? { ...b, introMs: value } : b
+                              )
+                              updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                            }}
+                            min={0}
+                            max={1000}
+                            step={50}
+                            className="w-full"
+                          />
+                          <span className="text-xs text-muted-foreground">{block.introMs}ms</span>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Outro Duration</label>
+                          <Slider
+                            value={[block.outroMs]}
+                            onValueChange={([value]) => {
+                              const updatedBlocks = effects.zoom.blocks?.map((b: any) => 
+                                b.id === block.id ? { ...b, outroMs: value } : b
+                              )
+                              updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                            }}
+                            min={0}
+                            max={1000}
+                            step={50}
+                            className="w-full"
+                          />
+                          <span className="text-xs text-muted-foreground">{block.outroMs}ms</span>
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+                <div className="border-t border-border pt-4" />
+              </>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center justify-between">
                 Auto zoom

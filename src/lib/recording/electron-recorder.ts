@@ -147,13 +147,9 @@ export class ElectronRecorder {
 
       // ALWAYS use the mandatory format - this is what works universally
       // Electron extends the standard MediaStreamConstraints
+      // Note: Desktop audio often fails, so we'll add microphone instead
       const constraints: any = {
-        audio: hasAudio ? {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id
-          }
-        } : false,
+        audio: false, // Don't request desktop audio - it's unreliable
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
@@ -199,21 +195,46 @@ export class ElectronRecorder {
           }
         })
 
-        // If audio was requested but not in the desktop stream, add microphone
-        if (hasAudio && this.stream.getAudioTracks().length === 0) {
-          logger.debug('Adding microphone audio track')
-          try {
-            const audioStream = await navigator.mediaDevices.getUserMedia({
-              audio: true,
-              video: false
+        // Check audio status
+        const audioTracks = this.stream.getAudioTracks()
+        logger.info(`System audio tracks captured: ${audioTracks.length}`)
+        
+        if (hasAudio) {
+          if (audioTracks.length > 0) {
+            logger.info('✅ System audio captured successfully!')
+            // Monitor audio track health
+            audioTracks.forEach(track => {
+              track.onended = () => {
+                logger.warn(`System audio track ended: ${track.label}`)
+              }
             })
-            const audioTrack = audioStream.getAudioTracks()[0]
-            if (audioTrack) {
-              this.stream.addTrack(audioTrack)
-              logger.debug('Microphone audio added to stream')
+          } else {
+            logger.warn('⚠️ No system audio captured - this is a macOS limitation')
+            logger.info('Attempting to add microphone as audio source...')
+            
+            try {
+              const audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                  echoCancellation: { ideal: true },
+                  noiseSuppression: { ideal: true },
+                  autoGainControl: { ideal: true }
+                },
+                video: false
+              })
+              
+              const micTrack = audioStream.getAudioTracks()[0]
+              if (micTrack) {
+                this.stream.addTrack(micTrack)
+                logger.info('✅ Microphone added as audio source')
+                
+                micTrack.onended = () => {
+                  logger.warn('Microphone track ended')
+                }
+              }
+            } catch (audioError) {
+              logger.error('❌ Failed to add microphone:', audioError)
+              logger.warn('Recording will continue WITHOUT audio')
             }
-          } catch (audioError) {
-            logger.warn('Could not add microphone audio:', audioError)
           }
         }
       } catch (error) {
@@ -277,34 +298,38 @@ export class ElectronRecorder {
 
       this.mediaRecorder.onerror = (event) => {
         logger.error('MediaRecorder error:', event)
-
-        // Try to save whatever we have so far
-        if (this.chunks.length > 0) {
-          const emergencyBlob = new Blob(this.chunks, { type: mimeType })
-          logger.info(`MediaRecorder error - saving ${this.chunks.length} chunks, ${emergencyBlob.size} bytes`)
-
-          const duration = Date.now() - this.startTime
-          const result: ElectronRecordingResult = {
-            video: emergencyBlob,
-            metadata: this.metadata,
-            duration,
-            effectsApplied: ['electron-desktop-capture', 'error-recovery'],
-            processingTime: 0,
-            captureArea: this.captureArea
-          }
-
-          logger.warn('Recording error but continuing - chunks may be partial')
-        }
-
-        // Don't stop recording on audio errors - continue with video only
-        if (event.error?.message?.includes('audio') || event.error?.message?.includes('Stream')) {
-          logger.warn('Audio stream error detected, continuing with video only')
+        
+        // Check what type of error this is
+        const errorMessage = (event as any).error?.message || ''
+        const isAudioError = errorMessage.includes('audio') || errorMessage.includes('Audio')
+        const isStreamError = errorMessage.includes('Tracks') || errorMessage.includes('Stream')
+        
+        if (isAudioError || isStreamError) {
+          logger.warn('Audio/Stream error detected, attempting to continue with video only')
+          
           // Remove audio tracks to prevent further errors
           const audioTracks = this.stream?.getAudioTracks()
-          audioTracks?.forEach(track => {
-            track.stop()
-            this.stream?.removeTrack(track)
-          })
+          if (audioTracks && audioTracks.length > 0) {
+            audioTracks.forEach(track => {
+              track.stop()
+              this.stream?.removeTrack(track)
+            })
+            logger.info('Removed audio tracks, continuing with video only')
+          }
+          
+          // Check if we still have a valid video track
+          const videoTracks = this.stream?.getVideoTracks()
+          if (videoTracks && videoTracks.length > 0 && videoTracks[0].readyState === 'live') {
+            logger.info('Video track still active, recording continues')
+            // Don't stop the recording, let it continue
+            return
+          }
+        }
+        
+        // For critical errors, stop the recording
+        logger.error('Critical recording error, stopping...')
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+          this.mediaRecorder.stop()
         }
       }
 
@@ -346,17 +371,37 @@ export class ElectronRecorder {
       throw new Error('Not recording')
     }
 
-    logger.info('Stopping screen recording')
+    logger.info(`Stopping screen recording (MediaRecorder state: ${this.mediaRecorder.state})`)
 
     return new Promise(async (resolve, reject) => {
+      // Check if MediaRecorder is already stopped/inactive
+      if (this.mediaRecorder!.state === 'inactive') {
+        logger.warn('MediaRecorder already inactive - returning available data')
+        
+        const duration = Date.now() - this.startTime
+        const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
+        
+        logger.info(`Recording recovered: ${duration}ms, ${video.size} bytes, ${this.chunks.length} chunks`)
+        
+        this.cleanup()
+        this.isRecording = false
+        
+        resolve({
+          video,
+          duration,
+          metadata: this.metadata,
+          captureArea: this.captureArea,
+          effectsApplied: ['electron-desktop-capture'],
+          processingTime: 0
+        })
+        return
+      }
+
       this.mediaRecorder!.onstop = async () => {
         const duration = Date.now() - this.startTime
         const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
 
         logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
-
-        // Don't save here - let the consumer (use-recording.ts) handle saving
-        // This was causing duplicate saves with different timestamp formats
 
         this.cleanup()
 
@@ -371,14 +416,54 @@ export class ElectronRecorder {
           metadata: this.metadata,
           captureArea: this.captureArea,
           effectsApplied,
-          processingTime: 0 // Electron recorder has no post-processing
+          processingTime: 0
         })
       }
 
-      this.mediaRecorder!.onerror = reject
+      this.mediaRecorder!.onerror = (error) => {
+        logger.error('MediaRecorder error during stop:', error)
+        // Don't reject - try to return what we have
+        if (this.chunks.length > 0) {
+          const duration = Date.now() - this.startTime
+          const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
+          this.cleanup()
+          resolve({
+            video,
+            duration,
+            metadata: this.metadata,
+            captureArea: this.captureArea,
+            effectsApplied: ['electron-desktop-capture', 'error-recovery'],
+            processingTime: 0
+          })
+        } else {
+          reject(error)
+        }
+      }
+      
       this.isRecording = false
       this.stopMouseTracking()
-      this.mediaRecorder!.stop()
+      
+      try {
+        this.mediaRecorder!.stop()
+      } catch (e) {
+        logger.error('Error calling stop on MediaRecorder:', e)
+        // If stop fails, try to return what we have
+        if (this.chunks.length > 0) {
+          const duration = Date.now() - this.startTime
+          const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
+          this.cleanup()
+          resolve({
+            video,
+            duration,
+            metadata: this.metadata,
+            captureArea: this.captureArea,
+            effectsApplied: ['electron-desktop-capture', 'stop-error-recovery'],
+            processingTime: 0
+          })
+        } else {
+          reject(e)
+        }
+      }
     })
   }
 

@@ -48,8 +48,6 @@ export const TimelineZoomBlock = React.memo(({
   onIntroChange,
   onOutroChange
 }: TimelineZoomBlockProps) => {
-  // Use the provided height prop instead of hardcoded value
-  const blockHeight = height
   const handleSize = 8
 
   // Calculate intro/outro widths as proportion of total width
@@ -85,12 +83,15 @@ export const TimelineZoomBlock = React.memo(({
         x={0}
         y={0}
         width={width}
-        height={blockHeight}
-        fill="#7B5AFF"
+        height={height}
+        fill={isSelected ? "#8B6AFF" : "#7B5AFF"}
         cornerRadius={8}
-        opacity={isSelected ? 1 : 0.8}
+        opacity={isSelected ? 1 : 0.85}
         stroke={isSelected ? '#fff' : undefined}
-        strokeWidth={isSelected ? 2 : 0}
+        strokeWidth={isSelected ? 3 : 0}
+        shadowColor={isSelected ? "black" : undefined}
+        shadowBlur={isSelected ? 8 : 0}
+        shadowOpacity={isSelected ? 0.3 : 0}
       />
 
       {/* Intro section (zoom in) */}
@@ -98,7 +99,7 @@ export const TimelineZoomBlock = React.memo(({
         x={0}
         y={0}
         width={introWidth}
-        height={blockHeight}
+        height={height}
         fill="#6B4AEF"
         cornerRadius={[8, 0, 0, 8]}
         opacity={0.8}
@@ -109,36 +110,37 @@ export const TimelineZoomBlock = React.memo(({
         x={width - outroWidth}
         y={0}
         width={outroWidth}
-        height={blockHeight}
+        height={height}
         fill="#6B4AEF"
         cornerRadius={[0, 8, 8, 0]}
         opacity={0.8}
       />
 
       {/* Zoom level indicator */}
-      <Group x={10} y={blockHeight / 2 - 8}>
+      <Group x={10} y={height / 2 - 8}>
         <Rect
           x={0}
           y={0}
           width={30}
           height={16}
-          fill="rgba(0,0,0,0.3)"
+          fill={isSelected ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
           cornerRadius={4}
         />
         <Text
           x={5}
           y={2}
           text={`${scale.toFixed(1)}x`}
-          fontSize={11}
+          fontSize={isSelected ? 12 : 11}
           fill="white"
           fontFamily="system-ui"
+          fontStyle={isSelected ? "bold" : "normal"}
         />
       </Group>
 
       {/* Auto label if applicable */}
       <Text
         x={width - 40}
-        y={blockHeight / 2 - 6}
+        y={height / 2 - 6}
         text="Auto"
         fontSize={10}
         fill="rgba(255,255,255,0.8)"
@@ -150,7 +152,7 @@ export const TimelineZoomBlock = React.memo(({
         <>
           {/* Intro handle */}
           <Line
-            points={[introWidth, 0, introWidth, blockHeight]}
+            points={[introWidth, 0, introWidth, height]}
             stroke="white"
             strokeWidth={2}
             opacity={0.5}
@@ -168,7 +170,7 @@ export const TimelineZoomBlock = React.memo(({
 
           {/* Outro handle */}
           <Line
-            points={[width - outroWidth, 0, width - outroWidth, blockHeight]}
+            points={[width - outroWidth, 0, width - outroWidth, height]}
             stroke="white"
             strokeWidth={2}
             opacity={0.5}
@@ -187,7 +189,7 @@ export const TimelineZoomBlock = React.memo(({
           {/* Resize handles with collision detection */}
           <Rect
             x={-handleSize / 2}
-            y={blockHeight / 2 - handleSize / 2}
+            y={height / 2 - handleSize / 2}
             width={handleSize}
             height={handleSize}
             fill="white"
@@ -206,7 +208,7 @@ export const TimelineZoomBlock = React.memo(({
 
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
-                y: y + blockHeight / 2 - handleSize / 2
+                y: y + height / 2 - handleSize / 2
               }
             }}
             onDragEnd={(e) => {
@@ -219,7 +221,7 @@ export const TimelineZoomBlock = React.memo(({
 
           <Rect
             x={width - handleSize / 2}
-            y={blockHeight / 2 - handleSize / 2}
+            y={height / 2 - handleSize / 2}
             width={handleSize}
             height={handleSize}
             fill="white"
@@ -238,7 +240,7 @@ export const TimelineZoomBlock = React.memo(({
 
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
-                y: y + blockHeight / 2 - handleSize / 2
+                y: y + height / 2 - handleSize / 2
               }
             }}
             onDragEnd={(e) => {

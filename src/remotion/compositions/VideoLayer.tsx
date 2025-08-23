@@ -45,17 +45,19 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       const blockDuration = activeBlock.endTime - activeBlock.startTime;
       const elapsed = currentTimeMs - activeBlock.startTime;
 
-      // Calculate zoom interpolation with easing
+      // Calculate zoom interpolation with consistent easing
       let scale = 1;
 
-      const introMs = activeBlock.introMs || 300;
-      const outroMs = activeBlock.outroMs || 300;
+      const introMs = activeBlock.introMs || 400;
+      const outroMs = activeBlock.outroMs || 400;
+
+      // Easing functions matching MainComposition
+      const easeOutExpo = (t: number) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+      const easeInExpo = (t: number) => t === 0 ? 0 : Math.pow(2, 10 * t - 10);
 
       if (elapsed < introMs) {
-        // Intro phase - zoom in with smoother easing
+        // Intro phase - zoom in smoothly
         const progress = elapsed / introMs;
-        // Use smoother easing for more natural zoom like Screen Studio
-        const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
         scale = interpolate(
           progress,
           [0, 1],
@@ -63,17 +65,13 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
           {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
-            easing: easeOutCubic
+            easing: easeOutExpo
           }
         );
       } else if (elapsed > blockDuration - outroMs) {
-        // Outro phase - zoom out with smoother return
+        // Outro phase - zoom out smoothly
         const outroElapsed = elapsed - (blockDuration - outroMs);
         const progress = outroElapsed / outroMs;
-        // Use smoother easing for natural zoom out
-        const easeInOutCubic = (t: number) => t < 0.5
-          ? 4 * t * t * t
-          : 1 - Math.pow(-2 * t + 2, 3) / 2;
         scale = interpolate(
           progress,
           [0, 1],
@@ -81,7 +79,7 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
           {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
-            easing: easeInOutCubic
+            easing: easeInExpo
           }
         );
       } else {
@@ -89,16 +87,10 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
         scale = activeBlock.scale || 2;
       }
 
-      // The zoom should be relative to the video content, not the canvas
-      // We need to consider that the video is positioned at offsetX, offsetY
-      // and has size drawWidth x drawHeight
-
       // Calculate the zoom center point in video coordinates (0-1)
-      // Keep the zoom center fixed at the initial target
       const zoomCenterX = activeBlock.targetX || 0.5;
       const zoomCenterY = activeBlock.targetY || 0.5;
 
-      // The zoom center is where we want to focus (0-1 normalized)
       // Convert to pixel coordinates relative to video container
       const zoomPointX = zoomCenterX * drawWidth;
       const zoomPointY = zoomCenterY * drawHeight;
@@ -111,19 +103,19 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       const offsetFromCenterX = zoomPointX - centerX;
       const offsetFromCenterY = zoomPointY - centerY;
       
-      // When scaling from center, point moves by (scale - 1) * offset
-      // To keep it in place, translate in opposite direction
+      // Scale compensation to keep zoom point fixed
       const scaleCompensationX = -offsetFromCenterX * (scale - 1);
       const scaleCompensationY = -offsetFromCenterY * (scale - 1);
 
-      // Add the dynamic pan offset calculated from mouse position
-      const panX = smoothPan.x * drawWidth;
-      const panY = smoothPan.y * drawHeight;
+      // Add the dynamic pan offset (already scaled properly from MainComposition)
+      const panX = smoothPan.x * drawWidth * scale;  // Scale pan with zoom
+      const panY = smoothPan.y * drawHeight * scale;  // Scale pan with zoom
 
-      // Apply transform - translate needs to be divided by scale when scale is applied first
-      const finalTranslateX = (scaleCompensationX + panX) / scale;
-      const finalTranslateY = (scaleCompensationY + panY) / scale;
-      transform = `scale(${scale}) translate(${finalTranslateX}px, ${finalTranslateY}px)`;
+      // Apply transform - translate first, then scale
+      // This ensures pan movement is applied correctly
+      const translateX = scaleCompensationX + panX;
+      const translateY = scaleCompensationY + panY;
+      transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
     }
   }
 

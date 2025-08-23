@@ -131,6 +131,7 @@ export function WorkspaceManager() {
     currentProject,
     newProject,
     selectedClipId,
+    selectedEffectLayer,
     currentTime,
     isPlaying,
     play: storePlay,
@@ -489,6 +490,7 @@ export function WorkspaceManager() {
                 className="h-full w-full"
                 selectedClip={selectedClip}
                 effects={activeEffects || selectedClip?.effects}
+                selectedEffectLayer={selectedEffectLayer}
                 onEffectChange={handleEffectChange}
               />
             </div>

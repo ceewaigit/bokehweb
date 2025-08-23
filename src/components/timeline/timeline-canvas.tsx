@@ -50,7 +50,10 @@ export function TimelineCanvas({
 }: TimelineCanvasProps) {
   const {
     selectedClips,
+    selectedEffectLayer,
     selectClip,
+    selectEffectLayer,
+    clearEffectSelection,
     removeClip,
     updateClip,
     updateZoomBlock,
@@ -203,9 +206,12 @@ export function TimelineCanvas({
     }
   }, [selectedClips, duplicateClip])
 
-  // Stage click handler - click to seek
+  // Stage click handler - click to seek and clear selections
   const handleStageClick = useCallback((e: any) => {
     if (e.target === e.target.getStage()) {
+      // Clear effect selection when clicking empty space
+      clearEffectSelection()
+      
       const x = e.evt.offsetX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
       if (x > 0) {
         const time = TimelineUtils.pixelToTime(x, pixelsPerMs)
@@ -214,7 +220,7 @@ export function TimelineCanvas({
         onSeek(targetTime)
       }
     }
-  }, [currentProject, pixelsPerMs, onSeek])
+  }, [currentProject, pixelsPerMs, onSeek, clearEffectSelection])
 
   if (!currentProject) {
     return (
@@ -312,7 +318,11 @@ export function TimelineCanvas({
                   trackY={TimelineUtils.getTrackY('video')}
                   pixelsPerMs={pixelsPerMs}
                   isSelected={selectedClips.includes(clip.id)}
+                  selectedEffectType={selectedClips.includes(clip.id) ? selectedEffectLayer?.type : null}
                   onSelect={handleClipSelect}
+                  onSelectEffect={(type) => {
+                    selectEffectLayer(type)
+                  }}
                   onDragEnd={handleClipDragEnd}
                   onContextMenu={handleClipContextMenu}
                 />
@@ -343,12 +353,15 @@ export function TimelineCanvas({
                   introMs={block.introMs}
                   outroMs={block.outroMs}
                   scale={block.scale}
-                  isSelected={false}
+                  isSelected={selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
                   allBlocks={clipEffects.zoom.blocks || []}
                   clipX={clipX}
                   clipDuration={selectedClip.duration}
                   pixelsPerMs={pixelsPerMs}
-                  onSelect={() => { }}
+                  onSelect={() => {
+                    selectClip(selectedClip.id) // Keep clip selected
+                    selectEffectLayer('zoom', block.id) // Select zoom block
+                  }}
                   onDragEnd={(newX) => {
                     const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
                     // Use local update if available, otherwise use store update

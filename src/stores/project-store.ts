@@ -23,6 +23,7 @@ interface ProjectStore {
   zoom: number
   selectedClipId: string | null
   selectedClips: string[]
+  selectedEffectLayer: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
   playbackInterval: number | null
 
   // Core Actions
@@ -43,6 +44,8 @@ interface ProjectStore {
   addZoomBlock: (clipId: string, block: ZoomBlock) => void
   removeZoomBlock: (clipId: string, blockId: string) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
+  selectEffectLayer: (type: 'zoom' | 'cursor' | 'background', id?: string) => void
+  clearEffectSelection: () => void
   clearSelection: () => void
   splitClip: (clipId: string, splitTime: number) => void
   trimClipStart: (clipId: string, newStartTime: number) => void
@@ -116,6 +119,7 @@ export const useProjectStore = create<ProjectStore>()(
     zoom: 1.0,
     selectedClipId: null,
     selectedClips: [],
+    selectedEffectLayer: null,
     playbackInterval: null,
 
     newProject: (name) => {
@@ -123,6 +127,7 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject = createProject(name)
         state.selectedClipId = null
         state.selectedClips = []
+        state.selectedEffectLayer = null
       })
     },
 
@@ -131,6 +136,7 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject = project
         state.selectedClipId = null
         state.selectedClips = []
+        state.selectedEffectLayer = null
       })
     },
 
@@ -389,6 +395,7 @@ export const useProjectStore = create<ProjectStore>()(
         if (!clipId) {
           state.selectedClipId = null
           state.selectedClips = []
+          state.selectedEffectLayer = null  // Clear effect selection when clearing clip
           return
         }
 
@@ -403,7 +410,20 @@ export const useProjectStore = create<ProjectStore>()(
         } else {
           state.selectedClipId = clipId
           state.selectedClips = [clipId]
+          state.selectedEffectLayer = null  // Clear effect selection when selecting new clip
         }
+      })
+    },
+
+    selectEffectLayer: (type, id) => {
+      set((state) => {
+        state.selectedEffectLayer = { type, id }
+      })
+    },
+
+    clearEffectSelection: () => {
+      set((state) => {
+        state.selectedEffectLayer = null
       })
     },
 
@@ -411,6 +431,7 @@ export const useProjectStore = create<ProjectStore>()(
       set((state) => {
         state.selectedClipId = null
         state.selectedClips = []
+        state.selectedEffectLayer = null
       })
     },
 

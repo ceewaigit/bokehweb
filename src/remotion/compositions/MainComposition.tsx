@@ -20,8 +20,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
   
-  // Track dynamic pan state and velocity across frames
-  const smoothPanRef = useRef({ x: 0, y: 0, velocityX: 0, velocityY: 0 });
+  // Track dynamic pan state separately for each zoom block
+  const smoothPanRef = useRef({ x: 0, y: 0, lastBlockId: null as string | null });
 
   // Calculate video position for cursor layer
   const padding = effects?.background?.padding || 0;
@@ -45,33 +45,49 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       );
 
       if (activeZoomBlock) {
+        // Reset pan when entering a new zoom block
+        if (smoothPanRef.current.lastBlockId !== activeZoomBlock.id) {
+          smoothPanRef.current.x = 0;
+          smoothPanRef.current.y = 0;
+          smoothPanRef.current.lastBlockId = activeZoomBlock.id;
+        }
+
         // Calculate zoom interpolation
         const blockDuration = activeZoomBlock.endTime - activeZoomBlock.startTime;
         const elapsed = clipRelativeTime - activeZoomBlock.startTime;
 
-        // Apply intro/outro transitions
+        // Apply intro/outro transitions with consistent easing
         let scale = activeZoomBlock.scale || 2;
-        let x = activeZoomBlock.targetX || 0.5;
-        let y = activeZoomBlock.targetY || 0.5;
+        let panX = 0;
+        let panY = 0;
 
-        const introMs = activeZoomBlock.introMs || 300;
-        const outroMs = activeZoomBlock.outroMs || 300;
+        const introMs = activeZoomBlock.introMs || 400;
+        const outroMs = activeZoomBlock.outroMs || 400;
 
         if (elapsed < introMs) {
-          // Intro phase
+          // Intro phase - smooth zoom in
           const introProgress = elapsed / introMs;
-          scale = 1 + (scale - 1) * easeOutExpo(introProgress);
-          x = 0.5 + (x - 0.5) * easeOutExpo(introProgress);
-          y = 0.5 + (y - 0.5) * easeOutExpo(introProgress);
+          const easedProgress = easeOutExpo(introProgress);
+          scale = 1 + (scale - 1) * easedProgress;
+          
+          // Start panning gradually during intro
+          if (introProgress > 0.3) {  // Start pan after 30% of intro
+            const panProgress = (introProgress - 0.3) / 0.7;
+            panX = smoothPanRef.current.x * easeOutExpo(panProgress);
+            panY = smoothPanRef.current.y * easeOutExpo(panProgress);
+          }
         } else if (elapsed > blockDuration - outroMs) {
-          // Outro phase
+          // Outro phase - smooth zoom out
           const outroElapsed = elapsed - (blockDuration - outroMs);
           const outroProgress = outroElapsed / outroMs;
-          scale = activeZoomBlock.scale - (activeZoomBlock.scale - 1) * outroProgress;
-          x = activeZoomBlock.targetX + (0.5 - activeZoomBlock.targetX) * outroProgress;
-          y = activeZoomBlock.targetY + (0.5 - activeZoomBlock.targetY) * outroProgress;
+          const easedProgress = easeInExpo(outroProgress);
+          scale = activeZoomBlock.scale - (activeZoomBlock.scale - 1) * easedProgress;
+          
+          // Fade out pan during outro
+          panX = smoothPanRef.current.x * (1 - easedProgress);
+          panY = smoothPanRef.current.y * (1 - easedProgress);
         } else {
-          // Hold phase - calculate dynamic pan
+          // Hold phase - full zoom with dynamic pan
           scale = activeZoomBlock.scale || 2;
           
           // Get interpolated mouse position at current time
@@ -81,45 +97,47 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           );
           
           if (mousePos && cursorEvents.length > 0) {
-            // Get the most recent mouse event for screen dimensions
-            let currentEvent = cursorEvents[0];
-            for (let i = cursorEvents.length - 1; i >= 0; i--) {
-              if (cursorEvents[i].timestamp <= currentTimeMs) {
-                currentEvent = cursorEvents[i];
-                break;
-              }
-            }
-            const screenWidth = currentEvent.screenWidth;
-            const screenHeight = currentEvent.screenHeight;
+            // Get screen dimensions from the first event (they're consistent)
+            const screenWidth = cursorEvents[0].screenWidth;
+            const screenHeight = cursorEvents[0].screenHeight;
             
-            // Use velocity-based pan calculator for smooth ice-like gliding
-            const panOffset = zoomPanCalculator.calculatePanOffsetWithVelocity(
+            // Use simplified smooth pan calculator
+            const panOffset = zoomPanCalculator.calculateSmoothPan(
               mousePos.x,
               mousePos.y,
               screenWidth,
               screenHeight,
               scale,
               smoothPanRef.current.x,
-              smoothPanRef.current.y,
-              smoothPanRef.current.velocityX,
-              smoothPanRef.current.velocityY
+              smoothPanRef.current.y
             );
             
-            // Update smooth pan and velocity with calculated offset
+            // Update smooth pan state
             smoothPanRef.current.x = panOffset.x;
             smoothPanRef.current.y = panOffset.y;
-            smoothPanRef.current.velocityX = panOffset.velocityX;
-            smoothPanRef.current.velocityY = panOffset.velocityY;
+            panX = panOffset.x;
+            panY = panOffset.y;
           }
         }
+
+        // Use the initial target position for the zoom center
+        const x = activeZoomBlock.targetX || 0.5;
+        const y = activeZoomBlock.targetY || 0.5;
 
         zoomState = { 
           scale, 
           x, 
           y, 
-          panX: smoothPanRef.current.x,
-          panY: smoothPanRef.current.y
+          panX,
+          panY
         };
+      } else {
+        // No active zoom block - reset state
+        if (smoothPanRef.current.lastBlockId !== null) {
+          smoothPanRef.current.x = 0;
+          smoothPanRef.current.y = 0;
+          smoothPanRef.current.lastBlockId = null;
+        }
       }
     }
     
@@ -178,7 +196,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   );
 };
 
-// Easing function for smooth transitions
+// Easing functions for smooth transitions
 function easeOutExpo(t: number): number {
   return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+}
+
+function easeInExpo(t: number): number {
+  return t === 0 ? 0 : Math.pow(2, 10 * t - 10);
 }
