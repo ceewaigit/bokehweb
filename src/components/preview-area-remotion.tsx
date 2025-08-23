@@ -168,7 +168,8 @@ export function PreviewAreaRemotion({
   compositionHeight += padding * 2;
 
   // Calculate composition props
-  const captureAreaToUse = selectedRecording?.captureArea?.fullBounds || undefined
+  // Don't pass captureArea for full screen recordings - let the video display naturally
+  const captureAreaToUse = undefined  // Removed captureArea to fix full screen display
   
   const compositionProps = {
     videoUrl: videoUrl || '',

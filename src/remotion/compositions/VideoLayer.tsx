@@ -71,7 +71,14 @@ export const VideoLayer: React.FC<VideoLayerProps & {
     : {};
 
   // Determine video style based on capture area (area selection vs full recording)
-  const isAreaSelection = captureArea && captureArea.width > 0 && captureArea.height > 0;
+  // Only treat as area selection if it has x,y coordinates (not at origin) or explicit width/height different from video
+  const isAreaSelection = captureArea && 
+    typeof captureArea.x === 'number' && 
+    typeof captureArea.y === 'number' &&
+    typeof captureArea.width === 'number' && 
+    typeof captureArea.height === 'number' &&
+    (captureArea.x > 0 || captureArea.y > 0 || 
+     (captureArea.width !== videoWidth || captureArea.height !== videoHeight));
 
   const videoStyle: React.CSSProperties = isAreaSelection ? (() => {
     // Area selection: scale and position to show only the selected region
@@ -88,7 +95,7 @@ export const VideoLayer: React.FC<VideoLayerProps & {
     // Full screen/window: show entire video
     width: '100%',
     height: '100%',
-    objectFit: 'contain' as const  // Changed from 'cover' to 'contain' to show full video
+    objectFit: 'contain' as const  // Show full video without cropping
   };
 
   return (
