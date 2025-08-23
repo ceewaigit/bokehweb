@@ -101,7 +101,7 @@ export function useRecording() {
     }
   }, [])
 
-  const startRecording = useCallback(async (_sourceId?: string) => {
+  const startRecording = useCallback(async () => {
     if (!recorderRef.current || isRecording) {
       if (isRecording) {
         logger.debug('Recording already in progress')

@@ -7,7 +7,6 @@ import { useRecordingStore } from '@/stores/recording-store'
 import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { SourcePicker } from '@/components/source-picker'
-import type { RecordingSettings } from '@/types'
 import {
   Mic,
   MicOff,
@@ -141,35 +140,25 @@ export function RecordButtonDock() {
   const handleSourceSelect = (sourceId: string) => {
     setShowSourcePicker(false)
     
-    console.log('Source selected:', sourceId)
-    
     // Determine the area type and sourceId based on selection
-    let newSettings: Partial<RecordingSettings> = {}
-    
     if (sourceId === 'area:selection') {
       // This shouldn't happen anymore as area selector is handled separately
-      newSettings = { area: 'region' }
+      updateSettings({ area: 'region' })
     } else if (sourceId.startsWith('area:')) {
       // Parse area coordinates from sourceId like "area:100,100,800,600"
-      // The coordinates are encoded in the sourceId itself
-      newSettings = { 
+      updateSettings({ 
         area: 'region',
-        sourceId // Pass the area coordinates as part of sourceId
-      }
+        sourceId
+      })
     } else if (sourceId.startsWith('screen:')) {
-      newSettings = { area: 'fullscreen', sourceId }
+      updateSettings({ area: 'fullscreen', sourceId })
     } else {
       // Window selection
-      newSettings = { area: 'window', sourceId }
+      updateSettings({ area: 'window', sourceId })
     }
     
-    console.log('Updating settings with:', newSettings)
-    updateSettings(newSettings)
-    
-    // Use setTimeout to ensure settings are updated before recording starts
+    // Small delay to ensure settings are updated before recording starts
     setTimeout(() => {
-      const currentSettings = useRecordingStore.getState().settings
-      console.log('Settings before recording:', currentSettings)
       startCountdownAndRecord()
     }, 100)
   }

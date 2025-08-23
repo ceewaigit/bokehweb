@@ -169,13 +169,6 @@ export class ElectronRecorder {
       }
 
       logger.info(`Using ${recordingSettings.area} source: ${primarySource.name} (${primarySource.id})`)
-      logger.info(`Recording settings:`, {
-        area: recordingSettings.area,
-        sourceId: recordingSettings.sourceId,
-        audioInput: recordingSettings.audioInput,
-        quality: recordingSettings.quality,
-        framerate: recordingSettings.framerate
-      })
 
       // Capture screen dimensions for dock exclusion
       await this.captureScreenInfo(primarySource.id, captureAreaBounds)
@@ -196,7 +189,14 @@ export class ElectronRecorder {
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id
+            chromeMediaSourceId: primarySource.id,
+            // Request full resolution for Retina displays
+            minWidth: 1920,
+            maxWidth: 7680,  // Support up to 8K
+            minHeight: 1080,
+            maxHeight: 4320,  // Support up to 8K
+            minFrameRate: 30,
+            maxFrameRate: recordingSettings.framerate || 60
           }
         }
       }
