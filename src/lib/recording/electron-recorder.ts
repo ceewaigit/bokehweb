@@ -625,11 +625,17 @@ export class ElectronRecorder {
               scaleFactor: this.captureArea.scaleFactor
             })
           } else {
-            // For full screen recording, don't set capture area
-            // The full video dimensions will be used
-            this.captureArea = undefined
+            // For full screen recording, store the actual screen dimensions
+            // This is crucial for correct cursor coordinate mapping
+            this.captureArea = {
+              fullBounds: screen.bounds,
+              workArea: screen.workArea,
+              scaleFactor: screen.scaleFactor ?? 1,
+              sourceType: 'screen',
+              sourceId
+            }
             
-            logger.info('Full screen recording mode (using full video dimensions)', {
+            logger.info('Full screen recording mode with proper dimensions', {
               sourceId,
               sourceType: 'screen',
               screenBounds: screen.bounds,
@@ -658,20 +664,7 @@ export class ElectronRecorder {
     let transformedY = data.y
     let isWithinBounds = true
     
-    if (!this.captureArea) {
-      // Full screen recording - scale coordinates if needed
-      if (data.scaleFactor && data.scaleFactor > 1) {
-        transformedX = data.x * data.scaleFactor
-        transformedY = data.y * data.scaleFactor
-      }
-      
-      if (!this.videoWidth || !this.videoHeight) {
-        throw new Error('Video dimensions not available for coordinate transformation')
-      }
-      const captureW = this.videoWidth
-      const captureH = this.videoHeight
-      return { transformedX, transformedY, isWithinBounds, captureW, captureH }
-    } else if (this.captureArea.fullBounds) {
+    if (this.captureArea?.fullBounds) {
       // Window or area recording - adjust coordinates relative to capture area
       isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
                       data.x < this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
@@ -684,9 +677,22 @@ export class ElectronRecorder {
       const captureW = this.captureArea.fullBounds.width
       const captureH = this.captureArea.fullBounds.height
       return { transformedX, transformedY, isWithinBounds, captureW, captureH }
+    } else {
+      // Fallback for when captureArea is not available (shouldn't happen normally)
+      logger.warn('No capture area available, using video dimensions as fallback')
+      
+      if (data.scaleFactor && data.scaleFactor > 1) {
+        transformedX = data.x * data.scaleFactor
+        transformedY = data.y * data.scaleFactor
+      }
+      
+      if (!this.videoWidth || !this.videoHeight) {
+        throw new Error('Video dimensions not available for coordinate transformation')
+      }
+      const captureW = this.videoWidth
+      const captureH = this.videoHeight
+      return { transformedX, transformedY, isWithinBounds, captureW, captureH }
     }
-    
-    throw new Error('Invalid recording state: capture area exists but has no bounds')
   }
 
   private async startMouseTracking(): Promise<void> {
