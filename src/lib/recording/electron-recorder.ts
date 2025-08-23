@@ -179,20 +179,8 @@ export class ElectronRecorder {
       // Get media stream from desktop capturer with audio support
       const hasAudio = recordingSettings.audioInput !== 'none'
 
-      // Get the actual resolution to use for constraints
-      // This prevents upscaling to 8K on high-res displays
-      let targetWidth: number | undefined
-      let targetHeight: number | undefined
-      
-      if (this.captureArea?.fullBounds) {
-        // Use the actual screen/window dimensions with scale factor
-        const scaleFactor = this.captureArea.scaleFactor || 1
-        targetWidth = Math.floor(this.captureArea.fullBounds.width * scaleFactor)
-        targetHeight = Math.floor(this.captureArea.fullBounds.height * scaleFactor)
-        
-        logger.info(`Setting capture resolution to ${targetWidth}x${targetHeight} (scale: ${scaleFactor})`)
-      }
-
+      // For Electron desktop capture, we should NOT constrain the resolution
+      // as it can cause partial screen capture. Let Electron handle the native resolution.
       const constraints: any = {
         audio: hasAudio ? {
           mandatory: {
@@ -203,16 +191,17 @@ export class ElectronRecorder {
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id,
-            // Add resolution constraints to prevent upscaling
-            ...(targetWidth && targetHeight ? {
-              maxWidth: targetWidth,
-              maxHeight: targetHeight,
-              minWidth: targetWidth,
-              minHeight: targetHeight
-            } : {})
+            chromeMediaSourceId: primarySource.id
           }
         }
+      }
+      
+      // Log the expected capture area for debugging
+      if (this.captureArea?.fullBounds) {
+        const scaleFactor = this.captureArea.scaleFactor || 1
+        const expectedWidth = Math.floor(this.captureArea.fullBounds.width * scaleFactor)
+        const expectedHeight = Math.floor(this.captureArea.fullBounds.height * scaleFactor)
+        logger.info(`Expected capture resolution: ${expectedWidth}x${expectedHeight} (scale: ${scaleFactor})`)
       }
 
       logger.debug('Using universal Electron constraints', constraints)
