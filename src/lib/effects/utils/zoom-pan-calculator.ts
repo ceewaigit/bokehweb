@@ -6,11 +6,13 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly EDGE_ZONE = 0.25  // Start panning when mouse is within 25% of viewport edge
-  private readonly PAN_STRENGTH = 0.5  // How strongly to pan based on distance from edge
-  private readonly VELOCITY_DAMPING = 0.94  // Ice-like momentum (higher = more glide)
-  private readonly ACCELERATION = 0.0015  // How quickly velocity builds up
+  private readonly EDGE_ZONE = 0.35  // Start panning when mouse is within 35% of viewport edge
+  private readonly CENTER_ZONE = 0.15  // Dead zone in center where no panning occurs
+  private readonly PAN_STRENGTH = 1.2  // How strongly to pan based on distance from edge
+  private readonly VELOCITY_DAMPING = 0.96  // Super smooth ice-like momentum
+  private readonly ACCELERATION = 0.003  // More responsive acceleration
   private readonly MAX_PAN_OFFSET = 0.45  // Maximum pan from center
+  private readonly LOOK_AHEAD = 0.15  // How much to pan ahead of mouse direction
   
   // New method that properly tracks velocity
   calculatePanOffsetWithVelocity(
@@ -49,41 +51,66 @@ export class ZoomPanCalculator {
     let accelX = 0
     let accelY = 0
     
-    // Calculate position within viewport (-0.5 to 0.5 from center)
+    // Calculate position within viewport (0 to 1, where 0.5 is center)
     const posInViewportX = (normalizedX - viewportLeft) / viewportWidth
     const posInViewportY = (normalizedY - viewportTop) / viewportHeight
     
-    // Apply acceleration when mouse is near edges or outside viewport
-    if (posInViewportX < 0) {
-      // Mouse is outside left edge
-      accelX = -this.ACCELERATION * 3
-    } else if (posInViewportX > 1) {
-      // Mouse is outside right edge
-      accelX = this.ACCELERATION * 3
-    } else if (posInViewportX < this.EDGE_ZONE) {
-      // Mouse approaching left edge
-      const edgeForce = (this.EDGE_ZONE - posInViewportX) / this.EDGE_ZONE
-      accelX = -this.ACCELERATION * edgeForce * this.PAN_STRENGTH
-    } else if (posInViewportX > 1 - this.EDGE_ZONE) {
-      // Mouse approaching right edge
-      const edgeForce = (posInViewportX - (1 - this.EDGE_ZONE)) / this.EDGE_ZONE
-      accelX = this.ACCELERATION * edgeForce * this.PAN_STRENGTH
+    // Calculate distance from viewport center (0 = center, 0.5 = edge)
+    const distFromCenterX = Math.abs(posInViewportX - 0.5)
+    const distFromCenterY = Math.abs(posInViewportY - 0.5)
+    
+    // Apply acceleration to proactively show area of interest
+    if (posInViewportX < -0.1 || posInViewportX > 1.1) {
+      // Mouse is way outside viewport - strong pull
+      accelX = posInViewportX < 0.5 ? 
+        this.ACCELERATION * 4 : -this.ACCELERATION * 4
+    } else if (posInViewportX < 0 || posInViewportX > 1) {
+      // Mouse is outside viewport - medium pull
+      accelX = posInViewportX < 0.5 ? 
+        this.ACCELERATION * 2.5 : -this.ACCELERATION * 2.5
+    } else if (distFromCenterX > this.CENTER_ZONE) {
+      // Mouse is outside center dead zone - calculate pan force
+      const edgeProximity = (distFromCenterX - this.CENTER_ZONE) / (0.5 - this.CENTER_ZONE)
+      
+      // Proactive panning: pan to show more area in the direction of mouse
+      if (posInViewportX < 0.5) {
+        // Mouse on left side - pan left to show more left area
+        const targetViewportX = 0.3 - (edgeProximity * this.LOOK_AHEAD)
+        const offset = targetViewportX - posInViewportX
+        accelX = offset * this.ACCELERATION * this.PAN_STRENGTH
+      } else {
+        // Mouse on right side - pan right to show more right area
+        const targetViewportX = 0.7 + (edgeProximity * this.LOOK_AHEAD)
+        const offset = targetViewportX - posInViewportX
+        accelX = offset * this.ACCELERATION * this.PAN_STRENGTH
+      }
     }
     
-    if (posInViewportY < 0) {
-      // Mouse is outside top edge
-      accelY = -this.ACCELERATION * 3
-    } else if (posInViewportY > 1) {
-      // Mouse is outside bottom edge
-      accelY = this.ACCELERATION * 3
-    } else if (posInViewportY < this.EDGE_ZONE) {
-      // Mouse approaching top edge
-      const edgeForce = (this.EDGE_ZONE - posInViewportY) / this.EDGE_ZONE
-      accelY = -this.ACCELERATION * edgeForce * this.PAN_STRENGTH
-    } else if (posInViewportY > 1 - this.EDGE_ZONE) {
-      // Mouse approaching bottom edge
-      const edgeForce = (posInViewportY - (1 - this.EDGE_ZONE)) / this.EDGE_ZONE
-      accelY = this.ACCELERATION * edgeForce * this.PAN_STRENGTH
+    // Same for vertical
+    if (posInViewportY < -0.1 || posInViewportY > 1.1) {
+      // Mouse is way outside viewport - strong pull
+      accelY = posInViewportY < 0.5 ? 
+        this.ACCELERATION * 4 : -this.ACCELERATION * 4
+    } else if (posInViewportY < 0 || posInViewportY > 1) {
+      // Mouse is outside viewport - medium pull
+      accelY = posInViewportY < 0.5 ? 
+        this.ACCELERATION * 2.5 : -this.ACCELERATION * 2.5
+    } else if (distFromCenterY > this.CENTER_ZONE) {
+      // Mouse is outside center dead zone - calculate pan force
+      const edgeProximity = (distFromCenterY - this.CENTER_ZONE) / (0.5 - this.CENTER_ZONE)
+      
+      // Proactive panning: pan to show more area in the direction of mouse
+      if (posInViewportY < 0.5) {
+        // Mouse on top side - pan up to show more top area
+        const targetViewportY = 0.3 - (edgeProximity * this.LOOK_AHEAD)
+        const offset = targetViewportY - posInViewportY
+        accelY = offset * this.ACCELERATION * this.PAN_STRENGTH
+      } else {
+        // Mouse on bottom side - pan down to show more bottom area
+        const targetViewportY = 0.7 + (edgeProximity * this.LOOK_AHEAD)
+        const offset = targetViewportY - posInViewportY
+        accelY = offset * this.ACCELERATION * this.PAN_STRENGTH
+      }
     }
     
     // Update velocity with acceleration
