@@ -335,7 +335,15 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       captureSize: { w: captureWidth, h: captureHeight },
       zoomInfo: zoomDebugInfo ? {
         scale: zoomDebugInfo.zoomTransform.scale,
-        pan: { x: zoomDebugInfo.smoothPan.x, y: zoomDebugInfo.smoothPan.y }
+        pan: { x: zoomDebugInfo.smoothPan.x, y: zoomDebugInfo.smoothPan.y },
+        zoomTarget: { 
+          x: zoomDebugInfo.activeBlock?.targetX || 0.5, 
+          y: zoomDebugInfo.activeBlock?.targetY || 0.5 
+        },
+        scaleCompensation: {
+          x: zoomDebugInfo.zoomTransform.scaleCompensationX,
+          y: zoomDebugInfo.zoomTransform.scaleCompensationY
+        }
       } : null
     });
   }
