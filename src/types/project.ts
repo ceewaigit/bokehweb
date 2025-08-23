@@ -94,6 +94,8 @@ export interface MouseEvent {
   screenWidth: number
   screenHeight: number
   cursorType?: string  // Optional cursor type for rendering
+  captureWidth?: number  // Width of the capture area for coordinate mapping
+  captureHeight?: number  // Height of the capture area for coordinate mapping
 }
 
 export interface KeyboardEvent {

@@ -297,9 +297,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return `${baseFilter} blur(${blurAmount * 0.15}px)`;
   }, [motionVelocity]);
 
-  // Get cursor dimensions for rendering
-  const dimensions = CURSOR_DIMENSIONS[cursorType];
-
   // Generate motion trail for smooth gliding effect
   const motionTrail = useMemo(() => {
     if (motionVelocity.speed < 3) return null;

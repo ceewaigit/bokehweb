@@ -105,17 +105,21 @@ export function registerMouseTrackingHandlers(): void {
             'zoom-out': 'zoomOut'
           }
           
-          const mappedType = cursorTypeMap[type] || type
-          const previousMapped = cursorTypeMap[previousType] || previousType
-          
-          // Always log cursor changes to debug the issue
-          console.log(`Cursor: ${previousMapped} → ${mappedType} (raw: ${previousType} → ${type})`)
+            const mappedType = cursorTypeMap[type] || type
+            const previousMapped = cursorTypeMap[previousType] || previousType
+            
+            // Always log cursor changes to debug the issue
+            console.log(`Cursor: ${previousMapped} → ${mappedType} (raw: ${previousType} → ${type})`)
+          }
         }
 
-        // Remove any existing listener first
+        // Remove any existing listeners first
         targetWindow.webContents.removeListener('cursor-changed', handleCursorChange)
-        // Add the new listener
+        targetWindow.removeListener('blur', handleBlur)
+        
+        // Add the new listeners
         targetWindow.webContents.on('cursor-changed', handleCursorChange)
+        targetWindow.on('blur', handleBlur)
       }
 
       // Start click detection using global mouse hooks with source info
@@ -241,9 +245,10 @@ export function registerMouseTrackingHandlers(): void {
 
       isMouseTracking = false
 
-      // Remove cursor-changed listener
+      // Remove cursor-changed and blur listeners
       if (targetWindow) {
         targetWindow.webContents.removeAllListeners('cursor-changed')
+        targetWindow.removeAllListeners('blur')
         targetWindow = null
       }
 
