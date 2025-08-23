@@ -185,7 +185,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const normalizedX = rawX / screenWidth;
   const normalizedY = rawY / screenHeight;
 
-  // Map to displayed video position
+  // Map to displayed video position (before zoom)
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;
   let cursorY = videoOffset.y + normalizedY * videoOffset.height;
 
@@ -200,9 +200,16 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   cursorX -= hotspot.x * hotspotScale;
   cursorY -= hotspot.y * hotspotScale;
 
-  // Apply zoom transformation to match video layer exactly
+  // Apply the exact same zoom transformation as the video
   if (zoom.scale > 1) {
-    // Calculate the same zoom transform as the video
+    // The video div has transform applied from its center (transformOrigin: '50% 50%')
+    // We need to apply the same transform to the cursor
+    
+    // Get the center of the video (same as video's transform origin)
+    const videoCenterX = videoOffset.x + videoOffset.width / 2;
+    const videoCenterY = videoOffset.y + videoOffset.height / 2;
+    
+    // Calculate the same transform as in zoom-transform.ts
     const zoomTransform = {
       scale: zoom.scale,
       scaleCompensationX: -(zoom.x * videoOffset.width - videoOffset.width / 2) * (zoom.scale - 1),
@@ -210,11 +217,23 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       panX: (zoom.panX || 0) * videoOffset.width * zoom.scale,
       panY: (zoom.panY || 0) * videoOffset.height * zoom.scale
     };
-
-    // Apply the transformation to cursor position
-    const transformedPos = applyZoomToPoint(cursorX, cursorY, videoOffset, zoomTransform);
-    cursorX = transformedPos.x;
-    cursorY = transformedPos.y;
+    
+    // Total translation
+    const translateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
+    const translateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
+    
+    // Apply transform: translate then scale (from video center)
+    // First, move cursor relative to video center
+    const relX = cursorX - videoCenterX;
+    const relY = cursorY - videoCenterY;
+    
+    // Apply scale
+    const scaledX = relX * zoom.scale;
+    const scaledY = relY * zoom.scale;
+    
+    // Apply translation and move back relative to video center
+    cursorX = videoCenterX + scaledX + translateX;
+    cursorY = videoCenterY + scaledY + translateY;
   }
 
   return (

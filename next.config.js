@@ -16,6 +16,12 @@ const nextConfig = {
       })
     );
     
+    // Ignore critical dependency warnings from @ffmpeg/ffmpeg
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      /Critical dependency: the request of a dependency is an expression/,
+    ];
+    
     // Ignore Remotion server-side packages in browser build
     config.resolve.alias = {
       ...config.resolve.alias,
