@@ -45,10 +45,30 @@ export function PreviewAreaRemotion({
 
       try {
         // Get blob URL from recording storage
-        const blobUrl = RecordingStorage.getBlobUrl(selectedRecording.id)
+        let blobUrl = RecordingStorage.getBlobUrl(selectedRecording.id)
+
+        // Validate the cached URL is still valid
+        if (blobUrl) {
+          try {
+            const response = await fetch(blobUrl, { 
+              method: 'HEAD',
+              cache: 'no-cache'
+            }).catch(() => null)
+            
+            if (!response || !response.ok) {
+              // Cached URL is invalid, clear it
+              RecordingStorage.clearBlobUrl(selectedRecording.id)
+              blobUrl = null
+            }
+          } catch {
+            // URL validation failed, reload
+            RecordingStorage.clearBlobUrl(selectedRecording.id)
+            blobUrl = null
+          }
+        }
 
         if (blobUrl) {
-          // Already loaded
+          // Already loaded and valid
           setVideoUrl(blobUrl)
         } else if (selectedRecording.filePath) {
           // Load the video file
@@ -247,6 +267,17 @@ export function PreviewAreaRemotion({
               clickToPlay={false}
               doubleClickToFullscreen={false}
               spaceKeyToPlayOrPause={false}
+              errorFallback={({ error }) => {
+                console.error('Remotion Player error:', error)
+                return (
+                  <div className="flex items-center justify-center h-full bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                    <div className="text-center">
+                      <p className="text-red-600 dark:text-red-400 font-medium">Video playback error</p>
+                      <p className="text-sm text-muted-foreground mt-1">Please try reloading the video</p>
+                    </div>
+                  </div>
+                )
+              }}
               moveToBeginningWhenEnded={false}
             />
           )}

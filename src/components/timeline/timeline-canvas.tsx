@@ -102,8 +102,8 @@ export function TimelineCanvas({
     const updateSize = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
-        // Use full container dimensions
-        setStageSize({ width: rect.width, height: Math.max(400, rect.height - 60) })  // Leave room for controls
+        // Use full container dimensions without any padding
+        setStageSize({ width: rect.width, height: rect.height })
       }
     }
     updateSize()
@@ -311,23 +311,27 @@ export function TimelineCanvas({
             {/* Video clips */}
             {currentProject.timeline.tracks
               .find(t => t.type === 'video')
-              ?.clips.map(clip => (
-                <TimelineClip
-                  key={clip.id}
-                  clip={clip}
-                  trackType="video"
-                  trackY={TimelineUtils.getTrackY('video')}
-                  pixelsPerMs={pixelsPerMs}
-                  isSelected={selectedClips.includes(clip.id)}
-                  selectedEffectType={selectedClips.includes(clip.id) ? selectedEffectLayer?.type : null}
-                  onSelect={handleClipSelect}
-                  onSelectEffect={(type) => {
-                    selectEffectLayer(type)
-                  }}
-                  onDragEnd={handleClipDragEnd}
-                  onContextMenu={handleClipContextMenu}
-                />
-              ))}
+              ?.clips.map(clip => {
+                const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
+                return (
+                  <TimelineClip
+                    key={clip.id}
+                    clip={clip}
+                    recording={recording}
+                    trackType="video"
+                    trackY={TimelineUtils.getTrackY('video')}
+                    pixelsPerMs={pixelsPerMs}
+                    isSelected={selectedClips.includes(clip.id)}
+                    selectedEffectType={selectedClips.includes(clip.id) ? selectedEffectLayer?.type : null}
+                    onSelect={handleClipSelect}
+                    onSelectEffect={(type) => {
+                      selectEffectLayer(type)
+                    }}
+                    onDragEnd={handleClipDragEnd}
+                    onContextMenu={handleClipContextMenu}
+                  />
+                )
+              })}
 
             {/* Zoom blocks - draggable */}
             {hasZoomTrack && selectedClips.length > 0 && (() => {

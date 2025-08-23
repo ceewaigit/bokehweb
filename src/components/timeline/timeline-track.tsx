@@ -74,13 +74,17 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
       
       {/* Track label text */}
       <Text
-        x={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH / 2 - 4}
-        y={y + height / 2 - 5}
+        x={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH / 2}
+        y={y + height / 2}
         text={style.labelText}
-        fontSize={12}
+        fontSize={11}
         fill={style.labelColor}
         fontFamily="system-ui"
         fontStyle="bold"
+        align="center"
+        verticalAlign="middle"
+        offsetX={style.labelText.length * 3}
+        offsetY={5.5}
       />
     </Group>
   )

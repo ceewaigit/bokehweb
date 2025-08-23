@@ -10,15 +10,12 @@ import { SourcePicker } from '@/components/source-picker'
 import {
   Mic,
   MicOff,
-  Monitor,
   Camera,
   CameraOff,
   Square,
   Circle,
   Pause,
   Play,
-  Maximize2,
-  MonitorDown,
   X
 } from 'lucide-react'
 
@@ -26,9 +23,7 @@ export default function RecordingDock() {
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
-  const [selectedSource, setSelectedSource] = useState<'fullscreen' | 'window' | 'region'>('fullscreen')
   const [showSourcePicker, setShowSourcePicker] = useState(false)
-  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
 
   // Reference to the dock container for measuring
   const dockContainerRef = useRef<HTMLDivElement>(null)
@@ -48,7 +43,7 @@ export default function RecordingDock() {
     updateSettings
   } = useRecordingStore()
 
-  // Force transparent background on mount
+  // Force transparent background and make window draggable on mount
   useEffect(() => {
     const styles = `
       html, body {
@@ -56,9 +51,15 @@ export default function RecordingDock() {
         margin: 0 !important;
         padding: 0 !important;
         overflow: visible !important;
+        -webkit-app-region: drag;
+        -webkit-user-select: none;
+        user-select: none;
       }
       .bg-background {
         background: transparent !important;
+      }
+      button, a, input, textarea, select {
+        -webkit-app-region: no-drag;
       }
     `
 
@@ -69,14 +70,12 @@ export default function RecordingDock() {
     return () => styleEl.remove()
   }, [])
 
-  // Update recording settings when audio or source changes
+  // Update recording settings when audio changes
   useEffect(() => {
     updateSettings({
-      audioInput: micEnabled ? 'system' : 'none',
-      area: selectedSource,
-      sourceId: selectedSourceId || undefined
+      audioInput: micEnabled ? 'system' : 'none'
     })
-  }, [micEnabled, selectedSource, selectedSourceId, updateSettings])
+  }, [micEnabled, updateSettings])
 
   // Dynamically size window based on actual content dimensions
   useEffect(() => {
@@ -102,15 +101,8 @@ export default function RecordingDock() {
   }, [])
 
   const handleStartRecording = () => {
-    // If user selected window, always show picker
-    if (selectedSource === 'window') {
-      setShowSourcePicker(true)
-      return
-    }
-
-    // For fullscreen or region, proceed directly
-    // The electron-recorder will auto-select the appropriate screen
-    startCountdownAndRecord()
+    // Always show the source picker for source selection
+    setShowSourcePicker(true)
   }
 
   const startCountdownAndRecord = () => {
@@ -146,7 +138,8 @@ export default function RecordingDock() {
   }
 
   const handleSourceSelect = (sourceId: string) => {
-    setSelectedSourceId(sourceId)
+    // Update the recording settings with the selected source
+    updateSettings({ sourceId })
     setShowSourcePicker(false)
     // Start recording immediately after source selection
     setTimeout(() => {
@@ -165,11 +158,6 @@ export default function RecordingDock() {
     }, 500)
   }
 
-  const sourceButtons = [
-    { value: 'fullscreen' as const, icon: Monitor, label: 'Screen' },
-    { value: 'window' as const, icon: Maximize2, label: 'Window' },
-    { value: 'region' as const, icon: MonitorDown, label: 'Area' }
-  ]
 
   return (
     <>
@@ -210,57 +198,34 @@ export default function RecordingDock() {
           transition={{ type: 'spring', damping: 20, stiffness: 300 }}
         >
           {/* Dock Container - Modern Glassmorphic Design */}
-          <div className={cn(
-            "relative flex items-center gap-1 p-1.5",
-            "bg-zinc-950/80 backdrop-blur-2xl backdrop-saturate-150",
-            "rounded-2xl border border-zinc-800/50",
-            "shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
-            isRecording && "ring-2 ring-red-500/30 ring-offset-2 ring-offset-transparent"
-          )}>
+          <div 
+            className={cn(
+              "relative flex items-center gap-1 p-1.5",
+              "bg-background/80 backdrop-blur-2xl backdrop-saturate-150",
+              "rounded-2xl border border-border/50",
+              "shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
+              isRecording && "ring-2 ring-destructive/30 ring-offset-2 ring-offset-transparent"
+            )}
+            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+          >
             {!isRecording ? (
               <>
-                {/* Source Selector - Compact Tab Style */}
-                <div className="flex items-center bg-zinc-900/50 rounded-xl p-0.5">
-                  {sourceButtons.map(({ value, icon: Icon, label }) => (
-                    <button
-                      key={value}
-                      className={cn(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200",
-                        "text-[11px] font-medium",
-                        selectedSource === value
-                          ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                          : "text-zinc-400 hover:text-zinc-200"
-                      )}
-                      onClick={() => {
-                        setSelectedSource(value)
-                        // Reset source ID when changing type
-                        setSelectedSourceId(null)
-                      }}
-                    >
-                      <Icon className="w-3.5 h-3.5" />
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Separator */}
-                <div className="w-px h-6 bg-zinc-800/50" />
-
                 {/* Audio & Camera Controls */}
                 <div className="flex items-center gap-1">
                   <button
                     className={cn(
                       "relative p-2 rounded-lg transition-all duration-200",
                       micEnabled
-                        ? "bg-blue-500/20 text-blue-400"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                        ? "bg-primary/20 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
                     )}
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     onClick={() => setMicEnabled(!micEnabled)}
                     title={micEnabled ? 'Microphone On' : 'Microphone Off'}
                   >
                     {micEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                     {micEnabled && (
-                      <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
                     )}
                   </button>
 
@@ -268,21 +233,22 @@ export default function RecordingDock() {
                     className={cn(
                       "relative p-2 rounded-lg transition-all duration-200",
                       cameraEnabled
-                        ? "bg-green-500/20 text-green-400"
-                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                        ? "bg-primary/20 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
                     )}
+                    style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                     onClick={() => setCameraEnabled(!cameraEnabled)}
                     title={cameraEnabled ? 'Camera On' : 'Camera Off'}
                   >
                     {cameraEnabled ? <Camera className="w-4 h-4" /> : <CameraOff className="w-4 h-4" />}
                     {cameraEnabled && (
-                      <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-green-400 rounded-full" />
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
                     )}
                   </button>
                 </div>
 
                 {/* Separator */}
-                <div className="w-px h-6 bg-zinc-800/50" />
+                <div className="w-px h-6 bg-border/50" />
 
                 {/* Record Button - Prominent */}
                 <button
@@ -290,25 +256,27 @@ export default function RecordingDock() {
                     "relative group",
                     "flex items-center justify-center",
                     "w-10 h-10 mx-1",
-                    "bg-gradient-to-br from-red-500 to-red-600",
-                    "hover:from-red-400 hover:to-red-500",
+                    "bg-gradient-to-br from-destructive to-destructive/90",
+                    "hover:from-destructive/90 hover:to-destructive/80",
                     "rounded-full shadow-lg",
                     "transition-all duration-200 hover:scale-105",
                     "active:scale-95"
                   )}
+                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                   onClick={handleStartRecording}
                   title="Start Recording"
                 >
-                  <div className="absolute inset-0 rounded-full bg-red-400/30 animate-pulse" />
-                  <Circle className="w-5 h-5 text-white fill-white relative z-10" />
+                  <div className="absolute inset-0 rounded-full bg-destructive/30 animate-pulse" />
+                  <Circle className="w-5 h-5 text-destructive-foreground fill-destructive-foreground relative z-10" />
                 </button>
 
                 {/* Open Workspace */}
                 <button
                   className={cn(
                     "p-2 rounded-lg transition-all duration-200",
-                    "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
+                    "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
+                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                   onClick={() => window.electronAPI?.openWorkspace?.()}
                   title="Open Workspace"
                 >
@@ -322,25 +290,26 @@ export default function RecordingDock() {
             ) : (
               <>
                 {/* Recording Timer - Clean Display */}
-                <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 rounded-lg">
+                <div className="flex items-center gap-2 px-3 py-1 bg-destructive/10 rounded-lg">
                   <div className="relative flex items-center justify-center">
-                    <div className="absolute w-2 h-2 bg-red-500 rounded-full animate-ping" />
-                    <div className="w-2 h-2 bg-red-500 rounded-full" />
+                    <div className="absolute w-2 h-2 bg-destructive rounded-full animate-ping" />
+                    <div className="w-2 h-2 bg-destructive rounded-full" />
                   </div>
-                  <span className="text-red-400 font-mono text-sm font-medium tabular-nums">
+                  <span className="text-destructive font-mono text-sm font-medium tabular-nums">
                     {formatTime(duration)}
                   </span>
                 </div>
 
                 {/* Separator */}
-                <div className="w-px h-6 bg-zinc-800/50" />
+                <div className="w-px h-6 bg-border/50" />
 
                 {/* Pause/Resume */}
                 <button
                   className={cn(
                     "p-2 rounded-lg transition-all duration-200",
-                    "text-zinc-300 hover:text-white hover:bg-zinc-800/50"
+                    "text-foreground hover:text-foreground hover:bg-accent"
                   )}
+                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                   onClick={isPaused ? resumeRecording : pauseRecording}
                   title={isPaused ? "Resume" : "Pause"}
                 >
@@ -352,12 +321,13 @@ export default function RecordingDock() {
                   className={cn(
                     "flex items-center justify-center",
                     "px-3 py-1.5 mx-1",
-                    "bg-red-500/20 hover:bg-red-500/30",
-                    "text-red-400 hover:text-red-300",
-                    "rounded-lg border border-red-500/30",
+                    "bg-destructive/20 hover:bg-destructive/30",
+                    "text-destructive hover:text-destructive",
+                    "rounded-lg border border-destructive/30",
                     "transition-all duration-200",
                     "active:scale-95"
                   )}
+                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                   onClick={handleStopRecording}
                   title="Stop Recording"
                 >
@@ -369,8 +339,9 @@ export default function RecordingDock() {
                 <button
                   className={cn(
                     "p-1.5 rounded-lg transition-all duration-200",
-                    "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                    "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
+                  style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                   onClick={() => window.electronAPI?.minimizeRecordButton?.()}
                   title="Hide"
                 >

@@ -2,12 +2,12 @@ import type { Clip, ZoomBlock } from '@/types/project'
 
 // Timeline layout constants
 export const TIMELINE_LAYOUT = {
-  RULER_HEIGHT: 32,
-  TRACK_LABEL_WIDTH: 48,
-  VIDEO_TRACK_HEIGHT: 90,
-  AUDIO_TRACK_HEIGHT: 64,
-  ZOOM_TRACK_HEIGHT: 48,
-  TRACK_PADDING: 4,
+  RULER_HEIGHT: 30,
+  TRACK_LABEL_WIDTH: 36,
+  VIDEO_TRACK_HEIGHT: 72,
+  AUDIO_TRACK_HEIGHT: 48,
+  ZOOM_TRACK_HEIGHT: 40,
+  TRACK_PADDING: 2,
   MIN_CLIP_WIDTH: 40,
   SNAP_THRESHOLD: 8,
   SNAP_INTERVAL: 100,
@@ -28,12 +28,17 @@ export class TimelineUtils {
   }
 
   static calculatePixelsPerMs(viewportWidth: number, zoom: number): number {
-    const basePixelsPerMs = (viewportWidth - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH) / 10000
+    // Use more of the viewport width for timeline
+    const usableWidth = viewportWidth - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+    const basePixelsPerMs = usableWidth / 10000
     return basePixelsPerMs * zoom
   }
 
   static calculateTimelineWidth(duration: number, pixelsPerMs: number, minWidth: number): number {
-    return Math.max(duration * pixelsPerMs, minWidth - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH)
+    // Ensure timeline uses full available width
+    const calculatedWidth = duration * pixelsPerMs
+    const minUsableWidth = minWidth - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+    return Math.max(calculatedWidth, minUsableWidth)
   }
 
 

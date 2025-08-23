@@ -251,9 +251,9 @@ export function useRecording() {
             projectStore.addRecording(recording, result.video)
           }
           
-          // Store video blob for preview
+          // Store video blob for preview with proper description
           const recordingId = saved.project.recordings[0].id
-          const videoUrl = globalBlobManager.create(result.video)
+          const videoUrl = globalBlobManager.create(result.video, `recording-${recordingId}`)
           RecordingStorage.setBlobUrl(recordingId, videoUrl)
         }
       }

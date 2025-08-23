@@ -39,19 +39,21 @@ export const TimelinePlayhead = React.memo(({
         onSeek(Math.max(0, Math.min(maxTime, time)))
       }}
     >
+      {/* Playhead line */}
       <Line
         points={[0, 0, 0, totalHeight]}
-        stroke="#ef4444"
-        strokeWidth={1.5}
+        stroke="hsl(0, 84%, 60%)"
+        strokeWidth={2}
         hitStrokeWidth={8}
         opacity={1}
       />
+      {/* Diamond centered on line */}
       <Rect
-        x={-5}
-        y={-1}
-        width={10}
-        height={10}
-        fill="#ef4444"
+        x={-6}
+        y={-6}
+        width={12}
+        height={12}
+        fill="hsl(0, 84%, 60%)"
         rotation={45}
         opacity={1}
       />

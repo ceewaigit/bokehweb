@@ -84,14 +84,14 @@ export const TimelineZoomBlock = React.memo(({
         y={0}
         width={width}
         height={height}
-        fill={isSelected ? "#8B6AFF" : "#7B5AFF"}
-        cornerRadius={8}
+        fill="hsl(258, 100%, 65%)"
+        cornerRadius={6}
         opacity={isSelected ? 1 : 0.85}
-        stroke={isSelected ? '#fff' : undefined}
-        strokeWidth={isSelected ? 3 : 0}
-        shadowColor={isSelected ? "black" : undefined}
-        shadowBlur={isSelected ? 8 : 0}
-        shadowOpacity={isSelected ? 0.3 : 0}
+        stroke={isSelected ? 'hsl(0, 0%, 98%)' : undefined}
+        strokeWidth={isSelected ? 2 : 0}
+        shadowColor="black"
+        shadowBlur={isSelected ? 8 : 2}
+        shadowOpacity={0.3}
       />
 
       {/* Intro section (zoom in) */}
@@ -100,8 +100,8 @@ export const TimelineZoomBlock = React.memo(({
         y={0}
         width={introWidth}
         height={height}
-        fill="#6B4AEF"
-        cornerRadius={[8, 0, 0, 8]}
+        fill="hsl(258, 100%, 55%)"
+        cornerRadius={[6, 0, 0, 6]}
         opacity={0.8}
       />
 
@@ -111,8 +111,8 @@ export const TimelineZoomBlock = React.memo(({
         y={0}
         width={outroWidth}
         height={height}
-        fill="#6B4AEF"
-        cornerRadius={[0, 8, 8, 0]}
+        fill="hsl(258, 100%, 55%)"
+        cornerRadius={[0, 6, 6, 0]}
         opacity={0.8}
       />
 

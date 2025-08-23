@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
-import type { Clip } from '@/types/project'
+import type { Clip, Recording } from '@/types/project'
 import { TIMELINE_LAYOUT, TimelineUtils, createDragBoundFunc } from '@/lib/timeline'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 
 interface TimelineClipProps {
   clip: Clip
+  recording?: Recording | null  // Add recording prop
   trackType: 'video' | 'audio'
   trackY: number
   pixelsPerMs: number
@@ -20,6 +21,7 @@ interface TimelineClipProps {
 
 export const TimelineClip = React.memo(({
   clip,
+  recording,
   trackType,
   trackY,
   pixelsPerMs,
@@ -45,14 +47,14 @@ export const TimelineClip = React.memo(({
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {
-    if (trackType !== 'video' || !clip.filePath) return
+    if (trackType !== 'video' || !recording?.filePath) return
 
     const loadVideoThumbnails = async () => {
       try {
         // Get or load video URL
-        let blobUrl = RecordingStorage.getBlobUrl(clip.id)
-        if (!blobUrl && clip.filePath) {
-          blobUrl = await globalBlobManager.ensureVideoLoaded(clip.id, clip.filePath)
+        let blobUrl = RecordingStorage.getBlobUrl(recording.id)
+        if (!blobUrl && recording.filePath) {
+          blobUrl = await globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
         }
         
         if (!blobUrl) return
@@ -72,26 +74,18 @@ export const TimelineClip = React.memo(({
 
         videoRef.current = video
 
-        // Calculate how many thumbnails we need (one every 60px)
-        const thumbnailCount = Math.max(1, Math.floor(clipWidth / 60))
-        const timeInterval = clip.duration / thumbnailCount
         const newThumbnails: HTMLCanvasElement[] = []
 
-        // Generate thumbnails
-        for (let i = 0; i < thumbnailCount; i++) {
-          const time = (i * timeInterval) / 1000 // Convert to seconds
-          
-          // Create canvas for this thumbnail
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          if (!ctx) continue
-
-          // Set size - keep aspect ratio
-          const aspectRatio = video.videoWidth / video.videoHeight
+        // Just create a single canvas with the first frame for now (KISS)
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          // Set canvas to fill the clip width
+          canvas.width = clipWidth
           canvas.height = trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2
-          canvas.width = canvas.height * aspectRatio
 
-          // Seek and draw
+          // Draw video frame stretched to fill
+          video.currentTime = 0
           await new Promise<void>((resolve) => {
             const seekHandler = () => {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
@@ -99,7 +93,6 @@ export const TimelineClip = React.memo(({
               resolve()
             }
             video.addEventListener('seeked', seekHandler)
-            video.currentTime = time
           })
 
           newThumbnails.push(canvas)
@@ -119,7 +112,7 @@ export const TimelineClip = React.memo(({
         videoRef.current = null
       }
     }
-  }, [clip.id, clip.filePath, clip.duration, clipWidth, trackHeight, trackType])
+  }, [recording?.id, recording?.filePath, clip.duration, clipWidth, trackHeight, trackType])
 
   return (
     <Group
@@ -164,36 +157,31 @@ export const TimelineClip = React.memo(({
         shadowOffsetY={2}
       />
 
-      {/* Video thumbnails */}
-      {trackType === 'video' && thumbnails.length > 0 && (
+      {/* Video thumbnail */}
+      {trackType === 'video' && thumbnails[0] && (
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
           ctx.roundRect(0, 0, clipWidth, trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2, 6)
           ctx.closePath()
         }}>
-          {thumbnails.map((canvas, i) => (
-            <Image
-              key={i}
-              image={canvas}
-              x={i * 60}
-              y={0}
-              width={60}
-              height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
-              opacity={0.9}
-            />
-          ))}
-          {/* Overlay gradient for better text visibility */}
-          <Rect
+          <Image
+            image={thumbnails[0]}
+            x={0}
+            y={0}
             width={clipWidth}
             height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+            opacity={0.9}
+          />
+          {/* Simple gradient overlay for text visibility */}
+          <Rect
+            width={clipWidth}
+            height={20}
             fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-            fillLinearGradientEndPoint={{ x: 0, y: trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2 }}
+            fillLinearGradientEndPoint={{ x: 0, y: 20 }}
             fillLinearGradientColorStops={[
-              0, 'rgba(0,0,0,0.4)',
-              0.3, 'rgba(0,0,0,0)',
-              0.7, 'rgba(0,0,0,0)',
-              1, 'rgba(0,0,0,0.3)'
+              0, 'rgba(0,0,0,0.5)',
+              1, 'rgba(0,0,0,0)'
             ]}
           />
         </Group>
