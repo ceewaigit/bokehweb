@@ -4,14 +4,18 @@ import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
 
-export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: number; y: number } }> = ({
+export const VideoLayer: React.FC<VideoLayerProps & { 
+  preCalculatedPan?: { x: number; y: number },
+  mousePosition?: { x: number; y: number }  // Current mouse position for zoom target
+}> = ({
   videoUrl,
   effects,
   zoom,
   videoWidth,
   videoHeight,
   captureArea,
-  preCalculatedPan
+  preCalculatedPan,
+  mousePosition
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -47,7 +51,8 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       currentTimeMs,
       drawWidth,
       drawHeight,
-      smoothPan
+      smoothPan,
+      mousePosition  // Pass current mouse position for dynamic zoom target
     );
 
     // Generate transform string

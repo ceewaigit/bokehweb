@@ -79,11 +79,27 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         let panX = 0;
         let panY = 0;
 
-        // Initialize pan position based on zoom block target at the start
+        // Initialize pan position based on current mouse position at the start
         if (elapsed === 0 || !smoothPanRef.current.initialized) {
+          // Get mouse position at the start of the zoom block
+          let targetX = 0.5;
+          let targetY = 0.5;
+          if (cursorEvents.length > 0) {
+            const startMousePos = zoomPanCalculator.interpolateMousePosition(
+              cursorEvents,
+              activeZoomBlock.startTime
+            );
+            if (startMousePos) {
+              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
+              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
+              targetX = startMousePos.x / captureWidth;
+              targetY = startMousePos.y / captureHeight;
+            }
+          }
+          
           const initialPan = zoomPanCalculator.calculateInitialPan(
-            activeZoomBlock.targetX || 0.5,
-            activeZoomBlock.targetY || 0.5,
+            targetX,
+            targetY,
             activeZoomBlock.scale || 2
           );
           smoothPanRef.current.x = initialPan.x;
@@ -173,9 +189,21 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           }
         }
 
-        // Use the initial target position for the zoom center
-        const x = activeZoomBlock.targetX || 0.5;
-        const y = activeZoomBlock.targetY || 0.5;
+        // Get current mouse position for zoom center
+        let x = 0.5;
+        let y = 0.5;
+        if (cursorEvents.length > 0) {
+          const currentMousePos = zoomPanCalculator.interpolateMousePosition(
+            cursorEvents,
+            currentTimeMs
+          );
+          if (currentMousePos) {
+            const captureWidth = cursorEvents[0].captureWidth || videoWidth;
+            const captureHeight = cursorEvents[0].captureHeight || videoHeight;
+            x = currentMousePos.x / captureWidth;
+            y = currentMousePos.y / captureHeight;
+          }
+        }
 
         zoomState = {
           scale,
@@ -220,6 +248,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             videoHeight={videoHeight}
             captureArea={captureArea}
             preCalculatedPan={completeZoomState.scale > 1 ? { x: completeZoomState.panX, y: completeZoomState.panY } : undefined}
+            mousePosition={completeZoomState.scale > 1 ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
           />
         </Sequence>
       )}

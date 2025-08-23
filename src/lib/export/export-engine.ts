@@ -100,7 +100,8 @@ export class ExportEngine {
           firstClip,
           settings,
           onProgress,
-          captureArea?.fullBounds
+          captureArea?.fullBounds,
+          recording.metadata?.mouseEvents || []
         )
       } else {
         // No effects, return original video

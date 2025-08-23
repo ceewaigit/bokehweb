@@ -295,12 +295,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       const smoothPan = zoomState ? { x: zoomState.panX || 0, y: zoomState.panY || 0 } : { x: 0, y: 0 };
       
       // Calculate zoom transformation using the EXACT same parameters as VideoLayer
+      // Pass the current normalized mouse position as the zoom target
       const zoomTransform = calculateZoomTransform(
         activeBlock,
         currentTimeMs,  // Use actual time, not fixed 500
         videoOffset.width,  // Use video dimensions, same as VideoLayer
         videoOffset.height,
-        smoothPan
+        smoothPan,
+        { x: normalizedX, y: normalizedY }  // Use current mouse position as zoom target
       );
       
       // Store debug info
@@ -337,8 +339,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         scale: zoomDebugInfo.zoomTransform.scale,
         pan: { x: zoomDebugInfo.smoothPan.x, y: zoomDebugInfo.smoothPan.y },
         zoomTarget: { 
-          x: zoomDebugInfo.activeBlock?.targetX || 0.5, 
-          y: zoomDebugInfo.activeBlock?.targetY || 0.5 
+          x: normalizedX, 
+          y: normalizedY
         },
         scaleCompensation: {
           x: zoomDebugInfo.zoomTransform.scaleCompensationX,

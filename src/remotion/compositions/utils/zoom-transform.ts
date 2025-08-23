@@ -72,7 +72,8 @@ export function calculateZoomTransform(
   currentTimeMs: number,
   videoWidth: number,
   videoHeight: number,
-  smoothPan: { x: number; y: number }
+  smoothPan: { x: number; y: number },
+  mousePosition?: { x: number; y: number } // Current mouse position (normalized 0-1)
 ): ZoomState {
   if (!activeBlock) {
     return {
@@ -96,9 +97,9 @@ export function calculateZoomTransform(
     activeBlock.outroMs
   );
 
-  // Calculate zoom center point
-  const zoomCenterX = activeBlock.targetX || 0.5;
-  const zoomCenterY = activeBlock.targetY || 0.5;
+  // Use current mouse position as zoom center, fallback to center if not available
+  const zoomCenterX = mousePosition?.x ?? 0.5;
+  const zoomCenterY = mousePosition?.y ?? 0.5;
 
   // Convert to pixel coordinates
   const zoomPointX = zoomCenterX * videoWidth;

@@ -79,12 +79,6 @@ export class ZoomDetector {
         zoomScale = 1.5 // Large cluster - gentle zoom
       }
 
-      // Center the zoom on the cluster
-      // The cluster center is already in screen coordinates
-      // We should normalize using the same screen dimensions used for clustering
-      const targetX = cluster.center.x / screenWidth
-      const targetY = cluster.center.y / screenHeight
-
       // Ensure zoom doesn't exceed video duration
       const effectiveDuration = Math.min(
         clusterDuration + 1000, // Add buffer for outro
@@ -100,9 +94,8 @@ export class ZoomDetector {
           introMs: 400,
           outroMs: 500,
           scale: zoomScale,
-          targetX,
-          targetY,
           mode: 'auto'
+          // Note: zoom target is dynamically calculated from mouse position
         })
       }
     })
@@ -397,11 +390,7 @@ export class ZoomDetector {
 
       if (current.endTime >= next.startTime - 500) {
         current.endTime = Math.max(current.endTime, next.endTime)
-        const currentWeight = (current.endTime - current.startTime)
-        const nextWeight = (next.endTime - next.startTime)
-        const totalWeight = currentWeight + nextWeight
-        current.targetX = (current.targetX * currentWeight + next.targetX * nextWeight) / totalWeight
-        current.targetY = (current.targetY * currentWeight + next.targetY * nextWeight) / totalWeight
+        // Keep the scale and mode, target position is dynamic
       } else {
         merged.push(current)
         current = next

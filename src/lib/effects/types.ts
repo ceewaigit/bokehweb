@@ -25,11 +25,10 @@ export interface Effect {
 export interface ZoomEffect extends Effect {
   type: 'zoom'
   params: {
-    targetX: number      // Initial focus point (normalized 0-1)
-    targetY: number      // Initial focus point (normalized 0-1)
     scale: number        // Zoom level (e.g., 1.8)
     introMs: number      // Intro animation duration
     outroMs: number      // Outro animation duration
+    // Note: zoom target is dynamically calculated from mouse position
   }
 }
 

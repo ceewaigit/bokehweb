@@ -208,9 +208,8 @@ export interface ZoomBlock {
   introMs: number      // Duration of zoom in animation (default 500ms)
   outroMs: number      // Duration of zoom out animation (default 500ms)
   scale: number        // Max zoom level (e.g., 2.0 for 2x)
-  targetX: number      // Focus point X (0-1)
-  targetY: number      // Focus point Y (0-1)
   mode: 'manual' | 'auto'  // Manual or auto-detected
+  // Note: zoom target is dynamically calculated from mouse position at current time
 }
 
 export interface Annotation {
