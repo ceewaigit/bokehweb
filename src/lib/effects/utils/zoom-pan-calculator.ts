@@ -6,9 +6,10 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly VIEWPORT_MARGIN = 0.15  // Keep mouse within 85% of viewport
-  private readonly MAX_PAN_OFFSET = 0.4  // Maximum pan from center
-  private readonly PAN_SMOOTHING = 0.25  // Smoother, more responsive panning
+  private readonly EDGE_ZONE = 0.2  // Start panning when mouse is within 20% of viewport edge
+  private readonly PAN_STRENGTH = 0.8  // How strongly to pan based on distance from edge
+  private readonly PAN_SMOOTHING = 0.08  // Ice-like smooth gliding (lower = smoother)
+  private readonly MAX_PAN_OFFSET = 0.45  // Maximum pan from center
   
   calculatePanOffset(
     mouseX: number,
@@ -24,61 +25,75 @@ export class ZoomPanCalculator {
     const normalizedY = mouseY / videoHeight
     
     // Calculate the visible viewport in normalized coordinates
-    // When zoomed 2x, we can see 50% of the content (1/scale)
     const viewportWidth = 1 / zoomScale
     const viewportHeight = 1 / zoomScale
     
-    // Calculate the ideal viewport center to keep mouse comfortably visible
-    // The viewport should follow the mouse, keeping it within a comfortable margin
-    let idealCenterX = normalizedX
-    let idealCenterY = normalizedY
+    // Calculate current viewport bounds
+    const viewportLeft = 0.5 - viewportWidth/2 - currentPanX
+    const viewportRight = 0.5 + viewportWidth/2 - currentPanX
+    const viewportTop = 0.5 - viewportHeight/2 - currentPanY
+    const viewportBottom = 0.5 + viewportHeight/2 - currentPanY
     
-    // Apply margins to keep mouse away from edges
-    const marginX = viewportWidth * this.VIEWPORT_MARGIN
-    const marginY = viewportHeight * this.VIEWPORT_MARGIN
+    // Check if mouse is outside viewport (including when it goes off screen)
+    const isOutsideLeft = normalizedX < viewportLeft
+    const isOutsideRight = normalizedX > viewportRight
+    const isOutsideTop = normalizedY < viewportTop
+    const isOutsideBottom = normalizedY > viewportBottom
     
-    // Calculate current viewport center (accounting for current pan)
-    const currentCenterX = 0.5 - currentPanX
-    const currentCenterY = 0.5 - currentPanY
+    // Calculate position within viewport (0 = left/top edge, 1 = right/bottom edge)
+    const posInViewportX = (normalizedX - viewportLeft) / viewportWidth
+    const posInViewportY = (normalizedY - viewportTop) / viewportHeight
     
-    // Calculate where the mouse is relative to current viewport
-    const mouseInViewportX = (normalizedX - currentCenterX) / viewportWidth + 0.5
-    const mouseInViewportY = (normalizedY - currentCenterY) / viewportHeight + 0.5
-    
-    // Calculate target pan to keep mouse visible and comfortable
+    // Calculate target pan
     let targetPanX = currentPanX
     let targetPanY = currentPanY
     
-    // If mouse is getting close to viewport edges, pan to follow it
-    if (mouseInViewportX < this.VIEWPORT_MARGIN) {
-      // Mouse near left edge - pan left
-      const offset = (this.VIEWPORT_MARGIN - mouseInViewportX) * viewportWidth
-      targetPanX = currentPanX + offset
-    } else if (mouseInViewportX > 1 - this.VIEWPORT_MARGIN) {
-      // Mouse near right edge - pan right
-      const offset = (mouseInViewportX - (1 - this.VIEWPORT_MARGIN)) * viewportWidth
-      targetPanX = currentPanX - offset
+    // Pan horizontally
+    if (isOutsideLeft) {
+      // Mouse is outside left edge - pan left to bring it into view
+      targetPanX = 0.5 - viewportWidth/2 - normalizedX + viewportWidth * 0.1
+    } else if (isOutsideRight) {
+      // Mouse is outside right edge - pan right to bring it into view
+      targetPanX = 0.5 + viewportWidth/2 - normalizedX - viewportWidth * 0.1
+    } else if (posInViewportX < this.EDGE_ZONE) {
+      // Mouse approaching left edge - start panning left
+      const edgeDistance = this.EDGE_ZONE - posInViewportX
+      const panForce = Math.pow(edgeDistance / this.EDGE_ZONE, 2) * this.PAN_STRENGTH
+      targetPanX = currentPanX + panForce * viewportWidth * 0.1
+    } else if (posInViewportX > 1 - this.EDGE_ZONE) {
+      // Mouse approaching right edge - start panning right
+      const edgeDistance = posInViewportX - (1 - this.EDGE_ZONE)
+      const panForce = Math.pow(edgeDistance / this.EDGE_ZONE, 2) * this.PAN_STRENGTH
+      targetPanX = currentPanX - panForce * viewportWidth * 0.1
     }
     
-    if (mouseInViewportY < this.VIEWPORT_MARGIN) {
-      // Mouse near top edge - pan up
-      const offset = (this.VIEWPORT_MARGIN - mouseInViewportY) * viewportHeight
-      targetPanY = currentPanY + offset
-    } else if (mouseInViewportY > 1 - this.VIEWPORT_MARGIN) {
-      // Mouse near bottom edge - pan down
-      const offset = (mouseInViewportY - (1 - this.VIEWPORT_MARGIN)) * viewportHeight
-      targetPanY = currentPanY - offset
+    // Pan vertically
+    if (isOutsideTop) {
+      // Mouse is outside top edge - pan up to bring it into view
+      targetPanY = 0.5 - viewportHeight/2 - normalizedY + viewportHeight * 0.1
+    } else if (isOutsideBottom) {
+      // Mouse is outside bottom edge - pan down to bring it into view
+      targetPanY = 0.5 + viewportHeight/2 - normalizedY - viewportHeight * 0.1
+    } else if (posInViewportY < this.EDGE_ZONE) {
+      // Mouse approaching top edge - start panning up
+      const edgeDistance = this.EDGE_ZONE - posInViewportY
+      const panForce = Math.pow(edgeDistance / this.EDGE_ZONE, 2) * this.PAN_STRENGTH
+      targetPanY = currentPanY + panForce * viewportHeight * 0.1
+    } else if (posInViewportY > 1 - this.EDGE_ZONE) {
+      // Mouse approaching bottom edge - start panning down
+      const edgeDistance = posInViewportY - (1 - this.EDGE_ZONE)
+      const panForce = Math.pow(edgeDistance / this.EDGE_ZONE, 2) * this.PAN_STRENGTH
+      targetPanY = currentPanY - panForce * viewportHeight * 0.1
     }
     
-    // Clamp pan to reasonable bounds
-    // Don't let the viewport go too far from center
+    // Clamp pan to maximum bounds
     const maxPanX = Math.min(this.MAX_PAN_OFFSET, 0.5 - viewportWidth/2)
     const maxPanY = Math.min(this.MAX_PAN_OFFSET, 0.5 - viewportHeight/2)
     
     targetPanX = Math.max(-maxPanX, Math.min(maxPanX, targetPanX))
     targetPanY = Math.max(-maxPanY, Math.min(maxPanY, targetPanY))
     
-    // Apply smoothing for cinematic motion
+    // Apply ice-like smooth gliding with low smoothing factor
     const smoothedPanX = currentPanX + (targetPanX - currentPanX) * this.PAN_SMOOTHING
     const smoothedPanY = currentPanY + (targetPanY - currentPanY) * this.PAN_SMOOTHING
     
