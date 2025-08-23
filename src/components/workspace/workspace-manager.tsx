@@ -17,6 +17,7 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import type { Clip, ClipEffects, ZoomBlock } from '@/types/project'
 import { DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
+import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -302,7 +303,6 @@ export function WorkspaceManager() {
       // Handle zoom regeneration request
       if (effects.zoom?.regenerate && selectedRecording) {
         // Use ZoomDetector to regenerate zoom blocks
-        const { ZoomDetector } = require('@/lib/effects/zoom-detector')
         const zoomDetector = new ZoomDetector()
         const newZoomBlocks = zoomDetector.detectZoomBlocks(
           selectedRecording.metadata?.mouseEvents || [],
