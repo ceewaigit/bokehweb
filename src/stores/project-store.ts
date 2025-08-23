@@ -194,13 +194,9 @@ export const useProjectStore = create<ProjectStore>()(
           completeRecording.duration
         )
 
-        const clipEffects = {
-          ...SCREEN_STUDIO_CLIP_EFFECTS,
-          zoom: {
-            ...SCREEN_STUDIO_CLIP_EFFECTS.zoom,
-            blocks: zoomBlocks
-          }
-        }
+        // Use structuredClone for deep copy - cleaner than manual spreading
+        const clipEffects = structuredClone(SCREEN_STUDIO_CLIP_EFFECTS)
+        clipEffects.zoom.blocks = zoomBlocks
 
         // Create and add clip
         const clip: Clip = {
@@ -254,7 +250,7 @@ export const useProjectStore = create<ProjectStore>()(
             duration: recording.duration,
             sourceIn: 0,
             sourceOut: recording.duration,
-            effects: DEFAULT_CLIP_EFFECTS
+            effects: structuredClone(DEFAULT_CLIP_EFFECTS)
           }
         }
 

@@ -18,7 +18,6 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   },
   background: {
     type: 'gradient',
-    wallpaperPath: '/System/Library/Desktop Pictures/Sonoma.heic',
     gradient: {
       colors: ['#2D3748', '#1A202C'], // Sonoma-like gradient
       angle: 135
@@ -55,7 +54,6 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
   },
   background: {
     type: 'gradient',
-    wallpaperPath: '/System/Library/Desktop Pictures/Sonoma.heic',
     gradient: {
       colors: ['#2D3748', '#1A202C'], // Sonoma-like gradient
       angle: 135

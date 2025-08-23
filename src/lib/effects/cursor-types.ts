@@ -60,38 +60,37 @@ export const ELECTRON_TO_CUSTOM_CURSOR: Record<string, CursorType> = {
 
 /**
  * Cursor hotspot configurations (where the "click point" is)
- * Coordinates are relative to the cursor image dimensions
+ * Values are ratios (0-1) of the cursor's rendered dimensions
+ * This ensures they scale properly with any cursor size
  */
 export interface CursorHotspot {
-  x: number
-  y: number
+  x: number  // Ratio of width (0-1)
+  y: number  // Ratio of height (0-1)
 }
 
 /**
- * Define hotspots for each cursor type
- * Based on standard macOS cursor hotspots, adjusted for high-resolution images
- * Arrow cursor is 170x230, approximately 5x scale
- * Other cursors vary in size but most are around 2x-3x scale
+ * Define hotspots for each cursor type as ratios of the cursor dimensions
+ * These ratios work at any scale since they're proportional
  */
 export const CURSOR_HOTSPOTS: Record<CursorType, CursorHotspot> = {
-  [CursorType.ARROW]: { x: 6, y: 4 }, // Arrow tip position - adjusted for better alignment
-  [CursorType.IBEAM]: { x: 45, y: 90 }, // Center of I-beam (90x180 image)
-  [CursorType.POINTING_HAND]: { x: 18, y: 5 }, // Finger tip position
-  [CursorType.CLOSED_HAND]: { x: 32, y: 32 }, // Center of fist (64x64 image)
-  [CursorType.OPEN_HAND]: { x: 32, y: 32 }, // Center of palm (64x64 image)
-  [CursorType.CROSSHAIR]: { x: 24, y: 24 }, // Center intersection (48x48 image)
-  [CursorType.RESIZE_LEFT]: { x: 24, y: 24 }, // Center (48x48 image)
-  [CursorType.RESIZE_RIGHT]: { x: 24, y: 24 }, // Center (48x48 image)
-  [CursorType.RESIZE_UP]: { x: 24, y: 24 }, // Center (48x48 image)
-  [CursorType.RESIZE_DOWN]: { x: 24, y: 24 }, // Center (48x48 image)
-  [CursorType.RESIZE_LEFT_RIGHT]: { x: 24, y: 24 }, // Center (48x48 image)
-  [CursorType.RESIZE_UP_DOWN]: { x: 24, y: 24 }, // Center (48x48 image)
-  [CursorType.CONTEXTUAL_MENU]: { x: 14, y: 14 }, // Arrow tip (56x80 image, ~2x scale)
-  [CursorType.DISAPPEARING_ITEM]: { x: 28, y: 40 }, // Center (56x80 image)
-  [CursorType.DRAG_COPY]: { x: 14, y: 14 }, // Arrow tip (56x80 image)
-  [CursorType.DRAG_LINK]: { x: 8, y: 8 }, // Arrow tip (32x42 image, ~1.5x scale)
-  [CursorType.OPERATION_NOT_ALLOWED]: { x: 28, y: 40 }, // Center (56x80 image)
-  [CursorType.IBEAM_VERTICAL]: { x: 18, y: 16 } // Center (36x32 image)
+  [CursorType.ARROW]: { x: 0.33, y: 0.15 }, // Arrow tip is about 1/3 from left, 15% from top
+  [CursorType.IBEAM]: { x: 0.5, y: 0.5 }, // Center of I-beam
+  [CursorType.POINTING_HAND]: { x: 0.64, y: 0.18 }, // Finger tip position
+  [CursorType.CLOSED_HAND]: { x: 0.5, y: 0.5 }, // Center of fist
+  [CursorType.OPEN_HAND]: { x: 0.5, y: 0.5 }, // Center of palm
+  [CursorType.CROSSHAIR]: { x: 0.5, y: 0.5 }, // Center intersection
+  [CursorType.RESIZE_LEFT]: { x: 0.5, y: 0.5 }, // Center
+  [CursorType.RESIZE_RIGHT]: { x: 0.5, y: 0.5 }, // Center
+  [CursorType.RESIZE_UP]: { x: 0.5, y: 0.5 }, // Center
+  [CursorType.RESIZE_DOWN]: { x: 0.5, y: 0.5 }, // Center
+  [CursorType.RESIZE_LEFT_RIGHT]: { x: 0.5, y: 0.5 }, // Center
+  [CursorType.RESIZE_UP_DOWN]: { x: 0.5, y: 0.5 }, // Center
+  [CursorType.CONTEXTUAL_MENU]: { x: 0.25, y: 0.175 }, // Arrow tip
+  [CursorType.DISAPPEARING_ITEM]: { x: 0.5, y: 0.5 }, // Center
+  [CursorType.DRAG_COPY]: { x: 0.25, y: 0.175 }, // Arrow tip
+  [CursorType.DRAG_LINK]: { x: 0.25, y: 0.19 }, // Arrow tip
+  [CursorType.OPERATION_NOT_ALLOWED]: { x: 0.5, y: 0.5 }, // Center
+  [CursorType.IBEAM_VERTICAL]: { x: 0.5, y: 0.5 } // Center
 }
 
 /**

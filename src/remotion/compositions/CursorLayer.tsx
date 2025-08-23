@@ -251,11 +251,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const hotspot = CURSOR_HOTSPOTS[cursorType];
   const dimensions = CURSOR_DIMENSIONS[cursorType];
   
-  // The cursor hotspot offset should match how we scale the cursor image
-  // The cursor image is rendered at dimensions * cursorSize
-  // So the hotspot should also be scaled by cursorSize
-  cursorX -= hotspot.x * cursorSize;
-  cursorY -= hotspot.y * cursorSize;
+  // Calculate the actual rendered size of the cursor
+  const renderedWidth = dimensions.width * cursorSize;
+  const renderedHeight = dimensions.height * cursorSize;
+  
+  // Apply hotspot offset based on the ratio of the cursor dimensions
+  // This works for any cursor size since hotspots are defined as ratios
+  cursorX -= hotspot.x * renderedWidth;
+  cursorY -= hotspot.y * renderedHeight;
 
   // Apply zoom transformation if needed
   if (zoom.scale > 1) {
@@ -321,7 +324,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
             width: dimensions.width * cursorSize,
             height: dimensions.height * cursorSize,
             transform: `scale(${clickScale * (1 - i * 0.1)})`,
-            transformOrigin: `${CURSOR_HOTSPOTS[cursorType].x * cursorSize}px ${CURSOR_HOTSPOTS[cursorType].y * cursorSize}px`,
+            transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
             opacity,
             zIndex: 99 - i,
             pointerEvents: 'none',
@@ -350,7 +353,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
           width: dimensions.width * cursorSize,
           height: dimensions.height * cursorSize,
           transform: `scale(${clickScale})`,
-          transformOrigin: `${CURSOR_HOTSPOTS[cursorType].x * cursorSize}px ${CURSOR_HOTSPOTS[cursorType].y * cursorSize}px`,
+          transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
           zIndex: 100,
           pointerEvents: 'none',
           filter: motionBlurFilter,

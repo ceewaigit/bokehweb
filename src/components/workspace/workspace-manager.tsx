@@ -126,43 +126,19 @@ async function loadProjectRecording(
 
 // Initialize default wallpaper on app startup
 async function initializeDefaultWallpaper() {
-  const wallpaperPath = '/System/Library/Desktop Pictures/Sonoma.heic'
+  if (!window.electronAPI?.loadWallpaperImage) return
   
-  if (window.electronAPI?.loadWallpaperImage) {
-    try {
-      const dataUrl = await window.electronAPI.loadWallpaperImage(wallpaperPath)
-      if (dataUrl) {
-        // Update both the wallpaper data and switch type to wallpaper
-        DEFAULT_CLIP_EFFECTS.background.wallpaper = dataUrl
-        DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
-        SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
-        SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
-        
-        // Update any existing clips that are still using gradient
-        const projectStore = useProjectStore.getState()
-        if (projectStore.currentProject) {
-          projectStore.currentProject.timeline.tracks.forEach(track => {
-            track.clips.forEach(clip => {
-              // Only update if clip is using gradient (hasn't been manually changed)
-              if (clip.effects?.background?.type === 'gradient' && 
-                  clip.effects?.background?.wallpaperPath === wallpaperPath) {
-                projectStore.updateClipEffects(clip.id, {
-                  ...clip.effects,
-                  background: {
-                    ...clip.effects.background,
-                    type: 'wallpaper',
-                    wallpaper: dataUrl
-                  }
-                })
-              }
-            })
-          })
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load default wallpaper:', error)
-      // Keep gradient as fallback if wallpaper fails to load
+  try {
+    const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
+    if (dataUrl) {
+      // Simply update the defaults - new clips will get it automatically
+      DEFAULT_CLIP_EFFECTS.background.wallpaper = dataUrl
+      DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
+      SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
+      SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
     }
+  } catch (error) {
+    console.error('Failed to load default wallpaper:', error)
   }
 }
 
