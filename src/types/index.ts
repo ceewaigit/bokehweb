@@ -11,6 +11,7 @@ export interface RecordingSettings {
   quality: 'high' | 'medium' | 'low'
   framerate: 30 | 60
   format: 'mp4' | 'mov' | 'webm'
+  sourceId?: string // Specific source ID to record
 }
 
 // Re-export from project.ts to avoid duplication

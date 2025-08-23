@@ -31,7 +31,7 @@ export function createMainWindow(): BrowserWindow {
       height: 40
     },
     frame: true,
-    trafficLightPosition: { x: 20, y: 20 }
+    trafficLightPosition: { x: 20, y: 18 }
   })
 
   setupPermissions(mainWindow)

@@ -94,34 +94,44 @@ export class ElectronRecorder {
 
       let primarySource
 
-      // Select source based on recording settings
-      if (recordingSettings.area === 'window') {
-        // For window recording, we'll need to show a window picker
-        // For now, use the first window source
-        primarySource = sources.find((s) =>
-          !s.id.startsWith('screen:') &&
-          !s.name.toLowerCase().includes('entire screen')
-        )
-
+      // If a specific source ID is provided, use it
+      if (recordingSettings.sourceId) {
+        primarySource = sources.find(s => s.id === recordingSettings.sourceId)
         if (!primarySource) {
-          logger.warn('No window sources available, falling back to screen')
-          primarySource = sources.find((s) => s.id.startsWith('screen:'))
+          logger.warn(`Specified source ${recordingSettings.sourceId} not found, falling back to auto-selection`)
+        } else {
+          logger.info(`Using user-selected source: ${primarySource.name} (${primarySource.id})`)
         }
-      } else if (recordingSettings.area === 'region') {
-        // For region recording, we'll need to implement area selection
-        // For now, use the entire screen and we'll crop in post-processing
-        primarySource = sources.find((s) =>
-          s.id.startsWith('screen:') ||
-          s.name.toLowerCase().includes('entire screen') ||
-          s.name.toLowerCase().includes('screen 1')
-        )
-      } else {
-        // Default to fullscreen recording
-        primarySource = sources.find((s) =>
-          s.id.startsWith('screen:') ||
-          s.name.toLowerCase().includes('entire screen') ||
-          s.name.toLowerCase().includes('screen 1')
-        )
+      }
+      
+      // If no source found yet, auto-select based on area type
+      if (!primarySource) {
+        if (recordingSettings.area === 'window') {
+          // For window recording, find first non-screen source
+          primarySource = sources.find((s) =>
+            !s.id.startsWith('screen:') &&
+            !s.name.toLowerCase().includes('entire screen')
+          )
+
+          if (!primarySource) {
+            logger.warn('No window sources available, falling back to screen')
+            primarySource = sources.find((s) => s.id.startsWith('screen:'))
+          }
+        } else if (recordingSettings.area === 'region') {
+          // For region recording, use the entire screen
+          primarySource = sources.find((s) =>
+            s.id.startsWith('screen:') ||
+            s.name.toLowerCase().includes('entire screen') ||
+            s.name.toLowerCase().includes('screen 1')
+          )
+        } else {
+          // Default to fullscreen recording
+          primarySource = sources.find((s) =>
+            s.id.startsWith('screen:') ||
+            s.name.toLowerCase().includes('entire screen') ||
+            s.name.toLowerCase().includes('screen 1')
+          )
+        }
       }
 
       // Fallback to last source (usually the entire screen)

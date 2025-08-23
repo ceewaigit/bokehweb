@@ -6,6 +6,7 @@ import { useRecording } from '@/hooks/use-recording'
 import { useRecordingStore } from '@/stores/recording-store'
 import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { SourcePicker } from '@/components/source-picker'
 import {
   Mic,
   MicOff,
@@ -26,6 +27,8 @@ export default function RecordingDock() {
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
   const [selectedSource, setSelectedSource] = useState<'fullscreen' | 'window' | 'region'>('fullscreen')
+  const [showSourcePicker, setShowSourcePicker] = useState(false)
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
 
   // Reference to the dock container for measuring
   const dockContainerRef = useRef<HTMLDivElement>(null)
@@ -70,9 +73,10 @@ export default function RecordingDock() {
   useEffect(() => {
     updateSettings({
       audioInput: micEnabled ? 'system' : 'none',
-      area: selectedSource
+      area: selectedSource,
+      sourceId: selectedSourceId || undefined
     })
-  }, [micEnabled, selectedSource, updateSettings])
+  }, [micEnabled, selectedSource, selectedSourceId, updateSettings])
 
   // Dynamically size window based on actual content dimensions
   useEffect(() => {
@@ -98,6 +102,17 @@ export default function RecordingDock() {
   }, [])
 
   const handleStartRecording = () => {
+    // If user selected window or needs to pick a source, show picker
+    if (selectedSource === 'window' || !selectedSourceId) {
+      setShowSourcePicker(true)
+      return
+    }
+
+    // Proceed with countdown and recording
+    startCountdownAndRecord()
+  }
+
+  const startCountdownAndRecord = () => {
     // Show countdown
     let count = 3
     setCountdown(count)
@@ -127,6 +142,15 @@ export default function RecordingDock() {
         window.electronAPI?.showCountdown?.(count)
       }
     }, 1000)
+  }
+
+  const handleSourceSelect = (sourceId: string) => {
+    setSelectedSourceId(sourceId)
+    setShowSourcePicker(false)
+    // Start recording immediately after source selection
+    setTimeout(() => {
+      startCountdownAndRecord()
+    }, 100)
   }
 
   const handleStopRecording = async () => {
@@ -206,7 +230,11 @@ export default function RecordingDock() {
                           ? "bg-zinc-800 text-zinc-100 shadow-sm"
                           : "text-zinc-400 hover:text-zinc-200"
                       )}
-                      onClick={() => setSelectedSource(value)}
+                      onClick={() => {
+                        setSelectedSource(value)
+                        // Reset source ID when changing type
+                        setSelectedSourceId(null)
+                      }}
                     >
                       <Icon className="w-3.5 h-3.5" />
                       <span>{label}</span>
@@ -352,6 +380,13 @@ export default function RecordingDock() {
           </div>
         </motion.div>
       </div>
+
+      {/* Source Picker Dialog */}
+      <SourcePicker
+        isOpen={showSourcePicker}
+        onClose={() => setShowSourcePicker(false)}
+        onSelect={handleSourceSelect}
+      />
     </>
   )
 }
