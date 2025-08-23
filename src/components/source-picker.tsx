@@ -12,6 +12,7 @@ interface Source {
   name: string
   thumbnail?: string
   type: 'screen' | 'window' | 'area'
+  bounds?: { x: number; y: number; width: number; height: number }
 }
 
 interface SourcePickerProps {
@@ -74,7 +75,8 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
           id: source.id,
           name: source.name,
           thumbnail: thumbnailCache.current.get(source.id) || source.thumbnail,
-          type: source.id.startsWith('screen:') ? 'screen' : 'window'
+          type: source.id.startsWith('screen:') ? 'screen' : 'window',
+          bounds: source.bounds // Include window bounds if available
         }
       })
 

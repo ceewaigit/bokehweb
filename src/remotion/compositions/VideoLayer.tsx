@@ -72,12 +72,13 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
     objectFit: 'cover' as const
   };
 
-  if (captureArea?.width && captureArea?.height) {
+  // Only apply capture area cropping if it has valid dimensions
+  if (captureArea?.width && captureArea?.height && captureArea.width > 0 && captureArea.height > 0) {
     // Scale video to show only the capture area
     const scale = Math.min(drawWidth / captureArea.width, drawHeight / captureArea.height);
     
     videoStyle = {
-      position: 'absolute',
+      position: 'absolute' as const,
       width: videoWidth * scale,
       height: videoHeight * scale,
       left: -(captureArea.x * scale) + (drawWidth - captureArea.width * scale) / 2,
