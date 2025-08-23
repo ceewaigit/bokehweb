@@ -49,7 +49,7 @@ export const TimelinePlayhead = React.memo(({
       />
       {/* Diamond centered on line */}
       <Rect
-        x={-6}
+        x={0}
         y={-6}
         width={12}
         height={12}
