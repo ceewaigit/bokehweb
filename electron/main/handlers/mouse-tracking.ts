@@ -1,6 +1,14 @@
 import { ipcMain, screen, IpcMainInvokeEvent, WebContents, BrowserWindow } from 'electron'
 import { uIOhook, UiohookKey, UiohookMouseEvent } from 'uiohook-napi'
 
+// Simple logger for production
+const logger = {
+  debug: (msg: string, ...args: any[]) => process.env.NODE_ENV === 'development' && console.log(msg, ...args),
+  info: (msg: string, ...args: any[]) => console.log(msg, ...args),
+  warn: (msg: string, ...args: any[]) => console.warn(msg, ...args),
+  error: (msg: string, ...args: any[]) => console.error(msg, ...args)
+}
+
 let mouseTrackingInterval: NodeJS.Timeout | null = null
 let mouseEventSender: WebContents | null = null
 let isMouseTracking = false
@@ -101,9 +109,9 @@ export function registerMouseTrackingHandlers(): void {
           const mappedType = cursorTypeMap[type] || type
           const previousMapped = cursorTypeMap[previousType] || previousType
           
-          // Always log cursor changes for debugging
-          if (previousType !== type) {
-            console.log(`🔄 Cursor changed: ${previousMapped} → ${mappedType} (raw: ${previousType} → ${type})`)
+          // Only log significant cursor changes in development
+          if (previousType !== type && process.env.NODE_ENV === 'development') {
+            console.log(`Cursor: ${previousMapped} → ${mappedType}`)
           }
         }
 
@@ -111,7 +119,6 @@ export function registerMouseTrackingHandlers(): void {
         targetWindow.webContents.removeListener('cursor-changed', handleCursorChange)
         // Add the new listener
         targetWindow.webContents.on('cursor-changed', handleCursorChange)
-        console.log('👁️ Cursor change listener attached to window')
       }
 
       // Start click detection using global mouse hooks with source info
@@ -176,10 +183,6 @@ export function registerMouseTrackingHandlers(): void {
               mouseHistory.shift()
             }
 
-            // NOTE: Removed velocity-based click detection as it causes false positives
-            // Real click events should come from actual mouse button events
-            // This is a limitation of Electron's API - proper click detection requires
-            // native modules or system-level hooks
 
             lastMousePosition = positionData
             lastVelocity = velocity
@@ -205,14 +208,9 @@ export function registerMouseTrackingHandlers(): void {
               }
             }
             
-            // Debug logging - log cursor type changes and periodic position updates
-            if (mouseHistory.length % 100 === 0 || currentCursorType !== effectiveCursorType) {
-              console.log('🖱️ Mouse tracking:', {
-                position: { x: positionData.x, y: positionData.y },
-                cursorType: effectiveCursorType,
-                sourceType,
-                scaleFactor: positionData.scaleFactor
-              });
+            // Only log in development mode
+            if (process.env.NODE_ENV === 'development' && mouseHistory.length % 500 === 0) {
+              console.log('Mouse tracking active')
             }
 
             // Send enhanced mouse data with velocity for smooth interpolation
@@ -232,7 +230,7 @@ export function registerMouseTrackingHandlers(): void {
             lastPosition = currentPosition
           }
         } catch (error) {
-          console.error('❌ Error tracking mouse:', error)
+          logger.error('Error tracking mouse:', error)
         }
       }, intervalMs)
 
@@ -243,7 +241,7 @@ export function registerMouseTrackingHandlers(): void {
         fps: Math.round(1000 / intervalMs)
       }
     } catch (error: any) {
-      console.error('Error starting mouse tracking:', error)
+      logger.error('Error starting mouse tracking:', error)
       return { success: false, error: error.message }
     }
   })
@@ -277,7 +275,7 @@ export function registerMouseTrackingHandlers(): void {
 
       return { success: true }
     } catch (error: any) {
-      console.error('Error stopping mouse tracking:', error)
+      logger.error('Error stopping mouse tracking:', error)
       return { success: false, error: error.message }
     }
   })
@@ -293,7 +291,7 @@ export function registerMouseTrackingHandlers(): void {
         }
       }
     } catch (error: any) {
-      console.error('Error getting mouse position:', error)
+      logger.error('Error getting mouse position:', error)
       return { success: false, error: error.message }
     }
   })
@@ -352,7 +350,7 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       (global as any).uiohookMouseHandler = handleMouseDown
 
   } catch (error) {
-    console.error('❌ Failed to start global click detection:', error)
+    logger.error('Failed to start global click detection:', error)
     clickDetectionActive = false
   }
 }
@@ -374,7 +372,7 @@ function stopClickDetection(): void {
       uiohookStarted = false
     }
   } catch (error) {
-    console.error('❌ Error stopping click detection:', error)
+    logger.error('Error stopping click detection:', error)
   }
 }
 
@@ -392,7 +390,7 @@ export function cleanupMouseTracking(): void {
       uIOhook.stop()
       uiohookStarted = false
     } catch (error) {
-      console.error('Error in cleanup:', error)
+      logger.error('Error in cleanup:', error)
     }
   }
 }

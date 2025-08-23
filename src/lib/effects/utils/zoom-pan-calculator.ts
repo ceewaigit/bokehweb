@@ -6,12 +6,17 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly PAN_SMOOTHING = 0.15  // Smoothing for pan transitions
+  private readonly PAN_SMOOTHING = 0.08  // Ultra smooth for ice-like gliding
   private readonly EDGE_THRESHOLD = 0.15  // 15% from edge triggers panning
   private readonly RECENTERING_MARGIN = 0.25  // Recenter when mouse is 25% from edge
-  private readonly MAX_PAN_SPEED = 0.02  // Maximum pan speed per frame
+  private readonly MAX_PAN_SPEED = 0.015  // Reduced for smoother motion
+  private readonly MOMENTUM_FACTOR = 0.92  // Momentum retention for gliding
   private targetPanX: number = 0
   private targetPanY: number = 0
+  private velocityX: number = 0  // Track velocity for momentum
+  private velocityY: number = 0
+  private lastPanX: number = 0  // Track last position for velocity calc
+  private lastPanY: number = 0
 
   /**
    * Calculate pan offset using edge-based triggering like Screen Studio
@@ -101,15 +106,50 @@ export class ZoomPanCalculator {
       this.targetPanY = newTargetPanY
     }
     
-    // Apply smooth interpolation to reach target
-    // Use faster interpolation if mouse is outside viewport
-    const urgency = (outsideLeft || outsideRight || outsideTop || outsideBottom) ? 0.3 : this.PAN_SMOOTHING
-    const deltaX = (this.targetPanX - currentPanX) * urgency
-    const deltaY = (this.targetPanY - currentPanY) * urgency
+    // Calculate velocity from last frame for momentum
+    const frameVelocityX = currentPanX - this.lastPanX
+    const frameVelocityY = currentPanY - this.lastPanY
     
-    // Limit maximum pan speed to prevent jarring movements
-    const clampedDeltaX = Math.max(-this.MAX_PAN_SPEED, Math.min(this.MAX_PAN_SPEED, deltaX))
-    const clampedDeltaY = Math.max(-this.MAX_PAN_SPEED, Math.min(this.MAX_PAN_SPEED, deltaY))
+    // Update velocity with momentum (ice-like gliding)
+    this.velocityX = this.velocityX * this.MOMENTUM_FACTOR + frameVelocityX * (1 - this.MOMENTUM_FACTOR)
+    this.velocityY = this.velocityY * this.MOMENTUM_FACTOR + frameVelocityY * (1 - this.MOMENTUM_FACTOR)
+    
+    // Store current position for next frame
+    this.lastPanX = currentPanX
+    this.lastPanY = currentPanY
+    
+    // Apply ultra-smooth easing for butter-like motion
+    const easeInOutQuart = (t: number) => {
+      return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2
+    }
+    
+    // Calculate distance to target
+    const distanceX = Math.abs(this.targetPanX - currentPanX)
+    const distanceY = Math.abs(this.targetPanY - currentPanY)
+    const maxDistance = 0.5  // Max normalized distance
+    
+    // Use different smoothing based on urgency and distance
+    const urgency = (outsideLeft || outsideRight || outsideTop || outsideBottom) ? 0.25 : this.PAN_SMOOTHING
+    
+    // Apply easing based on distance (slower when closer for smoother stops)
+    const easingFactorX = easeInOutQuart(Math.min(distanceX / maxDistance, 1))
+    const easingFactorY = easeInOutQuart(Math.min(distanceY / maxDistance, 1))
+    
+    // Calculate deltas with easing and momentum
+    const targetDeltaX = (this.targetPanX - currentPanX) * urgency * easingFactorX
+    const targetDeltaY = (this.targetPanY - currentPanY) * urgency * easingFactorY
+    
+    // Blend target delta with velocity for ultra-smooth motion
+    const deltaX = targetDeltaX * 0.7 + this.velocityX * 0.3
+    const deltaY = targetDeltaY * 0.7 + this.velocityY * 0.3
+    
+    // Apply softer speed limits for smoother motion
+    const speedLimit = (outsideLeft || outsideRight || outsideTop || outsideBottom) 
+      ? this.MAX_PAN_SPEED * 1.5 
+      : this.MAX_PAN_SPEED
+    
+    const clampedDeltaX = Math.max(-speedLimit, Math.min(speedLimit, deltaX))
+    const clampedDeltaY = Math.max(-speedLimit, Math.min(speedLimit, deltaY))
     
     return {
       x: currentPanX + clampedDeltaX,

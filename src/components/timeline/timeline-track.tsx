@@ -1,6 +1,7 @@
 import React from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import { TIMELINE_LAYOUT } from '@/lib/timeline'
+import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineTrackProps {
   type: 'video' | 'zoom' | 'audio'
@@ -10,28 +11,30 @@ interface TimelineTrackProps {
 }
 
 export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTrackProps) => {
+  const colors = useTimelineColors()
+  
   const getTrackStyle = () => {
     switch (type) {
       case 'video':
         return { 
-          bgFill: 'hsl(240, 5%, 6%)', 
+          bgFill: colors.muted, 
           bgOpacity: 0.5, 
           labelText: 'V', 
-          labelColor: 'hsl(240, 5%, 65%)'
+          labelColor: colors.mutedForeground
         }
       case 'zoom':
         return { 
-          bgFill: 'hsl(221, 83%, 53%)', 
+          bgFill: colors.info, 
           bgOpacity: 0.05, 
           labelText: 'Z', 
-          labelColor: 'hsl(199, 89%, 48%)'
+          labelColor: colors.info
         }
       case 'audio':
         return { 
-          bgFill: 'hsl(240, 5%, 6%)', 
+          bgFill: colors.muted, 
           bgOpacity: 0.3, 
           labelText: 'A', 
-          labelColor: 'hsl(240, 5%, 65%)'
+          labelColor: colors.mutedForeground
         }
     }
   }
@@ -56,7 +59,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         y={y}
         width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
         height={height}
-        fill="hsl(240, 10%, 10%)"
+        fill={colors.card}
         opacity={0.95}
       />
       
@@ -66,7 +69,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         y={y}
         width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH - 1}
         height={height}
-        stroke="hsl(240, 5%, 20%)"
+        stroke={colors.border}
         strokeWidth={1}
         fill="transparent"
         opacity={0.6}

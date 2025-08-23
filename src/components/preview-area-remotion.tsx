@@ -170,17 +170,6 @@ export function PreviewAreaRemotion({
   // Calculate composition props
   const captureAreaToUse = selectedRecording?.captureArea?.fullBounds || undefined
   
-  console.log('🎯 PreviewArea - Capture area data:', {
-    fullCaptureArea: selectedRecording?.captureArea,
-    fullBounds: selectedRecording?.captureArea?.fullBounds,
-    captureAreaToUse,
-    videoWidth,
-    videoHeight,
-    recordingId: selectedRecording?.id,
-    metadataCapture: selectedRecording?.metadata?.captureArea,
-    firstMouseEvent: selectedRecording?.metadata?.mouseEvents?.[0]
-  })
-  
   const compositionProps = {
     videoUrl: videoUrl || '',
     clip: selectedClip,

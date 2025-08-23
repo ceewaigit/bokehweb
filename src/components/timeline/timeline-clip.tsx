@@ -4,6 +4,7 @@ import type { Clip, Recording } from '@/types/project'
 import { TIMELINE_LAYOUT, TimelineUtils, createClipDragBoundFunc } from '@/lib/timeline'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineClipProps {
   clip: Clip
@@ -34,6 +35,7 @@ export const TimelineClip = React.memo(({
 }: TimelineClipProps) => {
   const [thumbnails, setThumbnails] = useState<HTMLCanvasElement[]>([])
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const colors = useTimelineColors()
   
   const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
   const clipWidth = Math.max(
@@ -156,10 +158,10 @@ export const TimelineClip = React.memo(({
           trackType === 'video' && thumbnails.length > 0 
             ? 'transparent' 
             : trackType === 'video' 
-              ? 'hsl(217, 91%, 60%)' 
-              : 'hsl(142, 71%, 45%)'
+              ? colors.info
+              : colors.success
         }
-        stroke={isSelected ? 'hsl(0, 0%, 98%)' : 'transparent'}
+        stroke={isSelected ? colors.foreground : 'transparent'}
         strokeWidth={isSelected ? 2 : 1}
         cornerRadius={6}
         opacity={0.95}
@@ -215,7 +217,7 @@ export const TimelineClip = React.memo(({
         y={8}
         text={`${clip.id.slice(-4)}`}
         fontSize={11}
-        fill="white"
+        fill={colors.foreground}
         fontFamily="system-ui"
         fontStyle="bold"
         shadowColor="black"
@@ -246,11 +248,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'zoom' ? "hsl(217, 91%, 60%)" : "hsl(240, 5%, 45%)"} 
+                fill={selectedEffectType === 'zoom' ? colors.info : colors.muted} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'zoom' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="Z" fontSize={9} fill="white" fontFamily="system-ui" fontStyle="bold" />
+              <Text x={5} y={3} text="Z" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
             </Group>
           )
           xOffset += 36
@@ -268,11 +270,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'cursor' ? "hsl(142, 71%, 45%)" : "hsl(240, 5%, 45%)"} 
+                fill={selectedEffectType === 'cursor' ? colors.success : colors.muted} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'cursor' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="C" fontSize={9} fill="white" fontFamily="system-ui" fontStyle="bold" />
+              <Text x={5} y={3} text="C" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
             </Group>
           )
           xOffset += 36
@@ -290,11 +292,11 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'background' ? "hsl(280, 65%, 60%)" : "hsl(240, 5%, 45%)"} 
+                fill={selectedEffectType === 'background' ? colors.zoomBlock : colors.muted} 
                 cornerRadius={2}
                 opacity={selectedEffectType === 'background' ? 1 : 0.7}
               />
-              <Text x={5} y={3} text="B" fontSize={9} fill="white" fontFamily="system-ui" fontStyle="bold" />
+              <Text x={5} y={3} text="B" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
             </Group>
           )
         }

@@ -18,6 +18,7 @@ import { TimelineZoomBlock } from './timeline-zoom-block'
 // Utilities
 import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
 import { useTimelineKeyboard } from './use-timeline-keyboard'
+import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineCanvasProps {
   className?: string
@@ -73,6 +74,7 @@ export function TimelineCanvas({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const colors = useTimelineColors()
 
   // Calculate timeline dimensions
   const duration = currentProject?.timeline?.duration || 10000
@@ -277,7 +279,7 @@ export function TimelineCanvas({
               y={0}
               width={stageWidth}
               height={totalHeight}
-              fill="hsl(240, 10%, 2%)"
+              fill={colors.background}
             />
 
             <Rect
@@ -285,7 +287,7 @@ export function TimelineCanvas({
               y={0}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
               height={rulerHeight}
-              fill="hsl(240, 10%, 3.9%)"
+              fill={colors.card}
             />
 
             <TimelineTrack

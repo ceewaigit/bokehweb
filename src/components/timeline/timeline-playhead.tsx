@@ -1,6 +1,7 @@
 import React from 'react'
 import { Group, Line, Rect } from 'react-konva'
 import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
+import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelinePlayheadProps {
   currentTime: number
@@ -19,6 +20,7 @@ export const TimelinePlayhead = React.memo(({
   maxTime,
   onSeek
 }: TimelinePlayheadProps) => {
+  const colors = useTimelineColors()
   const x = TimelineUtils.timeToPixel(currentTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
 
   return (
@@ -42,7 +44,7 @@ export const TimelinePlayhead = React.memo(({
       {/* Playhead line */}
       <Line
         points={[0, 0, 0, totalHeight]}
-        stroke="hsl(0, 84%, 60%)"
+        stroke={colors.playhead}
         strokeWidth={2}
         hitStrokeWidth={8}
         opacity={1}
@@ -53,7 +55,7 @@ export const TimelinePlayhead = React.memo(({
         y={-6}
         width={12}
         height={12}
-        fill="hsl(0, 84%, 60%)"
+        fill={colors.playhead}
         rotation={45}
         opacity={1}
       />

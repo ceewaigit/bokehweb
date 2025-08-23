@@ -16,7 +16,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import type { Clip, ClipEffects, ZoomBlock } from '@/types/project'
-import { DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
+import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 // Extract project loading logic to reduce component complexity
@@ -124,7 +124,29 @@ async function loadProjectRecording(
   return true
 }
 
+// Initialize default wallpaper on app startup
+async function initializeDefaultWallpaper() {
+  const wallpaperPath = '/System/Library/Desktop Pictures/Sonoma.heic'
+  
+  if (window.electronAPI?.loadWallpaperImage) {
+    try {
+      const dataUrl = await window.electronAPI.loadWallpaperImage(wallpaperPath)
+      if (dataUrl) {
+        DEFAULT_CLIP_EFFECTS.background.wallpaper = dataUrl
+        SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
+      }
+    } catch (error) {
+      console.error('Failed to load default wallpaper:', error)
+    }
+  }
+}
+
 export function WorkspaceManager() {
+  // Initialize default wallpaper once on mount
+  useEffect(() => {
+    initializeDefaultWallpaper()
+  }, [])
+
   // Store hooks - will gradually reduce direct store access
   const {
     currentProject,

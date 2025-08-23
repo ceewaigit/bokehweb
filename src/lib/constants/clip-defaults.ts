@@ -11,18 +11,15 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   cursor: {
     visible: true,
     style: 'default',
-    size: 3.0,
+    size: 4.0,
     color: '#ffffff',
     clickEffects: false,
     motionBlur: false
   },
   background: {
-    type: 'gradient',
-    gradient: {
-      colors: ['#f3f4f6', '#e5e7eb'],  // Light gray gradient
-      angle: 135
-    },
-    padding: 60  // Default padding around video
+    type: 'wallpaper',
+    wallpaperPath: '/System/Library/Desktop Pictures/Sonoma.heic',
+    padding: 60
   },
   video: {
     cornerRadius: 24,
@@ -47,18 +44,15 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
   cursor: {
     visible: true,
     style: 'macOS',
-    size: 3.0,
+    size: 4.0,
     color: '#ffffff',
     clickEffects: true,
     motionBlur: true
   },
   background: {
-    type: 'gradient',
-    gradient: {
-      colors: ['#f0f9ff', '#e0f2fe'],  // Light blue gradient for Screen Studio style
-      angle: 135
-    },
-    padding: 120  // More padding for Screen Studio style
+    type: 'wallpaper',
+    wallpaperPath: '/System/Library/Desktop Pictures/Sonoma.heic',
+    padding: 120
   },
   video: {
     cornerRadius: 24,

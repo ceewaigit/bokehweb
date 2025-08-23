@@ -29,7 +29,7 @@ const defaultEnhancementSettings: RecordingEnhancementSettings = {
   maxZoom: 2.5,
   zoomSpeed: 1.0,
   showCursor: true,
-  cursorSize: 1.5,
+  cursorSize: 4.0,
   cursorColor: '#ffffff',
   showClickEffects: true,
   clickEffectSize: 1.0,

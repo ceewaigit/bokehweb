@@ -67,10 +67,7 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
 
   // Determine video style based on capture area (area selection vs full recording)
   const isAreaSelection = captureArea && captureArea.width > 0 && captureArea.height > 0;
-  
-  console.log('🎬 VideoLayer - Type:', isAreaSelection ? 'Area Selection' : 'Full Recording', 
-    'Capture:', captureArea, 'Video:', videoWidth + 'x' + videoHeight)
-  
+
   const videoStyle: React.CSSProperties = isAreaSelection ? (() => {
     // Area selection: scale and position to show only the selected region
     const scale = Math.min(drawWidth / captureArea.width, drawHeight / captureArea.height);

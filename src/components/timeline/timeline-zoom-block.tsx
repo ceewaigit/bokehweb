@@ -2,6 +2,7 @@ import React from 'react'
 import { Rect, Group, Text, Line } from 'react-konva'
 import type { ZoomBlock } from '@/types/project'
 import { createZoomBlockDragBoundFunc, TimelineUtils } from '@/lib/timeline'
+import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineZoomBlockProps {
   x: number
@@ -48,6 +49,7 @@ export const TimelineZoomBlock = React.memo(({
   onIntroChange,
   onOutroChange
 }: TimelineZoomBlockProps) => {
+  const colors = useTimelineColors()
   const handleSize = 12 // Bigger handles for easier grabbing
 
   // Calculate intro/outro widths as proportion of total width
@@ -84,10 +86,10 @@ export const TimelineZoomBlock = React.memo(({
         y={0}
         width={width}
         height={height}
-        fill="hsl(258, 100%, 65%)"
+        fill={colors.zoomBlock}
         cornerRadius={6}
         opacity={isSelected ? 1 : 0.85}
-        stroke={isSelected ? 'hsl(0, 0%, 98%)' : undefined}
+        stroke={isSelected ? colors.foreground : undefined}
         strokeWidth={isSelected ? 2 : 0}
         shadowColor="black"
         shadowBlur={isSelected ? 8 : 2}
@@ -100,7 +102,7 @@ export const TimelineZoomBlock = React.memo(({
         y={0}
         width={introWidth}
         height={height}
-        fill="hsl(258, 100%, 55%)"
+        fill={colors.zoomBlockHover}
         cornerRadius={[6, 0, 0, 6]}
         opacity={0.8}
       />
@@ -111,7 +113,7 @@ export const TimelineZoomBlock = React.memo(({
         y={0}
         width={outroWidth}
         height={height}
-        fill="hsl(258, 100%, 55%)"
+        fill={colors.zoomBlockHover}
         cornerRadius={[0, 6, 6, 0]}
         opacity={0.8}
       />

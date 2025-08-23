@@ -9,7 +9,7 @@ export interface RecordingEnhancementSettings {
 
   // Mouse Effects
   showCursor: boolean
-  cursorSize: number // 0.5 - 3.0 multiplier
+  cursorSize: number // 0.5 - 8.0 multiplier
   cursorColor: string
   showClickEffects: boolean
   clickEffectSize: number // 0.5 - 2.0 multiplier

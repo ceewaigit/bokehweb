@@ -10,8 +10,6 @@ export interface ElectronRecordingResult {
   video: Blob
   duration: number
   metadata: ElectronMetadata[]
-  effectsApplied: string[]
-  processingTime: number
   captureArea?: {
     fullBounds: { x: number; y: number; width: number; height: number }
     workArea: { x: number; y: number; width: number; height: number }
@@ -251,7 +249,6 @@ export class ElectronRecorder {
         audioTracks: this.stream.getAudioTracks().length
       })
 
-      // Log video track settings for debugging
       const videoTrack = this.stream.getVideoTracks()[0]
       if (videoTrack) {
         const settings = videoTrack.getSettings()
@@ -260,16 +257,11 @@ export class ElectronRecorder {
         // Store video dimensions for coordinate mapping
         this.videoWidth = settings.width
         this.videoHeight = settings.height
-        
-        // Store video dimensions for coordinate mapping
-        // These will be used when transforming mouse coordinates
       } else {
-        console.log('⚠️ No video track found in stream')
         logger.warn('No video track found in stream')
       }
 
-      // Set up MediaRecorder with optimized settings for stability
-      // Use VP8 for better compatibility and stability with ScreenCaptureKit
+      // Use VP8 codec for stability
       let mimeType = 'video/webm;codecs=vp8'
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'video/webm'
@@ -290,13 +282,7 @@ export class ElectronRecorder {
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           this.chunks.push(event.data)
-          logger.debug(`Recording chunk #${this.chunks.length}: ${event.data.size} bytes, total chunks: ${this.chunks.length}`)
-
-          // Auto-save every 5 chunks as backup
-          if (this.chunks.length % 5 === 0) {
-            const backupBlob = new Blob(this.chunks, { type: mimeType })
-            logger.debug(`Backup save point: ${backupBlob.size} bytes from ${this.chunks.length} chunks`)
-          }
+          logger.debug(`Recording chunk #${this.chunks.length}: ${event.data.size} bytes`)
         }
       }
 
@@ -319,39 +305,36 @@ export class ElectronRecorder {
       this.mediaRecorder.onerror = (event) => {
         logger.error('MediaRecorder error:', event)
         
-        // Check what type of error this is
         const errorMessage = (event as any).error?.message || ''
         const isAudioError = errorMessage.includes('audio') || errorMessage.includes('Audio')
-        const isStreamError = errorMessage.includes('Tracks') || errorMessage.includes('Stream')
         
-        if (isAudioError || isStreamError) {
-          logger.warn('Audio/Stream error detected, attempting to continue with video only')
+        if (isAudioError) {
+          logger.warn('Audio error detected, continuing with video only')
           
-          // Remove audio tracks to prevent further errors
+          // Remove audio tracks to continue recording
           const audioTracks = this.stream?.getAudioTracks()
-          if (audioTracks && audioTracks.length > 0) {
-            audioTracks.forEach(track => {
-              track.stop()
-              this.stream?.removeTrack(track)
-            })
-            logger.info('Removed audio tracks, continuing with video only')
-          }
+          audioTracks?.forEach(track => {
+            track.stop()
+            this.stream?.removeTrack(track)
+          })
           
-          // Check if we still have a valid video track
+          // Continue recording if video track is still active
           const videoTracks = this.stream?.getVideoTracks()
-          if (videoTracks && videoTracks.length > 0 && videoTracks[0].readyState === 'live') {
-            logger.info('Video track still active, recording continues')
-            // Don't stop the recording, let it continue
+          if (videoTracks?.[0]?.readyState === 'live') {
             return
           }
         }
         
-        // For critical errors, stop the recording
-        logger.error('Critical recording error, stopping...')
-        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        // Stop recording on critical errors
+        if (this.mediaRecorder?.state === 'recording') {
           this.mediaRecorder.stop()
         }
       }
+
+      // Set recording flag BEFORE starting mouse tracking
+      // This ensures mouse events are captured from the very beginning
+      this.isRecording = true
+      this.startTime = Date.now()
 
       // Always capture mouse metadata to power effects
       await this.startMouseTracking()
@@ -359,8 +342,6 @@ export class ElectronRecorder {
       // Start recording with immediate data collection
       // Don't use timeslice - let MediaRecorder handle buffering
       this.mediaRecorder.start()
-      this.isRecording = true
-      this.startTime = Date.now()
 
       // Periodically request data to keep stream alive
       const dataRequestInterval = setInterval(() => {
@@ -410,9 +391,7 @@ export class ElectronRecorder {
           video,
           duration,
           metadata: this.metadata,
-          captureArea: this.captureArea,
-          effectsApplied: ['electron-desktop-capture'],
-          processingTime: 0
+          captureArea: this.captureArea
         })
         return
       }
@@ -421,7 +400,12 @@ export class ElectronRecorder {
         const duration = Date.now() - this.startTime
         const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
 
-        logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
+        // Count event types for debugging
+        const mouseEvents = this.metadata.filter(m => m.eventType === 'mouse').length
+        const clickEvents = this.metadata.filter(m => m.eventType === 'click').length
+        
+        logger.info(`Recording complete: ${duration}ms, ${video.size} bytes`)
+        logger.info(`Metadata captured: ${this.metadata.length} total events (${mouseEvents} mouse, ${clickEvents} clicks)`)
         logger.info('Final capture area', this.captureArea)
 
         // Store capture area before cleanup
@@ -429,18 +413,11 @@ export class ElectronRecorder {
         
         this.cleanup()
 
-        const effectsApplied = ['electron-desktop-capture']
-        if (this.metadata.length > 0) {
-          effectsApplied.push('mouse-tracking', 'metadata-recording')
-        }
-
         resolve({
           video,
           duration,
           metadata: this.metadata,
-          captureArea: finalCaptureArea,
-          effectsApplied,
-          processingTime: 0
+          captureArea: finalCaptureArea
         })
       }
 
@@ -455,9 +432,7 @@ export class ElectronRecorder {
             video,
             duration,
             metadata: this.metadata,
-            captureArea: this.captureArea,
-            effectsApplied: ['electron-desktop-capture', 'error-recovery'],
-            processingTime: 0
+            captureArea: this.captureArea
           })
         } else {
           reject(error)
@@ -480,9 +455,7 @@ export class ElectronRecorder {
             video,
             duration,
             metadata: this.metadata,
-            captureArea: this.captureArea,
-            effectsApplied: ['electron-desktop-capture', 'stop-error-recovery'],
-            processingTime: 0
+            captureArea: this.captureArea
           })
         } else {
           reject(e)
@@ -693,9 +666,12 @@ export class ElectronRecorder {
         transformedX = data.x * data.scaleFactor
         transformedY = data.y * data.scaleFactor
       }
-      // Use full video dimensions
-      const captureW = this.videoWidth || 1920
-      const captureH = this.videoHeight || 1080
+      // Use full video dimensions (must be set by this point)
+      if (!this.videoWidth || !this.videoHeight) {
+        throw new Error('Video dimensions not available for coordinate transformation')
+      }
+      const captureW = this.videoWidth
+      const captureH = this.videoHeight
       return { transformedX, transformedY, isWithinBounds, captureW, captureH }
     } else if (this.captureArea.fullBounds) {
       // Window or area recording - check bounds and adjust coordinates
@@ -714,14 +690,13 @@ export class ElectronRecorder {
       return { transformedX, transformedY, isWithinBounds, captureW, captureH }
     }
     
-    // Fallback (shouldn't reach here)
-    const captureW = this.videoWidth || 1920
-    const captureH = this.videoHeight || 1080
-    return { transformedX, transformedY, isWithinBounds, captureW, captureH }
+    // This should never be reached - either we have no capture area (full screen)
+    // or we have a capture area with bounds
+    throw new Error('Invalid recording state: capture area exists but has no bounds')
   }
 
   private async startMouseTracking(): Promise<void> {
-    logger.debug('Starting native mouse tracking')
+    logger.info('Starting native mouse tracking for recording')
 
     if (!window.electronAPI?.startMouseTracking) {
       throw new ElectronError('Native mouse tracking API not available', 'startMouseTracking')
@@ -739,87 +714,102 @@ export class ElectronRecorder {
 
     // Set up event listeners for native mouse events
     const handleMouseMove = (_event: unknown, data: any) => {
-      if (this.isRecording) {
-        const now = Date.now()
-        const timestamp = now - this.startTime
+      // No need to check isRecording here since handlers are only active during recording
+      // This ensures we capture events from the very first moment
+      const now = Date.now()
+      const timestamp = now - this.startTime
 
+      // Calculate distance from last position
+      const dx = this.lastMouseX >= 0 ? data.x - this.lastMouseX : 0
+      const dy = this.lastMouseY >= 0 ? data.y - this.lastMouseY : 0
+      const distance = Math.sqrt(dx * dx + dy * dy)
 
-        // Calculate distance from last position
-        const dx = this.lastMouseX >= 0 ? data.x - this.lastMouseX : 0
-        const dy = this.lastMouseY >= 0 ? data.y - this.lastMouseY : 0
-        const distance = Math.sqrt(dx * dx + dy * dy)
-
-        // Check thresholds - only log significant movements
-        const timeDelta = now - this.lastMouseTime
-        if (distance < this.POSITION_THRESHOLD && timeDelta < this.TIME_THRESHOLD) {
-          return // Skip this event, movement too small
-        }
-
-        // Calculate velocity (pixels per second)
-        let velocity = undefined
-        if (this.lastMouseX >= 0 && timeDelta > 0) {
-          velocity = {
-            x: (dx / timeDelta) * 1000,
-            y: (dy / timeDelta) * 1000
-          }
-        }
-
-        // Transform coordinates using shared method
-        const { transformedX, transformedY, isWithinBounds, captureW, captureH } = this.transformCoordinates(data)
-
-        // Only record mouse events when within bounds
-        if (isWithinBounds) {
-          
-          this.metadata.push({
-            timestamp,
-            mouseX: transformedX,  // Capture-relative position
-            mouseY: transformedY,  // Capture-relative position
-            eventType: 'mouse',
-            velocity,
-            captureWidth: captureW,
-            captureHeight: captureH,
-            scaleFactor: data.scaleFactor,
-            cursorType: data.cursorType,  // Save cursor type from main process
-            sourceBounds: this.captureArea?.fullBounds,  // Include source bounds for later use
-            sourceType: this.captureArea?.sourceType || 'screen'  // Include source type
-          })
-        }
-
-        this.lastMouseX = transformedX
-        this.lastMouseY = transformedY
-        this.lastMouseTime = now
+      // Check thresholds - only log significant movements
+      const timeDelta = now - this.lastMouseTime
+      if (distance < this.POSITION_THRESHOLD && timeDelta < this.TIME_THRESHOLD) {
+        return // Skip this event, movement too small
       }
+
+      // Calculate velocity (pixels per second)
+      let velocity = undefined
+      if (this.lastMouseX >= 0 && timeDelta > 0) {
+        velocity = {
+          x: (dx / timeDelta) * 1000,
+          y: (dy / timeDelta) * 1000
+        }
+      }
+
+      // Transform coordinates using shared method
+      const { transformedX, transformedY, isWithinBounds, captureW, captureH } = this.transformCoordinates(data)
+
+      // Only record mouse events when within bounds
+      if (isWithinBounds) {
+        const previousLength = this.metadata.length
+        
+        this.metadata.push({
+          timestamp,
+          mouseX: transformedX,  // Capture-relative position
+          mouseY: transformedY,  // Capture-relative position
+          eventType: 'mouse',
+          velocity,
+          captureWidth: captureW,
+          captureHeight: captureH,
+          scaleFactor: data.scaleFactor,
+          cursorType: data.cursorType,  // Save cursor type from main process
+          sourceBounds: this.captureArea?.fullBounds,  // Include source bounds for later use
+          sourceType: this.captureArea?.sourceType || 'screen'  // Include source type
+        })
+        
+        // Log first mouse event capture
+        if (previousLength === 0) {
+          logger.info(`✅ First mouse event captured at (${transformedX.toFixed(1)}, ${transformedY.toFixed(1)})`)
+        }
+        
+        // Log every 100th mouse event to confirm capture
+        if (this.metadata.length % 100 === 0) {
+          logger.debug(`Mouse events captured: ${this.metadata.length}, last position: (${transformedX.toFixed(1)}, ${transformedY.toFixed(1)})`)
+        }
+      }
+
+      this.lastMouseX = transformedX
+      this.lastMouseY = transformedY
+      this.lastMouseTime = now
     }
 
     const handleMouseClick = (_event: unknown, data: any) => {
-      if (this.isRecording) {
-        const timestamp = Date.now() - this.startTime
+      // Also remove the isRecording check here for consistency
+      const timestamp = Date.now() - this.startTime
 
-        // Transform coordinates using shared method
-        const { transformedX, transformedY, isWithinBounds, captureW, captureH } = this.transformCoordinates(data)
+      // Transform coordinates using shared method
+      const { transformedX, transformedY, isWithinBounds, captureW, captureH } = this.transformCoordinates(data)
 
-        // Only record clicks within the capture area
-        if (isWithinBounds) {
-          
-          this.metadata.push({
-            timestamp,
-            mouseX: transformedX,  // Capture-relative position
-            mouseY: transformedY,  // Capture-relative position
-            eventType: 'click',
-            key: data.button,
-            captureWidth: captureW,
-            captureHeight: captureH,
-            scaleFactor: data.scaleFactor,
-            cursorType: data.cursorType,  // Save cursor type for click events too
-            sourceBounds: this.captureArea?.fullBounds,  // Include source bounds
-            sourceType: this.captureArea?.sourceType  // Include source type
-          })
+      // Only record clicks within the capture area
+      if (isWithinBounds) {
+        const clickCount = this.metadata.filter(m => m.eventType === 'click').length
+        
+        this.metadata.push({
+          timestamp,
+          mouseX: transformedX,  // Capture-relative position
+          mouseY: transformedY,  // Capture-relative position
+          eventType: 'click',
+          key: data.button,
+          captureWidth: captureW,
+          captureHeight: captureH,
+          scaleFactor: data.scaleFactor,
+          cursorType: data.cursorType,  // Save cursor type for click events too
+          sourceBounds: this.captureArea?.fullBounds,  // Include source bounds
+          sourceType: this.captureArea?.sourceType  // Include source type
+        })
+        
+        // Log first click event
+        if (clickCount === 0) {
+          logger.info(`✅ First click event captured at (${transformedX.toFixed(1)}, ${transformedY.toFixed(1)})`)
         }
-
-        this.lastMouseX = transformedX
-        this.lastMouseY = transformedY
-        this.lastMouseTime = Date.now()
       }
+
+      this.lastMouseX = transformedX
+      this.lastMouseY = transformedY
+      this.lastMouseTime = Date.now()
     }
 
     const handleScroll = (_event: unknown, data: any) => {
@@ -843,6 +833,7 @@ export class ElectronRecorder {
     // Register event listeners
     window.electronAPI.onMouseMove(handleMouseMove)
     window.electronAPI.onMouseClick(handleMouseClick)
+    logger.debug('Mouse event listeners registered')
 
     // Add scroll handler if available
     if (window.electronAPI.onScroll) {

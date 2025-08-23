@@ -2,6 +2,7 @@ import React from 'react'
 import { Line, Text } from 'react-konva'
 import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
 import { formatTime } from '@/lib/utils'
+import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineRulerProps {
   duration: number
@@ -10,6 +11,7 @@ interface TimelineRulerProps {
 }
 
 export const TimelineRuler = React.memo(({ duration, zoom, pixelsPerMs }: TimelineRulerProps) => {
+  const colors = useTimelineColors()
   const { major, minor } = TimelineUtils.getRulerIntervals(zoom)
   const marks: React.ReactNode[] = []
 
@@ -21,7 +23,7 @@ export const TimelineRuler = React.memo(({ duration, zoom, pixelsPerMs }: Timeli
       <Line
         key={`mark-${time}`}
         points={[x, TIMELINE_LAYOUT.RULER_HEIGHT - (isMajor ? 12 : 6), x, TIMELINE_LAYOUT.RULER_HEIGHT]}
-        stroke="hsl(240, 5%, 45%)"
+        stroke={colors.mutedForeground}
         strokeWidth={isMajor ? 1.5 : 0.5}
         opacity={isMajor ? 0.8 : 0.4}
       />
@@ -35,7 +37,7 @@ export const TimelineRuler = React.memo(({ duration, zoom, pixelsPerMs }: Timeli
           y={3}
           text={formatTime(time)}
           fontSize={10}
-          fill="hsl(240, 5%, 65%)"
+          fill={colors.mutedForeground}
           fontFamily="system-ui"
           opacity={0.9}
         />

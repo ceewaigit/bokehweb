@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { AbsoluteFill, Img, useCurrentFrame } from 'remotion';
 import type { CursorLayerProps } from './types';
 import {
@@ -8,6 +8,7 @@ import {
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
 import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
+import { smoothStep } from '../../lib/utils/easing';
 
 // Cursor dimensions for proper aspect ratio
 const CURSOR_DIMENSIONS: Record<CursorType, { width: number; height: number }> = {
@@ -43,6 +44,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
+  
+  // Store previous positions for motion trail and smoothing
+  const positionHistoryRef = useRef<Array<{x: number, y: number, time: number}>>([]);
+  const lastFrameRef = useRef<number>(-1);
 
   // Determine current cursor type from events
   const cursorType = useMemo(() => {
@@ -64,22 +69,27 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // Get interpolated cursor position
+  // Smooth easing function for gliding effect
+  const easeInOutQuart = (t: number) => 
+    t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+
+  // Get interpolated cursor position with smooth gliding
   const cursorPosition = useMemo(() => {
     if (cursorEvents.length === 0) return null;
 
-    // Use current time directly for immediate response
     const targetTime = currentTimeMs;
 
-    // Find surrounding events
+    // Find primary surrounding events
     let prevEvent = null;
     let nextEvent = null;
+    let prevPrevEvent = null; // For velocity calculation
 
     for (let i = 0; i < cursorEvents.length; i++) {
       const event = cursorEvents[i];
       if (event.timestamp <= targetTime) {
+        prevPrevEvent = prevEvent;
         prevEvent = event;
-      } else {
+      } else if (!nextEvent) {
         nextEvent = event;
         break;
       }
@@ -99,7 +109,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       };
     }
 
-    // Interpolate between events
+    // Calculate base interpolation
     const timeDiff = nextEvent.timestamp - prevEvent.timestamp;
     if (timeDiff === 0) {
       return {
@@ -108,14 +118,45 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       };
     }
 
-    const progress = (targetTime - prevEvent.timestamp) / timeDiff;
+    const rawProgress = (targetTime - prevEvent.timestamp) / timeDiff;
+    const clampedProgress = Math.max(0, Math.min(1, rawProgress));
     
-    // Simple smoothstep interpolation
-    const smoothProgress = progress * progress * (3 - 2 * progress);
+    // Apply smooth easing for gliding effect
+    const easedProgress = easeInOutQuart(clampedProgress);
+    
+    // Calculate velocities for momentum-based smoothing
+    let velocityX = 0;
+    let velocityY = 0;
+    
+    if (prevPrevEvent && prevEvent) {
+      const prevTimeDiff = prevEvent.timestamp - prevPrevEvent.timestamp;
+      if (prevTimeDiff > 0) {
+        velocityX = (prevEvent.x - prevPrevEvent.x) / prevTimeDiff;
+        velocityY = (prevEvent.y - prevPrevEvent.y) / prevTimeDiff;
+      }
+    }
+
+    // Calculate target velocities
+    const targetVelocityX = (nextEvent.x - prevEvent.x) / timeDiff;
+    const targetVelocityY = (nextEvent.y - prevEvent.y) / timeDiff;
+    
+    // Smooth velocity transitions for ice-like gliding
+    const velocityBlend = smoothStep(clampedProgress);
+    const smoothVelocityX = velocityX * (1 - velocityBlend) + targetVelocityX * velocityBlend;
+    const smoothVelocityY = velocityY * (1 - velocityBlend) + targetVelocityY * velocityBlend;
+    
+    // Calculate position with velocity influence for smoother motion
+    const baseX = prevEvent.x + (nextEvent.x - prevEvent.x) * easedProgress;
+    const baseY = prevEvent.y + (nextEvent.y - prevEvent.y) * easedProgress;
+    
+    // Add subtle momentum influence for gliding effect
+    const momentumFactor = 0.05 * (1 - clampedProgress); // Decreases as we approach target
+    const momentumX = smoothVelocityX * momentumFactor * timeDiff;
+    const momentumY = smoothVelocityY * momentumFactor * timeDiff;
 
     return {
-      x: prevEvent.x + (nextEvent.x - prevEvent.x) * smoothProgress,
-      y: prevEvent.y + (nextEvent.y - prevEvent.y) * smoothProgress
+      x: baseX + momentumX,
+      y: baseY + momentumY
     };
   }, [cursorEvents, currentTimeMs]);
 
@@ -159,6 +200,46 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Map to displayed video position (before zoom)
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;
   let cursorY = videoOffset.y + normalizedY * videoOffset.height;
+  
+  // Update position history for motion trail calculation
+  useEffect(() => {
+    if (frame !== lastFrameRef.current && cursorPosition) {
+      lastFrameRef.current = frame;
+      
+      // Add current position to history
+      positionHistoryRef.current.push({
+        x: cursorX,
+        y: cursorY,
+        time: currentTimeMs
+      });
+      
+      // Keep only recent positions (last 100ms for trail effect)
+      const cutoffTime = currentTimeMs - 100;
+      positionHistoryRef.current = positionHistoryRef.current.filter(
+        pos => pos.time > cutoffTime
+      );
+    }
+  }, [frame, cursorX, cursorY, currentTimeMs, cursorPosition]);
+  
+  // Calculate motion velocity for blur effect
+  const motionVelocity = useMemo(() => {
+    const history = positionHistoryRef.current;
+    if (history.length < 2) return { speed: 0, angle: 0 };
+    
+    const recent = history[history.length - 1];
+    const prev = history[Math.max(0, history.length - 5)]; // Look back a few frames
+    
+    if (!recent || !prev) return { speed: 0, angle: 0 };
+    
+    const deltaX = recent.x - prev.x;
+    const deltaY = recent.y - prev.y;
+    const deltaTime = Math.max(1, recent.time - prev.time);
+    
+    const speed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
+    const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+    
+    return { speed: Math.min(speed * 50, 20), angle }; // Cap max blur
+  }, [frame]);
 
   // Apply cursor size from effects
   const cursorSize = cursorEffects?.size ?? 1.0;
@@ -201,8 +282,63 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     cursorY = transformedPos.y;
   }
 
+  // Create motion blur filter based on velocity
+  const motionBlurFilter = useMemo(() => {
+    const baseFilter = 'drop-shadow(0 1px 2px rgba(0,0,0,0.25)) drop-shadow(0 1px 3px rgba(0,0,0,0.15))';
+    
+    if (motionVelocity.speed < 2) {
+      return baseFilter;
+    }
+    
+    // Add directional blur based on motion
+    const blurAmount = Math.min(motionVelocity.speed, 8);
+    return `${baseFilter} blur(${blurAmount * 0.15}px)`;
+  }, [motionVelocity]);
+
+  // Generate motion trail for smooth gliding effect
+  const motionTrail = useMemo(() => {
+    if (motionVelocity.speed < 3) return null;
+    
+    const trailCount = Math.min(Math.floor(motionVelocity.speed / 2), 5);
+    const trails = [];
+    
+    for (let i = 1; i <= trailCount; i++) {
+      const opacity = 0.15 * (1 - i / (trailCount + 1));
+      const offset = i * 3;
+      const offsetX = -Math.cos(motionVelocity.angle * Math.PI / 180) * offset;
+      const offsetY = -Math.sin(motionVelocity.angle * Math.PI / 180) * offset;
+      
+      trails.push(
+        <Img
+          key={`trail-${i}`}
+          src={getCursorImagePath(cursorType)}
+          style={{
+            position: 'absolute',
+            left: cursorX + offsetX,
+            top: cursorY + offsetY,
+            width: dimensions.width * cursorSize,
+            height: dimensions.height * cursorSize,
+            transform: `scale(${clickScale * (1 - i * 0.1)})`,
+            transformOrigin: `${CURSOR_HOTSPOTS[cursorType].x * cursorSize}px ${CURSOR_HOTSPOTS[cursorType].y * cursorSize}px`,
+            opacity,
+            zIndex: 99 - i,
+            pointerEvents: 'none',
+            filter: `blur(${i * 0.5}px)`,
+            willChange: 'transform, left, top, opacity'
+          }}
+        />
+      );
+    }
+    
+    return trails;
+  }, [motionVelocity, cursorX, cursorY, cursorType, dimensions, cursorSize, clickScale]);
+
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
+      {/* Motion trail for gliding effect */}
+      {motionTrail}
+      
+      {/* Main cursor */}
       <Img
         src={getCursorImagePath(cursorType)}
         style={{
@@ -215,9 +351,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
           transformOrigin: `${CURSOR_HOTSPOTS[cursorType].x * cursorSize}px ${CURSOR_HOTSPOTS[cursorType].y * cursorSize}px`,
           zIndex: 100,
           pointerEvents: 'none',
-          filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25)) drop-shadow(0 1px 3px rgba(0,0,0,0.15))',
+          filter: motionBlurFilter,
           imageRendering: 'crisp-edges',
-          willChange: 'transform, left, top'
+          willChange: 'transform, left, top',
+          transition: 'none' // Disable CSS transitions for smoother frame-by-frame animation
         }}
       />
     </AbsoluteFill>

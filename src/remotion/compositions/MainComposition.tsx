@@ -6,7 +6,7 @@ import { CursorLayer } from './CursorLayer';
 import type { MainCompositionProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
-import { calculateZoomScale, smoothStep } from './utils/zoom-transform';
+import { calculateZoomScale, easeInOutQuint } from './utils/zoom-transform';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -125,10 +125,10 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             }
           }
         } else if (elapsed > blockDuration - outroMs) {
-          // Outro phase - smoothly return to center
+          // Outro phase - smoothly return to center with ultra-smooth easing
           const outroElapsed = elapsed - (blockDuration - outroMs);
           const outroProgress = outroElapsed / outroMs;
-          const easedProgress = smoothStep(outroProgress);
+          const easedProgress = easeInOutQuint(outroProgress);
 
           // Smoothly transition pan back to center during outro
           const fadeOutPan = 1 - easedProgress;

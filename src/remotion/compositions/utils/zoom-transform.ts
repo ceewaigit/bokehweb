@@ -5,10 +5,12 @@
 import { interpolate } from 'remotion';
 import type { ZoomBlock } from '@/types/project';
 
-// Use smoothStep for all zoom transitions (like Screen Studio)
-export const smoothStep = (t: number): number => {
-  const clampedT = Math.max(0, Math.min(1, t));
-  return clampedT * clampedT * (3 - 2 * clampedT);
+// Ultra-smooth easing for butter-like zoom and pan transitions
+export const easeInOutQuint = (t: number): number => {
+  if (t < 0.5) {
+    return 16 * t * t * t * t * t;
+  }
+  return 1 - Math.pow(-2 * t + 2, 5) / 2;
 };
 
 interface ZoomState {
@@ -39,7 +41,7 @@ export function calculateZoomScale(
       {
         extrapolateLeft: 'clamp',
         extrapolateRight: 'clamp',
-        easing: smoothStep  // Use smoothStep for silky smooth zoom
+        easing: easeInOutQuint  // Ultra-smooth butter-like zoom in
       }
     );
   } else if (elapsed > blockDuration - outroMs) {
@@ -53,7 +55,7 @@ export function calculateZoomScale(
       {
         extrapolateLeft: 'clamp',
         extrapolateRight: 'clamp',
-        easing: smoothStep  // Use smoothStep for consistent smoothness
+        easing: easeInOutQuint  // Ultra-smooth butter-like zoom out
       }
     );
   } else {
