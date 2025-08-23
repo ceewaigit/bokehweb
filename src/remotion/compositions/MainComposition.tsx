@@ -21,14 +21,12 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
-  // Track dynamic pan state separately for each zoom block with target tracking
+  // Track dynamic pan state for each zoom block
   const smoothPanRef = useRef({ 
     x: 0, 
     y: 0, 
-    targetX: 0,
-    targetY: 0,
     lastBlockId: null as string | null,
-    lastMouseTime: 0
+    initialized: false
   });
 
   // Calculate video position for cursor layer
@@ -61,6 +59,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           smoothPanRef.current.targetY = 0;
           smoothPanRef.current.lastBlockId = activeZoomBlock.id;
           smoothPanRef.current.lastMouseTime = currentTimeMs;
+          smoothPanRef.current.initialized = false; // Force re-initialization for new block
         }
 
         // Calculate zoom interpolation
@@ -82,12 +81,26 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         let panX = 0;
         let panY = 0;
 
+        // Initialize pan position based on zoom block target at the start
+        if (elapsed === 0 || !smoothPanRef.current.initialized) {
+          const initialPan = zoomPanCalculator.calculateInitialPan(
+            activeZoomBlock.targetX || 0.5,
+            activeZoomBlock.targetY || 0.5,
+            activeZoomBlock.scale || 2
+          );
+          smoothPanRef.current.x = initialPan.x;
+          smoothPanRef.current.y = initialPan.y;
+          smoothPanRef.current.targetX = initialPan.x;
+          smoothPanRef.current.targetY = initialPan.y;
+          smoothPanRef.current.initialized = true;
+        }
+
         if (elapsed < introMs) {
-          // Intro phase - calculate pan with immediate start
+          // Intro phase - smoothly transition to initial pan position
           const introProgress = elapsed / introMs;
           const easedProgress = smoothStep(introProgress);
 
-          // Calculate pan from the very start for smooth unified motion
+          // Get current mouse position for edge-based panning
           if (cursorEvents.length > 0) {
             const mousePos = zoomPanCalculator.interpolateMousePosition(
               cursorEvents,
@@ -98,7 +111,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               const screenWidth = cursorEvents[0].screenWidth;
               const screenHeight = cursorEvents[0].screenHeight;
 
-              // Calculate target pan with current scale
+              // Calculate edge-based pan with current scale
               const targetPan = zoomPanCalculator.calculateSmoothPan(
                 mousePos.x,
                 mousePos.y,
@@ -109,21 +122,16 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
                 smoothPanRef.current.y
               );
 
-              // Store targets and apply smooth interpolation
-              smoothPanRef.current.targetX = targetPan.x;
-              smoothPanRef.current.targetY = targetPan.y;
-              
-              // Apply pan with intro easing and additional smoothing
-              const panIntroFactor = easedProgress * 0.8; // Slightly slower pan intro
-              smoothPanRef.current.x += (smoothPanRef.current.targetX - smoothPanRef.current.x) * panIntroFactor * 0.3;
-              smoothPanRef.current.y += (smoothPanRef.current.targetY - smoothPanRef.current.y) * panIntroFactor * 0.3;
+              // Smoothly update pan during intro
+              smoothPanRef.current.x = targetPan.x;
+              smoothPanRef.current.y = targetPan.y;
               
               panX = smoothPanRef.current.x;
               panY = smoothPanRef.current.y;
             }
           }
         } else if (elapsed > blockDuration - outroMs) {
-          // Outro phase - scale is already calculated above
+          // Outro phase - smoothly return to center
           const outroElapsed = elapsed - (blockDuration - outroMs);
           const outroProgress = outroElapsed / outroMs;
           const easedProgress = smoothStep(outroProgress);
@@ -132,8 +140,13 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           const fadeOutPan = 1 - easedProgress;
           panX = smoothPanRef.current.x * fadeOutPan;
           panY = smoothPanRef.current.y * fadeOutPan;
+          
+          // Reset initialization flag for next zoom block
+          if (outroProgress >= 0.99) {
+            smoothPanRef.current.initialized = false;
+          }
         } else {
-          // Hold phase - scale is already calculated, just handle pan
+          // Hold phase - use edge-based panning
 
           // Get interpolated mouse position at current time
           const mousePos = zoomPanCalculator.interpolateMousePosition(
@@ -142,15 +155,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           );
 
           if (mousePos && cursorEvents.length > 0) {
-            // Get screen dimensions from the first event (they're consistent)
+            // Get screen dimensions from the first event
             const screenWidth = cursorEvents[0].screenWidth;
             const screenHeight = cursorEvents[0].screenHeight;
-
-            // Calculate time delta for smooth interpolation
-            const timeDelta = currentTimeMs - smoothPanRef.current.lastMouseTime;
-            smoothPanRef.current.lastMouseTime = currentTimeMs;
             
-            // Use smooth pan calculator with velocity prediction
+            // Use edge-based pan calculator
             const panOffset = zoomPanCalculator.calculateSmoothPan(
               mousePos.x,
               mousePos.y,
@@ -161,15 +170,14 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               smoothPanRef.current.y
             );
 
-            // Store targets
-            smoothPanRef.current.targetX = panOffset.x;
-            smoothPanRef.current.targetY = panOffset.y;
+            // Update pan position directly (calculator handles smoothing)
+            smoothPanRef.current.x = panOffset.x;
+            smoothPanRef.current.y = panOffset.y;
             
-            // Apply smooth interpolation with adaptive smoothing based on time delta
-            const smoothingFactor = Math.min(0.15, Math.max(0.08, timeDelta / 100)); // Adaptive smoothing
-            smoothPanRef.current.x += (smoothPanRef.current.targetX - smoothPanRef.current.x) * smoothingFactor;
-            smoothPanRef.current.y += (smoothPanRef.current.targetY - smoothPanRef.current.y) * smoothingFactor;
-            
+            panX = smoothPanRef.current.x;
+            panY = smoothPanRef.current.y;
+          } else {
+            // No mouse events, use current pan
             panX = smoothPanRef.current.x;
             panY = smoothPanRef.current.y;
           }

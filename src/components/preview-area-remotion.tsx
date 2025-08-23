@@ -47,8 +47,10 @@ export function PreviewAreaRemotion({
         // Get blob URL from recording storage
         let blobUrl = RecordingStorage.getBlobUrl(selectedRecording.id)
 
-        // Validate the cached URL is still valid
-        if (blobUrl) {
+        // For blob URLs, we can't use HEAD requests, so skip validation
+        // Blob URLs are memory-managed and will be valid as long as they exist
+        if (blobUrl && !blobUrl.startsWith('blob:')) {
+          // Only validate non-blob URLs (shouldn't happen in practice)
           try {
             const response = await fetch(blobUrl, { 
               method: 'HEAD',

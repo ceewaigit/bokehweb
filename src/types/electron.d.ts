@@ -62,6 +62,11 @@ export interface ElectronAPI {
     wallpapers: Array<{ name: string; path: string; thumbnail?: string }>
     gradients: Array<{ name: string; path: string; colors: string[] }>
   }>
+  selectScreenArea?: () => Promise<{
+    success: boolean
+    cancelled?: boolean
+    area?: { x: number; y: number; width: number; height: number; displayId: number }
+  }>
 
   // Window controls
   minimize: () => void

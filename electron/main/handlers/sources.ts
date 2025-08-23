@@ -1,7 +1,10 @@
 import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen, IpcMainInvokeEvent } from 'electron'
-import { exec } from 'child_process'
+import { exec, execSync } from 'child_process'
 import * as fs from 'fs/promises'
 import * as path from 'path'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 interface DesktopSourceOptions {
   types?: string[]
@@ -215,6 +218,93 @@ export function registerSourceHandlers(): void {
     } catch (error) {
       console.error('Error getting macOS wallpapers:', error)
       return { wallpapers: [], gradients: [] }
+    }
+  })
+
+  // Native macOS area selection using screencapture
+  ipcMain.handle('select-screen-area', async () => {
+    if (process.platform !== 'darwin') {
+      throw new Error('Area selection is only supported on macOS')
+    }
+
+    try {
+      console.log('🎯 Starting native macOS area selection')
+      
+      // Create a temporary file for the screenshot (we'll delete it after getting coords)
+      const tempFile = path.join(require('os').tmpdir(), `temp-selection-${Date.now()}.png`)
+      
+      // Use screencapture with interactive selection mode
+      // -i: interactive mode
+      // -s: selection mode only (no window mode)
+      // -o: no shadow
+      // -x: no sound
+      const command = `screencapture -i -s -o -x "${tempFile}"`
+      
+      try {
+        // Execute screencapture and wait for user to make selection
+        execSync(command, { stdio: 'ignore' })
+        
+        // If we get here, user made a selection (otherwise execSync would throw)
+        // Get the image dimensions to determine the selected area
+        const sipsCommand = `sips -g pixelWidth -g pixelHeight "${tempFile}"`
+        const sipsOutput = execSync(sipsCommand, { encoding: 'utf8' })
+        
+        // Parse dimensions from sips output
+        const widthMatch = sipsOutput.match(/pixelWidth:\s*(\d+)/)
+        const heightMatch = sipsOutput.match(/pixelHeight:\s*(\d+)/)
+        
+        if (!widthMatch || !heightMatch) {
+          throw new Error('Could not determine selection dimensions')
+        }
+        
+        const width = parseInt(widthMatch[1])
+        const height = parseInt(heightMatch[1])
+        
+        // Clean up temp file
+        try {
+          await fs.unlink(tempFile)
+        } catch {}
+        
+        // For the position, we need to use a different approach
+        // Since screencapture doesn't give us the position directly,
+        // we'll use the mouse position as an approximation
+        const mousePos = screen.getCursorScreenPoint()
+        const display = screen.getDisplayNearestPoint(mousePos)
+        
+        // Estimate the top-left position (this is approximate)
+        // In a real implementation, you might want to use native code
+        // or a more sophisticated approach
+        const x = Math.max(0, mousePos.x - Math.floor(width / 2))
+        const y = Math.max(0, mousePos.y - Math.floor(height / 2))
+        
+        console.log(`✅ Area selected: ${width}x${height} at approximately (${x}, ${y})`)
+        
+        return {
+          success: true,
+          area: {
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            displayId: display.id
+          }
+        }
+        
+      } catch (error: any) {
+        // User cancelled selection (ESC key)
+        if (error.status === 1) {
+          console.log('🚫 User cancelled area selection')
+          return {
+            success: false,
+            cancelled: true
+          }
+        }
+        throw error
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in native area selection:', error)
+      throw error
     }
   })
 }

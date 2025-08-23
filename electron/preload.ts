@@ -170,6 +170,13 @@ const electronAPI = {
   // macOS wallpapers
   getMacOSWallpapers: (): Promise<{ wallpapers: any[], gradients: any[] }> =>
     ipcRenderer.invoke('get-macos-wallpapers'),
+  
+  // Native screen area selection
+  selectScreenArea: (): Promise<{ 
+    success: boolean
+    cancelled?: boolean
+    area?: { x: number; y: number; width: number; height: number; displayId: number }
+  }> => ipcRenderer.invoke('select-screen-area'),
 
   // Recording and workspace control
   openWorkspace: () =>

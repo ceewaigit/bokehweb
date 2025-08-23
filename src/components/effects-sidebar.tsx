@@ -116,21 +116,21 @@ export function EffectsSidebar({
       {selectedEffectLayer && (
         <div className="px-3 py-1.5 bg-primary/5 border-b border-border/30">
           <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-medium">
-            {selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id ? 
-              `Zoom Block` : 
+            {selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id ?
+              `Zoom Block` :
               selectedEffectLayer.type} Layer
           </span>
         </div>
       )}
-      
+
       {/* Section Tabs */}
       <div className="flex gap-0.5 p-2 border-b border-border/30">
         <button
           onClick={() => setActiveTab('background')}
           className={cn(
             "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
-            activeTab === 'background' 
-              ? "bg-primary/10 text-primary shadow-sm" 
+            activeTab === 'background'
+              ? "bg-primary/10 text-primary shadow-sm"
               : "text-muted-foreground hover:text-foreground hover:bg-card/50"
           )}
         >
@@ -141,8 +141,8 @@ export function EffectsSidebar({
           onClick={() => setActiveTab('cursor')}
           className={cn(
             "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
-            activeTab === 'cursor' 
-              ? "bg-primary/10 text-primary shadow-sm" 
+            activeTab === 'cursor'
+              ? "bg-primary/10 text-primary shadow-sm"
               : "text-muted-foreground hover:text-foreground hover:bg-card/50"
           )}
         >
@@ -153,8 +153,8 @@ export function EffectsSidebar({
           onClick={() => setActiveTab('zoom')}
           className={cn(
             "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
-            activeTab === 'zoom' 
-              ? "bg-primary/10 text-primary shadow-sm" 
+            activeTab === 'zoom'
+              ? "bg-primary/10 text-primary shadow-sm"
               : "text-muted-foreground hover:text-foreground hover:bg-card/50"
           )}
         >
@@ -165,8 +165,8 @@ export function EffectsSidebar({
           onClick={() => setActiveTab('shape')}
           className={cn(
             "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
-            activeTab === 'shape' 
-              ? "bg-primary/10 text-primary shadow-sm" 
+            activeTab === 'shape'
+              ? "bg-primary/10 text-primary shadow-sm"
               : "text-muted-foreground hover:text-foreground hover:bg-card/50"
           )}
         >
@@ -217,8 +217,8 @@ export function EffectsSidebar({
                             className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group"
                             title={wallpaper.name}
                           >
-                            <img 
-                              src={wallpaper.thumbnail || wallpaper.path} 
+                            <img
+                              src={wallpaper.thumbnail || wallpaper.path}
                               alt={wallpaper.name}
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -233,31 +233,6 @@ export function EffectsSidebar({
                           </button>
                         ))}
                       </div>
-                    )}
-                    {macOSWallpapers.gradients.length > 0 && (
-                      <>
-                        <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-3">macOS Style Gradients</h3>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {macOSWallpapers.gradients.map((gradient) => (
-                            <button
-                              key={gradient.path}
-                              onClick={() => updateEffect('background', {
-                                type: 'gradient',
-                                gradient: {
-                                  type: 'linear',
-                                  colors: gradient.colors,
-                                  angle: 135
-                                }
-                              })}
-                              className="aspect-square rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105"
-                              style={{
-                                background: `linear-gradient(135deg, ${gradient.colors[0]}, ${gradient.colors[1]})`
-                              }}
-                              title={gradient.name}
-                            />
-                          ))}
-                        </div>
-                      </>
                     )}
                   </>
                 )}
@@ -287,9 +262,6 @@ export function EffectsSidebar({
                     />
                   ))}
                 </div>
-                <p className="text-[9px] text-muted-foreground/50 italic">
-                  Gradients by raycast.com
-                </p>
               </div>
             )}
 
@@ -388,7 +360,7 @@ export function EffectsSidebar({
                           <Slider
                             value={[block.scale]}
                             onValueChange={([value]) => {
-                              const updatedBlocks = effects.zoom.blocks?.map((b: any) => 
+                              const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
                                 b.id === block.id ? { ...b, scale: value } : b
                               )
                               updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
@@ -400,13 +372,13 @@ export function EffectsSidebar({
                           />
                           <span className="text-[10px] text-muted-foreground/70 font-mono">{block.scale.toFixed(1)}x</span>
                         </div>
-                        
+
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Intro</label>
                           <Slider
                             value={[block.introMs]}
                             onValueChange={([value]) => {
-                              const updatedBlocks = effects.zoom.blocks?.map((b: any) => 
+                              const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
                                 b.id === block.id ? { ...b, introMs: value } : b
                               )
                               updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
@@ -418,13 +390,13 @@ export function EffectsSidebar({
                           />
                           <span className="text-[10px] text-muted-foreground/70 font-mono">{block.introMs}ms</span>
                         </div>
-                        
+
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Outro</label>
                           <Slider
                             value={[block.outroMs]}
                             onValueChange={([value]) => {
-                              const updatedBlocks = effects.zoom.blocks?.map((b: any) => 
+                              const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
                                 b.id === block.id ? { ...b, outroMs: value } : b
                               )
                               updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })

@@ -445,11 +445,11 @@ export function WorkspaceManager() {
         </div>
 
         {/* Main Content Area - Use remaining height */}
-        <div className="flex" style={{ height: 'calc(100vh - 48px)' }}>
-          {/* Main Editor Section */}
-          <div className="flex flex-col" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
-            {/* Preview Area - 60% of remaining height */}
-            <div className="bg-background border-b overflow-hidden" style={{ height: '60%' }}>
+        <div className="flex flex-col" style={{ height: 'calc(100vh - 48px)' }}>
+          {/* Top Section - Preview and Sidebar (60% height) */}
+          <div className="flex" style={{ height: '60%' }}>
+            {/* Preview Area */}
+            <div className="bg-background border-b overflow-hidden" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
               <PreviewAreaRemotion
                 selectedClip={selectedClip}
                 selectedRecording={selectedRecording}
@@ -461,40 +461,40 @@ export function WorkspaceManager() {
               />
             </div>
 
-            {/* Timeline Section - 40% of remaining height */}
-            <div className="bg-card/50 overflow-hidden" style={{ height: '40%' }}>
-              <TimelineCanvas
-                className="h-full w-full"
-                currentProject={currentProject}
-                currentTime={currentTime}
-                isPlaying={isPlaying}
-                zoom={zoom}
-                onPlay={handlePlay}
-                onPause={handlePause}
-                onSeek={handleSeek}
-                onClipSelect={handleClipSelect}
-                onZoomChange={setZoom}
-                localEffects={localEffects}
-                onZoomBlockUpdate={handleZoomBlockUpdate}
-              />
-            </div>
+            {/* Properties Panel - Fixed width when open, same height as preview */}
+            {isPropertiesOpen && (
+              <div
+                className="bg-card border-l overflow-hidden"
+                style={{ width: `${propertiesPanelWidth}px` }}
+              >
+                <EffectsSidebar
+                  className="h-full w-full"
+                  selectedClip={selectedClip}
+                  effects={activeEffects || selectedClip?.effects}
+                  selectedEffectLayer={selectedEffectLayer}
+                  onEffectChange={handleEffectChange}
+                />
+              </div>
+            )}
           </div>
 
-          {/* Properties Panel - Fixed width when open */}
-          {isPropertiesOpen && (
-            <div
-              className="bg-card border-l overflow-hidden"
-              style={{ width: `${propertiesPanelWidth}px`, height: 'calc(100vh - 48px)' }}
-            >
-              <EffectsSidebar
-                className="h-full w-full"
-                selectedClip={selectedClip}
-                effects={activeEffects || selectedClip?.effects}
-                selectedEffectLayer={selectedEffectLayer}
-                onEffectChange={handleEffectChange}
-              />
-            </div>
-          )}
+          {/* Timeline Section - Full width at bottom (40% height) */}
+          <div className="bg-card/50 overflow-hidden" style={{ height: '40%', width: '100vw' }}>
+            <TimelineCanvas
+              className="h-full w-full"
+              currentProject={currentProject}
+              currentTime={currentTime}
+              isPlaying={isPlaying}
+              zoom={zoom}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onSeek={handleSeek}
+              onClipSelect={handleClipSelect}
+              onZoomChange={setZoom}
+              localEffects={localEffects}
+              onZoomBlockUpdate={handleZoomBlockUpdate}
+            />
+          </div>
         </div>
 
         {/* Dialogs and Modals */}

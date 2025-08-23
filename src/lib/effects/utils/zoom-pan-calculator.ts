@@ -6,17 +6,16 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly PAN_SMOOTHING = 0.12  // Lower for more responsive panning
-  private readonly MAX_PAN_OFFSET = 0.35  // Maximum pan from center
-  private readonly VELOCITY_SMOOTHING = 0.3  // For velocity-based prediction
-  private lastMouseX: number | null = null
-  private lastMouseY: number | null = null
-  private velocityX: number = 0
-  private velocityY: number = 0
+  private readonly PAN_SMOOTHING = 0.15  // Smoothing for pan transitions
+  private readonly EDGE_THRESHOLD = 0.15  // 15% from edge triggers panning
+  private readonly RECENTERING_MARGIN = 0.25  // Recenter when mouse is 25% from edge
+  private readonly MAX_PAN_SPEED = 0.02  // Maximum pan speed per frame
+  private targetPanX: number = 0
+  private targetPanY: number = 0
 
   /**
-   * Calculate smooth pan offset based on mouse position with velocity prediction
-   * Follows mouse at edges and when it escapes viewport
+   * Calculate pan offset using edge-based triggering like Screen Studio
+   * Only pans when mouse approaches viewport edges, otherwise stays stable
    */
   calculateSmoothPan(
     mouseX: number,
@@ -27,66 +26,121 @@ export class ZoomPanCalculator {
     currentPanX: number = 0,
     currentPanY: number = 0
   ): { x: number; y: number } {
-    // Calculate velocity for prediction
-    if (this.lastMouseX !== null && this.lastMouseY !== null) {
-      const newVelocityX = (mouseX - this.lastMouseX) / videoWidth
-      const newVelocityY = (mouseY - this.lastMouseY) / videoHeight
-      
-      // Smooth velocity to reduce jitter
-      this.velocityX = this.velocityX * (1 - this.VELOCITY_SMOOTHING) + newVelocityX * this.VELOCITY_SMOOTHING
-      this.velocityY = this.velocityY * (1 - this.VELOCITY_SMOOTHING) + newVelocityY * this.VELOCITY_SMOOTHING
+    // Calculate viewport dimensions in pixels
+    const viewportWidth = videoWidth / zoomScale
+    const viewportHeight = videoHeight / zoomScale
+    
+    // Calculate current viewport bounds in video space
+    // Pan values are normalized (-0.5 to 0.5), convert to pixels
+    const viewportCenterX = videoWidth / 2 - currentPanX * videoWidth
+    const viewportCenterY = videoHeight / 2 - currentPanY * videoHeight
+    
+    const viewportLeft = viewportCenterX - viewportWidth / 2
+    const viewportRight = viewportCenterX + viewportWidth / 2
+    const viewportTop = viewportCenterY - viewportHeight / 2
+    const viewportBottom = viewportCenterY + viewportHeight / 2
+    
+    // Calculate edge zones (pixels from viewport edge)
+    const edgeZoneX = viewportWidth * this.EDGE_THRESHOLD
+    const edgeZoneY = viewportHeight * this.EDGE_THRESHOLD
+    const recenterMarginX = viewportWidth * this.RECENTERING_MARGIN
+    const recenterMarginY = viewportHeight * this.RECENTERING_MARGIN
+    
+    // Check if mouse is near edges or outside viewport
+    const nearLeftEdge = mouseX < viewportLeft + edgeZoneX
+    const nearRightEdge = mouseX > viewportRight - edgeZoneX
+    const nearTopEdge = mouseY < viewportTop + edgeZoneY
+    const nearBottomEdge = mouseY > viewportBottom - edgeZoneY
+    
+    // Check if mouse is completely outside viewport (needs immediate panning)
+    const outsideLeft = mouseX < viewportLeft
+    const outsideRight = mouseX > viewportRight
+    const outsideTop = mouseY < viewportTop
+    const outsideBottom = mouseY > viewportBottom
+    
+    // Calculate new target pan only if near edges or outside
+    let newTargetPanX = currentPanX
+    let newTargetPanY = currentPanY
+    
+    // Horizontal panning
+    if (nearLeftEdge || outsideLeft) {
+      // Pan left to bring mouse back into comfortable viewing area
+      const targetMouseX = mouseX + recenterMarginX
+      const requiredCenterX = targetMouseX
+      newTargetPanX = (videoWidth / 2 - requiredCenterX) / videoWidth
+    } else if (nearRightEdge || outsideRight) {
+      // Pan right
+      const targetMouseX = mouseX - recenterMarginX
+      const requiredCenterX = targetMouseX
+      newTargetPanX = (videoWidth / 2 - requiredCenterX) / videoWidth
     }
     
-    this.lastMouseX = mouseX
-    this.lastMouseY = mouseY
-    // Normalize mouse position with velocity prediction
-    const predictionFrames = 8  // Predict 8 frames ahead
-    const predictedX = mouseX + (this.velocityX * videoWidth * predictionFrames)
-    const predictedY = mouseY + (this.velocityY * videoHeight * predictionFrames)
-    
-    // Use predicted position for smoother panning
-    const normalizedX = Math.max(0, Math.min(1, predictedX / videoWidth))
-    const normalizedY = Math.max(0, Math.min(1, predictedY / videoHeight))
-
-    // Viewport size in normalized coordinates
-    const viewportSize = 1 / zoomScale
-    
-    // Calculate ideal center position for the mouse
-    // This creates a "dead zone" in the center where no panning occurs
-    const centerDeadZone = 0.3  // 30% of viewport is dead zone
-    
-    // Calculate target pan based on mouse position
-    let targetPanX = currentPanX
-    let targetPanY = currentPanY
-    
-    // Calculate distance from center
-    const distFromCenterX = Math.abs(normalizedX - 0.5)
-    const distFromCenterY = Math.abs(normalizedY - 0.5)
-    
-    // Only pan if mouse is outside the dead zone
-    if (distFromCenterX > centerDeadZone * viewportSize) {
-      // Calculate pan amount based on distance from center
-      const panStrength = (distFromCenterX - centerDeadZone * viewportSize) / (0.5 - centerDeadZone * viewportSize)
-      targetPanX = (0.5 - normalizedX) * panStrength * 0.5
+    // Vertical panning
+    if (nearTopEdge || outsideTop) {
+      // Pan up
+      const targetMouseY = mouseY + recenterMarginY
+      const requiredCenterY = targetMouseY
+      newTargetPanY = (videoHeight / 2 - requiredCenterY) / videoHeight
+    } else if (nearBottomEdge || outsideBottom) {
+      // Pan down
+      const targetMouseY = mouseY - recenterMarginY
+      const requiredCenterY = targetMouseY
+      newTargetPanY = (videoHeight / 2 - requiredCenterY) / videoHeight
     }
     
-    if (distFromCenterY > centerDeadZone * viewportSize) {
-      const panStrength = (distFromCenterY - centerDeadZone * viewportSize) / (0.5 - centerDeadZone * viewportSize)
-      targetPanY = (0.5 - normalizedY) * panStrength * 0.5
+    // Clamp pan to maximum bounds (can't pan beyond video edges)
+    const maxPanX = (1 - 1/zoomScale) / 2
+    const maxPanY = (1 - 1/zoomScale) / 2
+    newTargetPanX = Math.max(-maxPanX, Math.min(maxPanX, newTargetPanX))
+    newTargetPanY = Math.max(-maxPanY, Math.min(maxPanY, newTargetPanY))
+    
+    // Update target if changed
+    const hasNewTarget = newTargetPanX !== this.targetPanX || newTargetPanY !== this.targetPanY
+    if (hasNewTarget) {
+      this.targetPanX = newTargetPanX
+      this.targetPanY = newTargetPanY
     }
-
-    // Clamp to bounds
-    const maxPan = Math.min(this.MAX_PAN_OFFSET, (1 - viewportSize) / 2)
-    targetPanX = Math.max(-maxPan, Math.min(maxPan, targetPanX))
-    targetPanY = Math.max(-maxPan, Math.min(maxPan, targetPanY))
-
-    // Smooth interpolation
-    const deltaX = targetPanX - currentPanX
-    const deltaY = targetPanY - currentPanY
+    
+    // Apply smooth interpolation to reach target
+    // Use faster interpolation if mouse is outside viewport
+    const urgency = (outsideLeft || outsideRight || outsideTop || outsideBottom) ? 0.3 : this.PAN_SMOOTHING
+    const deltaX = (this.targetPanX - currentPanX) * urgency
+    const deltaY = (this.targetPanY - currentPanY) * urgency
+    
+    // Limit maximum pan speed to prevent jarring movements
+    const clampedDeltaX = Math.max(-this.MAX_PAN_SPEED, Math.min(this.MAX_PAN_SPEED, deltaX))
+    const clampedDeltaY = Math.max(-this.MAX_PAN_SPEED, Math.min(this.MAX_PAN_SPEED, deltaY))
     
     return {
-      x: currentPanX + deltaX * this.PAN_SMOOTHING,
-      y: currentPanY + deltaY * this.PAN_SMOOTHING
+      x: currentPanX + clampedDeltaX,
+      y: currentPanY + clampedDeltaY
+    }
+  }
+
+  /**
+   * Calculate initial pan position for a zoom block
+   * Centers the viewport on the target position
+   */
+  calculateInitialPan(
+    targetX: number,  // Normalized 0-1
+    targetY: number,  // Normalized 0-1
+    zoomScale: number
+  ): { x: number; y: number } {
+    // Calculate how much we can pan at this zoom level
+    const maxPanX = (1 - 1/zoomScale) / 2
+    const maxPanY = (1 - 1/zoomScale) / 2
+    
+    // Calculate pan to center on target
+    // When targetX = 0.5, pan should be 0 (centered)
+    // When targetX = 0, pan should be positive (shift viewport left)
+    // When targetX = 1, pan should be negative (shift viewport right)
+    const panX = (0.5 - targetX) * (zoomScale - 1) / zoomScale
+    const panY = (0.5 - targetY) * (zoomScale - 1) / zoomScale
+    
+    // Clamp to bounds
+    return {
+      x: Math.max(-maxPanX, Math.min(maxPanX, panX)),
+      y: Math.max(-maxPanY, Math.min(maxPanY, panY))
     }
   }
 

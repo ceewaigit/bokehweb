@@ -6,7 +6,6 @@ import { Monitor, AppWindow, X, Check, Loader2, Sparkles, Maximize2 } from 'luci
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/utils/logger'
 import { Button } from '@/components/ui/button'
-import { AreaSelector } from './area-selector'
 
 interface Source {
   id: string
@@ -26,7 +25,6 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const [showAreaSelector, setShowAreaSelector] = useState(false)
   const thumbnailCache = useRef<Map<string, string>>(new Map())
 
   useEffect(() => {
@@ -113,12 +111,26 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
     }
   }, [])
 
-  const handleSelect = () => {
+  const handleSelect = async () => {
     if (selectedId) {
       if (selectedId === 'area:selection') {
-        // Open area selector overlay
-        setShowAreaSelector(true)
-        onClose() // Close the source picker
+        // Use native macOS area selection
+        onClose() // Close the source picker first
+        
+        try {
+          const result = await window.electronAPI?.selectScreenArea?.()
+          if (result?.success && result.area) {
+            // Create a custom source ID with the area dimensions
+            const areaSourceId = `area:${result.area.x},${result.area.y},${result.area.width},${result.area.height}`
+            onSelect(areaSourceId)
+          } else if (result?.cancelled) {
+            logger.info('User cancelled area selection')
+            // Reopen source picker if user cancelled
+            // Note: Parent component should handle this
+          }
+        } catch (error) {
+          logger.error('Failed to select screen area:', error)
+        }
       } else {
         onSelect(selectedId)
         onClose()
@@ -126,22 +138,14 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
     }
   }
 
-  const handleAreaSelect = (area: { x: number; y: number; width: number; height: number }) => {
-    // Create a custom source ID with the area dimensions
-    const areaSourceId = `area:${area.x},${area.y},${area.width},${area.height}`
-    onSelect(areaSourceId)
-    setShowAreaSelector(false)
-  }
-
   const screens = sources.filter(s => s.type === 'screen')
   const windows = sources.filter(s => s.type === 'window')
   const areaOption = sources.find(s => s.type === 'area')
 
   return (
-    <>
-      <AnimatePresence>
-        {isOpen && (
-          <>
+    <AnimatePresence>
+      {isOpen && (
+        <>
           {/* Glassmorphic backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -483,13 +487,5 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
         </>
       )}
     </AnimatePresence>
-    
-    {/* Area Selector Overlay */}
-    <AreaSelector
-      isOpen={showAreaSelector}
-      onClose={() => setShowAreaSelector(false)}
-      onSelect={handleAreaSelect}
-    />
-  </>
   )
 }
