@@ -52,6 +52,7 @@ export function registerMouseTrackingHandlers(): void {
       // For partial screen recordings, we'll default to arrow cursor
       if (targetWindow) {
         const handleCursorChange = (_event: any, type: string) => {
+          console.log('🔄 Cursor changed to:', type)
           currentCursorType = type
         }
 
@@ -59,6 +60,7 @@ export function registerMouseTrackingHandlers(): void {
         targetWindow.webContents.removeListener('cursor-changed', handleCursorChange)
         // Add the new listener
         targetWindow.webContents.on('cursor-changed', handleCursorChange)
+        console.log('👁️ Cursor change listener attached to window')
       }
 
       // Start click detection using global mouse hooks with source info
