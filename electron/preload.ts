@@ -56,30 +56,14 @@ interface OpenDialogOptions {
 const electronAPI = {
   // Desktop capture - properly use IPC with error handling
   getDesktopSources: async (options?: DesktopSourceOptions): Promise<DesktopSource[]> => {
-    try {
-      console.log('🎥 Preload: Requesting desktop sources via IPC')
-      const sources = await ipcRenderer.invoke('get-desktop-sources', options)
-
-      if (!sources || sources.length === 0) {
-        console.warn('No desktop sources returned from main process')
-        // Fallback to a default screen source if IPC fails
-        return [{
-          id: 'screen:1:0',
-          name: 'Entire screen',
-          display_id: 1
-        }]
-      }
-
-      return sources
-    } catch (error) {
-      console.error('Failed to get desktop sources:', error)
-      // Fallback to default screen source on error
-      return [{
-        id: 'screen:1:0',
-        name: 'Entire screen',
-        display_id: 1
-      }]
+    console.log('🎥 Preload: Requesting desktop sources via IPC')
+    const sources = await ipcRenderer.invoke('get-desktop-sources', options)
+    
+    if (!sources || sources.length === 0) {
+      throw new Error('No desktop sources available. Please check screen recording permissions.')
     }
+    
+    return sources
   },
 
   getDesktopStream: (sourceId: string, hasAudio: boolean) => {
@@ -274,15 +258,8 @@ const electronAPI = {
 }
 
 // Always expose the API using contextBridge for security
-// This works in both development and production
-try {
-  contextBridge.exposeInMainWorld('electronAPI', electronAPI)
-  console.log('Electron API exposed via contextBridge')
-} catch (error) {
-  // Fallback for cases where contextIsolation might be disabled
-  console.warn('Failed to use contextBridge, falling back to direct assignment:', error)
-    ; (globalThis as any).electronAPI = electronAPI
-}
+contextBridge.exposeInMainWorld('electronAPI', electronAPI)
+console.log('Electron API exposed via contextBridge')
 
 // Export types for TypeScript support
 export type ElectronAPI = typeof electronAPI

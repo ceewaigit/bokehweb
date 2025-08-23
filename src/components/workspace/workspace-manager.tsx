@@ -114,7 +114,6 @@ async function loadProjectRecording(
   // Set the project ONCE after all recordings are processed
   useProjectStore.getState().setProject(project)
 
-  // Auto-select the first clip if available
   const firstClip = project.timeline.tracks
     .flatMap((t: any) => t.clips)
     .sort((a: any, b: any) => a.startTime - b.startTime)[0]
@@ -213,7 +212,6 @@ export function WorkspaceManager() {
     ? currentProject.recordings.find(r => r.id === selectedClip.recordingId)
     : null
 
-  // Use local effects if available, otherwise use saved effects
   const activeEffects = localEffects || selectedClip?.effects
 
   // Define handlePause first since it's used in useEffect
@@ -221,26 +219,21 @@ export function WorkspaceManager() {
     storePause()
   }, [storePause])
 
-  // Sync video playback with timeline
+  // Monitor clip boundaries during playback
   useEffect(() => {
     if (!selectedClip || !isPlaying) return
 
-    // Playback sync is now handled by Remotion Player
     const syncInterval = setInterval(() => {
       if (!isPlaying) return
 
-      // Just monitor for clip boundaries
       const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
       const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
       const maxTime = selectedClip.sourceOut / 1000
 
-      if (sourceTime <= maxTime) {
-        // All video sync is handled by Remotion
-      } else {
-        // Reached end of clip
+      if (sourceTime > maxTime) {
         handlePause()
       }
-    }, 100) // Sync every 100ms
+    }, 100)
 
     playbackIntervalRef.current = syncInterval
 
@@ -250,7 +243,6 @@ export function WorkspaceManager() {
       }
     }
   }, [isPlaying, currentTime, selectedClip, handlePause])
-
 
 
   // Track when component is mounted
@@ -278,9 +270,6 @@ export function WorkspaceManager() {
     loadVideo()
   }, [selectedRecording?.id, selectedRecording?.filePath, isMounted])
 
-
-
-
   // Centralized playback control
   const handlePlay = useCallback(() => {
     if (!selectedClip || !selectedRecording) return
@@ -292,10 +281,8 @@ export function WorkspaceManager() {
   }, [storeSeek])
 
   const handleClipSelect = useCallback((clipId: string) => {
-    // Reset local effects when switching clips
     setLocalEffects(null)
     setHasUnsavedChanges(false)
-
     selectClip(clipId)
   }, [selectClip])
 
@@ -326,8 +313,6 @@ export function WorkspaceManager() {
       setLocalEffects(effects)
       setHasUnsavedChanges(true)
 
-      // Sync zoom effects with engine for real-time preview
-      // Effects are now handled by Remotion components
     }
   }, [selectedClipId, selectedRecording])
 
@@ -398,7 +383,6 @@ export function WorkspaceManager() {
                   return
                 }
 
-                // Hide loading screen after everything is loaded
                 setIsLoading(false)
               } catch (error) {
                 console.error('Failed to load recording:', error)
@@ -426,10 +410,8 @@ export function WorkspaceManager() {
               setHasUnsavedChanges(false)
             }}
             onSaveProject={async () => {
-              // Apply local effects before saving
               if (localEffects && selectedClipId) {
                 updateClipEffects(selectedClipId, localEffects)
-                // Clear local effects after applying to avoid double updates
                 setLocalEffects(null)
               }
               await saveCurrentProject()

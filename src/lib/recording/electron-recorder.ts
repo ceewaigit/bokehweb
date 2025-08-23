@@ -124,11 +124,6 @@ export class ElectronRecorder {
           )
         }
 
-        // Fallback to first screen source if nothing found
-        if (!primarySource) {
-          primarySource = sources.find((s) => s.id.startsWith('screen:'))
-        }
-
         if (!primarySource) {
           throw new Error('No suitable recording source found. Please check screen recording permissions.')
         }
@@ -638,8 +633,7 @@ export class ElectronRecorder {
     logger.debug('Native tracking status', nativeAvailable)
 
     if (!nativeAvailable.available) {
-      logger.warn('Native mouse tracking not available, using Electron fallback')
-      // Continue anyway - the NativeMouseTracker uses Electron's screen API as fallback
+      logger.warn('Native mouse tracking not available')
     }
 
     // No longer need document-level click listeners

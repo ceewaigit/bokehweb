@@ -106,28 +106,15 @@ export function registerSourceHandlers(): void {
           thumbnail: source.thumbnail?.toDataURL() || undefined
         }))
         
-        // If no sources found, return at least the primary screen
         if (mappedSources.length === 0) {
-          console.warn('No sources found, returning default screen')
-          const primaryDisplay = screen.getPrimaryDisplay()
-          return [{
-            id: `screen:${primaryDisplay.id}:0`,
-            name: 'Entire screen',
-            display_id: primaryDisplay.id
-          }]
+          throw new Error('No sources found. Please check screen recording permissions.')
         }
         
         console.log('📺 Returning sources:', mappedSources.map(s => `${s.name} (${s.id})`))
         return mappedSources
       } catch (captureError) {
         console.error('desktopCapturer failed:', captureError)
-        // Fallback to screen info if desktopCapturer fails
-        const allDisplays = screen.getAllDisplays()
-        return allDisplays.map((display, index) => ({
-          id: `screen:${display.id}:0`,
-          name: index === 0 ? 'Entire screen' : `Screen ${index + 1}`,
-          display_id: display.id
-        }))
+        throw new Error('Failed to capture desktop sources. Please check screen recording permissions.')
       }
 
     } catch (error: any) {

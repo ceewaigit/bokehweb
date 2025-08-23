@@ -102,7 +102,6 @@ export function TimelineCanvas({
     const updateSize = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
-        // Use full container dimensions without any padding
         setStageSize({ width: rect.width, height: rect.height })
       }
     }
@@ -110,8 +109,6 @@ export function TimelineCanvas({
     window.addEventListener('resize', updateSize)
     return () => window.removeEventListener('resize', updateSize)
   }, [])
-
-  // Removed animation loop - now handled by project store
 
   // Auto-scroll during playback
   useEffect(() => {
@@ -139,7 +136,7 @@ export function TimelineCanvas({
   // Handle clip selection
   const handleClipSelect = useCallback((clipId: string) => {
     onClipSelect(clipId)
-    selectClip(clipId) // Still need for multi-selection tracking
+    selectClip(clipId)
   }, [onClipSelect, selectClip])
 
   // Handle clip drag
@@ -209,7 +206,6 @@ export function TimelineCanvas({
   // Stage click handler - click to seek and clear selections
   const handleStageClick = useCallback((e: any) => {
     if (e.target === e.target.getStage()) {
-      // Clear effect selection when clicking empty space
       clearEffectSelection()
 
       const x = e.evt.offsetX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
@@ -339,7 +335,6 @@ export function TimelineCanvas({
                 .find(t => t.type === 'video')
                 ?.clips.find(c => selectedClips.includes(c.id))
 
-              // Use local effects if available, otherwise use saved effects
               const clipEffects = localEffects || selectedClip?.effects
               if (!clipEffects?.zoom?.enabled || !selectedClip) return null
 
@@ -369,7 +364,6 @@ export function TimelineCanvas({
                   }}
                   onDragEnd={(newX) => {
                     const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
-                    // Use local update if available, otherwise use store update
                     if (onZoomBlockUpdate) {
                       onZoomBlockUpdate(selectedClip.id, block.id, {
                         startTime: newStartTime,
@@ -384,7 +378,6 @@ export function TimelineCanvas({
                   }}
                   onResize={(newWidth, side) => {
                     if (side === 'right') {
-                      // Right handle - just update the end time
                       const updates = {
                         endTime: block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
                       }
@@ -394,7 +387,6 @@ export function TimelineCanvas({
                         updateZoomBlock(selectedClip.id, block.id, updates)
                       }
                     } else if (side === 'left') {
-                      // Left handle - update start time and maintain duration
                       const oldDuration = block.endTime - block.startTime
                       const widthDiff = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs) - newWidth
                       const newStartTime = block.startTime + TimelineUtils.pixelToTime(widthDiff, pixelsPerMs)

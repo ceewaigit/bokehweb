@@ -4,7 +4,6 @@
  */
 
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { logger } from '@/lib/utils/logger'
 import { SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'

@@ -55,10 +55,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         if (smoothPanRef.current.lastBlockId !== activeZoomBlock.id) {
           smoothPanRef.current.x = 0;
           smoothPanRef.current.y = 0;
-          smoothPanRef.current.targetX = 0;
-          smoothPanRef.current.targetY = 0;
           smoothPanRef.current.lastBlockId = activeZoomBlock.id;
-          smoothPanRef.current.lastMouseTime = currentTimeMs;
           smoothPanRef.current.initialized = false; // Force re-initialization for new block
         }
 
@@ -90,15 +87,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           );
           smoothPanRef.current.x = initialPan.x;
           smoothPanRef.current.y = initialPan.y;
-          smoothPanRef.current.targetX = initialPan.x;
-          smoothPanRef.current.targetY = initialPan.y;
           smoothPanRef.current.initialized = true;
         }
 
         if (elapsed < introMs) {
-          // Intro phase - smoothly transition to initial pan position
-          const introProgress = elapsed / introMs;
-          const easedProgress = smoothStep(introProgress);
+          // Intro phase - edge-based panning with smooth intro
 
           // Get current mouse position for edge-based panning
           if (cursorEvents.length > 0) {
@@ -141,10 +134,6 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           panX = smoothPanRef.current.x * fadeOutPan;
           panY = smoothPanRef.current.y * fadeOutPan;
           
-          // Reset initialization flag for next zoom block
-          if (outroProgress >= 0.99) {
-            smoothPanRef.current.initialized = false;
-          }
         } else {
           // Hold phase - use edge-based panning
 
@@ -199,10 +188,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         if (smoothPanRef.current.lastBlockId !== null) {
           smoothPanRef.current.x = 0;
           smoothPanRef.current.y = 0;
-          smoothPanRef.current.targetX = 0;
-          smoothPanRef.current.targetY = 0;
           smoothPanRef.current.lastBlockId = null;
-          smoothPanRef.current.lastMouseTime = 0;
+          smoothPanRef.current.initialized = false;
         }
       }
     }
