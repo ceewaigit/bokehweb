@@ -269,33 +269,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Apply cursor size from effects (default to 3.0 to match UI)
   const cursorSize = cursorEffects?.size ?? 3.0;
 
-  // Apply cursor hotspot offset for accurate positioning
-  const hotspot = CURSOR_HOTSPOTS[cursorType];
-  const dimensions = CURSOR_DIMENSIONS[cursorType];
-  
-  // Calculate the actual rendered size of the cursor
-  const renderedWidth = dimensions.width * cursorSize;
-  const renderedHeight = dimensions.height * cursorSize;
-  
-  // Debug logging to understand the offset issue
-  if (frame % 30 === 0) { // Log every 30 frames to avoid spam
-    console.log('Cursor positioning debug:', {
-      cursorType,
-      cursorSize,
-      dimensions,
-      renderedSize: { width: renderedWidth, height: renderedHeight },
-      hotspot,
-      hotspotOffset: { x: hotspot.x * renderedWidth, y: hotspot.y * renderedHeight },
-      cursorPosBefore: { x: cursorX, y: cursorY },
-      cursorPosAfter: { x: cursorX - hotspot.x * renderedWidth, y: cursorY - hotspot.y * renderedHeight }
-    });
-  }
-  
-  // Apply hotspot offset based on the ratio of the cursor dimensions
-  // This works for any cursor size since hotspots are defined as ratios
-  cursorX -= hotspot.x * renderedWidth;
-  cursorY -= hotspot.y * renderedHeight;
-
   // Apply zoom transformation if needed
   if (zoom.scale > 1) {
     const zoomBlock = {
@@ -322,6 +295,19 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     cursorX = transformedPos.x;
     cursorY = transformedPos.y;
   }
+  
+  // Get cursor hotspot and dimensions
+  const hotspot = CURSOR_HOTSPOTS[cursorType];
+  const dimensions = CURSOR_DIMENSIONS[cursorType];
+  
+  // Calculate the actual rendered size of the cursor
+  const renderedWidth = dimensions.width * cursorSize;
+  const renderedHeight = dimensions.height * cursorSize;
+  
+  // Apply hotspot offset AFTER all transformations including zoom
+  // This ensures the offset is always in the final screen space
+  cursorX -= hotspot.x * renderedWidth;
+  cursorY -= hotspot.y * renderedHeight;
 
   // Create motion blur filter based on velocity
   const motionBlurFilter = useMemo(() => {
@@ -336,16 +322,16 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return `${baseFilter} blur(${blurAmount * 0.15}px)`;
   }, [motionVelocity]);
 
-  // Generate motion trail for smooth gliding effect
+  // Generate motion trail for smooth gliding effect (optimized for performance)
   const motionTrail = useMemo(() => {
-    if (motionVelocity.speed < 3) return null;
+    if (motionVelocity.speed < 4) return null; // Higher threshold to reduce renders
     
-    const trailCount = Math.min(Math.floor(motionVelocity.speed / 2), 5);
+    const trailCount = Math.min(Math.floor(motionVelocity.speed / 3), 3); // Fewer trails for better performance
     const trails = [];
     
     for (let i = 1; i <= trailCount; i++) {
-      const opacity = 0.15 * (1 - i / (trailCount + 1));
-      const offset = i * 3;
+      const opacity = 0.08 * (1 - i / (trailCount + 1)); // Subtler opacity
+      const offset = i * 4; // Slightly larger spacing
       const offsetX = -Math.cos(motionVelocity.angle * Math.PI / 180) * offset;
       const offsetY = -Math.sin(motionVelocity.angle * Math.PI / 180) * offset;
       
