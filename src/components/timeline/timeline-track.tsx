@@ -13,11 +13,11 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
   const getTrackStyle = () => {
     switch (type) {
       case 'video':
-        return { bgFill: '#0a0a0f', bgOpacity: 0.8, labelText: 'Video', labelSize: 12 }
+        return { bgFill: 'hsl(var(--background))', bgOpacity: 0.4, labelText: 'V', labelSize: 10 }
       case 'zoom':
-        return { bgFill: 'rgba(59, 130, 246, 0.08)', bgOpacity: 1, labelText: 'Zoom', labelSize: 11 }
+        return { bgFill: 'hsl(var(--primary))', bgOpacity: 0.05, labelText: 'Z', labelSize: 10 }
       case 'audio':
-        return { bgFill: '#0a0a0f', bgOpacity: 0.6, labelText: 'Audio', labelSize: 12 }
+        return { bgFill: 'hsl(var(--background))', bgOpacity: 0.3, labelText: 'A', labelSize: 10 }
     }
   }
 
@@ -38,15 +38,28 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         y={y}
         width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
         height={height}
-        fill="#1a1a2e"
+        fill="hsl(var(--card))"
+        opacity={0.5}
+      />
+      <Rect
+        x={0}
+        y={y}
+        width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH - 1}
+        height={height}
+        stroke="hsl(var(--border))"
+        strokeWidth={0.5}
+        fill="transparent"
+        opacity={0.3}
       />
       <Text
-        x={10}
-        y={y + height / 2 - 6}
+        x={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH / 2 - 4}
+        y={y + height / 2 - 5}
         text={style.labelText}
         fontSize={style.labelSize}
-        fill={type === 'zoom' ? '#60a5fa' : '#e2e8f0'}
-        fontStyle={type === 'zoom' ? 'italic' : 'normal'}
+        fill="hsl(var(--muted-foreground))"
+        fontFamily="monospace"
+        fontStyle="bold"
+        opacity={0.7}
       />
     </Group>
   )

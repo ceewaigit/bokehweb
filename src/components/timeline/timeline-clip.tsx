@@ -38,10 +38,10 @@ export const TimelineClip = React.memo(({
     ? TIMELINE_LAYOUT.VIDEO_TRACK_HEIGHT 
     : TIMELINE_LAYOUT.AUDIO_TRACK_HEIGHT
 
-  const fillColor = trackType === 'video' ? '#2563eb' : '#10b981'
+  const fillColor = trackType === 'video' ? 'hsl(var(--primary))' : 'hsl(var(--accent))'
   const strokeColor = isSelected 
-    ? (trackType === 'video' ? '#60a5fa' : '#34d399')
-    : (trackType === 'video' ? '#1e40af' : '#059669')
+    ? 'hsl(var(--primary-foreground))'
+    : 'transparent'
 
   return (
     <Group
@@ -70,21 +70,23 @@ export const TimelineClip = React.memo(({
         height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
         fill={fillColor}
         stroke={strokeColor}
-        strokeWidth={isSelected ? 3 : 1}
-        cornerRadius={trackType === 'video' ? 6 : 4}
+        strokeWidth={isSelected ? 2 : 0.5}
+        cornerRadius={4}
+        opacity={isSelected ? 1 : 0.85}
         shadowColor="black"
-        shadowBlur={trackType === 'video' ? 5 : 3}
-        shadowOpacity={trackType === 'video' ? 0.3 : 0.2}
-        shadowOffsetY={trackType === 'video' ? 2 : 1}
+        shadowBlur={isSelected ? 8 : 2}
+        shadowOpacity={0.2}
+        shadowOffsetY={1}
       />
 
       <Text
-        x={8}
-        y={trackType === 'video' ? trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2 - 20 : 8}
-        text={`${trackType === 'video' ? 'Clip' : 'Audio'} ${clip.id.slice(-4)}`}
-        fontSize={12}
-        fill="white"
-        fontStyle={trackType === 'video' ? 'bold' : 'normal'}
+        x={6}
+        y={6}
+        text={`${clip.id.slice(-4)}`}
+        fontSize={10}
+        fill="hsl(var(--background))"
+        fontFamily="monospace"
+        fontStyle="bold"
       />
 
       {/* Effect badges for video clips - clickable indicators */}
@@ -108,17 +110,16 @@ export const TimelineClip = React.memo(({
               onTap={(e) => handleBadgeClick(e, 'zoom')}
             >
               <Rect 
-                width={45} 
-                height={18} 
-                fill={selectedEffectType === 'zoom' ? "#3b82f6" : "rgba(59, 130, 246, 0.9)"} 
-                cornerRadius={3}
-                stroke={selectedEffectType === 'zoom' ? "white" : undefined}
-                strokeWidth={selectedEffectType === 'zoom' ? 2 : 0}
+                width={32} 
+                height={14} 
+                fill={selectedEffectType === 'zoom' ? "hsl(var(--primary))" : "hsl(var(--muted))"} 
+                cornerRadius={2}
+                opacity={selectedEffectType === 'zoom' ? 1 : 0.7}
               />
-              <Text x={6} y={4} text="Zoom" fontSize={10} fill="white" fontStyle={selectedEffectType === 'zoom' ? 'bold' : 'normal'} />
+              <Text x={5} y={3} text="Z" fontSize={9} fill="hsl(var(--background))" fontFamily="monospace" fontStyle="bold" />
             </Group>
           )
-          xOffset += 50
+          xOffset += 36
         }
         
         if (clip.effects?.cursor?.visible) {
@@ -131,17 +132,16 @@ export const TimelineClip = React.memo(({
               onTap={(e) => handleBadgeClick(e, 'cursor')}
             >
               <Rect 
-                width={45} 
-                height={18} 
-                fill={selectedEffectType === 'cursor' ? "#22c55e" : "rgba(34, 197, 94, 0.9)"} 
-                cornerRadius={3}
-                stroke={selectedEffectType === 'cursor' ? "white" : undefined}
-                strokeWidth={selectedEffectType === 'cursor' ? 2 : 0}
+                width={32} 
+                height={14} 
+                fill={selectedEffectType === 'cursor' ? "hsl(var(--accent))" : "hsl(var(--muted))"} 
+                cornerRadius={2}
+                opacity={selectedEffectType === 'cursor' ? 1 : 0.7}
               />
-              <Text x={5} y={4} text="Cursor" fontSize={10} fill="white" fontStyle={selectedEffectType === 'cursor' ? 'bold' : 'normal'} />
+              <Text x={5} y={3} text="C" fontSize={9} fill="hsl(var(--background))" fontFamily="monospace" fontStyle="bold" />
             </Group>
           )
-          xOffset += 50
+          xOffset += 36
         }
         
         if (clip.effects?.background?.type && clip.effects.background.type !== 'none') {
@@ -154,19 +154,18 @@ export const TimelineClip = React.memo(({
               onTap={(e) => handleBadgeClick(e, 'background')}
             >
               <Rect 
-                width={30} 
-                height={18} 
-                fill={selectedEffectType === 'background' ? "#a855f7" : "rgba(168, 85, 247, 0.9)"} 
-                cornerRadius={3}
-                stroke={selectedEffectType === 'background' ? "white" : undefined}
-                strokeWidth={selectedEffectType === 'background' ? 2 : 0}
+                width={32} 
+                height={14} 
+                fill={selectedEffectType === 'background' ? "hsl(var(--secondary))" : "hsl(var(--muted))"} 
+                cornerRadius={2}
+                opacity={selectedEffectType === 'background' ? 1 : 0.7}
               />
-              <Text x={8} y={4} text="BG" fontSize={10} fill="white" fontStyle={selectedEffectType === 'background' ? 'bold' : 'normal'} />
+              <Text x={5} y={3} text="B" fontSize={9} fill="hsl(var(--background))" fontFamily="monospace" fontStyle="bold" />
             </Group>
           )
         }
         
-        return badges.length > 0 ? <Group x={8} y={8}>{badges}</Group> : null
+        return badges.length > 0 ? <Group x={6} y={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2 - 20}>{badges}</Group> : null
       })()}
     </Group>
   )

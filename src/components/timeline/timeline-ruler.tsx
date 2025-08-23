@@ -20,9 +20,10 @@ export const TimelineRuler = React.memo(({ duration, zoom, pixelsPerMs }: Timeli
     marks.push(
       <Line
         key={`mark-${time}`}
-        points={[x, TIMELINE_LAYOUT.RULER_HEIGHT - (isMajor ? 16 : 8), x, TIMELINE_LAYOUT.RULER_HEIGHT]}
-        stroke="#666"
-        strokeWidth={isMajor ? 2 : 1}
+        points={[x, TIMELINE_LAYOUT.RULER_HEIGHT - (isMajor ? 12 : 6), x, TIMELINE_LAYOUT.RULER_HEIGHT]}
+        stroke="hsl(var(--muted-foreground))"
+        strokeWidth={isMajor ? 1.5 : 0.5}
+        opacity={isMajor ? 0.6 : 0.3}
       />
     )
 
@@ -30,11 +31,13 @@ export const TimelineRuler = React.memo(({ duration, zoom, pixelsPerMs }: Timeli
       marks.push(
         <Text
           key={`label-${time}`}
-          x={x + 4}
-          y={4}
+          x={x + 2}
+          y={3}
           text={formatTime(time)}
-          fontSize={11}
-          fill="#999"
+          fontSize={9}
+          fill="hsl(var(--muted-foreground))"
+          fontFamily="monospace"
+          opacity={0.7}
         />
       )
     }

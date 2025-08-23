@@ -5,6 +5,8 @@ import { getAppURL, isDev } from '../config'
 // Webpack entry points are set as environment variables by electron-forge
 
 export function createMainWindow(): BrowserWindow {
+  console.log('[MainWindow] Creating main window...')
+  
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -35,14 +37,16 @@ export function createMainWindow(): BrowserWindow {
   setupPermissions(mainWindow)
   setupSecurityPolicy(mainWindow)
 
-  mainWindow.loadURL(getAppURL())
-
+  // Don't load URL here - let the caller handle it
+  // This prevents double loading
+  
   if (isDev) {
     mainWindow.webContents.openDevTools()
-    mainWindow.once('ready-to-show', () => {
-      mainWindow.show()
-    })
   }
+
+  mainWindow.on('closed', () => {
+    console.log('[MainWindow] Window closed')
+  })
 
   return mainWindow
 }

@@ -231,7 +231,7 @@ export function TimelineCanvas({
   }
 
   return (
-    <div className={cn("flex flex-col h-full w-full bg-background", className)}>
+    <div className={cn("flex flex-col h-full w-full bg-gradient-to-b from-background to-background/95", className)}>
       <TimelineControls
         isPlaying={isPlaying}
         zoom={zoom}
@@ -254,7 +254,7 @@ export function TimelineCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-auto relative"
+        className="flex-1 overflow-auto relative bg-background/50 backdrop-blur-sm"
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       >
         <Stage
@@ -269,7 +269,8 @@ export function TimelineCanvas({
               y={0}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
               height={TIMELINE_LAYOUT.RULER_HEIGHT}
-              fill="#0f0f23"
+              fill="hsl(var(--background))"
+              opacity={0.8}
             />
 
             <TimelineTrack
@@ -447,9 +448,11 @@ export function TimelineCanvas({
       </div>
 
       {/* Timeline Info */}
-      <div className="flex items-center justify-between px-4 py-2 border-t border-border text-xs text-muted-foreground">
-        <span>{selectedClips.length} clip(s) selected</span>
-        <span>
+      <div className="flex items-center justify-between px-3 py-1.5 border-t border-border/50 bg-card/30 backdrop-blur-md">
+        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+          {selectedClips.length > 0 ? `${selectedClips.length} selected` : 'No selection'}
+        </span>
+        <span className="text-[10px] font-mono text-foreground/70">
           {formatTime(currentTime)} / {formatTime(currentProject.timeline.duration)}
         </span>
       </div>

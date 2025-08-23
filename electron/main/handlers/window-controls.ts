@@ -6,31 +6,38 @@ import { createCountdownWindow, showCountdown } from '../windows/countdown-windo
 let countdownWindow: BrowserWindow | null = null
 
 export function registerWindowControlHandlers(): void {
-  ipcMain.handle('open-workspace', () => {
-    if (!global.mainWindow) {
-      global.mainWindow = createMainWindow()
-      global.mainWindow.loadURL(getAppURL())
-      global.mainWindow.once('ready-to-show', () => {
-        global.mainWindow!.show()
-        global.mainWindow!.focus()
-      })
-    } else {
-      global.mainWindow.show()
-      global.mainWindow.focus()
-    }
-  })
-
+  // Handle opening workspace - using ipcMain.on for send/receive pattern
   ipcMain.on('open-workspace', () => {
-    if (!global.mainWindow) {
-      global.mainWindow = createMainWindow()
-      global.mainWindow.loadURL(getAppURL())
-      global.mainWindow.once('ready-to-show', () => {
-        global.mainWindow!.show()
-        global.mainWindow!.focus()
-      })
-    } else {
-      global.mainWindow.show()
-      global.mainWindow.focus()
+    try {
+      console.log('[WindowControls] Opening workspace...')
+      
+      if (!global.mainWindow) {
+        console.log('[WindowControls] Creating new main window')
+        global.mainWindow = createMainWindow()
+        
+        const url = getAppURL()
+        console.log('[WindowControls] Loading URL:', url)
+        global.mainWindow.loadURL(url)
+        
+        global.mainWindow.once('ready-to-show', () => {
+          console.log('[WindowControls] Main window ready to show')
+          if (global.mainWindow) {
+            global.mainWindow.show()
+            global.mainWindow.focus()
+          }
+        })
+        
+        global.mainWindow.on('closed', () => {
+          console.log('[WindowControls] Main window closed')
+          global.mainWindow = null
+        })
+      } else {
+        console.log('[WindowControls] Showing existing main window')
+        global.mainWindow.show()
+        global.mainWindow.focus()
+      }
+    } catch (error) {
+      console.error('[WindowControls] Failed to open workspace:', error)
     }
   })
 

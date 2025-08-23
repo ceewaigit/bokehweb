@@ -60,34 +60,37 @@ export const TimelineControls = React.memo(({
   const hasSingleSelection = selectedClips.length === 1
 
   return (
-    <div className="flex items-center justify-between p-2 border-b border-border">
-      <div className="flex items-center space-x-2">
+    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 bg-card/50 backdrop-blur-sm">
+      <div className="flex items-center gap-1">
         {/* Playback Controls */}
         <Button
           size="sm"
           variant="ghost"
           onClick={() => onSeek(Math.max(0, currentTime - 1000))}
+          className="h-7 w-7 p-0"
         >
-          <SkipBack className="w-4 h-4" />
+          <SkipBack className="w-3.5 h-3.5" />
         </Button>
         
         <Button
           size="sm"
           variant="ghost"
           onClick={() => isPlaying ? onPause() : onPlay()}
+          className="h-7 w-7 p-0"
         >
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
         </Button>
         
         <Button
           size="sm"
           variant="ghost"
           onClick={() => onSeek(Math.min(maxDuration, currentTime + 1000))}
+          className="h-7 w-7 p-0"
         >
-          <SkipForward className="w-4 h-4" />
+          <SkipForward className="w-3.5 h-3.5" />
         </Button>
 
-        <div className="w-px h-6 bg-border mx-2" />
+        <div className="w-px h-5 bg-border/50 mx-1" />
 
         {/* Edit Controls */}
         <Button
@@ -96,8 +99,9 @@ export const TimelineControls = React.memo(({
           onClick={onSplit}
           disabled={!hasSingleSelection}
           title="Split at playhead (S)"
+          className="h-7 w-7 p-0"
         >
-          <Scissors className="w-4 h-4" />
+          <Scissors className="w-3.5 h-3.5" />
         </Button>
         
         <Button
@@ -106,8 +110,9 @@ export const TimelineControls = React.memo(({
           onClick={onTrimStart}
           disabled={!hasSingleSelection}
           title="Trim start to playhead (Q)"
+          className="h-7 w-7 p-0"
         >
-          <ChevronsLeft className="w-4 h-4" />
+          <ChevronsLeft className="w-3.5 h-3.5" />
         </Button>
         
         <Button
@@ -116,8 +121,9 @@ export const TimelineControls = React.memo(({
           onClick={onTrimEnd}
           disabled={!hasSingleSelection}
           title="Trim end to playhead (W)"
+          className="h-7 w-7 p-0"
         >
-          <ChevronsRight className="w-4 h-4" />
+          <ChevronsRight className="w-3.5 h-3.5" />
         </Button>
         
         <Button
@@ -125,8 +131,9 @@ export const TimelineControls = React.memo(({
           variant="ghost"
           onClick={onDelete}
           disabled={!hasSelection}
+          className="h-7 w-7 p-0"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="w-3.5 h-3.5" />
         </Button>
         
         <Button
@@ -134,8 +141,9 @@ export const TimelineControls = React.memo(({
           variant="ghost"
           onClick={onCopy}
           disabled={!hasSingleSelection}
+          className="h-7 w-7 p-0"
         >
-          <Copy className="w-4 h-4" />
+          <Copy className="w-3.5 h-3.5" />
         </Button>
         
         <Button
@@ -143,8 +151,9 @@ export const TimelineControls = React.memo(({
           variant="ghost"
           onClick={onPaste}
           disabled={!copiedClip}
+          className="h-7 w-7 p-0"
         >
-          <Clipboard className="w-4 h-4" />
+          <Clipboard className="w-3.5 h-3.5" />
         </Button>
         
         <Button
@@ -153,19 +162,21 @@ export const TimelineControls = React.memo(({
           onClick={onDuplicate}
           disabled={!hasSingleSelection}
           title="Duplicate (Cmd/Ctrl+D)"
+          className="h-7 w-7 p-0"
         >
-          <Layers className="w-4 h-4" />
+          <Layers className="w-3.5 h-3.5" />
         </Button>
       </div>
 
       {/* Zoom Controls */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center gap-1">
         <Button
           size="sm"
           variant="ghost"
           onClick={() => onZoomChange(Math.max(0.1, zoom - 0.1))}
+          className="h-7 w-7 p-0"
         >
-          <ZoomOut className="w-4 h-4" />
+          <ZoomOut className="w-3.5 h-3.5" />
         </Button>
         
         <Slider
@@ -174,15 +185,16 @@ export const TimelineControls = React.memo(({
           min={0.1}
           max={3}
           step={0.05}
-          className="w-32"
+          className="w-24"
         />
         
         <Button
           size="sm"
           variant="ghost"
           onClick={() => onZoomChange(Math.min(3, zoom + 0.1))}
+          className="h-7 w-7 p-0"
         >
-          <ZoomIn className="w-4 h-4" />
+          <ZoomIn className="w-3.5 h-3.5" />
         </Button>
       </div>
     </div>
