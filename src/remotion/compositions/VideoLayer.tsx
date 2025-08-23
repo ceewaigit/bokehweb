@@ -65,23 +65,16 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
     }
     : {};
 
-  // Apply cropping for window/area recordings
-  let videoStyle: React.CSSProperties = {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover' as const
-  };
-
-  // Only apply capture area cropping for area selections
-  console.log('🎬 VideoLayer render - Capture area:', captureArea, 'Video dimensions:', videoWidth, 'x', videoHeight)
+  // Determine video style based on capture area (area selection vs full recording)
+  const isAreaSelection = captureArea && captureArea.width > 0 && captureArea.height > 0;
   
-  // Only crop if we have a specific capture area (for area selections)
-  // No capture area = full screen or window recording
-  if (captureArea && captureArea.width > 0 && captureArea.height > 0) {
-    // This is an area selection - apply cropping
+  console.log('🎬 VideoLayer - Type:', isAreaSelection ? 'Area Selection' : 'Full Recording', 
+    'Capture:', captureArea, 'Video:', videoWidth + 'x' + videoHeight)
+  
+  const videoStyle: React.CSSProperties = isAreaSelection ? (() => {
+    // Area selection: scale and position to show only the selected region
     const scale = Math.min(drawWidth / captureArea.width, drawHeight / captureArea.height);
-    
-    videoStyle = {
+    return {
       position: 'absolute' as const,
       width: videoWidth * scale,
       height: videoHeight * scale,
@@ -89,20 +82,12 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
       top: -(captureArea.y * scale) + (drawHeight - captureArea.height * scale) / 2,
       objectFit: 'none' as const
     };
-    
-    console.log('📏 Applying area selection cropping:', {
-      captureArea,
-      scale,
-      videoStyle,
-      drawDimensions: { drawWidth, drawHeight }
-    })
-  } else {
-    console.log('✅ Full screen/window recording - using full video (no cropping)', {
-      captureArea,
-      videoWidth,
-      videoHeight
-    })
-  }
+  })() : {
+    // Full screen/window: show entire video
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover' as const
+  };
 
   return (
     <AbsoluteFill>

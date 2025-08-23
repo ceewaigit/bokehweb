@@ -176,7 +176,9 @@ export function PreviewAreaRemotion({
     captureAreaToUse,
     videoWidth,
     videoHeight,
-    recordingId: selectedRecording?.id
+    recordingId: selectedRecording?.id,
+    metadataCapture: selectedRecording?.metadata?.captureArea,
+    firstMouseEvent: selectedRecording?.metadata?.mouseEvents?.[0]
   })
   
   const compositionProps = {

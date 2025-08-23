@@ -31,7 +31,6 @@ export interface ElectronMetadata {
   scrollDelta?: { x: number; y: number }
   captureWidth?: number
   captureHeight?: number
-  isWithinBounds?: boolean  // Whether cursor is within capture area
   scaleFactor?: number
   cursorType?: string  // Track cursor type for accurate rendering
   sourceBounds?: { x: number; y: number; width: number; height: number }  // Window/area bounds for coordinate mapping
@@ -51,6 +50,8 @@ export class ElectronRecorder {
   private captureArea: ElectronRecordingResult['captureArea'] = undefined
   private recordingSettings?: RecordingSettings
   private dataRequestInterval: NodeJS.Timeout | null = null
+  private videoWidth?: number
+  private videoHeight?: number
 
   // Mouse tracking optimization
   private lastMouseX = -1
@@ -257,10 +258,14 @@ export class ElectronRecorder {
         console.log('🎥 Video track settings:', settings)
         logger.info('Video track settings', settings)
         
+        // Store video dimensions for coordinate mapping
+        this.videoWidth = settings.width
+        this.videoHeight = settings.height
+        
         // Don't set capture area for full screen or window recordings
         // Let them use the full video dimensions
         if (!this.captureArea) {
-          console.log('✅ No capture area set - will use full video dimensions')
+          console.log('✅ No capture area set - will use full video dimensions:', this.videoWidth, 'x', this.videoHeight)
         }
       } else {
         console.log('⚠️ No video track found in stream')
@@ -768,19 +773,22 @@ export class ElectronRecorder {
             })
           }
           
+          // For full screen recordings without captureArea, use video dimensions
+          const captureW = this.captureArea?.fullBounds?.width || this.videoWidth || data.displayBounds?.width
+          const captureH = this.captureArea?.fullBounds?.height || this.videoHeight || data.displayBounds?.height
+          
           this.metadata.push({
             timestamp,
             mouseX: transformedX,  // Capture-relative position
             mouseY: transformedY,  // Capture-relative position
             eventType: 'mouse',
             velocity,
-            captureWidth: this.captureArea?.fullBounds?.width,
-            captureHeight: this.captureArea?.fullBounds?.height,
-            isWithinBounds,  // Whether cursor is within capture area
+            captureWidth: captureW,
+            captureHeight: captureH,
             scaleFactor: data.scaleFactor,
             cursorType: data.cursorType,  // Save cursor type from main process
             sourceBounds: this.captureArea?.fullBounds,  // Include source bounds for later use
-            sourceType: this.captureArea?.sourceType  // Include source type
+            sourceType: this.captureArea?.sourceType || 'screen'  // Include source type
           })
         }
 

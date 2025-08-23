@@ -421,6 +421,13 @@ export async function saveRecordingWithProject(
     // Extract source bounds from metadata if available
     const firstEventWithBounds = metadata.find(m => m.sourceBounds)
     const sourceBounds = firstEventWithBounds?.sourceBounds
+    
+    console.log('📍 Creating recording from video - source bounds:', {
+      sourceBounds,
+      firstEventWithBounds: !!firstEventWithBounds,
+      captureAreaFromResult: captureArea,
+      metadataLength: metadata.length
+    })
 
     const mouseEvents = metadata
       .filter(m => m.eventType === 'mouse')

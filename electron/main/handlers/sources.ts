@@ -206,7 +206,65 @@ export function registerSourceHandlers(): void {
   })
 
   ipcMain.handle('get-macos-wallpapers', async () => {
-    // Simple wallpaper handler - no thumbnails needed for MVP
+    const wallpapers = []
+    
+    // macOS version wallpapers only
+    const versionWallpapers = [
+      { name: 'Sonoma', filename: 'Sonoma.heic' },
+      { name: 'Ventura', filename: 'Ventura Graphic.madesktop' },
+      { name: 'Monterey', filename: 'Monterey Graphic.madesktop' },
+      { name: 'Big Sur', filename: 'Big Sur.madesktop' },
+      { name: 'Big Sur Graphic', filename: 'Big Sur Graphic.madesktop' },
+      { name: 'Catalina', filename: 'Catalina.madesktop' }
+    ]
+    
+    const desktopPicturesPath = '/System/Library/Desktop Pictures'
+    
+    try {
+      for (const wallpaper of versionWallpapers) {
+        const fullPath = path.join(desktopPicturesPath, wallpaper.filename)
+        
+        // Check if file exists
+        try {
+          await fs.access(fullPath)
+          
+          // For .heic files, we can load them directly
+          if (wallpaper.filename.endsWith('.heic')) {
+            wallpapers.push({
+              name: wallpaper.name,
+              path: fullPath,
+              thumbnail: null // Will generate thumbnail on demand
+            })
+          }
+          // For .madesktop (dynamic wallpapers), use the first frame
+          else if (wallpaper.filename.endsWith('.madesktop')) {
+            // These are bundles, so we'll skip them for now and use fallback gradients
+            continue
+          }
+        } catch {
+          // File doesn't exist, skip it
+          continue
+        }
+      }
+    } catch (error) {
+      console.error('Error scanning wallpapers:', error)
+    }
+    
+    // Add the Sonoma wallpaper if it exists (it's a .heic file we can use)
+    if (wallpapers.length === 0) {
+      // Fallback: Just add Sonoma if we found nothing
+      try {
+        const sonomaPath = path.join(desktopPicturesPath, 'Sonoma.heic')
+        await fs.access(sonomaPath)
+        wallpapers.push({
+          name: 'Sonoma',
+          path: sonomaPath,
+          thumbnail: null
+        })
+      } catch {}
+    }
+    
+    // Gradient fallbacks for macOS versions
     const macOSGradients = [
       { name: 'Sonoma', path: 'gradient:sonoma', colors: ['#2D3748', '#1A202C'] },
       { name: 'Ventura', path: 'gradient:ventura', colors: ['#1E3A8A', '#312E81'] },
@@ -215,7 +273,7 @@ export function registerSourceHandlers(): void {
     ]
     
     return {
-      wallpapers: [],
+      wallpapers,
       gradients: macOSGradients
     }
   })
