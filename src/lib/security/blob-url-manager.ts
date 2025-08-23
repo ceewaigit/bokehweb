@@ -177,12 +177,18 @@ export class BlobURLManager {
     if (cached) {
       // Validate that the cached blob URL is still valid
       // Blob URLs become invalid after page reload/app restart
-      if (await this.isBlobUrlValid(cached)) {
-        logger.debug(`Using cached video for ${recordingId}`)
-        return cached
-      } else {
-        logger.debug(`Cached blob URL invalid for ${recordingId}, reloading from file`)
-        // Clear the invalid cached URL
+      try {
+        if (await this.isBlobUrlValid(cached)) {
+          logger.debug(`Using cached video for ${recordingId}`)
+          return cached
+        } else {
+          // This is expected after page transitions - not an error
+          logger.debug(`Cached blob URL expired for ${recordingId}, reloading from file`)
+          // Clear the invalid cached URL
+          RecordingStorage.clearBlobUrl(recordingId)
+        }
+      } catch (error) {
+        // Silently handle blob URL validation errors
         RecordingStorage.clearBlobUrl(recordingId)
       }
     }

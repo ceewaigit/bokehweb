@@ -5,27 +5,23 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
 import { useRecordingStore } from '@/stores/recording-store'
 import { formatTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import {
   Mic,
   MicOff,
   Monitor,
   Camera,
   CameraOff,
-  Settings,
   Square,
   Circle,
   Pause,
   Play,
-  ChevronDown,
-  Folder,
-  Minimize2,
   Maximize2,
   MonitorDown,
-  GripHorizontal
+  X
 } from 'lucide-react'
 
 export default function RecordingDock() {
-  const [isExpanded, setIsExpanded] = useState(false)
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [countdown, setCountdown] = useState<number | null>(null)
@@ -89,7 +85,7 @@ export default function RecordingDock() {
 
       const { width, height } = entry.contentRect
       // Add small buffer for shadows
-      const buffer = 20
+      const buffer = 16
 
       window.electronAPI?.setWindowContentSize?.({
         width: Math.ceil(width + buffer),
@@ -125,7 +121,6 @@ export default function RecordingDock() {
 
         // Start recording
         startRecording()
-        setIsExpanded(false)
       } else {
         setCountdown(count)
         // Update countdown display
@@ -145,6 +140,12 @@ export default function RecordingDock() {
     }, 500)
   }
 
+  const sourceButtons = [
+    { value: 'fullscreen' as const, icon: Monitor, label: 'Screen' },
+    { value: 'window' as const, icon: Maximize2, label: 'Window' },
+    { value: 'region' as const, icon: MonitorDown, label: 'Area' }
+  ]
+
   return (
     <>
       <AnimatePresence>
@@ -153,7 +154,7 @@ export default function RecordingDock() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 grid place-items-center bg-black/20 backdrop-blur-sm z-[2147483646]"
+            className="fixed inset-0 grid place-items-center bg-black/30 backdrop-blur-md z-[2147483646]"
           >
             <motion.div
               key={countdown}
@@ -161,9 +162,14 @@ export default function RecordingDock() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 1.5, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="text-[120px] leading-none font-bold text-white drop-shadow-2xl"
+              className="relative"
             >
-              {countdown === 0 ? 'Go!' : countdown}
+              <div className="text-[100px] leading-none font-bold text-white drop-shadow-2xl">
+                {countdown === 0 ? 'Go!' : countdown}
+              </div>
+              <div className="absolute inset-0 text-[100px] leading-none font-bold text-white/20 blur-xl animate-pulse">
+                {countdown === 0 ? 'Go!' : countdown}
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -173,209 +179,177 @@ export default function RecordingDock() {
       <div className="fixed inset-0 flex items-start justify-center pointer-events-none z-[2147483647]">
         <motion.div
           ref={dockContainerRef}
-          className="pointer-events-auto"
-          style={{ marginTop: '16px' }}
+          className="pointer-events-auto mt-3"
           initial={{ y: -100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 300 }}
         >
-          {/* Dock Container */}
-          <div className={`
-            relative flex flex-col
-            bg-black/80 backdrop-blur-2xl backdrop-saturate-150
-            rounded-2xl border border-white/10
-            shadow-[0_20px_70px_rgba(0,0,0,0.55)]
-            ${isRecording ? 'ring-2 ring-red-500/50' : ''}
-          `}>
-            {/* Drag Handle Area */}
-            <div className={`drag-region flex items-center justify-center py-2 cursor-move`}>
-              <GripHorizontal className="text-white/30" size={20} />
-            </div>
-
-            {/* Controls Container - Make buttons non-draggable */}
-            <div className={`no-drag flex items-center gap-1 px-2 pb-1.5`}>
-              {!isRecording ? (
-                <>
-                  {/* Settings Button */}
-                  <button
-                    className="flex items-center justify-center w-10 h-10 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
-                    onClick={() => {
-                      setIsExpanded(!isExpanded)
-                    }}
-                    title="Settings"
-                  >
-                    <Settings size={18} />
-                  </button>
-
-                  {/* Source Selector */}
-                  <div className="flex items-center gap-1 px-2">
+          {/* Dock Container - Modern Glassmorphic Design */}
+          <div className={cn(
+            "relative flex items-center gap-1 p-1.5",
+            "bg-zinc-950/80 backdrop-blur-2xl backdrop-saturate-150",
+            "rounded-2xl border border-zinc-800/50",
+            "shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
+            isRecording && "ring-2 ring-red-500/30 ring-offset-2 ring-offset-transparent"
+          )}>
+            {!isRecording ? (
+              <>
+                {/* Source Selector - Compact Tab Style */}
+                <div className="flex items-center bg-zinc-900/50 rounded-xl p-0.5">
+                  {sourceButtons.map(({ value, icon: Icon, label }) => (
                     <button
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${selectedSource === 'fullscreen'
-                        ? 'bg-white/20 text-white'
-                        : 'text-white/60 hover:text-white hover:bg-white/10'
-                        }`}
-                      onClick={() => setSelectedSource('fullscreen')}
+                      key={value}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200",
+                        "text-[11px] font-medium",
+                        selectedSource === value
+                          ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                          : "text-zinc-400 hover:text-zinc-200"
+                      )}
+                      onClick={() => setSelectedSource(value)}
                     >
-                      <Monitor size={16} />
-                      <span className="text-sm font-medium">Screen</span>
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{label}</span>
                     </button>
-                    <button
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${selectedSource === 'window'
-                        ? 'bg-white/20 text-white'
-                        : 'text-white/60 hover:text-white hover:bg-white/10'
-                        }`}
-                      onClick={() => setSelectedSource('window')}
-                    >
-                      <Maximize2 size={16} />
-                      <span className="text-sm font-medium">Window</span>
-                    </button>
-                    <button
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${selectedSource === 'region'
-                        ? 'bg-white/20 text-white'
-                        : 'text-white/60 hover:text-white hover:bg-white/10'
-                        }`}
-                      onClick={() => setSelectedSource('region')}
-                    >
-                      <MonitorDown size={16} />
-                      <span className="text-sm font-medium">Area</span>
-                    </button>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="w-px h-8 bg-white/20" />
-
-                  {/* Audio Controls */}
-                  <button
-                    className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${micEnabled
-                      ? 'bg-white/20 text-white'
-                      : 'text-white/40 hover:text-white/60 hover:bg-white/10'
-                      }`}
-                    onClick={() => setMicEnabled(!micEnabled)}
-                    title={micEnabled ? 'Disable Microphone' : 'Enable Microphone'}
-                  >
-                    {micEnabled ? <Mic size={18} /> : <MicOff size={18} />}
-                  </button>
-
-                  {/* Camera Control */}
-                  <button
-                    className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${cameraEnabled
-                      ? 'bg-white/20 text-white'
-                      : 'text-white/40 hover:text-white/60 hover:bg-white/10'
-                      }`}
-                    onClick={() => setCameraEnabled(!cameraEnabled)}
-                    title={cameraEnabled ? 'Disable Camera' : 'Enable Camera'}
-                  >
-                    {cameraEnabled ? <Camera size={18} /> : <CameraOff size={18} />}
-                  </button>
-
-                  {/* Divider */}
-                  <div className="w-px h-8 bg-white/20" />
-
-                  {/* Record Button */}
-                  <button
-                    className="relative flex items-center justify-center w-12 h-12 mx-1 rounded-full bg-red-500 hover:bg-red-600 transition-all group"
-                    onClick={handleStartRecording}
-                    title="Start Recording"
-                  >
-                    <div className="absolute inset-0 rounded-full bg-red-400 animate-pulse opacity-30 pointer-events-none scale-90" />
-                    <Circle size={20} className="text-white fill-white relative z-10" />
-                  </button>
-
-                  {/* Workspace Button */}
-                  <button
-                    className="flex items-center justify-center w-10 h-10 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
-                    onClick={() => window.electronAPI?.openWorkspace?.()}
-                    title="Open Workspace"
-                  >
-                    <Folder size={18} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  {/* Recording Timer */}
-                  <div className="flex items-center gap-2 px-3">
-                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-white font-medium tabular-nums">
-                      {formatTime(duration)}
-                    </span>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="w-px h-8 bg-white/20" />
-
-                  {/* Pause/Resume Button */}
-                  {!isPaused ? (
-                    <button
-                      className="flex items-center justify-center w-10 h-10 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
-                      onClick={pauseRecording}
-                      title="Pause Recording"
-                    >
-                      <Pause size={18} />
-                    </button>
-                  ) : (
-                    <button
-                      className="flex items-center justify-center w-10 h-10 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
-                      onClick={resumeRecording}
-                      title="Resume Recording"
-                    >
-                      <Play size={18} />
-                    </button>
-                  )}
-
-                  {/* Stop Button */}
-                  <button
-                    className="flex items-center justify-center w-12 h-12 mx-1 rounded-xl bg-red-500 hover:bg-red-600 transition-all"
-                    onClick={handleStopRecording}
-                    title="Stop Recording"
-                  >
-                    <Square size={16} className="text-white fill-white" />
-                  </button>
-
-                  {/* Minimize Button */}
-                  <button
-                    className="flex items-center justify-center w-10 h-10 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
-                    onClick={() => window.electronAPI?.minimizeRecordButton?.()}
-                    title="Minimize"
-                  >
-                    <Minimize2 size={16} />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Expanded Options */}
-          <AnimatePresence>
-            {isExpanded && !isRecording && (
-              <motion.div
-                className="absolute top-full left-0 right-0 mt-2 p-3 bg-black/80 backdrop-blur-2xl rounded-xl border border-white/10 shadow-2xl"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                <div className="space-y-2">
-                  <div className="text-white/60 text-xs font-medium uppercase tracking-wider">Recording Options</div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-white/80 text-sm">Quality:</label>
-                    <select className="bg-white/10 text-white text-sm px-2 py-1 rounded-lg border border-white/20 outline-none focus:border-white/40">
-                      <option>4K 60fps</option>
-                      <option>1080p 60fps</option>
-                      <option>720p 30fps</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-white/80 text-sm">Countdown:</label>
-                    <select className="bg-white/10 text-white text-sm px-2 py-1 rounded-lg border border-white/20 outline-none focus:border-white/40">
-                      <option>3 seconds</option>
-                      <option>5 seconds</option>
-                      <option>None</option>
-                    </select>
-                  </div>
+                  ))}
                 </div>
-              </motion.div>
+
+                {/* Separator */}
+                <div className="w-px h-6 bg-zinc-800/50" />
+
+                {/* Audio & Camera Controls */}
+                <div className="flex items-center gap-1">
+                  <button
+                    className={cn(
+                      "relative p-2 rounded-lg transition-all duration-200",
+                      micEnabled
+                        ? "bg-blue-500/20 text-blue-400"
+                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                    )}
+                    onClick={() => setMicEnabled(!micEnabled)}
+                    title={micEnabled ? 'Microphone On' : 'Microphone Off'}
+                  >
+                    {micEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                    {micEnabled && (
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                    )}
+                  </button>
+
+                  <button
+                    className={cn(
+                      "relative p-2 rounded-lg transition-all duration-200",
+                      cameraEnabled
+                        ? "bg-green-500/20 text-green-400"
+                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                    )}
+                    onClick={() => setCameraEnabled(!cameraEnabled)}
+                    title={cameraEnabled ? 'Camera On' : 'Camera Off'}
+                  >
+                    {cameraEnabled ? <Camera className="w-4 h-4" /> : <CameraOff className="w-4 h-4" />}
+                    {cameraEnabled && (
+                      <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-green-400 rounded-full" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Separator */}
+                <div className="w-px h-6 bg-zinc-800/50" />
+
+                {/* Record Button - Prominent */}
+                <button
+                  className={cn(
+                    "relative group",
+                    "flex items-center justify-center",
+                    "w-10 h-10 mx-1",
+                    "bg-gradient-to-br from-red-500 to-red-600",
+                    "hover:from-red-400 hover:to-red-500",
+                    "rounded-full shadow-lg",
+                    "transition-all duration-200 hover:scale-105",
+                    "active:scale-95"
+                  )}
+                  onClick={handleStartRecording}
+                  title="Start Recording"
+                >
+                  <div className="absolute inset-0 rounded-full bg-red-400/30 animate-pulse" />
+                  <Circle className="w-5 h-5 text-white fill-white relative z-10" />
+                </button>
+
+                {/* Open Workspace */}
+                <button
+                  className={cn(
+                    "p-2 rounded-lg transition-all duration-200",
+                    "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
+                  )}
+                  onClick={() => window.electronAPI?.openWorkspace?.()}
+                  title="Open Workspace"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+                    />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Recording Timer - Clean Display */}
+                <div className="flex items-center gap-2 px-3 py-1 bg-red-500/10 rounded-lg">
+                  <div className="relative flex items-center justify-center">
+                    <div className="absolute w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                    <div className="w-2 h-2 bg-red-500 rounded-full" />
+                  </div>
+                  <span className="text-red-400 font-mono text-sm font-medium tabular-nums">
+                    {formatTime(duration)}
+                  </span>
+                </div>
+
+                {/* Separator */}
+                <div className="w-px h-6 bg-zinc-800/50" />
+
+                {/* Pause/Resume */}
+                <button
+                  className={cn(
+                    "p-2 rounded-lg transition-all duration-200",
+                    "text-zinc-300 hover:text-white hover:bg-zinc-800/50"
+                  )}
+                  onClick={isPaused ? resumeRecording : pauseRecording}
+                  title={isPaused ? "Resume" : "Pause"}
+                >
+                  {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                </button>
+
+                {/* Stop Button */}
+                <button
+                  className={cn(
+                    "flex items-center justify-center",
+                    "px-3 py-1.5 mx-1",
+                    "bg-red-500/20 hover:bg-red-500/30",
+                    "text-red-400 hover:text-red-300",
+                    "rounded-lg border border-red-500/30",
+                    "transition-all duration-200",
+                    "active:scale-95"
+                  )}
+                  onClick={handleStopRecording}
+                  title="Stop Recording"
+                >
+                  <Square className="w-3.5 h-3.5 mr-1.5" />
+                  <span className="text-[11px] font-medium">Stop</span>
+                </button>
+
+                {/* Close/Minimize */}
+                <button
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all duration-200",
+                    "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
+                  )}
+                  onClick={() => window.electronAPI?.minimizeRecordButton?.()}
+                  title="Hide"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </>
             )}
-          </AnimatePresence>
+          </div>
         </motion.div>
       </div>
     </>
