@@ -7,7 +7,7 @@ import {
   getCursorImagePath,
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
-import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
+import { applyZoomToPoint } from './utils/zoom-transform';
 
 // Cursor dimensions for proper aspect ratio
 const CURSOR_DIMENSIONS: Record<CursorType, { width: number; height: number }> = {
@@ -277,26 +277,27 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorY = cursorTipY;
 
   // Apply zoom transformation if needed
-  if (zoom.scale > 1) {
-    const zoomBlock = {
-      id: 'cursor-zoom-temp',
-      startTime: 0,
-      endTime: 1000,
+  if (zoom && zoom.scale > 1) {
+    // Create a zoom transform that matches exactly what the video uses
+    // The video calculates its transform based on the video dimensions, not videoOffset
+    const zoomTransform = {
       scale: zoom.scale,
-      targetX: zoom.x,
-      targetY: zoom.y,
-      introMs: 500,
-      outroMs: 500,
-      mode: 'manual' as const
+      scaleCompensationX: 0,
+      scaleCompensationY: 0,
+      panX: (zoom.panX || 0) * videoOffset.width * zoom.scale,
+      panY: (zoom.panY || 0) * videoOffset.height * zoom.scale
     };
-
-    const zoomTransform = calculateZoomTransform(
-      zoomBlock,
-      500,
-      videoOffset.width,
-      videoOffset.height,
-      { x: zoom.panX || 0, y: zoom.panY || 0 }
-    );
+    
+    // Calculate zoom center compensation
+    const zoomCenterX = (zoom.x || 0.5) * videoOffset.width;
+    const zoomCenterY = (zoom.y || 0.5) * videoOffset.height;
+    const centerX = videoOffset.width / 2;
+    const centerY = videoOffset.height / 2;
+    const offsetFromCenterX = zoomCenterX - centerX;
+    const offsetFromCenterY = zoomCenterY - centerY;
+    
+    zoomTransform.scaleCompensationX = -offsetFromCenterX * (zoom.scale - 1);
+    zoomTransform.scaleCompensationY = -offsetFromCenterY * (zoom.scale - 1);
 
     // Transform the cursor tip position exactly like the video content
     const transformedTip = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
