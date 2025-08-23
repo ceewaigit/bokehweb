@@ -46,7 +46,7 @@ async function loadProjectRecording(
       console.log('  - ID:', rec.id)
       console.log('  - Video Path:', rec.filePath || rec.videoPath)
       console.log('  - Duration:', rec.duration, 'ms')
-      console.log('  - Video Dimensions:', rec.videoWidth, 'x', rec.videoHeight)
+      console.log('  - Video Dimensions:', rec.width || rec.videoWidth, 'x', rec.height || rec.videoHeight)
       console.log('  - Source Bounds:', rec.sourceBounds)
       console.log('  - Capture Area:', rec.captureArea)
       
@@ -90,9 +90,9 @@ async function loadProjectRecording(
         // Update the recording's filePath to be absolute
         rec.filePath = videoPath
 
-        // Verify and fix recording duration if needed
-        if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration)) {
-          setLoadingMessage('Detecting video duration...')
+        // Verify and fix recording duration and dimensions if needed
+        if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration) || !rec.width || !rec.height) {
+          setLoadingMessage('Detecting video properties...')
 
           // Use blob manager to load the video safely
           const blobUrl = await globalBlobManager.loadVideo(rec.id, videoPath)
@@ -106,6 +106,14 @@ async function loadProjectRecording(
                 if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
                   rec.duration = tempVideo.duration * 1000
                 }
+                
+                // Also detect video dimensions if missing
+                if (!rec.width || !rec.height) {
+                  rec.width = tempVideo.videoWidth
+                  rec.height = tempVideo.videoHeight
+                  console.log(`📏 Detected video dimensions: ${rec.width}x${rec.height}`)
+                }
+                
                 resolve()
               }, { once: true })
 
@@ -118,7 +126,7 @@ async function loadProjectRecording(
 
             tempVideo.remove()
           } else {
-            console.error('Failed to load video for duration check')
+            console.error('Failed to load video for property detection')
           }
         }
 
