@@ -111,7 +111,6 @@ async function loadProjectRecording(
                 if (!rec.width || !rec.height) {
                   rec.width = tempVideo.videoWidth
                   rec.height = tempVideo.videoHeight
-                  console.log(`📏 Detected video dimensions: ${rec.width}x${rec.height}`)
                 }
                 
                 resolve()

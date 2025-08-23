@@ -423,12 +423,6 @@ export async function saveRecordingWithProject(
     const firstEventWithBounds = metadata.find(m => m.sourceBounds)
     const sourceBounds = firstEventWithBounds?.sourceBounds
     
-    console.log('📍 Creating recording from video - source bounds:', {
-      sourceBounds,
-      firstEventWithBounds: !!firstEventWithBounds,
-      captureAreaFromResult: captureArea,
-      metadataLength: metadata.length
-    })
 
     const mouseEvents = metadata
       .filter(m => m.eventType === 'mouse')
@@ -561,42 +555,6 @@ export async function loadProject(filePath: string): Promise<Project> {
         const projectData = decoder.decode(result.data as ArrayBuffer)
         const project = JSON.parse(projectData) as Project
 
-        // DEBUG: Log complete project metadata
-        console.log('📋 === PROJECT METADATA ===', filePath)
-        console.log('Project ID:', project.id)
-        console.log('Name:', project.name)
-        console.log('Created:', project.createdAt)
-        
-        // Log recording details
-        if (project.recordings && project.recordings.length > 0) {
-          const rec = project.recordings[0]
-          console.log('📹 Recording 0:')
-          console.log('  - Video Path:', rec.videoPath)
-          console.log('  - Duration:', rec.duration, 'ms')
-          console.log('  - Video Dimensions:', rec.videoWidth, 'x', rec.videoHeight)
-          console.log('  - Source Bounds:', rec.sourceBounds)
-          console.log('  - Capture Area:', rec.captureArea)
-          
-          // Log metadata events
-          if (rec.metadata) {
-            console.log('  - Metadata Events:', rec.metadata.length)
-            if (rec.metadata.length > 0) {
-              console.log('  - First Event:', rec.metadata[0])
-              console.log('  - Last Event:', rec.metadata[rec.metadata.length - 1])
-              
-              // Check for capture dimensions in events
-              const eventsWithBounds = rec.metadata.filter(m => m.sourceBounds).length
-              console.log('  - Events with sourceBounds:', eventsWithBounds)
-              
-              const captureWidths = [...new Set(rec.metadata.map(m => m.captureWidth).filter(Boolean))]
-              const captureHeights = [...new Set(rec.metadata.map(m => m.captureHeight).filter(Boolean))]
-              console.log('  - Unique captureWidths:', captureWidths)
-              console.log('  - Unique captureHeights:', captureHeights)
-            }
-          }
-        }
-        
-        console.log('📋 === END PROJECT METADATA ===')
 
         // Set the filePath so we can update the same file later
         project.filePath = filePath

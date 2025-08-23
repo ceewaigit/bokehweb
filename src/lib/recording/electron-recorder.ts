@@ -179,8 +179,7 @@ export class ElectronRecorder {
       // Get media stream from desktop capturer with audio support
       const hasAudio = recordingSettings.audioInput !== 'none'
 
-      // For Electron desktop capture, we should NOT constrain the resolution
-      // as it can cause partial screen capture. Let Electron handle the native resolution.
+      // Use simple constraints for Electron desktop capture
       const constraints: any = {
         audio: hasAudio ? {
           mandatory: {
@@ -194,14 +193,6 @@ export class ElectronRecorder {
             chromeMediaSourceId: primarySource.id
           }
         }
-      }
-      
-      // Log the expected capture area for debugging
-      if (this.captureArea?.fullBounds) {
-        const scaleFactor = this.captureArea.scaleFactor || 1
-        const expectedWidth = Math.floor(this.captureArea.fullBounds.width * scaleFactor)
-        const expectedHeight = Math.floor(this.captureArea.fullBounds.height * scaleFactor)
-        logger.info(`Expected capture resolution: ${expectedWidth}x${expectedHeight} (scale: ${scaleFactor})`)
       }
 
       logger.debug('Using universal Electron constraints', constraints)
