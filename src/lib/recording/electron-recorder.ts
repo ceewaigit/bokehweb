@@ -591,12 +591,45 @@ export class ElectronRecorder {
       if (isWindow) {
         console.log('🪟 Window source detected in captureScreenInfo')
         
-        // For window recording, don't set any capture area initially
-        // We'll use the full video dimensions from the stream
-        this.captureArea = undefined
-        
-        console.log('🪟 Window recording - will use full video dimensions')
-        logger.info('Window recording mode', { sourceId, areaSelection })
+        // For window recording, try to get window bounds
+        if (window.electronAPI?.getSourceBounds) {
+          try {
+            const windowBounds = await window.electronAPI.getSourceBounds(sourceId)
+            console.log('🪟 Window bounds retrieved:', windowBounds)
+            
+            if (windowBounds) {
+              // Store window bounds as capture area for coordinate mapping
+              this.captureArea = {
+                fullBounds: windowBounds,
+                workArea: windowBounds,
+                scaleFactor: (windowBounds as any).scaleFactor || 1,
+                sourceType: 'window',
+                sourceId
+              }
+              
+              console.log('🪟 Window recording - capture area set:', this.captureArea)
+              logger.info('Window recording mode with bounds', { 
+                sourceId, 
+                bounds: windowBounds,
+                captureArea: this.captureArea
+              })
+            } else {
+              // Fallback if bounds not available
+              this.captureArea = undefined
+              console.log('🪟 Window bounds not available - will use full video dimensions')
+              logger.info('Window recording mode without bounds', { sourceId })
+            }
+          } catch (error) {
+            console.warn('🪟 Failed to get window bounds:', error)
+            this.captureArea = undefined
+            logger.warn('Could not get window bounds, using full video dimensions', { sourceId, error })
+          }
+        } else {
+          // API not available
+          this.captureArea = undefined
+          console.log('🪟 getSourceBounds API not available - will use full video dimensions')
+          logger.info('Window recording mode (no bounds API)', { sourceId })
+        }
       } else if (window.electronAPI?.getScreens) {
         // Get screen information from Electron
         const screens = await window.electronAPI.getScreens()

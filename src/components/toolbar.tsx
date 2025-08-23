@@ -59,9 +59,10 @@ export function Toolbar({
   }
 
   return (
-    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-card/50 backdrop-blur-xl border-b border-border/50">
+    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-card/50 backdrop-blur-xl border-b border-border/50" 
+         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Left Section - Project Controls */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo/Brand - More compact */}
         <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-md">
           <FileVideo className="w-3.5 h-3.5 text-primary flex-shrink-0" />
@@ -134,7 +135,7 @@ export function Toolbar({
         </Button>
       </div>
 
-      {/* Center Section - Project Info and Status */}
+      {/* Center Section - Project Info and Status - This area is draggable */}
       <div className="flex-1 flex items-center justify-center gap-2 min-w-0 overflow-hidden">
         {/* Project Name and Time Display */}
         {project && (
@@ -170,8 +171,8 @@ export function Toolbar({
         )}
       </div>
 
-      {/* Right Section - Export and Settings */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      {/* Right Section - Export and Settings - Not draggable */}
+      <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <div className="w-px h-5 bg-border/30" />
 
         {/* Export Button */}

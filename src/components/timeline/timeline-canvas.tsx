@@ -82,19 +82,17 @@ export function TimelineCanvas({
     currentProject?.timeline.tracks.find(t => t.type === 'video')?.clips.some(
       c => selectedClips.includes(c.id) && c.effects?.zoom?.enabled
     )
-  
-  // Dynamic track heights based on available space
-  const availableHeight = stageSize.height
+
+  // Dynamic track heights - fill available space
   const rulerHeight = TIMELINE_LAYOUT.RULER_HEIGHT
-  const trackCount = 2 + (hasZoomTrack ? 1 : 0) // video + audio + optional zoom
-  const remainingHeight = availableHeight - rulerHeight
-  
-  // Distribute height proportionally
-  const videoTrackHeight = Math.max(80, Math.floor(remainingHeight * 0.45))
-  const audioTrackHeight = Math.max(60, Math.floor(remainingHeight * 0.35))
-  const zoomTrackHeight = hasZoomTrack ? Math.max(50, Math.floor(remainingHeight * 0.2)) : 0
-  
-  // Use full available height
+  const remainingHeight = stageSize.height - rulerHeight
+
+  // Distribute height proportionally (no fallbacks needed)
+  const videoTrackHeight = Math.floor(remainingHeight * (hasZoomTrack ? 0.45 : 0.55))
+  const audioTrackHeight = Math.floor(remainingHeight * (hasZoomTrack ? 0.35 : 0.45))
+  const zoomTrackHeight = hasZoomTrack ? Math.floor(remainingHeight * 0.2) : 0
+
+  // Direct values, no unnecessary variables
   const totalHeight = stageSize.height
   const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
 
@@ -281,7 +279,7 @@ export function TimelineCanvas({
               height={totalHeight}
               fill="hsl(240, 10%, 2%)"
             />
-            
+
             <Rect
               x={0}
               y={0}

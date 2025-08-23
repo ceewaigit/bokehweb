@@ -68,15 +68,32 @@ export function EffectsSidebar({
   React.useEffect(() => {
     if (backgroundType === 'wallpaper' && macOSWallpapers.wallpapers.length === 0 && !loadingWallpapers) {
       setLoadingWallpapers(true)
-      window.electronAPI?.getMacOSWallpapers?.().then((data) => {
-        setMacOSWallpapers(data || { wallpapers: [], gradients: [] })
+      
+      // Check if API is available
+      if (window.electronAPI?.getMacOSWallpapers) {
+        window.electronAPI.getMacOSWallpapers()
+          .then((data) => {
+            if (data && data.wallpapers) {
+              setMacOSWallpapers(data)
+            } else {
+              // Fallback to empty arrays if no data
+              setMacOSWallpapers({ wallpapers: [], gradients: [] })
+            }
+            setLoadingWallpapers(false)
+          })
+          .catch((error) => {
+            console.error('Failed to load macOS wallpapers:', error)
+            // Set empty data on error so UI can show "no wallpapers" instead of stuck loading
+            setMacOSWallpapers({ wallpapers: [], gradients: [] })
+            setLoadingWallpapers(false)
+          })
+      } else {
+        console.warn('getMacOSWallpapers API not available')
+        setMacOSWallpapers({ wallpapers: [], gradients: [] })
         setLoadingWallpapers(false)
-      }).catch((error) => {
-        console.error('Failed to load macOS wallpapers:', error)
-        setLoadingWallpapers(false)
-      })
+      }
     }
-  }, [backgroundType, macOSWallpapers.wallpapers.length, loadingWallpapers])
+  }, [backgroundType]) // Remove dependencies that could prevent retry
 
   if (!selectedClip || !effects) {
     return (
@@ -203,46 +220,46 @@ export function EffectsSidebar({
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">macOS Wallpapers</h3>
                 {loadingWallpapers ? (
                   <div className="text-xs text-muted-foreground">Loading wallpapers...</div>
+                ) : macOSWallpapers.wallpapers.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {macOSWallpapers.wallpapers.slice(0, 12).map((wallpaper, index) => (
+                      <button
+                        key={index}
+                        onClick={async () => {
+                          try {
+                            const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
+                            if (dataUrl) {
+                              updateEffect('background', {
+                                type: 'wallpaper',
+                                wallpaper: dataUrl
+                              })
+                            }
+                          } catch (error) {
+                            console.error('Failed to load wallpaper:', error)
+                          }
+                        }}
+                        className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group"
+                        title={wallpaper.name}
+                      >
+                        {wallpaper.thumbnail ? (
+                          <img 
+                            src={wallpaper.thumbnail} 
+                            alt={wallpaper.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
+                        )}
+                        <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                          {wallpaper.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 ) : (
-                  <>
-                    {macOSWallpapers.wallpapers.length > 0 && (
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {macOSWallpapers.wallpapers.slice(0, 12).map((wallpaper, index) => (
-                          <button
-                            key={index}
-                            onClick={async () => {
-                              try {
-                                const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
-                                if (dataUrl) {
-                                  updateEffect('background', {
-                                    type: 'wallpaper',
-                                    wallpaper: dataUrl
-                                  })
-                                }
-                              } catch (error) {
-                                console.error('Failed to load wallpaper:', error)
-                              }
-                            }}
-                            className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group"
-                            title={wallpaper.name}
-                          >
-                            {wallpaper.thumbnail ? (
-                              <img 
-                                src={wallpaper.thumbnail} 
-                                alt={wallpaper.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
-                            )}
-                            <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                              {wallpaper.name}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
+                  <div className="text-xs text-muted-foreground">
+                    No wallpapers found. Use gradient presets instead.
+                  </div>
                 )}
               </div>
             )}

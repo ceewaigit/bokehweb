@@ -26,7 +26,6 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
-  const thumbnailCache = useRef<Map<string, string>>(new Map())
 
   useEffect(() => {
     if (isOpen) {
@@ -34,20 +33,12 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
     }
   }, [isOpen])
 
-  // Resize window once when opening
+  // Set window size when opening
   useEffect(() => {
-    if (isOpen) {
-      // Get screen dimensions for proper sizing
-      const screenWidth = window.screen.availWidth
-      const screenHeight = window.screen.availHeight
-      
-      // Set to 90% of screen or max 1200x800
-      const width = Math.min(1200, screenWidth * 0.9)
-      const height = Math.min(800, screenHeight * 0.9)
-      
-      window.electronAPI?.setWindowContentSize?.({
-        width: Math.round(width),
-        height: Math.round(height)
+    if (isOpen && window.electronAPI?.setWindowContentSize) {
+      window.electronAPI.setWindowContentSize({
+        width: Math.round(window.screen.availWidth * 0.8),
+        height: Math.round(window.screen.availHeight * 0.8)
       })
     }
   }, [isOpen])
@@ -65,28 +56,21 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
         thumbnailSize: { width: 400, height: 240 }
       })
 
-      const mappedSources: Source[] = desktopSources.map(source => {
-        // Cache thumbnails for performance
-        if (source.thumbnail && !thumbnailCache.current.has(source.id)) {
-          thumbnailCache.current.set(source.id, source.thumbnail)
-        }
-        
-        return {
-          id: source.id,
-          name: source.name,
-          thumbnail: thumbnailCache.current.get(source.id) || source.thumbnail,
-          type: source.id.startsWith('screen:') ? 'screen' : 'window',
-          bounds: source.bounds // Include window bounds if available
-        }
-      })
+      const mappedSources: Source[] = desktopSources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnail: source.thumbnail,
+        type: source.id.startsWith('screen:') ? 'screen' : 'window',
+        bounds: source.bounds
+      }))
 
       // Filter out system windows
       const filteredSources = mappedSources.filter(source => {
         const lowercaseName = source.name.toLowerCase()
-        return !lowercaseName.includes('dock') && 
-               !lowercaseName.includes('menubar') &&
-               !lowercaseName.includes('notification') &&
-               !lowercaseName.includes('screen studio - record')
+        return !lowercaseName.includes('dock') &&
+          !lowercaseName.includes('menubar') &&
+          !lowercaseName.includes('notification') &&
+          !lowercaseName.includes('screen studio - record')
       })
 
       // Add area selection option at the beginning
@@ -98,9 +82,9 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
         },
         ...filteredSources
       ]
-      
+
       setSources(allSources)
-      
+
       // Pre-select the first screen
       const firstScreen = allSources.find(s => s.type === 'screen')
       if (firstScreen) {
@@ -114,29 +98,25 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
   }, [])
 
   const handleSelect = async () => {
-    if (selectedId) {
-      if (selectedId === 'area:selection') {
-        // Use native macOS area selection
-        onClose() // Close the source picker first
-        
+    if (!selectedId) return
+
+    if (selectedId === 'area:selection') {
+      onClose()
+
+      if (window.electronAPI?.selectScreenArea) {
         try {
-          const result = await window.electronAPI?.selectScreenArea?.()
+          const result = await window.electronAPI.selectScreenArea()
           if (result?.success && result.area) {
-            // Create a custom source ID with the area dimensions
             const areaSourceId = `area:${result.area.x},${result.area.y},${result.area.width},${result.area.height}`
             onSelect(areaSourceId)
-          } else if (result?.cancelled) {
-            logger.info('User cancelled area selection')
-            // Reopen source picker if user cancelled
-            // Note: Parent component should handle this
           }
         } catch (error) {
           logger.error('Failed to select screen area:', error)
         }
-      } else {
-        onSelect(selectedId)
-        onClose()
       }
+    } else {
+      onSelect(selectedId)
+      onClose()
     }
   }
 
@@ -260,8 +240,8 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                               <div className="aspect-[16/11] relative">
                                 {source.thumbnail ? (
                                   <>
-                                    <img 
-                                      src={source.thumbnail} 
+                                    <img
+                                      src={source.thumbnail}
                                       alt={source.name}
                                       className="w-full h-full object-cover opacity-90"
                                     />
@@ -273,7 +253,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                     <Monitor className="w-12 h-12 text-muted-foreground/30" />
                                   </div>
                                 )}
-                                
+
                                 {/* Name overlay */}
                                 <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/50 to-transparent">
                                   <p className="text-[10px] font-medium text-white truncate text-left">
@@ -348,8 +328,8 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                               <div className="aspect-square relative">
                                 {source.thumbnail ? (
                                   <>
-                                    <img 
-                                      src={source.thumbnail} 
+                                    <img
+                                      src={source.thumbnail}
                                       alt={source.name}
                                       className="w-full h-full object-cover opacity-90"
                                     />
@@ -360,7 +340,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                                     <AppWindow className="w-6 h-6 text-muted-foreground/25" />
                                   </div>
                                 )}
-                                
+
                                 {/* Compact name */}
                                 <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/40 to-transparent">
                                   <p className="text-[9px] font-medium text-white truncate">
@@ -425,7 +405,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                     </span>
                   )}
                 </div>
-                
+
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="ghost"
