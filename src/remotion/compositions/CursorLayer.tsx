@@ -324,22 +324,19 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   }
   
   // Debug logging
-  if (frame % 30 === 0 && zoomDebugInfo) {
-    console.log('🔍 Zoom Transform Details:', {
+  if (frame % 30 === 0) {
+    console.log('🔍 Cursor Position Debug:', {
+      step1_raw: cursorPosition,
+      step2_normalized: { x: normalizedX, y: normalizedY },
+      step3_inVideo: { x: cursorInVideoX, y: cursorInVideoY },
+      step4_inScreen: { x: cursorTipX, y: cursorTipY },
+      step5_transformed: zoomDebugInfo ? { x: cursorX, y: cursorY } : 'no zoom',
       videoOffset,
-      zoomTransform: zoomDebugInfo.zoomTransform,
-      cursorTransform: {
-        before: zoomDebugInfo.beforeTransform,
-        after: zoomDebugInfo.afterTransform,
-        delta: {
-          x: zoomDebugInfo.afterTransform.x - zoomDebugInfo.beforeTransform.x,
-          y: zoomDebugInfo.afterTransform.y - zoomDebugInfo.beforeTransform.y
-        }
-      },
-      finalWithHotspot: {
-        x: (cursorX - hotspot.x * renderedWidth).toFixed(0),
-        y: (cursorY - hotspot.y * renderedHeight).toFixed(0)
-      }
+      captureSize: { w: captureWidth, h: captureHeight },
+      zoomInfo: zoomDebugInfo ? {
+        scale: zoomDebugInfo.zoomTransform.scale,
+        pan: { x: zoomDebugInfo.smoothPan.x, y: zoomDebugInfo.smoothPan.y }
+      } : null
     });
   }
   
