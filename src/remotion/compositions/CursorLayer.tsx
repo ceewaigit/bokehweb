@@ -283,7 +283,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorY = cursorTipY;
 
   // Apply zoom transformation EXACTLY like VideoLayer does
-  let zoomDebugInfo = null;
   if (zoom?.enabled && zoom.blocks) {
     // Find active zoom block - same as VideoLayer
     const activeBlock = zoom.blocks.find(
@@ -305,50 +304,13 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         zoomState ? { x: zoomState.x, y: zoomState.y } : undefined  // Use zoom start position from state
       );
       
-      // Store debug info
-      zoomDebugInfo = {
-        activeBlock,
-        smoothPan,
-        zoomTransform,
-        beforeTransform: { x: cursorTipX, y: cursorTipY },
-        afterTransform: { x: 0, y: 0 }  // Will be updated after transformation
-      } as any;
-      
       // Apply the zoom to the cursor position
       const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
       cursorX = transformedPos.x;
       cursorY = transformedPos.y;
-      
-      if (zoomDebugInfo) {
-        zoomDebugInfo.afterTransform = { x: cursorX, y: cursorY };
-      }
     }
   }
   
-  // Debug logging
-  if (frame % 30 === 0) {
-    console.log('🔍 Cursor Position Debug:', {
-      step1_raw: cursorPosition,
-      step2_normalized: { x: normalizedX, y: normalizedY },
-      step3_inVideo: { x: cursorInVideoX, y: cursorInVideoY },
-      step4_inScreen: { x: cursorTipX, y: cursorTipY },
-      step5_transformed: zoomDebugInfo ? { x: cursorX, y: cursorY } : 'no zoom',
-      videoOffset,
-      captureSize: { w: captureWidth, h: captureHeight },
-      zoomInfo: zoomDebugInfo ? {
-        scale: zoomDebugInfo.zoomTransform.scale,
-        pan: { x: zoomDebugInfo.smoothPan.x, y: zoomDebugInfo.smoothPan.y },
-        zoomTarget: { 
-          x: zoomState?.x || 0.5, 
-          y: zoomState?.y || 0.5
-        },
-        scaleCompensation: {
-          x: zoomDebugInfo.zoomTransform.scaleCompensationX,
-          y: zoomDebugInfo.zoomTransform.scaleCompensationY
-        }
-      } : null
-    });
-  }
   
   // Apply hotspot offset AFTER transformation
   // This positions the cursor image so the hotspot aligns with the transformed tip position

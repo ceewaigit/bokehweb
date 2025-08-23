@@ -158,8 +158,10 @@ export function RecordButtonDock() {
       updateSettings({ area: 'window', sourceId })
     }
     
-    // Start recording immediately after source selection
-    startCountdownAndRecord()
+    // Use setTimeout to ensure settings are updated before recording starts
+    setTimeout(() => {
+      startCountdownAndRecord()
+    }, 100)
   }
 
   const handleStopRecording = async () => {

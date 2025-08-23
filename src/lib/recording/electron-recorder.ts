@@ -169,6 +169,13 @@ export class ElectronRecorder {
       }
 
       logger.info(`Using ${recordingSettings.area} source: ${primarySource.name} (${primarySource.id})`)
+      logger.info(`Recording settings:`, {
+        area: recordingSettings.area,
+        sourceId: recordingSettings.sourceId,
+        audioInput: recordingSettings.audioInput,
+        quality: recordingSettings.quality,
+        framerate: recordingSettings.framerate
+      })
 
       // Capture screen dimensions for dock exclusion
       await this.captureScreenInfo(primarySource.id, captureAreaBounds)
