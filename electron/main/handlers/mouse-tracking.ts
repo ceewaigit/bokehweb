@@ -134,17 +134,18 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
-            // For partial screen recordings, always use default cursor
-            // since we can't detect cursor type outside our window
-            const isAreaRecording = sourceId?.includes('area:');
-            const effectiveCursorType = isAreaRecording ? 'default' : currentCursorType;
+            // For screen recordings, always use default cursor
+            // We can't reliably detect cursor type outside our window
+            // and the cursor-changed event from our own UI shouldn't affect recordings
+            const isScreenRecording = sourceType === 'screen';
+            const effectiveCursorType = isScreenRecording ? 'default' : currentCursorType;
             
             // Debug logging - log every 50th event
             if (mouseHistory.length % 50 === 0) {
               console.log('🖱️ Mouse tracking state:', {
                 sourceId,
                 sourceType,
-                isAreaRecording,
+                isScreenRecording,
                 currentCursorType,
                 effectiveCursorType
               });
@@ -259,8 +260,8 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
 
-      // For partial screen recordings, always use default cursor
-      const effectiveCursorType = (sourceType === 'screen' && sourceId?.includes('area:')) 
+      // For screen recordings, always use default cursor
+      const effectiveCursorType = sourceType === 'screen' 
         ? 'default' 
         : currentCursorType;
 
