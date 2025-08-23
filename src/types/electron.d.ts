@@ -10,6 +10,7 @@ export interface ElectronAPI {
     rotation: number
     internal: boolean
   }>>
+  getSourceBounds?: (sourceId: string) => Promise<{ x: number; y: number; width: number; height: number } | null>
 
   // Permission checking
   checkScreenRecordingPermission: () => Promise<{ status: string; granted: boolean }>
@@ -59,7 +60,7 @@ export interface ElectronAPI {
   // Platform-specific features
   getPlatform?: () => Promise<{ platform: string; arch: string; version: string }>
   getMacOSWallpapers?: () => Promise<{
-    wallpapers: Array<{ name: string; path: string }>
+    wallpapers: Array<{ name: string; path: string; thumbnail?: string }>
     gradients: Array<{ name: string; path: string; colors: string[] }>
   }>
   loadWallpaperImage?: (imagePath: string) => Promise<string>

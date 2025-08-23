@@ -1,4 +1,4 @@
-import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen, IpcMainInvokeEvent } from 'electron'
+import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen, IpcMainInvokeEvent, nativeImage } from 'electron'
 import { exec, execSync } from 'child_process'
 import * as fs from 'fs/promises'
 import * as path from 'path'
@@ -98,12 +98,27 @@ export function registerSourceHandlers(): void {
         
         console.log(`📺 Found ${sources.length} sources`)
         
-        // Map the sources to our format
-        const mappedSources = sources.map(source => ({
-          id: source.id,
-          name: source.name,
-          display_id: source.display_id,
-          thumbnail: source.thumbnail?.toDataURL() || undefined
+        // Import window bounds helper dynamically
+        const { getWindowBoundsForSource } = await import('../native/window-bounds')
+        
+        // Map the sources to our format with bounds information
+        const mappedSources = await Promise.all(sources.map(async source => {
+          // Get window bounds for window sources
+          let bounds = undefined
+          if (!source.id.startsWith('screen:')) {
+            bounds = await getWindowBoundsForSource(source.name)
+            if (bounds) {
+              console.log(`📐 Window "${source.name}" bounds: ${bounds.width}x${bounds.height} at (${bounds.x}, ${bounds.y})`)
+            }
+          }
+          
+          return {
+            id: source.id,
+            name: source.name,
+            display_id: source.display_id,
+            thumbnail: source.thumbnail?.toDataURL() || undefined,
+            bounds // Include window bounds if available
+          }
         }))
         
         if (mappedSources.length === 0) {
@@ -142,6 +157,53 @@ export function registerSourceHandlers(): void {
     }))
   })
 
+  // Get window bounds for a specific source
+  ipcMain.handle('get-source-bounds', async (_event: IpcMainInvokeEvent, sourceId: string) => {
+    try {
+      // For screens, return the display bounds
+      if (sourceId.startsWith('screen:')) {
+        const screenIdMatch = sourceId.match(/screen:(\d+):/)
+        if (screenIdMatch) {
+          const screenId = parseInt(screenIdMatch[1])
+          const display = screen.getAllDisplays().find(d => d.id === screenId)
+          if (display) {
+            return {
+              x: display.bounds.x,
+              y: display.bounds.y,
+              width: display.bounds.width,
+              height: display.bounds.height
+            }
+          }
+        }
+      } else {
+        // For windows, get the actual window bounds
+        const sources = await desktopCapturer.getSources({
+          types: ['window'],
+          thumbnailSize: { width: 1, height: 1 }
+        })
+        
+        const source = sources.find(s => s.id === sourceId)
+        if (source) {
+          const { getWindowBoundsForSource } = await import('../native/window-bounds')
+          const bounds = await getWindowBoundsForSource(source.name)
+          if (bounds) {
+            return {
+              x: bounds.x,
+              y: bounds.y,
+              width: bounds.width,
+              height: bounds.height
+            }
+          }
+        }
+      }
+      
+      return null
+    } catch (error) {
+      console.error('Failed to get source bounds:', error)
+      return null
+    }
+  })
+
   ipcMain.handle('get-platform', async () => {
     return {
       platform: process.platform,
@@ -158,7 +220,7 @@ export function registerSourceHandlers(): void {
         path.join(process.env.HOME || '', 'Pictures')
       ]
       
-      const wallpapers: Array<{ name: string, path: string }> = []
+      const wallpapers: Array<{ name: string, path: string, thumbnail?: string }> = []
       
       for (const dir of wallpaperDirs) {
         try {
@@ -168,9 +230,45 @@ export function registerSourceHandlers(): void {
               const fullPath = path.join(dir, file)
               const name = path.basename(file, path.extname(file))
               
+              // Generate thumbnail for wallpaper
+              let thumbnail: string | undefined
+              
+              // HEIC requires special handling
+              if (process.platform === 'darwin' && file.match(/\.heic$/i)) {
+                try {
+                  const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
+                  // Convert HEIC to JPEG and resize in one step
+                  execSync(`sips -s format jpeg -Z 200 "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
+                  
+                  const convertedBuffer = await fs.readFile(tempFile)
+                  const convertedImage = nativeImage.createFromBuffer(convertedBuffer)
+                  thumbnail = convertedImage.toDataURL()
+                  
+                  // Clean up
+                  try { await fs.unlink(tempFile) } catch {}
+                } catch (err) {
+                  console.log(`Could not convert HEIC thumbnail: ${file}`)
+                }
+              } else {
+                // Standard image formats
+                try {
+                  const imageBuffer = await fs.readFile(fullPath)
+                  const image = nativeImage.createFromBuffer(imageBuffer)
+                  const resized = image.resize({ 
+                    width: 200,
+                    height: 120,
+                    quality: 'good'
+                  })
+                  thumbnail = resized.toDataURL()
+                } catch (err) {
+                  console.log(`Could not generate thumbnail: ${file}`)
+                }
+              }
+              
               wallpapers.push({
                 name: name.replace(/_/g, ' '),
-                path: fullPath
+                path: fullPath,
+                thumbnail
               })
             }
           }
@@ -209,107 +307,40 @@ export function registerSourceHandlers(): void {
         throw new Error('Access denied')
       }
       
-      const imageBuffer = await fs.readFile(imagePath)
-      const base64 = imageBuffer.toString('base64')
-      
       const ext = path.extname(imagePath).toLowerCase()
-      let mimeType = 'image/jpeg'
-      if (ext === '.png') mimeType = 'image/png'
-      else if (ext === '.gif') mimeType = 'image/gif'
-      else if (ext === '.heic') mimeType = 'image/heic'
-      else if (ext === '.tiff' || ext === '.tif') mimeType = 'image/tiff'
       
-      return `data:${mimeType};base64,${base64}`
+      // HEIC requires special handling on macOS
+      if (process.platform === 'darwin' && ext === '.heic') {
+        // Convert HEIC to JPEG using sips
+        const tempFile = path.join(require('os').tmpdir(), `wallpaper-${Date.now()}.jpg`)
+        execSync(`sips -s format jpeg "${imagePath}" --out "${tempFile}"`, { stdio: 'ignore' })
+        
+        // Read converted image
+        const convertedBuffer = await fs.readFile(tempFile)
+        const base64 = convertedBuffer.toString('base64')
+        
+        // Clean up temp file
+        try { await fs.unlink(tempFile) } catch {}
+        
+        return `data:image/jpeg;base64,${base64}`
+      }
+      
+      // For all other formats, use nativeImage
+      const imageBuffer = await fs.readFile(imagePath)
+      const image = nativeImage.createFromBuffer(imageBuffer)
+      return image.toDataURL()
     } catch (error) {
       console.error('Error loading wallpaper image:', error)
       throw error
     }
   })
 
-  // Native macOS area selection using screencapture
+  // Area selection - disabled until ScreenCaptureKit implementation
   ipcMain.handle('select-screen-area', async () => {
-    if (process.platform !== 'darwin') {
-      throw new Error('Area selection is only supported on macOS')
-    }
-
-    try {
-      console.log('🎯 Starting native macOS area selection')
-      
-      // Create a temporary file for the screenshot (we'll delete it after getting coords)
-      const tempFile = path.join(require('os').tmpdir(), `temp-selection-${Date.now()}.png`)
-      
-      // Use screencapture with interactive selection mode
-      // -i: interactive mode
-      // -s: selection mode only (no window mode)
-      // -o: no shadow
-      // -x: no sound
-      const command = `screencapture -i -s -o -x "${tempFile}"`
-      
-      try {
-        // Execute screencapture and wait for user to make selection
-        execSync(command, { stdio: 'ignore' })
-        
-        // If we get here, user made a selection (otherwise execSync would throw)
-        // Get the image dimensions to determine the selected area
-        const sipsCommand = `sips -g pixelWidth -g pixelHeight "${tempFile}"`
-        const sipsOutput = execSync(sipsCommand, { encoding: 'utf8' })
-        
-        // Parse dimensions from sips output
-        const widthMatch = sipsOutput.match(/pixelWidth:\s*(\d+)/)
-        const heightMatch = sipsOutput.match(/pixelHeight:\s*(\d+)/)
-        
-        if (!widthMatch || !heightMatch) {
-          throw new Error('Could not determine selection dimensions')
-        }
-        
-        const width = parseInt(widthMatch[1])
-        const height = parseInt(heightMatch[1])
-        
-        // Clean up temp file
-        try {
-          await fs.unlink(tempFile)
-        } catch {}
-        
-        // LIMITATION: screencapture -i doesn't return the position of the selection
-        // Only the dimensions. We need the position for proper video cropping.
-        // For a proper implementation, we'd need to use native macOS APIs or
-        // a third-party tool that returns both dimensions AND position.
-        
-        // TEMPORARY: Use (0,0) which means the selection starts at top-left
-        // This means area selection will only work properly if users select
-        // from the top-left corner of the screen
-        const x = 0
-        const y = 0
-        const display = screen.getPrimaryDisplay()
-        
-        console.log(`✅ Area selected: ${width}x${height} at approximately (${x}, ${y})`)
-        
-        return {
-          success: true,
-          area: {
-            x: x,
-            y: y,
-            width: width,
-            height: height,
-            displayId: display.id
-          }
-        }
-        
-      } catch (error: any) {
-        // User cancelled selection (ESC key)
-        if (error.status === 1) {
-          console.log('🚫 User cancelled area selection')
-          return {
-            success: false,
-            cancelled: true
-          }
-        }
-        throw error
-      }
-      
-    } catch (error) {
-      console.error('❌ Error in native area selection:', error)
-      throw error
+    // TODO: Implement with ScreenCaptureKit (macOS 12.3+) for proper coordinates
+    return {
+      success: false,
+      cancelled: true
     }
   })
 }

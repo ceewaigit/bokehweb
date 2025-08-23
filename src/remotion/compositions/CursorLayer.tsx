@@ -60,7 +60,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       }
     }
 
-    const electronType = (closestEvent as any)?.cursorType || 'default';
+    const electronType = closestEvent?.cursorType || 'default';
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
@@ -140,43 +140,26 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   if (!cursorPosition) return null;
 
-  // Get cursor metadata from the event (display bounds and source info)
+  // Get current event for screen dimensions
   const currentEvent = cursorEvents.find(e =>
     Math.abs(e.timestamp - currentTimeMs) < 50
   );
-  const displayBounds = (currentEvent as any)?.displayBounds;
-  const sourceType = (currentEvent as any)?.sourceType || 'screen';
-  const isWindowRecording = sourceType === 'window';
 
-  // Get raw cursor position (screen coordinates)
-  let rawX = cursorPosition.x;
-  let rawY = cursorPosition.y;
-
-  // Adjust for multi-monitor setups
-  if (displayBounds) {
-    rawX -= displayBounds.x;
-    rawY -= displayBounds.y;
-  }
-
-  // Determine screen dimensions
-  const screenWidth = isWindowRecording ? videoWidth : (currentEvent?.screenWidth || videoWidth);
-  const screenHeight = isWindowRecording ? videoHeight : (currentEvent?.screenHeight || videoHeight);
+  // Get screen dimensions from the event
+  const screenWidth = currentEvent?.screenWidth || videoWidth;
+  const screenHeight = currentEvent?.screenHeight || videoHeight;
 
   // Calculate normalized position (0-1 range)
-  let normalizedX = rawX / screenWidth;
-  let normalizedY = rawY / screenHeight;
-
-  // For window recording, check if cursor is outside the window bounds
-  if (isWindowRecording) {
-    // Clamp cursor to window bounds (with a small margin for visibility)
-    const margin = 0.02; // 2% margin
-    normalizedX = Math.max(-margin, Math.min(1 + margin, normalizedX));
-    normalizedY = Math.max(-margin, Math.min(1 + margin, normalizedY));
-    
-    // If cursor is too far outside, hide it
-    if (normalizedX < -0.1 || normalizedX > 1.1 || normalizedY < -0.1 || normalizedY > 1.1) {
-      return null; // Don't render cursor when it's outside the window
-    }
+  // Positions are already capture-relative from the recording
+  // so we normalize against the capture dimensions (which are stored in screenWidth/screenHeight)
+  const normalizedX = cursorPosition.x / screenWidth;
+  const normalizedY = cursorPosition.y / screenHeight;
+  
+  // Check if cursor is within bounds (for partial screen recordings)
+  // If cursor position is negative or beyond capture dimensions, hide it
+  if (cursorPosition.x < 0 || cursorPosition.y < 0 || 
+      cursorPosition.x > screenWidth || cursorPosition.y > screenHeight) {
+    return null;  // Don't render cursor when outside capture area
   }
 
   // Map to displayed video position (before zoom)

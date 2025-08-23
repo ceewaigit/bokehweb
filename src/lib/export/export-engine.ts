@@ -74,26 +74,33 @@ export class ExportEngine {
         videoBlob = await response.blob()
       }
 
-      // Check if clip has effects to apply
+      // Check if clip has effects to apply or needs cropping
+      const captureArea = recording.metadata?.captureArea
+      const needsCropping = captureArea && (
+        captureArea.sourceType === 'window' || 
+        captureArea.sourceId?.startsWith('area:')
+      )
+      
       const hasEffects = firstClip.effects && (
         firstClip.effects.zoom?.enabled ||
         firstClip.effects.background?.padding ||
         firstClip.effects.video?.cornerRadius
       )
 
-      if (hasEffects) {
-        // Export with effects using FFmpeg
+      if (hasEffects || needsCropping) {
+        // Export with effects and/or cropping using FFmpeg
         onProgress?.({
           progress: 5,
           stage: 'processing',
-          message: 'Preparing to apply effects...'
+          message: needsCropping ? 'Preparing to crop and apply effects...' : 'Preparing to apply effects...'
         })
 
         return await this.ffmpegEngine.exportWithEffects(
           videoBlob,
           firstClip,
           settings,
-          onProgress
+          onProgress,
+          captureArea?.fullBounds
         )
       } else {
         // No effects, return original video

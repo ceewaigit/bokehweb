@@ -61,6 +61,10 @@ export interface CaptureArea {
   }
   // Display scale factor for HiDPI screens
   scaleFactor: number
+  // Source type for determining if cropping is needed
+  sourceType?: 'screen' | 'window'
+  // Source ID for the recording
+  sourceId?: string
 }
 
 export interface RecordingMetadata {
@@ -78,6 +82,9 @@ export interface RecordingMetadata {
 
   // Audio levels for waveform
   audioLevels?: number[]
+  
+  // Capture area information for cropping during export
+  captureArea?: CaptureArea
 }
 
 export interface MouseEvent {
@@ -406,25 +413,20 @@ export async function saveRecordingWithProject(
     // Create project with recording
     const project = createProject(baseName)
 
-    // Get logical screen dimensions and source info from metadata
+    // Get capture dimensions for the recording
     const firstEventWithCapture = metadata.find(m => m.captureWidth && m.captureHeight)
-    const logicalWidth = firstEventWithCapture?.captureWidth || width
-    const logicalHeight = firstEventWithCapture?.captureHeight || height
-    
-    const firstEventWithSource = metadata.find(m => (m as any).sourceType)
-    const sourceType = (firstEventWithSource as any)?.sourceType || 'screen'
-    const sourceId = (firstEventWithSource as any)?.sourceId
+    const captureWidth = firstEventWithCapture?.captureWidth || width
+    const captureHeight = firstEventWithCapture?.captureHeight || height
 
     const mouseEvents = metadata
-      .filter(m => m.eventType === 'mouse')
+      .filter(m => m.eventType === 'mouse' && m.isWithinBounds !== false)
       .map(m => ({
         timestamp: m.timestamp,
-        x: m.mouseX,
-        y: m.mouseY,
-        screenWidth: logicalWidth,
-        screenHeight: logicalHeight,
-        sourceType: (m as any).sourceType || sourceType,
-        sourceId: (m as any).sourceId || sourceId
+        x: m.mouseX,  // Already capture-relative from electron-recorder
+        y: m.mouseY,  // Already capture-relative from electron-recorder
+        screenWidth: captureWidth,  // Use capture dimensions for normalization
+        screenHeight: captureHeight,  // Use capture dimensions for normalization
+        cursorType: m.cursorType  // Include cursor type for accurate rendering
       }))
 
     const clickEvents = metadata
@@ -433,9 +435,7 @@ export async function saveRecordingWithProject(
         timestamp: m.timestamp,
         x: m.mouseX,
         y: m.mouseY,
-        button: m.key || 'left' as const,
-        sourceType: (m as any).sourceType || sourceType,
-        sourceId: (m as any).sourceId || sourceId
+        button: m.key || 'left' as const
       }))
 
     const keyboardEvents = metadata
@@ -459,7 +459,8 @@ export async function saveRecordingWithProject(
         mouseEvents,
         keyboardEvents,
         clickEvents,
-        screenEvents: []
+        screenEvents: [],
+        captureArea  // Also store in metadata for easy access during export
       }
     }
 

@@ -27,13 +27,11 @@ export interface ElectronMetadata {
   mouseY: number
   eventType: 'mouse' | 'click' | 'keypress' | 'scroll'
   key?: string
-  screenId?: string
   velocity?: { x: number; y: number }
   scrollDelta?: { x: number; y: number }
-  captureX?: number
-  captureY?: number
   captureWidth?: number
   captureHeight?: number
+  isWithinBounds?: boolean  // Whether cursor is within capture area
   scaleFactor?: number
   cursorType?: string  // Track cursor type for accurate rendering
 }
@@ -126,6 +124,19 @@ export class ElectronRecorder {
           throw new Error(`Selected source ${recordingSettings.sourceId} is no longer available. Please select a different source.`)
         }
         logger.info(`Using user-selected source: ${primarySource.name} (${primarySource.id})`)
+        
+        // For window sources, try to get the actual window bounds
+        if (!primarySource.id.startsWith('screen:') && window.electronAPI?.getSourceBounds) {
+          try {
+            const bounds = await window.electronAPI.getSourceBounds(primarySource.id)
+            if (bounds) {
+              captureAreaBounds = bounds
+              logger.info(`Window bounds detected: ${bounds.width}x${bounds.height} at (${bounds.x}, ${bounds.y})`)
+            }
+          } catch (error) {
+            logger.warn('Could not get window bounds:', error)
+          }
+        }
       } else {
         // Only auto-select if no sourceId was provided
         if (recordingSettings.area === 'window') {
@@ -162,14 +173,7 @@ export class ElectronRecorder {
 
       // Get media stream from desktop capturer with audio support
       const hasAudio = recordingSettings.audioInput !== 'none'
-      logger.debug('Requesting media stream with constraints', {
-        audio: hasAudio,
-        sourceId: primarySource.id
-      })
 
-      // ALWAYS use the mandatory format - this is what works universally
-      // Electron extends the standard MediaStreamConstraints
-      // Request system audio along with video
       const constraints: any = {
         audio: hasAudio ? {
           mandatory: {
@@ -224,46 +228,10 @@ export class ElectronRecorder {
 
         // Check audio status
         const audioTracks = this.stream.getAudioTracks()
-        logger.info(`System audio tracks captured: ${audioTracks.length}`)
-        
-        if (hasAudio) {
-          if (audioTracks.length > 0) {
-            logger.info('✅ System audio captured successfully!')
-            // Monitor audio track health
-            audioTracks.forEach(track => {
-              track.onended = () => {
-                logger.warn(`System audio track ended: ${track.label}`)
-              }
-            })
-          } else {
-            logger.warn('⚠️ System audio not available on macOS through Web APIs')
-            logger.info('Note: macOS requires a virtual audio device (like BlackHole) for system audio capture')
-            logger.info('Falling back to microphone audio instead...')
-            
-            try {
-              const audioStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                  echoCancellation: { ideal: true },
-                  noiseSuppression: { ideal: true },
-                  autoGainControl: { ideal: true }
-                },
-                video: false
-              })
-              
-              const micTrack = audioStream.getAudioTracks()[0]
-              if (micTrack) {
-                this.stream.addTrack(micTrack)
-                logger.info('✅ Microphone added as audio source')
-                
-                micTrack.onended = () => {
-                  logger.warn('Microphone track ended')
-                }
-              }
-            } catch (audioError) {
-              logger.error('❌ Failed to add microphone:', audioError)
-              logger.warn('Recording will continue WITHOUT audio')
-            }
-          }
+        if (hasAudio && audioTracks.length > 0) {
+          logger.info(`✅ Audio tracks captured: ${audioTracks.length}`)
+        } else if (hasAudio) {
+          logger.warn('⚠️ Audio requested but not available - macOS requires virtual audio device')
         }
       } catch (error) {
         logger.error('getUserMedia failed:', error)
@@ -706,11 +674,18 @@ export class ElectronRecorder {
           }
         }
 
-        // If we have a capture area, transform coordinates to be relative to it
+        // Transform coordinates to be relative to capture area
         let transformedX = data.x
         let transformedY = data.y
+        let isWithinBounds = true
         
         if (this.captureArea?.fullBounds) {
+          // Check if cursor is within capture area
+          isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
+                          data.x <= this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
+                          data.y >= this.captureArea.fullBounds.y &&
+                          data.y <= this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
+          
           // Adjust mouse coordinates to be relative to the capture area
           transformedX = data.x - this.captureArea.fullBounds.x
           transformedY = data.y - this.captureArea.fullBounds.y
@@ -718,16 +693,16 @@ export class ElectronRecorder {
 
         this.metadata.push({
           timestamp,
-          mouseX: transformedX,
-          mouseY: transformedY,
+          mouseX: transformedX,  // Capture-relative position
+          mouseY: transformedY,  // Capture-relative position
           eventType: 'mouse',
           velocity,
-          captureWidth: this.captureArea?.fullBounds?.width || data.displayBounds?.width,
-          captureHeight: this.captureArea?.fullBounds?.height || data.displayBounds?.height,
+          captureWidth: this.captureArea?.fullBounds?.width,
+          captureHeight: this.captureArea?.fullBounds?.height,
+          isWithinBounds,  // Whether cursor is within capture area
           scaleFactor: data.scaleFactor,
-          sourceType: data.sourceType,
-          sourceId: data.sourceId
-        } as any)
+          cursorType: data.cursorType  // Save cursor type from main process
+        })
 
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
@@ -739,28 +714,37 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        // If we have a capture area, transform coordinates to be relative to it
+        // Transform coordinates to be relative to capture area
         let transformedX = data.x
         let transformedY = data.y
+        let isWithinBounds = true
         
         if (this.captureArea?.fullBounds) {
+          // Check if click is within capture area
+          isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
+                          data.x <= this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
+                          data.y >= this.captureArea.fullBounds.y &&
+                          data.y <= this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
+          
           // Adjust mouse coordinates to be relative to the capture area
           transformedX = data.x - this.captureArea.fullBounds.x
           transformedY = data.y - this.captureArea.fullBounds.y
         }
 
-        this.metadata.push({
-          timestamp,
-          mouseX: transformedX,
-          mouseY: transformedY,
-          eventType: 'click',
-          key: data.button,
-          captureWidth: this.captureArea?.fullBounds?.width || data.displayBounds?.width,
-          captureHeight: this.captureArea?.fullBounds?.height || data.displayBounds?.height,
-          scaleFactor: data.scaleFactor,
-          sourceType: data.sourceType,
-          sourceId: data.sourceId
-        } as any)
+        // Only record clicks within the capture area
+        if (isWithinBounds) {
+          this.metadata.push({
+            timestamp,
+            mouseX: transformedX,  // Capture-relative position
+            mouseY: transformedY,  // Capture-relative position
+            eventType: 'click',
+            key: data.button,
+            captureWidth: this.captureArea?.fullBounds?.width,
+            captureHeight: this.captureArea?.fullBounds?.height,
+            scaleFactor: data.scaleFactor,
+            cursorType: data.cursorType  // Save cursor type for click events too
+          })
+        }
 
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
@@ -776,8 +760,6 @@ export class ElectronRecorder {
           mouseY: data.y,
           eventType: 'scroll',
           scrollDelta: { x: data.deltaX, y: data.deltaY },
-          captureX: this.captureArea?.fullBounds?.x,
-          captureY: this.captureArea?.fullBounds?.y,
           captureWidth: this.captureArea?.fullBounds?.width,
           captureHeight: this.captureArea?.fullBounds?.height
         })

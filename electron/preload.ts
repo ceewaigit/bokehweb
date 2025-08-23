@@ -75,6 +75,10 @@ const electronAPI = {
     return ipcRenderer.invoke('get-screens')
   },
 
+  getSourceBounds: (sourceId: string) => {
+    return ipcRenderer.invoke('get-source-bounds', sourceId)
+  },
+
   // Permission checking
   checkScreenRecordingPermission: () =>
     ipcRenderer.invoke('check-screen-recording-permission'),

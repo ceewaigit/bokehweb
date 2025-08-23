@@ -226,7 +226,15 @@ export function EffectsSidebar({
                             className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group"
                             title={wallpaper.name}
                           >
-                            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
+                            {wallpaper.thumbnail ? (
+                              <img 
+                                src={wallpaper.thumbnail} 
+                                alt={wallpaper.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
+                            )}
                             <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                               {wallpaper.name}
                             </span>

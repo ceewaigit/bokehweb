@@ -31,7 +31,8 @@ export class FFmpegExportEngine {
     blob: Blob,
     clip: Clip,
     settings: ExportSettings,
-    onProgress?: (progress: ExportProgress) => void
+    onProgress?: (progress: ExportProgress) => void,
+    captureArea?: { x: number; y: number; width: number; height: number }
   ): Promise<Blob> {
     try {
       onProgress?.({
@@ -61,6 +62,13 @@ export class FFmpegExportEngine {
 
       // Build FFmpeg filter chain based on effects
       const filters: string[] = []
+
+      // Apply cropping if we have a capture area (for window or area recording)
+      if (captureArea && captureArea.width > 0 && captureArea.height > 0) {
+        // Crop to the captured area
+        // Note: x and y are relative to the full screen recording
+        filters.push(`crop=${captureArea.width}:${captureArea.height}:${captureArea.x}:${captureArea.y}`)
+      }
 
       // Apply zoom effect if enabled
       if (clip.effects?.zoom?.enabled && clip.effects.zoom.blocks?.length) {

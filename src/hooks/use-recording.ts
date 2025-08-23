@@ -88,52 +88,18 @@ export function useRecording() {
     }
   }, [])
 
-  // Initialize recorder with hot reload protection
+  // Initialize recorder
   useEffect(() => {
-    // Check if there's already a global recorder instance to prevent hot reload issues
-    if (typeof window !== 'undefined' && (window as any).__screenRecorder) {
-      logger.debug('Reusing existing ElectronRecorder instance (hot reload protection)')
-      recorderRef.current = (window as any).__screenRecorder
-
-      // CRITICAL: If the existing recorder is actively recording, don't allow any new setup
-      if (recorderRef.current?.isCurrentlyRecording()) {
-        logger.debug('Existing recorder is actively recording - blocking any new initialization')
-        return
-      }
-    } else if (!recorderRef.current) {
-      // Only create new recorder if there's no global instance AND we're not recording
-      if (typeof window !== 'undefined' && (window as any).__screenRecorderActive) {
-        logger.debug('Recording active globally, preventing new ElectronRecorder creation')
-        return
-      }
-
+    if (!recorderRef.current) {
       try {
         recorderRef.current = new ElectronRecorder()
-        // Store globally to persist across hot reloads
-        if (typeof window !== 'undefined') {
-          (window as any).__screenRecorder = recorderRef.current
-        }
         logger.info('Screen recorder initialized')
       } catch (error) {
         logger.error('Failed to initialize screen recorder:', error)
         recorderRef.current = null
       }
     }
-
-    // Debug: Check if we're in the middle of a recording when component reinitializes
-    if (isRecording) {
-      logger.debug('Component reinitialized while recording - preserving existing recording state')
-      logger.debug('Current duration:', useRecordingStore.getState().duration, 'ms')
-
-      // If we have an active recording but no timer, we need to restore it
-      if (!timer.isRunning()) {
-        logger.debug('Restoring timer for ongoing recording')
-        const currentDuration = useRecordingStore.getState().duration
-        timer.start(currentDuration)
-        logger.debug('Timer restored for ongoing recording')
-      }
-    }
-  }, [setDuration, isRecording, timer]) // Include all dependencies
+  }, [])
 
   const startRecording = useCallback(async (_sourceId?: string) => {
     if (!recorderRef.current || isRecording) {
