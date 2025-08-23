@@ -88,7 +88,7 @@ export const VideoLayer: React.FC<VideoLayerProps & {
     // Full screen/window: show entire video
     width: '100%',
     height: '100%',
-    objectFit: 'cover' as const
+    objectFit: 'contain' as const  // Changed from 'cover' to 'contain' to show full video
   };
 
   return (
