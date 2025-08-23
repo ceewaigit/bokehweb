@@ -26,7 +26,6 @@ export function registerSourceHandlers(): void {
   // CRITICAL FIX: Return constraints that work with all Electron versions
   ipcMain.handle('get-desktop-stream', async (event: IpcMainInvokeEvent, sourceId: string, hasAudio: boolean = false): Promise<MediaConstraints> => {
     try {
-      console.log('🎥 Creating desktop stream for source:', sourceId, 'with audio:', hasAudio)
 
       // This format works universally across Electron versions
       const constraints: MediaConstraints = {
@@ -43,7 +42,6 @@ export function registerSourceHandlers(): void {
         }
       }
 
-      console.log('✅ Returning constraints:', JSON.stringify(constraints, null, 2))
       return constraints
     } catch (error) {
       console.error('❌ Failed to create stream constraints:', error)
@@ -56,7 +54,6 @@ export function registerSourceHandlers(): void {
       // Check permissions on macOS
       if (process.platform === 'darwin') {
         const status = systemPreferences.getMediaAccessStatus('screen')
-        console.log('🔍 Screen recording permission check:', status)
 
         if (status !== 'granted') {
           const parentWindow = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow()
@@ -84,7 +81,6 @@ export function registerSourceHandlers(): void {
       }
 
       // Use desktopCapturer properly with error handling
-      console.log('🎥 Getting desktop sources via desktopCapturer')
       
       const types = options.types || ['screen', 'window']
       const thumbnailSize = options.thumbnailSize || { width: 150, height: 150 }
@@ -96,7 +92,6 @@ export function registerSourceHandlers(): void {
           fetchWindowIcons: false
         })
         
-        console.log(`📺 Found ${sources.length} sources`)
         
         // Import window bounds helper dynamically
         const { getWindowBoundsForSource } = await import('../native/window-bounds')
@@ -108,7 +103,6 @@ export function registerSourceHandlers(): void {
           if (!source.id.startsWith('screen:')) {
             bounds = await getWindowBoundsForSource(source.name)
             if (bounds) {
-              console.log(`📐 Window "${source.name}" bounds: ${bounds.width}x${bounds.height} at (${bounds.x}, ${bounds.y})`)
             }
           }
           
@@ -125,7 +119,6 @@ export function registerSourceHandlers(): void {
           throw new Error('No sources found. Please check screen recording permissions.')
         }
         
-        console.log('📺 Returning sources:', mappedSources.map(s => `${s.name} (${s.id})`))
         return mappedSources
       } catch (captureError) {
         console.error('desktopCapturer failed:', captureError)
@@ -213,165 +206,17 @@ export function registerSourceHandlers(): void {
   })
 
   ipcMain.handle('get-macos-wallpapers', async () => {
-    try {
-      const wallpaperDirs = [
-        '/System/Library/Desktop Pictures',
-        '/Library/Desktop Pictures'
-      ]
-      
-      // Priority list of macOS version wallpapers (commonly used in Screen Studio)
-      const priorityWallpapers = [
-        'Sonoma', 'Ventura', 'Monterey', 'Big Sur', 'Catalina', 
-        'Mojave', 'High Sierra', 'Sierra', 'El Capitan', 'Yosemite'
-      ]
-      
-      const wallpapers: Array<{ name: string, path: string, thumbnail?: string }> = []
-      const foundWallpapers = new Set<string>()
-      
-      // First, look for macOS version wallpapers
-      for (const dir of wallpaperDirs) {
-        try {
-          const files = await fs.readdir(dir)
-          
-          // Process priority wallpapers first
-          for (const priority of priorityWallpapers) {
-            for (const file of files) {
-              // Match files that contain the macOS version name
-              if (file.toLowerCase().includes(priority.toLowerCase()) && 
-                  file.match(/\.(heic|jpg|jpeg|png|tiff)$/i) &&
-                  !foundWallpapers.has(file)) {
-                
-                const fullPath = path.join(dir, file)
-                const name = path.basename(file, path.extname(file))
-                
-                // Generate thumbnail
-                let thumbnail: string | undefined
-                
-                if (process.platform === 'darwin' && file.match(/\.heic$/i)) {
-                  try {
-                    const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
-                    execSync(`sips -s format jpeg -Z 200 "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
-                    
-                    const convertedBuffer = await fs.readFile(tempFile)
-                    const convertedImage = nativeImage.createFromBuffer(convertedBuffer)
-                    thumbnail = convertedImage.toDataURL()
-                    
-                    try { await fs.unlink(tempFile) } catch {}
-                  } catch (err) {
-                    console.log(`Could not convert HEIC thumbnail: ${file}`)
-                  }
-                } else {
-                  try {
-                    const imageBuffer = await fs.readFile(fullPath)
-                    const image = nativeImage.createFromBuffer(imageBuffer)
-                    const resized = image.resize({ 
-                      width: 200,
-                      height: 120,
-                      quality: 'good'
-                    })
-                    thumbnail = resized.toDataURL()
-                  } catch (err) {
-                    console.log(`Could not generate thumbnail: ${file}`)
-                  }
-                }
-                
-                wallpapers.push({
-                  name: name.replace(/_/g, ' ').replace(/^\d+\s*-\s*/, ''), // Remove number prefixes
-                  path: fullPath,
-                  thumbnail
-                })
-                
-                foundWallpapers.add(file)
-              }
-            }
-          }
-          
-          // If we need more wallpapers, add some abstract/graphic ones
-          if (wallpapers.length < 12) {
-            const additionalPatterns = ['Abstract', 'Graphic', 'Color', 'Wave']
-            for (const pattern of additionalPatterns) {
-              for (const file of files) {
-                if (wallpapers.length >= 12) break
-                
-                if (file.toLowerCase().includes(pattern.toLowerCase()) && 
-                    file.match(/\.(heic|jpg|jpeg|png|tiff)$/i) &&
-                    !foundWallpapers.has(file)) {
-                  
-                  const fullPath = path.join(dir, file)
-                  const name = path.basename(file, path.extname(file))
-                  
-                  // Generate thumbnail (same logic as above)
-                  let thumbnail: string | undefined
-                  
-                  if (process.platform === 'darwin' && file.match(/\.heic$/i)) {
-                    try {
-                      const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
-                      execSync(`sips -s format jpeg -Z 200 "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
-                      
-                      const convertedBuffer = await fs.readFile(tempFile)
-                      const convertedImage = nativeImage.createFromBuffer(convertedBuffer)
-                      thumbnail = convertedImage.toDataURL()
-                      
-                      try { await fs.unlink(tempFile) } catch {}
-                    } catch (err) {
-                      console.log(`Could not convert HEIC thumbnail: ${file}`)
-                    }
-                  } else {
-                    try {
-                      const imageBuffer = await fs.readFile(fullPath)
-                      const image = nativeImage.createFromBuffer(imageBuffer)
-                      const resized = image.resize({ 
-                        width: 200,
-                        height: 120,
-                        quality: 'good'
-                      })
-                      thumbnail = resized.toDataURL()
-                    } catch (err) {
-                      console.log(`Could not generate thumbnail: ${file}`)
-                    }
-                  }
-                  
-                  wallpapers.push({
-                    name: name.replace(/_/g, ' ').replace(/^\d+\s*-\s*/, ''),
-                    path: fullPath,
-                    thumbnail
-                  })
-                  
-                  foundWallpapers.add(file)
-                }
-              }
-            }
-          }
-        } catch {
-          // Directory not accessible, skip
-        }
-      }
-      
-      // Sort to prioritize macOS version wallpapers
-      wallpapers.sort((a, b) => {
-        const aIndex = priorityWallpapers.findIndex(p => a.name.includes(p))
-        const bIndex = priorityWallpapers.findIndex(p => b.name.includes(p))
-        
-        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex
-        if (aIndex !== -1) return -1
-        if (bIndex !== -1) return 1
-        return 0
-      })
-      
-      const macOSGradients = [
-        { name: 'Sonoma Gradient', path: 'gradient:sonoma', colors: ['#2D3748', '#1A202C'] },
-        { name: 'Ventura Gradient', path: 'gradient:ventura', colors: ['#1E3A8A', '#312E81'] },
-        { name: 'Monterey Gradient', path: 'gradient:monterey', colors: ['#065F46', '#064E3B'] },
-        { name: 'Big Sur Gradient', path: 'gradient:bigsur', colors: ['#DC2626', '#991B1B'] }
-      ]
-      
-      return {
-        wallpapers: wallpapers.slice(0, 12), // Return top 12
-        gradients: macOSGradients
-      }
-    } catch (error) {
-      console.error('Error getting macOS wallpapers:', error)
-      return { wallpapers: [], gradients: [] }
+    // Simple wallpaper handler - no thumbnails needed for MVP
+    const macOSGradients = [
+      { name: 'Sonoma', path: 'gradient:sonoma', colors: ['#2D3748', '#1A202C'] },
+      { name: 'Ventura', path: 'gradient:ventura', colors: ['#1E3A8A', '#312E81'] },
+      { name: 'Monterey', path: 'gradient:monterey', colors: ['#065F46', '#064E3B'] },
+      { name: 'Big Sur', path: 'gradient:bigsur', colors: ['#DC2626', '#991B1B'] }
+    ]
+    
+    return {
+      wallpapers: [],
+      gradients: macOSGradients
     }
   })
 

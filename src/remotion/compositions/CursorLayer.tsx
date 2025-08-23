@@ -61,8 +61,21 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
 
     const electronType = closestEvent?.cursorType || 'default';
-    return electronToCustomCursor(electronType);
-  }, [cursorEvents, currentTimeMs]);
+    const mappedType = electronToCustomCursor(electronType);
+    
+    // Debug logging
+    if (frame % 60 === 0) {  // Log every 60 frames
+      console.log('🎯 Cursor type mapping:', {
+        frame,
+        electronType,
+        mappedType,
+        timestamp: closestEvent?.timestamp,
+        currentTimeMs
+      });
+    }
+    
+    return mappedType;
+  }, [cursorEvents, currentTimeMs, frame]);
 
   // Get interpolated cursor position
   const cursorPosition = useMemo(() => {

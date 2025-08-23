@@ -694,6 +694,18 @@ export class ElectronRecorder {
         // Only record mouse events when within bounds
         // For full screen recording, always record. For partial, only when in bounds.
         if (isWithinBounds) {
+          // Debug logging for cursor type
+          if (this.captureArea?.fullBounds && this.metadata.length % 50 === 0) {
+            console.log('📍 Recording cursor event:', {
+              cursorType: data.cursorType,
+              sourceType: data.sourceType,
+              sourceId: data.sourceId,
+              isWithinBounds,
+              x: transformedX,
+              y: transformedY
+            })
+          }
+          
           this.metadata.push({
             timestamp,
             mouseX: transformedX,  // Capture-relative position

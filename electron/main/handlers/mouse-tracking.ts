@@ -134,9 +134,19 @@ export function registerMouseTrackingHandlers(): void {
 
             // For partial screen recordings, always use default cursor
             // since we can't detect cursor type outside our window
-            const effectiveCursorType = (sourceType === 'screen' && sourceId?.includes('area:')) 
-              ? 'default' 
-              : currentCursorType;
+            const isAreaRecording = sourceId?.includes('area:');
+            const effectiveCursorType = isAreaRecording ? 'default' : currentCursorType;
+            
+            // Debug logging
+            if (isAreaRecording) {
+              console.log('🖱️ Area recording cursor:', {
+                sourceId,
+                sourceType,
+                currentCursorType,
+                effectiveCursorType,
+                isAreaRecording
+              });
+            }
 
             // Send enhanced mouse data with velocity for smooth interpolation
             mouseEventSender.send('mouse-move', {

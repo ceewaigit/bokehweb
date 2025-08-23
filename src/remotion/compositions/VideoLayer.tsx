@@ -65,56 +65,25 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
     }
     : {};
 
-  // Calculate video cropping for area/window selection
+  // Apply cropping for window/area recordings
   let videoStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
     objectFit: 'cover' as const
   };
 
-  if (captureArea && captureArea.width > 0 && captureArea.height > 0) {
-    // The video captured the full screen, but we only want to show the window/area
-    // We need to crop and scale the video to show only the capture area
-    
-    // Calculate the scale needed to fit the capture area into the draw area
-    const scaleX = drawWidth / captureArea.width;
-    const scaleY = drawHeight / captureArea.height;
-    
-    // Use uniform scale to maintain aspect ratio
-    const scale = Math.min(scaleX, scaleY);
-    
-    // Calculate the scaled dimensions of the full video
-    const scaledVideoWidth = videoWidth * scale;
-    const scaledVideoHeight = videoHeight * scale;
-    
-    // Calculate offset to show only the capture area
-    // The capture area x,y are in screen coordinates
-    const offsetLeft = -(captureArea.x * scale);
-    const offsetTop = -(captureArea.y * scale);
-    
-    // Center the cropped area if it's smaller than the container
-    const cropWidth = captureArea.width * scale;
-    const cropHeight = captureArea.height * scale;
-    const centerOffsetX = (drawWidth - cropWidth) / 2;
-    const centerOffsetY = (drawHeight - cropHeight) / 2;
+  if (captureArea?.width && captureArea?.height) {
+    // Scale video to show only the capture area
+    const scale = Math.min(drawWidth / captureArea.width, drawHeight / captureArea.height);
     
     videoStyle = {
       position: 'absolute',
-      width: scaledVideoWidth,
-      height: scaledVideoHeight,
-      left: offsetLeft + centerOffsetX,
-      top: offsetTop + centerOffsetY,
+      width: videoWidth * scale,
+      height: videoHeight * scale,
+      left: -(captureArea.x * scale) + (drawWidth - captureArea.width * scale) / 2,
+      top: -(captureArea.y * scale) + (drawHeight - captureArea.height * scale) / 2,
       objectFit: 'none' as const
     };
-    
-    console.log('Cropping video for capture area:', {
-      captureArea,
-      scale,
-      scaledVideoWidth,
-      scaledVideoHeight,
-      offsetLeft,
-      offsetTop
-    });
   }
 
   return (
