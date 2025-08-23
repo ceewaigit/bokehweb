@@ -16,7 +16,8 @@ const defaultSettings: RecordingSettings = {
   audioInput: 'system',
   quality: 'high',
   framerate: 60,
-  format: 'webm'
+  format: 'webm',
+  sourceId: undefined  // Explicitly include sourceId
 }
 
 export const useRecordingStore = create<RecordingStore>((set) => ({
