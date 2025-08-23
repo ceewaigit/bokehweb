@@ -11,8 +11,12 @@ const isRecordButton = window.location.hash === '#/record-button';
 
 const App = () => {
   if (isRecordButton) {
-    // Record button renders as minimal component without any wrappers
-    return <RecordButtonDock />;
+    // Record button needs ThemeProvider to access design tokens
+    return (
+      <ThemeProvider>
+        <RecordButtonDock />
+      </ThemeProvider>
+    );
   }
 
   // Main app UI needs ThemeProvider

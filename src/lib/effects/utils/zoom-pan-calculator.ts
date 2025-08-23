@@ -6,8 +6,8 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly PAN_SMOOTHING = 0.15  // Single smoothing value
-  private readonly MAX_PAN_OFFSET = 0.45  // Maximum pan from center
+  private readonly PAN_SMOOTHING = 0.25  // Increased for smoother transitions
+  private readonly MAX_PAN_OFFSET = 0.35  // Slightly reduced for better framing
 
   /**
    * Calculate smooth pan offset based on mouse position
@@ -39,20 +39,24 @@ export class ZoomPanCalculator {
     let targetPanX = currentPanX
     let targetPanY = currentPanY
 
-    // Edge margin (15% of viewport)
-    const margin = viewportSize * 0.15
+    // Edge margin (20% of viewport for earlier, smoother pan)
+    const margin = viewportSize * 0.20
 
-    // Pan when mouse approaches edges
+    // Pan when mouse approaches edges with smoother transition
     if (normalizedX < viewportLeft + margin) {
-      targetPanX = 0.5 - normalizedX + margin
+      const edgeDistance = (viewportLeft + margin - normalizedX) / margin
+      targetPanX = 0.5 - normalizedX + margin * Math.min(1, edgeDistance * 0.8)
     } else if (normalizedX > viewportRight - margin) {
-      targetPanX = 0.5 - normalizedX - margin
+      const edgeDistance = (normalizedX - (viewportRight - margin)) / margin
+      targetPanX = 0.5 - normalizedX - margin * Math.min(1, edgeDistance * 0.8)
     }
 
     if (normalizedY < viewportTop + margin) {
-      targetPanY = 0.5 - normalizedY + margin
+      const edgeDistance = (viewportTop + margin - normalizedY) / margin
+      targetPanY = 0.5 - normalizedY + margin * Math.min(1, edgeDistance * 0.8)
     } else if (normalizedY > viewportBottom - margin) {
-      targetPanY = 0.5 - normalizedY - margin
+      const edgeDistance = (normalizedY - (viewportBottom - margin)) / margin
+      targetPanY = 0.5 - normalizedY - margin * Math.min(1, edgeDistance * 0.8)
     }
 
     // Clamp to bounds

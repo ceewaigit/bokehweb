@@ -29,34 +29,40 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    width: 1, // Start minimal, content will drive size
-    height: 1, // Start minimal, content will drive size
-    x: Math.floor(display.workAreaSize.width / 2), // Center will be adjusted after sizing
+    width: 400, // Start with reasonable width for the dock
+    height: 60, // Start with reasonable height for the dock
+    x: Math.floor(display.workAreaSize.width / 2 - 200), // Center horizontally
     y: 20,
     frame: false,
     transparent: true,
-    backgroundColor: '#00000000',
+    backgroundColor: '#00000000', // Fully transparent
     alwaysOnTop: true,
     resizable: false,
     movable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    skipTaskbar: !isDev,
-    hasShadow: false,
-    roundedCorners: true,
+    skipTaskbar: true, // Always skip taskbar for floating dock
+    hasShadow: false, // No OS shadow, we'll handle our own
+    roundedCorners: false, // Let our component handle rounding
     show: false,
+    titleBarStyle: 'customButtonsOnHover', // macOS: hide title bar
+    vibrancy: undefined, // No vibrancy effect
+    visualEffectState: 'inactive', // macOS: no visual effects
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js'),
-      webSecurity: true, // Always enable in production
+      webSecurity: true,
       allowRunningInsecureContent: false,
       devTools: isDev,
       backgroundThrottling: false
     }
   })
 
+  // Set window title to empty string to avoid any OS chrome showing it
+  recordButton.setTitle('')
+  
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
   recordButton.setIgnoreMouseEvents(false)

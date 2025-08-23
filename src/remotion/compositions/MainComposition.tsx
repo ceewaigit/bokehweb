@@ -61,18 +61,17 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         let panX = 0;
         let panY = 0;
 
-        const introMs = activeZoomBlock.introMs || 500;  // Slightly longer for smoother transition
+        const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
         if (elapsed < introMs) {
-          // Intro phase - smooth zoom in
+          // Intro phase - smooth zoom in with immediate pan calculation
           const introProgress = elapsed / introMs;
-          const easedProgress = smoothStep(introProgress);  // Use smoothstep for silky smooth transition
+          const easedProgress = smoothStep(introProgress);
           scale = 1 + (scale - 1) * easedProgress;
 
-          // Calculate pan target during intro for smooth transition
-          if (cursorEvents.length > 0 && introProgress > 0.2) {
-            // Start calculating pan early but apply it gradually
+          // Calculate pan from the very start for smooth unified motion
+          if (cursorEvents.length > 0) {
             const mousePos = zoomPanCalculator.interpolateMousePosition(
               cursorEvents,
               currentTimeMs
@@ -82,22 +81,20 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               const screenWidth = cursorEvents[0].screenWidth;
               const screenHeight = cursorEvents[0].screenHeight;
 
-              // Calculate target pan but don't update the ref yet
+              // Calculate target pan with current scale
               const targetPan = zoomPanCalculator.calculateSmoothPan(
                 mousePos.x,
                 mousePos.y,
                 screenWidth,
                 screenHeight,
-                scale,  // Use current interpolated scale
+                scale,
                 smoothPanRef.current.x,
                 smoothPanRef.current.y
               );
 
-              // Gradually apply pan during intro
-              const panProgress = (introProgress - 0.2) / 0.8;
-              const panEased = smoothStep(panProgress);
-              smoothPanRef.current.x = targetPan.x * panEased;
-              smoothPanRef.current.y = targetPan.y * panEased;
+              // Apply pan smoothly from the beginning with same easing as zoom
+              smoothPanRef.current.x = targetPan.x * easedProgress;
+              smoothPanRef.current.y = targetPan.y * easedProgress;
               panX = smoothPanRef.current.x;
               panY = smoothPanRef.current.y;
             }
@@ -109,7 +106,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           const easedProgress = smoothStep(outroProgress);
           scale = activeZoomBlock.scale - (activeZoomBlock.scale - 1) * easedProgress;
 
-          // Fade out pan smoothly during outro
+          // Smoothly transition pan back to center during outro
           const fadeOutPan = 1 - easedProgress;
           panX = smoothPanRef.current.x * fadeOutPan;
           panY = smoothPanRef.current.y * fadeOutPan;
