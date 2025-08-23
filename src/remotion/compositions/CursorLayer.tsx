@@ -255,6 +255,20 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const renderedWidth = dimensions.width * cursorSize;
   const renderedHeight = dimensions.height * cursorSize;
   
+  // Debug logging to understand the offset issue
+  if (frame % 30 === 0) { // Log every 30 frames to avoid spam
+    console.log('Cursor positioning debug:', {
+      cursorType,
+      cursorSize,
+      dimensions,
+      renderedSize: { width: renderedWidth, height: renderedHeight },
+      hotspot,
+      hotspotOffset: { x: hotspot.x * renderedWidth, y: hotspot.y * renderedHeight },
+      cursorPosBefore: { x: cursorX, y: cursorY },
+      cursorPosAfter: { x: cursorX - hotspot.x * renderedWidth, y: cursorY - hotspot.y * renderedHeight }
+    });
+  }
+  
   // Apply hotspot offset based on the ratio of the cursor dimensions
   // This works for any cursor size since hotspots are defined as ratios
   cursorX -= hotspot.x * renderedWidth;
