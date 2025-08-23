@@ -71,29 +71,32 @@ export function RecordButtonDock() {
 
   // Dynamically size window based on actual content dimensions
   useEffect(() => {
-    const dockElement = dockContainerRef.current
-    if (!dockElement || !window.electronAPI?.setWindowContentSize) return
+    if (!showSourcePicker) {
+      // Only auto-size for the dock, not when source picker is open
+      const dockElement = dockContainerRef.current
+      if (!dockElement || !window.electronAPI?.setWindowContentSize) return
 
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (!entry) return
+      const observer = new ResizeObserver((entries) => {
+        const entry = entries[0]
+        if (!entry) return
 
-      const { width, height } = entry.contentRect
-      // Add small buffer for shadows
-      const buffer = 16
+        const { width, height } = entry.contentRect
+        // Add small buffer for shadows
+        const buffer = 16
 
-      window.electronAPI?.setWindowContentSize?.({
-        width: Math.ceil(width + buffer),
-        height: Math.ceil(height + buffer)
+        window.electronAPI?.setWindowContentSize?.({
+          width: Math.ceil(width + buffer),
+          height: Math.ceil(height + buffer)
+        })
       })
-    })
 
-    observer.observe(dockElement)
-    return () => observer.disconnect()
-  }, [])
+      observer.observe(dockElement)
+      return () => observer.disconnect()
+    }
+  }, [showSourcePicker])
 
   const handleStartRecording = () => {
-    // Always show the source picker for source selection
+    // Show the source picker inline
     setShowSourcePicker(true)
   }
 

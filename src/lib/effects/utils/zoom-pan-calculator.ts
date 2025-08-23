@@ -6,11 +6,16 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly PAN_SMOOTHING = 0.25  // Increased for smoother transitions
-  private readonly MAX_PAN_OFFSET = 0.35  // Slightly reduced for better framing
+  private readonly PAN_SMOOTHING = 0.12  // Lower for more responsive panning
+  private readonly MAX_PAN_OFFSET = 0.35  // Maximum pan from center
+  private readonly VELOCITY_SMOOTHING = 0.3  // For velocity-based prediction
+  private lastMouseX: number | null = null
+  private lastMouseY: number | null = null
+  private velocityX: number = 0
+  private velocityY: number = 0
 
   /**
-   * Calculate smooth pan offset based on mouse position
+   * Calculate smooth pan offset based on mouse position with velocity prediction
    * Follows mouse at edges and when it escapes viewport
    */
   calculateSmoothPan(
@@ -22,41 +27,52 @@ export class ZoomPanCalculator {
     currentPanX: number = 0,
     currentPanY: number = 0
   ): { x: number; y: number } {
-    // Normalize mouse position
-    const normalizedX = mouseX / videoWidth
-    const normalizedY = mouseY / videoHeight
+    // Calculate velocity for prediction
+    if (this.lastMouseX !== null && this.lastMouseY !== null) {
+      const newVelocityX = (mouseX - this.lastMouseX) / videoWidth
+      const newVelocityY = (mouseY - this.lastMouseY) / videoHeight
+      
+      // Smooth velocity to reduce jitter
+      this.velocityX = this.velocityX * (1 - this.VELOCITY_SMOOTHING) + newVelocityX * this.VELOCITY_SMOOTHING
+      this.velocityY = this.velocityY * (1 - this.VELOCITY_SMOOTHING) + newVelocityY * this.VELOCITY_SMOOTHING
+    }
+    
+    this.lastMouseX = mouseX
+    this.lastMouseY = mouseY
+    // Normalize mouse position with velocity prediction
+    const predictionFrames = 8  // Predict 8 frames ahead
+    const predictedX = mouseX + (this.velocityX * videoWidth * predictionFrames)
+    const predictedY = mouseY + (this.velocityY * videoHeight * predictionFrames)
+    
+    // Use predicted position for smoother panning
+    const normalizedX = Math.max(0, Math.min(1, predictedX / videoWidth))
+    const normalizedY = Math.max(0, Math.min(1, predictedY / videoHeight))
 
     // Viewport size in normalized coordinates
     const viewportSize = 1 / zoomScale
     
-    // Current viewport bounds
-    const viewportLeft = 0.5 - currentPanX - viewportSize / 2
-    const viewportRight = 0.5 - currentPanX + viewportSize / 2
-    const viewportTop = 0.5 - currentPanY - viewportSize / 2
-    const viewportBottom = 0.5 - currentPanY + viewportSize / 2
-
-    // Target pan to keep mouse visible
+    // Calculate ideal center position for the mouse
+    // This creates a "dead zone" in the center where no panning occurs
+    const centerDeadZone = 0.3  // 30% of viewport is dead zone
+    
+    // Calculate target pan based on mouse position
     let targetPanX = currentPanX
     let targetPanY = currentPanY
-
-    // Edge margin (20% of viewport for earlier, smoother pan)
-    const margin = viewportSize * 0.20
-
-    // Pan when mouse approaches edges with smoother transition
-    if (normalizedX < viewportLeft + margin) {
-      const edgeDistance = (viewportLeft + margin - normalizedX) / margin
-      targetPanX = 0.5 - normalizedX + margin * Math.min(1, edgeDistance * 0.8)
-    } else if (normalizedX > viewportRight - margin) {
-      const edgeDistance = (normalizedX - (viewportRight - margin)) / margin
-      targetPanX = 0.5 - normalizedX - margin * Math.min(1, edgeDistance * 0.8)
+    
+    // Calculate distance from center
+    const distFromCenterX = Math.abs(normalizedX - 0.5)
+    const distFromCenterY = Math.abs(normalizedY - 0.5)
+    
+    // Only pan if mouse is outside the dead zone
+    if (distFromCenterX > centerDeadZone * viewportSize) {
+      // Calculate pan amount based on distance from center
+      const panStrength = (distFromCenterX - centerDeadZone * viewportSize) / (0.5 - centerDeadZone * viewportSize)
+      targetPanX = (0.5 - normalizedX) * panStrength * 0.5
     }
-
-    if (normalizedY < viewportTop + margin) {
-      const edgeDistance = (viewportTop + margin - normalizedY) / margin
-      targetPanY = 0.5 - normalizedY + margin * Math.min(1, edgeDistance * 0.8)
-    } else if (normalizedY > viewportBottom - margin) {
-      const edgeDistance = (normalizedY - (viewportBottom - margin)) / margin
-      targetPanY = 0.5 - normalizedY - margin * Math.min(1, edgeDistance * 0.8)
+    
+    if (distFromCenterY > centerDeadZone * viewportSize) {
+      const panStrength = (distFromCenterY - centerDeadZone * viewportSize) / (0.5 - centerDeadZone * viewportSize)
+      targetPanY = (0.5 - normalizedY) * panStrength * 0.5
     }
 
     // Clamp to bounds

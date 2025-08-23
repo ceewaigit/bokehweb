@@ -6,6 +6,7 @@ import { CursorLayer } from './CursorLayer';
 import type { MainCompositionProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
+import { calculateZoomScale, smoothStep } from './utils/zoom-transform';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -20,8 +21,15 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
-  // Track dynamic pan state separately for each zoom block
-  const smoothPanRef = useRef({ x: 0, y: 0, lastBlockId: null as string | null });
+  // Track dynamic pan state separately for each zoom block with target tracking
+  const smoothPanRef = useRef({ 
+    x: 0, 
+    y: 0, 
+    targetX: 0,
+    targetY: 0,
+    lastBlockId: null as string | null,
+    lastMouseTime: 0
+  });
 
   // Calculate video position for cursor layer
   const padding = effects?.background?.padding || 0;
@@ -49,26 +57,35 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         if (smoothPanRef.current.lastBlockId !== activeZoomBlock.id) {
           smoothPanRef.current.x = 0;
           smoothPanRef.current.y = 0;
+          smoothPanRef.current.targetX = 0;
+          smoothPanRef.current.targetY = 0;
           smoothPanRef.current.lastBlockId = activeZoomBlock.id;
+          smoothPanRef.current.lastMouseTime = currentTimeMs;
         }
 
         // Calculate zoom interpolation
         const blockDuration = activeZoomBlock.endTime - activeZoomBlock.startTime;
         const elapsed = clipRelativeTime - activeZoomBlock.startTime;
-
-        // Apply intro/outro transitions with consistent easing
-        let scale = activeZoomBlock.scale || 2;
-        let panX = 0;
-        let panY = 0;
-
         const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
+        // Use shared zoom scale calculation
+        const scale = calculateZoomScale(
+          elapsed,
+          blockDuration,
+          activeZoomBlock.scale || 2,
+          introMs,
+          outroMs
+        );
+        
+        // Initialize pan variables
+        let panX = 0;
+        let panY = 0;
+
         if (elapsed < introMs) {
-          // Intro phase - smooth zoom in with immediate pan calculation
+          // Intro phase - calculate pan with immediate start
           const introProgress = elapsed / introMs;
           const easedProgress = smoothStep(introProgress);
-          scale = 1 + (scale - 1) * easedProgress;
 
           // Calculate pan from the very start for smooth unified motion
           if (cursorEvents.length > 0) {
@@ -92,27 +109,31 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
                 smoothPanRef.current.y
               );
 
-              // Apply pan smoothly from the beginning with same easing as zoom
-              smoothPanRef.current.x = targetPan.x * easedProgress;
-              smoothPanRef.current.y = targetPan.y * easedProgress;
+              // Store targets and apply smooth interpolation
+              smoothPanRef.current.targetX = targetPan.x;
+              smoothPanRef.current.targetY = targetPan.y;
+              
+              // Apply pan with intro easing and additional smoothing
+              const panIntroFactor = easedProgress * 0.8; // Slightly slower pan intro
+              smoothPanRef.current.x += (smoothPanRef.current.targetX - smoothPanRef.current.x) * panIntroFactor * 0.3;
+              smoothPanRef.current.y += (smoothPanRef.current.targetY - smoothPanRef.current.y) * panIntroFactor * 0.3;
+              
               panX = smoothPanRef.current.x;
               panY = smoothPanRef.current.y;
             }
           }
         } else if (elapsed > blockDuration - outroMs) {
-          // Outro phase - smooth zoom out
+          // Outro phase - scale is already calculated above
           const outroElapsed = elapsed - (blockDuration - outroMs);
           const outroProgress = outroElapsed / outroMs;
           const easedProgress = smoothStep(outroProgress);
-          scale = activeZoomBlock.scale - (activeZoomBlock.scale - 1) * easedProgress;
 
           // Smoothly transition pan back to center during outro
           const fadeOutPan = 1 - easedProgress;
           panX = smoothPanRef.current.x * fadeOutPan;
           panY = smoothPanRef.current.y * fadeOutPan;
         } else {
-          // Hold phase - full zoom with dynamic pan
-          scale = activeZoomBlock.scale || 2;
+          // Hold phase - scale is already calculated, just handle pan
 
           // Get interpolated mouse position at current time
           const mousePos = zoomPanCalculator.interpolateMousePosition(
@@ -125,7 +146,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             const screenWidth = cursorEvents[0].screenWidth;
             const screenHeight = cursorEvents[0].screenHeight;
 
-            // Use simplified smooth pan calculator
+            // Calculate time delta for smooth interpolation
+            const timeDelta = currentTimeMs - smoothPanRef.current.lastMouseTime;
+            smoothPanRef.current.lastMouseTime = currentTimeMs;
+            
+            // Use smooth pan calculator with velocity prediction
             const panOffset = zoomPanCalculator.calculateSmoothPan(
               mousePos.x,
               mousePos.y,
@@ -136,11 +161,17 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               smoothPanRef.current.y
             );
 
-            // Update smooth pan state
-            smoothPanRef.current.x = panOffset.x;
-            smoothPanRef.current.y = panOffset.y;
-            panX = panOffset.x;
-            panY = panOffset.y;
+            // Store targets
+            smoothPanRef.current.targetX = panOffset.x;
+            smoothPanRef.current.targetY = panOffset.y;
+            
+            // Apply smooth interpolation with adaptive smoothing based on time delta
+            const smoothingFactor = Math.min(0.15, Math.max(0.08, timeDelta / 100)); // Adaptive smoothing
+            smoothPanRef.current.x += (smoothPanRef.current.targetX - smoothPanRef.current.x) * smoothingFactor;
+            smoothPanRef.current.y += (smoothPanRef.current.targetY - smoothPanRef.current.y) * smoothingFactor;
+            
+            panX = smoothPanRef.current.x;
+            panY = smoothPanRef.current.y;
           }
         }
 
@@ -160,7 +191,10 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         if (smoothPanRef.current.lastBlockId !== null) {
           smoothPanRef.current.x = 0;
           smoothPanRef.current.y = 0;
+          smoothPanRef.current.targetX = 0;
+          smoothPanRef.current.targetY = 0;
           smoothPanRef.current.lastBlockId = null;
+          smoothPanRef.current.lastMouseTime = 0;
         }
       }
     }
@@ -217,9 +251,3 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     </AbsoluteFill>
   );
 };
-
-// SmoothStep for ultra-smooth transitions
-function smoothStep(t: number): number {
-  const clampedT = Math.max(0, Math.min(1, t));
-  return clampedT * clampedT * (3 - 2 * clampedT);
-}

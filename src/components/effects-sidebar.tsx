@@ -47,7 +47,9 @@ export function EffectsSidebar({
 }: EffectsSidebarProps) {
   // Auto-switch tab based on selected effect layer
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
-  const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
+  const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('wallpaper')
+  const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[], gradients: any[] }>({ wallpapers: [], gradients: [] })
+  const [loadingWallpapers, setLoadingWallpapers] = useState(false)
 
   // Update active tab when effect layer is selected
   React.useEffect(() => {
@@ -61,6 +63,20 @@ export function EffectsSidebar({
       }
     }
   }, [selectedEffectLayer])
+
+  // Load macOS wallpapers when wallpaper tab is selected
+  React.useEffect(() => {
+    if (backgroundType === 'wallpaper' && macOSWallpapers.wallpapers.length === 0 && !loadingWallpapers) {
+      setLoadingWallpapers(true)
+      window.electronAPI?.getMacOSWallpapers?.().then((data) => {
+        setMacOSWallpapers(data || { wallpapers: [], gradients: [] })
+        setLoadingWallpapers(false)
+      }).catch((error) => {
+        console.error('Failed to load macOS wallpapers:', error)
+        setLoadingWallpapers(false)
+      })
+    }
+  }, [backgroundType, macOSWallpapers.wallpapers.length, loadingWallpapers])
 
   if (!selectedClip || !effects) {
     return (
@@ -165,7 +181,7 @@ export function EffectsSidebar({
           <div className="space-y-3">
             {/* Background Type Tabs */}
             <div className="flex gap-1 p-0.5 bg-card/50 rounded-md">
-              {(['gradient', 'color', 'image'] as const).map(type => (
+              {(['wallpaper', 'gradient', 'color', 'image'] as const).map(type => (
                 <button
                   key={type}
                   onClick={() => setBackgroundType(type)}
@@ -181,7 +197,74 @@ export function EffectsSidebar({
               ))}
             </div>
 
-            {/* Wallpaper Grid */}
+            {/* macOS Wallpapers */}
+            {backgroundType === 'wallpaper' && (
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">macOS Wallpapers</h3>
+                {loadingWallpapers ? (
+                  <div className="text-xs text-muted-foreground">Loading wallpapers...</div>
+                ) : (
+                  <>
+                    {macOSWallpapers.wallpapers.length > 0 && (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {macOSWallpapers.wallpapers.slice(0, 12).map((wallpaper, index) => (
+                          <button
+                            key={index}
+                            onClick={() => updateEffect('background', {
+                              type: 'wallpaper',
+                              wallpaper: wallpaper.path
+                            })}
+                            className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group"
+                            title={wallpaper.name}
+                          >
+                            <img 
+                              src={wallpaper.thumbnail || wallpaper.path} 
+                              alt={wallpaper.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                // Fallback to gradient if image fails to load
+                                e.currentTarget.style.display = 'none'
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
+                            <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                              {wallpaper.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {macOSWallpapers.gradients.length > 0 && (
+                      <>
+                        <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mt-3">macOS Style Gradients</h3>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {macOSWallpapers.gradients.map((gradient) => (
+                            <button
+                              key={gradient.path}
+                              onClick={() => updateEffect('background', {
+                                type: 'gradient',
+                                gradient: {
+                                  type: 'linear',
+                                  colors: gradient.colors,
+                                  angle: 135
+                                }
+                              })}
+                              className="aspect-square rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105"
+                              style={{
+                                background: `linear-gradient(135deg, ${gradient.colors[0]}, ${gradient.colors[1]})`
+                              }}
+                              title={gradient.name}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Gradient Presets */}
             {backgroundType === 'gradient' && (
               <div className="space-y-2">
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Presets</h3>

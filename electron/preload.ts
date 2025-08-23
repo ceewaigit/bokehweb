@@ -166,6 +166,10 @@ const electronAPI = {
   // System information
   getPlatform: (): Promise<NodeJS.Platform> =>
     ipcRenderer.invoke('get-platform'),
+  
+  // macOS wallpapers
+  getMacOSWallpapers: (): Promise<{ wallpapers: any[], gradients: any[] }> =>
+    ipcRenderer.invoke('get-macos-wallpapers'),
 
   // Recording and workspace control
   openWorkspace: () =>

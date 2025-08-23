@@ -29,9 +29,9 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    width: 400, // Start with reasonable width for the dock
-    height: 60, // Start with reasonable height for the dock
-    x: Math.floor(display.workAreaSize.width / 2 - 200), // Center horizontally
+    width: 1, // Let content drive size
+    height: 1, // Let content drive size  
+    x: Math.floor(display.workAreaSize.width / 2), // Center horizontally
     y: 20,
     frame: false,
     transparent: true,
@@ -42,13 +42,9 @@ export function createRecordButton(): BrowserWindow {
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    skipTaskbar: true, // Always skip taskbar for floating dock
-    hasShadow: false, // No OS shadow, we'll handle our own
-    roundedCorners: false, // Let our component handle rounding
+    skipTaskbar: true,
+    hasShadow: false,
     show: false,
-    titleBarStyle: 'customButtonsOnHover', // macOS: hide title bar
-    vibrancy: undefined, // No vibrancy effect
-    visualEffectState: 'inactive', // macOS: no visual effects
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

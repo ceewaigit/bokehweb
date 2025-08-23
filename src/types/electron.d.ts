@@ -56,6 +56,13 @@ export interface ElectronAPI {
   // IPC communication
   send: (channel: string, ...args: any[]) => void
 
+  // Platform-specific features
+  getPlatform?: () => Promise<{ platform: string; arch: string; version: string }>
+  getMacOSWallpapers?: () => Promise<{
+    wallpapers: Array<{ name: string; path: string; thumbnail?: string }>
+    gradients: Array<{ name: string; path: string; colors: string[] }>
+  }>
+
   // Window controls
   minimize: () => void
   maximize: () => void

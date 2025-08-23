@@ -26,11 +26,31 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
   const [loading, setLoading] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const thumbnailCache = useRef<Map<string, string>>(new Map())
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (isOpen) {
       loadSources()
     }
+  }, [isOpen])
+
+  // Auto-resize window when source picker content changes
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return
+
+    const observer = new ResizeObserver(() => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        // Add some padding for shadows and margins
+        window.electronAPI?.setWindowContentSize?.({
+          width: Math.ceil(rect.width + 32),
+          height: Math.ceil(rect.height + 32)
+        })
+      }
+    })
+
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
   }, [isOpen])
 
   const loadSources = useCallback(async () => {
@@ -119,6 +139,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
 
           {/* Dialog with glassmorphic design */}
           <motion.div
+            ref={containerRef}
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -126,7 +147,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
             className="fixed inset-0 flex items-center justify-center z-[2147483650] p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-background/95 backdrop-blur-3xl rounded-2xl shadow-2xl border border-border max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            <div className="bg-background/95 backdrop-blur-3xl rounded-2xl shadow-2xl border border-border w-[90vw] max-w-6xl h-[90vh] max-h-[800px] overflow-hidden">
               {/* Minimal header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                 <div className="flex items-center gap-3">

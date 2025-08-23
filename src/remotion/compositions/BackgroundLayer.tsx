@@ -58,6 +58,22 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       }
       break;
 
+    case 'wallpaper':
+      if (effects.wallpaper) {
+        backgroundStyle = {
+          backgroundImage: `url(${effects.wallpaper})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        };
+
+        // Apply blur if specified
+        if (effects.blur) {
+          backgroundStyle.filter = `blur(${effects.blur}px)`;
+        }
+      }
+      break;
+
     case 'blur':
       // This would require the video to be duplicated and blurred
       // For now, fall back to gradient

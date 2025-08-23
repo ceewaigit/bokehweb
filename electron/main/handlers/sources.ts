@@ -1,5 +1,7 @@
 import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen, IpcMainInvokeEvent } from 'electron'
 import { exec } from 'child_process'
+import * as fs from 'fs/promises'
+import * as path from 'path'
 
 interface DesktopSourceOptions {
   types?: string[]
@@ -155,6 +157,64 @@ export function registerSourceHandlers(): void {
       platform: process.platform,
       arch: process.arch,
       version: process.getSystemVersion?.() || 'unknown'
+    }
+  })
+
+  // Get macOS wallpapers
+  ipcMain.handle('get-macos-wallpapers', async () => {
+    try {
+      const wallpaperDirs = [
+        '/System/Library/Desktop Pictures',
+        '/Library/Desktop Pictures',
+        path.join(process.env.HOME || '', 'Pictures')
+      ]
+      
+      const wallpapers: Array<{ name: string, path: string, thumbnail?: string }> = []
+      
+      for (const dir of wallpaperDirs) {
+        try {
+          const files = await fs.readdir(dir)
+          for (const file of files) {
+            // Support common image formats
+            if (file.match(/\.(heic|jpg|jpeg|png|tiff|gif)$/i)) {
+              const fullPath = path.join(dir, file)
+              const name = path.basename(file, path.extname(file))
+              
+              // Check for thumbnail
+              const thumbnailPath = path.join(dir, '.thumbnails', file)
+              let hasThumbnail = false
+              try {
+                await fs.access(thumbnailPath)
+                hasThumbnail = true
+              } catch {}
+              
+              wallpapers.push({
+                name: name.replace(/_/g, ' '),
+                path: `file://${fullPath}`,
+                thumbnail: hasThumbnail ? `file://${thumbnailPath}` : undefined
+              })
+            }
+          }
+        } catch (error) {
+          console.log(`Could not read directory ${dir}:`, error)
+        }
+      }
+      
+      // Add some default gradients that look like macOS wallpapers
+      const macOSGradients = [
+        { name: 'macOS Monterey', path: 'gradient:monterey', colors: ['#1C4E80', '#7C909C'] },
+        { name: 'macOS Ventura', path: 'gradient:ventura', colors: ['#243B53', '#829AB1'] },
+        { name: 'macOS Sonoma', path: 'gradient:sonoma', colors: ['#2D3436', '#636E72'] },
+        { name: 'macOS Big Sur', path: 'gradient:bigsur', colors: ['#FF6B6B', '#4ECDC4'] }
+      ]
+      
+      return {
+        wallpapers: wallpapers.slice(0, 20), // Limit to first 20 wallpapers
+        gradients: macOSGradients
+      }
+    } catch (error) {
+      console.error('Error getting macOS wallpapers:', error)
+      return { wallpapers: [], gradients: [] }
     }
   })
 }

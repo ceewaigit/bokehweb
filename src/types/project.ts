@@ -165,13 +165,14 @@ export interface ClipEffects {
 
   // Background
   background: {
-    type: 'none' | 'color' | 'gradient' | 'image' | 'blur'
+    type: 'none' | 'color' | 'gradient' | 'image' | 'blur' | 'wallpaper'
     color?: string
     gradient?: {
       colors: string[]
       angle: number
     }
     image?: string
+    wallpaper?: string  // Path to macOS wallpaper
     blur?: number
     padding: number
   }
@@ -507,7 +508,7 @@ export async function saveRecordingWithProject(
             colors: ['#f0f9ff', '#e0f2fe'],  // Light blue gradient
             angle: 135
           },
-          padding: 40
+          padding: 60
         },
         video: {
           cornerRadius: 12,
