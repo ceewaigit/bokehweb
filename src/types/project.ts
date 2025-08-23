@@ -419,7 +419,7 @@ export async function saveRecordingWithProject(
     const captureHeight = firstEventWithCapture?.captureHeight || height
 
     const mouseEvents = metadata
-      .filter(m => m.eventType === 'mouse' && m.isWithinBounds !== false)
+      .filter(m => m.eventType === 'mouse')
       .map(m => ({
         timestamp: m.timestamp,
         x: m.mouseX,  // Already capture-relative from electron-recorder

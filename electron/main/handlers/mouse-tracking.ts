@@ -48,6 +48,8 @@ export function registerMouseTrackingHandlers(): void {
       targetWindow = BrowserWindow.fromWebContents(event.sender)
 
       // Set up cursor-changed event listener for cursor type detection
+      // Note: This only works when cursor is over the app window
+      // For partial screen recordings, we'll default to arrow cursor
       if (targetWindow) {
         const handleCursorChange = (_event: any, type: string) => {
           currentCursorType = type
@@ -130,6 +132,12 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
+            // For partial screen recordings, always use default cursor
+            // since we can't detect cursor type outside our window
+            const effectiveCursorType = (sourceType === 'screen' && sourceId?.includes('area:')) 
+              ? 'default' 
+              : currentCursorType;
+
             // Send enhanced mouse data with velocity for smooth interpolation
             mouseEventSender.send('mouse-move', {
               x: positionData.x,
@@ -139,7 +147,7 @@ export function registerMouseTrackingHandlers(): void {
               acceleration,
               displayBounds: positionData.displayBounds,
               scaleFactor: positionData.scaleFactor,
-              cursorType: currentCursorType,  // Include current cursor type
+              cursorType: effectiveCursorType,  // Use effective cursor type
               sourceType: sourceType,  // Include source type for proper coordinate mapping
               sourceId: sourceId
             } as MousePosition)
@@ -239,6 +247,11 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
 
+      // For partial screen recordings, always use default cursor
+      const effectiveCursorType = (sourceType === 'screen' && sourceId?.includes('area:')) 
+        ? 'default' 
+        : currentCursorType;
+
       // Send click event with proper coordinates
       mouseEventSender.send('mouse-click', {
         x: event.x,
@@ -247,7 +260,7 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
         button: event.button === 1 ? 'left' : event.button === 2 ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,
         scaleFactor: scaleFactor,
-        cursorType: currentCursorType,  // Include current cursor type
+        cursorType: effectiveCursorType,  // Use effective cursor type
         sourceType: sourceType || 'screen',
         sourceId: sourceId
       })

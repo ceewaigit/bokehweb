@@ -65,36 +65,56 @@ export const VideoLayer: React.FC<VideoLayerProps & { preCalculatedPan?: { x: nu
     }
     : {};
 
-  // Calculate video cropping for area selection
+  // Calculate video cropping for area/window selection
   let videoStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
     objectFit: 'cover' as const
   };
 
-  if (captureArea) {
-    // The video is the full screen, but we only want to show the selected area
-    // Calculate scale to fit the capture area into the container
+  if (captureArea && captureArea.width > 0 && captureArea.height > 0) {
+    // The video captured the full screen, but we only want to show the window/area
+    // We need to crop and scale the video to show only the capture area
+    
+    // Calculate the scale needed to fit the capture area into the draw area
     const scaleX = drawWidth / captureArea.width;
     const scaleY = drawHeight / captureArea.height;
-    const scale = Math.max(scaleX, scaleY);
     
-    // Calculate the actual dimensions of the full video when scaled
+    // Use uniform scale to maintain aspect ratio
+    const scale = Math.min(scaleX, scaleY);
+    
+    // Calculate the scaled dimensions of the full video
     const scaledVideoWidth = videoWidth * scale;
     const scaledVideoHeight = videoHeight * scale;
     
-    // Calculate offset to position the capture area correctly
+    // Calculate offset to show only the capture area
+    // The capture area x,y are in screen coordinates
     const offsetLeft = -(captureArea.x * scale);
     const offsetTop = -(captureArea.y * scale);
+    
+    // Center the cropped area if it's smaller than the container
+    const cropWidth = captureArea.width * scale;
+    const cropHeight = captureArea.height * scale;
+    const centerOffsetX = (drawWidth - cropWidth) / 2;
+    const centerOffsetY = (drawHeight - cropHeight) / 2;
     
     videoStyle = {
       position: 'absolute',
       width: scaledVideoWidth,
       height: scaledVideoHeight,
-      left: offsetLeft,
-      top: offsetTop,
+      left: offsetLeft + centerOffsetX,
+      top: offsetTop + centerOffsetY,
       objectFit: 'none' as const
     };
+    
+    console.log('Cropping video for capture area:', {
+      captureArea,
+      scale,
+      scaledVideoWidth,
+      scaledVideoHeight,
+      offsetLeft,
+      offsetTop
+    });
   }
 
   return (

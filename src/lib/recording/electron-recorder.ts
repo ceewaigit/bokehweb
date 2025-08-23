@@ -682,27 +682,31 @@ export class ElectronRecorder {
         if (this.captureArea?.fullBounds) {
           // Check if cursor is within capture area
           isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
-                          data.x <= this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
+                          data.x < this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
                           data.y >= this.captureArea.fullBounds.y &&
-                          data.y <= this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
+                          data.y < this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
           
           // Adjust mouse coordinates to be relative to the capture area
           transformedX = data.x - this.captureArea.fullBounds.x
           transformedY = data.y - this.captureArea.fullBounds.y
         }
 
-        this.metadata.push({
-          timestamp,
-          mouseX: transformedX,  // Capture-relative position
-          mouseY: transformedY,  // Capture-relative position
-          eventType: 'mouse',
-          velocity,
-          captureWidth: this.captureArea?.fullBounds?.width,
-          captureHeight: this.captureArea?.fullBounds?.height,
-          isWithinBounds,  // Whether cursor is within capture area
-          scaleFactor: data.scaleFactor,
-          cursorType: data.cursorType  // Save cursor type from main process
-        })
+        // Only record mouse events when within bounds
+        // For full screen recording, always record. For partial, only when in bounds.
+        if (isWithinBounds) {
+          this.metadata.push({
+            timestamp,
+            mouseX: transformedX,  // Capture-relative position
+            mouseY: transformedY,  // Capture-relative position
+            eventType: 'mouse',
+            velocity,
+            captureWidth: this.captureArea?.fullBounds?.width,
+            captureHeight: this.captureArea?.fullBounds?.height,
+            isWithinBounds,  // Whether cursor is within capture area
+            scaleFactor: data.scaleFactor,
+            cursorType: data.cursorType  // Save cursor type from main process
+          })
+        }
 
         this.lastMouseX = transformedX
         this.lastMouseY = transformedY
@@ -722,9 +726,9 @@ export class ElectronRecorder {
         if (this.captureArea?.fullBounds) {
           // Check if click is within capture area
           isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
-                          data.x <= this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
+                          data.x < this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
                           data.y >= this.captureArea.fullBounds.y &&
-                          data.y <= this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
+                          data.y < this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
           
           // Adjust mouse coordinates to be relative to the capture area
           transformedX = data.x - this.captureArea.fullBounds.x

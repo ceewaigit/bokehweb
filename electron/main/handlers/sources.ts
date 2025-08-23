@@ -216,60 +216,130 @@ export function registerSourceHandlers(): void {
     try {
       const wallpaperDirs = [
         '/System/Library/Desktop Pictures',
-        '/Library/Desktop Pictures',
-        path.join(process.env.HOME || '', 'Pictures')
+        '/Library/Desktop Pictures'
+      ]
+      
+      // Priority list of macOS version wallpapers (commonly used in Screen Studio)
+      const priorityWallpapers = [
+        'Sonoma', 'Ventura', 'Monterey', 'Big Sur', 'Catalina', 
+        'Mojave', 'High Sierra', 'Sierra', 'El Capitan', 'Yosemite'
       ]
       
       const wallpapers: Array<{ name: string, path: string, thumbnail?: string }> = []
+      const foundWallpapers = new Set<string>()
       
+      // First, look for macOS version wallpapers
       for (const dir of wallpaperDirs) {
         try {
           const files = await fs.readdir(dir)
-          for (const file of files) {
-            if (file.match(/\.(heic|jpg|jpeg|png|tiff|gif)$/i)) {
-              const fullPath = path.join(dir, file)
-              const name = path.basename(file, path.extname(file))
-              
-              // Generate thumbnail for wallpaper
-              let thumbnail: string | undefined
-              
-              // HEIC requires special handling
-              if (process.platform === 'darwin' && file.match(/\.heic$/i)) {
-                try {
-                  const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
-                  // Convert HEIC to JPEG and resize in one step
-                  execSync(`sips -s format jpeg -Z 200 "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
-                  
-                  const convertedBuffer = await fs.readFile(tempFile)
-                  const convertedImage = nativeImage.createFromBuffer(convertedBuffer)
-                  thumbnail = convertedImage.toDataURL()
-                  
-                  // Clean up
-                  try { await fs.unlink(tempFile) } catch {}
-                } catch (err) {
-                  console.log(`Could not convert HEIC thumbnail: ${file}`)
+          
+          // Process priority wallpapers first
+          for (const priority of priorityWallpapers) {
+            for (const file of files) {
+              // Match files that contain the macOS version name
+              if (file.toLowerCase().includes(priority.toLowerCase()) && 
+                  file.match(/\.(heic|jpg|jpeg|png|tiff)$/i) &&
+                  !foundWallpapers.has(file)) {
+                
+                const fullPath = path.join(dir, file)
+                const name = path.basename(file, path.extname(file))
+                
+                // Generate thumbnail
+                let thumbnail: string | undefined
+                
+                if (process.platform === 'darwin' && file.match(/\.heic$/i)) {
+                  try {
+                    const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
+                    execSync(`sips -s format jpeg -Z 200 "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
+                    
+                    const convertedBuffer = await fs.readFile(tempFile)
+                    const convertedImage = nativeImage.createFromBuffer(convertedBuffer)
+                    thumbnail = convertedImage.toDataURL()
+                    
+                    try { await fs.unlink(tempFile) } catch {}
+                  } catch (err) {
+                    console.log(`Could not convert HEIC thumbnail: ${file}`)
+                  }
+                } else {
+                  try {
+                    const imageBuffer = await fs.readFile(fullPath)
+                    const image = nativeImage.createFromBuffer(imageBuffer)
+                    const resized = image.resize({ 
+                      width: 200,
+                      height: 120,
+                      quality: 'good'
+                    })
+                    thumbnail = resized.toDataURL()
+                  } catch (err) {
+                    console.log(`Could not generate thumbnail: ${file}`)
+                  }
                 }
-              } else {
-                // Standard image formats
-                try {
-                  const imageBuffer = await fs.readFile(fullPath)
-                  const image = nativeImage.createFromBuffer(imageBuffer)
-                  const resized = image.resize({ 
-                    width: 200,
-                    height: 120,
-                    quality: 'good'
+                
+                wallpapers.push({
+                  name: name.replace(/_/g, ' ').replace(/^\d+\s*-\s*/, ''), // Remove number prefixes
+                  path: fullPath,
+                  thumbnail
+                })
+                
+                foundWallpapers.add(file)
+              }
+            }
+          }
+          
+          // If we need more wallpapers, add some abstract/graphic ones
+          if (wallpapers.length < 12) {
+            const additionalPatterns = ['Abstract', 'Graphic', 'Color', 'Wave']
+            for (const pattern of additionalPatterns) {
+              for (const file of files) {
+                if (wallpapers.length >= 12) break
+                
+                if (file.toLowerCase().includes(pattern.toLowerCase()) && 
+                    file.match(/\.(heic|jpg|jpeg|png|tiff)$/i) &&
+                    !foundWallpapers.has(file)) {
+                  
+                  const fullPath = path.join(dir, file)
+                  const name = path.basename(file, path.extname(file))
+                  
+                  // Generate thumbnail (same logic as above)
+                  let thumbnail: string | undefined
+                  
+                  if (process.platform === 'darwin' && file.match(/\.heic$/i)) {
+                    try {
+                      const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
+                      execSync(`sips -s format jpeg -Z 200 "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
+                      
+                      const convertedBuffer = await fs.readFile(tempFile)
+                      const convertedImage = nativeImage.createFromBuffer(convertedBuffer)
+                      thumbnail = convertedImage.toDataURL()
+                      
+                      try { await fs.unlink(tempFile) } catch {}
+                    } catch (err) {
+                      console.log(`Could not convert HEIC thumbnail: ${file}`)
+                    }
+                  } else {
+                    try {
+                      const imageBuffer = await fs.readFile(fullPath)
+                      const image = nativeImage.createFromBuffer(imageBuffer)
+                      const resized = image.resize({ 
+                        width: 200,
+                        height: 120,
+                        quality: 'good'
+                      })
+                      thumbnail = resized.toDataURL()
+                    } catch (err) {
+                      console.log(`Could not generate thumbnail: ${file}`)
+                    }
+                  }
+                  
+                  wallpapers.push({
+                    name: name.replace(/_/g, ' ').replace(/^\d+\s*-\s*/, ''),
+                    path: fullPath,
+                    thumbnail
                   })
-                  thumbnail = resized.toDataURL()
-                } catch (err) {
-                  console.log(`Could not generate thumbnail: ${file}`)
+                  
+                  foundWallpapers.add(file)
                 }
               }
-              
-              wallpapers.push({
-                name: name.replace(/_/g, ' '),
-                path: fullPath,
-                thumbnail
-              })
             }
           }
         } catch {
@@ -277,15 +347,26 @@ export function registerSourceHandlers(): void {
         }
       }
       
+      // Sort to prioritize macOS version wallpapers
+      wallpapers.sort((a, b) => {
+        const aIndex = priorityWallpapers.findIndex(p => a.name.includes(p))
+        const bIndex = priorityWallpapers.findIndex(p => b.name.includes(p))
+        
+        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex
+        if (aIndex !== -1) return -1
+        if (bIndex !== -1) return 1
+        return 0
+      })
+      
       const macOSGradients = [
-        { name: 'macOS Monterey', path: 'gradient:monterey', colors: ['#1C4E80', '#7C909C'] },
-        { name: 'macOS Ventura', path: 'gradient:ventura', colors: ['#243B53', '#829AB1'] },
-        { name: 'macOS Sonoma', path: 'gradient:sonoma', colors: ['#2D3436', '#636E72'] },
-        { name: 'macOS Big Sur', path: 'gradient:bigsur', colors: ['#FF6B6B', '#4ECDC4'] }
+        { name: 'Sonoma Gradient', path: 'gradient:sonoma', colors: ['#2D3748', '#1A202C'] },
+        { name: 'Ventura Gradient', path: 'gradient:ventura', colors: ['#1E3A8A', '#312E81'] },
+        { name: 'Monterey Gradient', path: 'gradient:monterey', colors: ['#065F46', '#064E3B'] },
+        { name: 'Big Sur Gradient', path: 'gradient:bigsur', colors: ['#DC2626', '#991B1B'] }
       ]
       
       return {
-        wallpapers: wallpapers.slice(0, 20),
+        wallpapers: wallpapers.slice(0, 12), // Return top 12
         gradients: macOSGradients
       }
     } catch (error) {

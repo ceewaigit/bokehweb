@@ -88,7 +88,7 @@ export class ExportEngine {
       )
 
       if (hasEffects || needsCropping) {
-        // Export with effects and/or cropping using FFmpeg
+      // Export with effects and/or cropping using FFmpeg
         onProgress?.({
           progress: 5,
           stage: 'processing',

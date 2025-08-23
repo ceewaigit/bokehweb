@@ -154,13 +154,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // so we normalize against the capture dimensions (which are stored in screenWidth/screenHeight)
   const normalizedX = cursorPosition.x / screenWidth;
   const normalizedY = cursorPosition.y / screenHeight;
-  
-  // Check if cursor is within bounds (for partial screen recordings)
-  // If cursor position is negative or beyond capture dimensions, hide it
-  if (cursorPosition.x < 0 || cursorPosition.y < 0 || 
-      cursorPosition.x > screenWidth || cursorPosition.y > screenHeight) {
-    return null;  // Don't render cursor when outside capture area
-  }
 
   // Map to displayed video position (before zoom)
   let cursorX = videoOffset.x + normalizedX * videoOffset.width;

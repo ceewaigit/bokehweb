@@ -177,7 +177,7 @@ export function PreviewAreaRemotion({
     keystrokeEvents: (selectedRecording?.metadata as any)?.keystrokeEvents || [],
     videoWidth,
     videoHeight,
-    captureArea: selectedRecording?.captureArea?.fullBounds
+    captureArea: selectedRecording?.captureArea?.fullBounds || undefined
   };
 
   // Calculate duration in frames
