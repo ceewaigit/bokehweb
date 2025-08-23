@@ -11,15 +11,6 @@ import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 
-// Define global variables with proper types
-declare global {
-  var recordingsDirectory: string
-  var mainWindow: BrowserWindow | null
-  var recordButton: BrowserWindow | null
-}
-
-global.recordingsDirectory = getRecordingsDirectory()
-
 function registerProtocol(): void {
   if (!isDev && app.isPackaged) {
     protocol.registerFileProtocol('app', (request, callback) => {
@@ -29,7 +20,7 @@ function registerProtocol(): void {
         const filePath = path.join(app.getAppPath(), 'out', decodedUrl)
         callback(filePath)
       } catch (error) {
-        console.error('Error loading file:', error)
+        console.error('[Protocol] Error loading file:', error)
       }
     })
   }
@@ -45,9 +36,18 @@ function registerAllHandlers(): void {
   registerWindowControlHandlers()
 }
 
+// Define global variables with proper types
+declare global {
+  var recordingsDirectory: string
+  var mainWindow: BrowserWindow | null
+  var recordButton: BrowserWindow | null
+}
+
+global.recordingsDirectory = getRecordingsDirectory()
+
 async function initializeApp(): Promise<void> {
-  console.log('🚀 App ready - Electron version:', process.versions.electron)
-  console.log('🌐 Chrome version:', process.versions.chrome)
+  console.log(`🚀 App ready - Electron version: ${process.versions.electron}`)
+  console.log(`🌐 Chrome version: ${process.versions.chrome}`)
   
   registerProtocol()
   await checkMediaPermissions()
@@ -83,9 +83,9 @@ app.on('window-all-closed', () => {
 })
 
 process.on('uncaughtException', (error: Error) => {
-  console.error('Uncaught Exception:', error)
+  console.error('[Process] Uncaught Exception:', error)
 })
 
-process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+  console.error('[Process] Unhandled Rejection:', { promise, reason })
 })

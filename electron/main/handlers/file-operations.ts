@@ -3,7 +3,7 @@ import * as path from 'path'
 import { promises as fs } from 'fs'
 
 export function registerFileOperationHandlers(): void {
-  ipcMain.handle('save-file', async (event: IpcMainInvokeEvent, data: any, filepath?: string) => {
+  ipcMain.handle('save-file', async (event: IpcMainInvokeEvent, data: Buffer | ArrayBuffer | string | object, filepath?: string) => {
     try {
       // Determine final save path. If a path is provided but has no extension, default to mp4.
       let finalPath = filepath
@@ -28,11 +28,12 @@ export function registerFileOperationHandlers(): void {
       }
 
       await fs.writeFile(finalPath, buffer)
-      console.log(`✅ File saved: ${finalPath} (${buffer.length} bytes)`)
+      console.log(`[FileOps] ✅ File saved: ${finalPath} (${buffer.length} bytes)`)
       return { success: true, path: finalPath }
-    } catch (error: any) {
-      console.error('Error saving file:', error)
-      return { success: false, error: error.message }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[FileOps] Error saving file:', error)
+      return { success: false, error: errorMessage }
     }
   })
 
@@ -40,10 +41,11 @@ export function registerFileOperationHandlers(): void {
     try {
       const filePath = path.join(app.getPath('downloads'), filename)
       const data = await fs.readFile(filePath)
-      return { success: true, data }
-    } catch (error: any) {
-      console.error('Error opening file:', error)
-      return { success: false, error: error.message }
+      return { success: true, data: { data } }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[FileOps] Error opening file:', error)
+      return { success: false, error: errorMessage }
     }
   })
 
@@ -54,9 +56,10 @@ export function registerFileOperationHandlers(): void {
       // Return a proper ArrayBuffer slice
       const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
       return { success: true, data: arrayBuffer }
-    } catch (error: any) {
-      console.error('Error reading local file:', error)
-      return { success: false, error: error.message }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[FileOps] Error reading local file:', error)
+      return { success: false, error: errorMessage }
     }
   })
 }

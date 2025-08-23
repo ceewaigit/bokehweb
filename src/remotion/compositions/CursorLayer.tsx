@@ -144,6 +144,20 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     });
   }, [clickEvents, currentTimeMs]);
 
+  // Calculate click animation scale - must be before early return for React hooks rules
+  const clickScale = useMemo(() => {
+    if (!activeClick) return 1;
+    const clickProgress = (currentTimeMs - activeClick.timestamp) / 150; // 150ms animation
+    if (clickProgress > 1) return 1;
+
+    // Subtle pulse: 1.0 -> 0.90 -> 1.0
+    if (clickProgress < 0.5) {
+      return 1 - (clickProgress * 0.2); // Scale down to 0.90
+    } else {
+      return 0.90 + ((clickProgress - 0.5) * 0.2); // Scale back up to 1.0
+    }
+  }, [activeClick, currentTimeMs]);
+
   if (!cursorPosition) return null;
 
   // Get cursor metadata from the event (display bounds)
@@ -215,20 +229,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     cursorX = scaledX + staticPanX + dynamicPanX;
     cursorY = scaledY + staticPanY + dynamicPanY;
   }
-
-  // Calculate click animation scale
-  const clickScale = useMemo(() => {
-    if (!activeClick) return 1;
-    const clickProgress = (currentTimeMs - activeClick.timestamp) / 150; // 150ms animation
-    if (clickProgress > 1) return 1;
-
-    // Subtle pulse: 1.0 -> 0.90 -> 1.0
-    if (clickProgress < 0.5) {
-      return 1 - (clickProgress * 0.2); // Scale down to 0.90
-    } else {
-      return 0.90 + ((clickProgress - 0.5) * 0.2); // Scale back up to 1.0
-    }
-  }, [activeClick, currentTimeMs]);
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>

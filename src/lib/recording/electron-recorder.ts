@@ -98,26 +98,26 @@ export class ElectronRecorder {
       if (recordingSettings.area === 'window') {
         // For window recording, we'll need to show a window picker
         // For now, use the first window source
-        primarySource = sources.find((s: any) =>
+        primarySource = sources.find((s) =>
           !s.id.startsWith('screen:') &&
           !s.name.toLowerCase().includes('entire screen')
         )
 
         if (!primarySource) {
           logger.warn('No window sources available, falling back to screen')
-          primarySource = sources.find((s: any) => s.id.startsWith('screen:'))
+          primarySource = sources.find((s) => s.id.startsWith('screen:'))
         }
       } else if (recordingSettings.area === 'region') {
         // For region recording, we'll need to implement area selection
         // For now, use the entire screen and we'll crop in post-processing
-        primarySource = sources.find((s: any) =>
+        primarySource = sources.find((s) =>
           s.id.startsWith('screen:') ||
           s.name.toLowerCase().includes('entire screen') ||
           s.name.toLowerCase().includes('screen 1')
         )
       } else {
         // Default to fullscreen recording
-        primarySource = sources.find((s: any) =>
+        primarySource = sources.find((s) =>
           s.id.startsWith('screen:') ||
           s.name.toLowerCase().includes('entire screen') ||
           s.name.toLowerCase().includes('screen 1')
@@ -146,7 +146,7 @@ export class ElectronRecorder {
       })
 
       // ALWAYS use the mandatory format - this is what works universally
-      // Cast to 'any' because Electron extends the standard MediaStreamConstraints
+      // Electron extends the standard MediaStreamConstraints
       const constraints: any = {
         audio: hasAudio ? {
           mandatory: {
@@ -182,56 +182,15 @@ export class ElectronRecorder {
               this.stream?.removeTrack(track)
             } else if (track.kind === 'video' && this.isRecording && this.mediaRecorder) {
               // Video track ended unexpectedly - force save what we have
-              logger.error('Video track ended unexpectedly - forcing save')
-              logger.info('Video track ended - chunks available:', this.chunks.length)
-
-              // Force MediaRecorder to give us any pending data
+              // Video track ended - stop recording gracefully
+              logger.info('Video track ended - stopping recording')
               if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
                 try {
-                  this.mediaRecorder.requestData()
+                  this.mediaRecorder.stop()
                 } catch (e) {
-                  logger.warn('Could not request data from MediaRecorder:', e)
+                  logger.error('Failed to stop MediaRecorder after video track ended:', e)
                 }
               }
-
-              // Wait a brief moment for any pending chunks
-              setTimeout(() => {
-                logger.debug('After requestData - chunks available:', this.chunks.length)
-
-                // Create blob immediately from chunks we have
-                if (this.chunks.length > 0) {
-                  const emergencyBlob = new Blob(this.chunks, { type: 'video/webm' })
-                  logger.info(`Creating emergency blob: ${emergencyBlob.size} bytes from ${this.chunks.length} chunks`)
-
-                  // Directly trigger save without waiting for onstop
-                  const duration = Date.now() - this.startTime
-                  const result: ElectronRecordingResult = {
-                    video: emergencyBlob,
-                    metadata: this.metadata,
-                    duration,
-                    effectsApplied: ['electron-desktop-capture', 'emergency-save'],
-                    processingTime: 0,
-                    captureArea: this.captureArea
-                  }
-
-                  // Save immediately via the project save function
-                  this.emergencySave(result).catch(err => {
-                    logger.error('Emergency save failed:', err)
-                    console.error('EMERGENCY SAVE FAILED:', err)
-                  })
-                } else {
-                  logger.error('NO CHUNKS AVAILABLE FOR EMERGENCY SAVE')
-                }
-
-                // Still try to stop MediaRecorder normally
-                if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-                  try {
-                    this.mediaRecorder.stop()
-                  } catch (e) {
-                    logger.error('Failed to stop MediaRecorder after video track ended:', e)
-                  }
-                }
-              }, 200) // Wait 200ms for chunks
             }
           }
 
@@ -316,7 +275,7 @@ export class ElectronRecorder {
         }, 50)
       }
 
-      this.mediaRecorder.onerror = (event: any) => {
+      this.mediaRecorder.onerror = (event) => {
         logger.error('MediaRecorder error:', event)
 
         // Try to save whatever we have so far
@@ -334,9 +293,7 @@ export class ElectronRecorder {
             captureArea: this.captureArea
           }
 
-          this.emergencySave(result).catch(err => {
-            logger.error('Emergency save on error failed:', err)
-          })
+          logger.warn('Recording error but continuing - chunks may be partial')
         }
 
         // Don't stop recording on audio errors - continue with video only
@@ -381,43 +338,6 @@ export class ElectronRecorder {
     } catch (error) {
       this.cleanup()
       throw error
-    }
-  }
-
-  private async emergencySave(result: ElectronRecordingResult) {
-    logger.info('EMERGENCY SAVE TRIGGERED - Attempting to save recording')
-
-    // Import the save function dynamically to avoid circular dependency
-    const { saveRecordingWithProject } = await import('@/types/project')
-
-    const now = new Date()
-    const year = now.getFullYear()
-    const month = String(now.getMonth() + 1).padStart(2, '0')
-    const day = String(now.getDate()).padStart(2, '0')
-    const hours = String(now.getHours()).padStart(2, '0')
-    const minutes = String(now.getMinutes()).padStart(2, '0')
-    const seconds = String(now.getSeconds()).padStart(2, '0')
-    const projectName = `Emergency_Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
-
-    try {
-      const saved = await saveRecordingWithProject(result.video, result.metadata, projectName)
-      if (saved) {
-        logger.info(`✅ EMERGENCY RECORDING SAVED: video=${saved.videoPath}`)
-
-        // Show user notification that emergency save worked
-        if (window.electronAPI?.showMessageBox) {
-          window.electronAPI.showMessageBox({
-            type: 'info',
-            title: 'Recording Saved',
-            message: 'Recording was saved despite stream interruption',
-            detail: `Saved to: ${saved.videoPath}`
-          })
-        }
-      } else {
-        logger.error('❌ EMERGENCY SAVE FAILED: saveRecordingWithProject returned null')
-      }
-    } catch (error) {
-      logger.error('❌ EMERGENCY SAVE ERROR:', error)
     }
   }
 
@@ -543,7 +463,7 @@ export class ElectronRecorder {
         thumbnailSize: { width: 150, height: 150 }
       })
 
-      logger.debug(`Found ${sources.length} desktop sources`, sources.map((s: any) => ({ name: s.name, id: s.id })))
+      logger.debug(`Found ${sources.length} desktop sources`, sources.map((s) => ({ name: s.name, id: s.id })))
 
       return sources
     } catch (error) {
@@ -565,7 +485,7 @@ export class ElectronRecorder {
 
         if (screenIdMatch && screens.length > 0) {
           const screenId = parseInt(screenIdMatch[1])
-          screen = screens.find((s: any) => s.id === screenId)
+          screen = screens.find((s) => s.id === screenId)
         }
 
         // Use primary screen as fallback
@@ -618,7 +538,7 @@ export class ElectronRecorder {
     // which can capture clicks anywhere on the screen, not just in the browser window
 
     // Set up event listeners for native mouse events
-    const handleMouseMove = (_event: any, data: any) => {
+    const handleMouseMove = (_event: unknown, data: any) => {
       if (this.isRecording) {
         const now = Date.now()
         const timestamp = now - this.startTime
@@ -667,7 +587,7 @@ export class ElectronRecorder {
       }
     }
 
-    const handleMouseClick = (_event: any, data: any) => {
+    const handleMouseClick = (_event: unknown, data: any) => {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
@@ -695,7 +615,7 @@ export class ElectronRecorder {
       }
     }
 
-    const handleScroll = (_event: any, data: any) => {
+    const handleScroll = (_event: unknown, data: any) => {
       if (this.isRecording && data.deltaX !== 0 || data.deltaY !== 0) {
         this.metadata.push({
           timestamp: Date.now() - this.startTime,
