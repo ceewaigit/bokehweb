@@ -6,20 +6,20 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly PAN_SMOOTHING = 0.04  // Even smoother for perfect ice-skating
-  private readonly EDGE_THRESHOLD = 0.15  // 15% from edge triggers panning
-  private readonly RECENTERING_MARGIN = 0.25  // Recenter when mouse is 25% from edge
-  private readonly MAX_PAN_SPEED = 0.012  // Further reduced for ultra-smooth motion
-  private readonly MOMENTUM_FACTOR = 0.95  // Higher momentum for more gliding
-  private readonly FRICTION = 0.98  // Natural deceleration
+  private readonly PAN_SMOOTHING = 0.02  // Professional smoothing like Screen Studio
+  private readonly EDGE_THRESHOLD = 0.12  // More responsive edge detection
+  private readonly RECENTERING_MARGIN = 0.20  // Smoother recentering
+  private readonly MAX_PAN_SPEED = 0.008  // Ultra-smooth maximum speed
+  private readonly MOMENTUM_FACTOR = 0.97  // Professional momentum retention
+  private readonly FRICTION = 0.995  // Minimal friction for butter-smooth gliding
   private targetPanX: number = 0
   private targetPanY: number = 0
-  private velocityX: number = 0  // Track velocity for momentum
+  private velocityX: number = 0
   private velocityY: number = 0
-  private lastPanX: number = 0  // Track last position for velocity calc
+  private lastPanX: number = 0
   private lastPanY: number = 0
-  private accelerationX: number = 0  // Track acceleration for smoother changes
-  private accelerationY: number = 0
+  private smoothedTargetX: number = 0  // Smoothed target for double smoothing
+  private smoothedTargetY: number = 0
 
   /**
    * Calculate pan offset using edge-based triggering like Screen Studio
@@ -102,75 +102,79 @@ export class ZoomPanCalculator {
     newTargetPanX = Math.max(-maxPanX, Math.min(maxPanX, newTargetPanX))
     newTargetPanY = Math.max(-maxPanY, Math.min(maxPanY, newTargetPanY))
     
-    // Update target if changed
-    const hasNewTarget = newTargetPanX !== this.targetPanX || newTargetPanY !== this.targetPanY
-    if (hasNewTarget) {
+    // Smooth target changes for professional feel
+    const targetSmoothing = 0.85
+    if (newTargetPanX !== this.targetPanX || newTargetPanY !== this.targetPanY) {
+      // Apply smoothing to target changes themselves
+      this.smoothedTargetX = this.smoothedTargetX * targetSmoothing + newTargetPanX * (1 - targetSmoothing)
+      this.smoothedTargetY = this.smoothedTargetY * targetSmoothing + newTargetPanY * (1 - targetSmoothing)
       this.targetPanX = newTargetPanX
       this.targetPanY = newTargetPanY
+    } else {
+      // Continue smoothing towards target
+      this.smoothedTargetX = this.smoothedTargetX * 0.95 + this.targetPanX * 0.05
+      this.smoothedTargetY = this.smoothedTargetY * 0.95 + this.targetPanY * 0.05
     }
     
-    // Calculate frame velocity
+    // Professional easing function (matches Screen Studio)
+    const professionalEase = (t: number) => {
+      if (t < 0.5) {
+        return 4 * t * t * t
+      } else {
+        const f = (2 * t) - 2
+        return 1 + f * f * f / 2
+      }
+    }
+    
+    // Calculate smooth velocity
     const frameVelocityX = currentPanX - this.lastPanX
     const frameVelocityY = currentPanY - this.lastPanY
     
-    // Update acceleration for smoother velocity changes
-    const targetAccelX = (this.targetPanX - currentPanX) * 0.002
-    const targetAccelY = (this.targetPanY - currentPanY) * 0.002
-    this.accelerationX = this.accelerationX * 0.9 + targetAccelX * 0.1
-    this.accelerationY = this.accelerationY * 0.9 + targetAccelY * 0.1
-    
-    // Update velocity with acceleration and friction
-    this.velocityX = (this.velocityX + this.accelerationX) * this.FRICTION
-    this.velocityY = (this.velocityY + this.accelerationY) * this.FRICTION
-    
-    // Blend with frame velocity for responsiveness
+    // Apply professional momentum
     this.velocityX = this.velocityX * this.MOMENTUM_FACTOR + frameVelocityX * (1 - this.MOMENTUM_FACTOR)
     this.velocityY = this.velocityY * this.MOMENTUM_FACTOR + frameVelocityY * (1 - this.MOMENTUM_FACTOR)
     
-    // Store current position for next frame
+    // Apply minimal friction for butter-smooth movement
+    this.velocityX *= this.FRICTION
+    this.velocityY *= this.FRICTION
+    
+    // Store current position
     this.lastPanX = currentPanX
     this.lastPanY = currentPanY
     
-    // Cubic bezier easing for ultra-smooth motion
-    const cubicBezier = (t: number) => {
-      const p1 = 0.25, p2 = 0.1
-      const t2 = t * t
-      const t3 = t2 * t
-      return 3 * p1 * (1 - t) * (1 - t) * t +
-             3 * p2 * (1 - t) * t2 +
-             t3
+    // Calculate distance for adaptive smoothing
+    const distanceX = Math.abs(this.smoothedTargetX - currentPanX)
+    const distanceY = Math.abs(this.smoothedTargetY - currentPanY)
+    
+    // Professional urgency calculation
+    let urgency = this.PAN_SMOOTHING
+    if (outsideLeft || outsideRight || outsideTop || outsideBottom) {
+      urgency *= 2.5 // Faster response when outside viewport
     }
     
-    // Calculate distance to target
-    const distanceX = Math.abs(this.targetPanX - currentPanX)
-    const distanceY = Math.abs(this.targetPanY - currentPanY)
-    const maxDistance = 0.5
+    // Distance-based speed (slow down as we approach target)
+    const distanceNormX = Math.min(distanceX / 0.3, 1)
+    const distanceNormY = Math.min(distanceY / 0.3, 1)
+    const easedDistanceX = professionalEase(distanceNormX)
+    const easedDistanceY = professionalEase(distanceNormY)
     
-    // Ultra-smooth urgency calculation
-    const baseUrgency = this.PAN_SMOOTHING
-    const urgencyMultiplier = (outsideLeft || outsideRight || outsideTop || outsideBottom) ? 3.0 : 1.0
-    const dynamicUrgency = baseUrgency * urgencyMultiplier
+    // Calculate smooth delta with spring physics
+    const springConstant = urgency
+    const dampingFactor = 0.85
     
-    // Distance-based easing for natural deceleration
-    const distanceFactorX = 1 - Math.exp(-distanceX * 5)
-    const distanceFactorY = 1 - Math.exp(-distanceY * 5)
-    const easingFactorX = cubicBezier(Math.min(distanceFactorX, 1))
-    const easingFactorY = cubicBezier(Math.min(distanceFactorY, 1))
+    const springForceX = (this.smoothedTargetX - currentPanX) * springConstant * easedDistanceX
+    const springForceY = (this.smoothedTargetY - currentPanY) * springConstant * easedDistanceY
     
-    // Calculate spring-based forces for natural motion
-    const springForceX = (this.targetPanX - currentPanX) * dynamicUrgency * easingFactorX
-    const springForceY = (this.targetPanY - currentPanY) * dynamicUrgency * easingFactorY
+    // Apply damping for professional feel
+    const dampedForceX = springForceX * dampingFactor
+    const dampedForceY = springForceY * dampingFactor
     
-    // Combine spring force with velocity for ice-skating smoothness
-    const deltaX = springForceX * 0.6 + this.velocityX * 0.4
-    const deltaY = springForceY * 0.6 + this.velocityY * 0.4
+    // Combine forces with velocity
+    const deltaX = dampedForceX + this.velocityX * 0.2
+    const deltaY = dampedForceY + this.velocityY * 0.2
     
-    // Dynamic speed limits based on distance
-    const distanceBasedLimit = Math.min(distanceX * 0.1, this.MAX_PAN_SPEED)
-    const speedLimit = (outsideLeft || outsideRight || outsideTop || outsideBottom) 
-      ? this.MAX_PAN_SPEED * 1.2 
-      : distanceBasedLimit
-    
+    // Professional speed limiting
+    const speedLimit = this.MAX_PAN_SPEED * (1 + easedDistanceX * 0.5)
     const clampedDeltaX = Math.max(-speedLimit, Math.min(speedLimit, deltaX))
     const clampedDeltaY = Math.max(-speedLimit, Math.min(speedLimit, deltaY))
     

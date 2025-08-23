@@ -69,39 +69,44 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // Ultra-smooth easing functions for ice-skating effect
-  const easeInOutQuart = (t: number) => 
-    t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
-  
-  // Cubic bezier for buttery smooth motion
-  const cubicBezier = (t: number, p1: number = 0.25, p2: number = 0.1) => {
-    const p0 = 0, p3 = 1;
-    const t2 = t * t;
-    const t3 = t2 * t;
-    return p0 * (1 - t) * (1 - t) * (1 - t) +
-           3 * p1 * (1 - t) * (1 - t) * t +
-           3 * p2 * (1 - t) * t2 +
-           p3 * t3;
+  // Professional easing for Screen Studio quality smoothing
+  const screenStudioEase = (t: number) => {
+    // Custom easing that matches Screen Studio's professional feel
+    if (t < 0.5) {
+      return 4 * t * t * t;
+    } else {
+      const f = ((2 * t) - 2);
+      return 1 + f * f * f / 2;
+    }
   };
 
-  // Get interpolated cursor position with smooth gliding
+  // Get interpolated cursor position with professional smoothing
   const cursorPosition = useMemo(() => {
     if (cursorEvents.length === 0) return null;
 
     const targetTime = currentTimeMs;
+    
+    // Collect multiple events for better smoothing (look-ahead window)
+    const windowSize = 150; // ms window for analysis
+    const relevantEvents = cursorEvents.filter(e => 
+      Math.abs(e.timestamp - targetTime) <= windowSize
+    ).sort((a, b) => a.timestamp - b.timestamp);
 
-    // Find primary surrounding events
+    // Find surrounding events for interpolation
     let prevEvent = null;
     let nextEvent = null;
-    let prevPrevEvent = null; // For velocity calculation
+    let futureEvents = []; // Look ahead for trajectory prediction
 
     for (let i = 0; i < cursorEvents.length; i++) {
       const event = cursorEvents[i];
       if (event.timestamp <= targetTime) {
-        prevPrevEvent = prevEvent;
         prevEvent = event;
       } else if (!nextEvent) {
         nextEvent = event;
+        // Collect future events for trajectory
+        for (let j = i; j < Math.min(i + 3, cursorEvents.length); j++) {
+          futureEvents.push(cursorEvents[j]);
+        }
         break;
       }
     }
@@ -114,14 +119,12 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
 
     if (!nextEvent) {
-      // Use last known position without jump
       return {
         x: prevEvent.x,
         y: prevEvent.y
       };
     }
 
-    // Calculate base interpolation
     const timeDiff = nextEvent.timestamp - prevEvent.timestamp;
     if (timeDiff === 0) {
       return {
@@ -130,11 +133,26 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       };
     }
 
-    // Handle large jumps (teleports/screen changes)
-    const distanceX = Math.abs(nextEvent.x - prevEvent.x);
-    const distanceY = Math.abs(nextEvent.y - prevEvent.y);
+    // Detect movement patterns for adaptive smoothing
+    const deltaX = nextEvent.x - prevEvent.x;
+    const deltaY = nextEvent.y - prevEvent.y;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const speed = distance / timeDiff;
     
-    if (distanceX > 500 || distanceY > 500) {
+    // Adaptive smoothing based on movement type
+    let smoothingFactor = 0.85; // Base smoothing
+    
+    // Quick movements get less smoothing to maintain responsiveness
+    if (speed > 2) {
+      smoothingFactor = 0.6;
+    }
+    // Very slow movements get maximum smoothing to eliminate shake
+    else if (speed < 0.5) {
+      smoothingFactor = 0.95;
+    }
+    
+    // Handle teleports/jumps
+    if (distance > 400) {
       const rawProgress = (targetTime - prevEvent.timestamp) / timeDiff;
       return rawProgress < 0.5 ? 
         { x: prevEvent.x, y: prevEvent.y } : 
@@ -144,53 +162,54 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const rawProgress = (targetTime - prevEvent.timestamp) / timeDiff;
     const clampedProgress = Math.max(0, Math.min(1, rawProgress));
     
-    // Use cubic bezier for ultra-smooth ice-skating motion
-    const easedProgress = cubicBezier(clampedProgress, 0.23, 0.03);
+    // Apply professional easing
+    const easedProgress = screenStudioEase(clampedProgress);
     
-    // Calculate velocities for momentum-based smoothing
-    let velocityX = 0;
-    let velocityY = 0;
+    // Calculate predicted trajectory using future events
+    let trajectoryX = deltaX / timeDiff;
+    let trajectoryY = deltaY / timeDiff;
     
-    if (prevPrevEvent && prevEvent) {
-      const prevTimeDiff = prevEvent.timestamp - prevPrevEvent.timestamp;
-      if (prevTimeDiff > 0) {
-        velocityX = (prevEvent.x - prevPrevEvent.x) / prevTimeDiff;
-        velocityY = (prevEvent.y - prevPrevEvent.y) / prevTimeDiff;
-      }
+    if (futureEvents.length >= 2) {
+      const futureVelX = (futureEvents[1].x - futureEvents[0].x) / 
+                         (futureEvents[1].timestamp - futureEvents[0].timestamp);
+      const futureVelY = (futureEvents[1].y - futureEvents[0].y) / 
+                         (futureEvents[1].timestamp - futureEvents[0].timestamp);
+      
+      // Blend current and future velocities for smoother prediction
+      trajectoryX = trajectoryX * 0.7 + futureVelX * 0.3;
+      trajectoryY = trajectoryY * 0.7 + futureVelY * 0.3;
     }
-
-    // Calculate target velocities with damping
-    const targetVelocityX = (nextEvent.x - prevEvent.x) / timeDiff;
-    const targetVelocityY = (nextEvent.y - prevEvent.y) / timeDiff;
     
-    // Ultra-smooth velocity blending for ice-skating feel
-    const velocityBlend = cubicBezier(clampedProgress, 0.1, 0.01);
-    const smoothVelocityX = velocityX * (1 - velocityBlend) + targetVelocityX * velocityBlend;
-    const smoothVelocityY = velocityY * (1 - velocityBlend) + targetVelocityY * velocityBlend;
+    // Catmull-Rom spline for professional smoothness
+    const t = easedProgress;
+    const t2 = t * t;
+    const t3 = t2 * t;
     
-    // Hermite interpolation for extra smoothness
-    const h1 = 2 * easedProgress * easedProgress * easedProgress - 3 * easedProgress * easedProgress + 1;
-    const h2 = -2 * easedProgress * easedProgress * easedProgress + 3 * easedProgress * easedProgress;
-    const h3 = easedProgress * easedProgress * easedProgress - 2 * easedProgress * easedProgress + easedProgress;
-    const h4 = easedProgress * easedProgress * easedProgress - easedProgress * easedProgress;
+    // Calculate tangents for Catmull-Rom
+    const tension = 0.5 * smoothingFactor;
+    const v0x = trajectoryX * timeDiff * tension;
+    const v0y = trajectoryY * timeDiff * tension;
+    const v1x = trajectoryX * timeDiff * tension;
+    const v1y = trajectoryY * timeDiff * tension;
     
-    // Calculate position with Hermite interpolation for maximum smoothness
-    const tangentScale = timeDiff * 0.3; // Control point influence
-    const baseX = prevEvent.x * h1 + nextEvent.x * h2 + 
-                  smoothVelocityX * tangentScale * h3 + 
-                  targetVelocityX * tangentScale * h4;
-    const baseY = prevEvent.y * h1 + nextEvent.y * h2 + 
-                  smoothVelocityY * tangentScale * h3 + 
-                  targetVelocityY * tangentScale * h4;
+    // Catmull-Rom coefficients
+    const a = 2 * t3 - 3 * t2 + 1;
+    const b = t3 - 2 * t2 + t;
+    const c = -2 * t3 + 3 * t2;
+    const d = t3 - t2;
     
-    // Add very subtle momentum for ice-gliding effect
-    const momentumFactor = 0.02 * Math.pow(1 - clampedProgress, 2);
-    const momentumX = smoothVelocityX * momentumFactor * timeDiff;
-    const momentumY = smoothVelocityY * momentumFactor * timeDiff;
+    // Final smoothed position
+    const smoothX = prevEvent.x * a + v0x * b + nextEvent.x * c + v1x * d;
+    const smoothY = prevEvent.y * a + v0y * b + nextEvent.y * c + v1y * d;
+    
+    // Apply final smoothing filter to eliminate micro-jitter
+    const alpha = smoothingFactor;
+    const filteredX = prevEvent.x * (1 - alpha) + smoothX * alpha;
+    const filteredY = prevEvent.y * (1 - alpha) + smoothY * alpha;
 
     return {
-      x: baseX + momentumX,
-      y: baseY + momentumY
+      x: smoothX,
+      y: smoothY
     };
   }, [cursorEvents, currentTimeMs]);
 
@@ -268,9 +287,22 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Apply cursor size from effects (default to 3.0 to match UI)
   const cursorSize = cursorEffects?.size ?? 3.0;
+  
+  // Get cursor hotspot and dimensions
+  const hotspot = CURSOR_HOTSPOTS[cursorType];
+  const dimensions = CURSOR_DIMENSIONS[cursorType];
+  
+  // Calculate the actual rendered size of the cursor
+  const renderedWidth = dimensions.width * cursorSize;
+  const renderedHeight = dimensions.height * cursorSize;
+
+  // Track the effective zoom scale for scaling the cursor
+  let effectiveZoomScale = 1;
 
   // Apply zoom transformation if needed
   if (zoom.scale > 1) {
+    effectiveZoomScale = zoom.scale;
+    
     const zoomBlock = {
       id: 'cursor-zoom-temp',
       startTime: 0,
@@ -296,18 +328,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     cursorY = transformedPos.y;
   }
   
-  // Get cursor hotspot and dimensions
-  const hotspot = CURSOR_HOTSPOTS[cursorType];
-  const dimensions = CURSOR_DIMENSIONS[cursorType];
-  
-  // Calculate the actual rendered size of the cursor
-  const renderedWidth = dimensions.width * cursorSize;
-  const renderedHeight = dimensions.height * cursorSize;
-  
-  // Apply hotspot offset AFTER all transformations including zoom
-  // This ensures the offset is always in the final screen space
-  cursorX -= hotspot.x * renderedWidth;
-  cursorY -= hotspot.y * renderedHeight;
+  // Apply hotspot offset scaled by zoom
+  // When zoomed, everything is scaled including the cursor image
+  cursorX -= hotspot.x * renderedWidth * effectiveZoomScale;
+  cursorY -= hotspot.y * renderedHeight * effectiveZoomScale;
 
   // Create motion blur filter based on velocity
   const motionBlurFilter = useMemo(() => {
@@ -343,10 +367,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
             position: 'absolute',
             left: cursorX + offsetX,
             top: cursorY + offsetY,
-            width: dimensions.width * cursorSize,
-            height: dimensions.height * cursorSize,
+            width: dimensions.width * cursorSize * effectiveZoomScale,
+            height: dimensions.height * cursorSize * effectiveZoomScale,
             transform: `scale(${clickScale * (1 - i * 0.1)})`,
-            transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
+            transformOrigin: `${hotspot.x * renderedWidth * effectiveZoomScale}px ${hotspot.y * renderedHeight * effectiveZoomScale}px`,
             opacity,
             zIndex: 99 - i,
             pointerEvents: 'none',
@@ -372,10 +396,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
           position: 'absolute',
           left: cursorX,
           top: cursorY,
-          width: dimensions.width * cursorSize,
-          height: dimensions.height * cursorSize,
+          width: dimensions.width * cursorSize * effectiveZoomScale,
+          height: dimensions.height * cursorSize * effectiveZoomScale,
           transform: `scale(${clickScale})`,
-          transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
+          transformOrigin: `${hotspot.x * renderedWidth * effectiveZoomScale}px ${hotspot.y * renderedHeight * effectiveZoomScale}px`,
           zIndex: 100,
           pointerEvents: 'none',
           filter: motionBlurFilter,
