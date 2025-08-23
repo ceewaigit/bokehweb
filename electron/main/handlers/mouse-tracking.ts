@@ -10,6 +10,8 @@ let mouseHistory: Array<{ x: number; y: number; time: number }> = []
 let uiohookStarted = false
 let currentCursorType = 'default'  // Track current cursor type
 let targetWindow: BrowserWindow | null = null  // Track the window for cursor-changed events
+let lastKnownCursorType = 'default'  // Last known cursor type from window events
+let cursorTypeHistory: { type: string; timestamp: number }[] = []  // Track cursor type history
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -56,6 +58,13 @@ export function registerMouseTrackingHandlers(): void {
           // Log all cursor changes with proper type mapping
           const previousType = currentCursorType
           currentCursorType = type
+          lastKnownCursorType = type  // Store as last known type
+          
+          // Add to history
+          cursorTypeHistory.push({ type, timestamp: Date.now() })
+          if (cursorTypeHistory.length > 10) {
+            cursorTypeHistory.shift()
+          }
           
           // Map Electron cursor types to more descriptive names for logging
           const cursorTypeMap: Record<string, string> = {
@@ -93,7 +102,9 @@ export function registerMouseTrackingHandlers(): void {
           const previousMapped = cursorTypeMap[previousType] || previousType
           
           // Always log cursor changes for debugging
-          console.log(`🔄 Cursor changed: ${previousMapped} → ${mappedType} (raw: ${previousType} → ${type})`)
+          if (previousType !== type) {
+            console.log(`🔄 Cursor changed: ${previousMapped} → ${mappedType} (raw: ${previousType} → ${type})`)
+          }
         }
 
         // Remove any existing listener first
@@ -174,10 +185,25 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
-            // Use the current cursor type as detected
-            // Note: cursor-changed events only work when cursor is over our app window
-            // Default to 'default' if no cursor type is set
-            const effectiveCursorType = currentCursorType || 'default';
+            // Infer cursor type when outside app window
+            let effectiveCursorType = currentCursorType || 'default'
+            
+            // If cursor is outside our window, try to infer the cursor type
+            // based on velocity and recent history
+            if (targetWindow && !targetWindow.isFocused()) {
+              // Check if there was a recent cursor type change
+              const recentType = cursorTypeHistory.length > 0 
+                ? cursorTypeHistory[cursorTypeHistory.length - 1]
+                : null
+                
+              if (recentType && (Date.now() - recentType.timestamp) < 1000) {
+                // Use recent cursor type if it was changed within last second
+                effectiveCursorType = recentType.type
+              } else {
+                // Otherwise use the last known type
+                effectiveCursorType = lastKnownCursorType
+              }
+            }
             
             // Debug logging - log cursor type changes and periodic position updates
             if (mouseHistory.length % 100 === 0 || currentCursorType !== effectiveCursorType) {
@@ -244,6 +270,8 @@ export function registerMouseTrackingHandlers(): void {
       mouseHistory = []
       lastMousePosition = null
       currentCursorType = 'default'
+      lastKnownCursorType = 'default'
+      cursorTypeHistory = []
 
       mouseEventSender = null
 

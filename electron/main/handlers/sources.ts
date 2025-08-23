@@ -209,61 +209,38 @@ export function registerSourceHandlers(): void {
     const wallpapers = []
     const desktopPicturesPath = '/System/Library/Desktop Pictures'
     
-    // macOS version wallpapers we want to load
-    const versionWallpapers = [
-      'Sonoma.heic',
-      'Ventura Graphic.madesktop',
-      'Monterey Graphic.madesktop', 
-      'Big Sur.madesktop',
-      'Big Sur Graphic.madesktop',
-      'Catalina.madesktop'
+    // Only use full-resolution HEIC files that actually exist
+    // Skip .madesktop files as they only have low-res thumbnails available
+    const availableWallpapers = [
+      { name: 'Sonoma', file: 'Sonoma.heic' },
+      { name: 'Sky Blue', file: 'Radial Sky Blue.heic' },
+      { name: 'iMac Blue', file: 'iMac Blue.heic' },
+      { name: 'iMac Green', file: 'iMac Green.heic' },
+      { name: 'iMac Orange', file: 'iMac Orange.heic' },
+      { name: 'iMac Pink', file: 'iMac Pink.heic' },
+      { name: 'iMac Purple', file: 'iMac Purple.heic' },
+      { name: 'iMac Silver', file: 'iMac Silver.heic' },
+      { name: 'iMac Yellow', file: 'iMac Yellow.heic' }
     ]
     
-    for (const filename of versionWallpapers) {
+    for (const wallpaper of availableWallpapers) {
       try {
-        const fullPath = path.join(desktopPicturesPath, filename)
+        const fullPath = path.join(desktopPicturesPath, wallpaper.file)
         await fs.access(fullPath)
         
+        // Generate small thumbnail (150px) for UI preview
         let thumbnail = null
-        let actualImagePath = fullPath
-        
-        // Handle .madesktop files (XML with thumbnail path)
-        if (filename.endsWith('.madesktop')) {
-          try {
-            const xmlContent = await fs.readFile(fullPath, 'utf-8')
-            const thumbnailMatch = xmlContent.match(/<key>thumbnailPath<\/key>\s*<string>([^<]+)<\/string>/)
-            if (thumbnailMatch && thumbnailMatch[1]) {
-              const thumbPath = thumbnailMatch[1]
-              
-              // Generate small thumbnail (150px) from the thumbnail file
-              const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
-              execSync(`sips -Z 150 -s format jpeg "${thumbPath}" --out "${tempFile}"`, { stdio: 'ignore' })
-              const thumbBuffer = await fs.readFile(tempFile)
-              thumbnail = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`
-              await fs.unlink(tempFile).catch(() => {})
-              
-              // Use the thumbnail path as the actual image to load
-              actualImagePath = thumbPath
-            }
-          } catch (e) {
-            console.error('Failed to parse madesktop:', e)
-            continue
-          }
-        } 
-        // Handle regular HEIC files
-        else if (filename.endsWith('.heic')) {
-          try {
-            const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
-            execSync(`sips -Z 150 -s format jpeg "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
-            const thumbBuffer = await fs.readFile(tempFile)
-            thumbnail = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`
-            await fs.unlink(tempFile).catch(() => {})
-          } catch {}
-        }
+        try {
+          const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
+          execSync(`sips -Z 150 -s format jpeg "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
+          const thumbBuffer = await fs.readFile(tempFile)
+          thumbnail = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`
+          await fs.unlink(tempFile).catch(() => {})
+        } catch {}
         
         wallpapers.push({
-          name: filename.replace(/\.(heic|madesktop)$/, '').replace(' Graphic', ''),
-          path: actualImagePath,
+          name: wallpaper.name,
+          path: fullPath,
           thumbnail
         })
       } catch {}

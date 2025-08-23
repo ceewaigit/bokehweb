@@ -255,18 +255,14 @@ export class ElectronRecorder {
       const videoTrack = this.stream.getVideoTracks()[0]
       if (videoTrack) {
         const settings = videoTrack.getSettings()
-        console.log('🎥 Video track settings:', settings)
         logger.info('Video track settings', settings)
         
         // Store video dimensions for coordinate mapping
         this.videoWidth = settings.width
         this.videoHeight = settings.height
         
-        // Don't set capture area for full screen or window recordings
-        // Let them use the full video dimensions
-        if (!this.captureArea) {
-          console.log('✅ No capture area set - will use full video dimensions:', this.videoWidth, 'x', this.videoHeight)
-        }
+        // Store video dimensions for coordinate mapping
+        // These will be used when transforming mouse coordinates
       } else {
         console.log('⚠️ No video track found in stream')
         logger.warn('No video track found in stream')
@@ -425,7 +421,6 @@ export class ElectronRecorder {
         const duration = Date.now() - this.startTime
         const video = new Blob(this.chunks, { type: this.mediaRecorder!.mimeType || 'video/webm' })
 
-        console.log('🏁 Recording stopped - Final capture area:', this.captureArea)
         logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, ${this.metadata.length} metadata events`)
         logger.info('Final capture area', this.captureArea)
 
@@ -439,8 +434,6 @@ export class ElectronRecorder {
           effectsApplied.push('mouse-tracking', 'metadata-recording')
         }
 
-        console.log('📦 Returning recording result with capture area:', finalCaptureArea)
-        
         resolve({
           video,
           duration,
@@ -589,21 +582,15 @@ export class ElectronRecorder {
   }
 
   private async captureScreenInfo(sourceId: string, areaSelection?: { x: number; y: number; width: number; height: number }): Promise<void> {
-    console.log('📍 captureScreenInfo called:', { sourceId, areaSelection })
-    
     try {
       // Determine if this is a window or screen recording
       const isWindow = !sourceId.startsWith('screen:')
       
       if (isWindow) {
-        console.log('🪟 Window source detected in captureScreenInfo')
-        
         // For window recording, try to get window bounds and store in capture area
         if (window.electronAPI?.getSourceBounds) {
           try {
             const windowBounds = await window.electronAPI.getSourceBounds(sourceId)
-            console.log('🪟 Window bounds retrieved:', windowBounds)
-            
             if (windowBounds) {
               // Store window bounds for metadata
               this.captureArea = {
@@ -614,7 +601,6 @@ export class ElectronRecorder {
                 sourceId
               }
               
-              console.log('🪟 Window recording - bounds will be saved in metadata:', windowBounds)
               logger.info('Window recording mode with bounds', { 
                 sourceId, 
                 bounds: windowBounds
@@ -622,7 +608,6 @@ export class ElectronRecorder {
             } else {
               // No bounds available
               this.captureArea = undefined
-              console.log('🪟 Window bounds not available')
               logger.info('Window recording mode without bounds', { sourceId })
             }
           } catch (error) {
@@ -683,7 +668,6 @@ export class ElectronRecorder {
               sourceId: sourceId
             }
             
-            console.log('🖥️ Full screen recording - storing screen bounds:', screen.bounds)
             logger.info('Full screen recording mode', {
               sourceId,
               sourceType: 'screen',
@@ -701,6 +685,54 @@ export class ElectronRecorder {
     } catch (error) {
       logger.warn('Could not capture screen info, capture area will be undefined', error)
     }
+  }
+
+  private transformCoordinates(data: { x: number; y: number }): { 
+    transformedX: number
+    transformedY: number
+    isWithinBounds: boolean
+    captureW: number
+    captureH: number
+  } {
+    let transformedX = data.x
+    let transformedY = data.y
+    let isWithinBounds = true
+    
+    // For full screen recordings, we need to scale coordinates to match video dimensions
+    const isFullScreen = this.captureArea?.sourceType === 'screen' && !this.captureArea?.sourceId?.includes('area:')
+    
+    if (isFullScreen && this.videoWidth && this.videoHeight) {
+      // For full screen, use video dimensions directly
+      // Scale logical coordinates to video pixel coordinates
+      const screenBounds = this.captureArea?.fullBounds
+      if (screenBounds) {
+        const scaleX = this.videoWidth / screenBounds.width
+        const scaleY = this.videoHeight / screenBounds.height
+        transformedX = data.x * scaleX
+        transformedY = data.y * scaleY
+      }
+    } else if (this.captureArea?.fullBounds) {
+      // For window/area recordings, check if cursor is within capture area
+      isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
+                      data.x < this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
+                      data.y >= this.captureArea.fullBounds.y &&
+                      data.y < this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
+      
+      // Adjust mouse coordinates to be relative to the capture area
+      transformedX = data.x - this.captureArea.fullBounds.x
+      transformedY = data.y - this.captureArea.fullBounds.y
+    }
+    
+    // Use video dimensions for full screen, capture area for window/area recordings
+    // Default to 1920x1080 if dimensions are not available (shouldn't happen in practice)
+    const captureW = isFullScreen 
+      ? (this.videoWidth || 1920) 
+      : (this.captureArea?.fullBounds?.width || this.videoWidth || 1920)
+    const captureH = isFullScreen 
+      ? (this.videoHeight || 1080) 
+      : (this.captureArea?.fullBounds?.height || this.videoHeight || 1080)
+    
+    return { transformedX, transformedY, isWithinBounds, captureW, captureH }
   }
 
   private async startMouseTracking(): Promise<void> {
@@ -747,28 +779,11 @@ export class ElectronRecorder {
           }
         }
 
-        // Transform coordinates to be relative to capture area
-        let transformedX = data.x
-        let transformedY = data.y
-        let isWithinBounds = true
-        
-        if (this.captureArea?.fullBounds) {
-          // Check if cursor is within capture area
-          isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
-                          data.x < this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
-                          data.y >= this.captureArea.fullBounds.y &&
-                          data.y < this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
-          
-          // Adjust mouse coordinates to be relative to the capture area
-          transformedX = data.x - this.captureArea.fullBounds.x
-          transformedY = data.y - this.captureArea.fullBounds.y
-        }
+        // Transform coordinates using shared method
+        const { transformedX, transformedY, isWithinBounds, captureW, captureH } = this.transformCoordinates(data)
 
         // Only record mouse events when within bounds
         if (isWithinBounds) {
-          // For full screen recordings without captureArea, use video dimensions
-          const captureW = this.captureArea?.fullBounds?.width || this.videoWidth
-          const captureH = this.captureArea?.fullBounds?.height || this.videoHeight
           
           this.metadata.push({
             timestamp,
@@ -795,33 +810,20 @@ export class ElectronRecorder {
       if (this.isRecording) {
         const timestamp = Date.now() - this.startTime
 
-        // Transform coordinates to be relative to capture area
-        let transformedX = data.x
-        let transformedY = data.y
-        let isWithinBounds = true
-        
-        if (this.captureArea?.fullBounds) {
-          // Check if click is within capture area
-          isWithinBounds = data.x >= this.captureArea.fullBounds.x &&
-                          data.x < this.captureArea.fullBounds.x + this.captureArea.fullBounds.width &&
-                          data.y >= this.captureArea.fullBounds.y &&
-                          data.y < this.captureArea.fullBounds.y + this.captureArea.fullBounds.height
-          
-          // Adjust mouse coordinates to be relative to the capture area
-          transformedX = data.x - this.captureArea.fullBounds.x
-          transformedY = data.y - this.captureArea.fullBounds.y
-        }
+        // Transform coordinates using shared method
+        const { transformedX, transformedY, isWithinBounds, captureW, captureH } = this.transformCoordinates(data)
 
         // Only record clicks within the capture area
         if (isWithinBounds) {
+          
           this.metadata.push({
             timestamp,
             mouseX: transformedX,  // Capture-relative position
             mouseY: transformedY,  // Capture-relative position
             eventType: 'click',
             key: data.button,
-            captureWidth: this.captureArea?.fullBounds?.width || this.videoWidth,
-            captureHeight: this.captureArea?.fullBounds?.height || this.videoHeight,
+            captureWidth: captureW,
+            captureHeight: captureH,
             scaleFactor: data.scaleFactor,
             cursorType: data.cursorType,  // Save cursor type for click events too
             sourceBounds: this.captureArea?.fullBounds,  // Include source bounds
@@ -836,16 +838,20 @@ export class ElectronRecorder {
     }
 
     const handleScroll = (_event: unknown, data: any) => {
-      if (this.isRecording && data.deltaX !== 0 || data.deltaY !== 0) {
-        this.metadata.push({
-          timestamp: Date.now() - this.startTime,
-          mouseX: data.x,
-          mouseY: data.y,
-          eventType: 'scroll',
-          scrollDelta: { x: data.deltaX, y: data.deltaY },
-          captureWidth: this.captureArea?.fullBounds?.width,
-          captureHeight: this.captureArea?.fullBounds?.height
-        })
+      if (this.isRecording && (data.deltaX !== 0 || data.deltaY !== 0)) {
+        const { transformedX, transformedY, isWithinBounds, captureW, captureH } = this.transformCoordinates(data)
+        
+        if (isWithinBounds) {
+          this.metadata.push({
+            timestamp: Date.now() - this.startTime,
+            mouseX: transformedX,
+            mouseY: transformedY,
+            eventType: 'scroll',
+            scrollDelta: { x: data.deltaX, y: data.deltaY },
+            captureWidth: captureW,
+            captureHeight: captureH
+          })
+        }
       }
     }
 
