@@ -35,6 +35,8 @@ export function RecordButtonDock() {
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [sources, setSources] = useState<Source[]>([])
   const [loadingSources, setLoadingSources] = useState(false)
+  const [showSourcePicker, setShowSourcePicker] = useState(false)
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
 
   // Track if window is being dragged
   const isDragging = useRef(false)
@@ -52,10 +54,6 @@ export function RecordButtonDock() {
     isPaused,
     duration,
     updateSettings,
-    showSourcePicker,
-    selectedSourceId,
-    setShowSourcePicker,
-    setSelectedSourceId,
     startCountdown,
     prepareRecording
   } = useRecordingStore()
@@ -66,13 +64,9 @@ export function RecordButtonDock() {
     document.documentElement.style.background = 'transparent'
     document.body.style.background = 'transparent'
     document.body.style.margin = '0'
-    document.body.style.padding = '8px' // Small padding for safety
+    document.body.style.padding = '0' // No padding - we want the window to be exactly the size of content
     document.body.style.overflow = 'hidden'
     document.body.style.userSelect = 'none' // Prevent text selection while dragging
-    
-    // Make the window draggable by setting -webkit-app-region
-    ;(document.documentElement.style as any).webkitAppRegion = 'drag'
-    ;(document.body.style as any).webkitAppRegion = 'drag'
 
     // Remove any default styles
     const root = document.getElementById('root')
@@ -152,12 +146,12 @@ export function RecordButtonDock() {
   // Resize window to fit content when source picker toggles
   useEffect(() => {
     if (window.electronAPI?.setWindowContentSize) {
-      const baseHeight = 48
-      const expandedHeight = showSourcePicker ? 280 : baseHeight
+      const baseHeight = 40 // Compact height for just the dock
+      const expandedHeight = showSourcePicker ? 260 : baseHeight
       
       // Smooth resize animation
       window.electronAPI.setWindowContentSize({
-        width: 240,
+        width: 220, // Slightly narrower
         height: expandedHeight
       })
     }
@@ -216,18 +210,9 @@ export function RecordButtonDock() {
         isRecording && "ring-2 ring-destructive/40"
       )}
       style={{ 
-        // Make buttons and interactive elements not draggable
-        ['WebkitAppRegion' as any]: 'no-drag' 
-      }}
-      onMouseDown={() => isDragging.current = false}
-      onMouseMove={() => {
-        if (isDragging.current) {
-          document.body.style.cursor = 'grabbing'
-        }
-      }}
-      onMouseUp={() => {
-        isDragging.current = false
-        document.body.style.cursor = 'default'
+        // Make the dock draggable
+        ['WebkitAppRegion' as any]: 'drag',
+        cursor: 'move'
       }}
     >
       {/* Main Dock Bar - Compact Design */}
@@ -237,6 +222,7 @@ export function RecordButtonDock() {
             {/* Audio & Camera Controls */}
             <div className="flex items-center gap-1">
               <button
+                style={{ WebkitAppRegion: 'no-drag' } as any}
                 className={cn(
                   "relative p-1.5 rounded-lg transition-all duration-150",
                   micEnabled
@@ -253,6 +239,7 @@ export function RecordButtonDock() {
               </button>
 
               <button
+                style={{ WebkitAppRegion: 'no-drag' } as any}
                 className={cn(
                   "relative p-1.5 rounded-lg transition-all duration-150",
                   cameraEnabled
@@ -274,6 +261,7 @@ export function RecordButtonDock() {
 
             {/* Record Button - Prominent */}
             <button
+              style={{ WebkitAppRegion: 'no-drag' } as any}
               className={cn(
                 "relative group",
                 "flex items-center justify-center",
@@ -292,6 +280,7 @@ export function RecordButtonDock() {
 
             {/* Open Workspace */}
             <button
+              style={{ WebkitAppRegion: 'no-drag' } as any}
               className={cn(
                 "p-1.5 rounded-lg transition-all duration-150",
                 "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -324,6 +313,7 @@ export function RecordButtonDock() {
 
             {/* Pause/Resume */}
             <button
+              style={{ WebkitAppRegion: 'no-drag' } as any}
               className={cn(
                 "p-1.5 rounded-lg transition-all duration-150",
                 "text-foreground hover:text-foreground hover:bg-accent"
@@ -336,6 +326,7 @@ export function RecordButtonDock() {
 
             {/* Stop Button */}
             <button
+              style={{ WebkitAppRegion: 'no-drag' } as any}
               className={cn(
                 "flex items-center justify-center",
                 "px-2.5 py-1 mx-0.5",
@@ -354,6 +345,7 @@ export function RecordButtonDock() {
 
             {/* Close/Minimize */}
             <button
+              style={{ WebkitAppRegion: 'no-drag' } as any}
               className={cn(
                 "p-1.5 rounded-lg transition-all duration-200",
                 "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -383,6 +375,7 @@ export function RecordButtonDock() {
                 {/* Area Selection */}
                 {areaOption && (
                   <button
+                    style={{ WebkitAppRegion: 'no-drag' } as any}
                     onClick={() => setSelectedSourceId(areaOption.id)}
                     className={cn(
                       "flex flex-col items-center gap-0.5 p-2 rounded border transition-all",
@@ -427,6 +420,7 @@ export function RecordButtonDock() {
                   <div className="grid grid-cols-4 gap-0.5 max-h-24 overflow-y-auto">
                     {windows.slice(0, 8).map((window) => (
                       <button
+                        style={{ WebkitAppRegion: 'no-drag' } as any}
                         key={window.id}
                         onClick={() => setSelectedSourceId(window.id)}
                         className={cn(
@@ -447,6 +441,7 @@ export function RecordButtonDock() {
               {/* Action buttons */}
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
                 <button
+                  style={{ WebkitAppRegion: 'no-drag' } as any}
                   onClick={() => {
                     setShowSourcePicker(false)
                     setSelectedSourceId(null)
@@ -457,6 +452,7 @@ export function RecordButtonDock() {
                   Back
                 </button>
                 <button
+                  style={{ WebkitAppRegion: 'no-drag' } as any}
                   onClick={handleSourceSelect}
                   disabled={!selectedSourceId}
                   className={cn(

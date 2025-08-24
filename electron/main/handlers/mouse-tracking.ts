@@ -136,7 +136,7 @@ export function registerMouseTrackingHandlers(): void {
 
             // Determine cursor type based on mouse state
             let effectiveCursorType = 'default'
-            
+
             if (isMouseDown) {
               // Mouse is being held down
               const timeSinceMouseDown = now - mouseDownTime
@@ -144,7 +144,7 @@ export function registerMouseTrackingHandlers(): void {
                 Math.pow(currentPosition.x - lastClickPosition.x, 2) +
                 Math.pow(currentPosition.y - lastClickPosition.y, 2)
               )
-              
+
               // If mouse moved significantly while held down, it's a drag operation
               if (distanceFromClick > 5 || timeSinceMouseDown > 200) {
                 effectiveCursorType = 'grabbing'  // Dragging state
@@ -310,11 +310,11 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
     // Register the mouse event listeners
     uIOhook.on('mousedown', handleMouseDown)
     uIOhook.on('mouseup', handleMouseUp)
-    
-    // Store the handlers for cleanup
-    ;(global as any).uiohookMouseDownHandler = handleMouseDown
-    ;(global as any).uiohookMouseUpHandler = handleMouseUp
-    
+
+      // Store the handlers for cleanup
+      ; (global as any).uiohookMouseDownHandler = handleMouseDown
+      ; (global as any).uiohookMouseUpHandler = handleMouseUp
+
     logger.info('Mouse event handlers registered successfully')
 
   } catch (error) {
@@ -325,7 +325,7 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
 
 function stopClickDetection(): void {
   clickDetectionActive = false
-  
+
   // Reset mouse state
   isMouseDown = false
   mouseDownTime = 0
@@ -338,7 +338,7 @@ function stopClickDetection(): void {
       uIOhook.off('mousedown', (global as any).uiohookMouseDownHandler)
       delete (global as any).uiohookMouseDownHandler
     }
-    
+
     if ((global as any).uiohookMouseUpHandler) {
       uIOhook.off('mouseup', (global as any).uiohookMouseUpHandler)
       delete (global as any).uiohookMouseUpHandler

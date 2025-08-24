@@ -289,9 +289,10 @@ export class RecordingStorage {
       // Create project with recording
       const project = this.createProject(baseName)
 
-      const firstEventWithCapture = metadata.find(m => m.captureWidth && m.captureHeight)
-      const captureWidth = captureArea?.fullBounds?.width || firstEventWithCapture?.captureWidth || width
-      const captureHeight = captureArea?.fullBounds?.height || firstEventWithCapture?.captureHeight || height
+      // Get capture dimensions from first mouse event (they all have it now)
+      const firstMouseEvent = metadata.find(m => m.eventType === 'mouse' && m.captureWidth && m.captureHeight)
+      const captureWidth = firstMouseEvent?.captureWidth || captureArea?.fullBounds?.width || width
+      const captureHeight = firstMouseEvent?.captureHeight || captureArea?.fullBounds?.height || height
       
       const firstEventWithBounds = metadata.find(m => m.sourceBounds)
       const sourceBounds = firstEventWithBounds?.sourceBounds

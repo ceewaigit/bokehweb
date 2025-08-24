@@ -15,6 +15,8 @@ export class ElectronRecorder {
   private startTime = 0
   private metadata: ElectronMetadata[] = []
   private captureArea: ElectronRecordingResult['captureArea'] = undefined
+  private captureWidth = 0
+  private captureHeight = 0
   private dataRequestInterval: NodeJS.Timeout | null = null
   private isRecording = false
 
@@ -72,6 +74,9 @@ export class ElectronRecorder {
             sourceType: primarySource.id.startsWith('screen:') ? 'screen' : 'window',
             sourceId: primarySource.id
           }
+          // Store capture dimensions for consistent use throughout recording
+          this.captureWidth = bounds.width
+          this.captureHeight = bounds.height
         }
       }
 
@@ -253,7 +258,10 @@ export class ElectronRecorder {
         eventType: 'mouse',
         velocity: data.velocity,
         cursorType: data.cursorType,
-        scaleFactor: data.scaleFactor
+        scaleFactor: data.scaleFactor,
+        // Always include capture dimensions with mouse events
+        captureWidth: this.captureWidth,
+        captureHeight: this.captureHeight
       })
     }
 

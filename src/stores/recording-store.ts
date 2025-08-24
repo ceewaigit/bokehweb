@@ -6,8 +6,6 @@ interface RecordingStore extends RecordingState {
   settings: RecordingSettings
   processingProgress: number | null
   countdownActive: boolean
-  showSourcePicker: boolean
-  selectedSourceId: string | null
 
   // Core state setters
   setRecording: (isRecording: boolean) => void
@@ -16,10 +14,8 @@ interface RecordingStore extends RecordingState {
   setStatus: (status: RecordingState['status']) => void
   setProcessingProgress: (progress: number | null) => void
 
-  // Settings and source management
+  // Settings management
   updateSettings: (settings: Partial<RecordingSettings>) => void
-  setShowSourcePicker: (show: boolean) => void
-  setSelectedSourceId: (sourceId: string | null) => void
 
   // Countdown management
   startCountdown: (onComplete: () => void) => void
@@ -48,8 +44,6 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   settings: defaultSettings,
   processingProgress: null,
   countdownActive: false,
-  showSourcePicker: false,
-  selectedSourceId: null,
 
   setRecording: (isRecording) =>
     set((state) => ({
@@ -74,9 +68,6 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       settings: { ...state.settings, ...newSettings }
     })),
 
-  setShowSourcePicker: (show) => set({ showSourcePicker: show }),
-
-  setSelectedSourceId: (sourceId) => set({ selectedSourceId: sourceId }),
 
   startCountdown: (onComplete) => {
     set({ countdownActive: true })
@@ -128,8 +119,6 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     status: 'idle',
     settings: defaultSettings,
     processingProgress: null,
-    countdownActive: false,
-    showSourcePicker: false,
-    selectedSourceId: null
+    countdownActive: false
   })
 }))

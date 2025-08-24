@@ -29,9 +29,9 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    width: 240, // Compact width for minimal overlay
-    height: 48, // Compact height for dock bar
-    x: Math.floor(display.workAreaSize.width / 2 - 120), // Center horizontally
+    width: 220, // Compact width for minimal overlay
+    height: 40, // Compact height for dock bar
+    x: Math.floor(display.workAreaSize.width / 2 - 110), // Center horizontally
     y: 20,
     frame: false,
     transparent: true,

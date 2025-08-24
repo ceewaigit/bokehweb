@@ -202,16 +202,6 @@ const electronAPI = {
   send: (channel: string, ...args: any[]) =>
     ipcRenderer.send(channel, ...args),
 
-  // Window controls
-  minimize: () =>
-    ipcRenderer.send('minimize'),
-
-  maximize: () =>
-    ipcRenderer.send('maximize'),
-
-  quit: () =>
-    ipcRenderer.send('quit'),
-
   // Countdown window
   showCountdown: (number: number) =>
     ipcRenderer.invoke('show-countdown', number),

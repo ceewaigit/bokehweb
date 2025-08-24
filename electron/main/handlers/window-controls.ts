@@ -94,26 +94,4 @@ export function registerWindowControlHandlers(): void {
     }
     return { success: true }
   })
-
-  ipcMain.on('app-quit', () => {
-    app.quit()
-  })
-
-  ipcMain.on('app-minimize', (event: IpcMainEvent) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (window) {
-      window.minimize()
-    }
-  })
-
-  ipcMain.on('app-maximize', (event: IpcMainEvent) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (window) {
-      if (window.isMaximized()) {
-        window.unmaximize()
-      } else {
-        window.maximize()
-      }
-    }
-  })
 }
