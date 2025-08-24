@@ -7,7 +7,6 @@ import type { RecordingSettings } from '@/types'
 import type { ElectronRecordingResult, ElectronMetadata } from '@/types/recording'
 import { logger } from '@/lib/utils/logger'
 import { PermissionError, ElectronError } from '@/lib/core/errors'
-import { useRecordingStore } from '@/stores/recording-store'
 
 export class ElectronRecorder {
   private mediaRecorder: MediaRecorder | null = null
@@ -17,18 +16,14 @@ export class ElectronRecorder {
   private metadata: ElectronMetadata[] = []
   private captureArea: ElectronRecordingResult['captureArea'] = undefined
   private dataRequestInterval: NodeJS.Timeout | null = null
+  private isRecording = false
 
   constructor() {
     logger.debug('ElectronRecorder initialized')
   }
 
-  private get recordingStore() {
-    return useRecordingStore.getState()
-  }
-
   async startRecording(recordingSettings: RecordingSettings): Promise<void> {
-    const store = this.recordingStore
-    if (store.isRecording) {
+    if (this.isRecording) {
       throw new Error('Already recording')
     }
 
@@ -150,7 +145,7 @@ export class ElectronRecorder {
 
       // Start tracking and recording
       this.startTime = Date.now()
-      this.recordingStore.setRecording(true)
+      this.isRecording = true
 
       // Start mouse tracking via IPC
       if (window.electronAPI && typeof window.electronAPI.startMouseTracking === 'function') {
@@ -181,8 +176,7 @@ export class ElectronRecorder {
   }
 
   async stopRecording(): Promise<ElectronRecordingResult> {
-    const store = this.recordingStore
-    if (!store.isRecording || !this.mediaRecorder) {
+    if (!this.isRecording || !this.mediaRecorder) {
       throw new Error('Not recording')
     }
 
@@ -194,6 +188,7 @@ export class ElectronRecorder {
         const duration = Date.now() - this.startTime
         const video = new Blob(this.chunks, { type: 'video/webm' })
 
+        this.isRecording = false
         await this.cleanup()
 
         resolve({
@@ -218,6 +213,7 @@ export class ElectronRecorder {
           captureArea: this.captureArea
         }
 
+        this.isRecording = false
         await this.cleanup()
         resolve(result)
       }
@@ -227,12 +223,13 @@ export class ElectronRecorder {
         reject(error)
       }
 
+      // Mark as not recording before stopping
+      this.isRecording = false
+
       // Stop mouse tracking first
       if (window.electronAPI?.stopMouseTracking) {
         await window.electronAPI.stopMouseTracking()
       }
-
-      store.setRecording(false)
 
       try {
         this.mediaRecorder!.stop()
@@ -311,39 +308,35 @@ export class ElectronRecorder {
     this.chunks = []
     this.metadata = []
     this.captureArea = undefined
-    this.recordingStore.reset()
+    this.isRecording = false
 
     logger.debug('ElectronRecorder cleaned up')
   }
 
   isCurrentlyRecording(): boolean {
-    return this.recordingStore.isRecording
+    return this.isRecording
   }
 
   pauseRecording(): void {
-    const store = this.recordingStore
-    if (!this.mediaRecorder || !store.isRecording || store.isPaused) {
-      logger.warn('Cannot pause: invalid state')
+    if (!this.mediaRecorder || !this.isRecording) {
+      logger.warn('Cannot pause: not recording')
       return
     }
 
     if (this.mediaRecorder.state === 'recording') {
       this.mediaRecorder.pause()
-      store.setPaused(true)
       logger.info('Recording paused')
     }
   }
 
   resumeRecording(): void {
-    const store = this.recordingStore
-    if (!this.mediaRecorder || !store.isRecording || !store.isPaused) {
-      logger.warn('Cannot resume: invalid state')
+    if (!this.mediaRecorder || !this.isRecording) {
+      logger.warn('Cannot resume: not recording')
       return
     }
 
     if (this.mediaRecorder.state === 'paused') {
       this.mediaRecorder.resume()
-      store.setPaused(false)
       logger.info('Recording resumed')
     }
   }
@@ -353,9 +346,8 @@ export class ElectronRecorder {
   }
 
   getState(): 'idle' | 'recording' | 'paused' {
-    const store = this.recordingStore
-    if (!store.isRecording) return 'idle'
-    if (store.isPaused) return 'paused'
+    if (!this.isRecording) return 'idle'
+    if (this.mediaRecorder?.state === 'paused') return 'paused'
     return 'recording'
   }
 

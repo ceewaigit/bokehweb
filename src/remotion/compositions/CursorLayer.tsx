@@ -3,33 +3,12 @@ import { AbsoluteFill, Img, useCurrentFrame } from 'remotion';
 import type { CursorLayerProps } from './types';
 import {
   CursorType,
+  CURSOR_DIMENSIONS,
   CURSOR_HOTSPOTS,
   getCursorImagePath,
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
 import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
-
-// Cursor dimensions for proper aspect ratio
-const CURSOR_DIMENSIONS: Record<CursorType, { width: number; height: number }> = {
-  [CursorType.ARROW]: { width: 24, height: 32 },
-  [CursorType.IBEAM]: { width: 16, height: 32 },
-  [CursorType.POINTING_HAND]: { width: 28, height: 28 },
-  [CursorType.CLOSED_HAND]: { width: 28, height: 28 },
-  [CursorType.OPEN_HAND]: { width: 32, height: 32 },
-  [CursorType.CROSSHAIR]: { width: 24, height: 24 },
-  [CursorType.RESIZE_LEFT]: { width: 24, height: 24 },
-  [CursorType.RESIZE_RIGHT]: { width: 24, height: 24 },
-  [CursorType.RESIZE_UP]: { width: 24, height: 24 },
-  [CursorType.RESIZE_DOWN]: { width: 24, height: 24 },
-  [CursorType.RESIZE_LEFT_RIGHT]: { width: 32, height: 24 },
-  [CursorType.RESIZE_UP_DOWN]: { width: 24, height: 32 },
-  [CursorType.CONTEXTUAL_MENU]: { width: 24, height: 32 },
-  [CursorType.DISAPPEARING_ITEM]: { width: 24, height: 32 },
-  [CursorType.DRAG_COPY]: { width: 24, height: 32 },
-  [CursorType.DRAG_LINK]: { width: 24, height: 32 },
-  [CursorType.OPERATION_NOT_ALLOWED]: { width: 28, height: 28 },
-  [CursorType.IBEAM_VERTICAL]: { width: 32, height: 16 }
-};
 
 export const CursorLayer: React.FC<CursorLayerProps> = ({
   cursorEvents,
@@ -221,7 +200,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Simply map the normalized position to the video display area
   const cursorInVideoX = normalizedX * videoOffset.width;
   const cursorInVideoY = normalizedY * videoOffset.height;
-  
+
   // Initialize cursor tip position in screen coordinates
   let cursorTipX = videoOffset.x + cursorInVideoX;
   let cursorTipY = videoOffset.y + cursorInVideoY;
@@ -288,11 +267,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const activeBlock = zoom.blocks.find(
       block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
     );
-    
+
     if (activeBlock) {
       // Use pre-calculated pan from zoomState if available
       const smoothPan = zoomState ? { x: zoomState.panX || 0, y: zoomState.panY || 0 } : { x: 0, y: 0 };
-      
+
       // Calculate zoom transformation using the EXACT same parameters as VideoLayer
       // Use zoomState's x,y which are the mouse position at zoom start
       const zoomTransform = calculateZoomTransform(
@@ -303,15 +282,15 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         smoothPan,
         zoomState ? { x: zoomState.x, y: zoomState.y } : undefined  // Use zoom start position from state
       );
-      
+
       // Apply the zoom to the cursor position
       const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
       cursorX = transformedPos.x;
       cursorY = transformedPos.y;
     }
   }
-  
-  
+
+
   // Apply hotspot offset AFTER transformation
   // This positions the cursor image so the hotspot aligns with the transformed tip position
   cursorX -= hotspot.x * renderedWidth;

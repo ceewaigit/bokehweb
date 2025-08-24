@@ -11,8 +11,8 @@ interface TimelineZoomBlockProps {
   height: number
   startTime: number
   endTime: number
-  introMs: number
-  outroMs: number
+  introMs?: number
+  outroMs?: number
   scale: number
   isSelected: boolean
   allBlocks: ZoomBlock[]  // All zoom blocks for collision detection
@@ -54,8 +54,8 @@ export const TimelineZoomBlock = React.memo(({
 
   // Calculate intro/outro widths as proportion of total width
   const totalDuration = endTime - startTime
-  const introWidth = (introMs / totalDuration) * width
-  const outroWidth = (outroMs / totalDuration) * width
+  const introWidth = ((introMs || 0) / totalDuration) * width
+  const outroWidth = ((outroMs || 0) / totalDuration) * width
 
   // Create drag bound function with collision detection
   const dragBoundFunc = React.useMemo(() =>
@@ -204,21 +204,21 @@ export const TimelineZoomBlock = React.memo(({
             dragBoundFunc={(pos) => {
               // Find the maximum we can move left (minimum start time)
               let minStartTime = 0
-              
+
               // Check for collision with other blocks to the left
               const sortedBlocks = allBlocks
                 .filter(b => b.id !== blockId && b.endTime <= startTime)
                 .sort((a, b) => b.endTime - a.endTime)
-              
+
               if (sortedBlocks.length > 0) {
                 // Can't move past the nearest block to the left
                 minStartTime = sortedBlocks[0].endTime
               }
-              
+
               // Calculate position constraints
               const minX = TimelineUtils.timeToPixel(minStartTime - startTime, pixelsPerMs) - handleSize / 2
               const maxX = width - TimelineUtils.timeToPixel(100, pixelsPerMs) - handleSize / 2 // Min 100ms duration
-              
+
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
                 y: y + height / 2 - handleSize / 2
@@ -247,21 +247,21 @@ export const TimelineZoomBlock = React.memo(({
             dragBoundFunc={(pos) => {
               // Find the maximum we can extend right
               let maxEndTime = clipDuration
-              
+
               // Check for collision with other blocks to the right
               const sortedBlocks = allBlocks
                 .filter(b => b.id !== blockId && b.startTime >= endTime)
                 .sort((a, b) => a.startTime - b.startTime)
-              
+
               if (sortedBlocks.length > 0) {
                 // Can't extend past the nearest block to the right
                 maxEndTime = Math.min(maxEndTime, sortedBlocks[0].startTime)
               }
-              
+
               // Calculate position constraints
               const minX = TimelineUtils.timeToPixel(100, pixelsPerMs) - handleSize / 2 // Min 100ms duration
               const maxX = TimelineUtils.timeToPixel(maxEndTime - startTime, pixelsPerMs) - handleSize / 2
-              
+
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
                 y: y + height / 2 - handleSize / 2

@@ -33,15 +33,7 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
     }
   }, [isOpen])
 
-  // Set window size when opening
-  useEffect(() => {
-    if (isOpen && window.electronAPI?.setWindowContentSize) {
-      window.electronAPI.setWindowContentSize({
-        width: Math.round(window.screen.availWidth * 0.8),
-        height: Math.round(window.screen.availHeight * 0.8)
-      })
-    }
-  }, [isOpen])
+  // No longer need to resize window - we're inline now
 
   const loadSources = useCallback(async () => {
     if (!window.electronAPI?.getDesktopSources) {
@@ -127,29 +119,16 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
-          {/* Glassmorphic backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-background/80 backdrop-blur-2xl z-[2147483649]"
-            onClick={onClose}
-          />
-
-          {/* Dialog with glassmorphic design */}
-          <motion.div
-            drag
-            dragMomentum={false}
-            dragElastic={0}
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: "spring", damping: 30, stiffness: 400 }}
-            className="fixed inset-0 flex items-center justify-center z-[2147483650] p-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="bg-background/95 backdrop-blur-2xl rounded-xl shadow-2xl border border-border/50 w-[80vw] max-w-4xl h-[80vh] max-h-[650px] overflow-hidden flex flex-col">
+        /* Floating panel that appears below the dock */
+        <motion.div
+          initial={{ opacity: 0, y: -10, scale: 0.95 }}
+          animate={{ opacity: 1, y: 10, scale: 1 }}
+          exit={{ opacity: 0, y: -10, scale: 0.95 }}
+          transition={{ type: "spring", damping: 25, stiffness: 350 }}
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="bg-background/98 backdrop-blur-2xl rounded-xl shadow-2xl border border-border/50 w-[600px] max-h-[500px] overflow-hidden flex flex-col">
               {/* Compact header */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50">
                 <div className="flex items-center gap-2">
@@ -434,9 +413,8 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
                   </Button>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        </>
+          </div>
+        </motion.div>
       )}
     </AnimatePresence>
   )

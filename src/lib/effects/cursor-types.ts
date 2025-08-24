@@ -59,6 +59,14 @@ export const ELECTRON_TO_CUSTOM_CURSOR: Record<string, CursorType> = {
 }
 
 /**
+ * Cursor dimensions for proper aspect ratio
+ */
+export interface CursorDimension {
+  width: number
+  height: number
+}
+
+/**
  * Cursor hotspot configurations (where the "click point" is)
  * Values are ratios (0-1) of the cursor's rendered dimensions
  * This ensures they scale properly with any cursor size
@@ -66,6 +74,30 @@ export const ELECTRON_TO_CUSTOM_CURSOR: Record<string, CursorType> = {
 export interface CursorHotspot {
   x: number  // Ratio of width (0-1)
   y: number  // Ratio of height (0-1)
+}
+
+/**
+ * Define dimensions for each cursor type (base size in pixels)
+ */
+export const CURSOR_DIMENSIONS: Record<CursorType, CursorDimension> = {
+  [CursorType.ARROW]: { width: 24, height: 32 },
+  [CursorType.IBEAM]: { width: 16, height: 32 },
+  [CursorType.POINTING_HAND]: { width: 28, height: 28 },
+  [CursorType.CLOSED_HAND]: { width: 28, height: 28 },
+  [CursorType.OPEN_HAND]: { width: 32, height: 32 },
+  [CursorType.CROSSHAIR]: { width: 24, height: 24 },
+  [CursorType.RESIZE_LEFT]: { width: 24, height: 24 },
+  [CursorType.RESIZE_RIGHT]: { width: 24, height: 24 },
+  [CursorType.RESIZE_UP]: { width: 24, height: 24 },
+  [CursorType.RESIZE_DOWN]: { width: 24, height: 24 },
+  [CursorType.RESIZE_LEFT_RIGHT]: { width: 32, height: 24 },
+  [CursorType.RESIZE_UP_DOWN]: { width: 24, height: 32 },
+  [CursorType.CONTEXTUAL_MENU]: { width: 24, height: 32 },
+  [CursorType.DISAPPEARING_ITEM]: { width: 24, height: 32 },
+  [CursorType.DRAG_COPY]: { width: 24, height: 32 },
+  [CursorType.DRAG_LINK]: { width: 24, height: 32 },
+  [CursorType.OPERATION_NOT_ALLOWED]: { width: 28, height: 28 },
+  [CursorType.IBEAM_VERTICAL]: { width: 32, height: 16 }
 }
 
 /**

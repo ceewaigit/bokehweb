@@ -94,7 +94,6 @@ export class ZoomDetector {
           introMs: 400,
           outroMs: 500,
           scale: zoomScale,
-          mode: 'auto'
           // Note: zoom target is dynamically calculated from mouse position
         })
       }

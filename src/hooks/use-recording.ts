@@ -6,7 +6,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { ElectronRecorder, type ElectronRecordingResult } from '@/lib/recording'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
-import { saveRecordingWithProject } from '@/types/project'
+import { saveRecordingWithProject } from '@/stores/project-store'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useRecordingTimer } from './use-recording-timer'
 // Processing progress type
@@ -40,7 +40,7 @@ export function useRecording() {
   } = useRecordingStore()
 
   const { currentProject, newProject } = useProjectStore()
-  
+
   // Use the recording timer hook
   const timer = useRecordingTimer({
     onTick: setDuration,
@@ -114,7 +114,7 @@ export function useRecording() {
 
       // Get the current settings from the store to ensure we have the latest values
       const currentSettings = useRecordingStore.getState().settings
-      
+
       // Start recording (enhancements are now applied during export, not recording)
       await recorderRef.current.startRecording(currentSettings)
 
@@ -178,11 +178,6 @@ export function useRecording() {
 
       logger.info(`Recording complete: ${result.duration}ms, ${result.video.size} bytes, ${result.metadata.length} events`)
 
-      // Electron recorder has no post-processed enhanced video
-      if (result.effectsApplied?.length) {
-        logger.info(`Effects applied: ${result.effectsApplied.join(', ')}, processing: ${result.processingTime?.toFixed(2)}ms`)
-      }
-
       // Reset remaining state (recording already set to false above)
       setPaused(false)
       setStatus('idle')
@@ -203,13 +198,13 @@ export function useRecording() {
         const minutes = String(now.getMinutes()).padStart(2, '0')
         const seconds = String(now.getSeconds()).padStart(2, '0')
         const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
-        
+
         // Save recording with project using consolidated function
         const saved = await saveRecordingWithProject(result.video, result.metadata, projectName, result.captureArea)
-        
+
         if (saved) {
           logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
-          
+
           // Update the project store
           const projectStore = useProjectStore.getState()
           if (!projectStore.currentProject) {
@@ -219,7 +214,7 @@ export function useRecording() {
             const recording = saved.project.recordings[0]
             projectStore.addRecording(recording, result.video)
           }
-          
+
           // Store video blob for preview with proper description
           const recordingId = saved.project.recordings[0].id
           const videoUrl = globalBlobManager.create(result.video, `recording-${recordingId}`)

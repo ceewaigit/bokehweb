@@ -70,8 +70,6 @@ export class TimelineUtils {
   }
 }
 
-// Removed unused ZoomBlockUtils class - collision detection is now handled inline in components
-
 // Drag handler factories
 export function createClipDragBoundFunc(
   trackY: number,

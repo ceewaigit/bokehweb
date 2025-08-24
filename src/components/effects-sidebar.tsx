@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { Clip, ClipEffects } from '@/types/project'
+import { useProjectStore } from '@/stores/project-store'
 
 const WALLPAPERS = [
   { id: 'gradient-1', colors: ['#FF6B6B', '#4ECDC4'] },
@@ -104,27 +105,11 @@ export function EffectsSidebar({
   }
 
   const updateEffect = (category: string, updates: any) => {
-    if (!effects) return
-
-    // For background gradients, deep merge to ensure gradient colors update
-    if (category === 'background' && updates.gradient) {
-      onEffectChange({
-        ...effects,
-        background: {
-          ...effects.background,
-          ...updates,
-          gradient: updates.gradient  // Replace entire gradient object
-        }
-      })
-    } else {
-      onEffectChange({
-        ...effects,
-        [category]: {
-          ...effects[category as keyof typeof effects],
-          ...updates
-        }
-      })
-    }
+    if (!effects || !selectedClip) return
+    
+    // Use the centralized store method for effect updates
+    const { updateClipEffectCategory } = useProjectStore.getState()
+    updateClipEffectCategory(selectedClip.id, category, updates)
   }
 
   return (
@@ -401,7 +386,7 @@ export function EffectsSidebar({
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Intro</label>
                           <Slider
-                            value={[block.introMs]}
+                            value={[block.introMs || 500]}
                             onValueChange={([value]) => {
                               const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
                                 b.id === block.id ? { ...b, introMs: value } : b
@@ -413,13 +398,13 @@ export function EffectsSidebar({
                             step={50}
                             className="w-full"
                           />
-                          {block.introMs > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{block.introMs}ms</span>}
+                          {(block.introMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{block.introMs}ms</span>}
                         </div>
 
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Outro</label>
                           <Slider
-                            value={[block.outroMs]}
+                            value={[block.outroMs || 500]}
                             onValueChange={([value]) => {
                               const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
                                 b.id === block.id ? { ...b, outroMs: value } : b
@@ -431,7 +416,7 @@ export function EffectsSidebar({
                             step={50}
                             className="w-full"
                           />
-                          {block.outroMs > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{block.outroMs}ms</span>}
+                          {(block.outroMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{block.outroMs}ms</span>}
                         </div>
                       </>
                     )

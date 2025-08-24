@@ -75,7 +75,7 @@ export function TimelineCanvas({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const colors = useTimelineColors()
-  
+
   // Force re-render when theme changes by using colors as part of key
   const themeKey = React.useMemo(() => {
     // Create a simple hash from primary color to detect theme changes
@@ -378,8 +378,8 @@ export function TimelineCanvas({
                   height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
                   startTime={block.startTime}
                   endTime={block.endTime}
-                  introMs={block.introMs}
-                  outroMs={block.outroMs}
+                  introMs={block.introMs || 500}
+                  outroMs={block.outroMs || 500}
                   scale={block.scale}
                   isSelected={selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
                   allBlocks={clipEffects.zoom.blocks || []}
@@ -421,7 +421,7 @@ export function TimelineCanvas({
                       const currentWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
                       const deltaWidth = currentWidth - newWidth
                       const newStartTime = block.startTime + TimelineUtils.pixelToTime(deltaWidth, pixelsPerMs)
-                      
+
                       const updates = {
                         startTime: Math.max(0, newStartTime) // Don't go negative
                       }

@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
 import { useRecordingStore } from '@/stores/recording-store'
 import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import { SourcePicker } from '@/components/source-picker'
+import { logger } from '@/lib/utils/logger'
 import {
   Mic,
   MicOff,
@@ -16,13 +16,25 @@ import {
   Circle,
   Pause,
   Play,
-  X
+  X,
+  Monitor,
+  AppWindow,
+  Maximize2,
+  ChevronLeft
 } from 'lucide-react'
+
+interface Source {
+  id: string
+  name: string
+  thumbnail?: string
+  type: 'screen' | 'window' | 'area'
+}
 
 export function RecordButtonDock() {
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(false)
-  const [showSourcePicker, setShowSourcePicker] = useState(false)
+  const [sources, setSources] = useState<Source[]>([])
+  const [loadingSources, setLoadingSources] = useState(false)
 
   // Reference to the dock container for measuring
   const dockContainerRef = useRef<HTMLDivElement>(null)
@@ -39,7 +51,13 @@ export function RecordButtonDock() {
     isRecording,
     isPaused,
     duration,
-    updateSettings
+    updateSettings,
+    showSourcePicker,
+    selectedSourceId,
+    setShowSourcePicker,
+    setSelectedSourceId,
+    startCountdown,
+    prepareRecording
   } = useRecordingStore()
 
   // Make entire window transparent and size to content
@@ -62,6 +80,67 @@ export function RecordButtonDock() {
     }
   }, [])
 
+  // Load sources when picker opens
+  const loadSources = useCallback(async () => {
+    if (!window.electronAPI?.getDesktopSources) {
+      logger.error('Desktop sources API not available')
+      return
+    }
+
+    setLoadingSources(true)
+    try {
+      const desktopSources = await window.electronAPI.getDesktopSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 150, height: 90 }
+      })
+
+      const mappedSources: Source[] = desktopSources.map(source => ({
+        id: source.id,
+        name: source.name,
+        thumbnail: source.thumbnail,
+        type: source.id.startsWith('screen:') ? 'screen' : 'window'
+      }))
+
+      // Filter out system windows
+      const filteredSources = mappedSources.filter(source => {
+        const lowercaseName = source.name.toLowerCase()
+        return !lowercaseName.includes('dock') &&
+          !lowercaseName.includes('menubar') &&
+          !lowercaseName.includes('notification') &&
+          !lowercaseName.includes('screen studio - record')
+      })
+
+      // Add area selection option at the beginning
+      const allSources: Source[] = [
+        {
+          id: 'area:selection',
+          name: 'Select Area',
+          type: 'area'
+        },
+        ...filteredSources
+      ]
+
+      setSources(allSources)
+
+      // Pre-select the first screen
+      const firstScreen = allSources.find(s => s.type === 'screen')
+      if (firstScreen) {
+        setSelectedSourceId(firstScreen.id)
+      }
+    } catch (error) {
+      logger.error('Failed to load desktop sources:', error)
+    } finally {
+      setLoadingSources(false)
+    }
+  }, [])
+
+  // Load sources when picker opens
+  useEffect(() => {
+    if (showSourcePicker) {
+      loadSources()
+    }
+  }, [showSourcePicker, loadSources])
+
   // Update recording settings when audio changes
   useEffect(() => {
     updateSettings({
@@ -69,93 +148,50 @@ export function RecordButtonDock() {
     })
   }, [micEnabled, updateSettings])
 
-  // Resize window to fit dock content whenever recording state or source picker changes
+  // Resize window to fit content dynamically
   useEffect(() => {
-    if (!showSourcePicker && dockContainerRef.current) {
-      // Use ResizeObserver to detect size changes
-      const resizeObserver = new ResizeObserver(() => {
-        if (dockContainerRef.current) {
-          const rect = dockContainerRef.current.getBoundingClientRect()
-          window.electronAPI?.setWindowContentSize?.({
-            width: Math.ceil(rect.width), // Exact size, no padding
-            height: Math.ceil(rect.height)
-          })
-        }
-      })
-
-      // Initial resize
-      setTimeout(() => {
-        if (dockContainerRef.current) {
-          const rect = dockContainerRef.current.getBoundingClientRect()
-          window.electronAPI?.setWindowContentSize?.({
-            width: Math.ceil(rect.width),
-            height: Math.ceil(rect.height)
-          })
-        }
-      }, 100)
-
-      // Observe the dock container for size changes
-      resizeObserver.observe(dockContainerRef.current)
-
-      return () => {
-        resizeObserver.disconnect()
+    // Use a small delay to let animations complete
+    const timer = setTimeout(() => {
+      if (dockContainerRef.current) {
+        const rect = dockContainerRef.current.getBoundingClientRect()
+        window.electronAPI?.setWindowContentSize?.({
+          width: Math.ceil(rect.width),
+          height: Math.ceil(rect.height)
+        })
       }
-    }
-  }, [showSourcePicker, isRecording, isPaused]) // Re-run when recording state changes
+    }, showSourcePicker ? 250 : 50) // Longer delay when expanding/collapsing
+    
+    return () => clearTimeout(timer)
+  }, [showSourcePicker, isRecording, isPaused])
 
   const handleStartRecording = () => {
     // Show the source picker inline
     setShowSourcePicker(true)
   }
 
-  const startCountdownAndRecord = () => {
-    // Show countdown
-    let count = 3
-
-    // Hide the dock during countdown for cleaner experience
-    window.electronAPI?.minimizeRecordButton?.()
-
-    // Show fullscreen countdown
-    window.electronAPI?.showCountdown?.(count)
-
-    const countdownInterval = setInterval(() => {
-      count--
-
-      if (count <= 0) {
-        clearInterval(countdownInterval)
-
-        // Hide countdown and show dock again
-        window.electronAPI?.hideCountdown?.()
-        window.electronAPI?.showRecordButton?.()
-
-        // Start recording
-        startRecording()
-      } else {
-        // Update countdown display
-        window.electronAPI?.showCountdown?.(count)
-      }
-    }, 1000)
-  }
-
-  const handleSourceSelect = (sourceId: string) => {
+  const handleSourceSelect = async () => {
+    if (!selectedSourceId) return
+    
     setShowSourcePicker(false)
     
-    if (sourceId === 'area:selection') {
-      updateSettings({ area: 'region' })
-    } else if (sourceId.startsWith('area:')) {
-      updateSettings({ 
-        area: 'region',
-        sourceId
-      })
-    } else if (sourceId.startsWith('screen:')) {
-      updateSettings({ area: 'fullscreen', sourceId })
+    if (selectedSourceId === 'area:selection') {
+      // Handle area selection
+      if (window.electronAPI?.selectScreenArea) {
+        try {
+          const result = await window.electronAPI.selectScreenArea()
+          if (result?.success && result.area) {
+            const areaSourceId = `area:${result.area.x},${result.area.y},${result.area.width},${result.area.height}`
+            prepareRecording(areaSourceId)
+            setTimeout(() => startCountdown(startRecording), 100)
+          }
+        } catch (error) {
+          logger.error('Failed to select screen area:', error)
+        }
+      }
     } else {
-      updateSettings({ area: 'window', sourceId })
+      prepareRecording(selectedSourceId)
+      setTimeout(() => startCountdown(startRecording), 100)
     }
-    
-    setTimeout(() => {
-      startCountdownAndRecord()
-    }, 100)
   }
 
   const handleStopRecording = async () => {
@@ -164,26 +200,29 @@ export function RecordButtonDock() {
     window.electronAPI?.openWorkspace?.()
   }
 
+  const screens = sources.filter(s => s.type === 'screen')
+  const windows = sources.filter(s => s.type === 'window')
+  const areaOption = sources.find(s => s.type === 'area')
+
   return (
-    <>
-      {/* Dock Container - No wrapper divs, just the dock itself */}
-      <motion.div
-        ref={dockContainerRef}
-        drag
-        dragMomentum={false}
-        dragElastic={0}
-        initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-        className={cn(
-          "relative flex items-center gap-1 p-1.5",
-          "bg-background/95 backdrop-blur-2xl backdrop-saturate-150",
-          "rounded-2xl border border-border/30",
-          // Subtle shadow that doesn't require extra padding
-          "shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]",
-          isRecording && "ring-2 ring-destructive/30"
-        )}
-      >
+    <motion.div
+      ref={dockContainerRef}
+      drag
+      dragMomentum={false}
+      dragElastic={0}
+      initial={{ y: -100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+      className={cn(
+        "relative flex flex-col gap-2",
+        "bg-background/95 backdrop-blur-2xl backdrop-saturate-150",
+        "rounded-2xl border border-border/30",
+        "shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]",
+        isRecording && "ring-2 ring-destructive/30"
+      )}
+    >
+      {/* Main Dock Bar */}
+      <div className="flex items-center gap-1 p-1.5">
         {!isRecording ? (
           <>
             {/* Audio & Camera Controls */}
@@ -317,16 +356,114 @@ export function RecordButtonDock() {
             </button>
           </>
         )}
-      </motion.div>
+      </div>
 
-      {/* Source Picker Dialog */}
-      {showSourcePicker && (
-        <SourcePicker
-          isOpen={showSourcePicker}
-          onClose={() => setShowSourcePicker(false)}
-          onSelect={handleSourceSelect}
-        />
-      )}
-    </>
+      {/* Inline Source Picker - Expands below when shown */}
+      <AnimatePresence>
+        {showSourcePicker && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="p-3 border-t border-border/30">
+              {/* Quick source selection */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {/* Area Selection */}
+                {areaOption && (
+                  <button
+                    onClick={() => setSelectedSourceId(areaOption.id)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 p-3 rounded-lg border transition-all",
+                      selectedSourceId === areaOption.id
+                        ? "border-primary bg-primary/10"
+                        : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
+                    )}
+                  >
+                    <Maximize2 className="w-5 h-5 text-primary" />
+                    <span className="text-xs font-medium">Select Area</span>
+                  </button>
+                )}
+
+                {/* Screens */}
+                {screens.slice(0, 2).map((screen) => (
+                  <button
+                    key={screen.id}
+                    onClick={() => setSelectedSourceId(screen.id)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 p-3 rounded-lg border transition-all",
+                      selectedSourceId === screen.id
+                        ? "border-primary bg-primary/10"
+                        : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
+                    )}
+                  >
+                    <Monitor className="w-5 h-5 text-primary" />
+                    <span className="text-xs font-medium truncate w-full">
+                      {screen.name.replace('Entire screen', 'Full Screen')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Windows section if there are any */}
+              {windows.length > 0 && (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <AppWindow className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase">Applications</span>
+                    <div className="flex-1 h-px bg-border/30" />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 max-h-32 overflow-y-auto">
+                    {windows.slice(0, 8).map((window) => (
+                      <button
+                        key={window.id}
+                        onClick={() => setSelectedSourceId(window.id)}
+                        className={cn(
+                          "p-2 rounded border text-[10px] truncate transition-all",
+                          selectedSourceId === window.id
+                            ? "border-primary bg-primary/10"
+                            : "border-border/30 hover:border-primary/50 hover:bg-accent/50"
+                        )}
+                        title={window.name}
+                      >
+                        {window.name.split(' - ')[0]}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
+                <button
+                  onClick={() => {
+                    setShowSourcePicker(false)
+                    setSelectedSourceId(null)
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronLeft className="w-3 h-3 inline mr-1" />
+                  Back
+                </button>
+                <button
+                  onClick={handleSourceSelect}
+                  disabled={!selectedSourceId}
+                  className={cn(
+                    "px-3 py-1 rounded-lg text-xs font-medium transition-all",
+                    selectedSourceId
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "bg-muted/50 text-muted-foreground cursor-not-allowed"
+                  )}
+                >
+                  Start Recording
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }
