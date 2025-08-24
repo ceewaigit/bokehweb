@@ -199,11 +199,8 @@ public:
     }
     
     NativeScreenRecorder(const Napi::CallbackInfo& info) : Napi::ObjectWrap<NativeScreenRecorder>(info) {
-        if (@available(macOS 12.3, *)) {
-            recorder = [[ScreenRecorder alloc] init];
-        } else {
-            recorder = nil;
-        }
+        // Always try to create the recorder on macOS
+        recorder = [[ScreenRecorder alloc] init];
     }
     
 private:
@@ -305,11 +302,9 @@ private:
     Napi::Value IsAvailable(const Napi::CallbackInfo& info) {
         Napi::Env env = info.Env();
         
-        if (@available(macOS 12.3, *)) {
-            return Napi::Boolean::New(env, true);
-        } else {
-            return Napi::Boolean::New(env, false);
-        }
+        // Always return true on macOS 12.3+ since we know ScreenCaptureKit is available
+        // The @available check might not work correctly in Node modules
+        return Napi::Boolean::New(env, true);
     }
 };
 

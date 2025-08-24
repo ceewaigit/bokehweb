@@ -43,8 +43,11 @@ try {
 }
 
 export function setupNativeRecorder() {
+  console.log('Setting up native recorder handlers, nativeRecorder:', nativeRecorder ? 'loaded' : 'null')
+  
   // Check if native recorder is available
   ipcMain.handle('native-recorder:available', async () => {
+    console.log('Checking native recorder availability:', nativeRecorder !== null)
     return nativeRecorder !== null
   })
 
