@@ -124,8 +124,6 @@ export function Toolbar({
               } catch (error) {
                 console.error('Failed to open project:', error)
               }
-            } else {
-              console.log('File dialog not available in browser')
             }
           }}
           className="h-7 px-2 text-[11px] font-medium hover:bg-card/50"

@@ -17,7 +17,7 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { ClipEffects, ZoomBlock } from '@/types/project'
-import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS, resolveWallpaperInit } from '@/lib/constants/clip-defaults'
+import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 // Extract project loading logic to reduce component complexity
@@ -127,15 +127,15 @@ async function loadProjectRecording(
   useProjectStore.getState().setProject(project)
 
   // Apply wallpaper to all clips that need it
-  const wallpaper = DEFAULT_CLIP_EFFECTS.background.wallpaper || 
-                    SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper
+  const wallpaper = DEFAULT_CLIP_EFFECTS.background.wallpaper ||
+    SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper
   if (wallpaper) {
     project.timeline.tracks.forEach((track: any) => {
       track.clips.forEach((clip: any) => {
         // Update clips that have wallpaper type but no wallpaper data
-        if (clip.effects?.background && 
-            clip.effects.background.type === 'wallpaper' &&
-            !clip.effects.background.wallpaper) {
+        if (clip.effects?.background &&
+          clip.effects.background.type === 'wallpaper' &&
+          !clip.effects.background.wallpaper) {
           useProjectStore.getState().updateClipEffectCategory(
             clip.id,
             'background',
@@ -165,12 +165,10 @@ async function initializeDefaultWallpaper() {
   if (wallpaperInitialized) {
     return
   }
-  
+
   wallpaperInitialized = true
-  
+
   if (!window.electronAPI?.loadWallpaperImage) {
-    // Resolve immediately if electron API not available
-    resolveWallpaperInit()
     return
   }
 
@@ -183,19 +181,12 @@ async function initializeDefaultWallpaper() {
       SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
       SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
     }
-    
-    // Resolve the wallpaper initialization promise
-    resolveWallpaperInit()
   } catch (error) {
-    // Failed to load default wallpaper - will fallback to gradient
-    // Still resolve the promise so recording can proceed
-    resolveWallpaperInit()
+    // Silently fail - will use gradient background
   }
 }
 
 export function WorkspaceManager() {
-  const [wallpaperInitialized, setWallpaperInitialized] = useState(false)
-
   // Store hooks - will gradually reduce direct store access
   const {
     currentProject,
@@ -217,11 +208,7 @@ export function WorkspaceManager() {
 
   // Initialize default wallpaper once on mount
   useEffect(() => {
-    initializeDefaultWallpaper().then(() => {
-      setWallpaperInitialized(true)
-      
-      // No need to update existing clips here - they'll get updated when projects load
-    })
+    initializeDefaultWallpaper()
   }, [])
 
 
@@ -421,18 +408,6 @@ export function WorkspaceManager() {
 
   // Show recordings library when no active project
   if (!currentProject) {
-    // Show loading while wallpaper initializes
-    if (!wallpaperInitialized) {
-      return (
-        <div className="fixed inset-0 flex items-center justify-center bg-background">
-          <div className="text-center">
-            <div className="w-12 h-12 rounded-xl bg-card border border-border animate-pulse mb-4" />
-            <p className="text-xs text-muted-foreground">Initializing workspace...</p>
-          </div>
-        </div>
-      )
-    }
-
     return (
       <>
         <div className="fixed inset-0 flex flex-col bg-background">
@@ -488,7 +463,7 @@ export function WorkspaceManager() {
             onNewProject={async () => {
               // Ensure wallpaper is loaded
               await initializeDefaultWallpaper()
-              
+
               // Clean up current project resources
               globalBlobManager.cleanupByType('video')
               globalBlobManager.cleanupByType('export')

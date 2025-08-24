@@ -49,7 +49,7 @@ export class ExportEngine {
 
       const firstClip = videoClips[0]
       const recording = project.recordings.find(r => r.id === firstClip.recordingId)
-      
+
       if (!recording) {
         throw new Error('Recording not found')
       }
@@ -57,7 +57,7 @@ export class ExportEngine {
       // Get the video blob
       let videoBlob: Blob
       const blobUrl = RecordingStorage.getBlobUrl(recording.id)
-      
+
       if (blobUrl) {
         const response = await fetch(blobUrl)
         videoBlob = await response.blob()
@@ -77,10 +77,10 @@ export class ExportEngine {
       // Check if clip has effects to apply or needs cropping
       const captureArea = recording.metadata?.captureArea
       const needsCropping = captureArea && (
-        captureArea.sourceType === 'window' || 
+        captureArea.sourceType === 'window' ||
         captureArea.sourceId?.startsWith('area:')
       )
-      
+
       const hasEffects = firstClip.effects && (
         firstClip.effects.zoom?.enabled ||
         firstClip.effects.background?.padding ||
@@ -88,7 +88,7 @@ export class ExportEngine {
       )
 
       if (hasEffects || needsCropping) {
-      // Export with effects and/or cropping using FFmpeg
+        // Export with effects and/or cropping using FFmpeg
         onProgress?.({
           progress: 5,
           stage: 'processing',

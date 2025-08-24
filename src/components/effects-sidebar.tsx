@@ -90,7 +90,7 @@ export function EffectsSidebar({
             setLoadingWallpapers(false)
           })
       } else {
-        console.warn('getMacOSWallpapers API not available')
+        // API not available - set empty wallpapers list
         setMacOSWallpapers({ wallpapers: [] })
         setLoadingWallpapers(false)
       }

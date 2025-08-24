@@ -105,22 +105,22 @@ export class ElectronRecorder {
       // Check if we should use native recorder (macOS 12.3+ with ScreenCaptureKit)
       if (this.useNativeRecorder && window.electronAPI?.nativeRecorder) {
         logger.info('🎯 Using native ScreenCaptureKit recorder - cursor will be HIDDEN!')
-        
+
         // Parse source ID to get display ID (screen:0:0 format)
         const parts = primarySource.id.split(':')
         const displayId = parseInt(parts[1]) || 0
-        
+
         try {
           // Start native recording with cursor hidden
           const result = await window.electronAPI.nativeRecorder.startDisplay(displayId)
-          
+
           this.nativeRecorderPath = result.outputPath
           this.isRecording = true
           this.startTime = Date.now()
-          
+
           // Start metadata tracking (mouse events for custom cursor overlay if enabled)
           await this.startMouseTracking(primarySource.id)
-          
+
           logger.info('Native recording started successfully - NO cursor in video!')
           return
         } catch (err) {
@@ -248,24 +248,24 @@ export class ElectronRecorder {
         // Stop native recording
         const result = await window.electronAPI.nativeRecorder.stop()
         const duration = Date.now() - this.startTime
-        
+
         // Read the video file (ScreenCaptureKit creates .mov files)
         const videoBuffer = await window.electronAPI.nativeRecorder.readVideo(result.outputPath || this.nativeRecorderPath)
         const video = new Blob([videoBuffer], { type: 'video/quicktime' })
-        
+
         logger.info(`Native recording complete: ${duration}ms, ${video.size} bytes, NO CURSOR!`)
-        
+
         const recordingResult = {
           video,
           duration,
           metadata: this.metadata,
           captureArea: this.captureArea
         }
-        
+
         this.isRecording = false
         this.nativeRecorderPath = null
         await this.cleanup()
-        
+
         return recordingResult
       } catch (err) {
         logger.error('Failed to stop native recorder:', err)

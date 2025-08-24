@@ -104,7 +104,7 @@ interface ProjectStore {
   // Getters
   getCurrentClip: () => Clip | null
   getCurrentRecording: () => Recording | null
-  
+
   // Cleanup
   cleanupProject: () => void
 }
@@ -685,12 +685,12 @@ export const useProjectStore = create<ProjectStore>()(
         animationFrameId = null
       }
       lastTimestamp = null
-      
+
       // Clean up blob resources
       globalBlobManager.cleanupByType('video')
       globalBlobManager.cleanupByType('export')
       globalBlobManager.cleanupByType('thumbnail')
-      
+
       // Reset store state
       set((state) => {
         state.currentProject = null

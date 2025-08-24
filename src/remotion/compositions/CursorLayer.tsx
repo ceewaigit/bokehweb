@@ -58,10 +58,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Check if cursor is idle
   const isIdle = useMemo(() => {
     if (!cursorEffects?.hideOnIdle) return false;
-    
+
     const idleTimeout = cursorEffects?.idleTimeout ?? 3000; // Default 3 seconds
     const timeSinceLastMovement = currentTimeMs - lastMovementTimeRef.current;
-    
+
     return timeSinceLastMovement > idleTimeout;
   }, [currentTimeMs, cursorEffects?.hideOnIdle, cursorEffects?.idleTimeout]);
 
@@ -171,7 +171,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         Math.pow(rawX - lastKnownPositionRef.current.x, 2) +
         Math.pow(rawY - lastKnownPositionRef.current.y, 2)
       );
-      
+
       // If cursor moved more than 2 pixels in raw position, update last movement time
       if (rawMovement > 2) {
         lastMovementTimeRef.current = currentTimeMs;

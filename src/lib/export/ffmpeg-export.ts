@@ -12,7 +12,7 @@ import type { ExportProgress } from './export-engine'
 export class FFmpegExportEngine {
   private ffmpeg: FFmpeg | null = null
   private loaded = false
-  
+
   /**
    * Interpolate mouse position at a specific timestamp
    */
@@ -21,11 +21,11 @@ export class FFmpegExportEngine {
     targetTime: number
   ): { x: number; y: number } | null {
     if (!mouseEvents || mouseEvents.length === 0) return null
-    
+
     // Find the two events that surround the target time
     let before = null
     let after = null
-    
+
     for (let i = 0; i < mouseEvents.length; i++) {
       const event = mouseEvents[i]
       if (event.timestamp <= targetTime) {
@@ -35,7 +35,7 @@ export class FFmpegExportEngine {
         break
       }
     }
-    
+
     // If we only have events after the target time, use the first one
     if (!before && after) {
       const captureWidth = after.captureWidth || 1920
@@ -45,7 +45,7 @@ export class FFmpegExportEngine {
         y: after.mouseY / captureHeight
       }
     }
-    
+
     // If we only have events before the target time, use the last one
     if (before && !after) {
       const captureWidth = before.captureWidth || 1920
@@ -55,25 +55,25 @@ export class FFmpegExportEngine {
         y: before.mouseY / captureHeight
       }
     }
-    
+
     // If we have both, interpolate between them
     if (before && after) {
       const timeDiff = after.timestamp - before.timestamp
       const targetDiff = targetTime - before.timestamp
       const t = timeDiff > 0 ? targetDiff / timeDiff : 0
-      
+
       const captureWidth = before.captureWidth || after.captureWidth || 1920
       const captureHeight = before.captureHeight || after.captureHeight || 1080
-      
+
       const x = before.mouseX + (after.mouseX - before.mouseX) * t
       const y = before.mouseY + (after.mouseY - before.mouseY) * t
-      
+
       return {
         x: x / captureWidth,
         y: y / captureHeight
       }
     }
-    
+
     return null
   }
 
@@ -141,11 +141,11 @@ export class FFmpegExportEngine {
         const firstBlock = clip.effects.zoom.blocks[0]
         if (firstBlock) {
           const scale = firstBlock.scale || 2
-          
+
           // Get mouse position at block start time for zoom center
           let x = 0.5  // Default to center
           let y = 0.5
-          
+
           // Use interpolated mouse position for smooth zoom targeting
           const mousePos = this.interpolateMousePosition(mouseEvents || [], firstBlock.startTime)
           if (mousePos) {
