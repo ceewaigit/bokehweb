@@ -48,7 +48,7 @@ export function RecordButtonDock() {
     document.documentElement.style.background = 'transparent'
     document.body.style.background = 'transparent'
     document.body.style.margin = '0'
-    document.body.style.padding = '8px' // Small padding for shadow
+    document.body.style.padding = '0' // No padding - true overlay
     document.body.style.display = 'flex'
     document.body.style.alignItems = 'flex-start'
     document.body.style.justifyContent = 'center'
@@ -77,8 +77,8 @@ export function RecordButtonDock() {
         if (dockContainerRef.current) {
           const rect = dockContainerRef.current.getBoundingClientRect()
           window.electronAPI?.setWindowContentSize?.({
-            width: Math.ceil(rect.width + 16), // Add padding for shadow
-            height: Math.ceil(rect.height + 16)
+            width: Math.ceil(rect.width), // Exact size, no padding
+            height: Math.ceil(rect.height)
           })
         }
       })
@@ -88,8 +88,8 @@ export function RecordButtonDock() {
         if (dockContainerRef.current) {
           const rect = dockContainerRef.current.getBoundingClientRect()
           window.electronAPI?.setWindowContentSize?.({
-            width: Math.ceil(rect.width + 16),
-            height: Math.ceil(rect.height + 16)
+            width: Math.ceil(rect.width),
+            height: Math.ceil(rect.height)
           })
         }
       }, 100)
@@ -174,10 +174,11 @@ export function RecordButtonDock() {
         transition={{ type: 'spring', damping: 20, stiffness: 300 }}
         className={cn(
           "relative flex items-center gap-1 p-1.5",
-          "bg-background/80 backdrop-blur-2xl backdrop-saturate-150",
-          "rounded-2xl border border-border/50",
-          "shadow-[0_8px_32px_rgba(0,0,0,0.12)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
-          isRecording && "ring-2 ring-destructive/30 ring-offset-2 ring-offset-transparent"
+          "bg-background/95 backdrop-blur-2xl backdrop-saturate-150",
+          "rounded-2xl border border-border/30",
+          // Subtle shadow that doesn't require extra padding
+          "shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]",
+          isRecording && "ring-2 ring-destructive/30"
         )}
       >
         {!isRecording ? (
