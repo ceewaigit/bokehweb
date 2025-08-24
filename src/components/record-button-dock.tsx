@@ -190,23 +190,28 @@ export function RecordButtonDock() {
       transition={{ type: 'spring', damping: 18, stiffness: 250 }}
       className={cn(
         "relative flex flex-col",
-        "bg-background/95 backdrop-blur-xl", // Use shadcn background token
+        "bg-background/95 backdrop-blur-xl",
         "rounded-xl border border-border",
         "shadow-lg dark:shadow-2xl",
-        isRecording && "ring-2 ring-destructive/40"
+        isRecording && "ring-2 ring-destructive/40",
+        // Intrinsic sizing - no fixed widths
+        "w-fit h-fit"
       )}
       style={{ 
         // Make the dock draggable
         ['WebkitAppRegion' as any]: 'drag',
-        cursor: 'move'
+        cursor: 'move',
+        // Ensure content determines size
+        width: 'fit-content',
+        height: 'fit-content'
       }}
     >
       {/* Main Dock Bar - Compact Design */}
-      <div className="flex items-center gap-1 p-1">
+      <div className="flex items-center justify-center gap-1 p-2">
         {!isRecording ? (
           <>
             {/* Audio & Camera Controls */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center justify-center gap-1">
               <button
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 className={cn(
@@ -251,7 +256,7 @@ export function RecordButtonDock() {
               className={cn(
                 "relative group",
                 "flex items-center justify-center",
-                "w-8 h-8 mx-0.5",
+                "w-10 h-10",
                 "bg-destructive hover:bg-destructive/90",
                 "rounded-full shadow-lg",
                 "transition-all duration-200 hover:scale-105",
@@ -261,7 +266,7 @@ export function RecordButtonDock() {
               title="Start Recording"
             >
               <div className="absolute inset-0 rounded-full bg-destructive/20 animate-pulse" />
-              <Circle className="w-4 h-4 text-destructive-foreground fill-current relative z-10" />
+              <Circle className="w-5 h-5 text-destructive-foreground fill-current relative z-10" />
             </button>
 
             {/* Open Workspace */}
@@ -284,7 +289,7 @@ export function RecordButtonDock() {
         ) : (
           <>
             {/* Recording Timer - Compact Display */}
-            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-destructive/10 dark:bg-destructive/20 rounded-lg">
+            <div className="flex items-center justify-center gap-2 px-3 py-1 bg-destructive/10 dark:bg-destructive/20 rounded-lg">
               <div className="relative flex items-center justify-center">
                 <div className="absolute w-2 h-2 bg-destructive rounded-full animate-ping" />
                 <div className="w-2 h-2 bg-destructive rounded-full" />
@@ -355,23 +360,23 @@ export function RecordButtonDock() {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="p-2 border-t border-border/30">
+            <div className="p-3 border-t border-border/30">
               {/* Quick source selection */}
-              <div className="grid grid-cols-3 gap-1 mb-2">
+              <div className="flex flex-row gap-2 mb-3 justify-center">
                 {/* Area Selection */}
                 {areaOption && (
                   <button
                     style={{ WebkitAppRegion: 'no-drag' } as any}
                     onClick={() => setSelectedSourceId(areaOption.id)}
                     className={cn(
-                      "flex flex-col items-center gap-0.5 p-2 rounded border transition-all",
+                      "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-all",
                       selectedSourceId === areaOption.id
                         ? "border-primary bg-primary/10"
                         : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
                     )}
                   >
-                    <Maximize2 className="w-4 h-4 text-primary" />
-                    <span className="text-[10px] font-medium">Select Area</span>
+                    <Maximize2 className="w-5 h-5 text-primary" />
+                    <span className="text-xs font-medium">Select Area</span>
                   </button>
                 )}
 
@@ -381,14 +386,14 @@ export function RecordButtonDock() {
                     key={screen.id}
                     onClick={() => setSelectedSourceId(screen.id)}
                     className={cn(
-                      "flex flex-col items-center gap-0.5 p-2 rounded border transition-all",
+                      "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-all",
                       selectedSourceId === screen.id
                         ? "border-primary bg-primary/10"
                         : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
                     )}
                   >
-                    <Monitor className="w-4 h-4 text-primary" />
-                    <span className="text-[10px] font-medium truncate w-full">
+                    <Monitor className="w-5 h-5 text-primary" />
+                    <span className="text-xs font-medium truncate w-full">
                       {screen.name.replace('Entire screen', 'Full Screen')}
                     </span>
                   </button>

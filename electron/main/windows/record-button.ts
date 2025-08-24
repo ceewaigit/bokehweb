@@ -29,13 +29,12 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    // Start with a reasonable size
-    width: 300,
-    height: 60,
-    x: Math.floor(display.workAreaSize.width / 2 - 150), // Center horizontally
+    // Let content determine size
+    width: 1,
+    height: 1,
+    x: Math.floor(display.workAreaSize.width / 2), // Center horizontally
     y: 20,
-    // Panel-style window configuration (commented out for now - might be causing issues)
-    // type: process.platform === 'darwin' ? 'panel' : 'toolbar', // NSPanel on macOS
+    type: process.platform === 'darwin' ? 'panel' : undefined, // Native NSPanel on macOS
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -46,12 +45,11 @@ export function createRecordButton(): BrowserWindow {
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    hasShadow: false, // Disable shadow for now
+    hasShadow: true,
     show: false,
     roundedCorners: true,
-    // titleBarStyle: 'customButtonsOnHover', // Remove - not needed for frameless
-    // vibrancy: 'hud', // Disable vibrancy for now - might be causing issues
-    // visualEffectState: 'active',
+    vibrancy: 'hud', // Native macOS HUD style
+    visualEffectState: 'active',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -75,10 +73,49 @@ export function createRecordButton(): BrowserWindow {
   // Don't ignore mouse events - we need interaction
   recordButton.setIgnoreMouseEvents(false)
   
-  // Auto-resize window based on content - DISABLED FOR NOW
-  // recordButton.webContents.on('did-finish-load', () => {
-  //   // Will implement auto-sizing after we get basic window working
-  // })
+  // Auto-resize window based on content
+  recordButton.webContents.on('did-finish-load', () => {
+    // Inject auto-sizing logic
+    recordButton.webContents.executeJavaScript(`
+      // Function to resize window to fit content
+      const autoResize = () => {
+        const root = document.documentElement;
+        const body = document.body;
+        
+        // Get the first child of body (our main component)
+        const content = body.firstElementChild;
+        if (!content) return;
+        
+        // Get actual content dimensions
+        const rect = content.getBoundingClientRect();
+        const width = Math.ceil(rect.width);
+        const height = Math.ceil(rect.height);
+        
+        // Only resize if we have valid dimensions
+        if (width > 0 && height > 0) {
+          window.electronAPI?.setWindowContentSize({ width, height });
+        }
+      };
+      
+      // Initial resize after a small delay
+      setTimeout(autoResize, 100);
+      
+      // Watch for size changes
+      const resizeObserver = new ResizeObserver(autoResize);
+      if (document.body.firstElementChild) {
+        resizeObserver.observe(document.body.firstElementChild);
+      }
+      
+      // Watch for DOM changes (like source picker opening)
+      const mutationObserver = new MutationObserver(autoResize);
+      mutationObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style']
+      });
+    `);
+  })
 
   // Apply CSP so blob: media URLs are allowed
   setupSecurityPolicy(recordButton)

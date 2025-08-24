@@ -148,12 +148,27 @@ export function registerMouseTrackingHandlers(): void {
 
             // Determine cursor type using native detection
             let effectiveCursorType = 'default'
+            let detectedType = 'default'
             
             if (cursorDetector) {
               try {
-                effectiveCursorType = cursorDetector.getCurrentCursorType()
+                detectedType = cursorDetector.getCurrentCursorType()
+                effectiveCursorType = detectedType
+                
+                // Log cursor changes
+                if ((global as any).lastCursorType !== detectedType) {
+                  console.log(`Cursor type changed: ${(global as any).lastCursorType || 'none'} -> ${detectedType}`)
+                  ;(global as any).lastCursorType = detectedType
+                }
               } catch (err) {
+                console.error('Cursor detection error:', err)
                 // Keep default
+              }
+            } else {
+              // Log once that detector is not available
+              if (!(global as any).cursorDetectorWarned) {
+                console.warn('Native cursor detector not available')
+                ;(global as any).cursorDetectorWarned = true
               }
             }
             
@@ -172,7 +187,7 @@ export function registerMouseTrackingHandlers(): void {
 
             // Debug log every 50th event to see what cursor type we're sending
             if (mouseHistory.length % 50 === 0) {
-              logger.debug(`Cursor state: ${effectiveCursorType} (mouseDown: ${isMouseDown})`)
+              logger.info(`Cursor state: detected=${detectedType}, effective=${effectiveCursorType}, mouseDown=${isMouseDown}`)
             }
 
             // Only log in development mode

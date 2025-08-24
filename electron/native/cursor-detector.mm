@@ -49,16 +49,44 @@ Napi::String GetCurrentCursorType(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
     @autoreleasepool {
-        // Get the current system cursor
-        NSCursor* currentCursor = [NSCursor currentSystemCursor];
+        // First try to get the current cursor (this is more reliable)
+        NSCursor* currentCursor = [NSCursor currentCursor];
         
-        // If no system cursor, try to get current cursor
+        // If that fails, try system cursor
         if (!currentCursor) {
-            currentCursor = [NSCursor currentCursor];
+            currentCursor = [NSCursor currentSystemCursor];
+        }
+        
+        // As a fallback, check the frontmost app's cursor
+        if (!currentCursor) {
+            NSApplication* app = [NSApplication sharedApplication];
+            NSWindow* keyWindow = [app keyWindow];
+            if (keyWindow) {
+                // Try to get cursor from the key window's content view
+                NSView* contentView = [keyWindow contentView];
+                if (contentView) {
+                    // Get the mouse location in window coordinates
+                    NSPoint mouseLocation = [keyWindow mouseLocationOutsideOfEventStream];
+                    NSView* hitView = [contentView hitTest:mouseLocation];
+                    if (hitView) {
+                        // Check tracking areas for cursor info
+                        for (NSTrackingArea* area in [hitView trackingAreas]) {
+                            NSDictionary* userInfo = [area userInfo];
+                            if (userInfo && userInfo[@"cursor"]) {
+                                currentCursor = userInfo[@"cursor"];
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
         
         // Convert to string
         std::string cursorType = NSCursorToString(currentCursor);
+        
+        // Debug logging
+        NSLog(@"Detected cursor type: %s", cursorType.c_str());
         
         return Napi::String::New(env, cursorType);
     }
