@@ -17,7 +17,7 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { ClipEffects, ZoomBlock } from '@/types/project'
-import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS, resolveWallpaperInit, getWallpaperInitPromise } from '@/lib/constants/clip-defaults'
+import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS, resolveWallpaperInit } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 // Extract project loading logic to reduce component complexity
@@ -32,8 +32,8 @@ async function loadProjectRecording(
     return false
   }
 
-  // Ensure wallpaper is initialized before loading project
-  await getWallpaperInitPromise()
+  // Initialize wallpaper if not already done
+  await initializeDefaultWallpaper()
 
   const project = recording.project
 
@@ -156,8 +156,18 @@ async function loadProjectRecording(
   return true
 }
 
+// Track if wallpaper has been initialized
+let wallpaperInitialized = false
+
 // Initialize default wallpaper on app startup
 async function initializeDefaultWallpaper() {
+  // Skip if already initialized
+  if (wallpaperInitialized) {
+    return
+  }
+  
+  wallpaperInitialized = true
+  
   if (!window.electronAPI?.loadWallpaperImage) {
     // Resolve immediately if electron API not available
     resolveWallpaperInit()
@@ -389,17 +399,12 @@ export function WorkspaceManager() {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-background z-50">
         <div className="text-center space-y-6">
-          {/* Animated logo or spinner */}
-          <div className="relative">
-            <div className="w-24 h-24 border-4 border-primary/20 rounded-full animate-pulse" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-16 h-16 border-4 border-t-primary border-r-primary border-b-transparent border-l-transparent rounded-full animate-spin" />
-            </div>
-          </div>
+          {/* Single animated spinner */}
+          <div className="w-16 h-16 border-4 border-primary/20 rounded-full border-t-primary animate-spin" />
 
           {/* Loading message */}
           <div className="space-y-2">
-            <h3 className="text-xl font-semibold">{loadingMessage}</h3>
+            <h3 className="text-lg font-medium">{loadingMessage}</h3>
             <p className="text-sm text-muted-foreground">Please wait while we set everything up...</p>
           </div>
 
@@ -482,7 +487,7 @@ export function WorkspaceManager() {
             onExport={handleExport}
             onNewProject={async () => {
               // Ensure wallpaper is loaded
-              await getWallpaperInitPromise()
+              await initializeDefaultWallpaper()
               
               // Clean up current project resources
               globalBlobManager.cleanupByType('video')
