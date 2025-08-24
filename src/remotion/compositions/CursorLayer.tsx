@@ -203,11 +203,16 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Calculate click animation scale
   const clickScale = useMemo(() => {
     if (!activeClick) return 1;
-    const clickProgress = Math.min(1, (currentTimeMs - activeClick.timestamp) / 150);
-    // Subtle pulse animation
-    return clickProgress < 0.5
-      ? 1 - (clickProgress * 0.2)
-      : 0.9 + ((clickProgress - 0.5) * 0.2);
+    const clickProgress = Math.min(1, (currentTimeMs - activeClick.timestamp) / 200);
+    // Click animation - shrinks to 0.8 then returns to normal
+    if (clickProgress < 0.4) {
+      // Quick shrink phase
+      return 1 - (clickProgress / 0.4) * 0.2; // Shrink to 0.8
+    } else {
+      // Return to normal phase
+      const returnProgress = (clickProgress - 0.4) / 0.6;
+      return 0.8 + returnProgress * 0.2; // Grow from 0.8 back to 1.0
+    }
   }, [activeClick, currentTimeMs]);
 
   // Get capture dimensions from first event
