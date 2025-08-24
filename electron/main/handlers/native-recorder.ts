@@ -4,6 +4,9 @@ import * as fs from 'fs/promises'
 
 let nativeRecorder: any = null
 
+// Declare shim for webpack's non-webpack require if present
+declare const __non_webpack_require__: NodeJS.Require | undefined
+
 // Function to load the native recorder module
 function loadNativeRecorder() {
   console.log('🔍 Attempting to load native ScreenCaptureKit module...')
@@ -17,9 +20,16 @@ function loadNativeRecorder() {
       let moduleLoaded = false
       
       // Try multiple possible paths for the native module
+      const envPath = process.env.SCREENCAPTURE_KIT_PATH
+      if (envPath) {
+        console.log(`SCREENCAPTURE_KIT_PATH override is set: ${envPath}`)
+      }
       const possiblePaths = [
+        ...(envPath ? [envPath] : []),
         // In development, the module is relative to the src directory
         path.join(app.getAppPath(), 'build', 'Release', 'screencapture_kit.node'),
+        // Try two levels up (useful when app.getAppPath() is .webpack/main)
+        path.join(app.getAppPath(), '..', '..', 'build', 'Release', 'screencapture_kit.node'),
         // In production, it might be in the resources directory
         path.join(process.resourcesPath || '', 'build', 'Release', 'screencapture_kit.node'),
         // Fallback to old path resolution
@@ -36,6 +46,12 @@ function loadNativeRecorder() {
       if (process.resourcesPath) {
         console.log('Resources path:', process.resourcesPath)
       }
+      console.log('Electron ABI:', process.versions.modules, 'arch:', process.arch)
+      
+      // Use Node's real require to bypass webpack bundling for native modules
+      const nodeRequire: NodeJS.Require = (typeof __non_webpack_require__ !== 'undefined'
+        ? __non_webpack_require__ as NodeJS.Require
+        : (eval('require')))
       
       for (const modulePath of possiblePaths) {
         try {
@@ -45,7 +61,7 @@ function loadNativeRecorder() {
           if (require('fs').existsSync(modulePath)) {
             console.log(`✓ File exists at: ${modulePath}`)
             
-            const nativeModule = require(modulePath)
+            const nativeModule = nodeRequire(modulePath)
             console.log('✓ Native module loaded successfully')
             
             nativeRecorder = new nativeModule.NativeScreenRecorder()
@@ -56,7 +72,10 @@ function loadNativeRecorder() {
             console.log(`✗ File not found at: ${modulePath}`)
           }
         } catch (err: any) {
-          console.log(`✗ Failed to load from ${modulePath}:`, err.message)
+          console.error(`✗ Failed to load from ${modulePath}:`, err && err.message ? err.message : err)
+          if (err && err.stack) {
+            console.error('Load stack:', err.stack)
+          }
         }
       }
       
