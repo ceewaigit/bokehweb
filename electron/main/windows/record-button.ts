@@ -29,10 +29,10 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    // Start with minimum viable size, will resize to content
-    width: 200,
-    height: 50,
-    x: Math.floor(display.workAreaSize.width / 2 - 100), // Center horizontally
+    // Start with a size that fits the initial dock
+    width: 280,
+    height: 56,
+    x: Math.floor(display.workAreaSize.width / 2 - 140), // Center horizontally
     y: 20,
     type: process.platform === 'darwin' ? 'panel' : undefined, // Native NSPanel on macOS
     frame: false,

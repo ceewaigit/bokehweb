@@ -52,8 +52,20 @@ Napi::String GetCurrentCursorType(const Napi::CallbackInfo& info) {
         // Get the current cursor - this is the most reliable method
         NSCursor* currentCursor = [NSCursor currentCursor];
         
+        // Log what we're detecting for debugging
+        if (currentCursor == [NSCursor IBeamCursor]) {
+            NSLog(@"Detected I-Beam cursor!");
+        }
+        
         // Convert to string
         std::string cursorType = NSCursorToString(currentCursor);
+        
+        // Log the result
+        static std::string lastLoggedType = "";
+        if (cursorType != lastLoggedType) {
+            NSLog(@"Cursor type changed: %s -> %s", lastLoggedType.c_str(), cursorType.c_str());
+            lastLoggedType = cursorType;
+        }
         
         return Napi::String::New(env, cursorType);
     }
