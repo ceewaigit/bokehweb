@@ -428,6 +428,7 @@ export function RecordButtonDock() {
                   {screens.slice(0, 2).map((screen) => (
                     <button
                       key={screen.id}
+                      style={{ WebkitAppRegion: 'no-drag' } as any}
                       onClick={() => setSelectedSourceId(screen.id)}
                       className={cn(
                         "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",

@@ -258,8 +258,8 @@ export const TimelineClip = React.memo(({
           xOffset += 36
         }
         
-        // Always show cursor badge since we always render custom cursor
-        if (clip.effects?.cursor) {
+        // Only show cursor badge when cursor is enabled
+        if (clip.effects?.cursor?.enabled) {
           badges.push(
             <Group 
               key="cursor"

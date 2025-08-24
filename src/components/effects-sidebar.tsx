@@ -49,7 +49,7 @@ export function EffectsSidebar({
   // Auto-switch tab based on selected effect layer
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('wallpaper')
-  const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[], gradients: any[] }>({ wallpapers: [], gradients: [] })
+  const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
 
@@ -76,22 +76,22 @@ export function EffectsSidebar({
         window.electronAPI.getMacOSWallpapers()
           .then((data) => {
             if (data && data.wallpapers) {
-              setMacOSWallpapers(data)
+              setMacOSWallpapers({ wallpapers: data.wallpapers || [] })
             } else {
               // Fallback to empty arrays if no data
-              setMacOSWallpapers({ wallpapers: [], gradients: [] })
+              setMacOSWallpapers({ wallpapers: [] })
             }
             setLoadingWallpapers(false)
           })
           .catch((error) => {
             console.error('Failed to load macOS wallpapers:', error)
             // Set empty data on error so UI can show "no wallpapers" instead of stuck loading
-            setMacOSWallpapers({ wallpapers: [], gradients: [] })
+            setMacOSWallpapers({ wallpapers: [] })
             setLoadingWallpapers(false)
           })
       } else {
         console.warn('getMacOSWallpapers API not available')
-        setMacOSWallpapers({ wallpapers: [], gradients: [] })
+        setMacOSWallpapers({ wallpapers: [] })
         setLoadingWallpapers(false)
       }
     }
@@ -233,15 +233,7 @@ export function EffectsSidebar({
                               }
                             } catch (error) {
                               console.error('Failed to load wallpaper:', error)
-                              // Revert to gradient on error
-                              updateEffect('background', {
-                                type: 'gradient',
-                                gradient: {
-                                  type: 'linear',
-                                  colors: ['#0F172A', '#1E293B'],
-                                  angle: 135
-                                }
-                              })
+                              // Show error state - don't revert to gradient
                             } finally {
                               setLoadingWallpaperId(null)
                             }
@@ -335,6 +327,22 @@ export function EffectsSidebar({
 
         {activeTab === 'cursor' && effects?.cursor && (
           <div className="space-y-3">
+            {/* Master cursor visibility toggle */}
+            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Show Cursor</span>
+                <Switch
+                  checked={effects.cursor.enabled ?? false}
+                  onCheckedChange={(checked) =>
+                    updateEffect('cursor', { enabled: checked })
+                  }
+                />
+              </label>
+            </div>
+
+            {/* Only show cursor settings when enabled */}
+            {effects.cursor.enabled && (
+              <>
             <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Size</label>
               <Slider
@@ -397,6 +405,8 @@ export function EffectsSidebar({
                 />
                 <span className="text-[10px] text-muted-foreground/70 font-mono">{((effects.cursor.idleTimeout ?? 3000) / 1000).toFixed(1)}s</span>
               </div>
+            )}
+              </>
             )}
           </div>
         )}

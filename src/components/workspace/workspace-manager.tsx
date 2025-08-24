@@ -16,7 +16,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
-import type { Clip, ClipEffects, ZoomBlock } from '@/types/project'
+import type { ClipEffects, ZoomBlock } from '@/types/project'
 import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
@@ -170,32 +170,45 @@ async function loadProjectRecording(
 
 // Initialize default wallpaper on app startup
 async function initializeDefaultWallpaper() {
-  if (!window.electronAPI?.loadWallpaperImage) return
+  console.log('🖼️ Initializing default wallpaper...')
+  if (!window.electronAPI?.loadWallpaperImage) {
+    console.warn('❌ loadWallpaperImage API not available')
+    return
+  }
 
   try {
+    console.log('📥 Loading Sonoma wallpaper...')
     const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
     if (dataUrl) {
+      console.log('✅ Wallpaper loaded successfully')
       // Update the defaults for new clips
       DEFAULT_CLIP_EFFECTS.background.wallpaper = dataUrl
       DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
       SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
       SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
 
-      // Update existing clips without custom backgrounds
+      // Update ALL existing clips that don't have a custom wallpaper or image
       const project = useProjectStore.getState().currentProject
       if (project) {
+        let updated = false
         project.timeline.tracks.forEach(track => {
           track.clips.forEach(clip => {
             if (clip.effects?.background &&
               !clip.effects.background.wallpaper &&
-              !clip.effects.background.image &&
-              clip.effects.background.type === 'gradient') {
+              !clip.effects.background.image) {
+              console.log('🔄 Updating clip background to wallpaper')
               clip.effects.background.wallpaper = dataUrl
               clip.effects.background.type = 'wallpaper'
+              updated = true
             }
           })
         })
-        useProjectStore.getState().setProject(project)
+        if (updated) {
+          console.log('💾 Saving project with wallpaper updates')
+          useProjectStore.getState().setProject(project)
+        }
+      } else {
+        console.log('📋 No current project to update')
       }
     }
   } catch (error) {
@@ -205,14 +218,8 @@ async function initializeDefaultWallpaper() {
 
 export function WorkspaceManager() {
   const [wallpaperInitialized, setWallpaperInitialized] = useState(false)
+  const [defaultWallpaperUrl, setDefaultWallpaperUrl] = useState<string | null>(null)
   
-  // Initialize default wallpaper once on mount
-  useEffect(() => {
-    initializeDefaultWallpaper().then(() => {
-      setWallpaperInitialized(true)
-    })
-  }, [])
-
   // Store hooks - will gradually reduce direct store access
   const {
     currentProject,
@@ -231,6 +238,37 @@ export function WorkspaceManager() {
     setZoom,
     zoom
   } = useProjectStore()
+  
+  // Initialize default wallpaper once on mount
+  useEffect(() => {
+    initializeDefaultWallpaper().then(() => {
+      setWallpaperInitialized(true)
+      // Store the wallpaper URL for later use
+      setDefaultWallpaperUrl(DEFAULT_CLIP_EFFECTS.background.wallpaper || null)
+    })
+  }, [])
+  
+  // Apply wallpaper to clips when project changes
+  useEffect(() => {
+    if (currentProject && defaultWallpaperUrl) {
+      let updated = false
+      currentProject.timeline.tracks.forEach(track => {
+        track.clips.forEach(clip => {
+          if (clip.effects?.background &&
+            !clip.effects.background.wallpaper &&
+            !clip.effects.background.image) {
+            clip.effects.background.wallpaper = defaultWallpaperUrl
+            clip.effects.background.type = 'wallpaper'
+            updated = true
+          }
+        })
+      })
+      if (updated) {
+        // Force update through store
+        useProjectStore.getState().setProject(currentProject)
+      }
+    }
+  }, [currentProject?.id, defaultWallpaperUrl])
 
   const {
     isPropertiesOpen,
@@ -243,7 +281,6 @@ export function WorkspaceManager() {
 
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Loading...')
-  const [isMounted, setIsMounted] = useState(false)
   const [localEffects, setLocalEffects] = useState<ClipEffects | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
@@ -333,30 +370,8 @@ export function WorkspaceManager() {
   }, [isPlaying, currentTime, selectedClip, handlePause])
 
 
-  // Track when component is mounted
-  useEffect(() => {
-    setIsMounted(true)
-    return () => setIsMounted(false)
-  }, [])
-
-  // Load video when recording changes and component is mounted
-  useEffect(() => {
-    if (!selectedRecording || !isMounted) {
-      return
-    }
-
-    const loadVideo = async () => {
-      if (!selectedRecording.filePath) return
-
-      // Ensure video is loaded in blob manager for Remotion to use
-      await globalBlobManager.ensureVideoLoaded(
-        selectedRecording.id,
-        selectedRecording.filePath
-      )
-    }
-
-    loadVideo()
-  }, [selectedRecording?.id, selectedRecording?.filePath, isMounted])
+  // Video loading is already handled when the project is loaded
+  // No need to duplicate the loading here
 
   // Centralized playback control
   const handlePlay = useCallback(() => {
@@ -547,7 +562,6 @@ export function WorkspaceManager() {
                 isPlaying={isPlaying}
                 localEffects={localEffects}
                 onTimeUpdate={(time) => storeSeek(time)}
-                onPlayingChange={(playing) => playing ? storePlay() : storePause()}
               />
             </div>
 

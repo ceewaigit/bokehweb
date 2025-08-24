@@ -93,10 +93,12 @@ export class ElectronRecorder {
           mandatory: {
             chromeMediaSource: 'desktop',
             chromeMediaSourceId: primarySource.id,
-            // Hide the system cursor from the captured video stream
-            // We'll render our own custom cursor overlay instead
-            // Note: This may not work in all Electron versions
-            cursor: 'never'
+            // Try different methods to hide the cursor
+            // 'motion' only shows cursor when moving, 'never' should hide always
+            // but these don't work reliably in all Electron versions
+            cursor: 'never',
+            // Also try alternate property names
+            cursorHidden: true
           }
         }
       }

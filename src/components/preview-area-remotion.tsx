@@ -1,9 +1,8 @@
 'use client'
 
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { Player, PlayerRef } from '@remotion/player'
 import { MainComposition } from '@/remotion/compositions/MainComposition'
-import { Skeleton } from '@/components/ui/skeleton'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import type { Clip, Recording, ClipEffects } from '@/types/project'
@@ -15,7 +14,6 @@ interface PreviewAreaRemotionProps {
   isPlaying: boolean
   localEffects?: ClipEffects | null
   onTimeUpdate?: (time: number) => void
-  onPlayingChange?: (playing: boolean) => void
 }
 
 export function PreviewAreaRemotion({
@@ -24,12 +22,9 @@ export function PreviewAreaRemotion({
   currentTime,
   isPlaying,
   localEffects,
-  onTimeUpdate,
-  onPlayingChange
+  onTimeUpdate
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
 
   // Load video URL when recording changes
@@ -39,63 +34,26 @@ export function PreviewAreaRemotion({
       return
     }
 
-    const loadVideo = async () => {
-      setIsLoading(true)
-      setLoadError(null)
-
-      try {
-        // Get blob URL from recording storage
-        let blobUrl = RecordingStorage.getBlobUrl(selectedRecording.id)
-
-        // For blob URLs, we can't use HEAD requests, so skip validation
-        // Blob URLs are memory-managed and will be valid as long as they exist
-        if (blobUrl && !blobUrl.startsWith('blob:')) {
-          // Only validate non-blob URLs (shouldn't happen in practice)
-          try {
-            const response = await fetch(blobUrl, { 
-              method: 'HEAD',
-              cache: 'no-cache'
-            }).catch(() => null)
-            
-            if (!response || !response.ok) {
-              // Cached URL is invalid, clear it
-              RecordingStorage.clearBlobUrl(selectedRecording.id)
-              blobUrl = null
-            }
-          } catch {
-            // URL validation failed, reload
-            RecordingStorage.clearBlobUrl(selectedRecording.id)
-            blobUrl = null
-          }
+    // Get cached blob URL first - should already be loaded by workspace-manager
+    const cachedUrl = RecordingStorage.getBlobUrl(selectedRecording.id)
+    
+    if (cachedUrl) {
+      // Video is already loaded, use it immediately
+      setVideoUrl(cachedUrl)
+    } else if (selectedRecording.filePath) {
+      // Load the video (edge case - should rarely happen)
+      globalBlobManager.ensureVideoLoaded(
+        selectedRecording.id,
+        selectedRecording.filePath
+      ).then(url => {
+        if (url) {
+          setVideoUrl(url)
         }
-
-        if (blobUrl) {
-          // Already loaded and valid
-          setVideoUrl(blobUrl)
-        } else if (selectedRecording.filePath) {
-          // Load the video file
-          const url = await globalBlobManager.ensureVideoLoaded(
-            selectedRecording.id,
-            selectedRecording.filePath
-          )
-
-          if (url) {
-            setVideoUrl(url)
-          } else {
-            setLoadError('Failed to load video file')
-          }
-        } else {
-          setLoadError('No video file available')
-        }
-      } catch (error) {
-        setLoadError(`Failed to load video: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      } finally {
-        setIsLoading(false)
-      }
+      }).catch(error => {
+        console.error('Error loading video:', error)
+      })
     }
-
-    loadVideo()
-  }, [selectedRecording]);
+  }, [selectedRecording?.id]);
 
   // Sync playback state
   useEffect(() => {
@@ -168,9 +126,6 @@ export function PreviewAreaRemotion({
   compositionHeight += padding * 2;
 
   // Calculate composition props
-  // Don't pass captureArea for full screen recordings - let the video display naturally
-  const captureAreaToUse = undefined  // Removed captureArea to fix full screen display
-  
   const compositionProps = {
     videoUrl: videoUrl || '',
     clip: selectedClip,
@@ -180,7 +135,7 @@ export function PreviewAreaRemotion({
     keystrokeEvents: (selectedRecording?.metadata as any)?.keystrokeEvents || [],
     videoWidth,
     videoHeight,
-    captureArea: captureAreaToUse
+    captureArea: undefined // Full screen recordings display naturally
   };
 
   // Calculate duration in frames
@@ -201,52 +156,6 @@ export function PreviewAreaRemotion({
     );
   }
 
-  if (loadError) {
-    return (
-      <div className="relative w-full h-full overflow-hidden bg-background">
-        <div className="absolute inset-0 flex items-center justify-center p-8">
-          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 max-w-md">
-            <div className="flex items-start space-x-3">
-              <svg className="w-5 h-5 text-destructive mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
-              <div>
-                <h3 className="text-sm font-medium text-destructive">Failed to load video</h3>
-                <p className="text-xs text-muted-foreground mt-1">{loadError}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="relative w-full h-full overflow-hidden bg-background">
-        <div className="absolute inset-0 flex items-center justify-center p-8">
-          <div className="relative w-full max-w-4xl">
-            <div className="relative aspect-video">
-              <Skeleton className="absolute inset-0 rounded-lg" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="bg-background/80 backdrop-blur-sm rounded-lg p-6 shadow-lg">
-                  <div className="flex flex-col items-center space-y-3">
-                    <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <div className="text-center">
-                      <p className="text-sm font-medium">Loading video</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
@@ -254,7 +163,7 @@ export function PreviewAreaRemotion({
         <div 
           className="relative w-full h-full flex items-center justify-center"
         >
-          {videoUrl && (
+          {videoUrl ? (
             <Player
               ref={playerRef}
               component={MainComposition as any}
@@ -288,6 +197,12 @@ export function PreviewAreaRemotion({
               }}
               moveToBeginningWhenEnded={false}
             />
+          ) : (
+            <div className="flex items-center justify-center w-full h-full">
+              <div className="text-center text-muted-foreground">
+                <p className="text-sm">No video selected</p>
+              </div>
+            </div>
           )}
         </div>
       </div>

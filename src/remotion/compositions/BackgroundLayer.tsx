@@ -15,39 +15,11 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   // Show skeleton loader when wallpaper is selected but not loaded yet
   if (effects.type === 'wallpaper' && !effects.wallpaper) {
     return (
-      <AbsoluteFill>
-        {/* Skeleton background with shimmer effect */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(90deg, #1a1a2e 25%, #16213e 50%, #1a1a2e 75%)',
-            backgroundSize: '200% 100%',
-            animation: 'shimmer 2s infinite'
-          }}
-        />
-        {/* Loading indicator */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            color: 'rgba(255, 255, 255, 0.3)',
-            fontSize: '14px',
-            fontFamily: 'system-ui',
-            letterSpacing: '0.1em'
-          }}
-        >
-          Loading wallpaper...
-        </div>
-        <style>{`
-          @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-          }
-        `}</style>
-      </AbsoluteFill>
+      <AbsoluteFill
+        style={{
+          backgroundColor: '#1a1a2e'
+        }}
+      />
     );
   }
 

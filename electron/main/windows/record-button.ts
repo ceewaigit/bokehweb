@@ -9,11 +9,11 @@ function setupSecurityPolicy(window: BrowserWindow): void {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: https://unpkg.com; " +
+        'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file: video-stream: https://unpkg.com; " +
           "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com blob:; " +
           "style-src 'self' 'unsafe-inline'; " +
-          "img-src 'self' data: blob: file:; " +
-          "media-src 'self' data: blob: file:; " +
+          "img-src 'self' data: blob: file: video-stream:; " +
+          "media-src 'self' data: blob: file: video-stream:; " +
           "connect-src 'self' file: data: blob: ws://localhost:3001 http://localhost:3001 https://unpkg.com; " +
           "worker-src 'self' blob:; " +
           "frame-src 'none';"

@@ -254,8 +254,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         </Sequence>
       )}
 
-      {/* Cursor Layer - Always show custom cursor since system cursor is never captured */}
-      {cursorEvents.length > 0 && (
+      {/* Cursor Layer - Only show when explicitly enabled */}
+      {cursorEvents.length > 0 && effects?.cursor?.enabled && (
         <Sequence from={0}>
           <CursorLayer
             cursorEvents={cursorEvents}
