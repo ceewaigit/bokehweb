@@ -10,6 +10,13 @@ import {
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { Clip, ClipEffects } from '@/types/project'
 import { useProjectStore } from '@/stores/project-store'
 
@@ -306,14 +313,23 @@ export function EffectsSidebar({
         {activeTab === 'cursor' && effects?.cursor && (
           <div className="space-y-3">
             <div className="p-3 bg-card/30 rounded-lg border border-border/30">
-              <label className="text-xs font-medium flex items-center justify-between">
-                <span className="uppercase tracking-wider text-[10px]">Visibility</span>
-                <Switch
-                  checked={effects.cursor.visible ?? true}
-                  onCheckedChange={(checked) =>
-                    updateEffect('cursor', { visible: checked })
+              <label className="text-xs font-medium space-y-2">
+                <span className="uppercase tracking-wider text-[10px] block">Cursor Display Mode</span>
+                <Select
+                  value={effects.cursor.displayMode || 'custom'}
+                  onValueChange={(value: 'custom' | 'both' | 'system') =>
+                    updateEffect('cursor', { displayMode: value })
                   }
-                />
+                >
+                  <SelectTrigger className="w-full h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="custom" className="text-xs">Custom Cursor Only</SelectItem>
+                    <SelectItem value="both" className="text-xs">Both Cursors</SelectItem>
+                    <SelectItem value="system" className="text-xs">System Cursor Only</SelectItem>
+                  </SelectContent>
+                </Select>
               </label>
             </div>
 

@@ -306,7 +306,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         {/* Compact header with shadcn tokens */}
         <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-2xl border-b border-border">
           <div className="px-4 py-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-center relative">
               <div className="flex items-center gap-3">
                 <h1 className="text-sm font-medium text-foreground">Library</h1>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -317,7 +317,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-6 w-6 p-0"
+                className="h-6 w-6 p-0 absolute right-0"
                 onClick={loadRecordings}
               >
                 <RefreshCw className="w-3 h-3" />

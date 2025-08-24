@@ -255,7 +255,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       )}
 
       {/* Cursor Layer */}
-      {cursorEvents.length > 0 && effects?.cursor?.visible !== false && (
+      {cursorEvents.length > 0 && 
+       (effects?.cursor?.displayMode === 'custom' || effects?.cursor?.displayMode === 'both') && (
         <Sequence from={0}>
           <CursorLayer
             cursorEvents={cursorEvents}

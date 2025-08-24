@@ -161,7 +161,7 @@ export interface ClipEffects {
 
   // Cursor styling
   cursor: {
-    visible: boolean
+    displayMode?: 'custom' | 'both' | 'system'  // How to display cursor (default: 'custom')
     style: 'default' | 'macOS' | 'custom'
     size: number
     color: string

@@ -258,7 +258,7 @@ export const TimelineClip = React.memo(({
           xOffset += 36
         }
         
-        if (clip.effects?.cursor?.visible) {
+        if (clip.effects?.cursor?.displayMode && clip.effects.cursor.displayMode !== 'system') {
           badges.push(
             <Group 
               key="cursor"

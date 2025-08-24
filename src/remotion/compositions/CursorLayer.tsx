@@ -208,16 +208,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       : 0.9 + ((clickProgress - 0.5) * 0.2);
   }, [activeClick, currentTimeMs]);
 
-  if (!cursorPosition || isIdle) return null;
-
   // Get capture dimensions from first event
   const firstEvent = cursorEvents[0];
   const captureWidth = firstEvent?.captureWidth || videoWidth;
   const captureHeight = firstEvent?.captureHeight || videoHeight;
 
   // Normalize cursor position (0-1 range within the capture area)
-  const normalizedX = cursorPosition.x / captureWidth;
-  const normalizedY = cursorPosition.y / captureHeight;
+  const normalizedX = cursorPosition ? cursorPosition.x / captureWidth : 0;
+  const normalizedY = cursorPosition ? cursorPosition.y / captureHeight : 0;
 
   // Calculate the cursor position within the video content area (before zoom)
   // Simply map the normalized position to the video display area
@@ -369,6 +367,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
     return trails;
   }, [motionVelocity, cursorX, cursorY, cursorType, renderedWidth, renderedHeight, hotspot, clickScale]);
+
+  // Early return if cursor is hidden or idle (after all hooks)
+  if (!cursorPosition || isIdle) return null;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>

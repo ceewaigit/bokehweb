@@ -95,13 +95,22 @@ export class ExportEngine {
           message: needsCropping ? 'Preparing to crop and apply effects...' : 'Preparing to apply effects...'
         })
 
+        // Transform MouseEvent format to match FFmpeg's expected format
+        const transformedMouseEvents = (recording.metadata?.mouseEvents || []).map(event => ({
+          timestamp: event.timestamp,
+          mouseX: event.x,
+          mouseY: event.y,
+          captureWidth: event.captureWidth,
+          captureHeight: event.captureHeight
+        }))
+
         return await this.ffmpegEngine.exportWithEffects(
           videoBlob,
           firstClip,
           settings,
           onProgress,
           captureArea?.fullBounds,
-          recording.metadata?.mouseEvents || []
+          transformedMouseEvents
         )
       } else {
         // No effects, return original video

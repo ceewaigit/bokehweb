@@ -9,13 +9,13 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
     smoothing: 0.1
   },
   cursor: {
-    visible: true,
+    displayMode: 'custom',  // Default to custom cursor only (hides system cursor)
     style: 'default',
     size: 4.0,
     color: '#ffffff',
     clickEffects: false,
     motionBlur: false,
-    hideOnIdle: false,
+    hideOnIdle: true,
     idleTimeout: 3000
   },
   background: {
@@ -47,13 +47,13 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
     smoothing: 0.1
   },
   cursor: {
-    visible: true,
+    displayMode: 'custom',  // Default to custom cursor only (hides system cursor)
     style: 'macOS',
     size: 4.0,
     color: '#ffffff',
     clickEffects: true,
     motionBlur: true,
-    hideOnIdle: false,
+    hideOnIdle: true,
     idleTimeout: 3000
   },
   background: {

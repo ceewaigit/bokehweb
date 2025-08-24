@@ -248,10 +248,16 @@ export function PreviewAreaRemotion({
     );
   }
 
+  // Determine if we should hide the system cursor
+  const shouldHideSystemCursor = (localEffects || selectedClip?.effects)?.cursor?.displayMode === 'custom';
+
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="relative w-full h-full flex items-center justify-center">
+        <div 
+          className="relative w-full h-full flex items-center justify-center"
+          style={{ cursor: shouldHideSystemCursor ? 'none' : 'auto' }}
+        >
           {videoUrl && (
             <Player
               ref={playerRef}

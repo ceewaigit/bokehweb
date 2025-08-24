@@ -148,12 +148,12 @@ export function RecordButtonDock() {
     const resizeWindow = async () => {
       if (!window.electronAPI?.setWindowContentSize) return
       
-      let targetSize = { width: 200, height: 60 }  // Default button size
+      let targetSize = { width: 200, height: 65 }  // Default button size
       
       if (showSourcePicker) {
         targetSize = { width: 380, height: 320 }  // Source picker size
       } else if (isRecording) {
-        targetSize = { width: 250, height: 60 }   // Recording size (wider for timer)
+        targetSize = { width: 250, height: 65 }   // Recording size (wider for timer)
       }
       
       console.log(`📐 [RESIZE] Resizing to ${targetSize.width}x${targetSize.height} for state:`, 
