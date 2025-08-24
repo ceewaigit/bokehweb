@@ -63,7 +63,7 @@
             config.minimumFrameInterval = CMTimeMake(1, 60); // 60 fps
             config.pixelFormat = kCVPixelFormatType_32BGRA;
             config.showsCursor = NO;  // THIS IS THE KEY - Hide cursor!
-            config.backgroundColor = NSColor.clearColor;
+            config.backgroundColor = NSColor.clearColor.CGColor;
             config.scalesToFit = NO;
             config.queueDepth = 5;
             
