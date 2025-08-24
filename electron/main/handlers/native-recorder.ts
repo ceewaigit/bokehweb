@@ -5,15 +5,22 @@ import * as fs from 'fs/promises'
 let nativeRecorder: any = null
 
 // Try to load the native ScreenCaptureKit module
+console.log('🔍 Attempting to load native ScreenCaptureKit module...')
 try {
   const os = require('os')
   const platform = os.platform()
+  
+  console.log(`Platform: ${platform}, Darwin version: ${os.release()}`)
   
   if (platform === 'darwin') {
     try {
       // Load the compiled ScreenCaptureKit native module
       const modulePath = path.join(__dirname, '../../../../build/Release/screencapture_kit.node')
+      console.log(`Looking for native module at: ${modulePath}`)
+      
       const nativeModule = require(modulePath)
+      console.log('Native module loaded successfully')
+      
       nativeRecorder = new nativeModule.NativeScreenRecorder()
       
       // Check if ScreenCaptureKit is available (macOS 12.3+)
@@ -24,12 +31,15 @@ try {
         nativeRecorder = null
       }
     } catch (err) {
-      console.warn('⚠️ Native screen recorder module not found:', err)
+      console.error('⚠️ Native screen recorder module not found:', err)
+      console.log('Module path tried:', path.join(__dirname, '../../../../build/Release/screencapture_kit.node'))
       console.log('Run "npm run rebuild" to compile native modules')
     }
+  } else {
+    console.log('Not on macOS, skipping native recorder')
   }
 } catch (err) {
-  console.warn('Failed to check native recorder:', err)
+  console.error('Failed to check native recorder:', err)
 }
 
 export function setupNativeRecorder() {

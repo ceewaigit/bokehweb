@@ -28,15 +28,21 @@ export class ElectronRecorder {
   }
 
   private async checkNativeRecorderAvailability() {
+    logger.info('Checking native recorder availability...')
     if (window.electronAPI?.nativeRecorder) {
+      logger.info('Native recorder API found, checking if available...')
       try {
         this.useNativeRecorder = await window.electronAPI.nativeRecorder.isAvailable()
         if (this.useNativeRecorder) {
           logger.info('✅ Native ScreenCaptureKit recorder available - cursor WILL be hidden!')
+        } else {
+          logger.info('Native recorder API exists but not available on this system')
         }
       } catch (err) {
-        logger.debug('Native recorder not available:', err)
+        logger.warn('Native recorder check failed:', err)
       }
+    } else {
+      logger.info('Native recorder API not found in window.electronAPI')
     }
   }
 
