@@ -1,5 +1,25 @@
 import type { ClipEffects } from '@/types/project'
 
+// Promise to track wallpaper initialization
+let wallpaperInitPromise: Promise<void> | null = null
+let wallpaperInitResolver: (() => void) | null = null
+
+export function getWallpaperInitPromise() {
+  if (!wallpaperInitPromise) {
+    wallpaperInitPromise = new Promise((resolve) => {
+      wallpaperInitResolver = resolve
+    })
+  }
+  return wallpaperInitPromise
+}
+
+export function resolveWallpaperInit() {
+  if (wallpaperInitResolver) {
+    wallpaperInitResolver()
+    wallpaperInitResolver = null
+  }
+}
+
 export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   zoom: {
     enabled: false,

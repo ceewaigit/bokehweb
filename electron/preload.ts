@@ -185,6 +185,9 @@ const electronAPI = {
   showRecordButton: () =>
     ipcRenderer.invoke('show-record-button'),
 
+  openWorkspace: () =>
+    ipcRenderer.send('open-workspace'),
+
   setWindowContentSize: (dimensions: { width: number; height: number }) =>
     ipcRenderer.invoke('set-window-content-size', dimensions),
 

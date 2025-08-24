@@ -211,7 +211,7 @@ export function useRecording() {
           } else {
             // Add to existing project
             const recording = saved.project.recordings[0]
-            projectStore.addRecording(recording, result.video)
+            await projectStore.addRecording(recording, result.video)
           }
 
           // Store video blob for preview with proper description

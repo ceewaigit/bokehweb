@@ -54,14 +54,23 @@ export function registerWindowControlHandlers(): void {
   })
 
   ipcMain.handle('minimize-record-button', () => {
+    // Hide record button and show main window
     if (global.recordButton) {
       global.recordButton.hide()
+    }
+    if (global.mainWindow) {
+      global.mainWindow.show()
+      global.mainWindow.focus()
     }
   })
 
   ipcMain.handle('show-record-button', () => {
+    // Show record button and hide main window
     if (global.recordButton) {
       global.recordButton.show()
+    }
+    if (global.mainWindow) {
+      global.mainWindow.hide()
     }
   })
 

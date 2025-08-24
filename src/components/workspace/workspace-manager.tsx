@@ -17,7 +17,7 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { ClipEffects, ZoomBlock } from '@/types/project'
-import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
+import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS, resolveWallpaperInit } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 // Extract project loading logic to reduce component complexity
@@ -136,6 +136,8 @@ async function loadProjectRecording(
 // Initialize default wallpaper on app startup
 async function initializeDefaultWallpaper() {
   if (!window.electronAPI?.loadWallpaperImage) {
+    // Resolve immediately if electron API not available
+    resolveWallpaperInit()
     return
   }
 
@@ -166,8 +168,13 @@ async function initializeDefaultWallpaper() {
         })
       }
     }
+    
+    // Resolve the wallpaper initialization promise
+    resolveWallpaperInit()
   } catch (error) {
     // Failed to load default wallpaper - will fallback to gradient
+    // Still resolve the promise so recording can proceed
+    resolveWallpaperInit()
   }
 }
 

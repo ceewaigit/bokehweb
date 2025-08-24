@@ -9,7 +9,7 @@ import {
   type ZoomBlock
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
+import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS, getWallpaperInitPromise } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 
@@ -75,7 +75,7 @@ interface ProjectStore {
   setProject: (project: Project) => void
 
   // Recording
-  addRecording: (recording: Recording, videoBlob: Blob) => void
+  addRecording: (recording: Recording, videoBlob: Blob) => Promise<void>
 
   // Clip Management
   addClip: (clip: Clip | string, startTime?: number) => void
@@ -176,7 +176,10 @@ export const useProjectStore = create<ProjectStore>()(
       }
     },
 
-    addRecording: (recording, videoBlob) => {
+    addRecording: async (recording, videoBlob) => {
+      // Wait for wallpaper to be initialized before adding the recording
+      await getWallpaperInitPromise()
+      
       set((state) => {
         if (!state.currentProject) return
 
@@ -194,7 +197,7 @@ export const useProjectStore = create<ProjectStore>()(
           completeRecording.duration
         )
 
-        // Use structuredClone for deep copy - cleaner than manual spreading
+        // Use structuredClone for deep copy - now includes wallpaper
         const clipEffects = structuredClone(SCREEN_STUDIO_CLIP_EFFECTS)
         clipEffects.zoom.blocks = zoomBlocks
 

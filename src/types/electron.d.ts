@@ -77,6 +77,7 @@ export interface ElectronAPI {
   quit: () => void
   minimizeRecordButton?: () => void
   showRecordButton?: () => void
+  openWorkspace?: () => void
   setWindowContentSize?: (dimensions: { width: number; height: number }) => Promise<{ success: boolean }>
 
   // Countdown window methods
