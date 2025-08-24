@@ -36,11 +36,8 @@
       }
     },
     {
-      "target_name": "screen_recorder",
-      "sources": [ 
-        "electron/native/screen-recorder.mm",
-        "electron/native/ScreenRecorder.swift"
-      ],
+      "target_name": "screencapture_kit",
+      "sources": [ "electron/native/screencapture-kit.mm" ],
       "include_dirs": [
         "./node_modules/node-addon-api"
       ],
@@ -52,17 +49,11 @@
       "xcode_settings": {
         "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
         "CLANG_CXX_LIBRARY": "libc++",
-        "MACOSX_DEPLOYMENT_TARGET": "13.0",
-        "SWIFT_VERSION": "5.0",
-        "CLANG_ENABLE_MODULES": "YES",
-        "SWIFT_OBJC_BRIDGING_HEADER": "electron/native/ScreenRecorder-Bridging-Header.h",
+        "MACOSX_DEPLOYMENT_TARGET": "12.3",
         "OTHER_CPLUSPLUSFLAGS": [
           "-std=c++17",
           "-stdlib=libc++",
           "-fobjc-arc"
-        ],
-        "OTHER_SWIFT_FLAGS": [
-          "-parse-as-library"
         ]
       },
       "conditions": [
@@ -74,7 +65,8 @@
               "-framework AVFoundation",
               "-framework ScreenCaptureKit",
               "-framework CoreMedia",
-              "-framework CoreVideo"
+              "-framework CoreVideo",
+              "-framework CoreGraphics"
             ]
           }
         }]

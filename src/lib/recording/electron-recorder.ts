@@ -19,25 +19,8 @@ export class ElectronRecorder {
   private captureHeight = 0
   private dataRequestInterval: NodeJS.Timeout | null = null
   private isRecording = false
-  private useNativeRecorder = false
-  private nativeRecorderPath: string | null = null
-
   constructor() {
     logger.debug('ElectronRecorder initialized')
-    this.checkNativeRecorderAvailability()
-  }
-
-  private async checkNativeRecorderAvailability() {
-    if (window.electronAPI?.nativeRecorder) {
-      try {
-        this.useNativeRecorder = await window.electronAPI.nativeRecorder.isAvailable()
-        if (this.useNativeRecorder) {
-          logger.info('✅ Native ScreenCaptureKit recorder available - cursor will be properly hidden')
-        }
-      } catch (err) {
-        logger.debug('Native recorder not available:', err)
-      }
-    }
   }
 
   async startRecording(recordingSettings: RecordingSettings): Promise<void> {
@@ -96,37 +79,8 @@ export class ElectronRecorder {
         }
       }
 
-      // Check if we should use native recorder (macOS 13+ with ScreenCaptureKit)
-      if (this.useNativeRecorder && window.electronAPI?.nativeRecorder) {
-        logger.info('Using native ScreenCaptureKit recorder (cursor will be hidden)')
-        
-        // Parse source ID to get display/window ID
-        const parts = primarySource.id.split(':')
-        const isScreen = parts[0] === 'screen'
-        const id = parseInt(parts[1])
-        
-        try {
-          // Start native recording
-          const result = isScreen
-            ? await window.electronAPI.nativeRecorder.startDisplay(id)
-            : await window.electronAPI.nativeRecorder.startWindow(id)
-          
-          this.nativeRecorderPath = result.outputPath
-          this.isRecording = true
-          this.startTime = Date.now()
-          
-          // Start metadata tracking (mouse events, etc)
-          await this.startMouseTracking(primarySource.id)
-          
-          logger.info('Native recording started successfully')
-          return
-        } catch (err) {
-          logger.warn('Failed to use native recorder, falling back to MediaRecorder:', err)
-          this.useNativeRecorder = false
-        }
-      }
-
       // Get media stream constraints
+      // Note: cursor cannot be reliably hidden in Chromium/Electron
       const hasAudio = recordingSettings.audioInput !== 'none'
       const constraints: any = {
         audio: hasAudio ? {
@@ -232,42 +186,6 @@ export class ElectronRecorder {
     }
 
     logger.info('Stopping screen recording')
-
-    // Handle native recorder
-    if (this.useNativeRecorder && this.nativeRecorderPath && window.electronAPI?.nativeRecorder) {
-      try {
-        // Stop mouse tracking
-        if (window.electronAPI?.stopMouseTracking) {
-          await window.electronAPI.stopMouseTracking()
-        }
-
-        // Stop native recording
-        const result = await window.electronAPI.nativeRecorder.stop()
-        const duration = Date.now() - this.startTime
-        
-        // Read the video file
-        const videoBuffer = await window.electronAPI.nativeRecorder.readVideo(result.outputPath || this.nativeRecorderPath)
-        const video = new Blob([videoBuffer], { type: 'video/mp4' })
-        
-        logger.info(`Native recording complete: ${duration}ms, ${video.size} bytes`)
-        
-        const recordingResult = {
-          video,
-          duration,
-          metadata: this.metadata,
-          captureArea: this.captureArea
-        }
-        
-        this.isRecording = false
-        this.nativeRecorderPath = null
-        await this.cleanup()
-        
-        return recordingResult
-      } catch (err) {
-        logger.error('Failed to stop native recorder:', err)
-        throw err
-      }
-    }
 
     // Handle MediaRecorder
     if (!this.mediaRecorder) {
