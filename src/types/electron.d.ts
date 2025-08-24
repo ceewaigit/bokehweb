@@ -88,6 +88,16 @@ export interface ElectronAPI {
   onRecordingStopped: (callback: () => void) => () => void
   onRecordingError: (callback: (error: string) => void) => () => void
   removeAllListeners: (channel: string) => void
+
+  // Native recorder API (macOS 13+ with ScreenCaptureKit)
+  nativeRecorder?: {
+    isAvailable: () => Promise<boolean>
+    startDisplay: (displayId: number) => Promise<{ outputPath: string }>
+    startWindow: (windowId: number) => Promise<{ outputPath: string }>
+    stop: () => Promise<{ outputPath: string }>
+    isRecording: () => Promise<boolean>
+    readVideo: (filePath: string) => Promise<ArrayBuffer>
+  }
 }
 
 declare global {
