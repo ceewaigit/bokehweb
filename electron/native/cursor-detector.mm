@@ -53,7 +53,6 @@ bool HasAccessibilityPermissions() {
 // Request accessibility permissions if needed
 bool RequestAccessibilityPermissions() {
     if (!HasAccessibilityPermissions()) {
-        // This will prompt the user to grant accessibility permissions
         NSDictionary* options = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
         return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
     }
@@ -66,7 +65,6 @@ std::string GetCursorTypeFromAccessibility() {
         return "default";
     }
     
-    // Get the element under the mouse
     CGPoint mouseLocation;
     CGEventRef event = CGEventCreate(NULL);
     mouseLocation = CGEventGetLocation(event);
@@ -83,17 +81,15 @@ std::string GetCursorTypeFromAccessibility() {
     std::string cursorType = "default";
     
     if (error == kAXErrorSuccess && elementUnderMouse) {
-        // Get the role of the element
         CFTypeRef role = NULL;
         AXUIElementCopyAttributeValue(elementUnderMouse, kAXRoleAttribute, &role);
         
         if (role) {
             NSString* roleString = (__bridge NSString*)role;
             
-            // Detect cursor type based on element role
+            // Narrow mapping: avoid broad AXWebArea => text
             if ([roleString isEqualToString:(__bridge NSString*)kAXTextFieldRole] ||
                 [roleString isEqualToString:(__bridge NSString*)kAXTextAreaRole] ||
-                [roleString isEqualToString:@"AXWebArea"] ||
                 [roleString containsString:@"Text"]) {
                 cursorType = "text";
             } else if ([roleString isEqualToString:@"AXLink"] ||
@@ -120,27 +116,26 @@ Napi::String GetCurrentCursorType(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
     @autoreleasepool {
-        std::string cursorType = "default";
-        
-        // First try Accessibility API if we have permissions
-        if (HasAccessibilityPermissions()) {
-            cursorType = GetCursorTypeFromAccessibility();
-        } else {
-            // Fall back to NSCursor detection
-            NSCursor* currentCursor = [NSCursor currentCursor];
-            
-            if (!currentCursor) {
-                currentCursor = [NSCursor currentSystemCursor];
-            }
-            
-            if (!currentCursor) {
-                currentCursor = [NSCursor arrowCursor];
-            }
-            
-            cursorType = NSCursorToString(currentCursor);
+        // Prefer system cursor first for accuracy
+        NSCursor* currentCursor = [NSCursor currentCursor];
+        if (!currentCursor) {
+            currentCursor = [NSCursor currentSystemCursor];
+        }
+        if (!currentCursor) {
+            currentCursor = [NSCursor arrowCursor];
+        }
+        std::string nsCursorType = NSCursorToString(currentCursor);
+        if (nsCursorType != "default") {
+            return Napi::String::New(env, nsCursorType);
         }
         
-        return Napi::String::New(env, cursorType);
+        // Fall back to Accessibility-based detection when the cursor appears as arrow
+        if (HasAccessibilityPermissions()) {
+            std::string axType = GetCursorTypeFromAccessibility();
+            return Napi::String::New(env, axType);
+        }
+        
+        return Napi::String::New(env, "default");
     }
 }
 
@@ -153,7 +148,6 @@ Napi::String GetCursorAtPoint(const Napi::CallbackInfo& info) {
         return Napi::String::New(env, "default");
     }
     
-    // Just return current cursor for now - this function isn't being used
     return GetCurrentCursorType(info);
 }
 

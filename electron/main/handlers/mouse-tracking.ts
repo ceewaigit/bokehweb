@@ -18,19 +18,11 @@ if (process.platform === 'darwin') {
   console.log('Platform is macOS, attempting to load cursor detector...')
   
   try {
-    // Use absolute path from app root - this works regardless of webpack
-    const { app } = require('electron')
-    const appPath = app.getAppPath()
-    const modulePath = path.join(appPath, 'build', 'Release', 'cursor_detector.node')
-    
-    console.log('Loading cursor detector from:', modulePath)
-    
-    // Use native require with absolute path
-    const nativeRequire = eval('require')
-    cursorDetector = nativeRequire(modulePath)
-    
+    // Webpack's node-loader will handle this static require and package the addon correctly
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    cursorDetector = require('../../../build/Release/cursor_detector.node')
     console.log('✅ Native cursor detector loaded successfully')
-    
+
     // Check if we have permissions on load
     if (cursorDetector && cursorDetector.hasAccessibilityPermissions) {
       const hasPermissions = cursorDetector.hasAccessibilityPermissions()
@@ -130,6 +122,11 @@ export function registerMouseTrackingHandlers(): void {
       let lastPosition: Electron.Point | null = null
       let lastVelocity = { x: 0, y: 0 }
       let lastTime = Date.now()
+      // Stabilize cursor transitions to avoid rapid pointer/text flips
+      let stableCursorType = 'default'
+      let candidateCursorType: string | null = null
+      let candidateSince = 0
+      const cursorStabilizeMs = 30
 
       mouseTrackingInterval = setInterval(() => {
         if (!isMouseTracking || !mouseEventSender) return
@@ -197,18 +194,13 @@ export function registerMouseTrackingHandlers(): void {
             if (cursorDetector) {
               try {
                 cursorType = cursorDetector.getCurrentCursorType()
-                
-                // Log cursor changes
-                if ((global as any).lastLoggedCursor !== cursorType) {
-                  console.log(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${cursorType}`)
-                  ;(global as any).lastLoggedCursor = cursorType
-                }
               } catch (err) {
                 console.error('[CURSOR] Detection error:', err)
               }
             }
             
             // Override with grabbing when dragging
+            let usedCursorType = cursorType
             if (isMouseDown) {
               const dragDistance = Math.sqrt(
                 Math.pow(currentPosition.x - lastClickPosition.x, 2) +
@@ -216,12 +208,29 @@ export function registerMouseTrackingHandlers(): void {
               )
               
               if (dragDistance > 5) {
-                const originalType = cursorType
-                cursorType = 'grabbing'
-                if (originalType !== 'grabbing') {
-                  console.log(`[CURSOR] Override to grabbing (was ${originalType})`)
-                }
+                usedCursorType = 'grabbing'
               }
+            }
+
+            // Stabilize cursor transitions (debounce)
+            if (usedCursorType === stableCursorType) {
+              candidateCursorType = null
+            } else {
+              if (candidateCursorType !== usedCursorType) {
+                candidateCursorType = usedCursorType
+                candidateSince = now
+              } else if (now - candidateSince >= cursorStabilizeMs) {
+                stableCursorType = usedCursorType
+                candidateCursorType = null
+              }
+            }
+
+            const finalCursorType = stableCursorType
+
+            // Only log on stable changes
+            if ((global as any).lastLoggedCursor !== finalCursorType) {
+              console.log(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${finalCursorType}`)
+              ;(global as any).lastLoggedCursor = finalCursorType
             }
 
             // Only log in development mode
@@ -238,7 +247,7 @@ export function registerMouseTrackingHandlers(): void {
               acceleration,
               displayBounds: positionData.displayBounds,
               scaleFactor: positionData.scaleFactor,
-              cursorType: cursorType,  // Use detected cursor type
+              cursorType: finalCursorType,  // Use stabilized cursor type
               sourceType: sourceType,  // Include source type for proper coordinate mapping
               sourceId: sourceId
             } as MousePosition)

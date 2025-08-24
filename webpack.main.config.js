@@ -43,8 +43,7 @@ module.exports = {
     }),
   ],
   externals: [
-    'uiohook-napi',
-    'cursor_detector'
+    'uiohook-napi'
   ],
   target: 'electron-main',
   node: {
