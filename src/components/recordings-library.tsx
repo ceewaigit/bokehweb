@@ -186,9 +186,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   useEffect(() => {
     loadRecordings()
-    // Ensure record button is visible when library is shown
-    if (window.electronAPI?.showRecordButton) {
-      window.electronAPI.showRecordButton()
+    // Hide record button when library is shown (main window visible)
+    if (window.electronAPI?.minimizeRecordButton) {
+      window.electronAPI.minimizeRecordButton()
     }
   }, [])
 

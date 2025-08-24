@@ -197,6 +197,29 @@ export function WorkspaceManager() {
   useEffect(() => {
     initializeDefaultWallpaper().then(() => {
       setWallpaperInitialized(true)
+      
+      // Also update any existing clips that were created before wallpaper loaded
+      const project = useProjectStore.getState().currentProject
+      if (project) {
+        const wallpaper = DEFAULT_CLIP_EFFECTS.background.wallpaper
+        if (wallpaper) {
+          project.timeline.tracks.forEach(track => {
+            track.clips.forEach(clip => {
+              // Only update if the clip is using defaults (no custom wallpaper/image)
+              if (clip.effects?.background && 
+                  !clip.effects.background.wallpaper && 
+                  !clip.effects.background.image &&
+                  clip.effects.background.type === 'wallpaper') {
+                useProjectStore.getState().updateClipEffectCategory(
+                  clip.id,
+                  'background',
+                  { wallpaper, type: 'wallpaper' }
+                )
+              }
+            })
+          })
+        }
+      }
     })
   }, [])
 
@@ -502,9 +525,9 @@ export function WorkspaceManager() {
                 // Clean up thumbnail generator cache
                 ThumbnailGenerator.clearCache()
 
-                // Show record button when returning to library
-                if (window.electronAPI?.showRecordButton) {
-                  window.electronAPI.showRecordButton()
+                // Hide record button when returning to library (main window visible)
+                if (window.electronAPI?.minimizeRecordButton) {
+                  window.electronAPI.minimizeRecordButton()
                 }
               }
 
