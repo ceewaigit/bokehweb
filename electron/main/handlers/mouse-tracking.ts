@@ -15,42 +15,58 @@ try {
 // Native cursor detector module (macOS only)
 let cursorDetector: any = null
 if (process.platform === 'darwin') {
+  console.log('Platform is macOS, attempting to load cursor detector...')
+  console.log('Looking for module at:', path.join(__dirname, '../../../build/Release/cursor_detector.node'))
   try {
     cursorDetector = require(path.join(__dirname, '../../../build/Release/cursor_detector.node'))
-    console.log('Native cursor detector loaded')
+    console.log('✅ Native cursor detector loaded successfully')
     
     // Check accessibility permissions after a short delay to ensure app is ready
     setTimeout(() => {
-      if (cursorDetector.hasAccessibilityPermissions) {
-        const hasPermissions = cursorDetector.hasAccessibilityPermissions()
-        if (!hasPermissions) {
-          console.log('Requesting accessibility permissions for better cursor detection...')
-          // This will show the system prompt
-          const granted = cursorDetector.requestAccessibilityPermissions()
-          if (!granted) {
-            console.log('⚠️ Accessibility permissions required for accurate cursor detection')
-            console.log('Please grant permissions in System Settings > Privacy & Security > Accessibility')
+      console.log('Checking accessibility permissions...')
+      console.log('Available methods:', Object.keys(cursorDetector || {}))
+      
+      if (cursorDetector && cursorDetector.hasAccessibilityPermissions) {
+        console.log('hasAccessibilityPermissions method found, checking...')
+        try {
+          const hasPermissions = cursorDetector.hasAccessibilityPermissions()
+          console.log('Current permission status:', hasPermissions)
+          
+          if (!hasPermissions) {
+            console.log('No permissions, requesting...')
+            // This will show the system prompt
+            const granted = cursorDetector.requestAccessibilityPermissions()
+            console.log('Request result:', granted)
             
-            // Show dialog to user
-            const { dialog, shell } = require('electron')
-            dialog.showMessageBox({
-              type: 'info',
-              title: 'Accessibility Permission Required',
-              message: 'Screen Studio needs accessibility permissions for accurate cursor detection.',
-              detail: 'This allows the app to detect when your cursor changes to text selection, link hover, and other states.\n\nClick "Open Settings" to grant permission.',
-              buttons: ['Open Settings', 'Later'],
-              defaultId: 0,
-              cancelId: 1
-            }).then((result: any) => {
-              if (result.response === 0) {
-                // Open System Preferences to Accessibility pane
-                shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
-              }
-            })
+            if (!granted) {
+              console.log('⚠️ Accessibility permissions required for accurate cursor detection')
+              console.log('Please grant permissions in System Settings > Privacy & Security > Accessibility')
+              
+              // Show dialog to user
+              const { dialog, shell } = require('electron')
+              dialog.showMessageBox({
+                type: 'info',
+                title: 'Accessibility Permission Required',
+                message: 'Screen Studio needs accessibility permissions for accurate cursor detection.',
+                detail: 'This allows the app to detect when your cursor changes to text selection, link hover, and other states.\n\nClick "Open Settings" to grant permission.',
+                buttons: ['Open Settings', 'Later'],
+                defaultId: 0,
+                cancelId: 1
+              }).then((result: any) => {
+                if (result.response === 0) {
+                  // Open System Preferences to Accessibility pane
+                  shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
+                }
+              })
+            }
+          } else {
+            console.log('✅ Accessibility permissions already granted - enhanced cursor detection enabled')
           }
-        } else {
-          console.log('✅ Accessibility permissions granted - enhanced cursor detection enabled')
+        } catch (err) {
+          console.error('Error checking accessibility permissions:', err)
         }
+      } else {
+        console.log('⚠️ Accessibility permission methods not available')
       }
     }, 1000)
   } catch (error) {
