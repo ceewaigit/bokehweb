@@ -181,12 +181,15 @@ export function RecordButtonDock() {
 
   return (
     <motion.div
-      initial={{ scale: 0.8, opacity: 0 }}
+      initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: 'spring', damping: 18, stiffness: 250 }}
+      transition={{ 
+        duration: 0.2,
+        ease: [0.4, 0, 0.2, 1]
+      }}
       className={cn(
         "relative inline-flex flex-col",
-        "bg-background/95 backdrop-blur-xl",
+        "bg-background",
         "rounded-xl border border-border",
         "shadow-lg dark:shadow-2xl",
         isRecording && "ring-2 ring-destructive/40"
@@ -200,11 +203,14 @@ export function RecordButtonDock() {
         height: 'auto',
         display: 'inline-flex',
         margin: 0,
-        padding: 0
+        padding: 0,
+        // GPU acceleration
+        transform: 'translateZ(0)',
+        willChange: 'transform'
       }}
     >
       {/* Main Dock Bar - Compact Design */}
-      <div className="flex items-center justify-center gap-1 p-2">
+      <div className="inline-flex items-center justify-center gap-1 p-2" style={{ width: 'auto' }}>
         {!isRecording ? (
           <>
             {/* Audio & Camera Controls */}
@@ -212,7 +218,7 @@ export function RecordButtonDock() {
               <button
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 className={cn(
-                  "relative p-1.5 rounded-lg transition-all duration-150",
+                  "relative p-1.5 rounded-lg transition-colors duration-100",
                   micEnabled
                     ? "bg-primary/10 text-primary hover:bg-primary/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -229,7 +235,7 @@ export function RecordButtonDock() {
               <button
                 style={{ WebkitAppRegion: 'no-drag' } as any}
                 className={cn(
-                  "relative p-1.5 rounded-lg transition-all duration-150",
+                  "relative p-1.5 rounded-lg transition-colors duration-100",
                   cameraEnabled
                     ? "bg-primary/10 text-primary hover:bg-primary/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -256,7 +262,7 @@ export function RecordButtonDock() {
                 "w-10 h-10",
                 "bg-destructive hover:bg-destructive/90",
                 "rounded-full shadow-lg",
-                "transition-all duration-200 hover:scale-105",
+                "transition-transform duration-150 hover:scale-105",
                 "active:scale-95"
               )}
               onClick={handleStartRecording}
@@ -348,14 +354,17 @@ export function RecordButtonDock() {
       </div>
 
       {/* Inline Source Picker - Expands below when shown */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {showSourcePicker && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ 
+              duration: 0.15,
+              ease: [0.4, 0, 0.2, 1]
+            }}
+            style={{ overflow: 'hidden' }}
           >
             <div className="p-3 border-t border-border/30">
               {/* Quick source selection */}

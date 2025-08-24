@@ -96,7 +96,7 @@ std::string GetCursorTypeFromAccessibility() {
                 [roleString isEqualToString:@"AXWebArea"] ||
                 [roleString containsString:@"Text"]) {
                 cursorType = "text";
-            } else if ([roleString isEqualToString:(__bridge NSString*)kAXLinkRole] ||
+            } else if ([roleString isEqualToString:@"AXLink"] ||
                        [roleString isEqualToString:(__bridge NSString*)kAXButtonRole]) {
                 cursorType = "pointer";
             } else if ([roleString isEqualToString:(__bridge NSString*)kAXSliderRole] ||
