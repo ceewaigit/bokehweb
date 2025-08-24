@@ -14,7 +14,9 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
     size: 4.0,
     color: '#ffffff',
     clickEffects: false,
-    motionBlur: false
+    motionBlur: false,
+    hideOnIdle: false,
+    idleTimeout: 3000
   },
   background: {
     type: 'gradient',
@@ -50,7 +52,9 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
     size: 4.0,
     color: '#ffffff',
     clickEffects: true,
-    motionBlur: true
+    motionBlur: true,
+    hideOnIdle: false,
+    idleTimeout: 3000
   },
   background: {
     type: 'gradient',

@@ -62,4 +62,5 @@ export function registerFileOperationHandlers(): void {
       return { success: false, error: errorMessage }
     }
   })
+
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { cn, formatTime } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { type Project } from '@/types/project'
 
 interface Recording {
@@ -30,73 +31,28 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   const [loading, setLoading] = useState(true)
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 })
   const containerRef = useRef<HTMLDivElement>(null)
-  const thumbnailCache = useRef<Map<string, string>>(new Map())
-  const processingThumbnails = useRef<Set<string>>(new Set())
+  const scrollDebounceRef = useRef<NodeJS.Timeout>()
 
   const generateThumbnail = useCallback(async (recording: Recording, videoPath: string) => {
-    // Check cache first
     const cacheKey = recording.path
-    if (thumbnailCache.current.has(cacheKey)) {
-      recording.thumbnailUrl = thumbnailCache.current.get(cacheKey)
-      return
-    }
 
-    // Prevent duplicate processing
-    if (processingThumbnails.current.has(cacheKey)) {
-      return
-    }
-    processingThumbnails.current.add(cacheKey)
-
-    try {
-      const videoUrl = await globalBlobManager.loadVideo(`thumbnail-${recording.name}`, videoPath)
-      if (!videoUrl) {
-        console.error('Failed to load video file for thumbnail:', videoPath)
-        processingThumbnails.current.delete(cacheKey)
-        return
+    // Use lightweight thumbnail generator
+    const thumbnailUrl = await ThumbnailGenerator.generateThumbnail(
+      videoPath,
+      cacheKey,
+      {
+        width: 320,
+        height: 180,
+        quality: 0.6,
+        timestamp: 0.1 // 10% into video
       }
+    )
 
-      const video = document.createElement('video')
-      video.src = videoUrl
-      video.crossOrigin = 'anonymous'
-
-      await new Promise<void>((resolve, reject) => {
-        video.addEventListener('loadedmetadata', () => {
-          video.currentTime = Math.min(1, video.duration * 0.1)
-        }, { once: true })
-
-        video.addEventListener('seeked', () => {
-          const canvas = document.createElement('canvas')
-          canvas.width = 320
-          canvas.height = 180
-
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            reject(new Error('Failed to get canvas context'))
-            return
-          }
-
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-          const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.6)
-          recording.thumbnailUrl = thumbnailUrl
-          thumbnailCache.current.set(cacheKey, thumbnailUrl)
-
-          video.remove()
-          processingThumbnails.current.delete(cacheKey)
-          resolve()
-        }, { once: true })
-
-        video.addEventListener('error', (e) => {
-          console.error('Video error:', e)
-          processingThumbnails.current.delete(cacheKey)
-          reject(new Error('Failed to load video'))
-        }, { once: true })
-
-        video.load()
-      })
-    } catch (error) {
-      console.error('Failed to generate thumbnail:', error)
-      processingThumbnails.current.delete(cacheKey)
+    if (thumbnailUrl) {
+      recording.thumbnailUrl = thumbnailUrl
     }
+
+    return thumbnailUrl
   }, [])
 
   const loadRecordings = async () => {
@@ -143,7 +99,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         // Remove duplicates
         const uniqueRecordings = recordingsList.reduce((acc: Recording[], current) => {
           const duplicate = acc.find(r =>
-            Math.abs(r.timestamp.getTime() - current.timestamp.getTime()) < 2000 && 
+            Math.abs(r.timestamp.getTime() - current.timestamp.getTime()) < 2000 &&
             r.project?.recordings?.[0]?.filePath === current.project?.recordings?.[0]?.filePath
           )
 
@@ -160,9 +116,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         uniqueRecordings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         setRecordings(uniqueRecordings)
 
-        // Generate thumbnails for initially visible items
+        // Generate thumbnails for initially visible items in batches
         const initialBatch = uniqueRecordings.slice(0, 12)
-        initialBatch.forEach(async (recording) => {
+        const thumbnailPromises = initialBatch.map(async (recording) => {
           if (recording.project?.recordings?.[0]?.filePath && !recording.thumbnailUrl) {
             try {
               const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
@@ -172,21 +128,35 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 videoPath = `${projectDir}/${videoPath}`
               }
 
-              await generateThumbnail(recording, videoPath)
-              setRecordings(prev => {
-                const index = prev.findIndex(r => r.path === recording.path)
-                if (index !== -1) {
-                  const updated = [...prev]
-                  updated[index] = { ...recording }
-                  return updated
-                }
-                return prev
-              })
+              const thumbnailUrl = await generateThumbnail(recording, videoPath)
+              if (thumbnailUrl) {
+                return { recording, thumbnailUrl }
+              }
             } catch (error) {
               console.error('Failed to generate thumbnail for', recording.name, error)
             }
           }
+          return null
         })
+
+        // Process thumbnails and update state once
+        const results = await Promise.all(thumbnailPromises)
+        const validResults = results.filter(r => r !== null)
+
+        if (validResults.length > 0) {
+          setRecordings(prev => {
+            const updated = [...prev]
+            validResults.forEach(result => {
+              if (result) {
+                const index = updated.findIndex(r => r.path === result.recording.path)
+                if (index !== -1) {
+                  updated[index] = { ...updated[index], thumbnailUrl: result.thumbnailUrl }
+                }
+              }
+            })
+            return updated
+          })
+        }
       }
     } catch (error) {
       console.error('Failed to load recordings:', error)
@@ -199,46 +169,79 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     loadRecordings()
   }, [])
 
-  // Virtualization scroll handler
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Clear thumbnail cache when component unmounts
+      ThumbnailGenerator.clearCache()
+      // Clean up any thumbnail blobs
+      globalBlobManager.cleanupByType('thumbnail')
+
+      if (scrollDebounceRef.current) {
+        clearTimeout(scrollDebounceRef.current)
+      }
+    }
+  }, [])
+
+  // Virtualization scroll handler with debouncing
   useEffect(() => {
     const handleScroll = () => {
       if (!containerRef.current) return
-      
+
       const container = containerRef.current
       const scrollTop = container.scrollTop
       const containerHeight = container.clientHeight
       const itemHeight = 180
       const cols = Math.floor(container.clientWidth / 150) || 6
       const rowsVisible = Math.ceil(containerHeight / itemHeight) + 2
-      
+
       const startRow = Math.floor(scrollTop / itemHeight)
       const newStart = Math.max(0, startRow * cols - cols)
       const newEnd = Math.min(recordings.length, (startRow + rowsVisible) * cols + cols)
-      
+
       setVisibleRange({ start: newStart, end: newEnd })
-      
-      // Load thumbnails for newly visible items
-      recordings.slice(newStart, newEnd).forEach(async (recording) => {
-        if (recording.project?.recordings?.[0]?.filePath && !recording.thumbnailUrl && !processingThumbnails.current.has(recording.path)) {
-          const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
-          let videoPath = recording.project.recordings[0].filePath
-          if (!videoPath.startsWith('/')) {
-            videoPath = `${projectDir}/${videoPath}`
-          }
-          await generateThumbnail(recording, videoPath)
-          setRecordings(prev => {
-            const index = prev.findIndex(r => r.path === recording.path)
-            if (index !== -1) {
-              const updated = [...prev]
-              updated[index] = { ...recording }
-              return updated
+
+      // Debounce thumbnail loading
+      if (scrollDebounceRef.current) {
+        clearTimeout(scrollDebounceRef.current)
+      }
+
+      scrollDebounceRef.current = setTimeout(() => {
+        // Load thumbnails for newly visible items (debounced)
+        const visibleRecordings = recordings.slice(newStart, newEnd)
+          .filter(r => r.project?.recordings?.[0]?.filePath && !r.thumbnailUrl)
+          .slice(0, 3) // Limit concurrent thumbnail generation
+
+        if (visibleRecordings.length > 0) {
+          Promise.all(visibleRecordings.map(async (recording) => {
+            const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
+            let videoPath = recording.project!.recordings[0].filePath
+            if (!videoPath.startsWith('/')) {
+              videoPath = `${projectDir}/${videoPath}`
             }
-            return prev
+            const thumbnailUrl = await generateThumbnail(recording, videoPath)
+            return thumbnailUrl ? { recording, thumbnailUrl } : null
+          })).then(results => {
+            const validResults = results.filter(r => r !== null)
+            if (validResults.length > 0) {
+              setRecordings(prev => {
+                const updated = [...prev]
+                validResults.forEach(result => {
+                  if (result) {
+                    const index = updated.findIndex(r => r.path === result.recording.path)
+                    if (index !== -1) {
+                      updated[index] = { ...updated[index], thumbnailUrl: result.thumbnailUrl }
+                    }
+                  }
+                })
+                return updated
+              })
+            }
           })
         }
-      })
+      }, 200) // 200ms debounce
     }
-    
+
     const container = containerRef.current
     if (container) {
       container.addEventListener('scroll', handleScroll)
@@ -247,7 +250,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     }
   }, [recordings, generateThumbnail])
 
-  const visibleRecordings = useMemo(() => 
+  const visibleRecordings = useMemo(() =>
     recordings.slice(visibleRange.start, visibleRange.end),
     [recordings, visibleRange]
   )
@@ -328,171 +331,172 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
             {/* Spacer for virtualization */}
             <div style={{ gridColumn: '1 / -1', height: `${Math.floor(visibleRange.start / 6) * 180}px` }} />
-            
+
             <AnimatePresence mode="popLayout">
               {visibleRecordings.map((recording, index) => {
                 const actualIndex = visibleRange.start + index
                 return (
-                <motion.div
-                  key={recording.path}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{
-                    duration: 0.15,
-                    layout: { type: "spring", stiffness: 400, damping: 35 }
-                  }}
-                  className="group relative"
-                  onMouseEnter={() => setHoveredIndex(actualIndex)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                >
-                  <div
-                    className={cn(
-                      "relative rounded-lg overflow-hidden cursor-pointer transition-all duration-150",
-                      "bg-card border",
-                      hoveredIndex === actualIndex
-                        ? "scale-[1.03] shadow-2xl shadow-primary/20 border-primary/30 bg-accent"
-                        : "border-border hover:bg-accent hover:border-accent-foreground/20"
-                    )}
-                    onClick={() => onSelectRecording(recording)}
+                  <motion.div
+                    key={recording.path}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{
+                      duration: 0.15,
+                      layout: { type: "spring", stiffness: 400, damping: 35 }
+                    }}
+                    className="group relative"
+                    onMouseEnter={() => setHoveredIndex(actualIndex)}
+                    onMouseLeave={() => setHoveredIndex(null)}
                   >
-                    {/* Thumbnail */}
-                    <div className="aspect-video relative bg-gradient-to-br from-muted/20 to-transparent">
-                      {recording.thumbnailUrl ? (
-                        <img
-                          src={recording.thumbnailUrl}
-                          alt={recording.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center bg-muted/10">
-                          {recording.isProject ? (
-                            <FileJson className="w-6 h-6 text-muted-foreground/50" />
-                          ) : (
-                            <Film className="w-6 h-6 text-muted-foreground/50" />
-                          )}
-                        </div>
+                    <div
+                      className={cn(
+                        "relative rounded-lg overflow-hidden cursor-pointer transition-all duration-150",
+                        "bg-card border",
+                        hoveredIndex === actualIndex
+                          ? "scale-[1.03] shadow-2xl shadow-primary/20 border-primary/30 bg-accent"
+                          : "border-border hover:bg-accent hover:border-accent-foreground/20"
                       )}
+                      onClick={() => onSelectRecording(recording)}
+                    >
+                      {/* Thumbnail */}
+                      <div className="aspect-video relative bg-gradient-to-br from-muted/20 to-transparent">
+                        {recording.thumbnailUrl ? (
+                          <img
+                            src={recording.thumbnailUrl}
+                            alt={recording.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center bg-muted/10">
+                            {recording.isProject ? (
+                              <FileJson className="w-6 h-6 text-muted-foreground/50" />
+                            ) : (
+                              <Film className="w-6 h-6 text-muted-foreground/50" />
+                            )}
+                          </div>
+                        )}
 
-                      {/* Hover overlay */}
+                        {/* Hover overlay */}
+                        <AnimatePresence>
+                          {hoveredIndex === actualIndex && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.15 }}
+                              className="absolute inset-0 bg-background/30 backdrop-blur-sm flex items-center justify-center"
+                            >
+                              <motion.div
+                                initial={{ scale: 0.8 }}
+                                animate={{ scale: 1 }}
+                                exit={{ scale: 0.8 }}
+                                className="w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-2xl"
+                              >
+                                <Play className="w-4 h-4 text-primary-foreground ml-0.5" fill="currentColor" />
+                              </motion.div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Duration badge */}
+                        {recording.project?.timeline?.duration && (
+                          <div className="absolute bottom-1 right-1 bg-background/70 backdrop-blur-xl text-foreground text-[9px] px-1.5 py-0.5 rounded font-mono">
+                            {formatTime(recording.project.timeline.duration / 1000)}
+                          </div>
+                        )}
+
+                        {/* Project badge */}
+                        {recording.isProject && (
+                          <div className="absolute top-1 left-1 bg-background/60 backdrop-blur-xl text-muted-foreground text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5 font-medium uppercase tracking-wider">
+                            <FileJson className="w-2.5 h-2.5" />
+                            <span>PRJ</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Info section */}
+                      <div className="p-2">
+                        <h3 className="font-medium text-[11px] text-foreground truncate mb-1">
+                          {recording.project?.name || recording.name.replace(/^Recording_/, '').replace(/\.ssproj$/, '')}
+                        </h3>
+                        <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+                          {/* Duration */}
+                          {recording.project?.timeline?.duration && (
+                            <div className="flex items-center gap-0.5">
+                              <Clock className="w-2.5 h-2.5" />
+                              <span className="font-mono">
+                                {formatTime(recording.project.timeline.duration / 1000)}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Clips */}
+                          {recording.project?.timeline?.tracks && (
+                            <div className="flex items-center gap-0.5">
+                              <Layers className="w-2.5 h-2.5" />
+                              <span>
+                                {recording.project.timeline.tracks.reduce((acc: number, t: any) => acc + (t.clips?.length || 0), 0)}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Date */}
+                          <div className="flex items-center gap-0.5 ml-auto">
+                            <span className="truncate">{formatDistanceToNow(recording.timestamp, { addSuffix: true }).replace('about ', '').replace('less than ', '<')}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Hover actions */}
                       <AnimatePresence>
                         {hoveredIndex === actualIndex && (
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            transition={{ duration: 0.15 }}
-                            className="absolute inset-0 bg-background/30 backdrop-blur-sm flex items-center justify-center"
+                            transition={{ duration: 0.1 }}
+                            className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-background/80 via-background/60 to-transparent backdrop-blur-xl"
                           >
-                            <motion.div 
-                              initial={{ scale: 0.8 }}
-                              animate={{ scale: 1 }}
-                              exit={{ scale: 0.8 }}
-                              className="w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-2xl"
-                            >
-                              <Play className="w-4 h-4 text-primary-foreground ml-0.5" fill="currentColor" />
-                            </motion.div>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="flex-1 h-6 text-[9px] font-medium"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onSelectRecording(recording)
+                                }}
+                              >
+                                EDIT
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="w-6 h-6 p-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Download className="w-2.5 h-2.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="w-6 h-6 p-0 hover:bg-destructive/20 hover:text-destructive"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </Button>
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
-
-                      {/* Duration badge */}
-                      {recording.project?.timeline?.duration && (
-                        <div className="absolute bottom-1 right-1 bg-background/70 backdrop-blur-xl text-foreground text-[9px] px-1.5 py-0.5 rounded font-mono">
-                          {formatTime(recording.project.timeline.duration / 1000)}
-                        </div>
-                      )}
-
-                      {/* Project badge */}
-                      {recording.isProject && (
-                        <div className="absolute top-1 left-1 bg-background/60 backdrop-blur-xl text-muted-foreground text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5 font-medium uppercase tracking-wider">
-                          <FileJson className="w-2.5 h-2.5" />
-                          <span>PRJ</span>
-                        </div>
-                      )}
                     </div>
-
-                    {/* Info section */}
-                    <div className="p-2">
-                      <h3 className="font-medium text-[11px] text-foreground truncate mb-1">
-                        {recording.project?.name || recording.name.replace(/^Recording_/, '').replace(/\.ssproj$/, '')}
-                      </h3>
-                      <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
-                        {/* Duration */}
-                        {recording.project?.timeline?.duration && (
-                          <div className="flex items-center gap-0.5">
-                            <Clock className="w-2.5 h-2.5" />
-                            <span className="font-mono">
-                              {formatTime(recording.project.timeline.duration / 1000)}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Clips */}
-                        {recording.project?.timeline?.tracks && (
-                          <div className="flex items-center gap-0.5">
-                            <Layers className="w-2.5 h-2.5" />
-                            <span>
-                              {recording.project.timeline.tracks.reduce((acc: number, t: any) => acc + (t.clips?.length || 0), 0)}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Date */}
-                        <div className="flex items-center gap-0.5 ml-auto">
-                          <span className="truncate">{formatDistanceToNow(recording.timestamp, { addSuffix: true }).replace('about ', '').replace('less than ', '<')}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Hover actions */}
-                    <AnimatePresence>
-                      {hoveredIndex === actualIndex && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.1 }}
-                          className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-background/80 via-background/60 to-transparent backdrop-blur-xl"
-                        >
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              className="flex-1 h-6 text-[9px] font-medium"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onSelectRecording(recording)
-                              }}
-                            >
-                              EDIT
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Download className="w-2.5 h-2.5" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 hover:bg-destructive/20 hover:text-destructive"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                            </Button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </motion.div>
-              )})}
+                  </motion.div>
+                )
+              })}
             </AnimatePresence>
-            
+
             {/* Spacer for virtualization */}
             <div style={{ gridColumn: '1 / -1', height: `${Math.max(0, Math.floor((recordings.length - visibleRange.end) / 6) * 180)}px` }} />
           </div>

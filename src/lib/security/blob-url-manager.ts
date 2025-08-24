@@ -12,6 +12,9 @@ interface BlobEntry {
   size: number
   createdAt: number
   description?: string
+  type?: 'thumbnail' | 'video' | 'export' | 'other'
+  priority?: number // Higher = more important to keep
+  lastAccessed?: number
 }
 
 export class BlobURLManager {
@@ -19,22 +22,33 @@ export class BlobURLManager {
   private disposed = false
   private totalSize = 0
   private maxSize = 500 * 1024 * 1024 // 500MB limit
+  private thumbnailMaxSize = 100 * 1024 * 1024 // 100MB for thumbnails
   private cleanupTimer: NodeJS.Timeout | null = null
   private loadingPromises = new Map<string, Promise<string | null>>()
+  private thumbnailSize = 0
+  private videoSize = 0
 
-  create(blob: Blob, description?: string): string {
+  create(blob: Blob, description?: string, type: BlobEntry['type'] = 'other', priority = 5): string {
     if (this.disposed) {
       throw new MemoryError('BlobURLManager has been disposed')
     }
 
-    // Check memory limit
-    if (this.totalSize + blob.size > this.maxSize) {
-      this.performEmergencyCleanup()
+    // Smart memory management based on type
+    if (type === 'thumbnail') {
+      // Thumbnails have separate, smaller limit
+      if (this.thumbnailSize + blob.size > this.thumbnailMaxSize) {
+        this.cleanupThumbnails()
+      }
+    } else {
+      // Check main memory limit
       if (this.totalSize + blob.size > this.maxSize) {
-        throw new MemoryError(
-          `Blob memory limit exceeded: ${Math.round(this.totalSize / 1024 / 1024)}MB used`,
-          this.totalSize
-        )
+        this.performSmartCleanup(blob.size)
+        if (this.totalSize + blob.size > this.maxSize) {
+          throw new MemoryError(
+            `Blob memory limit exceeded: ${Math.round(this.totalSize / 1024 / 1024)}MB used`,
+            this.totalSize
+          )
+        }
       }
     }
 
@@ -43,11 +57,21 @@ export class BlobURLManager {
       url,
       size: blob.size,
       createdAt: Date.now(),
-      description
+      description,
+      type,
+      priority,
+      lastAccessed: Date.now()
     }
 
     this.entries.set(url, entry)
     this.totalSize += blob.size
+
+    // Track size by type
+    if (type === 'thumbnail') {
+      this.thumbnailSize += blob.size
+    } else if (type === 'video') {
+      this.videoSize += blob.size
+    }
 
     // Auto-cache if it's a recording
     if (description?.startsWith('recording-')) {
@@ -69,6 +93,14 @@ export class BlobURLManager {
       try {
         URL.revokeObjectURL(url)
         this.totalSize -= entry.size
+
+        // Update type-specific counters
+        if (entry.type === 'thumbnail') {
+          this.thumbnailSize -= entry.size
+        } else if (entry.type === 'video') {
+          this.videoSize -= entry.size
+        }
+
         this.entries.delete(url)
         logger.debug(`Blob URL revoked: ${entry.description || url}`)
       } catch (error) {
@@ -85,16 +117,70 @@ export class BlobURLManager {
     return this.totalSize
   }
 
-  getMemoryReport(): { count: number; totalSize: number; entries: Array<{ description?: string; size: number; age: number }> } {
+  getMemoryReport(): {
+    count: number;
+    totalSize: number;
+    thumbnailSize: number;
+    videoSize: number;
+    entries: Array<{
+      description?: string;
+      size: number;
+      age: number;
+      type?: string;
+      priority?: number;
+    }>
+  } {
     const now = Date.now()
     return {
       count: this.entries.size,
       totalSize: this.totalSize,
+      thumbnailSize: this.thumbnailSize,
+      videoSize: this.videoSize,
       entries: Array.from(this.entries.values()).map(entry => ({
         description: entry.description,
         size: entry.size,
-        age: now - entry.createdAt
+        age: now - entry.createdAt,
+        type: entry.type,
+        priority: entry.priority
       }))
+    }
+  }
+
+  /**
+   * Mark a blob as accessed (updates priority)
+   */
+  markAccessed(url: string): void {
+    const entry = this.entries.get(url)
+    if (entry) {
+      entry.lastAccessed = Date.now()
+      // Boost priority slightly when accessed
+      if (entry.priority && entry.priority < 10) {
+        entry.priority = Math.min(10, entry.priority + 1)
+      }
+    }
+  }
+
+  /**
+   * Clean up all blobs of a specific type
+   */
+  cleanupByType(type: BlobEntry['type']): void {
+    let cleaned = 0
+    let freedSize = 0
+
+    const entriesToClean: string[] = []
+    this.entries.forEach((entry, url) => {
+      if (entry.type === type) {
+        freedSize += entry.size
+        entriesToClean.push(url)
+        cleaned++
+      }
+    })
+
+    // Revoke after iteration to avoid modifying during iteration
+    entriesToClean.forEach(url => this.revoke(url))
+
+    if (cleaned > 0) {
+      logger.info(`Cleaned ${cleaned} ${type} blobs, freed ${Math.round(freedSize / 1024 / 1024)}MB`)
     }
   }
 
@@ -118,25 +204,60 @@ export class BlobURLManager {
     }
   }
 
-  private performEmergencyCleanup(): void {
-    // Remove oldest entries first
+  private performSmartCleanup(requiredSpace: number): void {
+    // Smart cleanup based on priority and type
     const sortedEntries = Array.from(this.entries.values())
-      .sort((a, b) => a.createdAt - b.createdAt)
+      .sort((a, b) => {
+        // First sort by type (thumbnails first)
+        if (a.type !== b.type) {
+          const typeOrder = { thumbnail: 0, other: 1, export: 2, video: 3 }
+          return (typeOrder[a.type || 'other'] || 1) - (typeOrder[b.type || 'other'] || 1)
+        }
+        // Then by priority (lower priority first)
+        if (a.priority !== b.priority) {
+          return (a.priority || 5) - (b.priority || 5)
+        }
+        // Finally by last accessed time
+        return (a.lastAccessed || a.createdAt) - (b.lastAccessed || b.createdAt)
+      })
 
-    const targetSize = this.maxSize * 0.7 // Free up to 70% capacity
+    const targetSize = Math.max(this.maxSize * 0.7, this.totalSize - requiredSpace)
     let freedSize = 0
 
     for (const entry of sortedEntries) {
       if (this.totalSize <= targetSize) break
+
+      // Don't remove high-priority active videos
+      if (entry.type === 'video' && (entry.priority || 5) >= 8) {
+        continue
+      }
 
       this.revoke(entry.url)
       freedSize += entry.size
     }
 
     if (freedSize > 0) {
-      logger.warn(`Emergency cleanup: freed ${Math.round(freedSize / 1024 / 1024)}MB`)
+      logger.info(`Smart cleanup: freed ${Math.round(freedSize / 1024 / 1024)}MB`)
     }
   }
+
+  private cleanupThumbnails(): void {
+    // Clean up old thumbnails
+    const thumbnails = Array.from(this.entries.values())
+      .filter(e => e.type === 'thumbnail')
+      .sort((a, b) => (a.lastAccessed || a.createdAt) - (b.lastAccessed || b.createdAt))
+
+    const targetSize = this.thumbnailMaxSize * 0.5
+    let currentThumbnailSize = this.thumbnailSize
+
+    for (const entry of thumbnails) {
+      if (currentThumbnailSize <= targetSize) break
+
+      this.revoke(entry.url)
+      currentThumbnailSize -= entry.size
+    }
+  }
+
 
   private scheduleCleanup(): void {
     if (this.cleanupTimer) return
@@ -185,23 +306,13 @@ export class BlobURLManager {
   async loadVideo(recordingId: string, filePath?: string): Promise<string | null> {
     // Check cache first
     const cached = RecordingStorage.getBlobUrl(recordingId)
-    if (cached) {
-      // Validate that the cached blob URL is still valid
-      // Blob URLs become invalid after page reload/app restart
-      try {
-        if (await this.isBlobUrlValid(cached)) {
-          logger.debug(`Using cached video for ${recordingId}`)
-          return cached
-        } else {
-          // This is expected after page transitions - not an error
-          logger.debug(`Cached blob URL expired for ${recordingId}, reloading from file`)
-          // Clear the invalid cached URL
-          RecordingStorage.clearBlobUrl(recordingId)
-        }
-      } catch (error) {
-        // Silently handle blob URL validation errors
-        RecordingStorage.clearBlobUrl(recordingId)
-      }
+    if (cached && this.entries.has(cached)) {
+      logger.debug(`Using cached video for ${recordingId}`)
+      this.markAccessed(cached)
+      return cached
+    } else if (cached) {
+      // Clear invalid cached URL
+      RecordingStorage.clearBlobUrl(recordingId)
     }
 
     // Check if already loading
@@ -223,37 +334,6 @@ export class BlobURLManager {
     }
   }
 
-  /**
-   * Check if a blob URL is still valid
-   */
-  private async isBlobUrlValid(url: string): Promise<boolean> {
-    // Blob URLs start with "blob:"
-    if (!url.startsWith('blob:')) {
-      return false
-    }
-
-    try {
-      // Instead of HEAD request (which blob URLs don't support),
-      // try to fetch just the first byte to check validity
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 100) // Quick timeout
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Range': 'bytes=0-0' }, // Request only first byte
-        signal: controller.signal
-      })
-
-      clearTimeout(timeoutId)
-
-      // If we can fetch even one byte, the blob URL is valid
-      return response.ok || response.status === 206 // 206 is partial content
-    } catch (error) {
-      // Blob URL is no longer valid (happens after page reload)
-      // This is expected behavior, not an error
-      return false
-    }
-  }
 
   private async _loadVideoInternal(recordingId: string, filePath?: string): Promise<string | null> {
     if (!filePath) {
@@ -284,7 +364,7 @@ export class BlobURLManager {
 
       // Create blob and URL
       const blob = new Blob([result.data], { type: 'video/webm' })
-      const blobUrl = this.create(blob, `recording-${recordingId}`)
+      const blobUrl = this.create(blob, `recording-${recordingId}`, 'video', 10) // High priority for active videos
 
       // Cache for future use
       RecordingStorage.setBlobUrl(recordingId, blobUrl)

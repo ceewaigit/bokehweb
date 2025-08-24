@@ -15,6 +15,7 @@ import { RecordingsLibrary } from '../recordings-library'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { Clip, ClipEffects, ZoomBlock } from '@/types/project'
 import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
@@ -94,7 +95,7 @@ async function loadProjectRecording(
         if (!rec.duration || rec.duration <= 0 || !isFinite(rec.duration) || !rec.width || !rec.height) {
           setLoadingMessage('Detecting video properties...')
 
-          // Use blob manager to load the video safely
+          // Use blob manager to load the video safely with high priority
           const blobUrl = await globalBlobManager.loadVideo(rec.id, videoPath)
 
           if (blobUrl) {
@@ -453,6 +454,10 @@ export function WorkspaceManager() {
               setLoadingMessage('Loading recording...')
 
               try {
+                // Clean up library resources before loading project
+                ThumbnailGenerator.clearCache()
+                globalBlobManager.cleanupByType('thumbnail')
+                
                 const success = await loadProjectRecording(
                   recording,
                   setIsLoading,
@@ -488,6 +493,10 @@ export function WorkspaceManager() {
             onToggleProperties={handleToggleProperties}
             onExport={handleExport}
             onNewProject={() => {
+              // Clean up current project resources
+              globalBlobManager.cleanupByType('video')
+              globalBlobManager.cleanupByType('export')
+              
               newProject('New Project')
               setLocalEffects(null)
               setHasUnsavedChanges(false)

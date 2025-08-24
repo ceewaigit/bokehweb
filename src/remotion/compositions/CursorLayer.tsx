@@ -27,13 +27,12 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Store previous positions for motion trail and smoothing
   const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
   const lastFrameRef = useRef<number>(-1);
+  const lastMovementTimeRef = useRef<number>(0);
 
   // Heavy smoothing buffers for butter-smooth movement
   const smoothingBufferRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
   const filteredPositionRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
-  const velocityRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
   const lastRawPositionRef = useRef<{ x: number, y: number } | null>(null);
-  const frameCountRef = useRef(0);
 
   // Determine current cursor type from events
   const cursorType = useMemo(() => {
@@ -55,7 +54,15 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return electronToCustomCursor(electronType);
   }, [cursorEvents, currentTimeMs]);
 
-  // No need for complex filters - simple exponential smoothing works best
+  // Check if cursor is idle
+  const isIdle = useMemo(() => {
+    if (!cursorEffects?.hideOnIdle) return false;
+    
+    const idleTimeout = cursorEffects?.idleTimeout ?? 3000; // Default 3 seconds
+    const timeSinceLastMovement = currentTimeMs - lastMovementTimeRef.current;
+    
+    return timeSinceLastMovement > idleTimeout;
+  }, [currentTimeMs, cursorEffects?.hideOnIdle, cursorEffects?.idleTimeout]);
 
   // Get interpolated cursor position with ultra-heavy smoothing
   const cursorPosition = useMemo(() => {
@@ -96,7 +103,6 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     if (!lastRawPositionRef.current) {
       lastRawPositionRef.current = { x: rawX, y: rawY };
       filteredPositionRef.current = { x: rawX, y: rawY };
-      velocityRef.current = { x: 0, y: 0 };
       smoothingBufferRef.current = [];
     }
 
@@ -160,6 +166,23 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
     lastRawPositionRef.current = { x: rawX, y: rawY };
 
+    // Check for movement to update idle tracking using existing position tracking
+    // We already calculate movement delta above, reuse that logic
+    if (lastRawPositionRef.current) {
+      const rawMovement = Math.sqrt(
+        Math.pow(rawX - lastRawPositionRef.current.x, 2) +
+        Math.pow(rawY - lastRawPositionRef.current.y, 2)
+      );
+      
+      // If cursor moved more than 2 pixels in raw position, update last movement time
+      if (rawMovement > 2) {
+        lastMovementTimeRef.current = currentTimeMs;
+      }
+    } else {
+      // Initialize on first frame
+      lastMovementTimeRef.current = currentTimeMs;
+    }
+
     return {
       x: filteredPositionRef.current.x,
       y: filteredPositionRef.current.y
@@ -185,7 +208,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       : 0.9 + ((clickProgress - 0.5) * 0.2);
   }, [activeClick, currentTimeMs]);
 
-  if (!cursorPosition) return null;
+  if (!cursorPosition || isIdle) return null;
 
   // Get capture dimensions from first event
   const firstEvent = cursorEvents[0];

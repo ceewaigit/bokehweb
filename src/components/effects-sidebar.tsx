@@ -353,6 +353,33 @@ export function EffectsSidebar({
                 />
               </label>
             </div>
+
+            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Hide When Idle</span>
+                <Switch
+                  checked={effects.cursor.hideOnIdle ?? false}
+                  onCheckedChange={(checked) =>
+                    updateEffect('cursor', { hideOnIdle: checked })
+                  }
+                />
+              </label>
+            </div>
+
+            {effects.cursor.hideOnIdle && (
+              <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+                <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Idle Timeout</label>
+                <Slider
+                  value={[(effects.cursor.idleTimeout ?? 3000) / 1000]}
+                  onValueChange={([value]) => updateEffect('cursor', { idleTimeout: value * 1000 })}
+                  min={1}
+                  max={10}
+                  step={0.5}
+                  className="w-full"
+                />
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{((effects.cursor.idleTimeout ?? 3000) / 1000).toFixed(1)}s</span>
+              </div>
+            )}
           </div>
         )}
 

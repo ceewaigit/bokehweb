@@ -167,6 +167,8 @@ export interface ClipEffects {
     color: string
     clickEffects: boolean
     motionBlur: boolean
+    hideOnIdle: boolean
+    idleTimeout: number // milliseconds
   }
 
   // Background
