@@ -29,13 +29,13 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    // Start with minimum size, will auto-resize based on content
-    width: 1,
-    height: 1,
-    x: Math.floor(display.workAreaSize.width / 2), // Center horizontally
+    // Start with a reasonable size
+    width: 300,
+    height: 60,
+    x: Math.floor(display.workAreaSize.width / 2 - 150), // Center horizontally
     y: 20,
-    // Panel-style window configuration
-    type: process.platform === 'darwin' ? 'panel' : 'toolbar', // NSPanel on macOS
+    // Panel-style window configuration (commented out for now - might be causing issues)
+    // type: process.platform === 'darwin' ? 'panel' : 'toolbar', // NSPanel on macOS
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -46,12 +46,12 @@ export function createRecordButton(): BrowserWindow {
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    hasShadow: true, // Enable shadow for depth
+    hasShadow: false, // Disable shadow for now
     show: false,
     roundedCorners: true,
-    titleBarStyle: 'customButtonsOnHover', // macOS specific
-    vibrancy: 'hud', // macOS HUD style like native overlays
-    visualEffectState: 'active',
+    // titleBarStyle: 'customButtonsOnHover', // Remove - not needed for frameless
+    // vibrancy: 'hud', // Disable vibrancy for now - might be causing issues
+    // visualEffectState: 'active',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -69,60 +69,16 @@ export function createRecordButton(): BrowserWindow {
   // Configure as a true overlay window
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   
-  // Industry-standard window levels (same as Screen Studio, Loom, CleanShot)
-  if (process.platform === 'darwin') {
-    // NSFloatingWindowLevel + 5 (same as Screen Studio)
-    // This keeps it above fullscreen apps but below critical system UI
-    recordButton.setAlwaysOnTop(true, 'pop-up-menu', 1)
-    recordButton.setWindowButtonVisibility(false)
-    
-    // Enable auto-hiding in fullscreen spaces
-    recordButton.setFullScreenable(false)
-    recordButton.setAutoHideMenuBar(true)
-  } else {
-    // Windows/Linux equivalent
-    recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
-  }
+  // Simple window level setup - let's get it working first
+  recordButton.setAlwaysOnTop(true, 'floating', 1)
   
   // Don't ignore mouse events - we need interaction
   recordButton.setIgnoreMouseEvents(false)
   
-  // Auto-resize window based on content
-  recordButton.webContents.on('did-finish-load', () => {
-    // Enable auto-sizing from content
-    recordButton.webContents.executeJavaScript(`
-      const resize = () => {
-        const body = document.body;
-        const rect = body.getBoundingClientRect();
-        const styles = window.getComputedStyle(body);
-        const width = Math.ceil(rect.width + 
-          parseFloat(styles.marginLeft) + 
-          parseFloat(styles.marginRight));
-        const height = Math.ceil(rect.height + 
-          parseFloat(styles.marginTop) + 
-          parseFloat(styles.marginBottom));
-        
-        if (width > 1 && height > 1) {
-          window.electronAPI?.setWindowContentSize({ width, height });
-        }
-      };
-      
-      // Initial size
-      setTimeout(resize, 0);
-      
-      // Watch for changes
-      const observer = new ResizeObserver(resize);
-      observer.observe(document.body);
-      
-      // Also watch for content changes
-      const mutationObserver = new MutationObserver(resize);
-      mutationObserver.observe(document.body, { 
-        childList: true, 
-        subtree: true, 
-        attributes: true 
-      });
-    `)
-  })
+  // Auto-resize window based on content - DISABLED FOR NOW
+  // recordButton.webContents.on('did-finish-load', () => {
+  //   // Will implement auto-sizing after we get basic window working
+  // })
 
   // Apply CSP so blob: media URLs are allowed
   setupSecurityPolicy(recordButton)

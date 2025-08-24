@@ -190,20 +190,15 @@ export function RecordButtonDock() {
       transition={{ type: 'spring', damping: 18, stiffness: 250 }}
       className={cn(
         "relative flex flex-col",
-        "bg-background/90 backdrop-blur-xl",
-        "rounded-xl border border-border/40",
+        "bg-background/95 backdrop-blur-xl", // Use shadcn background token
+        "rounded-xl border border-border",
         "shadow-lg dark:shadow-2xl",
-        isRecording && "ring-2 ring-destructive/40",
-        // Use intrinsic sizing - no fixed dimensions
-        "w-max h-max"
+        isRecording && "ring-2 ring-destructive/40"
       )}
       style={{ 
         // Make the dock draggable
         ['WebkitAppRegion' as any]: 'drag',
-        cursor: 'move',
-        // Ensure proper sizing
-        minWidth: 'max-content',
-        minHeight: 'max-content'
+        cursor: 'move'
       }}
     >
       {/* Main Dock Bar - Compact Design */}
