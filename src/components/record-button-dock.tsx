@@ -169,6 +169,9 @@ export function RecordButtonDock() {
       {/* Dock Container - No wrapper divs, just the dock itself */}
       <motion.div
         ref={dockContainerRef}
+        drag
+        dragMomentum={false}
+        dragElastic={0}
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', damping: 20, stiffness: 300 }}

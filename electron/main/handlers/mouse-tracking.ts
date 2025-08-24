@@ -1,5 +1,17 @@
-import { ipcMain, screen, IpcMainInvokeEvent, WebContents, BrowserWindow } from 'electron'
-import { uIOhook, UiohookKey, UiohookMouseEvent } from 'uiohook-napi'
+import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
+
+// Lazy load uiohook-napi to handle initialization errors
+let uIOhook: any = null
+let UiohookMouseEvent: any = null
+
+try {
+  const uiohookModule = require('uiohook-napi')
+  uIOhook = uiohookModule.uIOhook
+  UiohookMouseEvent = uiohookModule.UiohookMouseEvent
+  console.log('uiohook-napi loaded successfully')
+} catch (error) {
+  console.error('Failed to load uiohook-napi:', error)
+}
 
 // Simple logger for production
 const logger = {
@@ -16,8 +28,9 @@ let clickDetectionActive = false
 let lastMousePosition: { x: number; y: number; time: number } | null = null
 let mouseHistory: Array<{ x: number; y: number; time: number }> = []
 let uiohookStarted = false
-let currentCursorType = 'default'  // Track current cursor type
-let targetWindow: BrowserWindow | null = null  // Track the window for cursor-changed events
+let isMouseDown = false  // Track mouse button state for cursor detection
+let mouseDownTime = 0  // Track when mouse was pressed
+let lastClickPosition = { x: 0, y: 0 }  // Track last click position
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -53,74 +66,6 @@ export function registerMouseTrackingHandlers(): void {
       mouseEventSender = event.sender
       isMouseTracking = true
 
-      // Get the BrowserWindow from the sender
-      targetWindow = BrowserWindow.fromWebContents(event.sender)
-
-      // Set up cursor-changed event listener for cursor type detection
-      // Note: This only works when cursor is over the app window
-      // We'll also track all cursor types for better debugging
-      if (targetWindow) {
-        // Reset to default when window loses focus
-        const handleBlur = () => {
-          currentCursorType = 'default'
-          logger.debug('Window blurred, resetting cursor to default')
-        }
-        
-        const handleCursorChange = (_event: any, type: string) => {
-          // Only update cursor type if window is focused
-          // This prevents stale cursor types when recording other windows
-          if (targetWindow && targetWindow.isFocused()) {
-            const previousType = currentCursorType
-            currentCursorType = type
-            
-            // Map Electron cursor types to more descriptive names for logging
-            const cursorTypeMap: Record<string, string> = {
-            'default': 'arrow',
-            'pointer': 'hand',
-            'text': 'iBeam',
-            'ns-resize': 'resizeUpDown',
-            'ew-resize': 'resizeLeftRight',
-            'nesw-resize': 'resizeDiagonal',
-            'nwse-resize': 'resizeDiagonal',
-            'n-resize': 'resizeUp',
-            's-resize': 'resizeDown',
-            'e-resize': 'resizeRight',
-            'w-resize': 'resizeLeft',
-            'ne-resize': 'resizeUpRight',
-            'nw-resize': 'resizeUpLeft',
-            'se-resize': 'resizeDownRight',
-            'sw-resize': 'resizeDownLeft',
-            'move': 'openHand',
-            'grabbing': 'closedHand',
-            'grab': 'openHand',
-            'crosshair': 'crosshair',
-            'not-allowed': 'notAllowed',
-            'context-menu': 'contextMenu',
-            'copy': 'dragCopy',
-            'alias': 'dragLink',
-            'col-resize': 'resizeColumn',
-            'row-resize': 'resizeRow',
-            'all-scroll': 'move',
-            'zoom-in': 'zoomIn',
-            'zoom-out': 'zoomOut'
-          }
-          
-            const mappedType = cursorTypeMap[type] || type
-            const previousMapped = cursorTypeMap[previousType] || previousType
-            
-            // Always log cursor changes to debug the issue
-            console.log(`Cursor: ${previousMapped} → ${mappedType} (raw: ${previousType} → ${type})`)
-          }
-        }
-
-        // Remove any existing listeners first
-        targetWindow.webContents.removeListener('cursor-changed', handleCursorChange)
-        targetWindow.removeListener('blur', handleBlur)
-        
-        // Add the new listeners
-        targetWindow.webContents.on('cursor-changed', handleCursorChange)
-        targetWindow.on('blur', handleBlur)
-      }
 
       // Start click detection using global mouse hooks with source info
       startClickDetection(sourceType, sourceId)
@@ -189,15 +134,30 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
-            // Use the detected cursor type when available
-            // This won't be perfect for screen recording but it's better than nothing
-            let effectiveCursorType = currentCursorType || 'default'
+            // Determine cursor type based on mouse state
+            let effectiveCursorType = 'default'
             
+            if (isMouseDown) {
+              // Mouse is being held down
+              const timeSinceMouseDown = now - mouseDownTime
+              const distanceFromClick = Math.sqrt(
+                Math.pow(currentPosition.x - lastClickPosition.x, 2) +
+                Math.pow(currentPosition.y - lastClickPosition.y, 2)
+              )
+              
+              // If mouse moved significantly while held down, it's a drag operation
+              if (distanceFromClick > 5 || timeSinceMouseDown > 200) {
+                effectiveCursorType = 'grabbing'  // Dragging state
+              } else {
+                effectiveCursorType = 'grab'  // About to drag
+              }
+            }
+
             // Debug log every 50th event to see what cursor type we're sending
             if (mouseHistory.length % 50 === 0) {
-              logger.debug(`Sending cursor type: ${effectiveCursorType}`)
+              logger.debug(`Cursor state: ${effectiveCursorType} (mouseDown: ${isMouseDown})`)
             }
-            
+
             // Only log in development mode
             if (process.env.NODE_ENV === 'development' && mouseHistory.length % 500 === 0) {
               console.log('Mouse tracking active')
@@ -245,20 +205,15 @@ export function registerMouseTrackingHandlers(): void {
 
       isMouseTracking = false
 
-      // Remove cursor-changed and blur listeners
-      if (targetWindow) {
-        targetWindow.webContents.removeAllListeners('cursor-changed')
-        targetWindow.removeAllListeners('blur')
-        targetWindow = null
-      }
-
       // Stop click detection
       stopClickDetection()
 
-      // Reset mouse history
+      // Reset mouse history and state
       mouseHistory = []
       lastMousePosition = null
-      currentCursorType = 'default'
+      isMouseDown = false
+      mouseDownTime = 0
+      lastClickPosition = { x: 0, y: 0 }
 
       mouseEventSender = null
 
@@ -296,25 +251,35 @@ export function registerMouseTrackingHandlers(): void {
 function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string): void {
   if (clickDetectionActive) return
 
+  // Check if uiohook is available
+  if (!uIOhook) {
+    logger.warn('uiohook-napi not available, click detection disabled')
+    return
+  }
+
   clickDetectionActive = true
 
   try {
     // Start uiohook if not already started
     if (!uiohookStarted) {
+      logger.info('Starting uiohook-napi...')
       uIOhook.start()
       uiohookStarted = true
+      logger.info('uiohook-napi started successfully')
     }
 
-    // Register global mouse click handler
-    const handleMouseDown = (event: UiohookMouseEvent) => {
+    // Register global mouse event handlers
+    const handleMouseDown = (event: any) => {
       if (!isMouseTracking || !mouseEventSender) return
+
+      // Track mouse down state for cursor detection
+      isMouseDown = true
+      mouseDownTime = Date.now()
+      lastClickPosition = { x: event.x, y: event.y }
 
       // Get current display info for coordinate transformation
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
-
-      // Use the detected cursor type
-      const effectiveCursorType = currentCursorType || 'default'
 
       // Send click event with proper coordinates
       mouseEventSender.send('mouse-click', {
@@ -324,18 +289,33 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
         button: event.button === 1 ? 'left' : event.button === 2 ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,
         scaleFactor: scaleFactor,
-        cursorType: effectiveCursorType,  // Use detected cursor type
+        cursorType: 'grab',  // Click starts with grab cursor
         sourceType: sourceType || 'screen',
         sourceId: sourceId
       })
+
+      logger.debug(`Mouse down at (${event.x}, ${event.y})`)
     }
 
-    // Register the mouse down event listener
-    // @ts-ignore - uiohook-napi type definitions may be incomplete
-    uIOhook.on('mousedown', handleMouseDown)
+    const handleMouseUp = (event: any) => {
+      if (!isMouseTracking) return
 
-      // Store the handler for cleanup
-      (global as any).uiohookMouseHandler = handleMouseDown
+      // Track mouse up state for cursor detection
+      isMouseDown = false
+      mouseDownTime = 0
+
+      logger.debug(`Mouse up at (${event.x}, ${event.y})`)
+    }
+
+    // Register the mouse event listeners
+    uIOhook.on('mousedown', handleMouseDown)
+    uIOhook.on('mouseup', handleMouseUp)
+    
+    // Store the handlers for cleanup
+    ;(global as any).uiohookMouseDownHandler = handleMouseDown
+    ;(global as any).uiohookMouseUpHandler = handleMouseUp
+    
+    logger.info('Mouse event handlers registered successfully')
 
   } catch (error) {
     logger.error('Failed to start global click detection:', error)
@@ -345,19 +325,30 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
 
 function stopClickDetection(): void {
   clickDetectionActive = false
+  
+  // Reset mouse state
+  isMouseDown = false
+  mouseDownTime = 0
+
+  if (!uIOhook) return
 
   try {
-    // Remove the mouse handler if it exists
-    if ((global as any).uiohookMouseHandler) {
-      // @ts-ignore - uiohook-napi type definitions may be incomplete
-      uIOhook.off('mousedown', (global as any).uiohookMouseHandler)
-      delete (global as any).uiohookMouseHandler
+    // Remove all mouse handlers
+    if ((global as any).uiohookMouseDownHandler) {
+      uIOhook.off('mousedown', (global as any).uiohookMouseDownHandler)
+      delete (global as any).uiohookMouseDownHandler
+    }
+    
+    if ((global as any).uiohookMouseUpHandler) {
+      uIOhook.off('mouseup', (global as any).uiohookMouseUpHandler)
+      delete (global as any).uiohookMouseUpHandler
     }
 
     // Stop uiohook if no longer needed
     if (uiohookStarted) {
       uIOhook.stop()
       uiohookStarted = false
+      logger.info('uiohook-napi stopped')
     }
   } catch (error) {
     logger.error('Error stopping click detection:', error)

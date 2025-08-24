@@ -413,7 +413,7 @@ export function EffectsSidebar({
                             step={50}
                             className="w-full"
                           />
-                          <span className="text-[10px] text-muted-foreground/70 font-mono">{block.introMs}ms</span>
+                          {block.introMs > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{block.introMs}ms</span>}
                         </div>
 
                         <div className="space-y-1.5">
@@ -431,7 +431,7 @@ export function EffectsSidebar({
                             step={50}
                             className="w-full"
                           />
-                          <span className="text-[10px] text-muted-foreground/70 font-mono">{block.outroMs}ms</span>
+                          {block.outroMs > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{block.outroMs}ms</span>}
                         </div>
                       </>
                     )
@@ -517,7 +517,7 @@ export function EffectsSidebar({
                 className="w-full"
               />
               <div className="flex justify-between items-center">
-                <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.padding || 0}px</span>
+                {(effects.background.padding || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.padding}px</span>}
                 <button
                   onClick={() => updateEffect('background', {
                     ...effects.background,
@@ -540,7 +540,7 @@ export function EffectsSidebar({
                 step={1}
                 className="w-full"
               />
-              <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.cornerRadius}px</span>
+              {effects.video.cornerRadius > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.cornerRadius}px</span>}
             </div>
 
             <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
@@ -573,7 +573,7 @@ export function EffectsSidebar({
                       step={5}
                       className="w-full"
                     />
-                    <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.shadow.blur}px</span>
+                    {effects.video.shadow.blur > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.shadow.blur}px</span>}
                   </div>
 
                   <div className="space-y-1">
@@ -594,7 +594,7 @@ export function EffectsSidebar({
                       step={5}
                       className="w-full"
                     />
-                    <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.shadow.offset.y}px</span>
+                    {effects.video.shadow.offset.y > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.shadow.offset.y}px</span>}
                   </div>
                 </>
               )}

@@ -7,4 +7,4 @@ export { ElectronRecorder } from './electron-recorder'
 export type { 
   ElectronRecordingResult,
   ElectronMetadata
-} from './electron-recorder'
+} from '@/types/recording'

@@ -139,6 +139,9 @@ export function SourcePicker({ isOpen, onClose, onSelect }: SourcePickerProps) {
 
           {/* Dialog with glassmorphic design */}
           <motion.div
+            drag
+            dragMomentum={false}
+            dragElastic={0}
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}

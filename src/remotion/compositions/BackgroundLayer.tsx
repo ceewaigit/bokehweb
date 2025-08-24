@@ -22,6 +22,17 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   let backgroundStyle: React.CSSProperties = {};
 
   switch (effects.type) {
+    case 'wallpaper':
+      if (effects.wallpaper) {
+        backgroundStyle = {
+          backgroundImage: `url(${effects.wallpaper})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        };
+      }
+      break;
+
     case 'color':
       backgroundStyle = {
         backgroundColor: effects.color || '#000000'
@@ -50,33 +61,11 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat'
         };
-
-        // Apply blur if specified
-        if (effects.blur) {
-          backgroundStyle.filter = `blur(${effects.blur}px)`;
-        }
-      }
-      break;
-
-    case 'wallpaper':
-      if (effects.wallpaper) {
-        backgroundStyle = {
-          backgroundImage: `url(${effects.wallpaper})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        };
-
-        // Apply blur if specified
-        if (effects.blur) {
-          backgroundStyle.filter = `blur(${effects.blur}px)`;
-        }
       }
       break;
 
     case 'blur':
-      // This would require the video to be duplicated and blurred
-      // For now, fall back to gradient
+      // Video blur background - fallback to gradient for now
       backgroundStyle = {
         background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
         filter: `blur(${effects.blur || 20}px)`
@@ -90,10 +79,14 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       break;
 
     default:
-      // Default gradient
       backgroundStyle = {
         background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)'
       };
+  }
+
+  // Apply blur filter if specified (works for wallpaper and image types)
+  if (effects.blur && effects.type !== 'blur') {
+    backgroundStyle.filter = `blur(${effects.blur}px)`;
   }
 
   return (

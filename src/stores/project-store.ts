@@ -197,7 +197,6 @@ export const useProjectStore = create<ProjectStore>()(
         // Use structuredClone for deep copy - cleaner than manual spreading
         const clipEffects = structuredClone(SCREEN_STUDIO_CLIP_EFFECTS)
         clipEffects.zoom.blocks = zoomBlocks
-        console.log('Creating clip with background:', clipEffects.background.type, 'Has wallpaper:', !!clipEffects.background.wallpaper)
 
         // Create and add clip
         const clip: Clip = {
