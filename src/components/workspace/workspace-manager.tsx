@@ -33,14 +33,14 @@ async function loadProjectRecording(
   }
 
   const project = recording.project
-  
+
   // DEBUG: Log complete project metadata
   console.log('📋 === PROJECT METADATA (Workspace) ===')
   console.log('Project ID:', project.id)
   console.log('Project Name:', project.name)
   console.log('Project Path:', recording.path)
   console.log('Total Recordings:', project.recordings?.length || 0)
-  
+
   if (project.recordings && project.recordings.length > 0) {
     project.recordings.forEach((rec: any, index: number) => {
       console.log(`\n📹 Recording ${index}:`)
@@ -50,17 +50,17 @@ async function loadProjectRecording(
       console.log('  - Video Dimensions:', rec.width || rec.videoWidth, 'x', rec.height || rec.videoHeight)
       console.log('  - Source Bounds:', rec.sourceBounds)
       console.log('  - Capture Area:', rec.captureArea)
-      
+
       if (rec.metadata && rec.metadata.length > 0) {
         console.log('  - Metadata Events:', rec.metadata.length)
         console.log('  - First Event:', rec.metadata[0])
-        
+
         // Find unique capture dimensions
-        const captureWidths = [...new Set(rec.metadata.map((m: any) => m.captureWidth).filter(Boolean))]
-        const captureHeights = [...new Set(rec.metadata.map((m: any) => m.captureHeight).filter(Boolean))]
+        const captureWidths = Array.from(new Set(rec.metadata.map((m: any) => m.captureWidth).filter(Boolean)))
+        const captureHeights = Array.from(new Set(rec.metadata.map((m: any) => m.captureHeight).filter(Boolean)))
         console.log('  - Capture Widths found:', captureWidths)
         console.log('  - Capture Heights found:', captureHeights)
-        
+
         // Check for events with sourceBounds
         const eventsWithBounds = rec.metadata.filter((m: any) => m.sourceBounds).length
         console.log('  - Events with sourceBounds:', eventsWithBounds)
@@ -68,7 +68,7 @@ async function loadProjectRecording(
     })
   }
   console.log('📋 === END PROJECT METADATA ===\n')
-  
+
   setLoadingMessage('Creating project...')
   newProject(project.name)
 
@@ -107,13 +107,13 @@ async function loadProjectRecording(
                 if (tempVideo.duration > 0 && isFinite(tempVideo.duration)) {
                   rec.duration = tempVideo.duration * 1000
                 }
-                
+
                 // Also detect video dimensions if missing
                 if (!rec.width || !rec.height) {
                   rec.width = tempVideo.videoWidth
                   rec.height = tempVideo.videoHeight
                 }
-                
+
                 resolve()
               }, { once: true })
 
@@ -171,7 +171,7 @@ async function loadProjectRecording(
 // Initialize default wallpaper on app startup
 async function initializeDefaultWallpaper() {
   if (!window.electronAPI?.loadWallpaperImage) return
-  
+
   try {
     const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
     if (dataUrl) {
@@ -180,16 +180,16 @@ async function initializeDefaultWallpaper() {
       DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
       SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
       SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
-      
+
       // Update existing clips without custom backgrounds
       const project = useProjectStore.getState().currentProject
       if (project) {
         project.timeline.tracks.forEach(track => {
           track.clips.forEach(clip => {
-            if (clip.effects?.background && 
-                !clip.effects.background.wallpaper && 
-                !clip.effects.background.image &&
-                clip.effects.background.type === 'gradient') {
+            if (clip.effects?.background &&
+              !clip.effects.background.wallpaper &&
+              !clip.effects.background.image &&
+              clip.effects.background.type === 'gradient') {
               clip.effects.background.wallpaper = dataUrl
               clip.effects.background.type = 'wallpaper'
             }
@@ -457,7 +457,7 @@ export function WorkspaceManager() {
                 // Clean up library resources before loading project
                 ThumbnailGenerator.clearCache()
                 globalBlobManager.cleanupByType('thumbnail')
-                
+
                 const success = await loadProjectRecording(
                   recording,
                   setIsLoading,
@@ -496,7 +496,7 @@ export function WorkspaceManager() {
               // Clean up current project resources
               globalBlobManager.cleanupByType('video')
               globalBlobManager.cleanupByType('export')
-              
+
               newProject('New Project')
               setLocalEffects(null)
               setHasUnsavedChanges(false)

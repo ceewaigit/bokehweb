@@ -57,11 +57,11 @@ export class ThumbnailGenerator {
         videoPath,
         { width, height, quality, timestamp }
       )
-      
+
       if (thumbnail) {
         this.cache.set(cacheKey, thumbnail)
       }
-      
+
       return thumbnail
     } catch (error) {
       logger.error('Thumbnail generation failed:', error)
@@ -84,7 +84,7 @@ export class ThumbnailGenerator {
       const video = document.createElement('video')
       video.preload = 'metadata' // Only load metadata, not full video
       video.crossOrigin = 'anonymous'
-      
+
       // Load video directly from file path
       video.src = `file://${videoPath}`
 
@@ -105,10 +105,10 @@ export class ThumbnailGenerator {
 
       video.addEventListener('loadedmetadata', () => {
         // Calculate seek time
-        const seekTime = timestamp <= 1 
+        const seekTime = timestamp <= 1
           ? video.duration * timestamp  // Percentage
           : Math.min(timestamp, video.duration) // Absolute seconds
-        
+
         video.currentTime = seekTime
       }, { once: true })
 
@@ -126,10 +126,10 @@ export class ThumbnailGenerator {
 
           // Draw video frame to canvas
           ctx.drawImage(video, 0, 0, width, height)
-          
+
           // Convert to data URL
           const dataUrl = canvas.toDataURL('image/jpeg', quality)
-          
+
           cleanup()
           resolve(dataUrl)
         } catch (error) {
@@ -171,9 +171,9 @@ export class ThumbnailGenerator {
         cleared++
       }
     })
-    
+
     keysToDelete.forEach(key => this.cache.delete(key))
-    
+
     if (cleared > 0) {
       logger.info(`Cleared ${cleared} thumbnails matching pattern: ${pattern}`)
     }
@@ -203,7 +203,7 @@ export class ThumbnailGenerator {
     for (let i = 0; i < videos.length; i += batchSize) {
       const batch = videos.slice(i, i + batchSize)
       await Promise.all(
-        batch.map(video => 
+        batch.map(video =>
           this.generateThumbnail(video.path, video.key, options)
             .catch(err => {
               logger.error(`Failed to preload thumbnail for ${video.key}:`, err)
