@@ -7,15 +7,9 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   videoWidth,
   videoHeight
 }) => {
-  // Default background if no effects specified
+  // No effects means transparent background
   if (!effects) {
-    return (
-      <AbsoluteFill
-        style={{
-          background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)'
-        }}
-      />
-    );
+    return <AbsoluteFill />;
   }
 
   // Show skeleton loader when wallpaper is selected but not loaded yet
@@ -104,11 +98,8 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       break;
 
     case 'blur':
-      // Video blur background - fallback to gradient for now
-      backgroundStyle = {
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
-        filter: `blur(${effects.blur || 20}px)`
-      };
+      // Blur type is not implemented yet - show nothing
+      backgroundStyle = {};
       break;
 
     case 'none':
@@ -118,9 +109,8 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       break;
 
     default:
-      backgroundStyle = {
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)'
-      };
+      // Unknown type - show nothing
+      backgroundStyle = {};
   }
 
   // Apply blur filter if specified (works for wallpaper and image types)
@@ -130,16 +120,6 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
 
   return (
     <AbsoluteFill style={backgroundStyle}>
-      {/* If blur background is selected and we have video, we could add a blurred video layer here */}
-      {effects.type === 'blur' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.3)' // Semi-transparent overlay for better contrast
-          }}
-        />
-      )}
     </AbsoluteFill>
   );
 };
