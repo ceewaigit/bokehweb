@@ -55,7 +55,7 @@ export function getAppURL(route: string = ''): string {
 }
 
 export function getRecordingsDirectory(): string {
-  const recordingsDir = path.join(app.getPath('documents'), 'ScreenStudio Recordings')
+  const recordingsDir = path.join(app.getPath('documents'), 'FlowCapture Recordings')
   if (!fs.existsSync(recordingsDir)) {
     fs.mkdirSync(recordingsDir, { recursive: true })
   }

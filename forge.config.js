@@ -4,8 +4,8 @@ const fs = require('fs');
 module.exports = {
   packagerConfig: {
     asar: true,
-    appBundleId: 'com.screenstudio.app',
-    name: 'Screen Studio',
+    appBundleId: 'com.flowcapture.app',
+    name: 'FlowCapture',
     executableName: 'screenstudio',
     icon: path.join(__dirname, 'assets', 'icon'),
     appCategoryType: 'public.app-category.productivity',
@@ -39,7 +39,7 @@ module.exports = {
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: 'ScreenStudio',
+        name: 'FlowCapture',
       },
     },
     {
@@ -50,7 +50,7 @@ module.exports = {
       name: '@electron-forge/maker-deb',
       config: {
         options: {
-          maintainer: 'Screen Studio Team',
+          maintainer: 'FlowCapture Team',
           homepage: 'https://screenstudio.app',
         },
       },

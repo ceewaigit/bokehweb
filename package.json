@@ -1,8 +1,8 @@
 {
-  "name": "screenstudio",
+  "name": "flowcapture",
   "version": "0.1.0",
   "description": "Professional screen recording and editing app built with Electron and Next.js",
-  "author": "Screen Studio Team",
+  "author": "FlowCapture Team",
   "private": true,
   "main": ".webpack/main",
   "homepage": "./",
@@ -115,8 +115,8 @@
     "webpack-cli": "^6.0.1"
   },
   "build": {
-    "appId": "com.screenstudio.app",
-    "productName": "Screen Studio",
+    "appId": "com.flowcapture.app",
+          "productName": "FlowCapture",
     "directories": {
       "output": "dist"
     },
@@ -128,9 +128,9 @@
     "mac": {
       "hardenedRuntime": false,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Screen Studio needs access to your microphone to record audio with screen recordings.",
-        "NSCameraUsageDescription": "Screen Studio needs access to your camera for video recording features.",
-        "NSScreenCaptureDescription": "Screen Studio needs access to record your screen to create recordings.",
+        "NSMicrophoneUsageDescription": "FlowCapture needs access to your microphone to record audio with screen recordings.",
+        "NSCameraUsageDescription": "FlowCapture needs access to your camera for video recording features.",
+        "NSScreenCaptureDescription": "FlowCapture needs access to record your screen to create recordings.",
         "com.apple.security.device.audio-input": true,
         "com.apple.security.device.camera": true
       }

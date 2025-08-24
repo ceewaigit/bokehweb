@@ -9,7 +9,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Screen Studio",
+  title: "FlowCapture",
   description: "Professional screen recording and editing tool",
   icons: {
     icon: "/favicon.svg",

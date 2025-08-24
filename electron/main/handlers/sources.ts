@@ -62,8 +62,8 @@ export function registerSourceHandlers(): void {
             const result = await dialog.showMessageBox(parentWindow, {
               type: 'warning',
               title: 'Screen Recording Permission Required',
-              message: 'Screen Studio needs permission to record your screen.',
-              detail: 'To enable screen recording:\n\n1. Open System Preferences\n2. Go to Security & Privacy > Privacy\n3. Select Screen Recording\n4. Check the box next to Screen Studio\n5. Restart Screen Studio\n\nClick "Open System Preferences" to go there now.',
+              message: 'FlowCapture needs permission to record your screen.',
+              detail: 'To enable screen recording:\n\n1. Open System Settings\n2. Go to Privacy & Security > Screen Recording\n3. Check the box next to FlowCapture\n4. Restart FlowCapture if needed\n\nClick "Open System Settings" to go there now.',
               buttons: ['Open System Preferences', 'Cancel'],
               defaultId: 0,
               cancelId: 1

@@ -85,7 +85,7 @@ export function registerMouseTrackingHandlers(): void {
               type: 'info',
               title: 'Enable Cursor Detection',
               message: 'Grant accessibility permissions for accurate cursor detection',
-              detail: 'This allows Screen Studio to detect when your cursor changes to text selection, pointer, and other states during recording.\n\nYou\'ll need to:\n1. Click "Open Settings"\n2. Find Screen Studio or Electron in the list\n3. Toggle it ON\n4. Restart recording',
+              detail: 'This allows FlowCapture to detect when your cursor changes to text selection, pointer, and other states during recording.\n\nYou\'ll need to:\n1. Click "Open Settings"\n2. Find FlowCapture or Electron in the list\n3. Toggle it ON\n4. Restart recording',
               buttons: ['Open Settings', 'Continue Without'],
               defaultId: 0,
               cancelId: 1,
