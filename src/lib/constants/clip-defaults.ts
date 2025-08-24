@@ -14,7 +14,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
     smoothing: 0.1
   },
   cursor: {
-    enabled: false,  // Cursor hidden by default
+    enabled: true,
     style: 'default',
     size: 4.0,
     color: '#ffffff',
@@ -24,12 +24,12 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
     idleTimeout: 3000
   },
   background: {
-    type: 'wallpaper',  // Default to wallpaper, will show skeleton until loaded
+    type: 'wallpaper',
     gradient: {
       colors: ['#2D3748', '#1A202C'], // Fallback gradient if needed
       angle: 135
     },
-    wallpaper: undefined,  // Will be filled when loaded
+    wallpaper: undefined,
     padding: 60
   },
   video: {
@@ -53,7 +53,7 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
     smoothing: 0.1
   },
   cursor: {
-    enabled: false,  // Cursor hidden by default (user can enable if needed)
+    enabled: true,
     style: 'macOS',
     size: 4.0,
     color: '#ffffff',
@@ -63,12 +63,12 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
     idleTimeout: 3000
   },
   background: {
-    type: 'wallpaper',  // Default to wallpaper, will show skeleton until loaded
+    type: 'wallpaper',
     gradient: {
       colors: ['#2D3748', '#1A202C'], // Fallback gradient if needed
       angle: 135
     },
-    wallpaper: undefined,  // Will be filled when loaded
+    wallpaper: undefined,
     padding: 120
   },
   video: {

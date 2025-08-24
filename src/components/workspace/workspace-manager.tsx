@@ -197,15 +197,17 @@ async function initializeDefaultWallpaper() {
               !clip.effects.background.wallpaper &&
               !clip.effects.background.image) {
               console.log('🔄 Updating clip background to wallpaper')
-              clip.effects.background.wallpaper = dataUrl
-              clip.effects.background.type = 'wallpaper'
+              useProjectStore.getState().updateClipEffectCategory(
+                clip.id,
+                'background',
+                { wallpaper: dataUrl, type: 'wallpaper' }
+              )
               updated = true
             }
           })
         })
         if (updated) {
           console.log('💾 Saving project with wallpaper updates')
-          useProjectStore.getState().setProject(project)
         }
       } else {
         console.log('📋 No current project to update')
@@ -257,15 +259,17 @@ export function WorkspaceManager() {
           if (clip.effects?.background &&
             !clip.effects.background.wallpaper &&
             !clip.effects.background.image) {
-            clip.effects.background.wallpaper = defaultWallpaperUrl
-            clip.effects.background.type = 'wallpaper'
+            useProjectStore.getState().updateClipEffectCategory(
+              clip.id,
+              'background',
+              { wallpaper: defaultWallpaperUrl, type: 'wallpaper' }
+            )
             updated = true
           }
         })
       })
       if (updated) {
-        // Force update through store
-        useProjectStore.getState().setProject(currentProject)
+        // Updates applied via store
       }
     }
   }, [currentProject?.id, defaultWallpaperUrl])

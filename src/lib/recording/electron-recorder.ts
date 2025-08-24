@@ -92,14 +92,10 @@ export class ElectronRecorder {
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id,
-            // Try different methods to hide the cursor
-            // 'motion' only shows cursor when moving, 'never' should hide always
-            // but these don't work reliably in all Electron versions
-            cursor: 'never',
-            // Also try alternate property names
-            cursorHidden: true
-          }
+            chromeMediaSourceId: primarySource.id
+          },
+          // Apply cursor constraint at the correct level
+          cursor: 'never'
         }
       }
 
@@ -125,6 +121,14 @@ export class ElectronRecorder {
       const videoTrack = this.stream.getVideoTracks()[0]
       if (!videoTrack) {
         throw new Error('No video track found in stream')
+      }
+
+      // Fallback: attempt to hide cursor at the track level as some Chromium builds ignore the constraint on getUserMedia
+      try {
+        // @ts-expect-error non-standard constraint but supported by Chromium for display capture
+        await videoTrack.applyConstraints({ cursor: 'never' })
+      } catch (err) {
+        logger.warn('Unable to apply cursor constraint at track level:', err)
       }
 
       // Create MediaRecorder

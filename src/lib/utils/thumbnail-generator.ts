@@ -123,10 +123,40 @@ export class ThumbnailGenerator {
       video.addEventListener('error', handleError, { once: true })
 
       video.addEventListener('loadedmetadata', () => {
-        // Calculate seek time
-        const seekTime = timestamp <= 1
-          ? video.duration * timestamp  // Percentage
-          : Math.min(timestamp, video.duration) // Absolute seconds
+        // Calculate a safe seek time that is always finite
+        const hasFiniteDuration = Number.isFinite(video.duration) && video.duration > 0
+        const normalizedTimestamp = (
+          typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp >= 0
+        ) ? timestamp : 0
+
+        let seekableEnd = 0
+        try {
+          if (video.seekable && video.seekable.length > 0) {
+            seekableEnd = video.seekable.end(video.seekable.length - 1)
+          }
+        } catch (_err) {
+          // ignore seekable access errors
+        }
+
+        const referenceDuration = hasFiniteDuration ? video.duration : seekableEnd
+
+        let seekTime = 0
+        if (normalizedTimestamp <= 1) {
+          seekTime = referenceDuration > 0 ? referenceDuration * normalizedTimestamp : 0
+        } else {
+          const maxTime = referenceDuration > 0 ? referenceDuration : 0
+          seekTime = maxTime > 0 ? Math.min(normalizedTimestamp, Math.max(0, maxTime - 0.001)) : 0
+        }
+
+        if (!Number.isFinite(seekTime) || seekTime < 0) {
+          logger.warn('Non-finite seekTime detected, defaulting to 0', { duration: video.duration, timestamp })
+          seekTime = 0
+        }
+
+        // Nudge slightly off zero so 'seeked' is guaranteed to fire
+        if (seekTime === 0 && referenceDuration > 0.01) {
+          seekTime = 0.001
+        }
 
         video.currentTime = seekTime
       }, { once: true })
