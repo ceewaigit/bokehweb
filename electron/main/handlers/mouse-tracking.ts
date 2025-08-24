@@ -148,8 +148,14 @@ export function registerMouseTrackingHandlers(): void {
             if (cursorDetector) {
               try {
                 cursorType = cursorDetector.getCurrentCursorType()
+                
+                // Log cursor changes
+                if ((global as any).lastLoggedCursor !== cursorType) {
+                  console.log(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${cursorType}`)
+                  ;(global as any).lastLoggedCursor = cursorType
+                }
               } catch (err) {
-                // Silent fallback to default
+                console.error('[CURSOR] Detection error:', err)
               }
             }
             
@@ -161,7 +167,11 @@ export function registerMouseTrackingHandlers(): void {
               )
               
               if (dragDistance > 5) {
+                const originalType = cursorType
                 cursorType = 'grabbing'
+                if (originalType !== 'grabbing') {
+                  console.log(`[CURSOR] Override to grabbing (was ${originalType})`)
+                }
               }
             }
 
