@@ -29,12 +29,15 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    // No hardcoded size - let content determine everything
-    width: 1,
-    height: 1,
-    x: Math.floor(display.workAreaSize.width / 2), // Center horizontally
+    // Start with reasonable minimum to avoid sizing issues
+    width: 300,
+    height: 60,
+    minWidth: 200,
+    minHeight: 50,
+    x: Math.floor(display.workAreaSize.width / 2 - 150), // Center horizontally
     y: 20,
-    type: process.platform === 'darwin' ? 'panel' : undefined, // Native NSPanel on macOS
+    // Don't use panel type - it can cause sizing issues
+    // type: process.platform === 'darwin' ? 'panel' : undefined,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -73,62 +76,42 @@ export function createRecordButton(): BrowserWindow {
   // Don't ignore mouse events - we need interaction
   recordButton.setIgnoreMouseEvents(false)
   
-  // Auto-resize window based on content
+  // Auto-resize window based on actual content size
   recordButton.webContents.on('did-finish-load', () => {
-    console.log('🔄 Setting up auto-resize for record button')
+    console.log('🔄 Setting up content-based auto-resize')
     
-    // Inject auto-sizing logic
     recordButton.webContents.executeJavaScript(`
-      let resizeTimeout = null;
-      let lastWidth = 0;
-      let lastHeight = 0;
-      
-      // Debounced resize function for smooth transitions
-      const autoResize = () => {
-        const content = document.body.firstElementChild;
-        if (!content) return;
+      // Get the actual size of the content
+      const measureContent = () => {
+        const content = document.querySelector('body > div');
+        if (!content) return null;
         
         const rect = content.getBoundingClientRect();
-        const width = Math.ceil(rect.width);
-        const height = Math.ceil(rect.height);
-        
-        // Only resize if dimensions actually changed
-        if (width !== lastWidth || height !== lastHeight) {
-          if (width > 0 && height > 0) {
-            lastWidth = width;
-            lastHeight = height;
-            
-            // Use requestAnimationFrame for smooth resize
-            requestAnimationFrame(() => {
-              window.electronAPI?.setWindowContentSize({ width, height });
-            });
-          }
+        return {
+          width: Math.max(200, Math.ceil(rect.width)),
+          height: Math.max(50, Math.ceil(rect.height))
+        };
+      };
+      
+      // Resize the window to fit content
+      const resizeToContent = () => {
+        const size = measureContent();
+        if (size && size.width > 0 && size.height > 0) {
+          window.electronAPI?.setWindowContentSize(size);
         }
       };
       
-      // Debounce resize calls
-      const debouncedResize = () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(autoResize, 16); // ~60fps
-      };
-      
-      // Watch for size changes with ResizeObserver
-      const resizeObserver = new ResizeObserver(debouncedResize);
-      if (document.body.firstElementChild) {
-        resizeObserver.observe(document.body.firstElementChild);
+      // Use ResizeObserver for efficient monitoring
+      const content = document.querySelector('body > div');
+      if (content) {
+        const observer = new ResizeObserver(() => {
+          requestAnimationFrame(resizeToContent);
+        });
+        observer.observe(content);
+        
+        // Initial resize
+        setTimeout(resizeToContent, 100);
       }
-      
-      // Watch for DOM changes but debounce them
-      const mutationObserver = new MutationObserver(debouncedResize);
-      mutationObserver.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'style']
-      });
-      
-      // Initial resize
-      autoResize();
     `);
   })
 
@@ -158,30 +141,8 @@ export function setupRecordButton(recordButton: BrowserWindow): void {
 
   recordButton.once('ready-to-show', () => {
     console.log('✅ Record button ready to show')
-    
-    // Get initial content size before showing
-    recordButton.webContents.executeJavaScript(`
-      (() => {
-        const content = document.body.firstElementChild;
-        if (content) {
-          const rect = content.getBoundingClientRect();
-          return { width: Math.ceil(rect.width), height: Math.ceil(rect.height) };
-        }
-        return { width: 280, height: 56 }; // Fallback size
-      })()
-    `).then((size) => {
-      // Set the window size based on content before showing
-      recordButton.setContentSize(size.width, size.height)
-      
-      // Center the window based on actual size
-      const display = require('electron').screen.getPrimaryDisplay()
-      const x = Math.floor(display.workAreaSize.width / 2 - size.width / 2)
-      recordButton.setPosition(x, 20)
-      
-      // Now show the properly sized window
-      recordButton.show()
-      recordButton.focus()
-    })
+    recordButton.show()
+    recordButton.focus()
 
     if (process.env.TEST_AUTO_RECORD === 'true') {
       setTimeout(() => {
