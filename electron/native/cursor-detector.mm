@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
+#import <ApplicationServices/ApplicationServices.h>
 #include <napi.h>
 #import <string>
 
@@ -44,27 +45,99 @@ std::string NSCursorToString(NSCursor* cursor) {
     return "default";
 }
 
+// Check if we have accessibility permissions
+bool HasAccessibilityPermissions() {
+    return AXIsProcessTrusted();
+}
+
+// Request accessibility permissions if needed
+bool RequestAccessibilityPermissions() {
+    if (!HasAccessibilityPermissions()) {
+        // This will prompt the user to grant accessibility permissions
+        NSDictionary* options = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
+        return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
+    }
+    return true;
+}
+
+// Get cursor type using Accessibility API
+std::string GetCursorTypeFromAccessibility() {
+    if (!HasAccessibilityPermissions()) {
+        return "default";
+    }
+    
+    // Get the element under the mouse
+    CGPoint mouseLocation;
+    CGEventRef event = CGEventCreate(NULL);
+    mouseLocation = CGEventGetLocation(event);
+    CFRelease(event);
+    
+    AXUIElementRef systemWideElement = AXUIElementCreateSystemWide();
+    AXUIElementRef elementUnderMouse = NULL;
+    
+    AXError error = AXUIElementCopyElementAtPosition(systemWideElement, 
+                                                      mouseLocation.x, 
+                                                      mouseLocation.y, 
+                                                      &elementUnderMouse);
+    
+    std::string cursorType = "default";
+    
+    if (error == kAXErrorSuccess && elementUnderMouse) {
+        // Get the role of the element
+        CFTypeRef role = NULL;
+        AXUIElementCopyAttributeValue(elementUnderMouse, kAXRoleAttribute, &role);
+        
+        if (role) {
+            NSString* roleString = (__bridge NSString*)role;
+            
+            // Detect cursor type based on element role
+            if ([roleString isEqualToString:(__bridge NSString*)kAXTextFieldRole] ||
+                [roleString isEqualToString:(__bridge NSString*)kAXTextAreaRole] ||
+                [roleString isEqualToString:@"AXWebArea"] ||
+                [roleString containsString:@"Text"]) {
+                cursorType = "text";
+            } else if ([roleString isEqualToString:(__bridge NSString*)kAXLinkRole] ||
+                       [roleString isEqualToString:(__bridge NSString*)kAXButtonRole]) {
+                cursorType = "pointer";
+            } else if ([roleString isEqualToString:(__bridge NSString*)kAXSliderRole] ||
+                       [roleString isEqualToString:(__bridge NSString*)kAXScrollBarRole]) {
+                cursorType = "grab";
+            }
+            
+            CFRelease(role);
+        }
+        
+        CFRelease(elementUnderMouse);
+    }
+    
+    CFRelease(systemWideElement);
+    
+    return cursorType;
+}
+
 // N-API function to get current cursor type
 Napi::String GetCurrentCursorType(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
     @autoreleasepool {
-        // Get the current cursor - this is the most reliable method
-        NSCursor* currentCursor = [NSCursor currentCursor];
+        std::string cursorType = "default";
         
-        // Log what we're detecting for debugging
-        if (currentCursor == [NSCursor IBeamCursor]) {
-            NSLog(@"Detected I-Beam cursor!");
-        }
-        
-        // Convert to string
-        std::string cursorType = NSCursorToString(currentCursor);
-        
-        // Log the result
-        static std::string lastLoggedType = "";
-        if (cursorType != lastLoggedType) {
-            NSLog(@"Cursor type changed: %s -> %s", lastLoggedType.c_str(), cursorType.c_str());
-            lastLoggedType = cursorType;
+        // First try Accessibility API if we have permissions
+        if (HasAccessibilityPermissions()) {
+            cursorType = GetCursorTypeFromAccessibility();
+        } else {
+            // Fall back to NSCursor detection
+            NSCursor* currentCursor = [NSCursor currentCursor];
+            
+            if (!currentCursor) {
+                currentCursor = [NSCursor currentSystemCursor];
+            }
+            
+            if (!currentCursor) {
+                currentCursor = [NSCursor arrowCursor];
+            }
+            
+            cursorType = NSCursorToString(currentCursor);
         }
         
         return Napi::String::New(env, cursorType);
@@ -84,12 +157,28 @@ Napi::String GetCursorAtPoint(const Napi::CallbackInfo& info) {
     return GetCurrentCursorType(info);
 }
 
+// N-API function to check accessibility permissions
+Napi::Boolean CheckAccessibilityPermissions(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    return Napi::Boolean::New(env, HasAccessibilityPermissions());
+}
+
+// N-API function to request accessibility permissions
+Napi::Boolean RequestAccessibilityPermissionsAPI(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    return Napi::Boolean::New(env, RequestAccessibilityPermissions());
+}
+
 // Initialize the module
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "getCurrentCursorType"),
                 Napi::Function::New(env, GetCurrentCursorType));
     exports.Set(Napi::String::New(env, "getCursorAtPoint"),
                 Napi::Function::New(env, GetCursorAtPoint));
+    exports.Set(Napi::String::New(env, "hasAccessibilityPermissions"),
+                Napi::Function::New(env, CheckAccessibilityPermissions));
+    exports.Set(Napi::String::New(env, "requestAccessibilityPermissions"),
+                Napi::Function::New(env, RequestAccessibilityPermissionsAPI));
     return exports;
 }
 

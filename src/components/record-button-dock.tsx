@@ -34,7 +34,6 @@ export function RecordButtonDock() {
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [sources, setSources] = useState<Source[]>([])
-  const [loadingSources, setLoadingSources] = useState(false)
   const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
 
@@ -79,7 +78,6 @@ export function RecordButtonDock() {
       return
     }
 
-    setLoadingSources(true)
     try {
       const desktopSources = await window.electronAPI.getDesktopSources({
         types: ['screen', 'window'],
@@ -121,8 +119,6 @@ export function RecordButtonDock() {
       }
     } catch (error) {
       logger.error('Failed to load desktop sources:', error)
-    } finally {
-      setLoadingSources(false)
     }
   }, [])
 
@@ -189,21 +185,22 @@ export function RecordButtonDock() {
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', damping: 18, stiffness: 250 }}
       className={cn(
-        "relative flex flex-col",
+        "relative inline-flex flex-col",
         "bg-background/95 backdrop-blur-xl",
         "rounded-xl border border-border",
         "shadow-lg dark:shadow-2xl",
-        isRecording && "ring-2 ring-destructive/40",
-        // Intrinsic sizing - no fixed widths
-        "w-fit h-fit"
+        isRecording && "ring-2 ring-destructive/40"
       )}
       style={{ 
         // Make the dock draggable
         ['WebkitAppRegion' as any]: 'drag',
         cursor: 'move',
-        // Ensure content determines size
-        width: 'fit-content',
-        height: 'fit-content'
+        // Ensure content determines size with no extra space
+        width: 'auto',
+        height: 'auto',
+        display: 'inline-flex',
+        margin: 0,
+        padding: 0
       }}
     >
       {/* Main Dock Bar - Compact Design */}

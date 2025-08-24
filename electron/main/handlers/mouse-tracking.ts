@@ -18,6 +18,18 @@ if (process.platform === 'darwin') {
   try {
     cursorDetector = require(path.join(__dirname, '../../../build/Release/cursor_detector.node'))
     console.log('Native cursor detector loaded')
+    
+    // Check accessibility permissions
+    if (cursorDetector.hasAccessibilityPermissions) {
+      const hasPermissions = cursorDetector.hasAccessibilityPermissions()
+      if (!hasPermissions) {
+        console.log('Requesting accessibility permissions for better cursor detection...')
+        cursorDetector.requestAccessibilityPermissions()
+        console.log('Please grant accessibility permissions in System Settings > Privacy & Security > Accessibility')
+      } else {
+        console.log('Accessibility permissions granted - enhanced cursor detection enabled')
+      }
+    }
   } catch (error) {
     console.error('Failed to load cursor detector:', error)
   }

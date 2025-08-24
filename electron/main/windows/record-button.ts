@@ -29,15 +29,12 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    // Start with reasonable minimum to avoid sizing issues
-    width: 300,
-    height: 60,
-    minWidth: 200,
-    minHeight: 50,
-    x: Math.floor(display.workAreaSize.width / 2 - 150), // Center horizontally
+    width: 200,
+    height: 50,
+    minWidth: 180,
+    minHeight: 40,
+    x: Math.floor(display.workAreaSize.width / 2 - 100),
     y: 20,
-    // Don't use panel type - it can cause sizing issues
-    // type: process.platform === 'darwin' ? 'panel' : undefined,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -48,11 +45,8 @@ export function createRecordButton(): BrowserWindow {
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    hasShadow: true,
+    hasShadow: false,
     show: false,
-    roundedCorners: true,
-    vibrancy: 'hud', // Native macOS HUD style
-    visualEffectState: 'active',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -86,10 +80,21 @@ export function createRecordButton(): BrowserWindow {
         const content = document.querySelector('body > div');
         if (!content) return null;
         
+        // Force layout recalculation
+        content.style.display = 'none';
+        content.offsetHeight; // Trigger reflow
+        content.style.display = '';
+        
         const rect = content.getBoundingClientRect();
+        const computedStyle = window.getComputedStyle(content);
+        const width = Math.ceil(rect.width);
+        const height = Math.ceil(rect.height);
+        
+        console.log('📏 Measured content:', width, 'x', height);
+        
         return {
-          width: Math.max(200, Math.ceil(rect.width)),
-          height: Math.max(50, Math.ceil(rect.height))
+          width: Math.max(180, width),
+          height: Math.max(40, height)
         };
       };
       
@@ -97,6 +102,7 @@ export function createRecordButton(): BrowserWindow {
       const resizeToContent = () => {
         const size = measureContent();
         if (size && size.width > 0 && size.height > 0) {
+          console.log('📐 Resizing window to:', size);
           window.electronAPI?.setWindowContentSize(size);
         }
       };
@@ -109,8 +115,12 @@ export function createRecordButton(): BrowserWindow {
         });
         observer.observe(content);
         
-        // Initial resize
+        // Aggressive initial resize attempts
+        resizeToContent(); // Immediate
+        setTimeout(resizeToContent, 0);
+        setTimeout(resizeToContent, 50);
         setTimeout(resizeToContent, 100);
+        setTimeout(resizeToContent, 200);
       }
     `);
   })
@@ -143,28 +153,7 @@ export function setupRecordButton(recordButton: BrowserWindow): void {
     console.log('✅ Record button ready to show')
     recordButton.show()
     recordButton.focus()
-
-    if (process.env.TEST_AUTO_RECORD === 'true') {
-      setTimeout(() => {
-        console.log('[TEST] Auto-clicking record button...')
-        recordButton.webContents.executeJavaScript(`
-          const button = document.querySelector('button');
-          if (button && button.textContent.includes('Start Recording')) {
-            button.click();
-            console.log('[TEST] Clicked Start Recording button');
-          }
-        `)
-      }, 3000)
-    }
   })
-
-  setTimeout(() => {
-    if (!recordButton.isVisible()) {
-      console.log('⚠️ Force showing record button')
-      recordButton.show()
-      recordButton.focus()
-    }
-  }, 2000)
 
   recordButton.webContents.on('did-finish-load', () => {
     console.log('📄 Record button content loaded')
