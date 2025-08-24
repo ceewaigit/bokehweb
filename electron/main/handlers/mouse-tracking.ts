@@ -16,9 +16,22 @@ try {
 let cursorDetector: any = null
 if (process.platform === 'darwin') {
   console.log('Platform is macOS, attempting to load cursor detector...')
-  console.log('Looking for module at:', path.join(__dirname, '../../../build/Release/cursor_detector.node'))
+  
+  // Different paths for development vs production
+  let modulePath: string
+  if (process.env.NODE_ENV === 'development' || __dirname.includes('.webpack')) {
+    // In webpack/development, use absolute path from app root
+    const app = require('electron').app
+    modulePath = path.join(app.getAppPath(), 'build', 'Release', 'cursor_detector.node')
+  } else {
+    // In production, relative to the current module
+    modulePath = path.join(__dirname, '../../../build/Release/cursor_detector.node')
+  }
+  
+  console.log('Looking for module at:', modulePath)
+  
   try {
-    cursorDetector = require(path.join(__dirname, '../../../build/Release/cursor_detector.node'))
+    cursorDetector = require(modulePath)
     console.log('✅ Native cursor detector loaded successfully')
     
     // Check if we have permissions on load
