@@ -22,14 +22,10 @@ try {
       console.log('Native module loaded successfully')
       
       nativeRecorder = new nativeModule.NativeScreenRecorder()
+      console.log('✅ Native ScreenCaptureKit recorder loaded - cursor will be hidden!')
       
-      // Check if ScreenCaptureKit is available (macOS 12.3+)
-      if (nativeRecorder.isAvailable()) {
-        console.log('✅ Native ScreenCaptureKit recorder loaded - cursor will be hidden!')
-      } else {
-        console.log('⚠️ ScreenCaptureKit requires macOS 12.3 or later')
-        nativeRecorder = null
-      }
+      // Note: We skip the isAvailable() check because it doesn't work correctly
+      // in Node.js context. We rely on the try/catch to handle unsupported systems.
     } catch (err) {
       console.error('⚠️ Native screen recorder module not found:', err)
       console.log('Module path tried:', path.join(__dirname, '../../../../build/Release/screencapture_kit.node'))
