@@ -12,17 +12,6 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
     return <AbsoluteFill />;
   }
 
-  // Show skeleton loader when wallpaper is selected but not loaded yet
-  if (effects.type === 'wallpaper' && !effects.wallpaper) {
-    return (
-      <AbsoluteFill
-        style={{
-          backgroundColor: '#1a1a2e'
-        }}
-      />
-    );
-  }
-
   // Handle different background types
   let backgroundStyle: React.CSSProperties = {};
 

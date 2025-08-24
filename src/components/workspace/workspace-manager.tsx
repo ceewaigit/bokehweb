@@ -172,24 +172,6 @@ async function initializeDefaultWallpaper() {
       DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
       SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper = dataUrl
       SCREEN_STUDIO_CLIP_EFFECTS.background.type = 'wallpaper'
-
-      // Update ALL existing clips that don't have a custom wallpaper or image
-      const project = useProjectStore.getState().currentProject
-      if (project) {
-        project.timeline.tracks.forEach(track => {
-          track.clips.forEach(clip => {
-            if (clip.effects?.background &&
-              !clip.effects.background.wallpaper &&
-              !clip.effects.background.image) {
-              useProjectStore.getState().updateClipEffectCategory(
-                clip.id,
-                'background',
-                { wallpaper: dataUrl, type: 'wallpaper' }
-              )
-            }
-          })
-        })
-      }
     }
     
     // Resolve the wallpaper initialization promise
@@ -228,28 +210,7 @@ export function WorkspaceManager() {
     initializeDefaultWallpaper().then(() => {
       setWallpaperInitialized(true)
       
-      // Also update any existing clips that were created before wallpaper loaded
-      const project = useProjectStore.getState().currentProject
-      if (project) {
-        const wallpaper = DEFAULT_CLIP_EFFECTS.background.wallpaper
-        if (wallpaper) {
-          project.timeline.tracks.forEach(track => {
-            track.clips.forEach(clip => {
-              // Only update if the clip is using defaults (no custom wallpaper/image)
-              if (clip.effects?.background && 
-                  !clip.effects.background.wallpaper && 
-                  !clip.effects.background.image &&
-                  clip.effects.background.type === 'wallpaper') {
-                useProjectStore.getState().updateClipEffectCategory(
-                  clip.id,
-                  'background',
-                  { wallpaper, type: 'wallpaper' }
-                )
-              }
-            })
-          })
-        }
-      }
+      // No need to update existing clips here - they'll get updated when projects load
     })
   }, [])
 
