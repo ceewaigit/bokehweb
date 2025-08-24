@@ -164,12 +164,15 @@ export class ThumbnailGenerator {
 
     // Clear specific pattern
     let cleared = 0
-    for (const [key, _] of this.cache) {
+    const keysToDelete: string[] = []
+    this.cache.forEach((_, key) => {
       if (key.includes(pattern)) {
-        this.cache.delete(key)
+        keysToDelete.push(key)
         cleared++
       }
-    }
+    })
+    
+    keysToDelete.forEach(key => this.cache.delete(key))
     
     if (cleared > 0) {
       logger.info(`Cleared ${cleared} thumbnails matching pattern: ${pattern}`)
