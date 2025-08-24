@@ -8,7 +8,11 @@ export function getAppURL(route: string = ''): string {
   if (isDev && !process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
     // Development mode with Next.js dev server
     const devServerUrl = process.env.DEV_SERVER_URL || 'http://localhost:3000'
-    return `${devServerUrl}${route}`
+    // Use hash routing for client-side navigation
+    if (route) {
+      return `${devServerUrl}#${route}`
+    }
+    return devServerUrl
   }
 
   // For webpack builds (both dev and production)

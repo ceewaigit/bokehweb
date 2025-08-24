@@ -17,7 +17,7 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { ClipEffects, ZoomBlock } from '@/types/project'
-import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS, resolveWallpaperInit } from '@/lib/constants/clip-defaults'
+import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS, resolveWallpaperInit, getWallpaperInitPromise } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 // Extract project loading logic to reduce component complexity
@@ -31,6 +31,9 @@ async function loadProjectRecording(
     alert('This video file does not have an associated project. Please load a .screencast project file instead.')
     return false
   }
+
+  // Ensure wallpaper is initialized before loading project
+  await getWallpaperInitPromise()
 
   const project = recording.project
 
@@ -122,6 +125,26 @@ async function loadProjectRecording(
 
   // Set the project ONCE after all recordings are processed
   useProjectStore.getState().setProject(project)
+
+  // Apply wallpaper to all clips that need it
+  const wallpaper = DEFAULT_CLIP_EFFECTS.background.wallpaper || 
+                    SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper
+  if (wallpaper) {
+    project.timeline.tracks.forEach((track: any) => {
+      track.clips.forEach((clip: any) => {
+        // Update clips that have wallpaper type but no wallpaper data
+        if (clip.effects?.background && 
+            clip.effects.background.type === 'wallpaper' &&
+            !clip.effects.background.wallpaper) {
+          useProjectStore.getState().updateClipEffectCategory(
+            clip.id,
+            'background',
+            { wallpaper, type: 'wallpaper' }
+          )
+        }
+      })
+    })
+  }
 
   const firstClip = project.timeline.tracks
     .flatMap((t: any) => t.clips)
@@ -496,7 +519,10 @@ export function WorkspaceManager() {
             project={currentProject}
             onToggleProperties={handleToggleProperties}
             onExport={handleExport}
-            onNewProject={() => {
+            onNewProject={async () => {
+              // Ensure wallpaper is loaded
+              await getWallpaperInitPromise()
+              
               // Clean up current project resources
               globalBlobManager.cleanupByType('video')
               globalBlobManager.cleanupByType('export')
