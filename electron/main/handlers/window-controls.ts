@@ -24,17 +24,29 @@ export function registerWindowControlHandlers(): void {
           if (global.mainWindow) {
             global.mainWindow.show()
             global.mainWindow.focus()
+            // Hide record button when main window is shown
+            if (global.recordButton) {
+              global.recordButton.hide()
+            }
           }
         })
         
         global.mainWindow.on('closed', () => {
           console.log('[WindowControls] Main window closed')
           global.mainWindow = null
+          // Show record button when main window is closed
+          if (global.recordButton && !global.recordButton.isDestroyed()) {
+            global.recordButton.show()
+          }
         })
       } else {
         console.log('[WindowControls] Showing existing main window')
         global.mainWindow.show()
         global.mainWindow.focus()
+        // Hide record button when main window is shown
+        if (global.recordButton) {
+          global.recordButton.hide()
+        }
       }
     } catch (error) {
       console.error('[WindowControls] Failed to open workspace:', error)

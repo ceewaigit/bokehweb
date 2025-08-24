@@ -525,10 +525,9 @@ export function EffectsSidebar({
             <div className="pt-3 border-t border-border/30">
               <button
                 onClick={() => {
-                  // Trigger zoom detection reset
+                  // Trigger zoom detection reset - keep existing blocks until new ones are generated
                   updateEffect('zoom', {
                     ...effects.zoom,
-                    blocks: [], // Clear existing blocks
                     regenerate: Date.now() // Add timestamp to trigger regeneration
                   })
                 }}
@@ -537,7 +536,7 @@ export function EffectsSidebar({
                 Reset Zoom Detection
               </button>
               <p className="text-[9px] text-muted-foreground/60 mt-1.5 italic">
-                Re-analyze movements
+                Re-analyze mouse movements
               </p>
             </div>
 

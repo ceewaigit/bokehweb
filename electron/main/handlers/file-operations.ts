@@ -65,19 +65,14 @@ export function registerFileOperationHandlers(): void {
   })
 
   // Get a URL that can be used to stream video files
-  // This uses the custom video-stream protocol to serve local files
   ipcMain.handle('get-video-url', async (_event: IpcMainInvokeEvent, filePath: string) => {
     try {
-      // Check if file exists
-      await fs.access(filePath)
+      const normalizedPath = path.resolve(filePath)
+      await fs.access(normalizedPath)
       
-      // Return a video-stream:// URL that our custom protocol will handle
-      // This bypasses CORS restrictions and allows streaming local files
-      const videoUrl = `video-stream://${encodeURIComponent(filePath)}`
-      
-      return videoUrl
+      // Return video-stream URL for our custom protocol
+      return `video-stream://${encodeURIComponent(normalizedPath)}`
     } catch (error) {
-      console.error('[FileOps] Error getting video URL:', error)
       return null
     }
   })

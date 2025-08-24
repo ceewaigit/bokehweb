@@ -78,7 +78,6 @@ export function RecordButtonDock() {
   // Load sources when picker opens
   const loadSources = useCallback(async () => {
     const startTime = performance.now()
-    console.log('🚀 [PERF] Starting source load...')
 
     if (!window.electronAPI?.getDesktopSources) {
       logger.error('Desktop sources API not available')
@@ -86,7 +85,6 @@ export function RecordButtonDock() {
     }
 
     try {
-      console.log('🔍 [PERF] Calling getDesktopSources...')
       const sourcesStartTime = performance.now()
 
       const desktopSources = await window.electronAPI.getDesktopSources({
@@ -94,7 +92,6 @@ export function RecordButtonDock() {
         thumbnailSize: { width: 1, height: 1 }  // We don't show thumbnails, so minimize size
       })
 
-      console.log(`📊 [PERF] getDesktopSources took: ${performance.now() - sourcesStartTime}ms`)
 
       const mappedSources: Source[] = desktopSources.map(source => ({
         id: source.id,
@@ -130,16 +127,13 @@ export function RecordButtonDock() {
         setSelectedSourceId(firstScreen.id)
       }
 
-      console.log(`✅ [PERF] Total source load time: ${performance.now() - startTime}ms`)
     } catch (error) {
       logger.error('Failed to load desktop sources:', error)
-      console.log(`❌ [PERF] Failed after: ${performance.now() - startTime}ms`)
     }
   }, [])
 
   // Preload sources on component mount for instant display
   useEffect(() => {
-    console.log('🎯 [PERF] Component mounted, preloading sources...')
     loadSources()
   }, [loadSources])
 
@@ -155,9 +149,6 @@ export function RecordButtonDock() {
       } else if (isRecording) {
         targetSize = { width: 250, height: 67 }   // Recording size (wider for timer)
       }
-
-      console.log(`📐 [RESIZE] Resizing to ${targetSize.width}x${targetSize.height} for state:`,
-        { showSourcePicker, isRecording })
 
       await window.electronAPI.setWindowContentSize(targetSize)
     }
@@ -176,7 +167,6 @@ export function RecordButtonDock() {
   // The window auto-sizes based on content via ResizeObserver in main process
 
   const handleStartRecording = () => {
-    console.log('🔴 [PERF] Record button clicked!')
     // Show the source picker inline
     setShowSourcePicker(true)
   }

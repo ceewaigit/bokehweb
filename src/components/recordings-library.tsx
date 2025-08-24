@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Play, Trash2, Clock, HardDrive, FileJson, Layers, Download, RefreshCw, Loader2 } from 'lucide-react'
+import { Film, Play, Trash2, Clock, HardDrive, FileJson, Layers, Download, RefreshCw, Loader2, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { cn, formatTime } from '@/lib/utils'
@@ -186,6 +186,10 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   useEffect(() => {
     loadRecordings()
+    // Ensure record button is visible when library is shown
+    if (window.electronAPI?.showRecordButton) {
+      window.electronAPI.showRecordButton()
+    }
   }, [])
 
   // Cleanup on unmount
@@ -333,14 +337,32 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   <span className="font-mono">{recordings.length}</span>
                 </div>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0 absolute right-0"
-                onClick={loadRecordings}
-              >
-                <RefreshCw className="w-3 h-3" />
-              </Button>
+              <div className="flex items-center gap-1 absolute right-0">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-[10px] font-medium"
+                  onClick={() => {
+                    // Toggle record button visibility
+                    if (window.electronAPI?.showRecordButton) {
+                      window.electronAPI.showRecordButton()
+                    }
+                  }}
+                  title="Show Record Button"
+                >
+                  <Video className="w-3 h-3 mr-1" />
+                  <span>Record</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0"
+                  onClick={loadRecordings}
+                  title="Refresh Library"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -413,14 +435,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                             </motion.div>
                           )}
                         </AnimatePresence>
-
-                        {/* Duration badge */}
-                        {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
-                          <div className="absolute bottom-1 right-1 bg-background/70 backdrop-blur-xl text-foreground text-[9px] px-1.5 py-0.5 rounded font-mono">
-                            {formatTime(recording.project.timeline.duration / 1000)}
-                          </div>
-                        )}
-
                       </div>
 
                       {/* Info section */}

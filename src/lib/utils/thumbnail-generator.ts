@@ -82,7 +82,9 @@ export class ThumbnailGenerator {
 
     return new Promise(async (resolve) => {
       const video = document.createElement('video')
-      video.preload = 'metadata' // Only load metadata, not full video
+      video.preload = 'metadata'
+      video.crossOrigin = 'anonymous'
+      video.muted = true
 
       let resolved = false
 
@@ -98,24 +100,21 @@ export class ThumbnailGenerator {
         resolve(null)
       }
 
-      // Use Electron's streaming video URL API
+      // Get video URL from Electron API
       try {
         if (!window.electronAPI?.getVideoUrl) {
-          logger.error('Video URL API not available')
           handleError()
           return
         }
 
         const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
         if (!videoUrl) {
-          logger.error('Failed to get video URL')
           handleError()
           return
         }
 
         video.src = videoUrl
       } catch (error) {
-        logger.error('Failed to load video for thumbnail:', error)
         handleError()
         return
       }
@@ -123,41 +122,11 @@ export class ThumbnailGenerator {
       video.addEventListener('error', handleError, { once: true })
 
       video.addEventListener('loadedmetadata', () => {
-        // Calculate a safe seek time that is always finite
-        const hasFiniteDuration = Number.isFinite(video.duration) && video.duration > 0
-        const normalizedTimestamp = (
-          typeof timestamp === 'number' && Number.isFinite(timestamp) && timestamp >= 0
-        ) ? timestamp : 0
-
-        let seekableEnd = 0
-        try {
-          if (video.seekable && video.seekable.length > 0) {
-            seekableEnd = video.seekable.end(video.seekable.length - 1)
-          }
-        } catch (_err) {
-          // ignore seekable access errors
-        }
-
-        const referenceDuration = hasFiniteDuration ? video.duration : seekableEnd
-
-        let seekTime = 0
-        if (normalizedTimestamp <= 1) {
-          seekTime = referenceDuration > 0 ? referenceDuration * normalizedTimestamp : 0
-        } else {
-          const maxTime = referenceDuration > 0 ? referenceDuration : 0
-          seekTime = maxTime > 0 ? Math.min(normalizedTimestamp, Math.max(0, maxTime - 0.001)) : 0
-        }
-
-        if (!Number.isFinite(seekTime) || seekTime < 0) {
-          logger.warn('Non-finite seekTime detected, defaulting to 0', { duration: video.duration, timestamp })
-          seekTime = 0
-        }
-
-        // Nudge slightly off zero so 'seeked' is guaranteed to fire
-        if (seekTime === 0 && referenceDuration > 0.01) {
-          seekTime = 0.001
-        }
-
+        // Simple seek to 10% of video or 0.1s
+        const seekTime = video.duration > 0 
+          ? Math.min(video.duration * 0.1, video.duration - 0.001)
+          : 0.1
+        
         video.currentTime = seekTime
       }, { once: true })
 
@@ -173,17 +142,13 @@ export class ThumbnailGenerator {
             return
           }
 
-          // Draw video frame to canvas
           ctx.drawImage(video, 0, 0, width, height)
-
-          // Convert to data URL
           const dataUrl = canvas.toDataURL('image/jpeg', quality)
-
+          
           resolved = true
           cleanup()
           resolve(dataUrl)
         } catch (error) {
-          logger.error('Failed to extract frame:', error)
           handleError()
         }
       }, { once: true })
@@ -194,7 +159,6 @@ export class ThumbnailGenerator {
       // Timeout after 5 seconds
       setTimeout(() => {
         if (!resolved) {
-          logger.warn('Thumbnail generation timeout')
           handleError()
         }
       }, 5000)

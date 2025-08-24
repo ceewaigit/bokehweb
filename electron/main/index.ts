@@ -12,6 +12,21 @@ import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 import { setupNativeRecorder } from './handlers/native-recorder'
 
+// Register custom protocols before app ready
+// This ensures they're available when needed
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'video-stream',
+    privileges: {
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+      bypassCSP: true
+    }
+  }
+])
+
 function registerProtocol(): void {
   // Register app protocol for packaged app
   if (!isDev && app.isPackaged) {
@@ -28,15 +43,13 @@ function registerProtocol(): void {
   }
 
   // Register video-stream protocol for local video files
-  // This works in both dev and production
   protocol.registerFileProtocol('video-stream', (request, callback) => {
     const url = request.url.replace('video-stream://', '')
     const decodedUrl = decodeURIComponent(url)
     try {
-      // The URL should be the absolute file path
-      callback(decodedUrl)
+      callback({ path: decodedUrl })
     } catch (error) {
-      console.error('[Protocol] Error streaming video file:', error)
+      callback({ error: -6 }) // net::ERR_FILE_NOT_FOUND
     }
   })
 }

@@ -34,41 +34,6 @@ async function loadProjectRecording(
 
   const project = recording.project
 
-  // DEBUG: Log complete project metadata
-  console.log('📋 === PROJECT METADATA (Workspace) ===')
-  console.log('Project ID:', project.id)
-  console.log('Project Name:', project.name)
-  console.log('Project Path:', recording.path)
-  console.log('Total Recordings:', project.recordings?.length || 0)
-
-  if (project.recordings && project.recordings.length > 0) {
-    project.recordings.forEach((rec: any, index: number) => {
-      console.log(`\n📹 Recording ${index}:`)
-      console.log('  - ID:', rec.id)
-      console.log('  - Video Path:', rec.filePath || rec.videoPath)
-      console.log('  - Duration:', rec.duration, 'ms')
-      console.log('  - Video Dimensions:', rec.width || rec.videoWidth, 'x', rec.height || rec.videoHeight)
-      console.log('  - Source Bounds:', rec.sourceBounds)
-      console.log('  - Capture Area:', rec.captureArea)
-
-      if (rec.metadata && rec.metadata.length > 0) {
-        console.log('  - Metadata Events:', rec.metadata.length)
-        console.log('  - First Event:', rec.metadata[0])
-
-        // Find unique capture dimensions
-        const captureWidths = Array.from(new Set(rec.metadata.map((m: any) => m.captureWidth).filter(Boolean)))
-        const captureHeights = Array.from(new Set(rec.metadata.map((m: any) => m.captureHeight).filter(Boolean)))
-        console.log('  - Capture Widths found:', captureWidths)
-        console.log('  - Capture Heights found:', captureHeights)
-
-        // Check for events with sourceBounds
-        const eventsWithBounds = rec.metadata.filter((m: any) => m.sourceBounds).length
-        console.log('  - Events with sourceBounds:', eventsWithBounds)
-      }
-    })
-  }
-  console.log('📋 === END PROJECT METADATA ===\n')
-
   setLoadingMessage('Creating project...')
   newProject(project.name)
 
@@ -170,17 +135,13 @@ async function loadProjectRecording(
 
 // Initialize default wallpaper on app startup
 async function initializeDefaultWallpaper() {
-  console.log('🖼️ Initializing default wallpaper...')
   if (!window.electronAPI?.loadWallpaperImage) {
-    console.warn('❌ loadWallpaperImage API not available')
     return
   }
 
   try {
-    console.log('📥 Loading Sonoma wallpaper...')
     const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
     if (dataUrl) {
-      console.log('✅ Wallpaper loaded successfully')
       // Update the defaults for new clips
       DEFAULT_CLIP_EFFECTS.background.wallpaper = dataUrl
       DEFAULT_CLIP_EFFECTS.background.type = 'wallpaper'
@@ -190,38 +151,29 @@ async function initializeDefaultWallpaper() {
       // Update ALL existing clips that don't have a custom wallpaper or image
       const project = useProjectStore.getState().currentProject
       if (project) {
-        let updated = false
         project.timeline.tracks.forEach(track => {
           track.clips.forEach(clip => {
             if (clip.effects?.background &&
               !clip.effects.background.wallpaper &&
               !clip.effects.background.image) {
-              console.log('🔄 Updating clip background to wallpaper')
               useProjectStore.getState().updateClipEffectCategory(
                 clip.id,
                 'background',
                 { wallpaper: dataUrl, type: 'wallpaper' }
               )
-              updated = true
             }
           })
         })
-        if (updated) {
-          console.log('💾 Saving project with wallpaper updates')
-        }
-      } else {
-        console.log('📋 No current project to update')
       }
     }
   } catch (error) {
-    console.error('Failed to load default wallpaper:', error)
+    // Failed to load default wallpaper - will fallback to gradient
   }
 }
 
 export function WorkspaceManager() {
   const [wallpaperInitialized, setWallpaperInitialized] = useState(false)
-  const [defaultWallpaperUrl, setDefaultWallpaperUrl] = useState<string | null>(null)
-  
+
   // Store hooks - will gradually reduce direct store access
   const {
     currentProject,
@@ -240,39 +192,14 @@ export function WorkspaceManager() {
     setZoom,
     zoom
   } = useProjectStore()
-  
+
   // Initialize default wallpaper once on mount
   useEffect(() => {
     initializeDefaultWallpaper().then(() => {
       setWallpaperInitialized(true)
-      // Store the wallpaper URL for later use
-      setDefaultWallpaperUrl(DEFAULT_CLIP_EFFECTS.background.wallpaper || null)
     })
   }, [])
-  
-  // Apply wallpaper to clips when project changes
-  useEffect(() => {
-    if (currentProject && defaultWallpaperUrl) {
-      let updated = false
-      currentProject.timeline.tracks.forEach(track => {
-        track.clips.forEach(clip => {
-          if (clip.effects?.background &&
-            !clip.effects.background.wallpaper &&
-            !clip.effects.background.image) {
-            useProjectStore.getState().updateClipEffectCategory(
-              clip.id,
-              'background',
-              { wallpaper: defaultWallpaperUrl, type: 'wallpaper' }
-            )
-            updated = true
-          }
-        })
-      })
-      if (updated) {
-        // Updates applied via store
-      }
-    }
-  }, [currentProject?.id, defaultWallpaperUrl])
+
 
   const {
     isPropertiesOpen,
@@ -395,7 +322,7 @@ export function WorkspaceManager() {
 
   const handleEffectChange = useCallback((effects: ClipEffects) => {
     if (selectedClipId) {
-      // Handle zoom regeneration request
+      // Handle zoom regeneration request BEFORE setting any state
       if (effects.zoom?.regenerate && selectedRecording) {
         // Use ZoomDetector to regenerate zoom blocks
         const zoomDetector = new ZoomDetector()
@@ -406,6 +333,7 @@ export function WorkspaceManager() {
           selectedRecording.duration
         )
 
+        // Update effects with new blocks and clear regenerate flag
         effects = {
           ...effects,
           zoom: {
@@ -414,6 +342,12 @@ export function WorkspaceManager() {
             regenerate: undefined
           }
         }
+
+        // Immediately save the regenerated blocks to prevent empty state
+        updateClipEffects(selectedClipId, effects)
+        setLocalEffects(null)
+        setHasUnsavedChanges(false)
+        return // Exit early since we've already saved
       }
 
       // Store effects locally instead of saving immediately
@@ -421,7 +355,7 @@ export function WorkspaceManager() {
       setHasUnsavedChanges(true)
 
     }
-  }, [selectedClipId, selectedRecording])
+  }, [selectedClipId, selectedRecording, updateClipEffects])
 
   const handleToggleProperties = useCallback(() => {
     toggleProperties()
@@ -479,7 +413,7 @@ export function WorkspaceManager() {
         </div>
       )
     }
-    
+
     return (
       <>
         <div className="fixed inset-0 flex flex-col bg-background">
@@ -504,6 +438,11 @@ export function WorkspaceManager() {
                   setIsLoading(false)
                   setLoadingMessage('')
                   return
+                }
+
+                // Hide record button when entering workspace
+                if (window.electronAPI?.minimizeRecordButton) {
+                  window.electronAPI.minimizeRecordButton()
                 }
 
                 setIsLoading(false)
@@ -548,6 +487,35 @@ export function WorkspaceManager() {
               await openProject(path)
               setLocalEffects(null)
               setHasUnsavedChanges(false)
+            }}
+            onBackToLibrary={() => {
+              // Clean up resources and navigate back to library
+              const cleanupAndReturn = () => {
+                // Clean up local state
+                setLocalEffects(null)
+                setHasUnsavedChanges(false)
+
+                // Clean up stores
+                useProjectStore.getState().cleanupProject()
+                useWorkspaceStore.getState().resetWorkspace()
+
+                // Clean up thumbnail generator cache
+                ThumbnailGenerator.clearCache()
+
+                // Show record button when returning to library
+                if (window.electronAPI?.showRecordButton) {
+                  window.electronAPI.showRecordButton()
+                }
+              }
+
+              // If there are unsaved changes, confirm before leaving
+              if (hasUnsavedChanges) {
+                if (confirm('You have unsaved changes. Do you want to leave without saving?')) {
+                  cleanupAndReturn()
+                }
+              } else {
+                cleanupAndReturn()
+              }
             }}
             hasUnsavedChanges={hasUnsavedChanges}
           />

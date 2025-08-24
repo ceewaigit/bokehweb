@@ -11,7 +11,8 @@ import {
   PanelRight,
   Sun,
   Moon,
-  Monitor
+  Monitor,
+  Library
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { useRecordingStore } from '@/stores/recording-store'
@@ -32,6 +33,7 @@ interface ToolbarProps {
   onNewProject: () => void
   onSaveProject: () => Promise<void>
   onOpenProject: (path: string) => Promise<void>
+  onBackToLibrary: () => void
   hasUnsavedChanges?: boolean
 }
 
@@ -42,6 +44,7 @@ export function Toolbar({
   onNewProject,
   onSaveProject,
   onOpenProject,
+  onBackToLibrary,
   hasUnsavedChanges = false
 }: ToolbarProps) {
   const {
@@ -72,6 +75,22 @@ export function Toolbar({
         </div>
 
         <div className="w-px h-5 bg-border/30" />
+
+        {/* Back to Library Button */}
+        {onBackToLibrary && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onBackToLibrary}
+              className="h-7 px-2 text-[11px] font-medium hover:bg-card/50"
+            >
+              <Library className="w-3 h-3 mr-1 flex-shrink-0" />
+              <span className="whitespace-nowrap">Library</span>
+            </Button>
+            <div className="w-px h-5 bg-border/30" />
+          </>
+        )}
 
         {/* Project Actions - Compact */}
         <Button

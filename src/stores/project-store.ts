@@ -9,10 +9,9 @@ import {
   type ZoomBlock
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS, getDefaultClipEffects } from '@/lib/constants/clip-defaults'
+import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { logger } from '@/lib/utils/logger'
 
 // Helper functions moved to top for better organization
 const findClipById = (project: Project, clipId: string): { clip: Clip; track: Track } | null => {
@@ -102,12 +101,12 @@ interface ProjectStore {
   seek: (time: number) => void
   setZoom: (zoom: number) => void
 
-  // Effects Engine
-  regenerateZoomEffects: (options?: any) => void
-
   // Getters
   getCurrentClip: () => Clip | null
   getCurrentRecording: () => Recording | null
+  
+  // Cleanup
+  cleanupProject: () => void
 }
 
 export const useProjectStore = create<ProjectStore>()(
@@ -251,7 +250,7 @@ export const useProjectStore = create<ProjectStore>()(
             duration: recording.duration,
             sourceIn: 0,
             sourceOut: recording.duration,
-            effects: getDefaultClipEffects()
+            effects: structuredClone(DEFAULT_CLIP_EFFECTS)
           }
         }
 
@@ -679,34 +678,27 @@ export const useProjectStore = create<ProjectStore>()(
     },
 
 
-    regenerateZoomEffects: (options) => {
-      const { getCurrentRecording, selectedClipId, currentProject } = get()
-      if (!selectedClipId || !currentProject) return
-
-      const recording = getCurrentRecording()
-      if (!recording) return
-
-      // Regenerate zoom blocks using ZoomDetector
-      const zoomDetector = new ZoomDetector()
-      const zoomBlocks = zoomDetector.detectZoomBlocks(
-        recording.metadata?.mouseEvents || [],
-        recording.width || 1920,
-        recording.height || 1080,
-        recording.duration
-      )
-
+    cleanupProject: () => {
+      // Clean up any playing state
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
+      }
+      lastTimestamp = null
+      
+      // Clean up blob resources
+      globalBlobManager.cleanupByType('video')
+      globalBlobManager.cleanupByType('export')
+      globalBlobManager.cleanupByType('thumbnail')
+      
+      // Reset store state
       set((state) => {
-        if (!state.currentProject) return
-
-        const result = findClipById(state.currentProject, selectedClipId)
-        if (!result) return
-
-        const { clip } = result
-        if (clip.effects?.zoom) {
-          clip.effects.zoom.blocks = zoomBlocks
-        }
-
-        state.currentProject.modifiedAt = new Date().toISOString()
+        state.currentProject = null
+        state.currentTime = 0
+        state.isPlaying = false
+        state.selectedClipId = null
+        state.selectedClips = []
+        state.selectedEffectLayer = null
       })
     }
   }))
