@@ -17,21 +17,18 @@ let cursorDetector: any = null
 if (process.platform === 'darwin') {
   console.log('Platform is macOS, attempting to load cursor detector...')
   
-  // Different paths for webpack vs regular electron
-  let modulePath: string
-  if (__dirname.includes('.webpack')) {
-    // Webpack build - module is copied to .webpack/main/build/Release/
-    modulePath = path.join(__dirname, 'build', 'Release', 'cursor_detector.node')
-  } else {
-    // Regular electron - module is in project root build/Release/
-    modulePath = path.join(__dirname, '../../../build/Release/cursor_detector.node')
-  }
-  
-  console.log('Looking for module at:', modulePath)
-  console.log('__dirname is:', __dirname)
-  
   try {
-    cursorDetector = require(modulePath)
+    // Use absolute path from app root - this works regardless of webpack
+    const { app } = require('electron')
+    const appPath = app.getAppPath()
+    const modulePath = path.join(appPath, 'build', 'Release', 'cursor_detector.node')
+    
+    console.log('Loading cursor detector from:', modulePath)
+    
+    // Use native require with absolute path
+    const nativeRequire = eval('require')
+    cursorDetector = nativeRequire(modulePath)
+    
     console.log('✅ Native cursor detector loaded successfully')
     
     // Check if we have permissions on load
