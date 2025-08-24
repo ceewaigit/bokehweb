@@ -79,7 +79,7 @@ export function RecordButtonDock() {
   const loadSources = useCallback(async () => {
     const startTime = performance.now()
     console.log('🚀 [PERF] Starting source load...')
-    
+
     if (!window.electronAPI?.getDesktopSources) {
       logger.error('Desktop sources API not available')
       return
@@ -88,12 +88,12 @@ export function RecordButtonDock() {
     try {
       console.log('🔍 [PERF] Calling getDesktopSources...')
       const sourcesStartTime = performance.now()
-      
+
       const desktopSources = await window.electronAPI.getDesktopSources({
         types: ['screen', 'window'],
         thumbnailSize: { width: 1, height: 1 }  // We don't show thumbnails, so minimize size
       })
-      
+
       console.log(`📊 [PERF] getDesktopSources took: ${performance.now() - sourcesStartTime}ms`)
 
       const mappedSources: Source[] = desktopSources.map(source => ({
@@ -129,7 +129,7 @@ export function RecordButtonDock() {
       if (firstScreen) {
         setSelectedSourceId(firstScreen.id)
       }
-      
+
       console.log(`✅ [PERF] Total source load time: ${performance.now() - startTime}ms`)
     } catch (error) {
       logger.error('Failed to load desktop sources:', error)
@@ -142,26 +142,26 @@ export function RecordButtonDock() {
     console.log('🎯 [PERF] Component mounted, preloading sources...')
     loadSources()
   }, [loadSources])
-  
+
   // Manage window size based on state
   useEffect(() => {
     const resizeWindow = async () => {
       if (!window.electronAPI?.setWindowContentSize) return
-      
-      let targetSize = { width: 200, height: 65 }  // Default button size
-      
+
+      let targetSize = { width: 200, height: 67 }  // Default button size
+
       if (showSourcePicker) {
         targetSize = { width: 380, height: 320 }  // Source picker size
       } else if (isRecording) {
-        targetSize = { width: 250, height: 65 }   // Recording size (wider for timer)
+        targetSize = { width: 250, height: 67 }   // Recording size (wider for timer)
       }
-      
-      console.log(`📐 [RESIZE] Resizing to ${targetSize.width}x${targetSize.height} for state:`, 
+
+      console.log(`📐 [RESIZE] Resizing to ${targetSize.width}x${targetSize.height} for state:`,
         { showSourcePicker, isRecording })
-      
+
       await window.electronAPI.setWindowContentSize(targetSize)
     }
-    
+
     resizeWindow()
   }, [showSourcePicker, isRecording])
 
@@ -186,7 +186,7 @@ export function RecordButtonDock() {
 
     // Close picker immediately for smooth transition
     setShowSourcePicker(false)
-    
+
     // Small delay to let the window resize animation complete
     await new Promise(resolve => setTimeout(resolve, 150))
 
@@ -225,7 +225,7 @@ export function RecordButtonDock() {
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ 
+        transition={{
           duration: 0.15,
           ease: [0.4, 0, 0.2, 1]
         }}
@@ -238,7 +238,7 @@ export function RecordButtonDock() {
           isRecording && "ring-2 ring-destructive/40",
           "w-full"
         )}
-        style={{ 
+        style={{
           // Make the dock draggable
           ['WebkitAppRegion' as any]: 'drag',
           cursor: 'move',
@@ -247,263 +247,263 @@ export function RecordButtonDock() {
           willChange: 'transform'
         }}
       >
-      {/* Main Dock Bar - Compact Design */}
-      <div className="inline-flex items-center justify-center gap-1 p-2" style={{ width: 'auto' }}>
-        {!isRecording ? (
-          <>
-            {/* Audio & Camera Controls */}
-            <div className="flex items-center justify-center gap-1">
-              <button
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-                className={cn(
-                  "relative p-1.5 rounded-lg transition-colors duration-100",
-                  micEnabled
-                    ? "bg-primary/10 text-primary hover:bg-primary/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                )}
-                onClick={() => setMicEnabled(!micEnabled)}
-                title={micEnabled ? 'Microphone On' : 'Microphone Off'}
-              >
-                {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
-                {micEnabled && (
-                  <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
-                )}
-              </button>
+        {/* Main Dock Bar - Compact Design */}
+        <div className="inline-flex items-center justify-center gap-1 p-2" style={{ width: 'auto' }}>
+          {!isRecording ? (
+            <>
+              {/* Audio & Camera Controls */}
+              <div className="flex items-center justify-center gap-1">
+                <button
+                  style={{ WebkitAppRegion: 'no-drag' } as any}
+                  className={cn(
+                    "relative p-1.5 rounded-lg transition-colors duration-100",
+                    micEnabled
+                      ? "bg-primary/10 text-primary hover:bg-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  )}
+                  onClick={() => setMicEnabled(!micEnabled)}
+                  title={micEnabled ? 'Microphone On' : 'Microphone Off'}
+                >
+                  {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                  {micEnabled && (
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
+                  )}
+                </button>
 
-              <button
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-                className={cn(
-                  "relative p-1.5 rounded-lg transition-colors duration-100",
-                  cameraEnabled
-                    ? "bg-primary/10 text-primary hover:bg-primary/20"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                )}
-                onClick={() => setCameraEnabled(!cameraEnabled)}
-                title={cameraEnabled ? 'Camera On' : 'Camera Off'}
-              >
-                {cameraEnabled ? <Camera className="w-3.5 h-3.5" /> : <CameraOff className="w-3.5 h-3.5" />}
-                {cameraEnabled && (
-                  <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
-                )}
-              </button>
-            </div>
-
-            {/* Separator */}
-            <div className="w-px h-5 bg-border/40" />
-
-            {/* Record Button - Prominent */}
-            <button
-              style={{ WebkitAppRegion: 'no-drag' } as any}
-              className={cn(
-                "relative group",
-                "flex items-center justify-center",
-                "w-10 h-10",
-                "bg-destructive hover:bg-destructive/90",
-                "rounded-full shadow-lg",
-                "transition-transform duration-150 hover:scale-105",
-                "active:scale-95"
-              )}
-              onClick={handleStartRecording}
-              title="Start Recording"
-            >
-              <div className="absolute inset-0 rounded-full bg-destructive/20 animate-pulse" />
-              <Circle className="w-5 h-5 text-destructive-foreground fill-current relative z-10" />
-            </button>
-
-            {/* Open Workspace */}
-            <button
-              style={{ WebkitAppRegion: 'no-drag' } as any}
-              className={cn(
-                "p-1.5 rounded-lg transition-colors duration-150",
-                "text-muted-foreground hover:text-foreground hover:bg-accent"
-              )}
-              onClick={() => window.electronAPI?.openWorkspace?.()}
-              title="Open Workspace"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </button>
-          </>
-        ) : (
-          <>
-            {/* Recording Timer - Compact Display */}
-            <div className="flex items-center justify-center gap-2 px-3 py-1 bg-destructive/10 dark:bg-destructive/20 rounded-lg">
-              <div className="relative flex items-center justify-center">
-                <div className="absolute w-2 h-2 bg-destructive rounded-full animate-ping" />
-                <div className="w-2 h-2 bg-destructive rounded-full" />
+                <button
+                  style={{ WebkitAppRegion: 'no-drag' } as any}
+                  className={cn(
+                    "relative p-1.5 rounded-lg transition-colors duration-100",
+                    cameraEnabled
+                      ? "bg-primary/10 text-primary hover:bg-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  )}
+                  onClick={() => setCameraEnabled(!cameraEnabled)}
+                  title={cameraEnabled ? 'Camera On' : 'Camera Off'}
+                >
+                  {cameraEnabled ? <Camera className="w-3.5 h-3.5" /> : <CameraOff className="w-3.5 h-3.5" />}
+                  {cameraEnabled && (
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
+                  )}
+                </button>
               </div>
-              <span className="text-destructive font-mono text-xs font-medium tabular-nums">
-                {formatTime(duration)}
-              </span>
-            </div>
 
-            {/* Separator */}
-            <div className="w-px h-5 bg-border/40" />
+              {/* Separator */}
+              <div className="w-px h-5 bg-border/40" />
 
-            {/* Pause/Resume */}
-            <button
-              style={{ WebkitAppRegion: 'no-drag' } as any}
-              className={cn(
-                "p-1.5 rounded-lg transition-colors duration-150",
-                "text-foreground hover:text-foreground hover:bg-accent"
-              )}
-              onClick={isPaused ? resumeRecording : pauseRecording}
-              title={isPaused ? "Resume" : "Pause"}
+              {/* Record Button - Prominent */}
+              <button
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                className={cn(
+                  "relative group",
+                  "flex items-center justify-center",
+                  "w-10 h-10",
+                  "bg-destructive hover:bg-destructive/90",
+                  "rounded-full shadow-lg",
+                  "transition-transform duration-150 hover:scale-105",
+                  "active:scale-95"
+                )}
+                onClick={handleStartRecording}
+                title="Start Recording"
+              >
+                <div className="absolute inset-0 rounded-full bg-destructive/20 animate-pulse" />
+                <Circle className="w-5 h-5 text-destructive-foreground fill-current relative z-10" />
+              </button>
+
+              {/* Open Workspace */}
+              <button
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors duration-150",
+                  "text-muted-foreground hover:text-foreground hover:bg-accent"
+                )}
+                onClick={() => window.electronAPI?.openWorkspace?.()}
+                title="Open Workspace"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Recording Timer - Compact Display */}
+              <div className="flex items-center justify-center gap-2 px-3 py-1 bg-destructive/10 dark:bg-destructive/20 rounded-lg">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-2 h-2 bg-destructive rounded-full animate-ping" />
+                  <div className="w-2 h-2 bg-destructive rounded-full" />
+                </div>
+                <span className="text-destructive font-mono text-xs font-medium tabular-nums">
+                  {formatTime(duration)}
+                </span>
+              </div>
+
+              {/* Separator */}
+              <div className="w-px h-5 bg-border/40" />
+
+              {/* Pause/Resume */}
+              <button
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors duration-150",
+                  "text-foreground hover:text-foreground hover:bg-accent"
+                )}
+                onClick={isPaused ? resumeRecording : pauseRecording}
+                title={isPaused ? "Resume" : "Pause"}
+              >
+                {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+              </button>
+
+              {/* Stop Button */}
+              <button
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                className={cn(
+                  "flex items-center justify-center",
+                  "px-2.5 py-1 mx-0.5",
+                  "bg-destructive/10 hover:bg-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30",
+                  "text-destructive-foreground",
+                  "rounded-lg border border-destructive/50 dark:border-destructive/30",
+                  "transition-colors duration-200",
+                  "active:scale-95"
+                )}
+                onClick={handleStopRecording}
+                title="Stop Recording"
+              >
+                <Square className="w-3 h-3 mr-1" />
+                <span className="text-[10px] font-medium">Stop</span>
+              </button>
+
+              {/* Close/Minimize */}
+              <button
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors duration-200",
+                  "text-muted-foreground hover:text-foreground hover:bg-accent"
+                )}
+                onClick={() => window.electronAPI?.minimizeRecordButton?.()}
+                title="Hide"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Inline Source Picker - Expands below when shown */}
+        <AnimatePresence mode="wait">
+          {showSourcePicker && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{
+                duration: 0.1,
+                ease: 'easeOut'
+              }}
+              style={{ overflow: 'hidden' }}
             >
-              {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-            </button>
+              <div className="p-3 border-t border-border/30">
+                {/* Quick source selection */}
+                <div className="flex flex-row gap-2 mb-3 justify-center">
+                  {/* Area Selection */}
+                  {areaOption && (
+                    <button
+                      style={{ WebkitAppRegion: 'no-drag' } as any}
+                      onClick={() => setSelectedSourceId(areaOption.id)}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
+                        selectedSourceId === areaOption.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
+                      )}
+                    >
+                      <Maximize2 className="w-5 h-5 text-primary" />
+                      <span className="text-xs font-medium">Select Area</span>
+                    </button>
+                  )}
 
-            {/* Stop Button */}
-            <button
-              style={{ WebkitAppRegion: 'no-drag' } as any}
-              className={cn(
-                "flex items-center justify-center",
-                "px-2.5 py-1 mx-0.5",
-                "bg-destructive/10 hover:bg-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30",
-                "text-destructive-foreground",
-                "rounded-lg border border-destructive/50 dark:border-destructive/30",
-                "transition-colors duration-200",
-                "active:scale-95"
-              )}
-              onClick={handleStopRecording}
-              title="Stop Recording"
-            >
-              <Square className="w-3 h-3 mr-1" />
-              <span className="text-[10px] font-medium">Stop</span>
-            </button>
+                  {/* Screens */}
+                  {screens.slice(0, 2).map((screen) => (
+                    <button
+                      key={screen.id}
+                      onClick={() => setSelectedSourceId(screen.id)}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
+                        selectedSourceId === screen.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
+                      )}
+                    >
+                      <Monitor className="w-5 h-5 text-primary" />
+                      <span className="text-xs font-medium truncate w-full">
+                        {screen.name.replace('Entire screen', 'Full Screen')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
 
-            {/* Close/Minimize */}
-            <button
-              style={{ WebkitAppRegion: 'no-drag' } as any}
-              className={cn(
-                "p-1.5 rounded-lg transition-colors duration-200",
-                "text-muted-foreground hover:text-foreground hover:bg-accent"
-              )}
-              onClick={() => window.electronAPI?.minimizeRecordButton?.()}
-              title="Hide"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </>
-        )}
-      </div>
+                {/* Windows section if there are any */}
+                {windows.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <AppWindow className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase">Applications</span>
+                      <div className="flex-1 h-px bg-border/30" />
+                    </div>
+                    <div className="grid grid-cols-4 gap-0.5 max-h-24 overflow-y-auto">
+                      {windows.slice(0, 8).map((window) => (
+                        <button
+                          style={{ WebkitAppRegion: 'no-drag' } as any}
+                          key={window.id}
+                          onClick={() => setSelectedSourceId(window.id)}
+                          className={cn(
+                            "p-1 rounded border text-[9px] truncate transition-colors",
+                            selectedSourceId === window.id
+                              ? "border-primary bg-primary/10"
+                              : "border-border/30 hover:border-primary/50 hover:bg-accent/50"
+                          )}
+                          title={window.name}
+                        >
+                          {window.name.split(' - ')[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
 
-      {/* Inline Source Picker - Expands below when shown */}
-      <AnimatePresence mode="wait">
-        {showSourcePicker && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ 
-              duration: 0.1,
-              ease: 'easeOut'
-            }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div className="p-3 border-t border-border/30">
-              {/* Quick source selection */}
-              <div className="flex flex-row gap-2 mb-3 justify-center">
-                {/* Area Selection */}
-                {areaOption && (
+                {/* Action buttons */}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
                   <button
                     style={{ WebkitAppRegion: 'no-drag' } as any}
-                    onClick={() => setSelectedSourceId(areaOption.id)}
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
-                      selectedSourceId === areaOption.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
-                    )}
+                    onClick={() => {
+                      setShowSourcePicker(false)
+                      setSelectedSourceId(null)
+                    }}
+                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    <Maximize2 className="w-5 h-5 text-primary" />
-                    <span className="text-xs font-medium">Select Area</span>
+                    <ChevronLeft className="w-3 h-3 inline mr-1" />
+                    Back
                   </button>
-                )}
-
-                {/* Screens */}
-                {screens.slice(0, 2).map((screen) => (
                   <button
-                    key={screen.id}
-                    onClick={() => setSelectedSourceId(screen.id)}
+                    style={{ WebkitAppRegion: 'no-drag' } as any}
+                    onClick={handleSourceSelect}
+                    disabled={!selectedSourceId}
                     className={cn(
-                      "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
-                      selectedSourceId === screen.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
+                      "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
+                      selectedSourceId
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "bg-muted/50 text-muted-foreground cursor-not-allowed"
                     )}
                   >
-                    <Monitor className="w-5 h-5 text-primary" />
-                    <span className="text-xs font-medium truncate w-full">
-                      {screen.name.replace('Entire screen', 'Full Screen')}
-                    </span>
+                    Start Recording
                   </button>
-                ))}
+                </div>
               </div>
-
-              {/* Windows section if there are any */}
-              {windows.length > 0 && (
-                <>
-                  <div className="flex items-center gap-2 mb-2">
-                    <AppWindow className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase">Applications</span>
-                    <div className="flex-1 h-px bg-border/30" />
-                  </div>
-                  <div className="grid grid-cols-4 gap-0.5 max-h-24 overflow-y-auto">
-                    {windows.slice(0, 8).map((window) => (
-                      <button
-                        style={{ WebkitAppRegion: 'no-drag' } as any}
-                        key={window.id}
-                        onClick={() => setSelectedSourceId(window.id)}
-                        className={cn(
-                          "p-1 rounded border text-[9px] truncate transition-colors",
-                          selectedSourceId === window.id
-                            ? "border-primary bg-primary/10"
-                            : "border-border/30 hover:border-primary/50 hover:bg-accent/50"
-                        )}
-                        title={window.name}
-                      >
-                        {window.name.split(' - ')[0]}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* Action buttons */}
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
-                <button
-                  style={{ WebkitAppRegion: 'no-drag' } as any}
-                  onClick={() => {
-                    setShowSourcePicker(false)
-                    setSelectedSourceId(null)
-                  }}
-                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ChevronLeft className="w-3 h-3 inline mr-1" />
-                  Back
-                </button>
-                <button
-                  style={{ WebkitAppRegion: 'no-drag' } as any}
-                  onClick={handleSourceSelect}
-                  disabled={!selectedSourceId}
-                  className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
-                    selectedSourceId
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                      : "bg-muted/50 text-muted-foreground cursor-not-allowed"
-                  )}
-                >
-                  Start Recording
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   )
