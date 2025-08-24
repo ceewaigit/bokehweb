@@ -77,16 +77,24 @@ export function RecordButtonDock() {
 
   // Load sources when picker opens
   const loadSources = useCallback(async () => {
+    const startTime = performance.now()
+    console.log('🚀 [PERF] Starting source load...')
+    
     if (!window.electronAPI?.getDesktopSources) {
       logger.error('Desktop sources API not available')
       return
     }
 
     try {
+      console.log('🔍 [PERF] Calling getDesktopSources...')
+      const sourcesStartTime = performance.now()
+      
       const desktopSources = await window.electronAPI.getDesktopSources({
         types: ['screen', 'window'],
-        thumbnailSize: { width: 150, height: 90 }
+        thumbnailSize: { width: 1, height: 1 }  // We don't show thumbnails, so minimize size
       })
+      
+      console.log(`📊 [PERF] getDesktopSources took: ${performance.now() - sourcesStartTime}ms`)
 
       const mappedSources: Source[] = desktopSources.map(source => ({
         id: source.id,
@@ -121,17 +129,41 @@ export function RecordButtonDock() {
       if (firstScreen) {
         setSelectedSourceId(firstScreen.id)
       }
+      
+      console.log(`✅ [PERF] Total source load time: ${performance.now() - startTime}ms`)
     } catch (error) {
       logger.error('Failed to load desktop sources:', error)
+      console.log(`❌ [PERF] Failed after: ${performance.now() - startTime}ms`)
     }
   }, [])
 
-  // Load sources when picker opens
+  // Preload sources on component mount for instant display
   useEffect(() => {
-    if (showSourcePicker) {
-      loadSources()
+    console.log('🎯 [PERF] Component mounted, preloading sources...')
+    loadSources()
+  }, [loadSources])
+  
+  // Manage window size based on state
+  useEffect(() => {
+    const resizeWindow = async () => {
+      if (!window.electronAPI?.setWindowContentSize) return
+      
+      let targetSize = { width: 200, height: 60 }  // Default button size
+      
+      if (showSourcePicker) {
+        targetSize = { width: 380, height: 320 }  // Source picker size
+      } else if (isRecording) {
+        targetSize = { width: 250, height: 60 }   // Recording size (wider for timer)
+      }
+      
+      console.log(`📐 [RESIZE] Resizing to ${targetSize.width}x${targetSize.height} for state:`, 
+        { showSourcePicker, isRecording })
+      
+      await window.electronAPI.setWindowContentSize(targetSize)
     }
-  }, [showSourcePicker, loadSources])
+    
+    resizeWindow()
+  }, [showSourcePicker, isRecording])
 
   // Update recording settings when audio changes
   useEffect(() => {
@@ -144,6 +176,7 @@ export function RecordButtonDock() {
   // The window auto-sizes based on content via ResizeObserver in main process
 
   const handleStartRecording = () => {
+    console.log('🔴 [PERF] Record button clicked!')
     // Show the source picker inline
     setShowSourcePicker(true)
   }
@@ -151,7 +184,11 @@ export function RecordButtonDock() {
   const handleSourceSelect = async () => {
     if (!selectedSourceId) return
 
+    // Close picker immediately for smooth transition
     setShowSourcePicker(false)
+    
+    // Small delay to let the window resize animation complete
+    await new Promise(resolve => setTimeout(resolve, 150))
 
     if (selectedSourceId === 'area:selection') {
       // Handle area selection
@@ -184,28 +221,27 @@ export function RecordButtonDock() {
   const areaOption = sources.find(s => s.type === 'area')
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center" style={{ padding: '10px' }}>
+    <div className="w-full h-full flex flex-col items-center justify-start" style={{ padding: '8px' }}>
       <motion.div
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
         transition={{ 
-          duration: 0.2,
+          duration: 0.15,
           ease: [0.4, 0, 0.2, 1]
         }}
+        layout
         className={cn(
-          "relative inline-flex flex-col",
+          "relative flex flex-col",
           "bg-background",
           "rounded-xl border border-border",
           "shadow-lg dark:shadow-2xl",
-          isRecording && "ring-2 ring-destructive/40"
+          isRecording && "ring-2 ring-destructive/40",
+          "w-full"
         )}
         style={{ 
           // Make the dock draggable
           ['WebkitAppRegion' as any]: 'drag',
           cursor: 'move',
-          // Fixed positioning at top
-          width: 'auto',
-          maxWidth: '380px',
           // GPU acceleration
           transform: 'translateZ(0)',
           willChange: 'transform'
@@ -359,12 +395,12 @@ export function RecordButtonDock() {
       <AnimatePresence mode="wait">
         {showSourcePicker && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
             transition={{ 
-              duration: 0.15,
-              ease: [0.4, 0, 0.2, 1]
+              duration: 0.1,
+              ease: 'easeOut'
             }}
             style={{ overflow: 'hidden' }}
           >

@@ -21,54 +21,11 @@ if (process.platform === 'darwin') {
     cursorDetector = require(path.join(__dirname, '../../../build/Release/cursor_detector.node'))
     console.log('✅ Native cursor detector loaded successfully')
     
-    // Check accessibility permissions after a short delay to ensure app is ready
-    setTimeout(() => {
-      console.log('Checking accessibility permissions...')
-      console.log('Available methods:', Object.keys(cursorDetector || {}))
-      
-      if (cursorDetector && cursorDetector.hasAccessibilityPermissions) {
-        console.log('hasAccessibilityPermissions method found, checking...')
-        try {
-          const hasPermissions = cursorDetector.hasAccessibilityPermissions()
-          console.log('Current permission status:', hasPermissions)
-          
-          if (!hasPermissions) {
-            console.log('No permissions, requesting...')
-            // This will show the system prompt
-            const granted = cursorDetector.requestAccessibilityPermissions()
-            console.log('Request result:', granted)
-            
-            if (!granted) {
-              console.log('⚠️ Accessibility permissions required for accurate cursor detection')
-              console.log('Please grant permissions in System Settings > Privacy & Security > Accessibility')
-              
-              // Show dialog to user
-              const { dialog, shell } = require('electron')
-              dialog.showMessageBox({
-                type: 'info',
-                title: 'Accessibility Permission Required',
-                message: 'Screen Studio needs accessibility permissions for accurate cursor detection.',
-                detail: 'This allows the app to detect when your cursor changes to text selection, link hover, and other states.\n\nClick "Open Settings" to grant permission.',
-                buttons: ['Open Settings', 'Later'],
-                defaultId: 0,
-                cancelId: 1
-              }).then((result: any) => {
-                if (result.response === 0) {
-                  // Open System Preferences to Accessibility pane
-                  shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
-                }
-              })
-            }
-          } else {
-            console.log('✅ Accessibility permissions already granted - enhanced cursor detection enabled')
-          }
-        } catch (err) {
-          console.error('Error checking accessibility permissions:', err)
-        }
-      } else {
-        console.log('⚠️ Accessibility permission methods not available')
-      }
-    }, 1000)
+    // Check if we have permissions on load
+    if (cursorDetector && cursorDetector.hasAccessibilityPermissions) {
+      const hasPermissions = cursorDetector.hasAccessibilityPermissions()
+      console.log(`Accessibility permissions: ${hasPermissions ? '✅ Granted' : '❌ Not granted'}`)
+    }
   } catch (error) {
     console.error('Failed to load cursor detector:', error)
   }
@@ -109,6 +66,37 @@ interface MousePosition {
 export function registerMouseTrackingHandlers(): void {
   ipcMain.handle('start-mouse-tracking', async (event: IpcMainInvokeEvent, options: MouseTrackingOptions = {}) => {
     try {
+      // Check accessibility permissions when starting mouse tracking
+      if (cursorDetector && !cursorDetector.hasAccessibilityPermissions()) {
+        console.log('⚠️ No accessibility permissions for cursor detection')
+        
+        // Request permissions
+        const granted = cursorDetector.requestAccessibilityPermissions()
+        
+        if (!granted) {
+          // Show user-friendly dialog
+          const { dialog, shell, BrowserWindow } = require('electron')
+          const mainWindow = BrowserWindow.getFocusedWindow()
+          
+          if (mainWindow) {
+            const result = await dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Enable Cursor Detection',
+              message: 'Grant accessibility permissions for accurate cursor detection',
+              detail: 'This allows Screen Studio to detect when your cursor changes to text selection, pointer, and other states during recording.\n\nYou\'ll need to:\n1. Click "Open Settings"\n2. Find Screen Studio or Electron in the list\n3. Toggle it ON\n4. Restart recording',
+              buttons: ['Open Settings', 'Continue Without'],
+              defaultId: 0,
+              cancelId: 1,
+              noLink: true
+            })
+            
+            if (result.response === 0) {
+              shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
+            }
+          }
+        }
+      }
+      
       if (mouseTrackingInterval) {
         clearInterval(mouseTrackingInterval)
       }

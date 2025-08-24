@@ -29,19 +29,19 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    width: 400,
-    height: 350,
-    minWidth: 400,
-    minHeight: 350,
-    maxWidth: 400,
-    maxHeight: 350,
-    x: Math.floor(display.workAreaSize.width / 2 - 200),
+    width: 200,
+    height: 60,
+    minWidth: 180,
+    minHeight: 50,
+    maxWidth: 450,
+    maxHeight: 400,
+    x: Math.floor(display.workAreaSize.width / 2 - 100),
     y: 20,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
     alwaysOnTop: true,
-    resizable: false,
+    resizable: false,  // We'll resize programmatically
     movable: true,
     minimizable: false,
     maximizable: false,
