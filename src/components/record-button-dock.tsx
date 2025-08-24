@@ -38,9 +38,6 @@ export function RecordButtonDock() {
   const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
 
-  // Track if window is being dragged
-  const isDragging = useRef(false)
-
   // Use the centralized recording hook and store
   const {
     startRecording,
@@ -143,19 +140,8 @@ export function RecordButtonDock() {
     })
   }, [micEnabled, updateSettings])
 
-  // Resize window to fit content when source picker toggles
-  useEffect(() => {
-    if (window.electronAPI?.setWindowContentSize) {
-      const baseHeight = 40 // Compact height for just the dock
-      const expandedHeight = showSourcePicker ? 260 : baseHeight
-      
-      // Smooth resize animation
-      window.electronAPI.setWindowContentSize({
-        width: 220, // Slightly narrower
-        height: expandedHeight
-      })
-    }
-  }, [showSourcePicker])
+  // No hardcoded dimensions - let the content determine size
+  // The window auto-sizes based on content via ResizeObserver in main process
 
   const handleStartRecording = () => {
     // Show the source picker inline
@@ -207,12 +193,17 @@ export function RecordButtonDock() {
         "bg-background/90 backdrop-blur-xl",
         "rounded-xl border border-border/40",
         "shadow-lg dark:shadow-2xl",
-        isRecording && "ring-2 ring-destructive/40"
+        isRecording && "ring-2 ring-destructive/40",
+        // Use intrinsic sizing - no fixed dimensions
+        "w-max h-max"
       )}
       style={{ 
         // Make the dock draggable
         ['WebkitAppRegion' as any]: 'drag',
-        cursor: 'move'
+        cursor: 'move',
+        // Ensure proper sizing
+        minWidth: 'max-content',
+        minHeight: 'max-content'
       }}
     >
       {/* Main Dock Bar - Compact Design */}

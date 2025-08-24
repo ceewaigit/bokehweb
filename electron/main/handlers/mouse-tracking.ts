@@ -1,4 +1,5 @@
 import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
+import * as path from 'path'
 
 // Lazy load uiohook-napi to handle initialization errors
 let uIOhook: any = null
@@ -11,6 +12,17 @@ try {
   console.log('uiohook-napi loaded successfully')
 } catch (error) {
   console.error('Failed to load uiohook-napi:', error)
+}
+
+// Native cursor detector module (macOS only)
+let cursorDetector: any = null
+if (process.platform === 'darwin') {
+  try {
+    cursorDetector = require(path.join(__dirname, '../../../build/Release/cursor_detector.node'))
+    console.log('Native cursor detector loaded')
+  } catch (error) {
+    console.error('Failed to load cursor detector:', error)
+  }
 }
 
 // Simple logger for production
@@ -134,22 +146,27 @@ export function registerMouseTrackingHandlers(): void {
             lastVelocity = velocity
             lastTime = now
 
-            // Determine cursor type based on mouse state
+            // Determine cursor type using native detection
             let effectiveCursorType = 'default'
-
+            
+            if (cursorDetector) {
+              try {
+                effectiveCursorType = cursorDetector.getCurrentCursorType()
+              } catch (err) {
+                // Keep default
+              }
+            }
+            
+            // Override with drag state when mouse is down
             if (isMouseDown) {
-              // Mouse is being held down
               const timeSinceMouseDown = now - mouseDownTime
               const distanceFromClick = Math.sqrt(
                 Math.pow(currentPosition.x - lastClickPosition.x, 2) +
                 Math.pow(currentPosition.y - lastClickPosition.y, 2)
               )
-
-              // If mouse moved significantly while held down, it's a drag operation
+              
               if (distanceFromClick > 5 || timeSinceMouseDown > 200) {
-                effectiveCursorType = 'grabbing'  // Dragging state
-              } else {
-                effectiveCursorType = 'grab'  // About to drag
+                effectiveCursorType = 'grabbing'
               }
             }
 
@@ -281,6 +298,16 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
 
+      // Get cursor type at click position
+      let clickCursorType = 'grab' // Default for clicks
+      if (cursorDetector) {
+        try {
+          clickCursorType = cursorDetector.getCursorAtPoint(event.x, event.y) || 'grab'
+        } catch (err) {
+          // Keep grab as default
+        }
+      }
+
       // Send click event with proper coordinates
       mouseEventSender.send('mouse-click', {
         x: event.x,
@@ -289,7 +316,7 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
         button: event.button === 1 ? 'left' : event.button === 2 ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,
         scaleFactor: scaleFactor,
-        cursorType: 'grab',  // Click starts with grab cursor
+        cursorType: clickCursorType,  // Use detected cursor type
         sourceType: sourceType || 'screen',
         sourceId: sourceId
       })

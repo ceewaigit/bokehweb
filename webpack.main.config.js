@@ -34,18 +34,17 @@ module.exports = {
           from: path.resolve(__dirname, 'out'),
           to: path.resolve(__dirname, '.webpack/main/out'),
         },
+        {
+          from: path.resolve(__dirname, 'build/Release/cursor_detector.node'),
+          to: path.resolve(__dirname, '.webpack/main/build/Release/cursor_detector.node'),
+          noErrorOnMissing: true,
+        },
       ],
     }),
   ],
   externals: [
     'uiohook-napi',
-    ({ request }, callback) => {
-      // Mark uiohook-napi as external
-      if (/^uiohook-napi/.test(request)) {
-        return callback(null, `commonjs ${request}`);
-      }
-      callback();
-    },
+    'cursor_detector'
   ],
   target: 'electron-main',
   node: {

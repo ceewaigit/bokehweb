@@ -40,8 +40,9 @@ bower_components
 # node-waf configuration
 .lock-wscript
 
-# Compiled binary addons
-build/Release
+# Compiled binary addons and native modules
+build/
+!binding.gyp
 
 # Dependency directories
 jspm_packages/

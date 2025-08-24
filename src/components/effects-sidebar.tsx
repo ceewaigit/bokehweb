@@ -69,7 +69,7 @@ export function EffectsSidebar({
   React.useEffect(() => {
     if (backgroundType === 'wallpaper' && macOSWallpapers.wallpapers.length === 0 && !loadingWallpapers) {
       setLoadingWallpapers(true)
-      
+
       // Check if API is available
       if (window.electronAPI?.getMacOSWallpapers) {
         window.electronAPI.getMacOSWallpapers()
@@ -106,7 +106,7 @@ export function EffectsSidebar({
 
   const updateEffect = (category: string, updates: any) => {
     if (!effects || !selectedClip) return
-    
+
     // Use the centralized store method for effect updates
     const { updateClipEffectCategory } = useProjectStore.getState()
     updateClipEffectCategory(selectedClip.id, category, updates)
@@ -227,8 +227,8 @@ export function EffectsSidebar({
                         title={wallpaper.name}
                       >
                         {wallpaper.thumbnail ? (
-                          <img 
-                            src={wallpaper.thumbnail} 
+                          <img
+                            src={wallpaper.thumbnail}
                             alt={wallpaper.name}
                             className="w-full h-full object-cover"
                           />
@@ -287,14 +287,17 @@ export function EffectsSidebar({
                 />
               </label>
               {effects.background.blur && effects.background.blur > 0 && (
-                <Slider
-                  value={[effects.background.blur]}
-                  onValueChange={([value]) => updateEffect('background', { blur: value })}
-                  min={0}
-                  max={50}
-                  step={1}
-                  className="w-full"
-                />
+                <>
+                  <Slider
+                    value={[effects.background.blur]}
+                    onValueChange={([value]) => updateEffect('background', { blur: value })}
+                    min={0}
+                    max={50}
+                    step={1}
+                    className="w-full"
+                  />
+                  {effects.background.blur > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.blur}px</span>}
+                </>
               )}
             </div>
           </div>
@@ -501,18 +504,20 @@ export function EffectsSidebar({
                 step={5}
                 className="w-full"
               />
-              <div className="flex justify-between items-center">
-                {(effects.background.padding || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.padding}px</span>}
-                <button
-                  onClick={() => updateEffect('background', {
-                    ...effects.background,
-                    padding: 80
-                  })}
-                  className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
-                >
-                  Reset
-                </button>
-              </div>
+              {(effects.background.padding || 0) > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.padding}px</span>
+                  <button
+                    onClick={() => updateEffect('background', {
+                      ...effects.background,
+                      padding: 80
+                    })}
+                    className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
+                  >
+                    Reset
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">

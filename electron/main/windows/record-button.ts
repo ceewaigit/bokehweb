@@ -29,24 +29,28 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    width: 220, // Compact width for minimal overlay
-    height: 40, // Compact height for dock bar
-    x: Math.floor(display.workAreaSize.width / 2 - 110), // Center horizontally
+    // Start with minimum size, will auto-resize based on content
+    width: 1,
+    height: 1,
+    x: Math.floor(display.workAreaSize.width / 2), // Center horizontally
     y: 20,
+    // Panel-style window configuration
+    type: process.platform === 'darwin' ? 'panel' : 'toolbar', // NSPanel on macOS
     frame: false,
     transparent: true,
-    backgroundColor: '#00000000', // Fully transparent
+    backgroundColor: '#00000000',
     alwaysOnTop: true,
     resizable: false,
-    movable: true, // Allow native dragging
+    movable: true,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    hasShadow: false,
+    hasShadow: true, // Enable shadow for depth
     show: false,
     roundedCorners: true,
-    vibrancy: 'under-window', // macOS vibrancy effect
+    titleBarStyle: 'customButtonsOnHover', // macOS specific
+    vibrancy: 'hud', // macOS HUD style like native overlays
     visualEffectState: 'active',
     webPreferences: {
       nodeIntegration: false,
@@ -65,18 +69,60 @@ export function createRecordButton(): BrowserWindow {
   // Configure as a true overlay window
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   
-  // Use floating window level on macOS for proper overlay behavior
+  // Industry-standard window levels (same as Screen Studio, Loom, CleanShot)
   if (process.platform === 'darwin') {
-    // Set window level to floating - stays above normal windows but below system UI
-    recordButton.setAlwaysOnTop(true, 'floating', 1)
-    // Enable window to be dragged from anywhere (not just title bar)
+    // NSFloatingWindowLevel + 5 (same as Screen Studio)
+    // This keeps it above fullscreen apps but below critical system UI
+    recordButton.setAlwaysOnTop(true, 'pop-up-menu', 1)
     recordButton.setWindowButtonVisibility(false)
+    
+    // Enable auto-hiding in fullscreen spaces
+    recordButton.setFullScreenable(false)
+    recordButton.setAutoHideMenuBar(true)
   } else {
-    // For Windows/Linux, use screen-saver level
+    // Windows/Linux equivalent
     recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
   }
   
+  // Don't ignore mouse events - we need interaction
   recordButton.setIgnoreMouseEvents(false)
+  
+  // Auto-resize window based on content
+  recordButton.webContents.on('did-finish-load', () => {
+    // Enable auto-sizing from content
+    recordButton.webContents.executeJavaScript(`
+      const resize = () => {
+        const body = document.body;
+        const rect = body.getBoundingClientRect();
+        const styles = window.getComputedStyle(body);
+        const width = Math.ceil(rect.width + 
+          parseFloat(styles.marginLeft) + 
+          parseFloat(styles.marginRight));
+        const height = Math.ceil(rect.height + 
+          parseFloat(styles.marginTop) + 
+          parseFloat(styles.marginBottom));
+        
+        if (width > 1 && height > 1) {
+          window.electronAPI?.setWindowContentSize({ width, height });
+        }
+      };
+      
+      // Initial size
+      setTimeout(resize, 0);
+      
+      // Watch for changes
+      const observer = new ResizeObserver(resize);
+      observer.observe(document.body);
+      
+      // Also watch for content changes
+      const mutationObserver = new MutationObserver(resize);
+      mutationObserver.observe(document.body, { 
+        childList: true, 
+        subtree: true, 
+        attributes: true 
+      });
+    `)
+  })
 
   // Apply CSP so blob: media URLs are allowed
   setupSecurityPolicy(recordButton)
