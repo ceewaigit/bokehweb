@@ -13,23 +13,56 @@ try {
   console.log(`Platform: ${platform}, Darwin version: ${os.release()}`)
   
   if (platform === 'darwin') {
-    try {
-      // Load the compiled ScreenCaptureKit native module
-      const modulePath = path.join(__dirname, '../../../../build/Release/screencapture_kit.node')
-      console.log(`Looking for native module at: ${modulePath}`)
-      
-      const nativeModule = require(modulePath)
-      console.log('Native module loaded successfully')
-      
-      nativeRecorder = new nativeModule.NativeScreenRecorder()
-      console.log('✅ Native ScreenCaptureKit recorder loaded - cursor will be hidden!')
-      
-      // Note: We skip the isAvailable() check because it doesn't work correctly
-      // in Node.js context. We rely on the try/catch to handle unsupported systems.
-    } catch (err) {
-      console.error('⚠️ Native screen recorder module not found:', err)
-      console.log('Module path tried:', path.join(__dirname, '../../../../build/Release/screencapture_kit.node'))
-      console.log('Run "npm run rebuild" to compile native modules')
+    let moduleLoaded = false
+    
+    // Try multiple possible paths for the native module
+    const possiblePaths = [
+      // In development, the module is relative to the src directory
+      path.join(app.getAppPath(), 'build', 'Release', 'screencapture_kit.node'),
+      // In production, it might be in the resources directory
+      path.join(process.resourcesPath, 'build', 'Release', 'screencapture_kit.node'),
+      // Fallback to old path resolution
+      path.join(__dirname, '../../../../build/Release/screencapture_kit.node'),
+      // Another possible location in packaged app
+      path.join(app.getAppPath(), '..', 'build', 'Release', 'screencapture_kit.node'),
+      // Try absolute path as last resort
+      path.join(process.cwd(), 'build', 'Release', 'screencapture_kit.node')
+    ]
+    
+    console.log('App path:', app.getAppPath())
+    console.log('Process CWD:', process.cwd())
+    console.log('__dirname:', __dirname)
+    if (process.resourcesPath) {
+      console.log('Resources path:', process.resourcesPath)
+    }
+    
+    for (const modulePath of possiblePaths) {
+      try {
+        console.log(`Trying module path: ${modulePath}`)
+        
+        // Check if file exists before trying to require it
+        if (require('fs').existsSync(modulePath)) {
+          console.log(`✓ File exists at: ${modulePath}`)
+          
+          const nativeModule = require(modulePath)
+          console.log('✓ Native module loaded successfully')
+          
+          nativeRecorder = new nativeModule.NativeScreenRecorder()
+          console.log('✅ Native ScreenCaptureKit recorder loaded - cursor will be hidden!')
+          moduleLoaded = true
+          break
+        } else {
+          console.log(`✗ File not found at: ${modulePath}`)
+        }
+      } catch (err: any) {
+        console.log(`✗ Failed to load from ${modulePath}:`, err.message)
+      }
+    }
+    
+    if (!moduleLoaded) {
+      console.error('⚠️ Native screen recorder module not found in any expected location')
+      console.log('Please ensure the native module is built by running: npm run rebuild')
+      console.log('The app will fall back to MediaRecorder (cursor will be visible)')
     }
   } else {
     console.log('Not on macOS, skipping native recorder')
