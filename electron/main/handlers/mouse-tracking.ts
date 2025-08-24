@@ -19,17 +19,40 @@ if (process.platform === 'darwin') {
     cursorDetector = require(path.join(__dirname, '../../../build/Release/cursor_detector.node'))
     console.log('Native cursor detector loaded')
     
-    // Check accessibility permissions
-    if (cursorDetector.hasAccessibilityPermissions) {
-      const hasPermissions = cursorDetector.hasAccessibilityPermissions()
-      if (!hasPermissions) {
-        console.log('Requesting accessibility permissions for better cursor detection...')
-        cursorDetector.requestAccessibilityPermissions()
-        console.log('Please grant accessibility permissions in System Settings > Privacy & Security > Accessibility')
-      } else {
-        console.log('Accessibility permissions granted - enhanced cursor detection enabled')
+    // Check accessibility permissions after a short delay to ensure app is ready
+    setTimeout(() => {
+      if (cursorDetector.hasAccessibilityPermissions) {
+        const hasPermissions = cursorDetector.hasAccessibilityPermissions()
+        if (!hasPermissions) {
+          console.log('Requesting accessibility permissions for better cursor detection...')
+          // This will show the system prompt
+          const granted = cursorDetector.requestAccessibilityPermissions()
+          if (!granted) {
+            console.log('⚠️ Accessibility permissions required for accurate cursor detection')
+            console.log('Please grant permissions in System Settings > Privacy & Security > Accessibility')
+            
+            // Show dialog to user
+            const { dialog, shell } = require('electron')
+            dialog.showMessageBox({
+              type: 'info',
+              title: 'Accessibility Permission Required',
+              message: 'Screen Studio needs accessibility permissions for accurate cursor detection.',
+              detail: 'This allows the app to detect when your cursor changes to text selection, link hover, and other states.\n\nClick "Open Settings" to grant permission.',
+              buttons: ['Open Settings', 'Later'],
+              defaultId: 0,
+              cancelId: 1
+            }).then((result: any) => {
+              if (result.response === 0) {
+                // Open System Preferences to Accessibility pane
+                shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
+              }
+            })
+          }
+        } else {
+          console.log('✅ Accessibility permissions granted - enhanced cursor detection enabled')
+        }
       }
-    }
+    }, 1000)
   } catch (error) {
     console.error('Failed to load cursor detector:', error)
   }

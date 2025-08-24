@@ -60,14 +60,18 @@ export function RecordButtonDock() {
     document.documentElement.style.background = 'transparent'
     document.body.style.background = 'transparent'
     document.body.style.margin = '0'
-    document.body.style.padding = '0' // No padding - we want the window to be exactly the size of content
+    document.body.style.padding = '0'
     document.body.style.overflow = 'hidden'
-    document.body.style.userSelect = 'none' // Prevent text selection while dragging
+    document.body.style.userSelect = 'none'
+    document.body.style.width = '100vw'
+    document.body.style.height = '100vh'
 
     // Remove any default styles
     const root = document.getElementById('root')
     if (root) {
       root.style.background = 'transparent'
+      root.style.width = '100%'
+      root.style.height = '100%'
     }
   }, [])
 
@@ -180,35 +184,33 @@ export function RecordButtonDock() {
   const areaOption = sources.find(s => s.type === 'area')
 
   return (
-    <motion.div
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ 
-        duration: 0.2,
-        ease: [0.4, 0, 0.2, 1]
-      }}
-      className={cn(
-        "relative inline-flex flex-col",
-        "bg-background",
-        "rounded-xl border border-border",
-        "shadow-lg dark:shadow-2xl",
-        isRecording && "ring-2 ring-destructive/40"
-      )}
-      style={{ 
-        // Make the dock draggable
-        ['WebkitAppRegion' as any]: 'drag',
-        cursor: 'move',
-        // Ensure content determines size with no extra space
-        width: 'auto',
-        height: 'auto',
-        display: 'inline-flex',
-        margin: 0,
-        padding: 0,
-        // GPU acceleration
-        transform: 'translateZ(0)',
-        willChange: 'transform'
-      }}
-    >
+    <div className="fixed inset-0 flex flex-col items-center" style={{ padding: '10px' }}>
+      <motion.div
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ 
+          duration: 0.2,
+          ease: [0.4, 0, 0.2, 1]
+        }}
+        className={cn(
+          "relative inline-flex flex-col",
+          "bg-background",
+          "rounded-xl border border-border",
+          "shadow-lg dark:shadow-2xl",
+          isRecording && "ring-2 ring-destructive/40"
+        )}
+        style={{ 
+          // Make the dock draggable
+          ['WebkitAppRegion' as any]: 'drag',
+          cursor: 'move',
+          // Fixed positioning at top
+          width: 'auto',
+          maxWidth: '380px',
+          // GPU acceleration
+          transform: 'translateZ(0)',
+          willChange: 'transform'
+        }}
+      >
       {/* Main Dock Bar - Compact Design */}
       <div className="inline-flex items-center justify-center gap-1 p-2" style={{ width: 'auto' }}>
         {!isRecording ? (
@@ -276,7 +278,7 @@ export function RecordButtonDock() {
             <button
               style={{ WebkitAppRegion: 'no-drag' } as any}
               className={cn(
-                "p-1.5 rounded-lg transition-all duration-150",
+                "p-1.5 rounded-lg transition-colors duration-150",
                 "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
               onClick={() => window.electronAPI?.openWorkspace?.()}
@@ -309,7 +311,7 @@ export function RecordButtonDock() {
             <button
               style={{ WebkitAppRegion: 'no-drag' } as any}
               className={cn(
-                "p-1.5 rounded-lg transition-all duration-150",
+                "p-1.5 rounded-lg transition-colors duration-150",
                 "text-foreground hover:text-foreground hover:bg-accent"
               )}
               onClick={isPaused ? resumeRecording : pauseRecording}
@@ -327,7 +329,7 @@ export function RecordButtonDock() {
                 "bg-destructive/10 hover:bg-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30",
                 "text-destructive-foreground",
                 "rounded-lg border border-destructive/50 dark:border-destructive/30",
-                "transition-all duration-200",
+                "transition-colors duration-200",
                 "active:scale-95"
               )}
               onClick={handleStopRecording}
@@ -341,7 +343,7 @@ export function RecordButtonDock() {
             <button
               style={{ WebkitAppRegion: 'no-drag' } as any}
               className={cn(
-                "p-1.5 rounded-lg transition-all duration-200",
+                "p-1.5 rounded-lg transition-colors duration-200",
                 "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
               onClick={() => window.electronAPI?.minimizeRecordButton?.()}
@@ -375,7 +377,7 @@ export function RecordButtonDock() {
                     style={{ WebkitAppRegion: 'no-drag' } as any}
                     onClick={() => setSelectedSourceId(areaOption.id)}
                     className={cn(
-                      "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-all",
+                      "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
                       selectedSourceId === areaOption.id
                         ? "border-primary bg-primary/10"
                         : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
@@ -392,7 +394,7 @@ export function RecordButtonDock() {
                     key={screen.id}
                     onClick={() => setSelectedSourceId(screen.id)}
                     className={cn(
-                      "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-all",
+                      "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
                       selectedSourceId === screen.id
                         ? "border-primary bg-primary/10"
                         : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
@@ -421,7 +423,7 @@ export function RecordButtonDock() {
                         key={window.id}
                         onClick={() => setSelectedSourceId(window.id)}
                         className={cn(
-                          "p-1 rounded border text-[9px] truncate transition-all",
+                          "p-1 rounded border text-[9px] truncate transition-colors",
                           selectedSourceId === window.id
                             ? "border-primary bg-primary/10"
                             : "border-border/30 hover:border-primary/50 hover:bg-accent/50"
@@ -453,7 +455,7 @@ export function RecordButtonDock() {
                   onClick={handleSourceSelect}
                   disabled={!selectedSourceId}
                   className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-medium transition-all",
+                    "px-2 py-0.5 rounded text-[10px] font-medium transition-colors",
                     selectedSourceId
                       ? "bg-primary text-primary-foreground hover:bg-primary/90"
                       : "bg-muted/50 text-muted-foreground cursor-not-allowed"
@@ -466,6 +468,7 @@ export function RecordButtonDock() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }
