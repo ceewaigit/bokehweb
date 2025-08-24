@@ -4,6 +4,9 @@
  */
 
 import { logger } from '@/lib/utils/logger'
+import type { Project, Recording, Clip, CaptureArea } from '@/types/project'
+import { SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
+import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 export class RecordingStorage {
   private static readonly BLOB_PREFIX = 'recording-blob-'
@@ -130,6 +133,268 @@ export class RecordingStorage {
 
     if (keysToRemove.length > 0) {
       logger.info(`Cleared ${keysToRemove.length} cached blob URLs on startup`)
+    }
+  }
+
+  /**
+   * Create a new project with default settings
+   */
+  static createProject(name: string): Project {
+    return {
+      version: '1.0.0',
+      id: `project-${Date.now()}`,
+      name,
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+      recordings: [],
+      timeline: {
+        tracks: [
+          {
+            id: 'video-1',
+            name: 'Video',
+            type: 'video',
+            clips: [],
+            muted: false,
+            locked: false
+          },
+          {
+            id: 'audio-1',
+            name: 'Audio',
+            type: 'audio',
+            clips: [],
+            muted: false,
+            locked: false
+          }
+        ],
+        duration: 0
+      },
+      settings: {
+        resolution: { width: 1920, height: 1080 },
+        frameRate: 60,
+        backgroundColor: '#000000'
+      },
+      exportPresets: [
+        {
+          id: 'default',
+          name: 'Default',
+          format: 'mp4',
+          codec: 'h264',
+          quality: 'high',
+          resolution: { width: 1920, height: 1080 },
+          frameRate: 60
+        }
+      ]
+    }
+  }
+
+  /**
+   * Save project to file system
+   */
+  static async saveProject(project: Project, customPath?: string): Promise<string | null> {
+    const projectCopy = { ...project }
+
+    if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
+      try {
+        const recordingsDir = await window.electronAPI.getRecordingsDirectory()
+
+        let projectFilePath: string
+        if (projectCopy.filePath && !customPath) {
+          projectFilePath = projectCopy.filePath
+        } else {
+          const projectFileName = customPath || `${projectCopy.id}.ssproj`
+          projectFilePath = projectFileName.startsWith('/') ? projectFileName : `${recordingsDir}/${projectFileName}`
+        }
+
+        projectCopy.filePath = projectFilePath
+        const projectData = JSON.stringify(projectCopy, null, 2)
+
+        await window.electronAPI.saveRecording(
+          projectFilePath,
+          new TextEncoder().encode(projectData).buffer
+        )
+
+        this.setProject(projectCopy.id, projectData)
+        this.setProjectPath(projectCopy.id, projectFilePath)
+
+        logger.info(`Project saved to: ${projectFilePath}`)
+        return projectFilePath
+      } catch (error) {
+        console.error('Failed to save project file:', error)
+        const projectData = JSON.stringify(projectCopy, null, 2)
+        this.setProject(projectCopy.id, projectData)
+        return null
+      }
+    } else {
+      const projectData = JSON.stringify(projectCopy, null, 2)
+      this.setProject(projectCopy.id, projectData)
+      return null
+    }
+  }
+
+  /**
+   * Save recording with project - moved from project-store.ts
+   */
+  static async saveRecordingWithProject(
+    videoBlob: Blob,
+    metadata: any[],
+    projectName?: string,
+    captureArea?: CaptureArea
+  ): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
+    if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
+      return null
+    }
+
+    try {
+      const recordingsDir = await window.electronAPI.getRecordingsDirectory()
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const baseName = projectName || `Recording_${timestamp}`
+      const recordingId = `recording-${Date.now()}`
+
+      // Save video file
+      const videoFileName = `${baseName}.webm`
+      const videoFilePath = `${recordingsDir}/${videoFileName}`
+      const buffer = await videoBlob.arrayBuffer()
+      await window.electronAPI.saveRecording(videoFilePath, buffer)
+
+      // Get video metadata
+      const videoUrl = URL.createObjectURL(videoBlob)
+      const video = document.createElement('video')
+      video.src = videoUrl
+
+      await new Promise<void>((resolve) => {
+        video.onloadedmetadata = () => {
+          if (!isFinite(video.duration)) {
+            video.currentTime = Number.MAX_SAFE_INTEGER
+            video.onseeked = () => {
+              video.onseeked = null
+              video.currentTime = 0
+              resolve()
+            }
+          } else {
+            resolve()
+          }
+        }
+      })
+
+      if (!isFinite(video.duration) || video.duration <= 0) {
+        throw new Error(`Cannot determine video duration: ${video.duration}`)
+      }
+
+      const duration = video.duration * 1000
+      const width = video.videoWidth
+      const height = video.videoHeight
+
+      URL.revokeObjectURL(videoUrl)
+
+      // Create project with recording
+      const project = this.createProject(baseName)
+
+      const firstEventWithCapture = metadata.find(m => m.captureWidth && m.captureHeight)
+      const captureWidth = captureArea?.fullBounds?.width || firstEventWithCapture?.captureWidth || width
+      const captureHeight = captureArea?.fullBounds?.height || firstEventWithCapture?.captureHeight || height
+      
+      const firstEventWithBounds = metadata.find(m => m.sourceBounds)
+      const sourceBounds = firstEventWithBounds?.sourceBounds
+      
+      const mouseEvents = metadata
+        .filter(m => m.eventType === 'mouse')
+        .map(m => ({
+          timestamp: m.timestamp,
+          x: m.mouseX,
+          y: m.mouseY,
+          screenWidth: m.screenWidth || captureWidth,
+          screenHeight: m.screenHeight || captureHeight,
+          captureWidth: m.captureWidth || captureWidth,
+          captureHeight: m.captureHeight || captureHeight,
+          cursorType: m.cursorType
+        }))
+
+      const clickEvents = metadata
+        .filter(m => m.eventType === 'click')
+        .map(m => ({
+          timestamp: m.timestamp,
+          x: m.mouseX,
+          y: m.mouseY,
+          button: m.key || 'left' as const
+        }))
+
+      const keyboardEvents = metadata
+        .filter(m => m.eventType === 'keypress')
+        .map(m => ({
+          timestamp: m.timestamp,
+          key: m.key,
+          modifiers: []
+        }))
+
+      const reconstructedCaptureArea = sourceBounds ? {
+        fullBounds: sourceBounds,
+        workArea: sourceBounds,
+        scaleFactor: 1,
+        sourceType: firstEventWithBounds?.sourceType || 'screen',
+        sourceId: ''
+      } : captureArea
+
+      // Add recording to project
+      const recording: Recording = {
+        id: recordingId,
+        filePath: videoFileName,
+        duration,
+        width,
+        height,
+        frameRate: 30,
+        captureArea: reconstructedCaptureArea,
+        metadata: {
+          mouseEvents,
+          keyboardEvents,
+          clickEvents,
+          screenEvents: [],
+          captureArea: reconstructedCaptureArea
+        }
+      }
+
+      project.recordings.push(recording)
+
+      // Auto-generate zoom blocks
+      const detector = new ZoomDetector()
+      const zoomBlocks = detector.detectZoomBlocks(
+        mouseEvents,
+        captureWidth || width,
+        captureHeight || height,
+        duration
+      )
+
+      // Create and add clip with effects
+      const clipEffects = structuredClone(SCREEN_STUDIO_CLIP_EFFECTS)
+      clipEffects.zoom.blocks = zoomBlocks
+
+      const clip: Clip = {
+        id: `clip-${Date.now()}`,
+        recordingId: recording.id,
+        startTime: 0,
+        duration,
+        sourceIn: 0,
+        sourceOut: duration,
+        effects: clipEffects
+      }
+
+      const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
+      if (videoTrack) {
+        videoTrack.clips.push(clip)
+      }
+
+      project.timeline.duration = duration
+
+      // Save project file
+      const projectPath = await this.saveProject(project, `${baseName}.ssproj`)
+
+      return {
+        project,
+        videoPath: videoFilePath,
+        projectPath: projectPath || ''
+      }
+    } catch (error) {
+      logger.error('Failed to save recording with project:', error)
+      return null
     }
   }
 

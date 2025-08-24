@@ -6,8 +6,7 @@ import {
   type Recording,
   type ClipEffects,
   type Track,
-  type ZoomBlock,
-  type CaptureArea
+  type ZoomBlock
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
@@ -15,324 +14,7 @@ import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { logger } from '@/lib/utils/logger'
 
-// Helper function to create a new project
-function createProject(name: string): Project {
-  return {
-    version: '1.0.0',
-    id: `project-${Date.now()}`,
-    name,
-    createdAt: new Date().toISOString(),
-    modifiedAt: new Date().toISOString(),
-    recordings: [],
-    timeline: {
-      tracks: [
-        {
-          id: 'video-1',
-          name: 'Video',
-          type: 'video',
-          clips: [],
-          muted: false,
-          locked: false
-        },
-        {
-          id: 'audio-1',
-          name: 'Audio',
-          type: 'audio',
-          clips: [],
-          muted: false,
-          locked: false
-        }
-      ],
-      duration: 0
-    },
-    settings: {
-      resolution: { width: 1920, height: 1080 },
-      frameRate: 60,
-      backgroundColor: '#000000'
-    },
-    exportPresets: [
-      {
-        id: 'default',
-        name: 'Default',
-        format: 'mp4',
-        codec: 'h264',
-        quality: 'high',
-        resolution: { width: 1920, height: 1080 },
-        frameRate: 60
-      }
-    ]
-  }
-}
-
-// Save project to file system
-async function saveProject(project: Project, customPath?: string): Promise<string | null> {
-  const projectCopy = { ...project }
-
-  if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
-    try {
-      const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-
-      let projectFilePath: string
-      if (projectCopy.filePath && !customPath) {
-        projectFilePath = projectCopy.filePath
-      } else {
-        const projectFileName = customPath || `${projectCopy.id}.ssproj`
-        projectFilePath = projectFileName.startsWith('/') ? projectFileName : `${recordingsDir}/${projectFileName}`
-      }
-
-      projectCopy.filePath = projectFilePath
-      const projectData = JSON.stringify(projectCopy, null, 2)
-
-      await window.electronAPI.saveRecording(
-        projectFilePath,
-        new TextEncoder().encode(projectData).buffer
-      )
-
-      RecordingStorage.setProject(projectCopy.id, projectData)
-      RecordingStorage.setProjectPath(projectCopy.id, projectFilePath)
-
-      logger.info(`Project saved to: ${projectFilePath}`)
-      return projectFilePath
-    } catch (error) {
-      console.error('Failed to save project file:', error)
-      const projectData = JSON.stringify(projectCopy, null, 2)
-      RecordingStorage.setProject(projectCopy.id, projectData)
-      return null
-    }
-  } else {
-    const projectData = JSON.stringify(projectCopy, null, 2)
-    RecordingStorage.setProject(projectCopy.id, projectData)
-    return null
-  }
-}
-
-// Load project from file system
-async function loadProject(filePath: string): Promise<Project> {
-  // For now, just use RecordingStorage
-  // The actual file loading happens through the recordings library component
-  const data = RecordingStorage.getProject(filePath)
-  if (!data) throw new Error('Project not found')
-  return JSON.parse(data)
-}
-
-// Save recording with project - exported for use-recording hook
-export async function saveRecordingWithProject(
-  videoBlob: Blob,
-  metadata: any[],
-  projectName?: string,
-  captureArea?: CaptureArea
-): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
-  if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
-    return null
-  }
-
-  try {
-    const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const baseName = projectName || `Recording_${timestamp}`
-    const recordingId = `recording-${Date.now()}`
-
-    // Save video file
-    const videoFileName = `${baseName}.webm`
-    const videoFilePath = `${recordingsDir}/${videoFileName}`
-    const buffer = await videoBlob.arrayBuffer()
-    await window.electronAPI.saveRecording(videoFilePath, buffer)
-
-    // Get video metadata
-    const videoUrl = URL.createObjectURL(videoBlob)
-    const video = document.createElement('video')
-    video.src = videoUrl
-
-    await new Promise<void>((resolve) => {
-      video.onloadedmetadata = () => {
-        if (!isFinite(video.duration)) {
-          video.currentTime = Number.MAX_SAFE_INTEGER
-          video.onseeked = () => {
-            video.onseeked = null
-            video.currentTime = 0
-            resolve()
-          }
-        } else {
-          resolve()
-        }
-      }
-    })
-
-    if (!isFinite(video.duration) || video.duration <= 0) {
-      throw new Error(`Cannot determine video duration: ${video.duration}`)
-    }
-
-    const duration = video.duration * 1000
-    const width = video.videoWidth
-    const height = video.videoHeight
-
-    URL.revokeObjectURL(videoUrl)
-
-    // Create project with recording
-    const project = createProject(baseName)
-
-    const firstEventWithCapture = metadata.find(m => m.captureWidth && m.captureHeight)
-    const captureWidth = firstEventWithCapture?.captureWidth || width
-    const captureHeight = firstEventWithCapture?.captureHeight || height
-
-    const firstEventWithBounds = metadata.find(m => m.sourceBounds)
-    const sourceBounds = firstEventWithBounds?.sourceBounds
-
-    const mouseEvents = metadata
-      .filter(m => m.eventType === 'mouse')
-      .map(m => ({
-        timestamp: m.timestamp,
-        x: m.mouseX,
-        y: m.mouseY,
-        screenWidth: m.screenWidth || captureWidth,
-        screenHeight: m.screenHeight || captureHeight,
-        captureWidth: m.captureWidth || captureWidth,
-        captureHeight: m.captureHeight || captureHeight,
-        cursorType: m.cursorType
-      }))
-
-    const clickEvents = metadata
-      .filter(m => m.eventType === 'click')
-      .map(m => ({
-        timestamp: m.timestamp,
-        x: m.mouseX,
-        y: m.mouseY,
-        button: m.key || 'left' as const
-      }))
-
-    const keyboardEvents = metadata
-      .filter(m => m.eventType === 'keypress')
-      .map(m => ({
-        timestamp: m.timestamp,
-        key: m.key,
-        modifiers: []
-      }))
-
-    const reconstructedCaptureArea = sourceBounds ? {
-      fullBounds: sourceBounds,
-      workArea: sourceBounds,
-      scaleFactor: 1,
-      sourceType: firstEventWithBounds?.sourceType || 'screen',
-      sourceId: ''
-    } : captureArea
-
-    // Add recording to project
-    const recording: Recording = {
-      id: recordingId,
-      filePath: videoFileName,
-      duration,
-      width,
-      height,
-      frameRate: 30,
-      captureArea: reconstructedCaptureArea,
-      metadata: {
-        mouseEvents,
-        keyboardEvents,
-        clickEvents,
-        screenEvents: [],
-        captureArea: reconstructedCaptureArea
-      }
-    }
-
-    project.recordings.push(recording)
-
-    // Auto-generate zoom blocks
-    const detector = new ZoomDetector()
-    const zoomBlocks = detector.detectZoomBlocks(
-      mouseEvents,
-      captureWidth || width,
-      captureHeight || height,
-      duration
-    )
-
-    // Create and add clip with effects
-    const clipEffects = structuredClone(SCREEN_STUDIO_CLIP_EFFECTS)
-    clipEffects.zoom.blocks = zoomBlocks
-
-    const clip: Clip = {
-      id: `clip-${Date.now()}`,
-      recordingId: recording.id,
-      startTime: 0,
-      duration,
-      sourceIn: 0,
-      sourceOut: duration,
-      effects: clipEffects
-    }
-
-    const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
-    if (videoTrack) {
-      videoTrack.clips.push(clip)
-    }
-
-    project.timeline.duration = duration
-
-    // Save project file
-    const projectPath = await saveProject(project, `${baseName}.ssproj`)
-
-    return {
-      project,
-      videoPath: videoFilePath,
-      projectPath: projectPath || ''
-    }
-  } catch (error) {
-    logger.error('Failed to save recording with project:', error)
-    return null
-  }
-}
-
-interface ProjectStore {
-  // State
-  currentProject: Project | null
-  currentTime: number
-  isPlaying: boolean
-  zoom: number
-  selectedClipId: string | null
-  selectedClips: string[]
-  selectedEffectLayer: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
-  playbackInterval: number | null
-
-  // Core Actions
-  newProject: (name: string) => void
-  openProject: (projectPath: string) => Promise<void>
-  saveCurrentProject: () => Promise<void>
-  setProject: (project: Project) => void
-
-  // Recording
-  addRecording: (recording: Recording, videoBlob: Blob) => void
-
-  // Clip Management
-  addClip: (clip: Clip | string, startTime?: number) => void
-  removeClip: (clipId: string) => void
-  updateClip: (clipId: string, updates: Partial<Clip>) => void
-  updateClipEffects: (clipId: string, effects: Partial<ClipEffects>) => void
-  updateClipEffectCategory: (clipId: string, category: string, updates: any) => void
-  updateZoomBlock: (clipId: string, blockId: string, updates: Partial<ZoomBlock>) => void
-  addZoomBlock: (clipId: string, block: ZoomBlock) => void
-  removeZoomBlock: (clipId: string, blockId: string) => void
-  selectClip: (clipId: string | null, multi?: boolean) => void
-  selectEffectLayer: (type: 'zoom' | 'cursor' | 'background', id?: string) => void
-  clearEffectSelection: () => void
-  clearSelection: () => void
-  splitClip: (clipId: string, splitTime: number) => void
-  trimClipStart: (clipId: string, newStartTime: number) => void
-  trimClipEnd: (clipId: string, newEndTime: number) => void
-  duplicateClip: (clipId: string) => string | null
-
-  // Playback
-  play: () => void
-  pause: () => void
-  seek: (time: number) => void
-  setZoom: (zoom: number) => void
-
-  // Effects Engine
-  regenerateZoomEffects: (options?: any) => void
-
-  // Getters
-  getCurrentClip: () => Clip | null
-  getCurrentRecording: () => Recording | null
-}
-
-// Inline helper functions
+// Helper functions moved to top for better organization
 const findClipById = (project: Project, clipId: string): { clip: Clip; track: Track } | null => {
   for (const track of project.timeline.tracks) {
     const clip = track.clips.find(c => c.id === clipId)
@@ -377,6 +59,57 @@ const findNextValidPosition = (track: Track, clipId: string, desiredStart: numbe
 let animationFrameId: number | null = null
 let lastTimestamp: number | null = null
 
+interface ProjectStore {
+  // State
+  currentProject: Project | null
+  currentTime: number
+  isPlaying: boolean
+  zoom: number
+  selectedClipId: string | null
+  selectedClips: string[]
+  selectedEffectLayer: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
+
+  // Core Actions
+  newProject: (name: string) => void
+  openProject: (projectPath: string) => Promise<void>
+  saveCurrentProject: () => Promise<void>
+  setProject: (project: Project) => void
+
+  // Recording
+  addRecording: (recording: Recording, videoBlob: Blob) => void
+
+  // Clip Management
+  addClip: (clip: Clip | string, startTime?: number) => void
+  removeClip: (clipId: string) => void
+  updateClip: (clipId: string, updates: Partial<Clip>) => void
+  updateClipEffects: (clipId: string, effects: Partial<ClipEffects>) => void
+  updateClipEffectCategory: (clipId: string, category: string, updates: any) => void
+  updateZoomBlock: (clipId: string, blockId: string, updates: Partial<ZoomBlock>) => void
+  addZoomBlock: (clipId: string, block: ZoomBlock) => void
+  removeZoomBlock: (clipId: string, blockId: string) => void
+  selectClip: (clipId: string | null, multi?: boolean) => void
+  selectEffectLayer: (type: 'zoom' | 'cursor' | 'background', id?: string) => void
+  clearEffectSelection: () => void
+  clearSelection: () => void
+  splitClip: (clipId: string, splitTime: number) => void
+  trimClipStart: (clipId: string, newStartTime: number) => void
+  trimClipEnd: (clipId: string, newEndTime: number) => void
+  duplicateClip: (clipId: string) => string | null
+
+  // Playback
+  play: () => void
+  pause: () => void
+  seek: (time: number) => void
+  setZoom: (zoom: number) => void
+
+  // Effects Engine
+  regenerateZoomEffects: (options?: any) => void
+
+  // Getters
+  getCurrentClip: () => Clip | null
+  getCurrentRecording: () => Recording | null
+}
+
 export const useProjectStore = create<ProjectStore>()(
   immer((set, get) => ({
     currentProject: null,
@@ -386,11 +119,10 @@ export const useProjectStore = create<ProjectStore>()(
     selectedClipId: null,
     selectedClips: [],
     selectedEffectLayer: null,
-    playbackInterval: null,
 
     newProject: (name) => {
       set((state) => {
-        state.currentProject = createProject(name)
+        state.currentProject = RecordingStorage.createProject(name)
         state.selectedClipId = null
         state.selectedClips = []
         state.selectedEffectLayer = null
@@ -408,11 +140,14 @@ export const useProjectStore = create<ProjectStore>()(
 
     openProject: async (projectPath) => {
       try {
-        const project = await loadProject(projectPath)
+        // Load project from storage
+        const data = RecordingStorage.getProject(projectPath)
+        if (!data) throw new Error('Project not found')
+        const project: Project = typeof data === 'string' ? JSON.parse(data) : data
 
         // Load all videos and metadata in one call
         await globalBlobManager.loadVideos(
-          project.recordings.map(r => ({
+          project.recordings.map((r: Recording) => ({
             id: r.id,
             filePath: r.filePath,
             metadata: r.metadata
@@ -435,7 +170,7 @@ export const useProjectStore = create<ProjectStore>()(
 
       try {
         currentProject.modifiedAt = new Date().toISOString()
-        await saveProject(currentProject)
+        await RecordingStorage.saveProject(currentProject)
       } catch (error) {
         console.error('Failed to save project:', error)
         throw error

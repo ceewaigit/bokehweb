@@ -6,7 +6,6 @@ import { useProjectStore } from '@/stores/project-store'
 import { ElectronRecorder, type ElectronRecordingResult } from '@/lib/recording'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
-import { saveRecordingWithProject } from '@/stores/project-store'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useRecordingTimer } from './use-recording-timer'
 // Processing progress type
@@ -200,7 +199,7 @@ export function useRecording() {
         const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
 
         // Save recording with project using consolidated function
-        const saved = await saveRecordingWithProject(result.video, result.metadata, projectName, result.captureArea)
+        const saved = await RecordingStorage.saveRecordingWithProject(result.video, result.metadata, projectName, result.captureArea)
 
         if (saved) {
           logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)

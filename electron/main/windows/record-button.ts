@@ -24,27 +24,30 @@ function setupSecurityPolicy(window: BrowserWindow): void {
 
 export function createRecordButton(): BrowserWindow {
   const display = screen.getPrimaryDisplay()
-  console.log('🖥️ Creating record button for display:', display.bounds)
+  console.log('🖥️ Creating record button overlay for display:', display.bounds)
 
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    width: 300, // Reasonable initial width for dock
-    height: 56, // Reasonable initial height for dock  
-    x: Math.floor(display.workAreaSize.width / 2 - 150), // Center horizontally
+    width: 240, // Compact width for minimal overlay
+    height: 48, // Compact height for dock bar
+    x: Math.floor(display.workAreaSize.width / 2 - 120), // Center horizontally
     y: 20,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000', // Fully transparent
     alwaysOnTop: true,
     resizable: false,
-    movable: true,
+    movable: true, // Allow native dragging
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
     hasShadow: false,
     show: false,
+    roundedCorners: true,
+    vibrancy: 'under-window', // macOS vibrancy effect
+    visualEffectState: 'active',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -59,8 +62,20 @@ export function createRecordButton(): BrowserWindow {
   // Set window title to empty string to avoid any OS chrome showing it
   recordButton.setTitle('')
   
+  // Configure as a true overlay window
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-  recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
+  
+  // Use floating window level on macOS for proper overlay behavior
+  if (process.platform === 'darwin') {
+    // Set window level to floating - stays above normal windows but below system UI
+    recordButton.setAlwaysOnTop(true, 'floating', 1)
+    // Enable window to be dragged from anywhere (not just title bar)
+    recordButton.setWindowButtonVisibility(false)
+  } else {
+    // For Windows/Linux, use screen-saver level
+    recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
+  }
+  
   recordButton.setIgnoreMouseEvents(false)
 
   // Apply CSP so blob: media URLs are allowed

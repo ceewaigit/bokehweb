@@ -36,8 +36,8 @@ export function RecordButtonDock() {
   const [sources, setSources] = useState<Source[]>([])
   const [loadingSources, setLoadingSources] = useState(false)
 
-  // Reference to the dock container for measuring
-  const dockContainerRef = useRef<HTMLDivElement>(null)
+  // Track if window is being dragged
+  const isDragging = useRef(false)
 
   // Use the centralized recording hook and store
   const {
@@ -60,23 +60,24 @@ export function RecordButtonDock() {
     prepareRecording
   } = useRecordingStore()
 
-  // Make entire window transparent and size to content
+  // Configure window for overlay mode
   useEffect(() => {
     // Set transparent background
     document.documentElement.style.background = 'transparent'
     document.body.style.background = 'transparent'
     document.body.style.margin = '0'
-    document.body.style.padding = '0' // No padding - true overlay
-    document.body.style.display = 'flex'
-    document.body.style.alignItems = 'flex-start'
-    document.body.style.justifyContent = 'center'
+    document.body.style.padding = '8px' // Small padding for safety
+    document.body.style.overflow = 'hidden'
+    document.body.style.userSelect = 'none' // Prevent text selection while dragging
     
+    // Make the window draggable by setting -webkit-app-region
+    ;(document.documentElement.style as any).webkitAppRegion = 'drag'
+    ;(document.body.style as any).webkitAppRegion = 'drag'
+
     // Remove any default styles
     const root = document.getElementById('root')
     if (root) {
       root.style.background = 'transparent'
-      root.style.width = 'auto'
-      root.style.height = 'auto'
     }
   }, [])
 
@@ -148,21 +149,19 @@ export function RecordButtonDock() {
     })
   }, [micEnabled, updateSettings])
 
-  // Resize window to fit content dynamically
+  // Resize window to fit content when source picker toggles
   useEffect(() => {
-    // Use a small delay to let animations complete
-    const timer = setTimeout(() => {
-      if (dockContainerRef.current) {
-        const rect = dockContainerRef.current.getBoundingClientRect()
-        window.electronAPI?.setWindowContentSize?.({
-          width: Math.ceil(rect.width),
-          height: Math.ceil(rect.height)
-        })
-      }
-    }, showSourcePicker ? 250 : 50) // Longer delay when expanding/collapsing
-    
-    return () => clearTimeout(timer)
-  }, [showSourcePicker, isRecording, isPaused])
+    if (window.electronAPI?.setWindowContentSize) {
+      const baseHeight = 48
+      const expandedHeight = showSourcePicker ? 280 : baseHeight
+      
+      // Smooth resize animation
+      window.electronAPI.setWindowContentSize({
+        width: 240,
+        height: expandedHeight
+      })
+    }
+  }, [showSourcePicker])
 
   const handleStartRecording = () => {
     // Show the source picker inline
@@ -171,9 +170,9 @@ export function RecordButtonDock() {
 
   const handleSourceSelect = async () => {
     if (!selectedSourceId) return
-    
+
     setShowSourcePicker(false)
-    
+
     if (selectedSourceId === 'area:selection') {
       // Handle area selection
       if (window.electronAPI?.selectScreenArea) {
@@ -206,30 +205,40 @@ export function RecordButtonDock() {
 
   return (
     <motion.div
-      ref={dockContainerRef}
-      drag
-      dragMomentum={false}
-      dragElastic={0}
-      initial={{ y: -100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+      initial={{ scale: 0.8, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: 'spring', damping: 18, stiffness: 250 }}
       className={cn(
-        "relative flex flex-col gap-2",
-        "bg-background/95 backdrop-blur-2xl backdrop-saturate-150",
-        "rounded-2xl border border-border/30",
-        "shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]",
-        isRecording && "ring-2 ring-destructive/30"
+        "relative flex flex-col",
+        "bg-background/90 backdrop-blur-xl",
+        "rounded-xl border border-border/40",
+        "shadow-lg dark:shadow-2xl",
+        isRecording && "ring-2 ring-destructive/40"
       )}
+      style={{ 
+        // Make buttons and interactive elements not draggable
+        ['WebkitAppRegion' as any]: 'no-drag' 
+      }}
+      onMouseDown={() => isDragging.current = false}
+      onMouseMove={() => {
+        if (isDragging.current) {
+          document.body.style.cursor = 'grabbing'
+        }
+      }}
+      onMouseUp={() => {
+        isDragging.current = false
+        document.body.style.cursor = 'default'
+      }}
     >
-      {/* Main Dock Bar */}
-      <div className="flex items-center gap-1 p-1.5">
+      {/* Main Dock Bar - Compact Design */}
+      <div className="flex items-center gap-1 p-1">
         {!isRecording ? (
           <>
             {/* Audio & Camera Controls */}
             <div className="flex items-center gap-1">
               <button
                 className={cn(
-                  "relative p-2 rounded-lg transition-all duration-200",
+                  "relative p-1.5 rounded-lg transition-all duration-150",
                   micEnabled
                     ? "bg-primary/10 text-primary hover:bg-primary/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -237,7 +246,7 @@ export function RecordButtonDock() {
                 onClick={() => setMicEnabled(!micEnabled)}
                 title={micEnabled ? 'Microphone On' : 'Microphone Off'}
               >
-                {micEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+                {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
                 {micEnabled && (
                   <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
                 )}
@@ -245,7 +254,7 @@ export function RecordButtonDock() {
 
               <button
                 className={cn(
-                  "relative p-2 rounded-lg transition-all duration-200",
+                  "relative p-1.5 rounded-lg transition-all duration-150",
                   cameraEnabled
                     ? "bg-primary/10 text-primary hover:bg-primary/20"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -253,7 +262,7 @@ export function RecordButtonDock() {
                 onClick={() => setCameraEnabled(!cameraEnabled)}
                 title={cameraEnabled ? 'Camera On' : 'Camera Off'}
               >
-                {cameraEnabled ? <Camera className="w-4 h-4" /> : <CameraOff className="w-4 h-4" />}
+                {cameraEnabled ? <Camera className="w-3.5 h-3.5" /> : <CameraOff className="w-3.5 h-3.5" />}
                 {cameraEnabled && (
                   <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
                 )}
@@ -261,14 +270,14 @@ export function RecordButtonDock() {
             </div>
 
             {/* Separator */}
-            <div className="w-px h-6 bg-border/50" />
+            <div className="w-px h-5 bg-border/40" />
 
             {/* Record Button - Prominent */}
             <button
               className={cn(
                 "relative group",
                 "flex items-center justify-center",
-                "w-10 h-10 mx-1",
+                "w-8 h-8 mx-0.5",
                 "bg-destructive hover:bg-destructive/90",
                 "rounded-full shadow-lg",
                 "transition-all duration-200 hover:scale-105",
@@ -278,58 +287,58 @@ export function RecordButtonDock() {
               title="Start Recording"
             >
               <div className="absolute inset-0 rounded-full bg-destructive/20 animate-pulse" />
-              <Circle className="w-5 h-5 text-destructive-foreground fill-current relative z-10" />
+              <Circle className="w-4 h-4 text-destructive-foreground fill-current relative z-10" />
             </button>
 
             {/* Open Workspace */}
             <button
               className={cn(
-                "p-2 rounded-lg transition-all duration-200",
+                "p-1.5 rounded-lg transition-all duration-150",
                 "text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
               onClick={() => window.electronAPI?.openWorkspace?.()}
               title="Open Workspace"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
             </button>
           </>
         ) : (
           <>
-            {/* Recording Timer - Clean Display */}
-            <div className="flex items-center gap-2 px-3 py-1 bg-destructive/10 dark:bg-destructive/20 rounded-lg">
+            {/* Recording Timer - Compact Display */}
+            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-destructive/10 dark:bg-destructive/20 rounded-lg">
               <div className="relative flex items-center justify-center">
                 <div className="absolute w-2 h-2 bg-destructive rounded-full animate-ping" />
                 <div className="w-2 h-2 bg-destructive rounded-full" />
               </div>
-              <span className="text-destructive font-mono text-sm font-medium tabular-nums">
+              <span className="text-destructive font-mono text-xs font-medium tabular-nums">
                 {formatTime(duration)}
               </span>
             </div>
 
             {/* Separator */}
-            <div className="w-px h-6 bg-border/50" />
+            <div className="w-px h-5 bg-border/40" />
 
             {/* Pause/Resume */}
             <button
               className={cn(
-                "p-2 rounded-lg transition-all duration-200",
+                "p-1.5 rounded-lg transition-all duration-150",
                 "text-foreground hover:text-foreground hover:bg-accent"
               )}
               onClick={isPaused ? resumeRecording : pauseRecording}
               title={isPaused ? "Resume" : "Pause"}
             >
-              {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+              {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
             </button>
 
             {/* Stop Button */}
             <button
               className={cn(
                 "flex items-center justify-center",
-                "px-3 py-1.5 mx-1",
+                "px-2.5 py-1 mx-0.5",
                 "bg-destructive/10 hover:bg-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30",
                 "text-destructive-foreground",
                 "rounded-lg border border-destructive/50 dark:border-destructive/30",
@@ -339,8 +348,8 @@ export function RecordButtonDock() {
               onClick={handleStopRecording}
               title="Stop Recording"
             >
-              <Square className="w-3.5 h-3.5 mr-1.5" />
-              <span className="text-[11px] font-medium">Stop</span>
+              <Square className="w-3 h-3 mr-1" />
+              <span className="text-[10px] font-medium">Stop</span>
             </button>
 
             {/* Close/Minimize */}
@@ -352,7 +361,7 @@ export function RecordButtonDock() {
               onClick={() => window.electronAPI?.minimizeRecordButton?.()}
               title="Hide"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3 h-3" />
             </button>
           </>
         )}
@@ -368,22 +377,22 @@ export function RecordButtonDock() {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="p-3 border-t border-border/30">
+            <div className="p-2 border-t border-border/30">
               {/* Quick source selection */}
-              <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="grid grid-cols-3 gap-1 mb-2">
                 {/* Area Selection */}
                 {areaOption && (
                   <button
                     onClick={() => setSelectedSourceId(areaOption.id)}
                     className={cn(
-                      "flex flex-col items-center gap-1 p-3 rounded-lg border transition-all",
+                      "flex flex-col items-center gap-0.5 p-2 rounded border transition-all",
                       selectedSourceId === areaOption.id
                         ? "border-primary bg-primary/10"
                         : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
                     )}
                   >
-                    <Maximize2 className="w-5 h-5 text-primary" />
-                    <span className="text-xs font-medium">Select Area</span>
+                    <Maximize2 className="w-4 h-4 text-primary" />
+                    <span className="text-[10px] font-medium">Select Area</span>
                   </button>
                 )}
 
@@ -393,14 +402,14 @@ export function RecordButtonDock() {
                     key={screen.id}
                     onClick={() => setSelectedSourceId(screen.id)}
                     className={cn(
-                      "flex flex-col items-center gap-1 p-3 rounded-lg border transition-all",
+                      "flex flex-col items-center gap-0.5 p-2 rounded border transition-all",
                       selectedSourceId === screen.id
                         ? "border-primary bg-primary/10"
                         : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
                     )}
                   >
-                    <Monitor className="w-5 h-5 text-primary" />
-                    <span className="text-xs font-medium truncate w-full">
+                    <Monitor className="w-4 h-4 text-primary" />
+                    <span className="text-[10px] font-medium truncate w-full">
                       {screen.name.replace('Entire screen', 'Full Screen')}
                     </span>
                   </button>
@@ -415,13 +424,13 @@ export function RecordButtonDock() {
                     <span className="text-[10px] font-medium text-muted-foreground uppercase">Applications</span>
                     <div className="flex-1 h-px bg-border/30" />
                   </div>
-                  <div className="grid grid-cols-4 gap-1 max-h-32 overflow-y-auto">
+                  <div className="grid grid-cols-4 gap-0.5 max-h-24 overflow-y-auto">
                     {windows.slice(0, 8).map((window) => (
                       <button
                         key={window.id}
                         onClick={() => setSelectedSourceId(window.id)}
                         className={cn(
-                          "p-2 rounded border text-[10px] truncate transition-all",
+                          "p-1 rounded border text-[9px] truncate transition-all",
                           selectedSourceId === window.id
                             ? "border-primary bg-primary/10"
                             : "border-border/30 hover:border-primary/50 hover:bg-accent/50"
@@ -436,13 +445,13 @@ export function RecordButtonDock() {
               )}
 
               {/* Action buttons */}
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/30">
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
                 <button
                   onClick={() => {
                     setShowSourcePicker(false)
                     setSelectedSourceId(null)
                   }}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ChevronLeft className="w-3 h-3 inline mr-1" />
                   Back
@@ -451,7 +460,7 @@ export function RecordButtonDock() {
                   onClick={handleSourceSelect}
                   disabled={!selectedSourceId}
                   className={cn(
-                    "px-3 py-1 rounded-lg text-xs font-medium transition-all",
+                    "px-2 py-0.5 rounded text-[10px] font-medium transition-all",
                     selectedSourceId
                       ? "bg-primary text-primary-foreground hover:bg-primary/90"
                       : "bg-muted/50 text-muted-foreground cursor-not-allowed"
