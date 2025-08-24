@@ -255,6 +255,15 @@ const electronAPI = {
 
   removeAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel)
+  },
+
+  // Native recorder API (macOS 12.3+ with ScreenCaptureKit)
+  nativeRecorder: {
+    isAvailable: () => ipcRenderer.invoke('native-recorder:available'),
+    startDisplay: (displayId: number) => ipcRenderer.invoke('native-recorder:start-display', displayId),
+    stop: () => ipcRenderer.invoke('native-recorder:stop'),
+    isRecording: () => ipcRenderer.invoke('native-recorder:is-recording'),
+    readVideo: (filePath: string) => ipcRenderer.invoke('native-recorder:read-video', filePath)
   }
 }
 

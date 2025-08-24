@@ -10,6 +10,7 @@ import { registerMouseTrackingHandlers, cleanupMouseTracking } from './handlers/
 import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
+import { setupNativeRecorder } from './handlers/native-recorder'
 
 function registerProtocol(): void {
   // Register app protocol for packaged app
@@ -48,6 +49,7 @@ function registerAllHandlers(): void {
   registerFileOperationHandlers()
   registerDialogHandlers()
   registerWindowControlHandlers()
+  setupNativeRecorder()
 }
 
 // Define global variables with proper types
