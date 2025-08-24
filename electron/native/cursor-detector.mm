@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
-#import <napi.h>
+#include <napi.h>
 #import <string>
 
 // Convert NSCursor to our cursor type string

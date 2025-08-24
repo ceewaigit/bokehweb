@@ -4,7 +4,7 @@
       "target_name": "cursor_detector",
       "sources": [ "electron/native/cursor-detector.mm" ],
       "include_dirs": [
-        "<!@(node -p \"require('node-addon-api').include\")"
+        "./node_modules/node-addon-api"
       ],
       "dependencies": [
         "<!(node -p \"require('node-addon-api').gyp\")"
