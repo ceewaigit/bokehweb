@@ -49,105 +49,27 @@ Napi::String GetCurrentCursorType(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
     @autoreleasepool {
-        // First try to get the current cursor (this is more reliable)
+        // Get the current cursor - this is the most reliable method
         NSCursor* currentCursor = [NSCursor currentCursor];
-        
-        // If that fails, try system cursor
-        if (!currentCursor) {
-            currentCursor = [NSCursor currentSystemCursor];
-        }
-        
-        // As a fallback, check the frontmost app's cursor
-        if (!currentCursor) {
-            NSApplication* app = [NSApplication sharedApplication];
-            NSWindow* keyWindow = [app keyWindow];
-            if (keyWindow) {
-                // Try to get cursor from the key window's content view
-                NSView* contentView = [keyWindow contentView];
-                if (contentView) {
-                    // Get the mouse location in window coordinates
-                    NSPoint mouseLocation = [keyWindow mouseLocationOutsideOfEventStream];
-                    NSView* hitView = [contentView hitTest:mouseLocation];
-                    if (hitView) {
-                        // Check tracking areas for cursor info
-                        for (NSTrackingArea* area in [hitView trackingAreas]) {
-                            NSDictionary* userInfo = [area userInfo];
-                            if (userInfo && userInfo[@"cursor"]) {
-                                currentCursor = userInfo[@"cursor"];
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
         
         // Convert to string
         std::string cursorType = NSCursorToString(currentCursor);
-        
-        // Debug logging
-        NSLog(@"Detected cursor type: %s", cursorType.c_str());
         
         return Napi::String::New(env, cursorType);
     }
 }
 
-// N-API function to get cursor at specific screen coordinates
+// N-API function to get cursor at specific screen coordinates - NOT USED, keeping for future use
 Napi::String GetCursorAtPoint(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
-    // Validate arguments
     if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
         Napi::TypeError::New(env, "Expected two numbers (x, y)").ThrowAsJavaScriptException();
         return Napi::String::New(env, "default");
     }
     
-    double x = info[0].As<Napi::Number>().DoubleValue();
-    double y = info[1].As<Napi::Number>().DoubleValue();
-    
-    @autoreleasepool {
-        // Convert to NSPoint (flip Y coordinate for screen coordinates)
-        NSPoint point = NSMakePoint(x, y);
-        
-        // Try to get window at point and its cursor
-        NSInteger windowNumber = [NSWindow windowNumberAtPoint:point belowWindowWithWindowNumber:0];
-        
-        if (windowNumber > 0) {
-            // Try to find the window
-            for (NSWindow* window in [NSApp windows]) {
-                if ([window windowNumber] == windowNumber) {
-                    // Check if window has a specific cursor
-                    NSView* contentView = [window contentView];
-                    if (contentView) {
-                        // Convert point to window coordinates
-                        NSPoint windowPoint = [window convertPointFromScreen:point];
-                        NSView* hitView = [contentView hitTest:windowPoint];
-                        
-                        // Try to get cursor from view's tracking areas
-                        if (hitView) {
-                            for (NSTrackingArea* area in [hitView trackingAreas]) {
-                                NSDictionary* userInfo = [area userInfo];
-                                if (userInfo && userInfo[@"cursor"]) {
-                                    NSCursor* cursor = userInfo[@"cursor"];
-                                    return Napi::String::New(env, NSCursorToString(cursor));
-                                }
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-        
-        // Fallback to current system cursor
-        NSCursor* currentCursor = [NSCursor currentSystemCursor];
-        if (!currentCursor) {
-            currentCursor = [NSCursor currentCursor];
-        }
-        
-        std::string cursorType = NSCursorToString(currentCursor);
-        return Napi::String::New(env, cursorType);
-    }
+    // Just return current cursor for now - this function isn't being used
+    return GetCurrentCursorType(info);
 }
 
 // Initialize the module

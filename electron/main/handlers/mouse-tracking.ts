@@ -3,12 +3,10 @@ import * as path from 'path'
 
 // Lazy load uiohook-napi to handle initialization errors
 let uIOhook: any = null
-let UiohookMouseEvent: any = null
 
 try {
   const uiohookModule = require('uiohook-napi')
   uIOhook = uiohookModule.uIOhook
-  UiohookMouseEvent = uiohookModule.UiohookMouseEvent
   console.log('uiohook-napi loaded successfully')
 } catch (error) {
   console.error('Failed to load uiohook-napi:', error)
@@ -37,12 +35,10 @@ let mouseTrackingInterval: NodeJS.Timeout | null = null
 let mouseEventSender: WebContents | null = null
 let isMouseTracking = false
 let clickDetectionActive = false
-let lastMousePosition: { x: number; y: number; time: number } | null = null
 let mouseHistory: Array<{ x: number; y: number; time: number }> = []
 let uiohookStarted = false
-let isMouseDown = false  // Track mouse button state for cursor detection
-let mouseDownTime = 0  // Track when mouse was pressed
-let lastClickPosition = { x: 0, y: 0 }  // Track last click position
+let isMouseDown = false
+let lastClickPosition = { x: 0, y: 0 }
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -142,52 +138,31 @@ export function registerMouseTrackingHandlers(): void {
             }
 
 
-            lastMousePosition = positionData
+            // Store last position for next frame
             lastVelocity = velocity
             lastTime = now
 
-            // Determine cursor type using native detection
-            let effectiveCursorType = 'default'
-            let detectedType = 'default'
+            // Get cursor type from native detector
+            let cursorType = 'default'
             
             if (cursorDetector) {
               try {
-                detectedType = cursorDetector.getCurrentCursorType()
-                effectiveCursorType = detectedType
-                
-                // Log cursor changes
-                if ((global as any).lastCursorType !== detectedType) {
-                  console.log(`Cursor type changed: ${(global as any).lastCursorType || 'none'} -> ${detectedType}`)
-                  ;(global as any).lastCursorType = detectedType
-                }
+                cursorType = cursorDetector.getCurrentCursorType()
               } catch (err) {
-                console.error('Cursor detection error:', err)
-                // Keep default
-              }
-            } else {
-              // Log once that detector is not available
-              if (!(global as any).cursorDetectorWarned) {
-                console.warn('Native cursor detector not available')
-                ;(global as any).cursorDetectorWarned = true
+                // Silent fallback to default
               }
             }
             
-            // Override with drag state when mouse is down
+            // Override with grabbing when dragging
             if (isMouseDown) {
-              const timeSinceMouseDown = now - mouseDownTime
-              const distanceFromClick = Math.sqrt(
+              const dragDistance = Math.sqrt(
                 Math.pow(currentPosition.x - lastClickPosition.x, 2) +
                 Math.pow(currentPosition.y - lastClickPosition.y, 2)
               )
               
-              if (distanceFromClick > 5 || timeSinceMouseDown > 200) {
-                effectiveCursorType = 'grabbing'
+              if (dragDistance > 5) {
+                cursorType = 'grabbing'
               }
-            }
-
-            // Debug log every 50th event to see what cursor type we're sending
-            if (mouseHistory.length % 50 === 0) {
-              logger.info(`Cursor state: detected=${detectedType}, effective=${effectiveCursorType}, mouseDown=${isMouseDown}`)
             }
 
             // Only log in development mode
@@ -204,7 +179,7 @@ export function registerMouseTrackingHandlers(): void {
               acceleration,
               displayBounds: positionData.displayBounds,
               scaleFactor: positionData.scaleFactor,
-              cursorType: effectiveCursorType,  // Use detected cursor type
+              cursorType: cursorType,  // Use detected cursor type
               sourceType: sourceType,  // Include source type for proper coordinate mapping
               sourceId: sourceId
             } as MousePosition)
@@ -242,9 +217,7 @@ export function registerMouseTrackingHandlers(): void {
 
       // Reset mouse history and state
       mouseHistory = []
-      lastMousePosition = null
       isMouseDown = false
-      mouseDownTime = 0
       lastClickPosition = { x: 0, y: 0 }
 
       mouseEventSender = null
@@ -306,7 +279,6 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
 
       // Track mouse down state for cursor detection
       isMouseDown = true
-      mouseDownTime = Date.now()
       lastClickPosition = { x: event.x, y: event.y }
 
       // Get current display info for coordinate transformation
@@ -314,12 +286,12 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const scaleFactor = currentDisplay.scaleFactor || 1
 
       // Get cursor type at click position
-      let clickCursorType = 'grab' // Default for clicks
+      let clickCursorType = 'pointer' // Default for clicks
       if (cursorDetector) {
         try {
-          clickCursorType = cursorDetector.getCursorAtPoint(event.x, event.y) || 'grab'
+          clickCursorType = cursorDetector.getCurrentCursorType()
         } catch (err) {
-          // Keep grab as default
+          // Keep pointer as default
         }
       }
 
@@ -344,7 +316,6 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
 
       // Track mouse up state for cursor detection
       isMouseDown = false
-      mouseDownTime = 0
 
       logger.debug(`Mouse up at (${event.x}, ${event.y})`)
     }
@@ -370,7 +341,6 @@ function stopClickDetection(): void {
 
   // Reset mouse state
   isMouseDown = false
-  mouseDownTime = 0
 
   if (!uIOhook) return
 

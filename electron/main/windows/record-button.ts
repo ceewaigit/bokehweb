@@ -29,10 +29,10 @@ export function createRecordButton(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development'
 
   const recordButton = new BrowserWindow({
-    // Let content determine size
-    width: 1,
-    height: 1,
-    x: Math.floor(display.workAreaSize.width / 2), // Center horizontally
+    // Start with minimum viable size, will resize to content
+    width: 200,
+    height: 50,
+    x: Math.floor(display.workAreaSize.width / 2 - 100), // Center horizontally
     y: 20,
     type: process.platform === 'darwin' ? 'panel' : undefined, // Native NSPanel on macOS
     frame: false,
@@ -75,6 +75,8 @@ export function createRecordButton(): BrowserWindow {
   
   // Auto-resize window based on content
   recordButton.webContents.on('did-finish-load', () => {
+    console.log('🔄 Setting up auto-resize for record button')
+    
     // Inject auto-sizing logic
     recordButton.webContents.executeJavaScript(`
       // Function to resize window to fit content
@@ -84,12 +86,17 @@ export function createRecordButton(): BrowserWindow {
         
         // Get the first child of body (our main component)
         const content = body.firstElementChild;
-        if (!content) return;
+        if (!content) {
+          console.log('No content element found');
+          return;
+        }
         
         // Get actual content dimensions
         const rect = content.getBoundingClientRect();
         const width = Math.ceil(rect.width);
         const height = Math.ceil(rect.height);
+        
+        console.log('Content dimensions:', { width, height });
         
         // Only resize if we have valid dimensions
         if (width > 0 && height > 0) {
@@ -98,7 +105,7 @@ export function createRecordButton(): BrowserWindow {
       };
       
       // Initial resize after a small delay
-      setTimeout(autoResize, 100);
+      setTimeout(autoResize, 200);
       
       // Watch for size changes
       const resizeObserver = new ResizeObserver(autoResize);
@@ -107,7 +114,9 @@ export function createRecordButton(): BrowserWindow {
       }
       
       // Watch for DOM changes (like source picker opening)
-      const mutationObserver = new MutationObserver(autoResize);
+      const mutationObserver = new MutationObserver(() => {
+        setTimeout(autoResize, 50);
+      });
       mutationObserver.observe(document.body, {
         childList: true,
         subtree: true,
