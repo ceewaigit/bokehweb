@@ -232,6 +232,10 @@ const electronAPI = {
   getFileSize: (filePath: string) =>
     ipcRenderer.invoke('get-file-size', filePath),
 
+  // Get a URL that can be used to stream video files
+  getVideoUrl: (filePath: string) =>
+    ipcRenderer.invoke('get-video-url', filePath),
+
   // Recording events
   onRecordingStarted: (callback: (event: IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on('recording-started', callback)

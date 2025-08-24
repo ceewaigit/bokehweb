@@ -10,13 +10,6 @@ import {
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import type { Clip, ClipEffects } from '@/types/project'
 import { useProjectStore } from '@/stores/project-store'
 
@@ -58,6 +51,7 @@ export function EffectsSidebar({
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('wallpaper')
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[], gradients: any[] }>({ wallpapers: [], gradients: [] })
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
+  const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
 
   // Update active tab when effect layer is selected
   React.useEffect(() => {
@@ -214,39 +208,68 @@ export function EffectsSidebar({
                   <div className="text-xs text-muted-foreground">Loading wallpapers...</div>
                 ) : macOSWallpapers.wallpapers.length > 0 ? (
                   <div className="grid grid-cols-3 gap-1.5">
-                    {macOSWallpapers.wallpapers.slice(0, 12).map((wallpaper, index) => (
-                      <button
-                        key={index}
-                        onClick={async () => {
-                          try {
-                            const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
-                            if (dataUrl) {
+                    {macOSWallpapers.wallpapers.slice(0, 12).map((wallpaper, index) => {
+                      const wallpaperId = `${wallpaper.path}-${index}`
+                      const isLoading = loadingWallpaperId === wallpaperId
+                      
+                      return (
+                        <button
+                          key={index}
+                          onClick={async () => {
+                            // Set wallpaper type immediately to trigger skeleton
+                            updateEffect('background', {
+                              type: 'wallpaper',
+                              wallpaper: undefined  // Clear wallpaper to show skeleton
+                            })
+                            
+                            setLoadingWallpaperId(wallpaperId)
+                            try {
+                              const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
+                              if (dataUrl) {
+                                updateEffect('background', {
+                                  type: 'wallpaper',
+                                  wallpaper: dataUrl
+                                })
+                              }
+                            } catch (error) {
+                              console.error('Failed to load wallpaper:', error)
+                              // Revert to gradient on error
                               updateEffect('background', {
-                                type: 'wallpaper',
-                                wallpaper: dataUrl
+                                type: 'gradient',
+                                gradient: {
+                                  type: 'linear',
+                                  colors: ['#0F172A', '#1E293B'],
+                                  angle: 135
+                                }
                               })
+                            } finally {
+                              setLoadingWallpaperId(null)
                             }
-                          } catch (error) {
-                            console.error('Failed to load wallpaper:', error)
-                          }
-                        }}
-                        className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group"
-                        title={wallpaper.name}
-                      >
-                        {wallpaper.thumbnail ? (
-                          <img
-                            src={wallpaper.thumbnail}
-                            alt={wallpaper.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
-                        )}
-                        <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                          {wallpaper.name}
-                        </span>
-                      </button>
-                    ))}
+                          }}
+                          disabled={isLoading}
+                          className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group disabled:opacity-50 disabled:cursor-wait"
+                          title={wallpaper.name}
+                        >
+                          {wallpaper.thumbnail ? (
+                            <img
+                              src={wallpaper.thumbnail}
+                              alt={wallpaper.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
+                          )}
+                          {isLoading && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            </div>
+                          )}
+                          <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                            {wallpaper.name}
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-xs text-muted-foreground">
@@ -287,23 +310,23 @@ export function EffectsSidebar({
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Blur</span>
                 <Switch
-                  checked={effects.background.blur ? effects.background.blur > 0 : false}
+                  checked={effects.background.blur !== undefined && effects.background.blur > 0}
                   onCheckedChange={(checked) =>
-                    updateEffect('background', { blur: checked ? 10 : 0 })
+                    updateEffect('background', { blur: checked ? 10 : undefined })
                   }
                 />
               </label>
-              {effects.background.blur && effects.background.blur > 0 && (
+              {effects.background.blur !== undefined && effects.background.blur > 0 && (
                 <>
                   <Slider
                     value={[effects.background.blur]}
                     onValueChange={([value]) => updateEffect('background', { blur: value })}
-                    min={0}
+                    min={1}
                     max={50}
                     step={1}
                     className="w-full"
                   />
-                  {effects.background.blur > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.blur}px</span>}
+                  <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.blur}px</span>
                 </>
               )}
             </div>
@@ -312,27 +335,6 @@ export function EffectsSidebar({
 
         {activeTab === 'cursor' && effects?.cursor && (
           <div className="space-y-3">
-            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
-              <label className="text-xs font-medium space-y-2">
-                <span className="uppercase tracking-wider text-[10px] block">Cursor Display Mode</span>
-                <Select
-                  value={effects.cursor.displayMode || 'custom'}
-                  onValueChange={(value: 'custom' | 'both' | 'system') =>
-                    updateEffect('cursor', { displayMode: value })
-                  }
-                >
-                  <SelectTrigger className="w-full h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="custom" className="text-xs">Custom Cursor Only</SelectItem>
-                    <SelectItem value="both" className="text-xs">Both Cursors</SelectItem>
-                    <SelectItem value="system" className="text-xs">System Cursor Only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </label>
-            </div>
-
             <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Size</label>
               <Slider

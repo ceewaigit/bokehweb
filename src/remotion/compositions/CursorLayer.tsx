@@ -28,6 +28,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
   const lastFrameRef = useRef<number>(-1);
   const lastMovementTimeRef = useRef<number>(0);
+  const lastKnownPositionRef = useRef<{ x: number, y: number } | null>(null);
 
   // Heavy smoothing buffers for butter-smooth movement
   const smoothingBufferRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
@@ -164,14 +165,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       }
     }
 
-    lastRawPositionRef.current = { x: rawX, y: rawY };
-
-    // Check for movement to update idle tracking using existing position tracking
-    // We already calculate movement delta above, reuse that logic
-    if (lastRawPositionRef.current) {
+    // Check for movement to update idle tracking
+    if (lastKnownPositionRef.current) {
       const rawMovement = Math.sqrt(
-        Math.pow(rawX - lastRawPositionRef.current.x, 2) +
-        Math.pow(rawY - lastRawPositionRef.current.y, 2)
+        Math.pow(rawX - lastKnownPositionRef.current.x, 2) +
+        Math.pow(rawY - lastKnownPositionRef.current.y, 2)
       );
       
       // If cursor moved more than 2 pixels in raw position, update last movement time
@@ -182,6 +180,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       // Initialize on first frame
       lastMovementTimeRef.current = currentTimeMs;
     }
+
+    // Update references for next frame
+    lastRawPositionRef.current = { x: rawX, y: rawY };
+    lastKnownPositionRef.current = { x: rawX, y: rawY };
 
     return {
       x: filteredPositionRef.current.x,

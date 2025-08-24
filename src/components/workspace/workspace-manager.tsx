@@ -204,9 +204,13 @@ async function initializeDefaultWallpaper() {
 }
 
 export function WorkspaceManager() {
+  const [wallpaperInitialized, setWallpaperInitialized] = useState(false)
+  
   // Initialize default wallpaper once on mount
   useEffect(() => {
-    initializeDefaultWallpaper()
+    initializeDefaultWallpaper().then(() => {
+      setWallpaperInitialized(true)
+    })
   }, [])
 
   // Store hooks - will gradually reduce direct store access
@@ -445,6 +449,18 @@ export function WorkspaceManager() {
 
   // Show recordings library when no active project
   if (!currentProject) {
+    // Show loading while wallpaper initializes
+    if (!wallpaperInitialized) {
+      return (
+        <div className="fixed inset-0 flex items-center justify-center bg-background">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-xl bg-card border border-border animate-pulse mb-4" />
+            <p className="text-xs text-muted-foreground">Initializing workspace...</p>
+          </div>
+        </div>
+      )
+    }
+    
     return (
       <>
         <div className="fixed inset-0 flex flex-col bg-background">

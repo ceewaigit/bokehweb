@@ -12,6 +12,7 @@ import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 
 function registerProtocol(): void {
+  // Register app protocol for packaged app
   if (!isDev && app.isPackaged) {
     protocol.registerFileProtocol('app', (request, callback) => {
       const url = request.url.replace('app://', '')
@@ -24,6 +25,19 @@ function registerProtocol(): void {
       }
     })
   }
+
+  // Register video-stream protocol for local video files
+  // This works in both dev and production
+  protocol.registerFileProtocol('video-stream', (request, callback) => {
+    const url = request.url.replace('video-stream://', '')
+    const decodedUrl = decodeURIComponent(url)
+    try {
+      // The URL should be the absolute file path
+      callback(decodedUrl)
+    } catch (error) {
+      console.error('[Protocol] Error streaming video file:', error)
+    }
+  })
 }
 
 function registerAllHandlers(): void {

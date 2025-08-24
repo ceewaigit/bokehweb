@@ -86,6 +86,25 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 if (recording.project?.name) {
                   recording.name = recording.project.name
                 }
+
+                // Calculate actual duration from recordings if timeline duration is 0
+                if (recording.project?.recordings && recording.project.recordings.length > 0) {
+                  const totalDuration = recording.project.recordings.reduce((sum: number, rec: any) => {
+                    return sum + (rec.duration || 0)
+                  }, 0)
+
+                  // Use recordings duration if timeline duration is 0 or missing
+                  if (!recording.project.timeline?.duration || recording.project.timeline.duration === 0) {
+                    if (!recording.project.timeline) {
+                      recording.project.timeline = {
+                        tracks: [],
+                        duration: totalDuration
+                      }
+                    } else {
+                      recording.project.timeline.duration = totalDuration
+                    }
+                  }
+                }
               }
             }
           } catch (e) {
@@ -352,11 +371,11 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   >
                     <div
                       className={cn(
-                        "relative rounded-lg overflow-hidden cursor-pointer transition-all duration-150",
+                        "relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200",
                         "bg-card border",
                         hoveredIndex === actualIndex
-                          ? "scale-[1.03] shadow-2xl shadow-primary/20 border-primary/30 bg-accent"
-                          : "border-border hover:bg-accent hover:border-accent-foreground/20"
+                          ? "scale-[1.02] shadow-lg border-border/50"
+                          : "border-border hover:border-border/50"
                       )}
                       onClick={() => onSelectRecording(recording)}
                     >
@@ -378,42 +397,30 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                           </div>
                         )}
 
-                        {/* Hover overlay */}
+                        {/* Minimal hover overlay - just a subtle play icon */}
                         <AnimatePresence>
                           {hoveredIndex === actualIndex && (
                             <motion.div
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
                               exit={{ opacity: 0 }}
-                              transition={{ duration: 0.15 }}
-                              className="absolute inset-0 bg-background/30 backdrop-blur-sm flex items-center justify-center"
+                              transition={{ duration: 0.1 }}
+                              className="absolute inset-0 flex items-center justify-center"
                             >
-                              <motion.div
-                                initial={{ scale: 0.8 }}
-                                animate={{ scale: 1 }}
-                                exit={{ scale: 0.8 }}
-                                className="w-10 h-10 bg-primary rounded-full flex items-center justify-center shadow-2xl"
-                              >
-                                <Play className="w-4 h-4 text-primary-foreground ml-0.5" fill="currentColor" />
-                              </motion.div>
+                              <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center">
+                                <Play className="w-5 h-5 text-black ml-0.5" fill="currentColor" />
+                              </div>
                             </motion.div>
                           )}
                         </AnimatePresence>
 
                         {/* Duration badge */}
-                        {recording.project?.timeline?.duration && (
+                        {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
                           <div className="absolute bottom-1 right-1 bg-background/70 backdrop-blur-xl text-foreground text-[9px] px-1.5 py-0.5 rounded font-mono">
                             {formatTime(recording.project.timeline.duration / 1000)}
                           </div>
                         )}
 
-                        {/* Project badge */}
-                        {recording.isProject && (
-                          <div className="absolute top-1 left-1 bg-background/60 backdrop-blur-xl text-muted-foreground text-[8px] px-1.5 py-0.5 rounded flex items-center gap-0.5 font-medium uppercase tracking-wider">
-                            <FileJson className="w-2.5 h-2.5" />
-                            <span>PRJ</span>
-                          </div>
-                        )}
                       </div>
 
                       {/* Info section */}
@@ -423,21 +430,11 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         </h3>
                         <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
                           {/* Duration */}
-                          {recording.project?.timeline?.duration && (
+                          {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
                             <div className="flex items-center gap-0.5">
                               <Clock className="w-2.5 h-2.5" />
                               <span className="font-mono">
                                 {formatTime(recording.project.timeline.duration / 1000)}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Clips */}
-                          {recording.project?.timeline?.tracks && (
-                            <div className="flex items-center gap-0.5">
-                              <Layers className="w-2.5 h-2.5" />
-                              <span>
-                                {recording.project.timeline.tracks.reduce((acc: number, t: any) => acc + (t.clips?.length || 0), 0)}
                               </span>
                             </div>
                           )}
@@ -449,45 +446,32 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         </div>
                       </div>
 
-                      {/* Hover actions */}
+                      {/* Minimal hover actions - only show on hover at top right */}
                       <AnimatePresence>
                         {hoveredIndex === actualIndex && (
                           <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
+                            initial={{ opacity: 0, y: -5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -5 }}
                             transition={{ duration: 0.1 }}
-                            className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-background/80 via-background/60 to-transparent backdrop-blur-xl"
+                            className="absolute top-1 right-1 flex gap-0.5"
                           >
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                className="flex-1 h-6 text-[9px] font-medium"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onSelectRecording(recording)
-                                }}
-                              >
-                                EDIT
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="w-6 h-6 p-0"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Download className="w-2.5 h-2.5" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="w-6 h-6 p-0 hover:bg-destructive/20 hover:text-destructive"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Trash2 className="w-2.5 h-2.5" />
-                              </Button>
-                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="w-6 h-6 p-0 bg-background/80 hover:bg-background/90 backdrop-blur-xl rounded"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Download className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="w-6 h-6 p-0 bg-background/80 hover:bg-destructive/20 hover:text-destructive backdrop-blur-xl rounded"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
                           </motion.div>
                         )}
                       </AnimatePresence>

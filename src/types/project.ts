@@ -161,7 +161,6 @@ export interface ClipEffects {
 
   // Cursor styling
   cursor: {
-    displayMode?: 'custom' | 'both' | 'system'  // How to display cursor (default: 'custom')
     style: 'default' | 'macOS' | 'custom'
     size: number
     color: string
@@ -181,6 +180,7 @@ export interface ClipEffects {
     }
     image?: string
     wallpaper?: string  // Path to macOS wallpaper
+    isLoading?: boolean  // Track wallpaper loading state
     blur?: number
     padding: number
   }

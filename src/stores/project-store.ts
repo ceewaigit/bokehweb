@@ -9,7 +9,7 @@ import {
   type ZoomBlock
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
+import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS, getDefaultClipEffects } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { logger } from '@/lib/utils/logger'
@@ -251,7 +251,7 @@ export const useProjectStore = create<ProjectStore>()(
             duration: recording.duration,
             sourceIn: 0,
             sourceOut: recording.duration,
-            effects: structuredClone(DEFAULT_CLIP_EFFECTS)
+            effects: getDefaultClipEffects()
           }
         }
 

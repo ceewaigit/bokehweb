@@ -1,6 +1,7 @@
-import { ipcMain, app, IpcMainInvokeEvent } from 'electron'
+import { ipcMain, app, IpcMainInvokeEvent, protocol } from 'electron'
 import * as path from 'path'
 import { promises as fs } from 'fs'
+import { pathToFileURL } from 'url'
 
 export function registerFileOperationHandlers(): void {
   ipcMain.handle('save-file', async (event: IpcMainInvokeEvent, data: Buffer | ArrayBuffer | string | object, filepath?: string) => {
@@ -60,6 +61,24 @@ export function registerFileOperationHandlers(): void {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       console.error('[FileOps] Error reading local file:', error)
       return { success: false, error: errorMessage }
+    }
+  })
+
+  // Get a URL that can be used to stream video files
+  // This uses the custom video-stream protocol to serve local files
+  ipcMain.handle('get-video-url', async (_event: IpcMainInvokeEvent, filePath: string) => {
+    try {
+      // Check if file exists
+      await fs.access(filePath)
+      
+      // Return a video-stream:// URL that our custom protocol will handle
+      // This bypasses CORS restrictions and allows streaming local files
+      const videoUrl = `video-stream://${encodeURIComponent(filePath)}`
+      
+      return videoUrl
+    } catch (error) {
+      console.error('[FileOps] Error getting video URL:', error)
+      return null
     }
   })
 

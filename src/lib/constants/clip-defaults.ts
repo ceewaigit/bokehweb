@@ -1,5 +1,10 @@
 import type { ClipEffects } from '@/types/project'
 
+// Function to get default clip effects with current wallpaper if available
+export function getDefaultClipEffects(): ClipEffects {
+  return structuredClone(DEFAULT_CLIP_EFFECTS)
+}
+
 export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   zoom: {
     enabled: false,
@@ -9,7 +14,6 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
     smoothing: 0.1
   },
   cursor: {
-    displayMode: 'custom',  // Default to custom cursor only (hides system cursor)
     style: 'default',
     size: 4.0,
     color: '#ffffff',
@@ -47,7 +51,6 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
     smoothing: 0.1
   },
   cursor: {
-    displayMode: 'custom',  // Default to custom cursor only (hides system cursor)
     style: 'macOS',
     size: 4.0,
     color: '#ffffff',

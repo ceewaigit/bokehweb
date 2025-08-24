@@ -80,15 +80,12 @@ export class ThumbnailGenerator {
   ): Promise<string | null> {
     const { width = 320, height = 180, quality = 0.6, timestamp = 0.1 } = options
 
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
       const video = document.createElement('video')
       video.preload = 'metadata' // Only load metadata, not full video
-      video.crossOrigin = 'anonymous'
-
-      // Load video directly from file path
-      video.src = `file://${videoPath}`
 
       let resolved = false
+
       const cleanup = () => {
         if (!resolved) {
           resolved = true
@@ -99,6 +96,28 @@ export class ThumbnailGenerator {
       const handleError = () => {
         cleanup()
         resolve(null)
+      }
+
+      // Use Electron's streaming video URL API
+      try {
+        if (!window.electronAPI?.getVideoUrl) {
+          logger.error('Video URL API not available')
+          handleError()
+          return
+        }
+
+        const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
+        if (!videoUrl) {
+          logger.error('Failed to get video URL')
+          handleError()
+          return
+        }
+
+        video.src = videoUrl
+      } catch (error) {
+        logger.error('Failed to load video for thumbnail:', error)
+        handleError()
+        return
       }
 
       video.addEventListener('error', handleError, { once: true })
@@ -130,6 +149,7 @@ export class ThumbnailGenerator {
           // Convert to data URL
           const dataUrl = canvas.toDataURL('image/jpeg', quality)
 
+          resolved = true
           cleanup()
           resolve(dataUrl)
         } catch (error) {
