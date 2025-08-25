@@ -1,4 +1,30 @@
-import { EventEmitter } from 'events'
+// Simple browser-compatible event emitter
+class EventEmitter {
+  private events: Map<string, Set<Function>> = new Map()
+
+  on(event: string, handler: Function) {
+    if (!this.events.has(event)) {
+      this.events.set(event, new Set())
+    }
+    this.events.get(event)!.add(handler)
+  }
+
+  off(event: string, handler: Function) {
+    this.events.get(event)?.delete(handler)
+  }
+
+  emit(event: string, ...args: any[]) {
+    this.events.get(event)?.forEach(handler => handler(...args))
+  }
+
+  removeAllListeners(event: string) {
+    this.events.delete(event)
+  }
+
+  removeListener(event: string, handler: Function) {
+    this.off(event, handler)
+  }
+}
 
 export type KeyboardContext = 'timeline' | 'library' | 'export' | 'global'
 
@@ -347,14 +373,6 @@ class KeyboardManager extends EventEmitter {
       context: ['timeline'],
     })
 
-    this.register({
-      id: 'select-all-tool',
-      key: 'a',
-      action: 'selectAllTool',
-      description: 'Track Select Tool',
-      context: ['timeline'],
-    })
-
     // Zoom
     this.register({
       id: 'zoom-in',
@@ -468,6 +486,8 @@ class KeyboardManager extends EventEmitter {
     window.addEventListener('keydown', this.handleKeyDown.bind(this))
     window.addEventListener('keyup', this.handleKeyUp.bind(this))
     window.addEventListener('blur', this.handleBlur.bind(this))
+    
+    console.log('[KeyboardManager] Initialized with shortcuts:', this.shortcuts.size)
   }
 
   private handleKeyDown(event: KeyboardEvent) {
@@ -483,6 +503,8 @@ class KeyboardManager extends EventEmitter {
 
     const shortcut = this.findMatchingShortcut(event)
     if (shortcut) {
+      console.log('[KeyboardManager] Shortcut matched:', shortcut.id, shortcut.action)
+      
       if (shortcut.preventDefault) {
         event.preventDefault()
       }

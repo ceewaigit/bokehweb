@@ -53,8 +53,16 @@
                 return;
             }
             
-            // Create content filter
-            SCContentFilter *filter = [[SCContentFilter alloc] initWithDisplay:targetDisplay excludingWindows:@[]];
+            // Exclude all windows from our own app to prevent them from appearing in recordings
+            NSMutableArray<SCWindow *> *windowsToExclude = [NSMutableArray array];
+            for (SCWindow *window in content.windows) {
+                if ([window.owningApplication.bundleIdentifier isEqualToString:[[NSBundle mainBundle] bundleIdentifier]]) {
+                    [windowsToExclude addObject:window];
+                }
+            }
+            
+            // Create content filter with excluded windows
+            SCContentFilter *filter = [[SCContentFilter alloc] initWithDisplay:targetDisplay excludingWindows:windowsToExclude];
             
             // Create stream configuration
             SCStreamConfiguration *config = [[SCStreamConfiguration alloc] init];

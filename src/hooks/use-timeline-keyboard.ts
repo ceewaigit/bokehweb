@@ -15,6 +15,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     currentTime,
     isPlaying,
     selectedClips,
+    selectedEffectLayer,
     play,
     pause,
     seek,
@@ -26,7 +27,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     updateClip,
     addClip,
     setZoom,
-    zoom
+    zoom,
+    removeZoomBlock
   } = useProjectStore()
 
   const [clipboard, setClipboard] = useState<Clip | null>(null)
@@ -37,6 +39,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
   useEffect(() => {
     if (!enabled) return
 
+    console.log('[useTimelineKeyboard] Initializing keyboard handlers')
+    
     // Set context
     keyboardManager.setContext('timeline')
 
@@ -113,11 +117,13 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     // Frame navigation
     const handleFramePrevious = () => {
+      console.log('[Keyboard] Previous frame')
       const frameTime = 1000 / 30 // 30fps
       seek(Math.max(0, currentTime - frameTime))
     }
 
     const handleFrameNext = () => {
+      console.log('[Keyboard] Next frame')
       const frameTime = 1000 / 30 // 30fps
       const maxTime = currentProject?.timeline?.duration || 0
       seek(Math.min(maxTime, currentTime + frameTime))
@@ -260,6 +266,19 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     }
 
     const handleDelete = () => {
+      // Check if an effect layer is selected (like a zoom block)
+      if (selectedEffectLayer) {
+        // Handle effect-specific deletion
+        if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id && selectedClips.length === 1) {
+          // Delete the specific zoom block
+          removeZoomBlock(selectedClips[0], selectedEffectLayer.id)
+          toast('Zoom block deleted')
+        }
+        // Don't delete clips when effect layer is selected
+        return
+      }
+      
+      // Only delete clips if no effect layer is selected
       if (selectedClips.length > 0 && currentProject) {
         const clips = currentProject.timeline.tracks
           .flatMap(t => t.clips)
@@ -367,6 +386,17 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       setZoom(0.5)
     }
 
+    // Project actions
+    const handleSave = async () => {
+      const { saveCurrentProject } = useProjectStore.getState()
+      try {
+        await saveCurrentProject()
+        toast('Project saved')
+      } catch (error) {
+        toast.error('Failed to save project')
+      }
+    }
+
     // Register all handlers
     keyboardManager.on('playPause', handlePlayPause)
     keyboardManager.on('shuttleReverse', handleShuttleReverse)
@@ -394,6 +424,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     keyboardManager.on('zoomOut', handleZoomOut)
     keyboardManager.on('zoomFit', handleZoomFit)
     keyboardManager.on('escape', clearSelection)
+    keyboardManager.on('save', handleSave)
 
     return () => {
       // Cleanup shuttle
@@ -428,6 +459,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       keyboardManager.removeAllListeners('zoomOut')
       keyboardManager.removeAllListeners('zoomFit')
       keyboardManager.removeAllListeners('escape')
+      keyboardManager.removeAllListeners('save')
     }
   }, [
     enabled,
@@ -435,6 +467,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     currentTime,
     isPlaying,
     selectedClips,
+    selectedEffectLayer,
     clipboard,
     play,
     pause,
@@ -446,7 +479,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     duplicateClip,
     addClip,
     setZoom,
-    zoom
+    zoom,
+    removeZoomBlock
   ])
 
   return {

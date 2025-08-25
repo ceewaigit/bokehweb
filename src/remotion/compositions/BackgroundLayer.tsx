@@ -12,6 +12,18 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   }
 
   let backgroundStyle: React.CSSProperties = {};
+  
+  // Create unique key based on background content to force re-render
+  const backgroundKey = React.useMemo(() => {
+    if (!effects) return 'none';
+    if (effects.type === 'wallpaper' && effects.wallpaper) {
+      return `wallpaper-${effects.wallpaper.substring(0, 50)}`;
+    }
+    if (effects.type === 'gradient' && effects.gradient) {
+      return `gradient-${effects.gradient.colors.join('-')}`;
+    }
+    return effects.type;
+  }, [effects]);
 
   switch (effects.type) {
     case 'wallpaper':
@@ -68,5 +80,5 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
     backgroundStyle.filter = `blur(${effects.blur}px)`;
   }
 
-  return <AbsoluteFill style={backgroundStyle} />;
+  return <AbsoluteFill key={backgroundKey} style={backgroundStyle} />;
 };

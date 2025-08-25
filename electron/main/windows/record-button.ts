@@ -66,23 +66,17 @@ export function createRecordButton(): BrowserWindow {
   // Configure as a true overlay window
   recordButton.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
 
-  // Simple window level setup - let's get it working first
-  recordButton.setAlwaysOnTop(true, 'floating', 1)
-
   // Don't ignore mouse events - we need interaction
   recordButton.setIgnoreMouseEvents(false)
-
-  // Explicitly disable resizing after window creation to ensure it's truly non-resizable
-  recordButton.setResizable(false)
   
-  // Prevent any resize attempts
-  recordButton.on('will-resize', (event) => {
-    event.preventDefault()
-  })
-  
-  // On macOS, also set the window to not be fullscreenable which can affect resizing
+  // Platform-specific window configuration
   if (process.platform === 'darwin') {
     recordButton.setFullScreenable(false)
+    // Use screen-saver level on macOS - this keeps it above other windows
+    // and helps with window exclusion in screen capture
+    recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
+  } else {
+    recordButton.setAlwaysOnTop(true, 'floating', 1)
   }
 
   // Apply CSP so blob: media URLs are allowed

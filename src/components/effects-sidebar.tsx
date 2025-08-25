@@ -79,7 +79,7 @@ export function EffectsSidebar({
         setBackgroundType(type)
       }
     }
-  }, [effects?.background?.type])
+  }, [effects?.background?.type, selectedClip?.id]) // Re-sync when clip changes
 
   // Load macOS wallpapers when wallpaper tab is selected
   React.useEffect(() => {

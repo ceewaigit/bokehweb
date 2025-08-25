@@ -341,9 +341,15 @@ export const useProjectStore = create<ProjectStore>()(
         const result = findClipById(state.currentProject, clipId)
         if (!result || !result.clip.effects) return
 
-        // For background, replace entire object to avoid stale properties
+        // For background, preserve padding and blur unless explicitly changed
         if (category === 'background') {
-          result.clip.effects.background = updates as typeof result.clip.effects.background
+          const currentBackground = result.clip.effects.background
+          result.clip.effects.background = {
+            ...updates,
+            // Preserve padding and blur if not in updates
+            padding: updates.padding !== undefined ? updates.padding : currentBackground.padding,
+            blur: updates.blur !== undefined ? updates.blur : currentBackground.blur
+          } as typeof result.clip.effects.background
         } else {
           result.clip.effects[category as keyof typeof result.clip.effects] = {
             ...result.clip.effects[category as keyof typeof result.clip.effects],
