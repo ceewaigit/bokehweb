@@ -27,6 +27,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     pause,
     seek,
     selectClip,
+    selectEffectLayer,
     clearSelection,
     clearEffectSelection,
     removeClip,
@@ -58,6 +59,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     pause,
     seek,
     selectClip,
+    selectEffectLayer,
     clearSelection,
     clearEffectSelection,
     removeClip,
@@ -83,6 +85,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     pause,
     seek,
     selectClip,
+    selectEffectLayer,
     clearSelection,
     clearEffectSelection,
     removeClip,
@@ -333,33 +336,70 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
         if (effectClipboardRef.current.type === 'zoom') {
           const zoomBlock = effectClipboardRef.current.data
-          const relativeTime = Math.max(0, storeRef.current.currentTime - targetClip.startTime)
+          const blockDuration = zoomBlock.endTime - zoomBlock.startTime
+          let pasteStartTime = Math.max(0, storeRef.current.currentTime - targetClip.startTime)
+          
+          // Sort existing blocks by start time
+          const existingBlocks = (targetClip.effects?.zoom?.blocks || []).sort((a, b) => a.startTime - b.startTime)
+          
+          console.log('[PASTE] Initial paste time:', pasteStartTime)
+          console.log('[PASTE] Existing blocks:', existingBlocks)
+          
+          // Find the next available space
+          let foundSpace = false
+          for (let i = 0; i <= existingBlocks.length; i++) {
+            let testStart = pasteStartTime
+            let testEnd = pasteStartTime + blockDuration
+            
+            // Check if this position overlaps with any block
+            const hasOverlap = existingBlocks.some(b => 
+              testStart < b.endTime && testEnd > b.startTime
+            )
+            
+            if (!hasOverlap) {
+              foundSpace = true
+              break
+            }
+            
+            // Try after the current block
+            if (i < existingBlocks.length) {
+              pasteStartTime = existingBlocks[i].endTime + 100 // Add small gap
+              console.log('[PASTE] Trying new position after block:', existingBlocks[i].id, 'at:', pasteStartTime)
+            }
+          }
+          
+          // If still no space, place at the end
+          if (!foundSpace && existingBlocks.length > 0) {
+            pasteStartTime = existingBlocks[existingBlocks.length - 1].endTime + 100
+            console.log('[PASTE] Placing at end after last block at:', pasteStartTime)
+          }
+          
+          // Make sure it fits within clip duration
+          if (pasteStartTime + blockDuration > targetClip.duration) {
+            // Try to fit it at the end
+            pasteStartTime = Math.max(0, targetClip.duration - blockDuration)
+            
+            // Check if this position is available
+            const finalOverlap = existingBlocks.some(b => 
+              pasteStartTime < b.endTime && (pasteStartTime + blockDuration) > b.startTime
+            )
+            
+            if (finalOverlap) {
+              console.log('[PASTE] Cannot find space for block')
+              toast.error('No space available for zoom block')
+              return
+            }
+          }
+          
           const newBlock = {
             ...zoomBlock,
             id: `zoom-${Date.now()}`,
-            startTime: relativeTime,
-            endTime: Math.min(targetClip.duration, relativeTime + (zoomBlock.endTime - zoomBlock.startTime))
+            startTime: pasteStartTime,
+            endTime: Math.min(targetClip.duration, pasteStartTime + blockDuration)
           }
           
-          console.log('[PASTE] New block to paste:', newBlock)
-          console.log('[PASTE] Existing blocks:', targetClip.effects?.zoom?.blocks)
-
-          // Check overlaps
-          const hasOverlap = (targetClip.effects?.zoom?.blocks || []).some(b => {
-            const overlaps = newBlock.startTime < b.endTime && newBlock.endTime > b.startTime
-            if (overlaps) {
-              console.log('[PASTE] Overlap detected with block:', b)
-            }
-            return overlaps
-          })
-
-          if (hasOverlap) {
-            console.log('[PASTE] Cannot paste due to overlap')
-            toast.error('Cannot paste: Would overlap with existing zoom block')
-            return
-          }
-
-          console.log('[PASTE] No overlap, executing paste')
+          console.log('[PASTE] Pasting block at position:', newBlock.startTime, '-', newBlock.endTime)
+          
           undoManager.execute({
             id: `paste-zoom-${newBlock.id}`,
             timestamp: Date.now(),
@@ -502,6 +542,10 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
           if (zoomBlock) {
             console.log('[DELETE] Executing delete for zoom block:', blockId)
+            
+            // Clear selection immediately to prevent stale references
+            storeRef.current.clearEffectSelection()
+            
             undoManager.execute({
               id: `delete-zoom-${blockId}`,
               timestamp: Date.now(),
@@ -509,15 +553,18 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
               execute: () => {
                 console.log('[DELETE] Calling removeZoomBlock for clip:', clipId, 'block:', blockId)
                 storeRef.current.removeZoomBlock(clipId, blockId)
-                storeRef.current.clearEffectSelection()
               },
               undo: () => {
                 storeRef.current.addZoomBlock(clipId, zoomBlock)
+                // Re-select the block when undoing
+                storeRef.current.selectEffectLayer('zoom', zoomBlock.id)
               }
             })
             toast('Zoom block deleted')
           } else {
             console.log('[DELETE] Zoom block not found, cannot delete')
+            // Clear the selection since the block doesn't exist
+            storeRef.current.clearEffectSelection()
           }
         }
         // Don't delete clips when effect layer is selected
