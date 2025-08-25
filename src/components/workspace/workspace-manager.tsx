@@ -26,7 +26,8 @@ async function loadProjectRecording(
   recording: any,
   setIsLoading: (loading: boolean) => void,
   setLoadingMessage: (message: string) => void,
-  newProject: (name: string) => void
+  newProject: (name: string) => void,
+  setLastSavedAt: (timestamp: string | null) => void
 ) {
   if (!recording.project) {
     alert('This recording does not have an associated project. Please try loading a different .ssproj file.')
@@ -44,6 +45,9 @@ async function loadProjectRecording(
   // Get project directory for resolving relative paths
   const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
 
+  // Set last saved timestamp to the project's modified time
+  setLastSavedAt(project.modifiedAt || new Date().toISOString())
+  
   // Load each recording from the project
   for (let i = 0; i < project.recordings.length; i++) {
     const rec = project.recordings[i]
@@ -307,24 +311,15 @@ export function WorkspaceManager() {
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
   
-  // Track project changes for save button state
-  const lastModifiedRef = useRef<string | null>(null)
+  // Track unsaved changes by comparing saved timestamp with current
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+  
+  // Simple check: if project modifiedAt differs from lastSavedAt, we have unsaved changes
   useEffect(() => {
-    if (!currentProject) return
-    
-    // Subscribe to all project store changes
-    const unsubscribe = useProjectStore.subscribe((state) => {
-      if (state.currentProject && state.currentProject.modifiedAt) {
-        // Check if modifiedAt has changed
-        if (lastModifiedRef.current && lastModifiedRef.current !== state.currentProject.modifiedAt) {
-          setHasUnsavedChanges(true)
-        }
-        lastModifiedRef.current = state.currentProject.modifiedAt
-      }
-    })
-    
-    return () => unsubscribe()
-  }, [currentProject?.id])
+    if (currentProject?.modifiedAt && lastSavedAt) {
+      setHasUnsavedChanges(currentProject.modifiedAt !== lastSavedAt)
+    }
+  }, [currentProject?.modifiedAt, lastSavedAt])
 
   // Get clip at playhead position
   const playheadClip = useProjectStore.getState().getCurrentClip()
@@ -485,7 +480,8 @@ export function WorkspaceManager() {
                   recording,
                   setIsLoading,
                   setLoadingMessage,
-                  newProject
+                  newProject,
+                  setLastSavedAt
                 )
 
                 if (!success) {
@@ -531,11 +527,7 @@ export function WorkspaceManager() {
               newProject('New Project')
               setLocalEffects(null)
               setHasUnsavedChanges(false)
-              // Reset the last modified reference for the new project
-              const project = useProjectStore.getState().currentProject
-              if (project) {
-                lastModifiedRef.current = project.modifiedAt || null
-              }
+              setLastSavedAt(new Date().toISOString())
             }}
             onSaveProject={async () => {
               if (localEffects && selectedClipId) {
@@ -544,21 +536,13 @@ export function WorkspaceManager() {
               }
               await saveCurrentProject()
               setHasUnsavedChanges(false)
-              // Update the last modified reference after saving
-              const project = useProjectStore.getState().currentProject
-              if (project) {
-                lastModifiedRef.current = project.modifiedAt || null
-              }
+              setLastSavedAt(new Date().toISOString())
             }}
             onOpenProject={async (path: string) => {
               await openProject(path)
               setLocalEffects(null)
               setHasUnsavedChanges(false)
-              // Reset the last modified reference for the new project
-              const project = useProjectStore.getState().currentProject
-              if (project) {
-                lastModifiedRef.current = project.modifiedAt || null
-              }
+              setLastSavedAt(useProjectStore.getState().currentProject?.modifiedAt || null)
             }}
             onBackToLibrary={() => {
               // Clean up resources and navigate back to library
