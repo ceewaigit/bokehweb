@@ -19,6 +19,7 @@ import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { ClipEffects, ZoomBlock } from '@/types/project'
 import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
+import { undoManager } from '@/lib/keyboard/undo-manager'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -231,8 +232,8 @@ export function WorkspaceManager() {
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId) || null
 
-  // Handle zoom block updates for local state
-  const handleZoomBlockUpdate = useCallback((_clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
+  // Handle zoom block updates for local state with undo/redo support
+  const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
     const currentEffects = localEffects || selectedClip?.effects || DEFAULT_CLIP_EFFECTS
     const currentZoom = currentEffects.zoom
 
@@ -255,6 +256,10 @@ export function WorkspaceManager() {
       return
     }
 
+    // Store previous state for undo
+    const previousBlock = { ...blockToUpdate }
+    const previousEffects = { ...currentEffects }
+
     const updatedBlocks = currentZoom.blocks.map((block: ZoomBlock) =>
       block.id === blockId ? { ...block, ...updates } : block
     )
@@ -268,8 +273,35 @@ export function WorkspaceManager() {
       }
     }
 
-    setLocalEffects(newEffects)
-    setHasUnsavedChanges(true)
+    // Create undoable action
+    undoManager.execute({
+      id: `update-zoom-block-${blockId}-${Date.now()}`,
+      timestamp: Date.now(),
+      description: `Update zoom block`,
+      execute: () => {
+        setLocalEffects(newEffects)
+        setHasUnsavedChanges(true)
+      },
+      undo: () => {
+        // Restore the previous block state
+        const restoredBlocks = currentZoom.blocks.map((block: ZoomBlock) =>
+          block.id === blockId ? previousBlock : block
+        )
+        const restoredEffects = {
+          ...previousEffects,
+          zoom: {
+            ...previousEffects.zoom,
+            blocks: restoredBlocks
+          }
+        }
+        setLocalEffects(restoredEffects)
+        setHasUnsavedChanges(true)
+      },
+      redo: () => {
+        setLocalEffects(newEffects)
+        setHasUnsavedChanges(true)
+      }
+    })
   }, [localEffects, selectedClip?.effects])
 
   // Playback control ref
@@ -277,12 +309,12 @@ export function WorkspaceManager() {
 
   // Get clip at playhead position
   const playheadClip = useProjectStore.getState().getCurrentClip()
-  
+
   // Get recording for selected clip (for editing)
   const selectedRecording = selectedClip && currentProject
     ? currentProject.recordings.find(r => r.id === selectedClip.recordingId)
     : null
-  
+
   // Get recording for playhead clip (for preview)
   const playheadRecording = playheadClip && currentProject
     ? currentProject.recordings.find(r => r.id === playheadClip.recordingId)

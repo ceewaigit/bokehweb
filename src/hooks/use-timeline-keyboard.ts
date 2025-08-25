@@ -9,6 +9,13 @@ interface UseTimelineKeyboardProps {
   enabled?: boolean
 }
 
+// Effect clipboard type for copying individual effects
+interface EffectClipboard {
+  type: 'zoom' | 'cursor' | 'background'
+  data: any
+  sourceClipId: string
+}
+
 export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps = {}) {
   const {
     currentProject,
@@ -34,7 +41,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     updateZoomBlock
   } = useProjectStore()
 
-  const [clipboard, setClipboard] = useState<Clip | null>(null)
+  const [clipClipboard, setClipClipboard] = useState<Clip | null>(null)
+  const [effectClipboard, setEffectClipboard] = useState<EffectClipboard | null>(null)
   const playbackSpeedRef = useRef(1)
   const shuttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -175,71 +183,133 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       }
     }
 
+    // Helper to get selected clip
+    const getSelectedClip = () => {
+      if (!currentProject || selectedClips.length !== 1) return null
+      return currentProject.timeline.tracks
+        .flatMap(t => t.clips)
+        .find(c => c.id === selectedClips[0])
+    }
+
     // Editing with undo support
     const handleCopy = () => {
-      // When an effect layer is selected, don't copy the entire clip
+      const clip = getSelectedClip()
+      if (!clip) return
+
+      // Copy effect if one is selected
       if (selectedEffectLayer) {
-        // TODO: In the future, implement effect-specific copy
-        // For now, just show a message and don't copy anything
-        toast('Effect copying not yet implemented')
-        return
-      }
-
-      // Only copy the clip when no effect layer is selected
-      if (selectedClips.length === 1 && currentProject) {
-        const clip = currentProject.timeline.tracks
-          .flatMap(t => t.clips)
-          .find(c => c.id === selectedClips[0])
-
-        if (clip) {
-          setClipboard(clip)
-          toast('Clip copied')
+        if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id) {
+          const zoomBlock = clip.effects?.zoom?.blocks?.find(b => b.id === selectedEffectLayer.id)
+          if (zoomBlock) {
+            setEffectClipboard({
+              type: 'zoom',
+              data: { ...zoomBlock },
+              sourceClipId: clip.id
+            })
+            toast('Zoom block copied')
+          }
+        } else {
+          // Copy cursor or background settings
+          const effectData = clip.effects[selectedEffectLayer.type]
+          if (effectData) {
+            setEffectClipboard({
+              type: selectedEffectLayer.type,
+              data: { ...effectData },
+              sourceClipId: clip.id
+            })
+            toast(`${selectedEffectLayer.type.charAt(0).toUpperCase() + selectedEffectLayer.type.slice(1)} copied`)
+          }
         }
+      } else {
+        // Copy entire clip
+        setClipClipboard(clip)
+        toast('Clip copied')
       }
     }
 
     const handleCut = () => {
-      // Don't cut clips when an effect layer is selected
       if (selectedEffectLayer) {
         toast('Cannot cut while effect is selected')
         return
       }
 
-      if (selectedClips.length === 1 && currentProject) {
-        const clip = currentProject.timeline.tracks
-          .flatMap(t => t.clips)
-          .find(c => c.id === selectedClips[0])
+      const clip = getSelectedClip()
+      if (!clip) return
 
-        if (clip) {
-          setClipboard(clip)
+      setClipClipboard(clip)
 
-          undoManager.execute({
-            id: `cut-${clip.id}`,
-            timestamp: Date.now(),
-            description: 'Cut clip',
-            execute: () => {
-              removeClip(clip.id)
-            },
-            undo: () => {
-              addClip(clip)
-            }
-          })
+      undoManager.execute({
+        id: `cut-${clip.id}`,
+        timestamp: Date.now(),
+        description: 'Cut clip',
+        execute: () => removeClip(clip.id),
+        undo: () => addClip(clip)
+      })
 
-          toast('Clip cut')
-        }
-      }
+      toast('Clip cut')
     }
 
     const handlePaste = () => {
-      // Don't paste clips when an effect layer is selected
-      if (selectedEffectLayer) {
-        toast('Cannot paste while effect is selected')
+      // Paste effect if we have one and a target clip
+      if (effectClipboard) {
+        const targetClip = getSelectedClip()
+        if (!targetClip) {
+          toast.error('Select a clip to paste the effect')
+          return
+        }
+
+        if (effectClipboard.type === 'zoom') {
+          const zoomBlock = effectClipboard.data
+          const relativeTime = Math.max(0, currentTime - targetClip.startTime)
+          const newBlock = {
+            ...zoomBlock,
+            id: `zoom-${Date.now()}`,
+            startTime: relativeTime,
+            endTime: Math.min(targetClip.duration, relativeTime + (zoomBlock.endTime - zoomBlock.startTime))
+          }
+
+          // Check overlaps
+          const hasOverlap = (targetClip.effects?.zoom?.blocks || []).some(b =>
+            newBlock.startTime < b.endTime && newBlock.endTime > b.startTime
+          )
+
+          if (hasOverlap) {
+            toast.error('Cannot paste: Would overlap with existing zoom block')
+            return
+          }
+
+          undoManager.execute({
+            id: `paste-zoom-${newBlock.id}`,
+            timestamp: Date.now(),
+            description: 'Paste zoom block',
+            execute: () => addZoomBlock(targetClip.id, newBlock),
+            undo: () => removeZoomBlock(targetClip.id, newBlock.id)
+          })
+
+          toast('Zoom block pasted')
+        } else {
+          // Paste cursor/background settings
+          const prevEffects = { ...targetClip.effects }
+
+          undoManager.execute({
+            id: `paste-${effectClipboard.type}-${Date.now()}`,
+            timestamp: Date.now(),
+            description: `Paste ${effectClipboard.type}`,
+            execute: () => updateClip(targetClip.id, {
+              effects: { ...targetClip.effects, [effectClipboard.type]: effectClipboard.data }
+            }),
+            undo: () => updateClip(targetClip.id, { effects: prevEffects })
+          })
+
+          toast(`${effectClipboard.type.charAt(0).toUpperCase() + effectClipboard.type.slice(1)} pasted`)
+        }
         return
       }
 
-      if (clipboard) {
+      // Paste clip
+      if (clipClipboard) {
         const newClip: Clip = {
-          ...clipboard,
+          ...clipClipboard,
           id: `clip-${Date.now()}`,
           startTime: currentTime
         }
@@ -248,29 +318,61 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           id: `paste-${newClip.id}`,
           timestamp: Date.now(),
           description: 'Paste clip',
-          execute: () => {
-            addClip(newClip)
-          },
-          undo: () => {
-            removeClip(newClip.id)
-          }
+          execute: () => addClip(newClip),
+          undo: () => removeClip(newClip.id)
         })
 
         toast('Clip pasted')
+      } else {
+        toast('Nothing to paste')
       }
     }
 
     const handlePasteInPlace = () => {
-      // Don't paste clips when an effect layer is selected
-      if (selectedEffectLayer) {
-        toast('Cannot paste while effect is selected')
+      // For effects, paste at original position
+      if (effectClipboard) {
+        const targetClip = getSelectedClip()
+        if (!targetClip) {
+          toast.error('Select a clip to paste the effect')
+          return
+        }
+
+        if (effectClipboard.type === 'zoom') {
+          const newBlock = {
+            ...effectClipboard.data,
+            id: `zoom-${Date.now()}`
+          }
+
+          // Check overlaps
+          const hasOverlap = (targetClip.effects?.zoom?.blocks || []).some(b =>
+            newBlock.startTime < b.endTime && newBlock.endTime > b.startTime
+          )
+
+          if (hasOverlap) {
+            toast.error('Cannot paste: Would overlap with existing zoom block')
+            return
+          }
+
+          undoManager.execute({
+            id: `paste-zoom-${newBlock.id}`,
+            timestamp: Date.now(),
+            description: 'Paste zoom block in place',
+            execute: () => addZoomBlock(targetClip.id, newBlock),
+            undo: () => removeZoomBlock(targetClip.id, newBlock.id)
+          })
+
+          toast('Zoom block pasted in place')
+          return
+        }
+        // For cursor/background, same as regular paste
+        handlePaste()
         return
       }
 
-      if (clipboard) {
+      if (clipClipboard) {
         const newClip: Clip = {
-          ...clipboard,
-          id: `clip-${Date.now()}`,
+          ...clipClipboard,
+          id: `clip-${Date.now()}`
         }
 
         undoManager.execute({
@@ -352,43 +454,34 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     }
 
     const handleDuplicate = () => {
-      if (selectedClips.length === 1) {
-        const clipId = selectedClips[0]
-        const newClipId = duplicateClip(clipId)
+      const clip = getSelectedClip()
+      if (!clip) return
 
-        if (newClipId && currentProject) {
-          const originalClip = currentProject.timeline.tracks
-            .flatMap(t => t.clips)
-            .find(c => c.id === clipId)
+      const newClipId = duplicateClip(clip.id)
+      if (!newClipId || !currentProject) return
 
-          const newClip = currentProject.timeline.tracks
-            .flatMap(t => t.clips)
-            .find(c => c.id === newClipId)
+      const newClip = currentProject.timeline.tracks
+        .flatMap(t => t.clips)
+        .find(c => c.id === newClipId)
 
-          if (originalClip && newClip) {
-            undoManager.execute({
-              id: `duplicate-${newClipId}`,
-              timestamp: Date.now(),
-              description: 'Duplicate clip',
-              execute: () => { }, // Already executed
-              undo: () => {
-                removeClip(newClipId)
-              },
-              redo: () => {
-                addClip(newClip)
-              }
-            })
+      if (newClip) {
+        undoManager.execute({
+          id: `duplicate-${newClipId}`,
+          timestamp: Date.now(),
+          description: 'Duplicate clip',
+          execute: () => { }, // Already executed
+          undo: () => removeClip(newClipId),
+          redo: () => addClip(newClip)
+        })
 
-            toast('Clip duplicated')
-          }
-        }
+        toast('Clip duplicated')
       }
     }
 
     const handleSplit = () => {
-      if (selectedClips.length === 1) {
-        const clipId = selectedClips[0]
-        splitClip(clipId, currentTime)
+      const clip = getSelectedClip()
+      if (clip) {
+        splitClip(clip.id, currentTime)
         toast('Clip split')
       }
     }
@@ -521,7 +614,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     isPlaying,
     selectedClips,
     selectedEffectLayer,
-    clipboard,
+    clipClipboard,
+    effectClipboard,
     play,
     pause,
     seek,
@@ -531,6 +625,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     removeClip,
     splitClip,
     duplicateClip,
+    updateClip,
     addClip,
     setZoom,
     zoom,

@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react'
+import React, { useState } from 'react'
 import { Rect, Group, Text, Line, Circle } from 'react-konva'
 import type { ZoomBlock } from '@/types/project'
-import { createZoomBlockDragBoundFunc, TimelineUtils } from '@/lib/timeline'
+import { TimelineUtils } from '@/lib/timeline'
 import { useTimelineColors } from '@/lib/timeline/colors'
+import { timelineEditor } from '@/lib/timeline/timeline-editor'
 
 interface TimelineZoomBlockProps {
   x: number
@@ -15,17 +16,17 @@ interface TimelineZoomBlockProps {
   outroMs?: number
   scale: number
   isSelected: boolean
-  allBlocks: ZoomBlock[]  // All zoom blocks for collision detection
+  allBlocks: ZoomBlock[]
   blockId: string
-  clipX: number  // Clip's x position for coordinate conversion
-  clipDuration: number  // Clip duration for bounds checking
-  pixelsPerMs: number  // For coordinate conversion
+  clipId: string
+  clipX: number
+  clipDuration: number
+  pixelsPerMs: number
   onSelect: () => void
   onDragEnd: (newX: number) => void
-  onResize: (newWidth: number, side: 'left' | 'right') => void
   onIntroChange: (newIntroMs: number) => void
   onOutroChange: (newOutroMs: number) => void
-  onUpdate?: (updates: Partial<ZoomBlock>) => void  // Direct update callback
+  onUpdate: (updates: Partial<ZoomBlock>) => void  // Single update method only
 }
 
 export const TimelineZoomBlock = React.memo(({
@@ -41,12 +42,12 @@ export const TimelineZoomBlock = React.memo(({
   isSelected,
   allBlocks,
   blockId,
+  clipId,
   clipX,
   clipDuration,
   pixelsPerMs,
   onSelect,
   onDragEnd,
-  onResize,
   onIntroChange,
   onOutroChange,
   onUpdate
@@ -55,9 +56,6 @@ export const TimelineZoomBlock = React.memo(({
   const [isHovered, setIsHovered] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
-
-  // Track initial drag positions for accurate resize calculations
-  const initialDragData = useRef<{ width: number; startTime: number; endTime: number } | null>(null)
 
   // Show controls when selected or hovered
   const showControls = isSelected || isHovered
@@ -69,19 +67,6 @@ export const TimelineZoomBlock = React.memo(({
   const introWidth = Math.max(2, ((introMs || 0) / totalDuration) * width)
   const outroWidth = Math.max(2, ((outroMs || 0) / totalDuration) * width)
 
-  // Create drag bound function with collision detection
-  const dragBoundFunc = React.useMemo(() =>
-    createZoomBlockDragBoundFunc(
-      blockId,
-      totalDuration,
-      allBlocks,
-      clipDuration,
-      clipX,
-      y,
-      pixelsPerMs
-    ), [blockId, totalDuration, allBlocks, clipDuration, clipX, y, pixelsPerMs]
-  )
-
   // Opacity and styling based on state
   const blockOpacity = isDragging ? 0.7 : (isSelected ? 0.95 : 0.85)
   const strokeWidth = isSelected ? 1.5 : (isHovered ? 1 : 0)
@@ -92,10 +77,58 @@ export const TimelineZoomBlock = React.memo(({
       x={x}
       y={y}
       draggable
-      dragBoundFunc={dragBoundFunc}
-      onDragStart={() => setIsDragging(true)}
+      dragBoundFunc={(pos) => {
+        // Initialize editor on first drag movement
+        if (!timelineEditor.getEditingState()) {
+          timelineEditor.startEdit(
+            blockId,
+            clipId,
+            startTime,
+            endTime,
+            'move',
+            clipDuration
+          )
+        }
+        
+        // Calculate time delta from position change
+        const deltaX = pos.x - x
+        const timeDelta = TimelineUtils.pixelToTime(deltaX, pixelsPerMs)
+        
+        // Get validated position from editor
+        const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
+        if (!validated) return { x, y }
+        
+        // Convert validated time back to position
+        const newX = clipX + TimelineUtils.timeToPixel(validated.startTime, pixelsPerMs)
+        
+        return {
+          x: newX,
+          y: y
+        }
+      }}
+      onDragStart={() => {
+        setIsDragging(true)
+        timelineEditor.startEdit(
+          blockId,
+          clipId,
+          startTime,
+          endTime,
+          'move',
+          clipDuration
+        )
+      }}
       onDragEnd={(e) => {
         setIsDragging(false)
+        
+        // Commit the edit and update
+        const result = timelineEditor.commitEdit()
+        if (result) {
+          onUpdate({
+            startTime: result.startTime,
+            endTime: result.endTime
+          })
+        }
+        
         onDragEnd(e.target.x())
       }}
       onClick={onSelect}
@@ -277,71 +310,50 @@ export const TimelineZoomBlock = React.memo(({
             draggable
             onDragStart={() => {
               setIsResizing(true)
-              initialDragData.current = { width, startTime, endTime }
+              timelineEditor.startEdit(
+                blockId,
+                clipId,
+                startTime,
+                endTime,
+                'resize-left',
+                clipDuration
+              )
             }}
             dragBoundFunc={(pos) => {
-              const data = initialDragData.current
-              if (!data) return pos
+              // Calculate time delta from handle movement
+              const handleDelta = pos.x - (-handleSize / 2)
+              const timeDelta = TimelineUtils.pixelToTime(handleDelta, pixelsPerMs)
+              
+              // Use timeline editor to validate position
+              const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
+              if (!validated) return pos
 
-              // Maximum we can move left (negative) without going before time 0
-              const maxLeftMove = -TimelineUtils.timeToPixel(data.startTime, pixelsPerMs)
-
-              // Check collision with previous blocks
-              const prevBlocks = allBlocks
-                .filter(b => b.id !== blockId && b.endTime <= data.startTime)
-                .sort((a, b) => b.endTime - a.endTime)
-
-              if (prevBlocks.length > 0) {
-                const gap = data.startTime - prevBlocks[0].endTime
-                const maxLeftMoveToBlock = -TimelineUtils.timeToPixel(gap, pixelsPerMs)
-                // Use the more restrictive limit
-                const minX = Math.max(maxLeftMove, maxLeftMoveToBlock) - handleSize / 2
-                pos.x = Math.max(minX, pos.x)
-              } else {
-                pos.x = Math.max(maxLeftMove - handleSize / 2, pos.x)
-              }
-
-              // Maximum we can move right without making block too small (min 100ms)
-              const minDuration = 100
-              const maxRightMove = data.width - TimelineUtils.timeToPixel(minDuration, pixelsPerMs)
-              const maxX = maxRightMove - handleSize / 2
+              // Convert validated time back to handle position
+              const finalTimeDelta = validated.startTime - startTime
+              const finalHandleDelta = TimelineUtils.timeToPixel(finalTimeDelta, pixelsPerMs)
+              const finalX = -handleSize / 2 + finalHandleDelta
 
               return {
-                x: Math.min(maxX, pos.x),
+                x: finalX,
                 y: y + height / 2 - handleSize / 2
               }
             }}
             onDragEnd={(e) => {
               setIsResizing(false)
-              const data = initialDragData.current
-              if (!data) return
-
-              // The handle moved from its initial position (-handleSize/2) to e.target.x()
-              // A negative x means it moved left (earlier in time)
-              const handleMovement = e.target.x() - (-handleSize / 2)
-              const timeDelta = TimelineUtils.pixelToTime(handleMovement, pixelsPerMs)
-              const newStartTime = data.startTime + timeDelta
               
-              console.log('Left resize:', {
-                handleX: e.target.x(),
-                initialX: -handleSize / 2,
-                handleMovement,
-                timeDelta,
-                oldStartTime: data.startTime,
-                newStartTime
-              })
+              // Calculate final time delta
+              const handleDelta = e.target.x() - (-handleSize / 2)
+              const timeDelta = TimelineUtils.pixelToTime(handleDelta, pixelsPerMs)
+              
+              // Get validated position from editor
+              const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
+              timelineEditor.commitEdit()
 
-              if (onUpdate) {
+              if (validated) {
                 onUpdate({
-                  startTime: Math.max(0, newStartTime)
+                  startTime: validated.startTime
                 })
-              } else {
-                // For onResize, we need the new width
-                const newWidth = data.width - handleMovement
-                onResize(newWidth, 'left')
               }
-
-              initialDragData.current = null
             }}
             onMouseEnter={(e) => {
               const container = e.target.getStage()?.container()
@@ -370,68 +382,50 @@ export const TimelineZoomBlock = React.memo(({
             draggable
             onDragStart={() => {
               setIsResizing(true)
-              initialDragData.current = { width, startTime, endTime }
+              timelineEditor.startEdit(
+                blockId,
+                clipId,
+                startTime,
+                endTime,
+                'resize-right',
+                clipDuration
+              )
             }}
             dragBoundFunc={(pos) => {
-              const data = initialDragData.current
-              if (!data) return pos
+              // Calculate time delta from handle movement
+              const handleDelta = pos.x - (width - handleSize / 2)
+              const timeDelta = TimelineUtils.pixelToTime(handleDelta, pixelsPerMs)
+              
+              // Use timeline editor to validate position
+              const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
+              if (!validated) return pos
 
-              // Maximum we can extend right without exceeding clip duration
-              const maxEndTime = Math.min(clipDuration,
-                data.startTime + TimelineUtils.pixelToTime(pos.x + handleSize / 2, pixelsPerMs))
-              const maxRightMove = TimelineUtils.timeToPixel(maxEndTime - data.startTime, pixelsPerMs)
-
-              // Check collision with next blocks
-              const nextBlocks = allBlocks
-                .filter(b => b.id !== blockId && b.startTime >= data.endTime)
-                .sort((a, b) => a.startTime - b.startTime)
-
-              let maxX = maxRightMove - handleSize / 2
-
-              if (nextBlocks.length > 0) {
-                const gap = nextBlocks[0].startTime - data.endTime
-                const maxExtension = TimelineUtils.timeToPixel(data.endTime - data.startTime + gap, pixelsPerMs)
-                maxX = Math.min(maxX, maxExtension - handleSize / 2)
-              }
-
-              // Don't allow making the block too small (min 100ms)
-              const minDuration = 100
-              const minWidth = TimelineUtils.timeToPixel(minDuration, pixelsPerMs)
-              const minX = minWidth - handleSize / 2
+              // Convert validated time back to handle position
+              const finalTimeDelta = validated.endTime - endTime
+              const finalHandleDelta = TimelineUtils.timeToPixel(finalTimeDelta, pixelsPerMs)
+              const finalX = width - handleSize / 2 + finalHandleDelta
 
               return {
-                x: Math.max(minX, Math.min(maxX, pos.x)),
+                x: finalX,
                 y: y + height / 2 - handleSize / 2
               }
             }}
             onDragEnd={(e) => {
               setIsResizing(false)
-              const data = initialDragData.current
-              if (!data) return
-
-              // The handle's final x position represents the new width
-              const newWidth = e.target.x() + handleSize / 2
-              const newDuration = TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
-              const newEndTime = data.startTime + newDuration
               
-              console.log('Right resize:', {
-                handleX: e.target.x(),
-                newWidth,
-                oldWidth: data.width,
-                newDuration,
-                newEndTime,
-                startTime: data.startTime
-              })
+              // Calculate final time delta
+              const handleDelta = e.target.x() - (width - handleSize / 2)
+              const timeDelta = TimelineUtils.pixelToTime(handleDelta, pixelsPerMs)
+              
+              // Get validated position from editor
+              const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
+              timelineEditor.commitEdit()
 
-              if (onUpdate) {
+              if (validated) {
                 onUpdate({
-                  endTime: Math.min(clipDuration, newEndTime)
+                  endTime: validated.endTime
                 })
-              } else {
-                onResize(newWidth, 'right')
               }
-
-              initialDragData.current = null
             }}
             onMouseEnter={(e) => {
               const container = e.target.getStage()?.container()

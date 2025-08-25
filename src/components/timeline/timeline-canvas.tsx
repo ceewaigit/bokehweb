@@ -359,6 +359,7 @@ export function TimelineCanvas({
                 <TimelineZoomBlock
                   key={block.id}
                   blockId={block.id}
+                  clipId={clip.id}
                   x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
                   y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
                   width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
@@ -388,27 +389,6 @@ export function TimelineCanvas({
                       onZoomBlockUpdate(clip.id, block.id, updates)
                     } else {
                       updateZoomBlock(clip.id, block.id, updates)
-                    }
-                  }}
-                  onResize={(newWidth, side) => {
-                    if (side === 'right') {
-                      const newEndTime = block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
-                      const updates = { endTime: Math.min(newEndTime, clip.duration) }
-                      if (isSelectedClip && onZoomBlockUpdate) {
-                        onZoomBlockUpdate(clip.id, block.id, updates)
-                      } else {
-                        updateZoomBlock(clip.id, block.id, updates)
-                      }
-                    } else {
-                      const currentWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
-                      const deltaWidth = currentWidth - newWidth
-                      const newStartTime = block.startTime + TimelineUtils.pixelToTime(deltaWidth, pixelsPerMs)
-                      const updates = { startTime: Math.max(0, newStartTime) }
-                      if (isSelectedClip && onZoomBlockUpdate) {
-                        onZoomBlockUpdate(clip.id, block.id, updates)
-                      } else {
-                        updateZoomBlock(clip.id, block.id, updates)
-                      }
                     }
                   }}
                   onUpdate={(updates) => {
