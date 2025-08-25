@@ -321,6 +321,15 @@ export const TimelineZoomBlock = React.memo(({
               const handleMovement = e.target.x() - (-handleSize / 2)
               const timeDelta = TimelineUtils.pixelToTime(handleMovement, pixelsPerMs)
               const newStartTime = data.startTime + timeDelta
+              
+              console.log('Left resize:', {
+                handleX: e.target.x(),
+                initialX: -handleSize / 2,
+                handleMovement,
+                timeDelta,
+                oldStartTime: data.startTime,
+                newStartTime
+              })
 
               if (onUpdate) {
                 onUpdate({
@@ -400,12 +409,19 @@ export const TimelineZoomBlock = React.memo(({
               const data = initialDragData.current
               if (!data) return
 
-              // The handle moved from its initial position (width - handleSize/2) to e.target.x()
-              const initialX = data.width - handleSize / 2
-              const handleMovement = e.target.x() - initialX
-              const newWidth = data.width + handleMovement
+              // The handle's final x position represents the new width
+              const newWidth = e.target.x() + handleSize / 2
               const newDuration = TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
               const newEndTime = data.startTime + newDuration
+              
+              console.log('Right resize:', {
+                handleX: e.target.x(),
+                newWidth,
+                oldWidth: data.width,
+                newDuration,
+                newEndTime,
+                startTime: data.startTime
+              })
 
               if (onUpdate) {
                 onUpdate({
