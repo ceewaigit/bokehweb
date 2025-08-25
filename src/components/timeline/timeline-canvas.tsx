@@ -392,8 +392,10 @@ export function TimelineCanvas({
                     }
                   }}
                   onResize={(newWidth, side) => {
+                    console.log('Timeline onResize:', { newWidth, side, block })
                     if (side === 'right') {
                       const newEndTime = block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
+                      console.log('Calculated newEndTime:', newEndTime, 'from width:', newWidth)
                       const updates = { endTime: Math.min(newEndTime, selectedClip.duration) }
                       if (onZoomBlockUpdate) {
                         onZoomBlockUpdate(selectedClip.id, block.id, updates)
@@ -413,6 +415,7 @@ export function TimelineCanvas({
                     }
                   }}
                   onUpdate={(updates) => {
+                    console.log('Direct onUpdate called:', { clipId: selectedClip.id, blockId: block.id, updates })
                     if (onZoomBlockUpdate) {
                       onZoomBlockUpdate(selectedClip.id, block.id, updates)
                     } else {

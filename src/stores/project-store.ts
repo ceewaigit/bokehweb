@@ -357,18 +357,29 @@ export const useProjectStore = create<ProjectStore>()(
     },
 
     updateZoomBlock: (clipId, blockId, updates) => {
+      console.log('Store updateZoomBlock:', { clipId, blockId, updates })
       set((state) => {
         if (!state.currentProject) return
         const result = findClipById(state.currentProject, clipId)
-        if (!result) return
+        if (!result) {
+          console.error('Clip not found:', clipId)
+          return
+        }
 
         const clip = result.clip
-        if (!clip.effects?.zoom?.blocks) return
+        if (!clip.effects?.zoom?.blocks) {
+          console.error('No zoom blocks on clip:', clipId)
+          return
+        }
 
         const block = clip.effects.zoom.blocks.find(b => b.id === blockId)
         if (block) {
+          console.log('Before update:', { ...block })
           Object.assign(block, updates)
+          console.log('After update:', { ...block })
           state.currentProject.modifiedAt = new Date().toISOString()
+        } else {
+          console.error('Block not found:', blockId)
         }
       })
 

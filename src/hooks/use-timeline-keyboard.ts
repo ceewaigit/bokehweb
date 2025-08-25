@@ -177,12 +177,15 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     // Editing with undo support
     const handleCopy = () => {
-      // Only copy clips when no effect layer is selected
+      // When an effect layer is selected, don't copy the entire clip
       if (selectedEffectLayer) {
-        toast('Cannot copy effects')
+        // TODO: In the future, implement effect-specific copy
+        // For now, just show a message and don't copy anything
+        toast('Effect copying not yet implemented')
         return
       }
 
+      // Only copy the clip when no effect layer is selected
       if (selectedClips.length === 1 && currentProject) {
         const clip = currentProject.timeline.tracks
           .flatMap(t => t.clips)
@@ -196,6 +199,12 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     }
 
     const handleCut = () => {
+      // Don't cut clips when an effect layer is selected
+      if (selectedEffectLayer) {
+        toast('Cannot cut while effect is selected')
+        return
+      }
+
       if (selectedClips.length === 1 && currentProject) {
         const clip = currentProject.timeline.tracks
           .flatMap(t => t.clips)
@@ -222,6 +231,12 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     }
 
     const handlePaste = () => {
+      // Don't paste clips when an effect layer is selected
+      if (selectedEffectLayer) {
+        toast('Cannot paste while effect is selected')
+        return
+      }
+
       if (clipboard) {
         const newClip: Clip = {
           ...clipboard,
@@ -246,6 +261,12 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     }
 
     const handlePasteInPlace = () => {
+      // Don't paste clips when an effect layer is selected
+      if (selectedEffectLayer) {
+        toast('Cannot paste while effect is selected')
+        return
+      }
+
       if (clipboard) {
         const newClip: Clip = {
           ...clipboard,
