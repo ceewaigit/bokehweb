@@ -340,22 +340,34 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
             startTime: relativeTime,
             endTime: Math.min(targetClip.duration, relativeTime + (zoomBlock.endTime - zoomBlock.startTime))
           }
+          
+          console.log('[PASTE] New block to paste:', newBlock)
+          console.log('[PASTE] Existing blocks:', targetClip.effects?.zoom?.blocks)
 
           // Check overlaps
-          const hasOverlap = (targetClip.effects?.zoom?.blocks || []).some(b =>
-            newBlock.startTime < b.endTime && newBlock.endTime > b.startTime
-          )
+          const hasOverlap = (targetClip.effects?.zoom?.blocks || []).some(b => {
+            const overlaps = newBlock.startTime < b.endTime && newBlock.endTime > b.startTime
+            if (overlaps) {
+              console.log('[PASTE] Overlap detected with block:', b)
+            }
+            return overlaps
+          })
 
           if (hasOverlap) {
+            console.log('[PASTE] Cannot paste due to overlap')
             toast.error('Cannot paste: Would overlap with existing zoom block')
             return
           }
 
+          console.log('[PASTE] No overlap, executing paste')
           undoManager.execute({
             id: `paste-zoom-${newBlock.id}`,
             timestamp: Date.now(),
             description: 'Paste zoom block',
-            execute: () => storeRef.current.addZoomBlock(targetClip.id, newBlock),
+            execute: () => {
+              console.log('[PASTE] Executing addZoomBlock for clip:', targetClip.id, 'block:', newBlock)
+              storeRef.current.addZoomBlock(targetClip.id, newBlock)
+            },
             undo: () => storeRef.current.removeZoomBlock(targetClip.id, newBlock.id)
           })
 
@@ -482,14 +494,20 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           const clip = storeRef.current.currentProject?.timeline.tracks
             .flatMap(t => t.clips)
             .find(c => c.id === clipId)
+          console.log('[DELETE] Found clip:', clip)
+          console.log('[DELETE] Zoom blocks in clip:', clip?.effects?.zoom?.blocks)
+          
           const zoomBlock = clip?.effects?.zoom?.blocks?.find(b => b.id === blockId)
+          console.log('[DELETE] Found zoom block to delete:', zoomBlock)
 
           if (zoomBlock) {
+            console.log('[DELETE] Executing delete for zoom block:', blockId)
             undoManager.execute({
               id: `delete-zoom-${blockId}`,
               timestamp: Date.now(),
               description: 'Delete zoom block',
               execute: () => {
+                console.log('[DELETE] Calling removeZoomBlock for clip:', clipId, 'block:', blockId)
                 storeRef.current.removeZoomBlock(clipId, blockId)
                 storeRef.current.clearEffectSelection()
               },
@@ -498,6 +516,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
               }
             })
             toast('Zoom block deleted')
+          } else {
+            console.log('[DELETE] Zoom block not found, cannot delete')
           }
         }
         // Don't delete clips when effect layer is selected

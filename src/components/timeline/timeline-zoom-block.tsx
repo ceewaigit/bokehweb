@@ -55,7 +55,7 @@ export const TimelineZoomBlock = React.memo(({
   }, [isSelected])
 
   // Calculate snap positions based on other blocks
-  const getSnappedPosition = (proposedX: number, proposedWidth: number) => {
+  const getSnappedPosition = (proposedX: number, proposedWidth: number, isResizing: boolean = false) => {
     const proposedStartTime = TimelineUtils.pixelToTime(proposedX - clipX, pixelsPerMs)
     const proposedEndTime = proposedStartTime + TimelineUtils.pixelToTime(proposedWidth, pixelsPerMs)
 
@@ -63,10 +63,13 @@ export const TimelineZoomBlock = React.memo(({
     let finalWidth = proposedWidth
     const snapThreshold = 10 // pixels
 
-    // First check for overlaps and prevent them
-    for (const block of allBlocks) {
-      if (block.id === blockId) continue
+    // Sort blocks by start time for easier collision detection
+    const sortedBlocks = allBlocks
+      .filter(b => b.id !== blockId)
+      .sort((a, b) => a.startTime - b.startTime)
 
+    // Check each block for collisions
+    for (const block of sortedBlocks) {
       const blockX = clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)
       const blockWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
       const blockEndX = blockX + blockWidth
@@ -75,29 +78,46 @@ export const TimelineZoomBlock = React.memo(({
       const wouldOverlap = proposedStartTime < block.endTime && proposedEndTime > block.startTime
 
       if (wouldOverlap) {
-        // Determine which side to snap to based on movement direction
-        const currentX = clipX + TimelineUtils.timeToPixel(startTime, pixelsPerMs)
-        const movingRight = proposedX > currentX
-        
-        if (movingRight) {
-          // Moving right, snap to right edge of the blocking block
-          finalX = blockEndX
+        if (isResizing) {
+          // When resizing, just limit the width
+          const proposedEndX = proposedX + proposedWidth
+          
+          // Check which handle is being dragged based on position
+          const currentX = clipX + TimelineUtils.timeToPixel(startTime, pixelsPerMs)
+          const currentWidth = TimelineUtils.timeToPixel(endTime - startTime, pixelsPerMs)
+          const isResizingLeft = Math.abs(proposedX - currentX) > 1
+          const isResizingRight = Math.abs(proposedWidth - currentWidth) > 1 && !isResizingLeft
+          
+          if (isResizingRight && proposedEndX > blockX) {
+            // Resizing right edge into a block
+            finalWidth = blockX - proposedX
+          } else if (isResizingLeft && proposedX < blockEndX) {
+            // Resizing left edge into a block
+            finalX = blockEndX
+            finalWidth = (currentX + currentWidth) - blockEndX
+          }
         } else {
-          // Moving left or resizing, snap to left edge of the blocking block
-          const maxAllowedEndX = blockX
-          const maxAllowedWidth = maxAllowedEndX - proposedX
-          if (maxAllowedWidth > 0) {
-            finalWidth = Math.min(finalWidth, maxAllowedWidth)
+          // When dragging, prevent any overlap
+          const currentX = clipX + TimelineUtils.timeToPixel(startTime, pixelsPerMs)
+          
+          // Check if we're moving left or right
+          if (proposedX > currentX) {
+            // Moving right - stop at the left edge of the blocking block
+            finalX = blockX - finalWidth
           } else {
-            // Can't place here at all
-            finalX = Math.max(clipX, blockEndX)
+            // Moving left - stop at the right edge of the blocking block
+            finalX = blockEndX
           }
         }
       } else {
         // No overlap, check for snapping to edges
         if (Math.abs((proposedX + proposedWidth) - blockX) < snapThreshold) {
           // Snap right edge to left edge of block
-          finalWidth = blockX - proposedX
+          if (isResizing) {
+            finalWidth = blockX - proposedX
+          } else {
+            finalX = blockX - finalWidth
+          }
         } else if (Math.abs(proposedX - blockEndX) < snapThreshold) {
           // Snap left edge to right edge of block
           finalX = blockEndX
@@ -135,7 +155,7 @@ export const TimelineZoomBlock = React.memo(({
         shadowOffsetY={1}
         draggable
         dragBoundFunc={(pos) => {
-          const snapped = getSnappedPosition(pos.x, width)
+          const snapped = getSnappedPosition(pos.x, width, false)
           return {
             x: snapped.x,
             y: y
@@ -166,8 +186,8 @@ export const TimelineZoomBlock = React.memo(({
           node.scaleX(1)
           node.scaleY(1)
 
-          // Apply snapping
-          const snapped = getSnappedPosition(newX, newWidth)
+          // Apply snapping (this is resizing)
+          const snapped = getSnappedPosition(newX, newWidth, true)
           node.width(snapped.width)
           node.x(snapped.x)
 
@@ -218,8 +238,8 @@ export const TimelineZoomBlock = React.memo(({
             // Keep height fixed
             newBox.height = oldBox.height
 
-            // Apply collision detection
-            const snapped = getSnappedPosition(newBox.x, newBox.width)
+            // Apply collision detection (this is resizing via transformer)
+            const snapped = getSnappedPosition(newBox.x, newBox.width, true)
             newBox.x = snapped.x
             newBox.width = snapped.width
 
