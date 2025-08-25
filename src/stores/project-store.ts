@@ -67,6 +67,10 @@ interface ProjectStore {
   selectedClipId: string | null
   selectedClips: string[]
   selectedEffectLayer: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
+  clipboard: {
+    clip?: Clip
+    effect?: { type: 'zoom' | 'cursor' | 'background'; data: any; sourceClipId: string }
+  }
 
   // Core Actions
   newProject: (name: string) => void
@@ -94,6 +98,11 @@ interface ProjectStore {
   trimClipStart: (clipId: string, newStartTime: number) => void
   trimClipEnd: (clipId: string, newEndTime: number) => void
   duplicateClip: (clipId: string) => string | null
+  
+  // Clipboard
+  copyClip: (clip: Clip) => void
+  copyEffect: (type: 'zoom' | 'cursor' | 'background', data: any, sourceClipId: string) => void
+  clearClipboard: () => void
 
   // Playback
   play: () => void
@@ -118,6 +127,7 @@ export const useProjectStore = create<ProjectStore>()(
     selectedClipId: null,
     selectedClips: [],
     selectedEffectLayer: null,
+    clipboard: {},
 
     newProject: (name) => {
       set((state) => {
@@ -561,6 +571,24 @@ export const useProjectStore = create<ProjectStore>()(
 
       state.addClip(newClip)
       return newClip.id
+    },
+    
+    copyClip: (clip) => {
+      set((state) => {
+        state.clipboard = { clip }
+      })
+    },
+    
+    copyEffect: (type, data, sourceClipId) => {
+      set((state) => {
+        state.clipboard = { effect: { type, data, sourceClipId } }
+      })
+    },
+    
+    clearClipboard: () => {
+      set((state) => {
+        state.clipboard = {}
+      })
     },
 
     play: () => {
