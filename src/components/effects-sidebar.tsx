@@ -216,35 +216,8 @@ export function EffectsSidebar({
                   key={type}
                   onClick={() => {
                     setBackgroundType(type)
-                    // Set the type with appropriate default data
-                    const newBackground: any = { type }
-
-                    // Add default data for each type
-                    if (type === 'gradient') {
-                      // Use the existing gradient or a default one
-                      newBackground.gradient = effects.background?.gradient || {
-                        colors: ['#2D3748', '#1A202C'],
-                        angle: 135
-                      }
-                    } else if (type === 'color') {
-                      newBackground.color = effects.background?.color || '#000000'
-                    } else if (type === 'wallpaper') {
-                      // Keep existing wallpaper if available
-                      if (effects.background?.wallpaper) {
-                        newBackground.wallpaper = effects.background.wallpaper
-                      }
-                    } else if (type === 'image') {
-                      // Keep existing image if available
-                      if (effects.background?.image) {
-                        newBackground.image = effects.background.image
-                      }
-                    }
-
-                    // Preserve blur and padding
-                    if (effects.background?.blur) newBackground.blur = effects.background.blur
-                    if (effects.background?.padding) newBackground.padding = effects.background.padding
-
-                    updateEffect('background', newBackground)
+                    // Don't update the actual background until user selects something
+                    // This prevents the background from disappearing when switching tabs
                   }}
                   className={cn(
                     "flex-1 py-1 px-2 rounded-sm text-[10px] uppercase tracking-wider font-medium transition-all",
@@ -262,6 +235,11 @@ export function EffectsSidebar({
             {backgroundType === 'wallpaper' && (
               <div className="space-y-2">
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">macOS Wallpapers</h3>
+                {effects.background?.type !== 'wallpaper' && (
+                  <div className="text-xs text-muted-foreground/60 p-2 bg-card/30 rounded">
+                    Select a wallpaper below to apply it
+                  </div>
+                )}
                 {loadingWallpapers ? (
                   <div className="text-xs text-muted-foreground">Loading wallpapers...</div>
                 ) : macOSWallpapers.wallpapers.length > 0 ? (
@@ -327,6 +305,11 @@ export function EffectsSidebar({
             {backgroundType === 'gradient' && (
               <div className="space-y-2">
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Presets</h3>
+                {effects.background?.type !== 'gradient' && (
+                  <div className="text-xs text-muted-foreground/60 p-2 bg-card/30 rounded">
+                    Select a gradient below to apply it
+                  </div>
+                )}
                 <div className="grid grid-cols-5 gap-1.5">
                   {WALLPAPERS.map(wallpaper => (
                     <button
@@ -358,7 +341,7 @@ export function EffectsSidebar({
                 <div className="flex gap-2 items-center">
                   <input
                     type="color"
-                    value={effects.background?.color || '#000000'}
+                    value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
                     onChange={(e) => {
                       updateEffect('background', createBackgroundUpdate({
                         type: 'color',
@@ -369,7 +352,7 @@ export function EffectsSidebar({
                   />
                   <input
                     type="text"
-                    value={effects.background?.color || '#000000'}
+                    value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
                     onChange={(e) => {
                       updateEffect('background', createBackgroundUpdate({
                         type: 'color',
