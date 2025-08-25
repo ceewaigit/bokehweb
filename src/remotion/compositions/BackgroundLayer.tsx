@@ -7,34 +7,20 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   videoWidth,
   videoHeight
 }) => {
-  if (!effects) {
-    return <AbsoluteFill />;
+  if (!effects?.type) {
+    return null;
   }
 
   let backgroundStyle: React.CSSProperties = {};
 
-  // Create unique key based on background content to force re-render
-  const backgroundKey = React.useMemo(() => {
-    if (!effects) return 'none';
-    if (effects.type === 'wallpaper' && effects.wallpaper) {
-      return `wallpaper-${effects.wallpaper.substring(0, 50)}`;
-    }
-    if (effects.type === 'gradient' && effects.gradient) {
-      return `gradient-${effects.gradient.colors.join('-')}`;
-    }
-    return effects.type;
-  }, [effects]);
-
   switch (effects.type) {
     case 'wallpaper':
-      if (effects.wallpaper) {
-        backgroundStyle = {
-          backgroundImage: `url(${effects.wallpaper})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        };
-      }
+      if (!effects.wallpaper) return null;
+      backgroundStyle = {
+        backgroundImage: `url(${effects.wallpaper})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      };
       break;
 
     case 'color':
@@ -44,56 +30,37 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       break;
 
     case 'gradient':
-      if (effects.gradient) {
-        const { colors = ['#0F172A', '#1E293B'], angle = 135 } = effects.gradient;
-        const gradientColors = colors.map((color, index) => {
-          const percentage = (index / (colors.length - 1)) * 100;
-          return `${color} ${percentage}%`;
-        }).join(', ');
-
-        backgroundStyle = {
-          background: `linear-gradient(${angle}deg, ${gradientColors})`
-        };
-      }
+      if (!effects.gradient?.colors?.length) return null;
+      const { colors, angle = 135 } = effects.gradient;
+      const gradientColors = colors.map((color, index) => {
+        const percentage = (index / (colors.length - 1)) * 100;
+        return `${color} ${percentage}%`;
+      }).join(', ');
+      backgroundStyle = {
+        background: `linear-gradient(${angle}deg, ${gradientColors})`
+      };
       break;
 
     case 'image':
-      if (effects.image) {
-        backgroundStyle = {
-          backgroundImage: `url(${effects.image})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        };
-      }
+      if (!effects.image) return null;
+      backgroundStyle = {
+        backgroundImage: `url(${effects.image})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      };
       break;
 
     case 'none':
-      backgroundStyle = {
-        backgroundColor: '#000000'
-      };
-      break;
+      return null;
+
+    default:
+      return null;
   }
 
-  // For blur effect, we need to handle it differently to avoid black backgrounds
-  const shouldBlur = effects.blur && (effects.type === 'wallpaper' || effects.type === 'image');
-
-  if (shouldBlur) {
-    // Use a container with overflow hidden and scale the blurred content slightly
-    // to avoid blur edges showing
-    return (
-      <AbsoluteFill key={backgroundKey} style={{ overflow: 'hidden' }}>
-        <div 
-          style={{
-            ...backgroundStyle,
-            position: 'absolute',
-            inset: `-${effects.blur}px`,
-            filter: `blur(${effects.blur}px)`,
-          }}
-        />
-      </AbsoluteFill>
-    );
+  // Apply blur for image-based backgrounds
+  if (effects.blur && effects.blur > 0 && (effects.type === 'wallpaper' || effects.type === 'image')) {
+    backgroundStyle.filter = `blur(${effects.blur}px)`;
   }
 
-  return <AbsoluteFill key={backgroundKey} style={backgroundStyle} />;
+  return <AbsoluteFill style={backgroundStyle} />;
 };

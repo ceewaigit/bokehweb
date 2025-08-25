@@ -256,6 +256,11 @@ export const useProjectStore = create<ProjectStore>()(
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
+          // Check for overlaps and find valid position if needed
+          if (hasClipOverlap(videoTrack, '', clip.startTime, clip.duration)) {
+            clip.startTime = findNextValidPosition(videoTrack, '', clip.startTime, clip.duration)
+          }
+          
           videoTrack.clips.push(clip)
         }
 
@@ -341,20 +346,10 @@ export const useProjectStore = create<ProjectStore>()(
         const result = findClipById(state.currentProject, clipId)
         if (!result || !result.clip.effects) return
 
-        // For background, preserve padding and blur unless explicitly changed
-        if (category === 'background') {
-          const currentBackground = result.clip.effects.background
-          result.clip.effects.background = {
-            ...updates,
-            // Preserve padding and blur if not in updates
-            padding: updates.padding !== undefined ? updates.padding : currentBackground.padding,
-            blur: updates.blur !== undefined ? updates.blur : currentBackground.blur
-          } as typeof result.clip.effects.background
-        } else {
-          result.clip.effects[category as keyof typeof result.clip.effects] = {
-            ...result.clip.effects[category as keyof typeof result.clip.effects],
-            ...updates
-          }
+        // Simple merge - just spread the updates
+        result.clip.effects[category as keyof typeof result.clip.effects] = {
+          ...result.clip.effects[category as keyof typeof result.clip.effects],
+          ...updates
         }
 
         state.currentProject.modifiedAt = new Date().toISOString()
@@ -540,11 +535,20 @@ export const useProjectStore = create<ProjectStore>()(
       const result = findClipById(state.currentProject, clipId)
       if (!result) return null
 
-      const { clip } = result
+      const { clip, track } = result
+      
+      // Start with position right after the original clip
+      let desiredStartTime = clip.startTime + clip.duration + 0.1
+      
+      // Check for overlaps and find next valid position
+      if (hasClipOverlap(track, '', desiredStartTime, clip.duration)) {
+        desiredStartTime = findNextValidPosition(track, '', desiredStartTime, clip.duration)
+      }
+      
       const newClip: Clip = {
         ...clip,
         id: `${clip.id}-copy-${Date.now()}`,
-        startTime: clip.startTime + clip.duration + 0.1
+        startTime: desiredStartTime
       }
 
       state.addClip(newClip)

@@ -1,5 +1,5 @@
-import React from 'react'
-import { Rect, Group, Text, Line } from 'react-konva'
+import React, { useState } from 'react'
+import { Rect, Group, Text, Line, Circle } from 'react-konva'
 import type { ZoomBlock } from '@/types/project'
 import { createZoomBlockDragBoundFunc, TimelineUtils } from '@/lib/timeline'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -25,6 +25,7 @@ interface TimelineZoomBlockProps {
   onResize: (newWidth: number, side: 'left' | 'right') => void
   onIntroChange: (newIntroMs: number) => void
   onOutroChange: (newOutroMs: number) => void
+  onUpdate?: (updates: Partial<ZoomBlock>) => void  // Direct update callback
 }
 
 export const TimelineZoomBlock = React.memo(({
@@ -34,8 +35,8 @@ export const TimelineZoomBlock = React.memo(({
   height,
   startTime,
   endTime,
-  introMs,
-  outroMs,
+  introMs = 300,
+  outroMs = 300,
   scale,
   isSelected,
   allBlocks,
@@ -47,15 +48,23 @@ export const TimelineZoomBlock = React.memo(({
   onDragEnd,
   onResize,
   onIntroChange,
-  onOutroChange
+  onOutroChange,
+  onUpdate
 }: TimelineZoomBlockProps) => {
-  const colors = useTimelineColors()
-  const handleSize = 12 // Bigger handles for easier grabbing
+  const colors = useTimelineColors() // Need this for dynamic theme changes
+  const [isHovered, setIsHovered] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
+
+  // Show controls when selected or hovered
+  const showControls = isSelected || isHovered
+  const handleSize = 8 // Smaller, more refined handles
+  const introOutroHandleRadius = 4
 
   // Calculate intro/outro widths as proportion of total width
   const totalDuration = endTime - startTime
-  const introWidth = ((introMs || 0) / totalDuration) * width
-  const outroWidth = ((outroMs || 0) / totalDuration) * width
+  const introWidth = Math.max(2, ((introMs || 0) / totalDuration) * width)
+  const outroWidth = Math.max(2, ((outroMs || 0) / totalDuration) * width)
 
   // Create drag bound function with collision detection
   const dragBoundFunc = React.useMemo(() =>
@@ -70,154 +79,218 @@ export const TimelineZoomBlock = React.memo(({
     ), [blockId, totalDuration, allBlocks, clipDuration, clipX, y, pixelsPerMs]
   )
 
+  // Opacity and styling based on state
+  const blockOpacity = isDragging ? 0.7 : (isSelected ? 0.95 : 0.85)
+  const strokeWidth = isSelected ? 1.5 : (isHovered ? 1 : 0)
+  const shadowBlur = isSelected ? 6 : (isHovered ? 4 : 2)
+
   return (
     <Group
       x={x}
       y={y}
       draggable
       dragBoundFunc={dragBoundFunc}
-      onDragEnd={(e) => onDragEnd(e.target.x())}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={(e) => {
+        setIsDragging(false)
+        onDragEnd(e.target.x())
+      }}
       onClick={onSelect}
       onTap={onSelect}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Main zoom block */}
+      {/* Main zoom block - uses theme colors */}
       <Rect
         x={0}
         y={0}
         width={width}
         height={height}
         fill={colors.zoomBlock}
-        cornerRadius={6}
-        opacity={isSelected ? 1 : 0.85}
-        stroke={isSelected ? colors.foreground : undefined}
-        strokeWidth={isSelected ? 2 : 0}
+        cornerRadius={4}
+        opacity={blockOpacity}
+        stroke={isSelected ? colors.primary : (isHovered ? colors.zoomBlockHover : undefined)}
+        strokeWidth={strokeWidth}
         shadowColor="black"
-        shadowBlur={isSelected ? 8 : 2}
-        shadowOpacity={0.3}
+        shadowBlur={shadowBlur}
+        shadowOpacity={0.2}
+        shadowOffsetY={1}
       />
 
-      {/* Intro section (zoom in) */}
-      <Rect
-        x={0}
-        y={0}
-        width={introWidth}
-        height={height}
-        fill={colors.zoomBlockHover}
-        cornerRadius={[6, 0, 0, 6]}
-        opacity={0.8}
-      />
-
-      {/* Outro section (zoom out) */}
-      <Rect
-        x={width - outroWidth}
-        y={0}
-        width={outroWidth}
-        height={height}
-        fill={colors.zoomBlockHover}
-        cornerRadius={[0, 6, 6, 0]}
-        opacity={0.8}
-      />
-
-      {/* Zoom level indicator */}
-      <Group x={10} y={height / 2 - 8}>
+      {/* Intro section (zoom in) - subtle overlay */}
+      {introWidth > 2 && (
         <Rect
           x={0}
           y={0}
-          width={30}
-          height={16}
-          fill={isSelected ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)"}
-          cornerRadius={4}
+          width={introWidth}
+          height={height}
+          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+          fillLinearGradientEndPoint={{ x: introWidth, y: 0 }}
+          fillLinearGradientColorStops={[
+            0, 'rgba(255, 255, 255, 0.15)',
+            1, 'rgba(255, 255, 255, 0)'
+          ]}
+          cornerRadius={[4, 0, 0, 4]}
+          listening={false}
         />
+      )}
+
+      {/* Outro section (zoom out) - subtle overlay */}
+      {outroWidth > 2 && (
+        <Rect
+          x={width - outroWidth}
+          y={0}
+          width={outroWidth}
+          height={height}
+          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+          fillLinearGradientEndPoint={{ x: outroWidth, y: 0 }}
+          fillLinearGradientColorStops={[
+            0, 'rgba(255, 255, 255, 0)',
+            1, 'rgba(255, 255, 255, 0.15)'
+          ]}
+          cornerRadius={[0, 4, 4, 0]}
+          listening={false}
+        />
+      )}
+
+      {/* Zoom level indicator - minimal and elegant */}
+      <Group x={8} y={height / 2 - 7}>
         <Text
-          x={5}
-          y={2}
-          text={`${scale.toFixed(1)}x`}
-          fontSize={isSelected ? 12 : 11}
+          x={0}
+          y={0}
+          text={`${scale.toFixed(1)}×`}
+          fontSize={11}
           fill="white"
-          fontFamily="system-ui"
-          fontStyle={isSelected ? "bold" : "normal"}
+          fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui"
+          fontStyle={isSelected ? "500" : "normal"}
+          shadowColor="black"
+          shadowBlur={2}
+          shadowOpacity={0.3}
         />
       </Group>
 
-      {/* Auto label if applicable */}
-      <Text
-        x={width - 40}
-        y={height / 2 - 6}
-        text="Auto"
-        fontSize={10}
-        fill="rgba(255,255,255,0.8)"
-        fontFamily="system-ui"
-      />
-
-      {/* Intro/outro duration indicators */}
-      {isSelected && (
+      {/* Intro/outro adjustment handles - only when controls are visible */}
+      {showControls && (
         <>
-          {/* Intro handle */}
-          <Line
-            points={[introWidth, 0, introWidth, height]}
-            stroke="white"
-            strokeWidth={2}
-            opacity={0.5}
-            draggable
-            dragBoundFunc={(pos) => ({
-              x: Math.max(10, Math.min(width / 2, pos.x)),
-              y: y
-            })}
-            onDragEnd={(e) => {
-              const newIntroWidth = e.target.x()
-              const newIntroMs = (newIntroWidth / width) * totalDuration
-              onIntroChange(Math.round(newIntroMs))
-            }}
-          />
+          {/* Intro adjustment line and handle */}
+          {introWidth > 10 && (
+            <Group>
+              <Line
+                points={[introWidth, 4, introWidth, height - 4]}
+                stroke="rgba(255, 255, 255, 0.3)"
+                strokeWidth={1}
+                dash={[2, 2]}
+              />
+              <Circle
+                x={introWidth}
+                y={height / 2}
+                radius={introOutroHandleRadius}
+                fill="white"
+                stroke="rgba(0, 0, 0, 0.2)"
+                strokeWidth={1}
+                shadowColor="black"
+                shadowBlur={2}
+                shadowOpacity={0.2}
+                cursor="ew-resize"
+                draggable
+                dragBoundFunc={(pos) => ({
+                  x: Math.max(10, Math.min(width / 2 - 10, pos.x)),
+                  y: y + height / 2
+                })}
+                onDragEnd={(e) => {
+                  const newIntroWidth = e.target.x()
+                  const newIntroMs = (newIntroWidth / width) * totalDuration
+                  onIntroChange(Math.round(newIntroMs))
+                }}
+                onMouseEnter={(e) => {
+                  const container = e.target.getStage()?.container()
+                  if (container) container.style.cursor = 'ew-resize'
+                }}
+                onMouseLeave={(e) => {
+                  const container = e.target.getStage()?.container()
+                  if (container) container.style.cursor = 'default'
+                }}
+              />
+            </Group>
+          )}
 
-          {/* Outro handle */}
-          <Line
-            points={[width - outroWidth, 0, width - outroWidth, height]}
-            stroke="white"
-            strokeWidth={2}
-            opacity={0.5}
-            draggable
-            dragBoundFunc={(pos) => ({
-              x: Math.max(width / 2, Math.min(width - 10, pos.x)),
-              y: y
-            })}
-            onDragEnd={(e) => {
-              const newOutroWidth = width - e.target.x()
-              const newOutroMs = (newOutroWidth / width) * totalDuration
-              onOutroChange(Math.round(newOutroMs))
-            }}
-          />
+          {/* Outro adjustment line and handle */}
+          {outroWidth > 10 && (
+            <Group>
+              <Line
+                points={[width - outroWidth, 4, width - outroWidth, height - 4]}
+                stroke="rgba(255, 255, 255, 0.3)"
+                strokeWidth={1}
+                dash={[2, 2]}
+              />
+              <Circle
+                x={width - outroWidth}
+                y={height / 2}
+                radius={introOutroHandleRadius}
+                fill="white"
+                stroke="rgba(0, 0, 0, 0.2)"
+                strokeWidth={1}
+                shadowColor="black"
+                shadowBlur={2}
+                shadowOpacity={0.2}
+                cursor="ew-resize"
+                draggable
+                dragBoundFunc={(pos) => ({
+                  x: Math.max(width / 2 + 10, Math.min(width - 10, pos.x)),
+                  y: y + height / 2
+                })}
+                onDragEnd={(e) => {
+                  const newOutroWidth = width - e.target.x()
+                  const newOutroMs = (newOutroWidth / width) * totalDuration
+                  onOutroChange(Math.round(newOutroMs))
+                }}
+                onMouseEnter={(e) => {
+                  const container = e.target.getStage()?.container()
+                  if (container) container.style.cursor = 'ew-resize'
+                }}
+                onMouseLeave={(e) => {
+                  const container = e.target.getStage()?.container()
+                  if (container) container.style.cursor = 'default'
+                }}
+              />
+            </Group>
+          )}
 
-          {/* Resize handles with full collision detection */}
-          {/* Left handle */}
+          {/* Resize handles - refined appearance */}
+          {/* Left resize handle */}
           <Rect
             x={-handleSize / 2}
             y={height / 2 - handleSize / 2}
             width={handleSize}
             height={handleSize}
             fill="white"
-            stroke="rgba(0,0,0,0.3)"
+            stroke="rgba(99, 102, 241, 0.5)"
             strokeWidth={1}
             cornerRadius={2}
+            shadowColor="black"
+            shadowBlur={2}
+            shadowOpacity={0.2}
             cursor="ew-resize"
             draggable
+            onDragStart={() => setIsResizing(true)}
             dragBoundFunc={(pos) => {
-              // Find the maximum we can move left (minimum start time)
-              let minStartTime = 0
+              // Calculate minimum x based on previous blocks
+              let minX = -handleSize / 2
 
-              // Check for collision with other blocks to the left
-              const sortedBlocks = allBlocks
+              const prevBlocks = allBlocks
                 .filter(b => b.id !== blockId && b.endTime <= startTime)
                 .sort((a, b) => b.endTime - a.endTime)
 
-              if (sortedBlocks.length > 0) {
-                // Can't move past the nearest block to the left
-                minStartTime = sortedBlocks[0].endTime
+              if (prevBlocks.length > 0) {
+                const gap = startTime - prevBlocks[0].endTime
+                const maxMove = TimelineUtils.timeToPixel(gap, pixelsPerMs)
+                minX = -maxMove - handleSize / 2
               }
 
-              // Calculate position constraints
-              const minX = TimelineUtils.timeToPixel(minStartTime - startTime, pixelsPerMs) - handleSize / 2
-              const maxX = width - TimelineUtils.timeToPixel(100, pixelsPerMs) - handleSize / 2 // Min 100ms duration
+              // Don't allow making the block too small (min 100ms)
+              const minDuration = 100
+              const maxMove = width - TimelineUtils.timeToPixel(minDuration, pixelsPerMs)
+              const maxX = maxMove - handleSize / 2
 
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
@@ -225,42 +298,63 @@ export const TimelineZoomBlock = React.memo(({
               }
             }}
             onDragEnd={(e) => {
-              const handleX = e.target.x() + handleSize / 2
-              const deltaX = handleX - 0
+              setIsResizing(false)
+              const deltaX = e.target.x() + handleSize / 2
               const newWidth = width - deltaX
-              onResize(newWidth, 'left')
+
+              if (onUpdate) {
+                const timeDelta = TimelineUtils.pixelToTime(-deltaX, pixelsPerMs)
+                onUpdate({
+                  startTime: Math.max(0, startTime + timeDelta)
+                })
+              } else {
+                onResize(newWidth, 'left')
+              }
+            }}
+            onMouseEnter={(e) => {
+              const container = e.target.getStage()?.container()
+              if (container) container.style.cursor = 'ew-resize'
+            }}
+            onMouseLeave={(e) => {
+              const container = e.target.getStage()?.container()
+              if (container && !isResizing) container.style.cursor = 'default'
             }}
           />
 
-          {/* Right handle */}
+          {/* Right resize handle */}
           <Rect
             x={width - handleSize / 2}
             y={height / 2 - handleSize / 2}
             width={handleSize}
             height={handleSize}
             fill="white"
-            stroke="rgba(0,0,0,0.3)"
+            stroke="rgba(99, 102, 241, 0.5)"
             strokeWidth={1}
             cornerRadius={2}
+            shadowColor="black"
+            shadowBlur={2}
+            shadowOpacity={0.2}
             cursor="ew-resize"
             draggable
+            onDragStart={() => setIsResizing(true)}
             dragBoundFunc={(pos) => {
-              // Find the maximum we can extend right
-              let maxEndTime = clipDuration
+              // Calculate maximum x based on next blocks and clip duration
+              let maxX = TimelineUtils.timeToPixel(clipDuration - startTime, pixelsPerMs) - handleSize / 2
 
-              // Check for collision with other blocks to the right
-              const sortedBlocks = allBlocks
+              const nextBlocks = allBlocks
                 .filter(b => b.id !== blockId && b.startTime >= endTime)
                 .sort((a, b) => a.startTime - b.startTime)
 
-              if (sortedBlocks.length > 0) {
-                // Can't extend past the nearest block to the right
-                maxEndTime = Math.min(maxEndTime, sortedBlocks[0].startTime)
+              if (nextBlocks.length > 0) {
+                const gap = nextBlocks[0].startTime - endTime
+                const availableSpace = TimelineUtils.timeToPixel(endTime - startTime + gap, pixelsPerMs)
+                maxX = Math.min(maxX, availableSpace - handleSize / 2)
               }
 
-              // Calculate position constraints
-              const minX = TimelineUtils.timeToPixel(100, pixelsPerMs) - handleSize / 2 // Min 100ms duration
-              const maxX = TimelineUtils.timeToPixel(maxEndTime - startTime, pixelsPerMs) - handleSize / 2
+              // Don't allow making the block too small (min 100ms)
+              const minDuration = 100
+              const minWidth = TimelineUtils.timeToPixel(minDuration, pixelsPerMs)
+              const minX = minWidth - handleSize / 2
 
               return {
                 x: Math.max(minX, Math.min(maxX, pos.x)),
@@ -268,9 +362,25 @@ export const TimelineZoomBlock = React.memo(({
               }
             }}
             onDragEnd={(e) => {
-              const handleX = e.target.x() + handleSize / 2
-              const newWidth = handleX
-              onResize(newWidth, 'right')
+              setIsResizing(false)
+              const newWidth = e.target.x() + handleSize / 2
+              
+              if (onUpdate) {
+                const newDuration = TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
+                onUpdate({
+                  endTime: Math.min(clipDuration, startTime + newDuration)
+                })
+              } else {
+                onResize(newWidth, 'right')
+              }
+            }}
+            onMouseEnter={(e) => {
+              const container = e.target.getStage()?.container()
+              if (container) container.style.cursor = 'ew-resize'
+            }}
+            onMouseLeave={(e) => {
+              const container = e.target.getStage()?.container()
+              if (container && !isResizing) container.style.cursor = 'default'
             }}
           />
         </>
@@ -278,3 +388,5 @@ export const TimelineZoomBlock = React.memo(({
     </Group>
   )
 })
+
+TimelineZoomBlock.displayName = 'TimelineZoomBlock'

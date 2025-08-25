@@ -58,8 +58,6 @@ export function TimelineCanvas({
     removeClip,
     updateClip,
     updateZoomBlock,
-    addZoomBlock,
-    removeZoomBlock,
     addClip,
     clearSelection,
     splitClip,
@@ -368,8 +366,8 @@ export function TimelineCanvas({
                   height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
                   startTime={block.startTime}
                   endTime={block.endTime}
-                  introMs={block.introMs || 500}
-                  outroMs={block.outroMs || 500}
+                  introMs={block.introMs || 300}
+                  outroMs={block.outroMs || 300}
                   scale={block.scale}
                   isSelected={selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
                   allBlocks={clipEffects.zoom.blocks || []}
@@ -382,39 +380,31 @@ export function TimelineCanvas({
                   }}
                   onDragEnd={(newX) => {
                     const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
+                    const updates = {
+                      startTime: Math.max(0, Math.min(selectedClip.duration - (block.endTime - block.startTime), newStartTime)),
+                      endTime: Math.max(0, Math.min(selectedClip.duration, newStartTime + (block.endTime - block.startTime)))
+                    }
+                    // Use prop if provided, otherwise use store
                     if (onZoomBlockUpdate) {
-                      onZoomBlockUpdate(selectedClip.id, block.id, {
-                        startTime: newStartTime,
-                        endTime: newStartTime + (block.endTime - block.startTime)
-                      })
+                      onZoomBlockUpdate(selectedClip.id, block.id, updates)
                     } else {
-                      updateZoomBlock(selectedClip.id, block.id, {
-                        startTime: newStartTime,
-                        endTime: newStartTime + (block.endTime - block.startTime)
-                      })
+                      updateZoomBlock(selectedClip.id, block.id, updates)
                     }
                   }}
                   onResize={(newWidth, side) => {
                     if (side === 'right') {
-                      // Simple: just extend the end time
                       const newEndTime = block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
-                      const updates = {
-                        endTime: Math.min(newEndTime, selectedClip.duration) // Don't exceed clip duration
-                      }
+                      const updates = { endTime: Math.min(newEndTime, selectedClip.duration) }
                       if (onZoomBlockUpdate) {
                         onZoomBlockUpdate(selectedClip.id, block.id, updates)
                       } else {
                         updateZoomBlock(selectedClip.id, block.id, updates)
                       }
-                    } else if (side === 'left') {
-                      // Keep end time fixed, move start time
+                    } else {
                       const currentWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
                       const deltaWidth = currentWidth - newWidth
                       const newStartTime = block.startTime + TimelineUtils.pixelToTime(deltaWidth, pixelsPerMs)
-
-                      const updates = {
-                        startTime: Math.max(0, newStartTime) // Don't go negative
-                      }
+                      const updates = { startTime: Math.max(0, newStartTime) }
                       if (onZoomBlockUpdate) {
                         onZoomBlockUpdate(selectedClip.id, block.id, updates)
                       } else {
@@ -422,11 +412,28 @@ export function TimelineCanvas({
                       }
                     }
                   }}
+                  onUpdate={(updates) => {
+                    if (onZoomBlockUpdate) {
+                      onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                    } else {
+                      updateZoomBlock(selectedClip.id, block.id, updates)
+                    }
+                  }}
                   onIntroChange={(newIntroMs) => {
-                    updateZoomBlock(selectedClip.id, block.id, { introMs: newIntroMs })
+                    const updates = { introMs: Math.max(0, Math.min(2000, newIntroMs)) }
+                    if (onZoomBlockUpdate) {
+                      onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                    } else {
+                      updateZoomBlock(selectedClip.id, block.id, updates)
+                    }
                   }}
                   onOutroChange={(newOutroMs) => {
-                    updateZoomBlock(selectedClip.id, block.id, { outroMs: newOutroMs })
+                    const updates = { outroMs: Math.max(0, Math.min(2000, newOutroMs)) }
+                    if (onZoomBlockUpdate) {
+                      onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                    } else {
+                      updateZoomBlock(selectedClip.id, block.id, updates)
+                    }
                   }}
                 />
               ))

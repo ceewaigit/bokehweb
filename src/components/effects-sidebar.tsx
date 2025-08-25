@@ -46,26 +46,8 @@ export function EffectsSidebar({
   selectedEffectLayer,
   onEffectChange
 }: EffectsSidebarProps) {
-  // Helper to create background update with preserved properties
-  const createBackgroundUpdate = (updates: any) => {
-    const newBackground = { ...updates }
-    // Always preserve blur and padding unless explicitly set
-    if (effects?.background?.blur !== undefined && updates.blur === undefined) {
-      newBackground.blur = effects.background.blur
-    }
-    if (effects?.background?.padding !== undefined && updates.padding === undefined) {
-      newBackground.padding = effects.background.padding
-    }
-    return newBackground
-  }
-  // Auto-switch tab based on selected effect layer
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
-  const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>(
-    effects?.background?.type === 'gradient' ? 'gradient' :
-      effects?.background?.type === 'wallpaper' ? 'wallpaper' :
-        effects?.background?.type === 'color' ? 'color' :
-          effects?.background?.type === 'image' ? 'image' : 'wallpaper'
-  )
+  const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
@@ -73,25 +55,10 @@ export function EffectsSidebar({
   // Update active tab when effect layer is selected
   React.useEffect(() => {
     if (selectedEffectLayer?.type) {
-      if (selectedEffectLayer.type === 'zoom') {
-        setActiveTab('zoom')
-      } else if (selectedEffectLayer.type === 'cursor') {
-        setActiveTab('cursor')
-      } else if (selectedEffectLayer.type === 'background') {
-        setActiveTab('background')
-      }
+      setActiveTab(selectedEffectLayer.type as any)
     }
   }, [selectedEffectLayer])
 
-  // Sync backgroundType with actual effects background type
-  React.useEffect(() => {
-    if (effects?.background?.type) {
-      const type = effects.background.type
-      if (type === 'gradient' || type === 'wallpaper' || type === 'color' || type === 'image') {
-        setBackgroundType(type)
-      }
-    }
-  }, [effects?.background?.type, selectedClip?.id]) // Re-sync when clip changes
 
   // Load macOS wallpapers when wallpaper tab is selected
   React.useEffect(() => {
@@ -102,10 +69,9 @@ export function EffectsSidebar({
       if (window.electronAPI?.getMacOSWallpapers) {
         window.electronAPI.getMacOSWallpapers()
           .then((data) => {
-            if (data && data.wallpapers) {
-              setMacOSWallpapers({ wallpapers: data.wallpapers || [] })
+            if (data?.wallpapers) {
+              setMacOSWallpapers({ wallpapers: data.wallpapers })
             } else {
-              // Fallback to empty arrays if no data
               setMacOSWallpapers({ wallpapers: [] })
             }
             setLoadingWallpapers(false)
@@ -122,7 +88,7 @@ export function EffectsSidebar({
         setLoadingWallpapers(false)
       }
     }
-  }, [backgroundType]) // Remove dependencies that could prevent retry
+  }, [backgroundType])
 
   if (!selectedClip || !effects) {
     return (
@@ -138,6 +104,16 @@ export function EffectsSidebar({
     // Use the centralized store method for effect updates
     const { updateClipEffectCategory } = useProjectStore.getState()
     updateClipEffectCategory(selectedClip.id, category, updates)
+  }
+
+  // Update background while preserving existing properties
+  const updateBackgroundEffect = (updates: any) => {
+    if (!effects || !selectedClip) return
+    
+    updateEffect('background', {
+      ...effects.background,
+      ...updates
+    })
   }
 
   return (
@@ -235,11 +211,6 @@ export function EffectsSidebar({
             {backgroundType === 'wallpaper' && (
               <div className="space-y-2">
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">macOS Wallpapers</h3>
-                {effects.background?.type !== 'wallpaper' && (
-                  <div className="text-xs text-muted-foreground/60 p-2 bg-card/30 rounded">
-                    Select a wallpaper below to apply it
-                  </div>
-                )}
                 {loadingWallpapers ? (
                   <div className="text-xs text-muted-foreground">Loading wallpapers...</div>
                 ) : macOSWallpapers.wallpapers.length > 0 ? (
@@ -256,10 +227,10 @@ export function EffectsSidebar({
                             try {
                               const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
                               if (dataUrl) {
-                                updateEffect('background', createBackgroundUpdate({
+                                updateBackgroundEffect({
                                   type: 'wallpaper',
                                   wallpaper: dataUrl
-                                }))
+                                })
                               }
                             } catch (error) {
                               console.error('Failed to load wallpaper:', error)
@@ -305,24 +276,19 @@ export function EffectsSidebar({
             {backgroundType === 'gradient' && (
               <div className="space-y-2">
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Presets</h3>
-                {effects.background?.type !== 'gradient' && (
-                  <div className="text-xs text-muted-foreground/60 p-2 bg-card/30 rounded">
-                    Select a gradient below to apply it
-                  </div>
-                )}
                 <div className="grid grid-cols-5 gap-1.5">
                   {WALLPAPERS.map(wallpaper => (
                     <button
                       key={wallpaper.id}
                       onClick={() => {
-                        updateEffect('background', createBackgroundUpdate({
+                        updateBackgroundEffect({
                           type: 'gradient',
                           gradient: {
                             type: 'linear',
                             colors: wallpaper.colors,
                             angle: 135
                           }
-                        }))
+                        })
                       }}
                       className="aspect-square rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105"
                       style={{
@@ -345,10 +311,10 @@ export function EffectsSidebar({
                     type="color"
                     value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
                     onChange={(e) => {
-                      updateEffect('background', createBackgroundUpdate({
+                      updateBackgroundEffect({
                         type: 'color',
                         color: e.target.value
-                      }))
+                      })
                     }}
                     className="w-12 h-12 rounded-md cursor-pointer border-0 bg-transparent"
                     style={{ backgroundColor: effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000' }}
@@ -361,20 +327,20 @@ export function EffectsSidebar({
                       // Allow typing and validate on complete hex
                       if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
                         if (value.length === 7) {
-                          updateEffect('background', createBackgroundUpdate({
+                          updateBackgroundEffect({
                             type: 'color',
                             color: value
-                          }))
+                          })
                         }
                       }
                     }}
                     onBlur={(e) => {
                       // Apply color on blur even if incomplete
                       if (e.target.value.length > 0) {
-                        updateEffect('background', createBackgroundUpdate({
+                        updateBackgroundEffect({
                           type: 'color',
                           color: e.target.value.padEnd(7, '0')
-                        }))
+                        })
                       }
                     }}
                     className="flex-1 px-3 py-2 text-sm font-mono bg-background/50 border border-border/30 rounded"
@@ -392,10 +358,10 @@ export function EffectsSidebar({
                     <button
                       key={color}
                       onClick={() => {
-                        updateEffect('background', createBackgroundUpdate({
+                        updateBackgroundEffect({
                           type: 'color',
                           color
-                        }))
+                        })
                       }}
                       className={cn(
                         "aspect-square rounded-md border-2 transition-all hover:scale-110",
@@ -424,10 +390,10 @@ export function EffectsSidebar({
                         // Load the image as data URL
                         const dataUrl = await window.electronAPI.loadImageAsDataUrl(imagePath)
                         if (dataUrl) {
-                          updateEffect('background', createBackgroundUpdate({
+                          updateBackgroundEffect({
                             type: 'image',
                             image: dataUrl
-                          }))
+                          })
                         }
                       }
                     }
@@ -445,10 +411,10 @@ export function EffectsSidebar({
                     />
                     <button
                       onClick={() => {
-                        updateEffect('background', createBackgroundUpdate({
+                        updateBackgroundEffect({
                           type: 'image',
                           image: undefined
-                        }))
+                        })
                       }}
                       className="absolute top-2 right-2 p-1 bg-black/50 hover:bg-black/70 rounded text-white text-xs"
                     >
@@ -467,7 +433,7 @@ export function EffectsSidebar({
                   <Switch
                     checked={effects.background.blur !== undefined && effects.background.blur > 0}
                     onCheckedChange={(checked) =>
-                      updateEffect('background', { blur: checked ? 10 : undefined })
+                      updateBackgroundEffect({ blur: checked ? 10 : undefined })
                     }
                   />
                 </label>
@@ -475,7 +441,7 @@ export function EffectsSidebar({
                   <>
                     <Slider
                       value={[effects.background.blur]}
-                      onValueChange={([value]) => updateEffect('background', { blur: value })}
+                      onValueChange={([value]) => updateBackgroundEffect({ blur: value })}
                       min={1}
                       max={50}
                       step={1}
@@ -581,12 +547,12 @@ export function EffectsSidebar({
             {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && effects.zoom.blocks && (() => {
               const selectedBlock = effects.zoom.blocks.find((b: any) => b.id === selectedEffectLayer.id)
               if (!selectedBlock) return null
-              
+
               return (
                 <div key={`zoom-block-${selectedEffectLayer.id}`}>
                   <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
                     <h4 className="text-xs font-medium uppercase tracking-wider text-primary/80">Block Settings</h4>
-                    
+
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Scale</label>
                       <Slider
@@ -714,8 +680,7 @@ export function EffectsSidebar({
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Padding</label>
               <Slider
                 value={[effects.background.padding || 0]}
-                onValueChange={([value]) => updateEffect('background', {
-                  ...effects.background,
+                onValueChange={([value]) => updateBackgroundEffect({
                   padding: value
                 })}
                 min={0}
@@ -727,8 +692,7 @@ export function EffectsSidebar({
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.padding}px</span>
                   <button
-                    onClick={() => updateEffect('background', {
-                      ...effects.background,
+                    onClick={() => updateBackgroundEffect({
                       padding: 80
                     })}
                     className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
