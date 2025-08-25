@@ -274,6 +274,7 @@ export function TimelineCanvas({
           <Layer>
             <TimelineRuler
               duration={currentProject.timeline.duration}
+              stageWidth={stageWidth}
               zoom={zoom}
               pixelsPerMs={pixelsPerMs}
             />

@@ -6,18 +6,26 @@ import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineRulerProps {
   duration: number
+  stageWidth: number
   zoom: number
   pixelsPerMs: number
 }
 
-export const TimelineRuler = React.memo(({ duration, zoom, pixelsPerMs }: TimelineRulerProps) => {
+export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPerMs }: TimelineRulerProps) => {
   const colors = useTimelineColors()
   const { major, minor } = TimelineUtils.getRulerIntervals(zoom)
   const marks: React.ReactNode[] = []
 
-  for (let time = 0; time <= duration; time += minor) {
+  // Calculate the maximum time we need to render marks for based on stage width
+  const maxTimeForStage = TimelineUtils.pixelToTime(stageWidth - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pixelsPerMs)
+  const maxTime = Math.max(duration, maxTimeForStage)
+
+  for (let time = 0; time <= maxTime; time += minor) {
     const isMajor = time % major === 0
     const x = TimelineUtils.timeToPixel(time, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+
+    // Only render marks that are within the stage width
+    if (x > stageWidth) break
 
     marks.push(
       <Line
