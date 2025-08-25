@@ -16,6 +16,10 @@ interface EffectClipboard {
   sourceClipId: string
 }
 
+// Move clipboard refs outside component to persist across all renders
+const clipClipboardRef = { current: null as Clip | null }
+const effectClipboardRef = { current: null as EffectClipboard | null }
+
 export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps = {}) {
   const {
     currentProject,
@@ -41,9 +45,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     updateZoomBlock
   } = useProjectStore()
 
-  // Use refs for clipboard to avoid re-registering handlers
-  const clipClipboardRef = useRef<Clip | null>(null)
-  const effectClipboardRef = useRef<EffectClipboard | null>(null)
+  // Use refs for playback state
   const playbackSpeedRef = useRef(1)
   const shuttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 

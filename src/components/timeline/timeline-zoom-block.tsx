@@ -65,6 +65,7 @@ export const TimelineZoomBlock = React.memo(({
     let finalWidth = proposedWidth
     const snapThreshold = 10 // pixels
 
+    // First check for overlaps and prevent them
     for (const block of allBlocks) {
       if (block.id === blockId) continue
 
@@ -72,18 +73,35 @@ export const TimelineZoomBlock = React.memo(({
       const blockWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
       const blockEndX = blockX + blockWidth
 
-      // Snap to edges
-      if (Math.abs((proposedX + proposedWidth) - blockX) < snapThreshold) {
-        finalWidth = blockX - proposedX
-      } else if (Math.abs(proposedX - blockEndX) < snapThreshold) {
-        finalX = blockEndX
-      }
+      // Check if there would be an overlap
+      const wouldOverlap = proposedStartTime < block.endTime && proposedEndTime > block.startTime
 
-      // Prevent overlap
-      if (proposedStartTime < block.endTime && proposedEndTime > block.startTime) {
-        if (proposedStartTime < block.startTime) {
-          finalWidth = Math.min(finalWidth, blockX - proposedX)
+      if (wouldOverlap) {
+        // Determine which side to snap to based on movement direction
+        const currentX = clipX + TimelineUtils.timeToPixel(startTime, pixelsPerMs)
+        const movingRight = proposedX > currentX
+        
+        if (movingRight) {
+          // Moving right, snap to right edge of the blocking block
+          finalX = blockEndX
         } else {
+          // Moving left or resizing, snap to left edge of the blocking block
+          const maxAllowedEndX = blockX
+          const maxAllowedWidth = maxAllowedEndX - proposedX
+          if (maxAllowedWidth > 0) {
+            finalWidth = Math.min(finalWidth, maxAllowedWidth)
+          } else {
+            // Can't place here at all
+            finalX = Math.max(clipX, blockEndX)
+          }
+        }
+      } else {
+        // No overlap, check for snapping to edges
+        if (Math.abs((proposedX + proposedWidth) - blockX) < snapThreshold) {
+          // Snap right edge to left edge of block
+          finalWidth = blockX - proposedX
+        } else if (Math.abs(proposedX - blockEndX) < snapThreshold) {
+          // Snap left edge to right edge of block
           finalX = blockEndX
         }
       }
@@ -93,6 +111,9 @@ export const TimelineZoomBlock = React.memo(({
     finalX = Math.max(clipX, finalX)
     const maxX = clipX + TimelineUtils.timeToPixel(clipDuration, pixelsPerMs) - finalWidth
     finalX = Math.min(maxX, finalX)
+
+    // Ensure minimum width
+    finalWidth = Math.max(TimelineUtils.timeToPixel(100, pixelsPerMs), finalWidth)
 
     return { x: finalX, width: finalWidth }
   }
