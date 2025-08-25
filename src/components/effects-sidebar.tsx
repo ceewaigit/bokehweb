@@ -48,7 +48,12 @@ export function EffectsSidebar({
 }: EffectsSidebarProps) {
   // Auto-switch tab based on selected effect layer
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
-  const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('wallpaper')
+  const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>(
+    effects?.background?.type === 'gradient' ? 'gradient' :
+    effects?.background?.type === 'wallpaper' ? 'wallpaper' :
+    effects?.background?.type === 'color' ? 'color' :
+    effects?.background?.type === 'image' ? 'image' : 'wallpaper'
+  )
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
@@ -65,6 +70,16 @@ export function EffectsSidebar({
       }
     }
   }, [selectedEffectLayer])
+
+  // Sync backgroundType with actual effects background type
+  React.useEffect(() => {
+    if (effects?.background?.type) {
+      const type = effects.background.type
+      if (type === 'gradient' || type === 'wallpaper' || type === 'color' || type === 'image') {
+        setBackgroundType(type)
+      }
+    }
+  }, [effects?.background?.type])
 
   // Load macOS wallpapers when wallpaper tab is selected
   React.useEffect(() => {
@@ -187,7 +202,14 @@ export function EffectsSidebar({
               {(['wallpaper', 'gradient', 'color', 'image'] as const).map(type => (
                 <button
                   key={type}
-                  onClick={() => setBackgroundType(type)}
+                  onClick={() => {
+                    setBackgroundType(type)
+                    // Set only the type, store will handle cleanup
+                    const newBackground: any = { type }
+                    if (effects.background?.blur) newBackground.blur = effects.background.blur
+                    if (effects.background?.padding) newBackground.padding = effects.background.padding
+                    updateEffect('background', newBackground)
+                  }}
                   className={cn(
                     "flex-1 py-1 px-2 rounded-sm text-[10px] uppercase tracking-wider font-medium transition-all",
                     backgroundType === type
@@ -216,20 +238,18 @@ export function EffectsSidebar({
                         <button
                           key={index}
                           onClick={async () => {
-                            // Set wallpaper type immediately to trigger skeleton
-                            updateEffect('background', {
-                              type: 'wallpaper',
-                              wallpaper: undefined  // Clear wallpaper to show skeleton
-                            })
-                            
                             setLoadingWallpaperId(wallpaperId)
                             try {
                               const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
                               if (dataUrl) {
-                                updateEffect('background', {
+                                // Only update when we have the actual wallpaper data
+                                const newBackground: any = {
                                   type: 'wallpaper',
                                   wallpaper: dataUrl
-                                })
+                                }
+                                if (effects.background?.blur) newBackground.blur = effects.background.blur
+                                if (effects.background?.padding) newBackground.padding = effects.background.padding
+                                updateEffect('background', newBackground)
                               }
                             } catch (error) {
                               console.error('Failed to load wallpaper:', error)
@@ -279,14 +299,19 @@ export function EffectsSidebar({
                   {WALLPAPERS.map(wallpaper => (
                     <button
                       key={wallpaper.id}
-                      onClick={() => updateEffect('background', {
-                        type: 'gradient',
-                        gradient: {
-                          type: 'linear',
-                          colors: wallpaper.colors,
-                          angle: 135
+                      onClick={() => {
+                        const newBackground: any = {
+                          type: 'gradient',
+                          gradient: {
+                            type: 'linear',
+                            colors: wallpaper.colors,
+                            angle: 135
+                          }
                         }
-                      })}
+                        if (effects.background?.blur) newBackground.blur = effects.background.blur
+                        if (effects.background?.padding) newBackground.padding = effects.background.padding
+                        updateEffect('background', newBackground)
+                      }}
                       className="aspect-square rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105"
                       style={{
                         background: `linear-gradient(135deg, ${wallpaper.colors[0]}, ${wallpaper.colors[1]})`

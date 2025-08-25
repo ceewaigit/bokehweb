@@ -7,12 +7,10 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   videoWidth,
   videoHeight
 }) => {
-  // No effects means transparent background
   if (!effects) {
     return <AbsoluteFill />;
   }
 
-  // Handle different background types
   let backgroundStyle: React.CSSProperties = {};
 
   switch (effects.type) {
@@ -58,29 +56,17 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       }
       break;
 
-    case 'blur':
-      // Blur type is not implemented yet - show nothing
-      backgroundStyle = {};
-      break;
-
     case 'none':
       backgroundStyle = {
         backgroundColor: '#000000'
       };
       break;
-
-    default:
-      // Unknown type - show nothing
-      backgroundStyle = {};
   }
 
-  // Apply blur filter if specified (works for wallpaper and image types)
-  if (effects.blur && effects.type !== 'blur') {
+  // Apply blur filter if specified
+  if (effects.blur) {
     backgroundStyle.filter = `blur(${effects.blur}px)`;
   }
 
-  return (
-    <AbsoluteFill style={backgroundStyle}>
-    </AbsoluteFill>
-  );
+  return <AbsoluteFill style={backgroundStyle} />;
 };

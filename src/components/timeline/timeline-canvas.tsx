@@ -17,7 +17,7 @@ import { TimelineZoomBlock } from './timeline-zoom-block'
 
 // Utilities
 import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
-import { useTimelineKeyboard } from './use-timeline-keyboard'
+import { useTimelineKeyboard } from '@/hooks/use-timeline-keyboard'
 import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineCanvasProps {
@@ -105,17 +105,7 @@ export function TimelineCanvas({
   const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
 
   // Use keyboard shortcuts
-  useTimelineKeyboard({
-    isPlaying,
-    selectedClips,
-    currentTime,
-    play: onPlay,
-    pause: onPause,
-    splitClip,
-    removeClip,
-    duplicateClip,
-    clearSelection
-  })
+  useTimelineKeyboard({ enabled: true })
 
   // Handle window resize
   useEffect(() => {

@@ -341,15 +341,10 @@ export const useProjectStore = create<ProjectStore>()(
         const result = findClipById(state.currentProject, clipId)
         if (!result || !result.clip.effects) return
 
-        // Special handling for background gradient updates
-        if (category === 'background' && updates.gradient) {
-          result.clip.effects.background = {
-            ...result.clip.effects.background,
-            ...updates,
-            gradient: updates.gradient // Replace entire gradient object
-          }
+        // For background, replace entire object to avoid stale properties
+        if (category === 'background') {
+          result.clip.effects.background = updates as typeof result.clip.effects.background
         } else {
-          // Standard category update
           result.clip.effects[category as keyof typeof result.clip.effects] = {
             ...result.clip.effects[category as keyof typeof result.clip.effects],
             ...updates
