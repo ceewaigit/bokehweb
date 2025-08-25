@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { cn, formatTime } from '@/lib/utils'
-import type { Clip, Project, ZoomBlock, ClipEffects } from '@/types/project'
+import type { Project, ZoomBlock, ClipEffects } from '@/types/project'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -58,7 +58,6 @@ export function TimelineCanvas({
     removeClip,
     updateClip,
     updateZoomBlock,
-    addClip,
     clearSelection,
     splitClip,
     trimClipStart,
@@ -68,7 +67,6 @@ export function TimelineCanvas({
 
   const [stageSize, setStageSize] = useState({ width: 800, height: 400 })
   const [scrollLeft, setScrollLeft] = useState(0)
-  const [copiedClip, setCopiedClip] = useState<Clip | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -147,16 +145,6 @@ export function TimelineCanvas({
     updateClip(clipId, { startTime: newStartTime })
   }, [updateClip])
 
-  // Get clip by ID
-  const getClipById = useCallback((clipId: string) => {
-    if (!currentProject) return null
-    for (const track of currentProject.timeline.tracks) {
-      const clip = track.clips.find(c => c.id === clipId)
-      if (clip) return clip
-    }
-    return null
-  }, [currentProject])
-
   // Handle control actions
   const handleSplit = useCallback(() => {
     if (selectedClips.length === 1) {
@@ -180,25 +168,6 @@ export function TimelineCanvas({
     selectedClips.forEach(clipId => removeClip(clipId))
     clearSelection()
   }, [selectedClips, removeClip, clearSelection])
-
-  const handleCopy = useCallback(() => {
-    if (selectedClips.length === 1) {
-      const clip = getClipById(selectedClips[0])
-      if (clip) setCopiedClip(clip)
-    }
-  }, [selectedClips, getClipById])
-
-  const handlePaste = useCallback(() => {
-    if (copiedClip) {
-      const newClip: Clip = {
-        ...copiedClip,
-        id: `${copiedClip.id}-copy-${Date.now()}`,
-        startTime: currentTime
-      }
-      addClip(newClip)
-      selectClip(newClip.id)
-    }
-  }, [copiedClip, currentTime, addClip, selectClip])
 
   const handleDuplicate = useCallback(() => {
     if (selectedClips.length === 1) {
@@ -237,7 +206,6 @@ export function TimelineCanvas({
         currentTime={currentTime}
         maxDuration={currentProject.timeline.duration}
         selectedClips={selectedClips}
-        copiedClip={!!copiedClip}
         onPlay={onPlay}
         onPause={onPause}
         onSeek={onSeek}
@@ -246,8 +214,6 @@ export function TimelineCanvas({
         onTrimStart={handleTrimStart}
         onTrimEnd={handleTrimEnd}
         onDelete={handleDelete}
-        onCopy={handleCopy}
-        onPaste={handlePaste}
         onDuplicate={handleDuplicate}
       />
 
@@ -452,8 +418,8 @@ export function TimelineCanvas({
           onTrimEnd={(id) => trimClipEnd(id, currentTime)}
           onDuplicate={duplicateClip}
           onCopy={(id) => {
-            const clip = getClipById(id)
-            if (clip) setCopiedClip(clip)
+            // Copy is handled by keyboard shortcuts
+            console.log('Copy clip:', id)
           }}
           onDelete={removeClip}
           onClose={() => setContextMenu(null)}

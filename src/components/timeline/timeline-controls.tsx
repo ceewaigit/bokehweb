@@ -23,7 +23,7 @@ interface TimelineControlsProps {
   maxDuration: number
   zoom: number
   selectedClips: string[]
-  copiedClip: any
+  copiedClip?: any
   onPlay: () => void
   onPause: () => void
   onSeek: (time: number) => void
@@ -32,8 +32,8 @@ interface TimelineControlsProps {
   onTrimStart: () => void
   onTrimEnd: () => void
   onDelete: () => void
-  onCopy: () => void
-  onPaste: () => void
+  onCopy?: () => void
+  onPaste?: () => void
   onDuplicate: () => void
 }
 
@@ -136,25 +136,29 @@ export const TimelineControls = React.memo(({
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
         
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onCopy}
-          disabled={!hasSingleSelection}
-          className="h-7 w-7 p-0"
-        >
-          <Copy className="w-3.5 h-3.5" />
-        </Button>
+        {onCopy && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onCopy}
+            disabled={!hasSingleSelection}
+            className="h-7 w-7 p-0"
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </Button>
+        )}
         
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onPaste}
-          disabled={!copiedClip}
-          className="h-7 w-7 p-0"
-        >
-          <Clipboard className="w-3.5 h-3.5" />
-        </Button>
+        {onPaste && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onPaste}
+            disabled={!copiedClip}
+            className="h-7 w-7 p-0"
+          >
+            <Clipboard className="w-3.5 h-3.5" />
+          </Button>
+        )}
         
         <Button
           size="sm"

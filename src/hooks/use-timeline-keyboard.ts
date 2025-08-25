@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { keyboardManager } from '@/lib/keyboard/keyboard-manager'
 import { undoManager } from '@/lib/keyboard/undo-manager'
@@ -41,23 +41,11 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     updateZoomBlock
   } = useProjectStore()
 
-  const [clipClipboard, setClipClipboard] = useState<Clip | null>(null)
-  const [effectClipboard, setEffectClipboard] = useState<EffectClipboard | null>(null)
-  const playbackSpeedRef = useRef(1)
-  const shuttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  
-  // Use refs to access clipboard state in callbacks without causing re-renders
+  // Use refs for clipboard to avoid re-registering handlers
   const clipClipboardRef = useRef<Clip | null>(null)
   const effectClipboardRef = useRef<EffectClipboard | null>(null)
-  
-  // Keep refs in sync with state
-  useEffect(() => {
-    clipClipboardRef.current = clipClipboard
-  }, [clipClipboard])
-  
-  useEffect(() => {
-    effectClipboardRef.current = effectClipboard
-  }, [effectClipboard])
+  const playbackSpeedRef = useRef(1)
+  const shuttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!enabled) return
@@ -214,28 +202,28 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id) {
           const zoomBlock = clip.effects?.zoom?.blocks?.find(b => b.id === selectedEffectLayer.id)
           if (zoomBlock) {
-            setEffectClipboard({
+            effectClipboardRef.current = {
               type: 'zoom',
               data: { ...zoomBlock },
               sourceClipId: clip.id
-            })
+            }
             toast('Zoom block copied')
           }
         } else {
           // Copy cursor or background settings
           const effectData = clip.effects[selectedEffectLayer.type]
           if (effectData) {
-            setEffectClipboard({
+            effectClipboardRef.current = {
               type: selectedEffectLayer.type,
               data: { ...effectData },
               sourceClipId: clip.id
-            })
+            }
             toast(`${selectedEffectLayer.type.charAt(0).toUpperCase() + selectedEffectLayer.type.slice(1)} copied`)
           }
         }
       } else {
         // Copy entire clip
-        setClipClipboard(clip)
+        clipClipboardRef.current = clip
         toast('Clip copied')
       }
     }
@@ -249,7 +237,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       const clip = getSelectedClip()
       if (!clip) return
 
-      setClipClipboard(clip)
+      clipClipboardRef.current = clip
 
       undoManager.execute({
         id: `cut-${clip.id}`,
