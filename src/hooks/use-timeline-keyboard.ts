@@ -45,6 +45,19 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
   const [effectClipboard, setEffectClipboard] = useState<EffectClipboard | null>(null)
   const playbackSpeedRef = useRef(1)
   const shuttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  
+  // Use refs to access clipboard state in callbacks without causing re-renders
+  const clipClipboardRef = useRef<Clip | null>(null)
+  const effectClipboardRef = useRef<EffectClipboard | null>(null)
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    clipClipboardRef.current = clipClipboard
+  }, [clipClipboard])
+  
+  useEffect(() => {
+    effectClipboardRef.current = effectClipboard
+  }, [effectClipboard])
 
   useEffect(() => {
     if (!enabled) return
@@ -251,15 +264,15 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     const handlePaste = () => {
       // Paste effect if we have one and a target clip
-      if (effectClipboard) {
+      if (effectClipboardRef.current) {
         const targetClip = getSelectedClip()
         if (!targetClip) {
           toast.error('Select a clip to paste the effect')
           return
         }
 
-        if (effectClipboard.type === 'zoom') {
-          const zoomBlock = effectClipboard.data
+        if (effectClipboardRef.current.type === 'zoom') {
+          const zoomBlock = effectClipboardRef.current.data
           const relativeTime = Math.max(0, currentTime - targetClip.startTime)
           const newBlock = {
             ...zoomBlock,
@@ -292,24 +305,24 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           const prevEffects = { ...targetClip.effects }
 
           undoManager.execute({
-            id: `paste-${effectClipboard.type}-${Date.now()}`,
+            id: `paste-${effectClipboardRef.current.type}-${Date.now()}`,
             timestamp: Date.now(),
-            description: `Paste ${effectClipboard.type}`,
+            description: `Paste ${effectClipboardRef.current.type}`,
             execute: () => updateClip(targetClip.id, {
-              effects: { ...targetClip.effects, [effectClipboard.type]: effectClipboard.data }
+              effects: { ...targetClip.effects, [effectClipboardRef.current!.type]: effectClipboardRef.current!.data }
             }),
             undo: () => updateClip(targetClip.id, { effects: prevEffects })
           })
 
-          toast(`${effectClipboard.type.charAt(0).toUpperCase() + effectClipboard.type.slice(1)} pasted`)
+          toast(`${effectClipboardRef.current.type.charAt(0).toUpperCase() + effectClipboardRef.current.type.slice(1)} pasted`)
         }
         return
       }
 
       // Paste clip
-      if (clipClipboard) {
+      if (clipClipboardRef.current) {
         const newClip: Clip = {
-          ...clipClipboard,
+          ...clipClipboardRef.current,
           id: `clip-${Date.now()}`,
           startTime: currentTime
         }
@@ -330,16 +343,16 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     const handlePasteInPlace = () => {
       // For effects, paste at original position
-      if (effectClipboard) {
+      if (effectClipboardRef.current) {
         const targetClip = getSelectedClip()
         if (!targetClip) {
           toast.error('Select a clip to paste the effect')
           return
         }
 
-        if (effectClipboard.type === 'zoom') {
+        if (effectClipboardRef.current.type === 'zoom') {
           const newBlock = {
-            ...effectClipboard.data,
+            ...effectClipboardRef.current.data,
             id: `zoom-${Date.now()}`
           }
 
@@ -369,9 +382,9 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         return
       }
 
-      if (clipClipboard) {
+      if (clipClipboardRef.current) {
         const newClip: Clip = {
-          ...clipClipboard,
+          ...clipClipboardRef.current,
           id: `clip-${Date.now()}`
         }
 
@@ -614,8 +627,6 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     isPlaying,
     selectedClips,
     selectedEffectLayer,
-    clipClipboard,
-    effectClipboard,
     play,
     pause,
     seek,
