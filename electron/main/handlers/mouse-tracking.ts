@@ -16,7 +16,7 @@ try {
 let cursorDetector: any = null
 if (process.platform === 'darwin') {
   console.log('Platform is macOS, attempting to load cursor detector...')
-  
+
   try {
     // Webpack's node-loader will handle this static require and package the addon correctly
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -71,15 +71,15 @@ export function registerMouseTrackingHandlers(): void {
       // Check accessibility permissions when starting mouse tracking
       if (cursorDetector && !cursorDetector.hasAccessibilityPermissions()) {
         console.log('⚠️ No accessibility permissions for cursor detection')
-        
+
         // Request permissions
         const granted = cursorDetector.requestAccessibilityPermissions()
-        
+
         if (!granted) {
           // Show user-friendly dialog
           const { dialog, shell, BrowserWindow } = require('electron')
           const mainWindow = BrowserWindow.getFocusedWindow()
-          
+
           if (mainWindow) {
             const result = await dialog.showMessageBox(mainWindow, {
               type: 'info',
@@ -91,14 +91,14 @@ export function registerMouseTrackingHandlers(): void {
               cancelId: 1,
               noLink: true
             })
-            
+
             if (result.response === 0) {
               shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility')
             }
           }
         }
       }
-      
+
       if (mouseTrackingInterval) {
         clearInterval(mouseTrackingInterval)
       }
@@ -190,7 +190,7 @@ export function registerMouseTrackingHandlers(): void {
 
             // Get cursor type from native detector
             let cursorType = 'default'
-            
+
             if (cursorDetector) {
               try {
                 cursorType = cursorDetector.getCurrentCursorType()
@@ -198,7 +198,7 @@ export function registerMouseTrackingHandlers(): void {
                 console.error('[CURSOR] Detection error:', err)
               }
             }
-            
+
             // Override with grabbing when dragging
             let usedCursorType = cursorType
             if (isMouseDown) {
@@ -206,7 +206,7 @@ export function registerMouseTrackingHandlers(): void {
                 Math.pow(currentPosition.x - lastClickPosition.x, 2) +
                 Math.pow(currentPosition.y - lastClickPosition.y, 2)
               )
-              
+
               if (dragDistance > 5) {
                 usedCursorType = 'grabbing'
               }
@@ -230,7 +230,7 @@ export function registerMouseTrackingHandlers(): void {
             // Only log on stable changes
             if ((global as any).lastLoggedCursor !== finalCursorType) {
               console.log(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${finalCursorType}`)
-              ;(global as any).lastLoggedCursor = finalCursorType
+                ; (global as any).lastLoggedCursor = finalCursorType
             }
 
             // Only log in development mode

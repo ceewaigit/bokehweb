@@ -25,21 +25,21 @@ export class UndoManager {
 
     try {
       this.isExecuting = true
-      
+
       // Execute the action
       await action.execute()
-      
+
       // If grouping is enabled, assign group ID
       if (this.groupingEnabled && this.currentGroupId) {
         action.groupId = this.currentGroupId
       }
-      
+
       // Remove any actions after current index
       this.history = this.history.slice(0, this.currentIndex + 1)
-      
+
       // Add new action
       this.history.push(action)
-      
+
       // Limit history size
       if (this.history.length > this.maxHistorySize) {
         this.history.shift()
@@ -57,7 +57,7 @@ export class UndoManager {
     try {
       this.isExecuting = true
       const action = this.history[this.currentIndex]
-      
+
       // If action is part of a group, undo all actions in group
       if (action.groupId) {
         const groupActions = this.getGroupActions(action.groupId)
@@ -69,7 +69,7 @@ export class UndoManager {
         await action.undo()
         this.currentIndex--
       }
-      
+
       return true
     } finally {
       this.isExecuting = false
@@ -83,7 +83,7 @@ export class UndoManager {
       this.isExecuting = true
       this.currentIndex++
       const action = this.history[this.currentIndex]
-      
+
       // If action is part of a group, redo all actions in group
       if (action.groupId) {
         const groupActions = this.getGroupActions(action.groupId)
@@ -98,7 +98,7 @@ export class UndoManager {
         const redoFn = action.redo || action.execute
         await redoFn()
       }
-      
+
       return true
     } finally {
       this.isExecuting = false
@@ -116,26 +116,26 @@ export class UndoManager {
   public getUndoDescription(): string | null {
     if (!this.canUndo()) return null
     const action = this.history[this.currentIndex]
-    
+
     // If part of group, return group description
     if (action.groupId) {
       const groupActions = this.getGroupActions(action.groupId)
       return `${groupActions.length} actions`
     }
-    
+
     return action.description
   }
 
   public getRedoDescription(): string | null {
     if (!this.canRedo()) return null
     const action = this.history[this.currentIndex + 1]
-    
+
     // If part of group, return group description
     if (action.groupId) {
       const groupActions = this.getGroupActions(action.groupId)
       return `${groupActions.length} actions`
     }
-    
+
     return action.description
   }
 
@@ -157,7 +157,7 @@ export class UndoManager {
   private getGroupActions(groupId: string): UndoableAction[] {
     const actions: UndoableAction[] = []
     let startIndex = -1
-    
+
     // Find start of group
     for (let i = 0; i <= this.currentIndex; i++) {
       if (this.history[i].groupId === groupId) {
@@ -167,7 +167,7 @@ export class UndoManager {
         break
       }
     }
-    
+
     return actions
   }
 
@@ -185,7 +185,7 @@ export class UndoManager {
 
   public setMaxHistorySize(size: number) {
     this.maxHistorySize = size
-    
+
     // Trim history if needed
     if (this.history.length > size) {
       const removeCount = this.history.length - size

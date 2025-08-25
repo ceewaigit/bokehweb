@@ -316,54 +316,54 @@ export function TimelineCanvas({
                 // Use local effects if this is the selected clip, otherwise use clip's effects
                 const isSelectedClip = selectedClips.includes(clip.id)
                 const clipEffects = (isSelectedClip && localEffects) || clip.effects
-                
+
                 if (!clipEffects?.zoom?.enabled || !clipEffects.zoom.blocks?.length) return null
 
                 const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
 
                 return clipEffects.zoom.blocks.map((block: ZoomBlock) => (
-                <TimelineZoomBlock
-                  key={block.id}
-                  blockId={block.id}
-                  x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
-                  y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
-                  width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
-                  height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
-                  startTime={block.startTime}
-                  endTime={block.endTime}
-                  scale={block.scale}
-                  isSelected={isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
-                  allBlocks={clipEffects.zoom.blocks || []}
-                  clipX={clipX}
-                  pixelsPerMs={pixelsPerMs}
-                  onSelect={() => {
-                    selectClip(clip.id) // Select the clip
-                    selectEffectLayer('zoom', block.id) // Select zoom block
-                  }}
-                  onDragEnd={(newX) => {
-                    const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
-                    const updates = {
-                      startTime: Math.max(0, Math.min(clip.duration - (block.endTime - block.startTime), newStartTime)),
-                      endTime: Math.max(0, Math.min(clip.duration, newStartTime + (block.endTime - block.startTime)))
-                    }
-                    // Use prop if provided, otherwise use store
-                    if (isSelectedClip && onZoomBlockUpdate) {
-                      onZoomBlockUpdate(clip.id, block.id, updates)
-                    } else {
-                      updateZoomBlock(clip.id, block.id, updates)
-                    }
-                  }}
-                  onUpdate={(updates) => {
-                    if (isSelectedClip && onZoomBlockUpdate) {
-                      onZoomBlockUpdate(clip.id, block.id, updates)
-                    } else {
-                      updateZoomBlock(clip.id, block.id, updates)
-                    }
-                  }}
-                />
-              ))
-            })
-          })()}
+                  <TimelineZoomBlock
+                    key={block.id}
+                    blockId={block.id}
+                    x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
+                    y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
+                    width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
+                    height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+                    startTime={block.startTime}
+                    endTime={block.endTime}
+                    scale={block.scale}
+                    isSelected={isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
+                    allBlocks={clipEffects.zoom.blocks || []}
+                    clipX={clipX}
+                    pixelsPerMs={pixelsPerMs}
+                    onSelect={() => {
+                      selectClip(clip.id) // Select the clip
+                      selectEffectLayer('zoom', block.id) // Select zoom block
+                    }}
+                    onDragEnd={(newX) => {
+                      const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
+                      const updates = {
+                        startTime: Math.max(0, Math.min(clip.duration - (block.endTime - block.startTime), newStartTime)),
+                        endTime: Math.max(0, Math.min(clip.duration, newStartTime + (block.endTime - block.startTime)))
+                      }
+                      // Use prop if provided, otherwise use store
+                      if (isSelectedClip && onZoomBlockUpdate) {
+                        onZoomBlockUpdate(clip.id, block.id, updates)
+                      } else {
+                        updateZoomBlock(clip.id, block.id, updates)
+                      }
+                    }}
+                    onUpdate={(updates) => {
+                      if (isSelectedClip && onZoomBlockUpdate) {
+                        onZoomBlockUpdate(clip.id, block.id, updates)
+                      } else {
+                        updateZoomBlock(clip.id, block.id, updates)
+                      }
+                    }}
+                  />
+                ))
+              })
+            })()}
 
             {/* Audio clips */}
             {currentProject.timeline.tracks
