@@ -167,6 +167,20 @@
   .animate-smooth { transition: all var(--transition-normal) var(--ease-smooth); }
   .animate-bounce-in { transition: all var(--transition-normal) var(--ease-bounce); }
   
+  /* Shimmer animation for loading states */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(200%);
+    }
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+  
   /* Timeline specific styles */
   .timeline-container {
     background: hsl(var(--timeline-bg));

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Play, Trash2, Clock, HardDrive, FileJson, Layers, Download, RefreshCw, Loader2, Video } from 'lucide-react'
+import { Film, Play, Trash2, Clock, HardDrive, FileJson, Layers, Download, RefreshCw, Loader2, Video, Sparkles, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { cn, formatTime } from '@/lib/utils'
@@ -19,6 +19,7 @@ interface Recording {
   size?: number
   videoSize?: number
   thumbnailUrl?: string
+  thumbnailLoading?: boolean
 }
 
 interface RecordingsLibraryProps {
@@ -280,17 +281,78 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-background">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
-          <div className="relative">
-            <div className="w-12 h-12 rounded-xl bg-card border border-border" />
-            <Loader2 className="absolute inset-0 m-auto w-6 h-6 text-primary animate-spin" />
+      <div className="flex-1 bg-background overflow-hidden">
+        {/* Header skeleton */}
+        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-2xl border-b border-border">
+          <div className="px-6 py-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-16 bg-muted/30 rounded animate-pulse" />
+                <div className="h-4 w-8 bg-muted/20 rounded animate-pulse" />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-20 bg-muted/20 rounded animate-pulse" />
+                <div className="h-7 w-7 bg-muted/20 rounded animate-pulse" />
+              </div>
+            </div>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground font-medium">Loading library...</p>
+        </div>
+
+        {/* Grid skeleton with animated cards */}
+        <div className="p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03, duration: 0.3 }}
+                className="group relative"
+              >
+                <div className="relative rounded-xl overflow-hidden bg-card border border-border/50">
+                  <div className="aspect-video relative bg-gradient-to-br from-muted/10 to-muted/5">
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <motion.div
+                        animate={{
+                          opacity: [0.3, 0.6, 0.3],
+                          scale: [0.95, 1.05, 0.95]
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                      >
+                        <Film className="w-6 h-6 text-muted-foreground/30" />
+                      </motion.div>
+                    </div>
+                    {/* Shimmer effect */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                  </div>
+                  <div className="p-2.5 space-y-2">
+                    <div className="h-3.5 bg-muted/20 rounded animate-pulse" />
+                    <div className="flex items-center gap-2">
+                      <div className="h-3 w-12 bg-muted/10 rounded animate-pulse" />
+                      <div className="h-3 w-16 bg-muted/10 rounded animate-pulse ml-auto" />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* Loading status bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
+        >
+          <div className="bg-card/95 backdrop-blur-xl border border-border rounded-full px-4 py-2 flex items-center gap-3 shadow-2xl">
+            <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
+            <span className="text-xs font-medium text-muted-foreground">Loading your recordings...</span>
+          </div>
         </motion.div>
       </div>
     )
@@ -298,27 +360,104 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   if (recordings.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-background p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center max-w-sm"
-        >
-          <div className="relative inline-block mb-6">
-            <div className="w-20 h-20 bg-card backdrop-blur-xl rounded-2xl flex items-center justify-center border border-border">
-              <Film className="w-10 h-10 text-muted-foreground" />
+      <div className="flex-1 bg-background overflow-hidden">
+        {/* Header */}
+        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-2xl border-b border-border">
+          <div className="px-6 py-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h1 className="text-sm font-semibold text-foreground">Library</h1>
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/20 px-2 py-0.5 rounded-full">
+                  <Layers className="w-3 h-3" />
+                  <span className="font-mono">0</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-3 text-[11px] font-medium"
+                  onClick={() => {
+                    if (window.electronAPI?.showRecordButton) {
+                      window.electronAPI.showRecordButton()
+                    }
+                  }}
+                >
+                  <Video className="w-3 h-3 mr-1.5" />
+                  New Recording
+                </Button>
+              </div>
             </div>
-            <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary/50 rounded-full animate-pulse" />
           </div>
-          <h2 className="text-lg font-medium text-foreground mb-2">No recordings</h2>
-          <p className="text-xs text-muted-foreground mb-6">
-            Start recording with the floating button
-          </p>
-          <div className="inline-flex items-center gap-2 text-[10px] text-muted-foreground bg-card backdrop-blur-sm px-3 py-1.5 rounded-lg border border-border">
-            <HardDrive className="w-3 h-3" />
-            <span className="font-mono">~/Documents/ScreenStudio</span>
-          </div>
-        </motion.div>
+        </div>
+
+        {/* Empty state */}
+        <div className="flex-1 flex items-center justify-center p-8 min-h-[calc(100vh-60px)]">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="text-center max-w-md"
+          >
+            {/* Animated icon */}
+            <div className="relative inline-block mb-8">
+              <motion.div
+                animate={{
+                  rotate: [0, 5, -5, 0],
+                }}
+                transition={{
+                  duration: 4,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+                className="relative"
+              >
+                <div className="w-24 h-24 bg-gradient-to-br from-primary/10 to-primary/5 rounded-3xl flex items-center justify-center border border-border/50 shadow-xl">
+                  <Film className="w-12 h-12 text-primary/60" />
+                </div>
+                <motion.div
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    opacity: [0.5, 0.8, 0.5]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="absolute -top-2 -right-2"
+                >
+                  <Sparkles className="w-5 h-5 text-primary/40" />
+                </motion.div>
+              </motion.div>
+            </div>
+
+            <h2 className="text-xl font-semibold text-foreground mb-3">
+              Your library is empty
+            </h2>
+            <p className="text-sm text-muted-foreground mb-8 leading-relaxed">
+              Start creating amazing screen recordings.<br />
+              Your recordings will appear here automatically.
+            </p>
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-3 max-w-xs mx-auto">
+              <Button
+                size="default"
+                variant="default"
+                className="w-full"
+                onClick={() => {
+                  if (window.electronAPI?.showRecordButton) {
+                    window.electronAPI.showRecordButton()
+                  }
+                }}
+              >
+                <Video className="w-4 h-4 mr-2" />
+                Start Recording
+              </Button>
+            </div>
+          </motion.div>
+        </div>
       </div>
     )
   }
@@ -326,170 +465,202 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   return (
     <div className="flex-1 bg-background overflow-hidden">
       <div ref={containerRef} className="h-full overflow-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
-        {/* Compact header with shadcn tokens */}
-        <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-2xl border-b border-border">
-          <div className="px-4 py-2.5">
-            <div className="flex items-center justify-center relative">
+        {/* Enhanced header */}
+        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-2xl border-b border-border">
+          <div className="px-6 py-3.5">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <h1 className="text-sm font-medium text-foreground">Library</h1>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <h1 className="text-sm font-semibold text-foreground">Library</h1>
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/20 px-2 py-0.5 rounded-full">
                   <Layers className="w-3 h-3" />
                   <span className="font-mono">{recordings.length}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1 absolute right-0">
+              <div className="flex items-center gap-2">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="h-6 px-2 text-[10px] font-medium"
+                  variant="outline"
+                  className="h-7 px-3 text-[11px] font-medium"
+                  onClick={loadRecordings}
+                  title="Refresh Library"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1.5" />
+                  Refresh
+                </Button>
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-3 text-[11px] font-medium"
                   onClick={() => {
-                    // Toggle record button visibility
                     if (window.electronAPI?.showRecordButton) {
                       window.electronAPI.showRecordButton()
                     }
                   }}
-                  title="Show Record Button"
+                  title="New Recording"
                 >
-                  <Video className="w-3 h-3 mr-1" />
-                  <span>Record</span>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 w-6 p-0"
-                  onClick={loadRecordings}
-                  title="Refresh Library"
-                >
-                  <RefreshCw className="w-3 h-3" />
+                  <Video className="w-3 h-3 mr-1.5" />
+                  New Recording
                 </Button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Grid with virtualization */}
-        <div className="p-3">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
+        {/* Enhanced grid with better spacing */}
+        <div className="p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
             {/* Spacer for virtualization */}
             <div style={{ gridColumn: '1 / -1', height: `${Math.floor(visibleRange.start / 6) * 180}px` }} />
 
             <AnimatePresence mode="popLayout">
               {visibleRecordings.map((recording, index) => {
                 const actualIndex = visibleRange.start + index
+                const isHovered = hoveredIndex === actualIndex
+
                 return (
                   <motion.div
                     key={recording.path}
                     layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
                     transition={{
-                      duration: 0.15,
-                      layout: { type: "spring", stiffness: 400, damping: 35 }
+                      duration: 0.2,
+                      layout: { type: "spring", stiffness: 500, damping: 40 }
                     }}
                     className="group relative"
                     onMouseEnter={() => setHoveredIndex(actualIndex)}
                     onMouseLeave={() => setHoveredIndex(null)}
                   >
-                    <div
+                    <motion.div
+                      whileHover={{ y: -4 }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
                       className={cn(
-                        "relative rounded-lg overflow-hidden cursor-pointer transition-all duration-200",
-                        "bg-card border",
-                        hoveredIndex === actualIndex
-                          ? "scale-[1.02] shadow-lg border-border/50"
-                          : "border-border hover:border-border/50"
+                        "relative rounded-xl overflow-hidden cursor-pointer",
+                        "bg-card border transition-all duration-200",
+                        isHovered
+                          ? "shadow-2xl border-primary/20 ring-1 ring-primary/10"
+                          : "shadow-sm border-border hover:shadow-xl"
                       )}
                       onClick={() => onSelectRecording(recording)}
                     >
-                      {/* Thumbnail */}
-                      <div className="aspect-video relative bg-gradient-to-br from-muted/20 to-transparent">
+                      {/* Enhanced thumbnail with loading state */}
+                      <div className="aspect-video relative bg-gradient-to-br from-muted/5 to-transparent overflow-hidden">
                         {recording.thumbnailUrl ? (
-                          <img
-                            src={recording.thumbnailUrl}
-                            alt={recording.name}
-                            className="w-full h-full object-cover"
-                          />
+                          <>
+                            <img
+                              src={recording.thumbnailUrl}
+                              alt={recording.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                            {/* Subtle gradient overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-60" />
+                          </>
                         ) : (
-                          <div className="absolute inset-0 flex items-center justify-center bg-muted/10">
-                            {recording.isProject ? (
-                              <FileJson className="w-6 h-6 text-muted-foreground/50" />
-                            ) : (
-                              <Film className="w-6 h-6 text-muted-foreground/50" />
-                            )}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="relative">
+                              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent rounded-full blur-2xl" />
+                              {recording.isProject ? (
+                                <FileJson className="w-8 h-8 text-muted-foreground/40 relative z-10" />
+                              ) : (
+                                <Film className="w-8 h-8 text-muted-foreground/40 relative z-10" />
+                              )}
+                            </div>
                           </div>
                         )}
 
-                        {/* Minimal hover overlay - just a subtle play icon */}
+                        {/* Enhanced play button on hover */}
                         <AnimatePresence>
-                          {hoveredIndex === actualIndex && (
+                          {isHovered && (
                             <motion.div
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.1 }}
-                              className="absolute inset-0 flex items-center justify-center"
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.8 }}
+                              transition={{ duration: 0.15, ease: "easeOut" }}
+                              className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm"
                             >
-                              <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center">
-                                <Play className="w-5 h-5 text-black ml-0.5" fill="currentColor" />
-                              </div>
+                              <motion.div
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-2xl"
+                              >
+                                <Play className="w-6 h-6 text-black ml-0.5" fill="currentColor" />
+                              </motion.div>
                             </motion.div>
                           )}
                         </AnimatePresence>
+
+                        {/* Duration badge */}
+                        {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
+                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md">
+                            <span className="text-[10px] font-mono text-white">
+                              {formatTime(recording.project.timeline.duration / 1000)}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Info section */}
-                      <div className="p-2">
-                        <h3 className="font-medium text-[11px] text-foreground truncate mb-1">
+                      {/* Enhanced info section */}
+                      <div className="p-3">
+                        <h3 className="font-semibold text-xs text-foreground truncate mb-1.5">
                           {recording.project?.name || recording.name.replace(/^Recording_/, '').replace(/\.ssproj$/, '')}
                         </h3>
-                        <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
-                          {/* Duration */}
-                          {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
-                            <div className="flex items-center gap-0.5">
-                              <Clock className="w-2.5 h-2.5" />
-                              <span className="font-mono">
-                                {formatTime(recording.project.timeline.duration / 1000)}
-                              </span>
-                            </div>
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                          <span className="truncate">
+                            {formatDistanceToNow(recording.timestamp, { addSuffix: true })
+                              .replace('about ', '')
+                              .replace('less than ', '<')}
+                          </span>
+                          {recording.size && (
+                            <span className="font-mono ml-2">
+                              {(recording.size / 1024 / 1024).toFixed(1)} MB
+                            </span>
                           )}
-
-                          {/* Date */}
-                          <div className="flex items-center gap-0.5 ml-auto">
-                            <span className="truncate">{formatDistanceToNow(recording.timestamp, { addSuffix: true }).replace('about ', '').replace('less than ', '<')}</span>
-                          </div>
                         </div>
                       </div>
 
-                      {/* Minimal hover actions - only show on hover at top right */}
+                      {/* Enhanced action buttons */}
                       <AnimatePresence>
-                        {hoveredIndex === actualIndex && (
+                        {isHovered && (
                           <motion.div
-                            initial={{ opacity: 0, y: -5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -5 }}
-                            transition={{ duration: 0.1 }}
-                            className="absolute top-1 right-1 flex gap-0.5"
+                            initial={{ opacity: 0, x: 5 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 5 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute top-2 right-2"
                           >
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 bg-background/80 hover:bg-background/90 backdrop-blur-xl rounded"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Download className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="w-6 h-6 p-0 bg-background/80 hover:bg-destructive/20 hover:text-destructive backdrop-blur-xl rounded"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
+                            <div className="flex items-center gap-1 bg-background/95 backdrop-blur-xl rounded-lg p-1 shadow-lg border border-border/50">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="w-7 h-7 p-0 hover:bg-primary/10 hover:text-primary rounded"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  // Handle export
+                                }}
+                                title="Export"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </Button>
+                              <div className="w-px h-4 bg-border/50" />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="w-7 h-7 p-0 hover:bg-destructive/10 hover:text-destructive rounded"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  // Handle delete
+                                }}
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
-                    </div>
+                    </motion.div>
                   </motion.div>
                 )
               })}

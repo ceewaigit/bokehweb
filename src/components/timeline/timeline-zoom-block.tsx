@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
-import { Rect, Group, Text, Line, Circle } from 'react-konva'
+import React, { useState, useRef, useEffect } from 'react'
+import { Rect, Text, Transformer } from 'react-konva'
 import type { ZoomBlock } from '@/types/project'
 import { TimelineUtils } from '@/lib/timeline'
 import { useTimelineColors } from '@/lib/timeline/colors'
-import { timelineEditor } from '@/lib/timeline/timeline-editor'
+import Konva from 'konva'
 
 interface TimelineZoomBlockProps {
   x: number
@@ -12,21 +12,16 @@ interface TimelineZoomBlockProps {
   height: number
   startTime: number
   endTime: number
-  introMs?: number
-  outroMs?: number
   scale: number
   isSelected: boolean
   allBlocks: ZoomBlock[]
   blockId: string
-  clipId: string
   clipX: number
   clipDuration: number
   pixelsPerMs: number
   onSelect: () => void
   onDragEnd: (newX: number) => void
-  onIntroChange: (newIntroMs: number) => void
-  onOutroChange: (newOutroMs: number) => void
-  onUpdate: (updates: Partial<ZoomBlock>) => void  // Single update method only
+  onUpdate: (updates: Partial<ZoomBlock>) => void
 }
 
 export const TimelineZoomBlock = React.memo(({
@@ -36,409 +31,191 @@ export const TimelineZoomBlock = React.memo(({
   height,
   startTime,
   endTime,
-  introMs = 300,
-  outroMs = 300,
   scale,
   isSelected,
   allBlocks,
   blockId,
-  clipId,
   clipX,
   clipDuration,
   pixelsPerMs,
   onSelect,
   onDragEnd,
-  onIntroChange,
-  onOutroChange,
   onUpdate
 }: TimelineZoomBlockProps) => {
-  const colors = useTimelineColors() // Need this for dynamic theme changes
-  const [isHovered, setIsHovered] = useState(false)
+  const colors = useTimelineColors()
   const [isDragging, setIsDragging] = useState(false)
-  const [isResizing, setIsResizing] = useState(false)
+  const shapeRef = useRef<Konva.Rect>(null)
+  const trRef = useRef<Konva.Transformer>(null)
 
-  // Show controls when selected or hovered
-  const showControls = isSelected || isHovered
-  const handleSize = 8 // Smaller, more refined handles
-  const introOutroHandleRadius = 4
+  // Attach transformer when selected
+  useEffect(() => {
+    if (isSelected && trRef.current && shapeRef.current) {
+      // Attach transformer
+      trRef.current.nodes([shapeRef.current])
+      trRef.current.getLayer()?.batchDraw()
+    }
+  }, [isSelected])
 
-  // Calculate intro/outro widths as proportion of total width
-  const totalDuration = endTime - startTime
-  const introWidth = Math.max(2, ((introMs || 0) / totalDuration) * width)
-  const outroWidth = Math.max(2, ((outroMs || 0) / totalDuration) * width)
+  // Calculate snap positions based on other blocks
+  const getSnappedPosition = (proposedX: number, proposedWidth: number) => {
+    const proposedStartTime = TimelineUtils.pixelToTime(proposedX - clipX, pixelsPerMs)
+    const proposedEndTime = proposedStartTime + TimelineUtils.pixelToTime(proposedWidth, pixelsPerMs)
 
-  // Opacity and styling based on state
-  const blockOpacity = isDragging ? 0.7 : (isSelected ? 0.95 : 0.85)
-  const strokeWidth = isSelected ? 1.5 : (isHovered ? 1 : 0)
-  const shadowBlur = isSelected ? 6 : (isHovered ? 4 : 2)
+    let finalX = proposedX
+    let finalWidth = proposedWidth
+    const snapThreshold = 10 // pixels
+
+    for (const block of allBlocks) {
+      if (block.id === blockId) continue
+
+      const blockX = clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)
+      const blockWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
+      const blockEndX = blockX + blockWidth
+
+      // Snap to edges
+      if (Math.abs((proposedX + proposedWidth) - blockX) < snapThreshold) {
+        finalWidth = blockX - proposedX
+      } else if (Math.abs(proposedX - blockEndX) < snapThreshold) {
+        finalX = blockEndX
+      }
+
+      // Prevent overlap
+      if (proposedStartTime < block.endTime && proposedEndTime > block.startTime) {
+        if (proposedStartTime < block.startTime) {
+          finalWidth = Math.min(finalWidth, blockX - proposedX)
+        } else {
+          finalX = blockEndX
+        }
+      }
+    }
+
+    // Clip bounds
+    finalX = Math.max(clipX, finalX)
+    const maxX = clipX + TimelineUtils.timeToPixel(clipDuration, pixelsPerMs) - finalWidth
+    finalX = Math.min(maxX, finalX)
+
+    return { x: finalX, width: finalWidth }
+  }
 
   return (
-    <Group
-      x={x}
-      y={y}
-      draggable
-      dragBoundFunc={(pos) => {
-        // Initialize editor on first drag movement
-        if (!timelineEditor.getEditingState()) {
-          timelineEditor.startEdit(
-            blockId,
-            clipId,
-            startTime,
-            endTime,
-            'move',
-            clipDuration
-          )
-        }
-        
-        // Calculate time delta from position change
-        const deltaX = pos.x - x
-        const timeDelta = TimelineUtils.pixelToTime(deltaX, pixelsPerMs)
-        
-        // Get validated position from editor
-        const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
-        if (!validated) return { x, y }
-        
-        // Convert validated time back to position
-        const newX = clipX + TimelineUtils.timeToPixel(validated.startTime, pixelsPerMs)
-        
-        return {
-          x: newX,
-          y: y
-        }
-      }}
-      onDragStart={() => {
-        setIsDragging(true)
-        timelineEditor.startEdit(
-          blockId,
-          clipId,
-          startTime,
-          endTime,
-          'move',
-          clipDuration
-        )
-      }}
-      onDragEnd={(e) => {
-        setIsDragging(false)
-        
-        // Commit the edit and update
-        const result = timelineEditor.commitEdit()
-        if (result) {
-          onUpdate({
-            startTime: result.startTime,
-            endTime: result.endTime
-          })
-        }
-        
-        onDragEnd(e.target.x())
-      }}
-      onClick={onSelect}
-      onTap={onSelect}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Main zoom block - uses theme colors */}
+    <>
       <Rect
-        x={0}
-        y={0}
+        ref={shapeRef}
+        x={x}
+        y={y}
         width={width}
         height={height}
-        fill={colors.zoomBlock}
+        fill={colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
         cornerRadius={4}
-        opacity={blockOpacity}
-        stroke={isSelected ? colors.primary : (isHovered ? colors.zoomBlockHover : undefined)}
-        strokeWidth={strokeWidth}
+        opacity={isDragging ? 0.7 : (isSelected ? 0.95 : 0.85)}
+        stroke={isSelected ? colors.primary : undefined}
+        strokeWidth={isSelected ? 1.5 : 0}
         shadowColor="black"
-        shadowBlur={shadowBlur}
+        shadowBlur={isSelected ? 6 : 2}
         shadowOpacity={0.2}
         shadowOffsetY={1}
+        draggable
+        dragBoundFunc={(pos) => {
+          const snapped = getSnappedPosition(pos.x, width)
+          return {
+            x: snapped.x,
+            y: y
+          }
+        }}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={(e) => {
+          setIsDragging(false)
+          const newX = e.target.x()
+          const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
+          const duration = endTime - startTime
+
+          onUpdate({
+            startTime: Math.max(0, newStartTime),
+            endTime: Math.min(clipDuration, newStartTime + duration)
+          })
+
+          onDragEnd(newX)
+        }}
+        onClick={onSelect}
+        onTransformEnd={(e) => {
+          const node = e.target
+          const scaleX = node.scaleX()
+          const newWidth = Math.max(TimelineUtils.timeToPixel(100, pixelsPerMs), width * scaleX)
+          const newX = node.x()
+
+          // Reset scale
+          node.scaleX(1)
+          node.scaleY(1)
+
+          // Apply snapping
+          const snapped = getSnappedPosition(newX, newWidth)
+          node.width(snapped.width)
+          node.x(snapped.x)
+
+          // Calculate new times
+          const newStartTime = TimelineUtils.pixelToTime(snapped.x - clipX, pixelsPerMs)
+          const newEndTime = newStartTime + TimelineUtils.pixelToTime(snapped.width, pixelsPerMs)
+
+          onUpdate({
+            startTime: Math.max(0, newStartTime),
+            endTime: Math.min(clipDuration, newEndTime)
+          })
+        }}
       />
 
-      {/* Intro section (zoom in) - subtle overlay */}
-      {introWidth > 2 && (
-        <Rect
-          x={0}
-          y={0}
-          width={introWidth}
-          height={height}
-          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-          fillLinearGradientEndPoint={{ x: introWidth, y: 0 }}
-          fillLinearGradientColorStops={[
-            0, 'rgba(255, 255, 255, 0.15)',
-            1, 'rgba(255, 255, 255, 0)'
-          ]}
-          cornerRadius={[4, 0, 0, 4]}
-          listening={false}
+      {/* Zoom level text */}
+      <Text
+        x={x + 8}
+        y={y + height / 2 - 7}
+        text={`${scale.toFixed(1)}×`}
+        fontSize={11}
+        fill="white"
+        fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display'"
+        fontStyle={isSelected ? "500" : "normal"}
+        shadowColor="black"
+        shadowBlur={2}
+        shadowOpacity={0.3}
+        listening={false}
+      />
+
+      {/* Transformer for resizing */}
+      {isSelected && (
+        <Transformer
+          ref={trRef}
+          rotateEnabled={false}
+          enabledAnchors={['middle-left', 'middle-right']}
+          boundBoxFunc={(oldBox, newBox) => {
+            // Limit min/max width
+            const minWidth = TimelineUtils.timeToPixel(100, pixelsPerMs)
+            const maxWidth = TimelineUtils.timeToPixel(clipDuration, pixelsPerMs)
+
+            if (newBox.width < minWidth) {
+              newBox.width = minWidth
+            }
+            if (newBox.width > maxWidth) {
+              newBox.width = maxWidth
+            }
+
+            // Keep height fixed
+            newBox.height = oldBox.height
+
+            // Apply collision detection
+            const snapped = getSnappedPosition(newBox.x, newBox.width)
+            newBox.x = snapped.x
+            newBox.width = snapped.width
+
+            return newBox
+          }}
+          borderStroke={colors.primary || '#6366f1'}
+          borderStrokeWidth={1}
+          anchorFill="white"
+          anchorStroke={colors.primary || '#6366f1'}
+          anchorStrokeWidth={1}
+          anchorSize={10}
+          anchorCornerRadius={2}
         />
       )}
-
-      {/* Outro section (zoom out) - subtle overlay */}
-      {outroWidth > 2 && (
-        <Rect
-          x={width - outroWidth}
-          y={0}
-          width={outroWidth}
-          height={height}
-          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-          fillLinearGradientEndPoint={{ x: outroWidth, y: 0 }}
-          fillLinearGradientColorStops={[
-            0, 'rgba(255, 255, 255, 0)',
-            1, 'rgba(255, 255, 255, 0.15)'
-          ]}
-          cornerRadius={[0, 4, 4, 0]}
-          listening={false}
-        />
-      )}
-
-      {/* Zoom level indicator - minimal and elegant */}
-      <Group x={8} y={height / 2 - 7}>
-        <Text
-          x={0}
-          y={0}
-          text={`${scale.toFixed(1)}×`}
-          fontSize={11}
-          fill="white"
-          fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui"
-          fontStyle={isSelected ? "500" : "normal"}
-          shadowColor="black"
-          shadowBlur={2}
-          shadowOpacity={0.3}
-        />
-      </Group>
-
-      {/* Intro/outro adjustment handles - only when controls are visible */}
-      {showControls && (
-        <>
-          {/* Intro adjustment line and handle */}
-          {introWidth > 10 && (
-            <Group>
-              <Line
-                points={[introWidth, 4, introWidth, height - 4]}
-                stroke="rgba(255, 255, 255, 0.3)"
-                strokeWidth={1}
-                dash={[2, 2]}
-              />
-              <Circle
-                x={introWidth}
-                y={height / 2}
-                radius={introOutroHandleRadius}
-                fill="white"
-                stroke="rgba(0, 0, 0, 0.2)"
-                strokeWidth={1}
-                shadowColor="black"
-                shadowBlur={2}
-                shadowOpacity={0.2}
-                cursor="ew-resize"
-                draggable
-                dragBoundFunc={(pos) => ({
-                  x: Math.max(10, Math.min(width / 2 - 10, pos.x)),
-                  y: y + height / 2
-                })}
-                onDragEnd={(e) => {
-                  const newIntroWidth = e.target.x()
-                  const newIntroMs = (newIntroWidth / width) * totalDuration
-                  onIntroChange(Math.round(newIntroMs))
-                }}
-                onMouseEnter={(e) => {
-                  const container = e.target.getStage()?.container()
-                  if (container) container.style.cursor = 'ew-resize'
-                }}
-                onMouseLeave={(e) => {
-                  const container = e.target.getStage()?.container()
-                  if (container) container.style.cursor = 'default'
-                }}
-              />
-            </Group>
-          )}
-
-          {/* Outro adjustment line and handle */}
-          {outroWidth > 10 && (
-            <Group>
-              <Line
-                points={[width - outroWidth, 4, width - outroWidth, height - 4]}
-                stroke="rgba(255, 255, 255, 0.3)"
-                strokeWidth={1}
-                dash={[2, 2]}
-              />
-              <Circle
-                x={width - outroWidth}
-                y={height / 2}
-                radius={introOutroHandleRadius}
-                fill="white"
-                stroke="rgba(0, 0, 0, 0.2)"
-                strokeWidth={1}
-                shadowColor="black"
-                shadowBlur={2}
-                shadowOpacity={0.2}
-                cursor="ew-resize"
-                draggable
-                dragBoundFunc={(pos) => ({
-                  x: Math.max(width / 2 + 10, Math.min(width - 10, pos.x)),
-                  y: y + height / 2
-                })}
-                onDragEnd={(e) => {
-                  const newOutroWidth = width - e.target.x()
-                  const newOutroMs = (newOutroWidth / width) * totalDuration
-                  onOutroChange(Math.round(newOutroMs))
-                }}
-                onMouseEnter={(e) => {
-                  const container = e.target.getStage()?.container()
-                  if (container) container.style.cursor = 'ew-resize'
-                }}
-                onMouseLeave={(e) => {
-                  const container = e.target.getStage()?.container()
-                  if (container) container.style.cursor = 'default'
-                }}
-              />
-            </Group>
-          )}
-
-          {/* Resize handles - refined appearance */}
-          {/* Left resize handle */}
-          <Rect
-            x={-handleSize / 2}
-            y={height / 2 - handleSize / 2}
-            width={handleSize}
-            height={handleSize}
-            fill="white"
-            stroke="rgba(99, 102, 241, 0.5)"
-            strokeWidth={1}
-            cornerRadius={2}
-            shadowColor="black"
-            shadowBlur={2}
-            shadowOpacity={0.2}
-            cursor="ew-resize"
-            draggable
-            onDragStart={() => {
-              setIsResizing(true)
-              timelineEditor.startEdit(
-                blockId,
-                clipId,
-                startTime,
-                endTime,
-                'resize-left',
-                clipDuration
-              )
-            }}
-            dragBoundFunc={(pos) => {
-              // Calculate time delta from handle movement
-              const handleDelta = pos.x - (-handleSize / 2)
-              const timeDelta = TimelineUtils.pixelToTime(handleDelta, pixelsPerMs)
-              
-              // Use timeline editor to validate position
-              const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
-              if (!validated) return pos
-
-              // Convert validated time back to handle position
-              const finalTimeDelta = validated.startTime - startTime
-              const finalHandleDelta = TimelineUtils.timeToPixel(finalTimeDelta, pixelsPerMs)
-              const finalX = -handleSize / 2 + finalHandleDelta
-
-              return {
-                x: finalX,
-                y: y + height / 2 - handleSize / 2
-              }
-            }}
-            onDragEnd={(e) => {
-              setIsResizing(false)
-              
-              // Calculate final time delta
-              const handleDelta = e.target.x() - (-handleSize / 2)
-              const timeDelta = TimelineUtils.pixelToTime(handleDelta, pixelsPerMs)
-              
-              // Get validated position from editor
-              const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
-              timelineEditor.commitEdit()
-
-              if (validated) {
-                onUpdate({
-                  startTime: validated.startTime
-                })
-              }
-            }}
-            onMouseEnter={(e) => {
-              const container = e.target.getStage()?.container()
-              if (container) container.style.cursor = 'ew-resize'
-            }}
-            onMouseLeave={(e) => {
-              const container = e.target.getStage()?.container()
-              if (container && !isResizing) container.style.cursor = 'default'
-            }}
-          />
-
-          {/* Right resize handle */}
-          <Rect
-            x={width - handleSize / 2}
-            y={height / 2 - handleSize / 2}
-            width={handleSize}
-            height={handleSize}
-            fill="white"
-            stroke="rgba(99, 102, 241, 0.5)"
-            strokeWidth={1}
-            cornerRadius={2}
-            shadowColor="black"
-            shadowBlur={2}
-            shadowOpacity={0.2}
-            cursor="ew-resize"
-            draggable
-            onDragStart={() => {
-              setIsResizing(true)
-              timelineEditor.startEdit(
-                blockId,
-                clipId,
-                startTime,
-                endTime,
-                'resize-right',
-                clipDuration
-              )
-            }}
-            dragBoundFunc={(pos) => {
-              // Calculate time delta from handle movement
-              const handleDelta = pos.x - (width - handleSize / 2)
-              const timeDelta = TimelineUtils.pixelToTime(handleDelta, pixelsPerMs)
-              
-              // Use timeline editor to validate position
-              const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
-              if (!validated) return pos
-
-              // Convert validated time back to handle position
-              const finalTimeDelta = validated.endTime - endTime
-              const finalHandleDelta = TimelineUtils.timeToPixel(finalTimeDelta, pixelsPerMs)
-              const finalX = width - handleSize / 2 + finalHandleDelta
-
-              return {
-                x: finalX,
-                y: y + height / 2 - handleSize / 2
-              }
-            }}
-            onDragEnd={(e) => {
-              setIsResizing(false)
-              
-              // Calculate final time delta
-              const handleDelta = e.target.x() - (width - handleSize / 2)
-              const timeDelta = TimelineUtils.pixelToTime(handleDelta, pixelsPerMs)
-              
-              // Get validated position from editor
-              const validated = timelineEditor.updatePosition(timeDelta, allBlocks)
-              timelineEditor.commitEdit()
-
-              if (validated) {
-                onUpdate({
-                  endTime: validated.endTime
-                })
-              }
-            }}
-            onMouseEnter={(e) => {
-              const container = e.target.getStage()?.container()
-              if (container) container.style.cursor = 'ew-resize'
-            }}
-            onMouseLeave={(e) => {
-              const container = e.target.getStage()?.container()
-              if (container && !isResizing) container.style.cursor = 'default'
-            }}
-          />
-        </>
-      )}
-    </Group>
+    </>
   )
 })
 

@@ -359,15 +359,12 @@ export function TimelineCanvas({
                 <TimelineZoomBlock
                   key={block.id}
                   blockId={block.id}
-                  clipId={clip.id}
                   x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
                   y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
                   width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
                   height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
                   startTime={block.startTime}
                   endTime={block.endTime}
-                  introMs={block.introMs || 300}
-                  outroMs={block.outroMs || 300}
                   scale={block.scale}
                   isSelected={isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
                   allBlocks={clipEffects.zoom.blocks || []}
@@ -392,22 +389,6 @@ export function TimelineCanvas({
                     }
                   }}
                   onUpdate={(updates) => {
-                    if (isSelectedClip && onZoomBlockUpdate) {
-                      onZoomBlockUpdate(clip.id, block.id, updates)
-                    } else {
-                      updateZoomBlock(clip.id, block.id, updates)
-                    }
-                  }}
-                  onIntroChange={(newIntroMs) => {
-                    const updates = { introMs: Math.max(0, Math.min(2000, newIntroMs)) }
-                    if (isSelectedClip && onZoomBlockUpdate) {
-                      onZoomBlockUpdate(clip.id, block.id, updates)
-                    } else {
-                      updateZoomBlock(clip.id, block.id, updates)
-                    }
-                  }}
-                  onOutroChange={(newOutroMs) => {
-                    const updates = { outroMs: Math.max(0, Math.min(2000, newOutroMs)) }
                     if (isSelectedClip && onZoomBlockUpdate) {
                       onZoomBlockUpdate(clip.id, block.id, updates)
                     } else {
