@@ -35,9 +35,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
   } = useProjectStore()
 
   const [clipboard, setClipboard] = useState<Clip | null>(null)
-  const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const playbackSpeedRef = useRef(1)
-  const shuttleIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const shuttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!enabled) return
@@ -62,7 +61,6 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         playbackSpeedRef.current = Math.max(-8, playbackSpeedRef.current * 2)
       }
 
-      setPlaybackSpeed(playbackSpeedRef.current)
       pause()
 
       if (playbackSpeedRef.current !== 0) {
@@ -89,7 +87,6 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         playbackSpeedRef.current = Math.min(8, playbackSpeedRef.current * 2)
       }
 
-      setPlaybackSpeed(playbackSpeedRef.current)
       pause()
 
       if (playbackSpeedRef.current !== 0) {
@@ -112,7 +109,6 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         shuttleIntervalRef.current = null
       }
       playbackSpeedRef.current = 1
-      setPlaybackSpeed(1)
       pause()
     }
 
@@ -522,12 +518,4 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     updateZoomBlock
   ])
 
-  return {
-    clipboard,
-    playbackSpeed,
-    canUndo: undoManager.canUndo(),
-    canRedo: undoManager.canRedo(),
-    undoDescription: undoManager.getUndoDescription(),
-    redoDescription: undoManager.getRedoDescription()
-  }
 }

@@ -51,7 +51,6 @@ class KeyboardManager extends EventEmitter {
   private activeContext: KeyboardContext = 'timeline'
   private enabled: boolean = true
   private pressedKeys: Set<string> = new Set()
-  private customShortcuts: Map<string, Partial<KeyboardShortcut>> = new Map()
 
   constructor() {
     super()
@@ -558,15 +557,7 @@ class KeyboardManager extends EventEmitter {
   }
 
   public register(shortcut: KeyboardShortcut) {
-    const id = shortcut.id
-
-    // Check for custom override
-    const custom = this.customShortcuts.get(id)
-    if (custom) {
-      shortcut = { ...shortcut, ...custom }
-    }
-
-    this.shortcuts.set(id, shortcut)
+    this.shortcuts.set(shortcut.id, shortcut)
   }
 
   public unregister(id: string) {
@@ -640,18 +631,7 @@ class KeyboardManager extends EventEmitter {
     return labels[key] || key.toUpperCase()
   }
 
-  public customizeShortcut(id: string, customization: Partial<KeyboardShortcut>) {
-    this.customShortcuts.set(id, customization)
-
-    // Re-register if it exists
-    const existing = this.shortcuts.get(id)
-    if (existing) {
-      this.register({ ...existing, ...customization })
-    }
-  }
-
   public resetShortcuts() {
-    this.customShortcuts.clear()
     this.shortcuts.clear()
     this.registerDefaultShortcuts()
   }

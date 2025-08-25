@@ -191,14 +191,17 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     };
   }, [cursorEvents, currentTimeMs]);
 
-  // Check for active click animation
+  // Check for active click animation (only if click effects are enabled)
   const activeClick = useMemo(() => {
+    // Check if click effects are enabled
+    if (!cursorEffects?.clickEffects) return null;
+    
     return clickEvents.find(click => {
       const clickDuration = 300; // ms for click animation
       return currentTimeMs >= click.timestamp &&
         currentTimeMs <= click.timestamp + clickDuration;
     });
-  }, [clickEvents, currentTimeMs]);
+  }, [clickEvents, currentTimeMs, cursorEffects?.clickEffects]);
 
   // Calculate click animation scale
   const clickScale = useMemo(() => {

@@ -336,37 +336,81 @@ export function EffectsSidebar({
 
             {/* Solid Color */}
             {backgroundType === 'color' && (
-              <div className="space-y-2">
-                <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Color</h3>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="color"
-                    value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
-                    onChange={(e) => {
-                      updateEffect('background', createBackgroundUpdate({
-                        type: 'color',
-                        color: e.target.value
-                      }))
-                    }}
-                    className="w-12 h-12 rounded cursor-pointer border border-border/50"
-                  />
-                  <input
-                    type="text"
-                    value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
-                    onChange={(e) => {
-                      updateEffect('background', createBackgroundUpdate({
-                        type: 'color',
-                        color: e.target.value
-                      }))
-                    }}
-                    className="flex-1 px-2 py-1 text-xs bg-background border border-border/50 rounded"
-                    placeholder="#000000"
-                  />
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Solid Color</h3>
+
+                {/* Current color display */}
+                {effects.background?.type === 'color' ? (
+                  <div className="p-3 bg-card/30 rounded-lg border border-border/30 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-16 h-16 rounded-md border-2 border-white/20 shadow-inner"
+                        style={{ backgroundColor: effects.background.color || '#000000' }}
+                      />
+                      <div className="flex-1">
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Current Color</div>
+                        <div className="font-mono text-sm">{effects.background.color || '#000000'}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground/60 p-2 bg-card/30 rounded">
+                    Select a color to apply it as background
+                  </div>
+                )}
+
+                {/* Color picker section */}
+                <div className="space-y-2">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Choose Color</div>
+                  <div className="flex gap-2 items-center p-2 bg-card/30 rounded-lg">
+                    <input
+                      type="color"
+                      value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
+                      onChange={(e) => {
+                        updateEffect('background', createBackgroundUpdate({
+                          type: 'color',
+                          color: e.target.value
+                        }))
+                      }}
+                      className="w-10 h-10 rounded cursor-pointer border-0 bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
+                      onChange={(e) => {
+                        // Validate hex color
+                        if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value) || e.target.value === '') {
+                          updateEffect('background', createBackgroundUpdate({
+                            type: 'color',
+                            color: e.target.value || '#000000'
+                          }))
+                        }
+                      }}
+                      className="flex-1 px-2 py-1.5 text-xs font-mono bg-background/50 border border-border/30 rounded"
+                      placeholder="#000000"
+                      maxLength={7}
+                    />
+                  </div>
                 </div>
-                {/* Quick color presets */}
-                <div className="grid grid-cols-8 gap-1">
-                  {['#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
-                    '#800080', '#FFA500', '#FFC0CB', '#808080', '#A52A2A', '#800000', '#008000', '#000080'].map(color => (
+
+                {/* Preset colors */}
+                <div className="space-y-2">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Quick Presets</div>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {[
+                      { color: '#000000', name: 'Black' },
+                      { color: '#FFFFFF', name: 'White' },
+                      { color: '#EF4444', name: 'Red' },
+                      { color: '#10B981', name: 'Green' },
+                      { color: '#3B82F6', name: 'Blue' },
+                      { color: '#F59E0B', name: 'Amber' },
+                      { color: '#8B5CF6', name: 'Purple' },
+                      { color: '#EC4899', name: 'Pink' },
+                      { color: '#14B8A6', name: 'Teal' },
+                      { color: '#64748B', name: 'Slate' },
+                      { color: '#1E293B', name: 'Dark' },
+                      { color: '#F1F5F9', name: 'Light' }
+                    ].map(({ color, name }) => (
                       <button
                         key={color}
                         onClick={() => {
@@ -375,11 +419,21 @@ export function EffectsSidebar({
                             color
                           }))
                         }}
-                        className="aspect-square rounded border border-border/50 hover:scale-110 transition-transform"
+                        className={cn(
+                          "aspect-square rounded-md border transition-all hover:scale-105 relative group",
+                          effects.background?.type === 'color' && effects.background?.color === color
+                            ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
+                            : "border-border/50 hover:border-border"
+                        )}
                         style={{ backgroundColor: color }}
-                        title={color}
-                      />
+                        title={name}
+                      >
+                        <span className="absolute inset-x-0 -bottom-5 text-[8px] text-center text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                          {name}
+                        </span>
+                      </button>
                     ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -432,31 +486,33 @@ export function EffectsSidebar({
               </div>
             )}
 
-            {/* Background Blur */}
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
-              <label className="text-xs font-medium flex items-center justify-between">
-                <span className="uppercase tracking-wider text-[10px]">Blur</span>
-                <Switch
-                  checked={effects.background.blur !== undefined && effects.background.blur > 0}
-                  onCheckedChange={(checked) =>
-                    updateEffect('background', { blur: checked ? 10 : undefined })
-                  }
-                />
-              </label>
-              {effects.background.blur !== undefined && effects.background.blur > 0 && (
-                <>
-                  <Slider
-                    value={[effects.background.blur]}
-                    onValueChange={([value]) => updateEffect('background', { blur: value })}
-                    min={1}
-                    max={50}
-                    step={1}
-                    className="w-full"
+            {/* Background Blur - Only show for image-based backgrounds */}
+            {(backgroundType === 'wallpaper' || backgroundType === 'image') && (
+              <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+                <label className="text-xs font-medium flex items-center justify-between">
+                  <span className="uppercase tracking-wider text-[10px]">Blur</span>
+                  <Switch
+                    checked={effects.background.blur !== undefined && effects.background.blur > 0}
+                    onCheckedChange={(checked) =>
+                      updateEffect('background', { blur: checked ? 10 : undefined })
+                    }
                   />
-                  <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.blur}px</span>
-                </>
-              )}
-            </div>
+                </label>
+                {effects.background.blur !== undefined && effects.background.blur > 0 && (
+                  <>
+                    <Slider
+                      value={[effects.background.blur]}
+                      onValueChange={([value]) => updateEffect('background', { blur: value })}
+                      min={1}
+                      max={50}
+                      step={1}
+                      className="w-full"
+                    />
+                    <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.blur}px</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -493,7 +549,7 @@ export function EffectsSidebar({
 
                 <div className="p-3 bg-card/30 rounded-lg border border-border/30">
                   <label className="text-xs font-medium flex items-center justify-between">
-                    <span className="uppercase tracking-wider text-[10px]">Click Ripple</span>
+                    <span className="uppercase tracking-wider text-[10px]">Click Animation</span>
                     <Switch
                       checked={effects.cursor.clickEffects ?? false}
                       onCheckedChange={(checked) =>

@@ -12,7 +12,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   }
 
   let backgroundStyle: React.CSSProperties = {};
-  
+
   // Create unique key based on background content to force re-render
   const backgroundKey = React.useMemo(() => {
     if (!effects) return 'none';
@@ -75,8 +75,9 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       break;
   }
 
-  // Apply blur filter if specified
-  if (effects.blur) {
+  // Apply blur filter only for image-based backgrounds (wallpaper/image)
+  // Blur doesn't make sense for solid colors or gradients
+  if (effects.blur && (effects.type === 'wallpaper' || effects.type === 'image')) {
     backgroundStyle.filter = `blur(${effects.blur}px)`;
   }
 
