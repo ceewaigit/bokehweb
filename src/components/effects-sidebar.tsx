@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { Clip, ClipEffects } from '@/types/project'
-import { useProjectStore } from '@/stores/project-store'
 
 const WALLPAPERS = [
   { id: 'gradient-1', colors: ['#FF6B6B', '#4ECDC4'] },
@@ -101,9 +100,16 @@ export function EffectsSidebar({
   const updateEffect = (category: string, updates: any) => {
     if (!effects || !selectedClip) return
 
-    // Use the centralized store method for effect updates
-    const { updateClipEffectCategory } = useProjectStore.getState()
-    updateClipEffectCategory(selectedClip.id, category, updates)
+    // Use the passed callback to handle effect changes properly
+    // This ensures local effects and zoom block updates work correctly
+    const updatedEffects = {
+      ...effects,
+      [category]: {
+        ...effects[category as keyof ClipEffects],
+        ...updates
+      }
+    }
+    onEffectChange(updatedEffects)
   }
 
   // Update background while preserving existing properties

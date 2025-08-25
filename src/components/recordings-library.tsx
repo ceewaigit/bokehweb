@@ -2,24 +2,22 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Play, Trash2, Clock, HardDrive, FileJson, Layers, Download, RefreshCw, Loader2, Video, Sparkles, FolderOpen, MoreHorizontal } from 'lucide-react'
+import { Film, Play, Trash2, Clock, HardDrive, Layers, Download, RefreshCw, Loader2, Video, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { cn, formatTime } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
+import { getVideoDuration } from '@/lib/utils/video-metadata'
 import { type Project } from '@/types/project'
 
 interface Recording {
   name: string
   path: string
   timestamp: Date
-  isProject?: boolean
   project?: Project
   size?: number
-  videoSize?: number
   thumbnailUrl?: string
-  thumbnailLoading?: boolean
 }
 
 interface RecordingsLibraryProps {
@@ -35,25 +33,16 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   const scrollDebounceRef = useRef<NodeJS.Timeout>()
 
   const generateThumbnail = useCallback(async (recording: Recording, videoPath: string) => {
-    const cacheKey = recording.path
-
-    // Use lightweight thumbnail generator
-    const thumbnailUrl = await ThumbnailGenerator.generateThumbnail(
+    return await ThumbnailGenerator.generateThumbnail(
       videoPath,
-      cacheKey,
+      recording.path,
       {
         width: 320,
         height: 180,
         quality: 0.6,
-        timestamp: 0.1 // 10% into video
+        timestamp: 0.1
       }
     )
-
-    if (thumbnailUrl) {
-      recording.thumbnailUrl = thumbnailUrl
-    }
-
-    return thumbnailUrl
   }, [])
 
   const loadRecordings = async () => {
@@ -72,9 +61,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
             name: file.name,
             path: file.path,
             timestamp: new Date(file.timestamp),
-            size: file.size,
-            videoSize: file.videoSize,
-            isProject: true
+            size: file.size
           }
 
           try {
@@ -88,21 +75,71 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   recording.name = recording.project.name
                 }
 
-                // Calculate actual duration from recordings if timeline duration is 0
+                // Get actual video file size and duration
                 if (recording.project?.recordings && recording.project.recordings.length > 0) {
-                  const totalDuration = recording.project.recordings.reduce((sum: number, rec: any) => {
-                    return sum + (rec.duration || 0)
-                  }, 0)
-
-                  // Use recordings duration if timeline duration is 0 or missing
-                  if (!recording.project.timeline?.duration || recording.project.timeline.duration === 0) {
-                    if (!recording.project.timeline) {
-                      recording.project.timeline = {
-                        tracks: [],
-                        duration: totalDuration
+                  const projectDir = file.path.substring(0, file.path.lastIndexOf('/'))
+                  let videoPath = recording.project.recordings[0].filePath
+                  
+                  // Make path absolute if relative
+                  if (!videoPath.startsWith('/')) {
+                    videoPath = `${projectDir}/${videoPath}`
+                  }
+                  
+                  // Get actual video file size
+                  if (window.electronAPI?.getFileSize) {
+                    try {
+                      const result = await window.electronAPI.getFileSize(videoPath)
+                      if (result?.success && result.data?.size && result.data.size > 0) {
+                        recording.size = result.data.size
                       }
-                    } else {
-                      recording.project.timeline.duration = totalDuration
+                    } catch (e) {
+                      console.log('Could not get video file size:', e)
+                    }
+                  }
+                  
+                  // Try to get actual video duration
+                  if (window.electronAPI?.getVideoUrl) {
+                    try {
+                      const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
+                      if (videoUrl) {
+                        const videoDuration = await getVideoDuration(videoUrl)
+                        if (videoDuration > 0) {
+                          // Update the recording duration
+                          recording.project.recordings[0].duration = videoDuration
+                          
+                          // Update timeline duration if it's 0 or missing
+                          if (!recording.project.timeline?.duration || recording.project.timeline.duration === 0) {
+                            if (!recording.project.timeline) {
+                              recording.project.timeline = {
+                                tracks: [],
+                                duration: videoDuration
+                              }
+                            } else {
+                              recording.project.timeline.duration = videoDuration
+                            }
+                          }
+                        }
+                      }
+                    } catch (e) {
+                      console.log('Could not get video duration:', e)
+                    }
+                  }
+                  
+                  // Fallback: Calculate duration from recordings if we couldn't get it from video
+                  if (!recording.project.timeline?.duration || recording.project.timeline.duration === 0) {
+                    const totalDuration = recording.project.recordings.reduce((sum: number, rec: any) => {
+                      return sum + (rec.duration || 0)
+                    }, 0)
+                    
+                    if (totalDuration > 0) {
+                      if (!recording.project.timeline) {
+                        recording.project.timeline = {
+                          tracks: [],
+                          duration: totalDuration
+                        }
+                      } else {
+                        recording.project.timeline.duration = totalDuration
+                      }
                     }
                   }
                 }
@@ -116,22 +153,16 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           recordingsList.push(recording)
         }
 
-        // Remove duplicates
-        const uniqueRecordings = recordingsList.reduce((acc: Recording[], current) => {
-          const duplicate = acc.find(r =>
-            Math.abs(r.timestamp.getTime() - current.timestamp.getTime()) < 2000 &&
-            r.project?.recordings?.[0]?.filePath === current.project?.recordings?.[0]?.filePath
-          )
-
-          if (!duplicate) {
-            acc.push(current)
-          } else if (duplicate.name.includes('T') && !current.name.includes('T')) {
-            const index = acc.indexOf(duplicate)
-            acc[index] = current
+        // Remove duplicates - keep latest by timestamp
+        const uniqueMap = new Map<string, Recording>()
+        recordingsList.forEach(recording => {
+          const key = recording.project?.recordings?.[0]?.filePath || recording.path
+          const existing = uniqueMap.get(key)
+          if (!existing || recording.timestamp > existing.timestamp) {
+            uniqueMap.set(key, recording)
           }
-
-          return acc
-        }, [])
+        })
+        const uniqueRecordings = Array.from(uniqueMap.values())
 
         uniqueRecordings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         setRecordings(uniqueRecordings)
@@ -377,11 +408,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   size="sm"
                   variant="default"
                   className="h-7 px-3 text-[11px] font-medium"
-                  onClick={() => {
-                    if (window.electronAPI?.showRecordButton) {
-                      window.electronAPI.showRecordButton()
-                    }
-                  }}
+                  onClick={() => window.electronAPI?.showRecordButton?.()}
                 >
                   <Video className="w-3 h-3 mr-1.5" />
                   New Recording
@@ -446,11 +473,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 size="default"
                 variant="default"
                 className="w-full"
-                onClick={() => {
-                  if (window.electronAPI?.showRecordButton) {
-                    window.electronAPI.showRecordButton()
-                  }
-                }}
+                onClick={() => window.electronAPI?.showRecordButton?.()}
               >
                 <Video className="w-4 h-4 mr-2" />
                 Start Recording
@@ -466,7 +489,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     <div className="flex-1 bg-background overflow-hidden">
       <div ref={containerRef} className="h-full overflow-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
         {/* Enhanced header */}
-        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-2xl border-b border-border">
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-2xl border-b border-border">
           <div className="px-6 py-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -491,11 +514,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   size="sm"
                   variant="default"
                   className="h-7 px-3 text-[11px] font-medium"
-                  onClick={() => {
-                    if (window.electronAPI?.showRecordButton) {
-                      window.electronAPI.showRecordButton()
-                    }
-                  }}
+                  onClick={() => window.electronAPI?.showRecordButton?.()}
                   title="New Recording"
                 >
                   <Video className="w-3 h-3 mr-1.5" />
@@ -561,11 +580,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                           <div className="absolute inset-0 flex items-center justify-center">
                             <div className="relative">
                               <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent rounded-full blur-2xl" />
-                              {recording.isProject ? (
-                                <FileJson className="w-8 h-8 text-muted-foreground/40 relative z-10" />
-                              ) : (
-                                <Film className="w-8 h-8 text-muted-foreground/40 relative z-10" />
-                              )}
+                              <Film className="w-8 h-8 text-muted-foreground/40 relative z-10" />
                             </div>
                           </div>
                         )}
@@ -592,13 +607,17 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         </AnimatePresence>
 
                         {/* Duration badge */}
-                        {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
-                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md">
-                            <span className="text-[10px] font-mono text-white">
-                              {formatTime(recording.project.timeline.duration / 1000)}
-                            </span>
-                          </div>
-                        )}
+                        {(() => {
+                          const duration = recording.project?.timeline?.duration || 
+                                         recording.project?.recordings?.[0]?.duration || 0
+                          return duration > 0 ? (
+                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md">
+                              <span className="text-[10px] font-mono text-white">
+                                {formatTime(duration / 1000)}
+                              </span>
+                            </div>
+                          ) : null
+                        })()}
                       </div>
 
                       {/* Enhanced info section */}

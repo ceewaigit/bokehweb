@@ -168,8 +168,18 @@ export const useProjectStore = create<ProjectStore>()(
       if (!currentProject) return
 
       try {
-        currentProject.modifiedAt = new Date().toISOString()
-        await RecordingStorage.saveProject(currentProject)
+        // Update modifiedAt through Immer's set function
+        set((state) => {
+          if (state.currentProject) {
+            state.currentProject.modifiedAt = new Date().toISOString()
+          }
+        })
+        
+        // Get the updated project after the state change
+        const updatedProject = get().currentProject
+        if (updatedProject) {
+          await RecordingStorage.saveProject(updatedProject)
+        }
       } catch (error) {
         console.error('Failed to save project:', error)
         throw error
