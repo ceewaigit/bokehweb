@@ -81,6 +81,14 @@ export function registerWindowControlHandlers(): void {
       const { screen } = require('electron')
       const display = screen.getPrimaryDisplay()
       
+      // First, ensure window is not resizable
+      window.setResizable(false)
+      
+      // Set both minimum and maximum size to the target dimensions
+      // This ensures the window cannot be resized at all
+      window.setMinimumSize(dimensions.width, dimensions.height)
+      window.setMaximumSize(dimensions.width, dimensions.height)
+      
       // Set bounds all at once to avoid multiple redraws
       const newX = Math.floor(display.workAreaSize.width / 2 - dimensions.width / 2)
       const currentY = window.getPosition()[1]
@@ -91,6 +99,9 @@ export function registerWindowControlHandlers(): void {
         width: Math.round(dimensions.width),
         height: Math.round(dimensions.height)
       }, true) // animate = true for smoother transition
+      
+      // After setting the size, ensure it stays that way
+      window.setResizable(false)
       
       return { success: true }
     }

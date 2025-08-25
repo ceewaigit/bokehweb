@@ -31,13 +31,17 @@ export function createRecordButton(): BrowserWindow {
   const recordButton = new BrowserWindow({
     width: 200,
     height: 67,
+    minWidth: 200,
+    minHeight: 67,
+    maxWidth: 200,
+    maxHeight: 67,
     x: Math.floor(display.workAreaSize.width / 2 - 100),
     y: 20,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
     alwaysOnTop: true,
-    resizable: false,  // We'll resize programmatically
+    resizable: false,
     movable: true,
     minimizable: false,
     maximizable: false,
@@ -68,7 +72,18 @@ export function createRecordButton(): BrowserWindow {
   // Don't ignore mouse events - we need interaction
   recordButton.setIgnoreMouseEvents(false)
 
-  // No auto-resize needed - fixed window size
+  // Explicitly disable resizing after window creation to ensure it's truly non-resizable
+  recordButton.setResizable(false)
+  
+  // Prevent any resize attempts
+  recordButton.on('will-resize', (event) => {
+    event.preventDefault()
+  })
+  
+  // On macOS, also set the window to not be fullscreenable which can affect resizing
+  if (process.platform === 'darwin') {
+    recordButton.setFullScreenable(false)
+  }
 
   // Apply CSP so blob: media URLs are allowed
   setupSecurityPolicy(recordButton)
