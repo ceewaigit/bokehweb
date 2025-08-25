@@ -16,10 +16,6 @@ interface EffectClipboard {
   sourceClipId: string
 }
 
-// Move clipboard refs outside component to persist across all renders
-const clipClipboardRef = { current: null as Clip | null }
-const effectClipboardRef = { current: null as EffectClipboard | null }
-
 export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps = {}) {
   const {
     currentProject,
@@ -45,9 +41,61 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     updateZoomBlock
   } = useProjectStore()
 
-  // Use refs for playback state
+  // Use refs for persistent state - these need to survive re-renders
+  const clipClipboardRef = useRef<Clip | null>(null)
+  const effectClipboardRef = useRef<EffectClipboard | null>(null)
   const playbackSpeedRef = useRef(1)
   const shuttleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  
+  // Store the latest values in refs to avoid stale closures
+  const storeRef = useRef({
+    currentProject,
+    currentTime,
+    isPlaying,
+    selectedClips,
+    selectedEffectLayer,
+    play,
+    pause,
+    seek,
+    selectClip,
+    clearSelection,
+    clearEffectSelection,
+    removeClip,
+    splitClip,
+    duplicateClip,
+    updateClip,
+    addClip,
+    setZoom,
+    zoom,
+    removeZoomBlock,
+    addZoomBlock,
+    updateZoomBlock
+  })
+  
+  // Update the ref on every render
+  storeRef.current = {
+    currentProject,
+    currentTime,
+    isPlaying,
+    selectedClips,
+    selectedEffectLayer,
+    play,
+    pause,
+    seek,
+    selectClip,
+    clearSelection,
+    clearEffectSelection,
+    removeClip,
+    splitClip,
+    duplicateClip,
+    updateClip,
+    addClip,
+    setZoom,
+    zoom,
+    removeZoomBlock,
+    addZoomBlock,
+    updateZoomBlock
+  }
 
   useEffect(() => {
     if (!enabled) return
@@ -57,8 +105,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     // Playback controls
     const handlePlayPause = () => {
-      if (isPlaying) pause()
-      else play()
+      if (storeRef.current.isPlaying) storeRef.current.pause()
+      else storeRef.current.play()
     }
 
     const handleShuttleReverse = () => {
@@ -72,15 +120,15 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         playbackSpeedRef.current = Math.max(-8, playbackSpeedRef.current * 2)
       }
 
-      pause()
+      storeRef.current.pause()
 
       if (playbackSpeedRef.current !== 0) {
         const frameTime = 1000 / 30 // 30fps
         const interval = frameTime / Math.abs(playbackSpeedRef.current)
 
         shuttleIntervalRef.current = setInterval(() => {
-          const newTime = currentTime + (interval * playbackSpeedRef.current)
-          seek(Math.max(0, newTime))
+          const newTime = storeRef.current.currentTime + (interval * playbackSpeedRef.current)
+          storeRef.current.seek(Math.max(0, newTime))
         }, interval)
 
         toast(`${playbackSpeedRef.current}x`, { duration: 1000 })
@@ -98,16 +146,16 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         playbackSpeedRef.current = Math.min(8, playbackSpeedRef.current * 2)
       }
 
-      pause()
+      storeRef.current.pause()
 
       if (playbackSpeedRef.current !== 0) {
         const frameTime = 1000 / 30 // 30fps
         const interval = frameTime / Math.abs(playbackSpeedRef.current)
 
         shuttleIntervalRef.current = setInterval(() => {
-          const newTime = currentTime + (interval * playbackSpeedRef.current)
-          const maxTime = currentProject?.timeline?.duration || 0
-          seek(Math.min(maxTime, newTime))
+          const newTime = storeRef.current.currentTime + (interval * playbackSpeedRef.current)
+          const maxTime = storeRef.current.currentProject?.timeline?.duration || 0
+          storeRef.current.seek(Math.min(maxTime, newTime))
         }, interval)
 
         toast(`${playbackSpeedRef.current}x`, { duration: 1000 })
@@ -120,21 +168,21 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         shuttleIntervalRef.current = null
       }
       playbackSpeedRef.current = 1
-      pause()
+      storeRef.current.pause()
     }
 
     // Frame navigation - prevent default to stop scrolling
     const handleFramePrevious = (e?: any) => {
       if (e?.event) e.event.preventDefault()
       const frameTime = 1000 / 30 // 30fps
-      seek(Math.max(0, currentTime - frameTime))
+      storeRef.current.seek(Math.max(0, storeRef.current.currentTime - frameTime))
     }
 
     const handleFrameNext = (e?: any) => {
       if (e?.event) e.event.preventDefault()
       const frameTime = 1000 / 30 // 30fps
-      const maxTime = currentProject?.timeline?.duration || 0
-      seek(Math.min(maxTime, currentTime + frameTime))
+      const maxTime = storeRef.current.currentProject?.timeline?.duration || 0
+      storeRef.current.seek(Math.min(maxTime, storeRef.current.currentTime + frameTime))
     }
 
     const handleFramePrevious10 = () => {
@@ -188,10 +236,10 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     // Helper to get selected clip
     const getSelectedClip = () => {
-      if (!currentProject || selectedClips.length !== 1) return null
-      return currentProject.timeline.tracks
+      if (!storeRef.current.currentProject || storeRef.current.selectedClips.length !== 1) return null
+      return storeRef.current.currentProject.timeline.tracks
         .flatMap(t => t.clips)
-        .find(c => c.id === selectedClips[0])
+        .find(c => c.id === storeRef.current.selectedClips[0])
     }
 
     // Editing with undo support
@@ -200,9 +248,9 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       if (!clip) return
 
       // Copy effect if one is selected
-      if (selectedEffectLayer) {
-        if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id) {
-          const zoomBlock = clip.effects?.zoom?.blocks?.find(b => b.id === selectedEffectLayer.id)
+      if (storeRef.current.selectedEffectLayer) {
+        if (storeRef.current.selectedEffectLayer.type === 'zoom' && storeRef.current.selectedEffectLayer.id) {
+          const zoomBlock = clip.effects?.zoom?.blocks?.find(b => b.id === storeRef.current.selectedEffectLayer?.id)
           if (zoomBlock) {
             effectClipboardRef.current = {
               type: 'zoom',
@@ -213,14 +261,14 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           }
         } else {
           // Copy cursor or background settings
-          const effectData = clip.effects[selectedEffectLayer.type]
+          const effectData = clip.effects[storeRef.current.selectedEffectLayer.type]
           if (effectData) {
             effectClipboardRef.current = {
-              type: selectedEffectLayer.type,
+              type: storeRef.current.selectedEffectLayer.type,
               data: { ...effectData },
               sourceClipId: clip.id
             }
-            toast(`${selectedEffectLayer.type.charAt(0).toUpperCase() + selectedEffectLayer.type.slice(1)} copied`)
+            toast(`${storeRef.current.selectedEffectLayer.type.charAt(0).toUpperCase() + storeRef.current.selectedEffectLayer.type.slice(1)} copied`)
           }
         }
       } else {
@@ -231,7 +279,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     }
 
     const handleCut = () => {
-      if (selectedEffectLayer) {
+      if (storeRef.current.selectedEffectLayer) {
         toast('Cannot cut while effect is selected')
         return
       }
@@ -245,8 +293,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         id: `cut-${clip.id}`,
         timestamp: Date.now(),
         description: 'Cut clip',
-        execute: () => removeClip(clip.id),
-        undo: () => addClip(clip)
+        execute: () => storeRef.current.removeClip(clip.id),
+        undo: () => storeRef.current.addClip(clip)
       })
 
       toast('Clip cut')
@@ -263,7 +311,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
         if (effectClipboardRef.current.type === 'zoom') {
           const zoomBlock = effectClipboardRef.current.data
-          const relativeTime = Math.max(0, currentTime - targetClip.startTime)
+          const relativeTime = Math.max(0, storeRef.current.currentTime - targetClip.startTime)
           const newBlock = {
             ...zoomBlock,
             id: `zoom-${Date.now()}`,
@@ -285,8 +333,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
             id: `paste-zoom-${newBlock.id}`,
             timestamp: Date.now(),
             description: 'Paste zoom block',
-            execute: () => addZoomBlock(targetClip.id, newBlock),
-            undo: () => removeZoomBlock(targetClip.id, newBlock.id)
+            execute: () => storeRef.current.addZoomBlock(targetClip.id, newBlock),
+            undo: () => storeRef.current.removeZoomBlock(targetClip.id, newBlock.id)
           })
 
           toast('Zoom block pasted')
@@ -298,10 +346,10 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
             id: `paste-${effectClipboardRef.current.type}-${Date.now()}`,
             timestamp: Date.now(),
             description: `Paste ${effectClipboardRef.current.type}`,
-            execute: () => updateClip(targetClip.id, {
+            execute: () => storeRef.current.updateClip(targetClip.id, {
               effects: { ...targetClip.effects, [effectClipboardRef.current!.type]: effectClipboardRef.current!.data }
             }),
-            undo: () => updateClip(targetClip.id, { effects: prevEffects })
+            undo: () => storeRef.current.updateClip(targetClip.id, { effects: prevEffects })
           })
 
           toast(`${effectClipboardRef.current.type.charAt(0).toUpperCase() + effectClipboardRef.current.type.slice(1)} pasted`)
@@ -314,15 +362,15 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         const newClip: Clip = {
           ...clipClipboardRef.current,
           id: `clip-${Date.now()}`,
-          startTime: currentTime
+          startTime: storeRef.current.currentTime
         }
 
         undoManager.execute({
           id: `paste-${newClip.id}`,
           timestamp: Date.now(),
           description: 'Paste clip',
-          execute: () => addClip(newClip),
-          undo: () => removeClip(newClip.id)
+          execute: () => storeRef.current.addClip(newClip),
+          undo: () => storeRef.current.removeClip(newClip.id)
         })
 
         toast('Clip pasted')
@@ -396,14 +444,14 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     const handleDelete = () => {
       // Check if an effect layer is selected (like a zoom block)
-      if (selectedEffectLayer) {
+      if (storeRef.current.selectedEffectLayer) {
         // Handle effect-specific deletion
-        if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id && selectedClips.length === 1) {
-          const clipId = selectedClips[0]
-          const blockId = selectedEffectLayer.id
+        if (storeRef.current.selectedEffectLayer.type === 'zoom' && storeRef.current.selectedEffectLayer.id && storeRef.current.selectedClips.length === 1) {
+          const clipId = storeRef.current.selectedClips[0]
+          const blockId = storeRef.current.selectedEffectLayer.id
 
           // Find the zoom block to save for undo
-          const clip = currentProject?.timeline.tracks
+          const clip = storeRef.current.currentProject?.timeline.tracks
             .flatMap(t => t.clips)
             .find(c => c.id === clipId)
           const zoomBlock = clip?.effects?.zoom?.blocks?.find(b => b.id === blockId)
@@ -414,11 +462,11 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
               timestamp: Date.now(),
               description: 'Delete zoom block',
               execute: () => {
-                removeZoomBlock(clipId, blockId)
-                clearEffectSelection()
+                storeRef.current.removeZoomBlock(clipId, blockId)
+                storeRef.current.clearEffectSelection()
               },
               undo: () => {
-                addZoomBlock(clipId, zoomBlock)
+                storeRef.current.addZoomBlock(clipId, zoomBlock)
               }
             })
             toast('Zoom block deleted')
@@ -429,10 +477,10 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       }
 
       // Only delete clips if no effect layer is selected
-      if (selectedClips.length > 0 && currentProject) {
-        const clips = currentProject.timeline.tracks
+      if (storeRef.current.selectedClips.length > 0 && storeRef.current.currentProject) {
+        const clips = storeRef.current.currentProject.timeline.tracks
           .flatMap(t => t.clips)
-          .filter(c => selectedClips.includes(c.id))
+          .filter(c => storeRef.current.selectedClips.includes(c.id))
 
         undoManager.beginGroup()
 
@@ -442,16 +490,16 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
             timestamp: Date.now(),
             description: `Delete ${clips.length > 1 ? `${clips.length} clips` : 'clip'}`,
             execute: () => {
-              removeClip(clip.id)
+              storeRef.current.removeClip(clip.id)
             },
             undo: () => {
-              addClip(clip)
+              storeRef.current.addClip(clip)
             }
           })
         })
 
         undoManager.endGroup()
-        clearSelection()
+        storeRef.current.clearSelection()
         toast(`${clips.length} clip${clips.length > 1 ? 's' : ''} deleted`)
       }
     }
@@ -460,10 +508,10 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       const clip = getSelectedClip()
       if (!clip) return
 
-      const newClipId = duplicateClip(clip.id)
-      if (!newClipId || !currentProject) return
+      const newClipId = storeRef.current.duplicateClip(clip.id)
+      if (!newClipId || !storeRef.current.currentProject) return
 
-      const newClip = currentProject.timeline.tracks
+      const newClip = storeRef.current.currentProject.timeline.tracks
         .flatMap(t => t.clips)
         .find(c => c.id === newClipId)
 
@@ -473,8 +521,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           timestamp: Date.now(),
           description: 'Duplicate clip',
           execute: () => { }, // Already executed
-          undo: () => removeClip(newClipId),
-          redo: () => addClip(newClip)
+          undo: () => storeRef.current.removeClip(newClipId),
+          redo: () => storeRef.current.addClip(newClip)
         })
 
         toast('Clip duplicated')
@@ -484,23 +532,23 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     const handleSplit = () => {
       const clip = getSelectedClip()
       if (clip) {
-        splitClip(clip.id, currentTime)
+        storeRef.current.splitClip(clip.id, storeRef.current.currentTime)
         toast('Clip split')
       }
     }
 
     const handleSelectAll = () => {
-      if (currentProject) {
+      if (storeRef.current.currentProject) {
         // Clear effect selection first
-        clearEffectSelection()
+        storeRef.current.clearEffectSelection()
 
-        const allClipIds = currentProject.timeline.tracks
+        const allClipIds = storeRef.current.currentProject.timeline.tracks
           .flatMap(t => t.clips)
           .map(c => c.id)
 
         // Clear and then select all
-        clearSelection()
-        allClipIds.forEach(id => selectClip(id, true))
+        storeRef.current.clearSelection()
+        allClipIds.forEach(id => storeRef.current.selectClip(id, true))
 
         if (allClipIds.length > 0) {
           toast(`${allClipIds.length} clips selected`)
@@ -524,15 +572,15 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     // Zoom
     const handleZoomIn = () => {
-      setZoom(Math.min(3, zoom + 0.1))
+      storeRef.current.setZoom(Math.min(3, storeRef.current.zoom + 0.1))
     }
 
     const handleZoomOut = () => {
-      setZoom(Math.max(0.1, zoom - 0.1))
+      storeRef.current.setZoom(Math.max(0.1, storeRef.current.zoom - 0.1))
     }
 
     const handleZoomFit = () => {
-      setZoom(0.5)
+      storeRef.current.setZoom(0.5)
     }
 
     // Project actions
@@ -572,7 +620,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     keyboardManager.on('zoomIn', handleZoomIn)
     keyboardManager.on('zoomOut', handleZoomOut)
     keyboardManager.on('zoomFit', handleZoomFit)
-    keyboardManager.on('escape', clearSelection)
+    keyboardManager.on('escape', () => storeRef.current.clearSelection())
     keyboardManager.on('save', handleSave)
 
     return () => {
@@ -610,29 +658,6 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       keyboardManager.removeAllListeners('escape')
       keyboardManager.removeAllListeners('save')
     }
-  }, [
-    enabled,
-    currentProject,
-    currentTime,
-    isPlaying,
-    selectedClips,
-    selectedEffectLayer,
-    play,
-    pause,
-    seek,
-    selectClip,
-    clearSelection,
-    clearEffectSelection,
-    removeClip,
-    splitClip,
-    duplicateClip,
-    updateClip,
-    addClip,
-    setZoom,
-    zoom,
-    removeZoomBlock,
-    addZoomBlock,
-    updateZoomBlock
-  ])
+  }, [enabled]) // Only re-register when enabled changes
 
 }
