@@ -339,101 +339,74 @@ export function EffectsSidebar({
               <div className="space-y-3">
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Solid Color</h3>
 
-                {/* Current color display */}
-                {effects.background?.type === 'color' ? (
-                  <div className="p-3 bg-card/30 rounded-lg border border-border/30 space-y-2">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-16 h-16 rounded-md border-2 border-white/20 shadow-inner"
-                        style={{ backgroundColor: effects.background.color || '#000000' }}
-                      />
-                      <div className="flex-1">
-                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Current Color</div>
-                        <div className="font-mono text-sm">{effects.background.color || '#000000'}</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground/60 p-2 bg-card/30 rounded">
-                    Select a color to apply it as background
-                  </div>
-                )}
-
-                {/* Color picker section */}
-                <div className="space-y-2">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Choose Color</div>
-                  <div className="flex gap-2 items-center p-2 bg-card/30 rounded-lg">
-                    <input
-                      type="color"
-                      value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
-                      onChange={(e) => {
-                        updateEffect('background', createBackgroundUpdate({
-                          type: 'color',
-                          color: e.target.value
-                        }))
-                      }}
-                      className="w-10 h-10 rounded cursor-pointer border-0 bg-transparent"
-                    />
-                    <input
-                      type="text"
-                      value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
-                      onChange={(e) => {
-                        // Validate hex color
-                        if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value) || e.target.value === '') {
+                {/* Color picker - streamlined single section */}
+                <div className="flex gap-2 items-center p-3 bg-card/30 rounded-lg border border-border/30">
+                  <input
+                    type="color"
+                    value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
+                    onChange={(e) => {
+                      updateEffect('background', createBackgroundUpdate({
+                        type: 'color',
+                        color: e.target.value
+                      }))
+                    }}
+                    className="w-12 h-12 rounded-md cursor-pointer border-0 bg-transparent"
+                    style={{ backgroundColor: effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000' }}
+                  />
+                  <input
+                    type="text"
+                    value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow typing and validate on complete hex
+                      if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
+                        if (value.length === 7) {
                           updateEffect('background', createBackgroundUpdate({
                             type: 'color',
-                            color: e.target.value || '#000000'
+                            color: value
                           }))
                         }
-                      }}
-                      className="flex-1 px-2 py-1.5 text-xs font-mono bg-background/50 border border-border/30 rounded"
-                      placeholder="#000000"
-                      maxLength={7}
-                    />
-                  </div>
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Apply color on blur even if incomplete
+                      if (e.target.value.length > 0) {
+                        updateEffect('background', createBackgroundUpdate({
+                          type: 'color',
+                          color: e.target.value.padEnd(7, '0')
+                        }))
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 text-sm font-mono bg-background/50 border border-border/30 rounded"
+                    placeholder="#000000"
+                    maxLength={7}
+                  />
                 </div>
 
                 {/* Preset colors */}
-                <div className="space-y-2">
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Quick Presets</div>
-                  <div className="grid grid-cols-6 gap-1.5">
-                    {[
-                      { color: '#000000', name: 'Black' },
-                      { color: '#FFFFFF', name: 'White' },
-                      { color: '#EF4444', name: 'Red' },
-                      { color: '#10B981', name: 'Green' },
-                      { color: '#3B82F6', name: 'Blue' },
-                      { color: '#F59E0B', name: 'Amber' },
-                      { color: '#8B5CF6', name: 'Purple' },
-                      { color: '#EC4899', name: 'Pink' },
-                      { color: '#14B8A6', name: 'Teal' },
-                      { color: '#64748B', name: 'Slate' },
-                      { color: '#1E293B', name: 'Dark' },
-                      { color: '#F1F5F9', name: 'Light' }
-                    ].map(({ color, name }) => (
-                      <button
-                        key={color}
-                        onClick={() => {
-                          updateEffect('background', createBackgroundUpdate({
-                            type: 'color',
-                            color
-                          }))
-                        }}
-                        className={cn(
-                          "aspect-square rounded-md border transition-all hover:scale-105 relative group",
-                          effects.background?.type === 'color' && effects.background?.color === color
-                            ? "ring-2 ring-primary ring-offset-1 ring-offset-background"
-                            : "border-border/50 hover:border-border"
-                        )}
-                        style={{ backgroundColor: color }}
-                        title={name}
-                      >
-                        <span className="absolute inset-x-0 -bottom-5 text-[8px] text-center text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                          {name}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {[
+                    '#000000', '#FFFFFF', '#EF4444', '#10B981', '#3B82F6', '#F59E0B',
+                    '#8B5CF6', '#EC4899', '#14B8A6', '#64748B', '#1E293B', '#F1F5F9'
+                  ].map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => {
+                        updateEffect('background', createBackgroundUpdate({
+                          type: 'color',
+                          color
+                        }))
+                      }}
+                      className={cn(
+                        "aspect-square rounded-md border-2 transition-all hover:scale-110",
+                        effects.background?.type === 'color' && effects.background?.color?.toUpperCase() === color.toUpperCase()
+                          ? "border-primary shadow-lg"
+                          : "border-border/30 hover:border-border/50"
+                      )}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
                 </div>
               </div>
             )}
@@ -605,75 +578,76 @@ export function EffectsSidebar({
         {activeTab === 'zoom' && effects?.zoom && (
           <div className="space-y-3">
             {/* Show specific zoom block controls if one is selected */}
-            {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && effects.zoom.blocks && (
-              <>
-                <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
-                  <h4 className="text-xs font-medium uppercase tracking-wider text-primary/80">Block Settings</h4>
-                  {(() => {
-                    const block = effects.zoom.blocks.find((b: any) => b.id === selectedEffectLayer.id)
-                    if (!block) return null
-                    return (
-                      <>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Scale</label>
-                          <Slider
-                            value={[block.scale]}
-                            onValueChange={([value]) => {
-                              const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
-                                b.id === block.id ? { ...b, scale: value } : b
-                              )
-                              updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
-                            }}
-                            min={1}
-                            max={4}
-                            step={0.1}
-                            className="w-full"
-                          />
-                          <span className="text-[10px] text-muted-foreground/70 font-mono">{block.scale.toFixed(1)}x</span>
-                        </div>
+            {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && effects.zoom.blocks && (() => {
+              const selectedBlock = effects.zoom.blocks.find((b: any) => b.id === selectedEffectLayer.id)
+              if (!selectedBlock) return null
+              
+              return (
+                <div key={`zoom-block-${selectedEffectLayer.id}`}>
+                  <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
+                    <h4 className="text-xs font-medium uppercase tracking-wider text-primary/80">Block Settings</h4>
+                    
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Scale</label>
+                      <Slider
+                        key={`scale-${selectedEffectLayer.id}`}
+                        value={[selectedBlock.scale]}
+                        onValueChange={([value]) => {
+                          const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
+                            b.id === selectedBlock.id ? { ...b, scale: value } : b
+                          )
+                          updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                        }}
+                        min={1}
+                        max={4}
+                        step={0.1}
+                        className="w-full"
+                      />
+                      <span className="text-[10px] text-muted-foreground/70 font-mono">{selectedBlock.scale.toFixed(1)}x</span>
+                    </div>
 
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Intro</label>
-                          <Slider
-                            value={[block.introMs || 500]}
-                            onValueChange={([value]) => {
-                              const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
-                                b.id === block.id ? { ...b, introMs: value } : b
-                              )
-                              updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
-                            }}
-                            min={0}
-                            max={1000}
-                            step={50}
-                            className="w-full"
-                          />
-                          {(block.introMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{block.introMs}ms</span>}
-                        </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Intro</label>
+                      <Slider
+                        key={`intro-${selectedEffectLayer.id}`}
+                        value={[selectedBlock.introMs || 500]}
+                        onValueChange={([value]) => {
+                          const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
+                            b.id === selectedBlock.id ? { ...b, introMs: value } : b
+                          )
+                          updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                        }}
+                        min={0}
+                        max={1000}
+                        step={50}
+                        className="w-full"
+                      />
+                      {(selectedBlock.introMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{selectedBlock.introMs}ms</span>}
+                    </div>
 
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Outro</label>
-                          <Slider
-                            value={[block.outroMs || 500]}
-                            onValueChange={([value]) => {
-                              const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
-                                b.id === block.id ? { ...b, outroMs: value } : b
-                              )
-                              updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
-                            }}
-                            min={0}
-                            max={1000}
-                            step={50}
-                            className="w-full"
-                          />
-                          {(block.outroMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{block.outroMs}ms</span>}
-                        </div>
-                      </>
-                    )
-                  })()}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Outro</label>
+                      <Slider
+                        key={`outro-${selectedEffectLayer.id}`}
+                        value={[selectedBlock.outroMs || 500]}
+                        onValueChange={([value]) => {
+                          const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
+                            b.id === selectedBlock.id ? { ...b, outroMs: value } : b
+                          )
+                          updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                        }}
+                        min={0}
+                        max={1000}
+                        step={50}
+                        className="w-full"
+                      />
+                      {(selectedBlock.outroMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{selectedBlock.outroMs}ms</span>}
+                    </div>
+                  </div>
+                  <div className="border-t border-border/30 pt-3" />
                 </div>
-                <div className="border-t border-border/30 pt-3" />
-              </>
-            )}
+              )
+            })()}
 
             <div className="p-3 bg-card/30 rounded-lg border border-border/30">
               <label className="text-xs font-medium flex items-center justify-between">

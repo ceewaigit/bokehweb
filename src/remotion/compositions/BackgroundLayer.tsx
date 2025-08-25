@@ -75,10 +75,24 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       break;
   }
 
-  // Apply blur filter only for image-based backgrounds (wallpaper/image)
-  // Blur doesn't make sense for solid colors or gradients
-  if (effects.blur && (effects.type === 'wallpaper' || effects.type === 'image')) {
-    backgroundStyle.filter = `blur(${effects.blur}px)`;
+  // For blur effect, we need to handle it differently to avoid black backgrounds
+  const shouldBlur = effects.blur && (effects.type === 'wallpaper' || effects.type === 'image');
+
+  if (shouldBlur) {
+    // Use a container with overflow hidden and scale the blurred content slightly
+    // to avoid blur edges showing
+    return (
+      <AbsoluteFill key={backgroundKey} style={{ overflow: 'hidden' }}>
+        <div 
+          style={{
+            ...backgroundStyle,
+            position: 'absolute',
+            inset: `-${effects.blur}px`,
+            filter: `blur(${effects.blur}px)`,
+          }}
+        />
+      </AbsoluteFill>
+    );
   }
 
   return <AbsoluteFill key={backgroundKey} style={backgroundStyle} />;

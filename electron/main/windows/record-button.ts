@@ -75,6 +75,10 @@ export function createRecordButton(): BrowserWindow {
     // Use screen-saver level on macOS - this keeps it above other windows
     // and helps with window exclusion in screen capture
     recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
+    
+    // Set additional window properties to help with exclusion from capture
+    // This sets the window to not be captured by some screen recording APIs
+    recordButton.setContentProtection(true)
   } else {
     recordButton.setAlwaysOnTop(true, 'floating', 1)
   }
