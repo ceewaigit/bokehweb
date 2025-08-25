@@ -494,15 +494,25 @@ class KeyboardManager extends EventEmitter {
   private handleKeyDown(event: KeyboardEvent) {
     if (!this.enabled) return
 
-    // Skip if typing in input field
+    // Allow certain shortcuts even when input fields are focused
     const target = event.target as HTMLElement
-    if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') {
+    const isTextInput = target?.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text'
+    const isTextarea = target?.tagName === 'TEXTAREA'
+    
+    // Check if this is a shortcut that should work even with inputs focused
+    const shortcut = this.findMatchingShortcut(event)
+    const allowedWithInputs = shortcut && [
+      'copy', 'cut', 'paste', 'pasteInPlace', 
+      'undo', 'redo', 'save', 'delete'
+    ].includes(shortcut.action)
+    
+    // Skip keyboard handling if typing in a text field and not an allowed shortcut
+    if ((isTextInput || isTextarea) && !allowedWithInputs) {
       return
     }
 
     this.pressedKeys.add(event.key.toLowerCase())
 
-    const shortcut = this.findMatchingShortcut(event)
     if (shortcut) {
       if (shortcut.preventDefault) {
         event.preventDefault()

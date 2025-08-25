@@ -320,6 +320,30 @@ export function WorkspaceManager() {
       setHasUnsavedChanges(currentProject.modifiedAt !== lastSavedAt)
     }
   }, [currentProject?.modifiedAt, lastSavedAt])
+  
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      // Cmd+S or Ctrl+S to save
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        
+        // Save any pending local effects
+        if (localEffects && selectedClipId) {
+          updateClipEffects(selectedClipId, localEffects)
+          setLocalEffects(null)
+        }
+        
+        // Save the project
+        await saveCurrentProject()
+        setHasUnsavedChanges(false)
+        setLastSavedAt(new Date().toISOString())
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [localEffects, selectedClipId, updateClipEffects, saveCurrentProject])
 
   // Get clip at playhead position
   const playheadClip = useProjectStore.getState().getCurrentClip()
@@ -530,11 +554,15 @@ export function WorkspaceManager() {
               setLastSavedAt(new Date().toISOString())
             }}
             onSaveProject={async () => {
+              console.log('Save button clicked')
               if (localEffects && selectedClipId) {
+                console.log('Saving local effects first')
                 updateClipEffects(selectedClipId, localEffects)
                 setLocalEffects(null)
               }
+              console.log('Calling saveCurrentProject')
               await saveCurrentProject()
+              console.log('Project saved successfully')
               setHasUnsavedChanges(false)
               setLastSavedAt(new Date().toISOString())
             }}
