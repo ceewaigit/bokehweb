@@ -317,32 +317,20 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           // Sort existing blocks by start time (create a copy to avoid mutating)
           const existingBlocks = [...(targetClip.effects?.zoom?.blocks || [])].sort((a, b) => a.startTime - b.startTime)
           
-          
-          // Find the next available space
-          let foundSpace = false
-          for (let i = 0; i <= existingBlocks.length; i++) {
-            let testStart = pasteStartTime
-            let testEnd = pasteStartTime + blockDuration
+          // Simple strategy: if there's overlap, just place after all existing blocks
+          if (existingBlocks.length > 0) {
+            // Check for overlap at current position
+            const hasOverlap = existingBlocks.some(b => {
+              // Add small buffer to prevent edge cases
+              const buffer = 10
+              return pasteStartTime < (b.endTime + buffer) && (pasteStartTime + blockDuration) > (b.startTime - buffer)
+            })
             
-            // Check if this position overlaps with any block
-            const hasOverlap = existingBlocks.some(b => 
-              testStart < b.endTime && testEnd > b.startTime
-            )
-            
-            if (!hasOverlap) {
-              foundSpace = true
-              break
+            if (hasOverlap) {
+              // Just place it after the last block with a gap
+              const lastBlock = existingBlocks[existingBlocks.length - 1]
+              pasteStartTime = lastBlock.endTime + 200 // Decent gap
             }
-            
-            // Try after the current block
-            if (i < existingBlocks.length) {
-              pasteStartTime = existingBlocks[i].endTime + 100 // Add small gap
-            }
-          }
-          
-          // If still no space, place at the end
-          if (!foundSpace && existingBlocks.length > 0) {
-            pasteStartTime = existingBlocks[existingBlocks.length - 1].endTime + 100
           }
           
           // Don't constrain to clip duration - zoom blocks can extend beyond

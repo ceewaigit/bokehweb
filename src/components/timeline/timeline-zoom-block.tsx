@@ -60,71 +60,71 @@ export const TimelineZoomBlock = React.memo(({
     let finalX = proposedX
     let finalWidth = proposedWidth
     const snapThreshold = 10 // pixels
+    const collisionBuffer = 2 // Small buffer to prevent exact overlaps
 
     // Sort blocks by start time for easier collision detection
     const sortedBlocks = allBlocks
       .filter(b => b.id !== blockId)
       .sort((a, b) => a.startTime - b.startTime)
 
-    // Check each block for collisions
+    // Only apply collision detection when directly overlapping
     for (const block of sortedBlocks) {
       const blockX = clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)
       const blockWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
       const blockEndX = blockX + blockWidth
 
-      // Check if there would be an overlap
-      const wouldOverlap = proposedStartTime < block.endTime && proposedEndTime > block.startTime
+      // Check if there would be an overlap (with small buffer)
+      const wouldOverlap = (proposedX + collisionBuffer) < blockEndX && 
+                          (proposedX + proposedWidth - collisionBuffer) > blockX
 
       if (wouldOverlap) {
+        // Only prevent the overlap if we're directly colliding
+        const currentX = clipX + TimelineUtils.timeToPixel(startTime, pixelsPerMs)
+        
         if (isResizing) {
-          // When resizing, just limit the width
+          // When resizing, snap to edges but allow passing through if dragged far enough
           const proposedEndX = proposedX + proposedWidth
           
-          // Check which handle is being dragged based on position
-          const currentX = clipX + TimelineUtils.timeToPixel(startTime, pixelsPerMs)
-          const currentWidth = TimelineUtils.timeToPixel(endTime - startTime, pixelsPerMs)
-          const isResizingLeft = Math.abs(proposedX - currentX) > 1
-          const isResizingRight = Math.abs(proposedWidth - currentWidth) > 1 && !isResizingLeft
-          
-          if (isResizingRight && proposedEndX > blockX) {
-            // Resizing right edge into a block
-            finalWidth = blockX - proposedX
-          } else if (isResizingLeft && proposedX < blockEndX) {
-            // Resizing left edge into a block
-            finalX = blockEndX
-            finalWidth = (currentX + currentWidth) - blockEndX
+          if (proposedEndX > blockX && proposedEndX < blockX + blockWidth / 2) {
+            // Snap to left edge of block
+            finalWidth = blockX - proposedX - collisionBuffer
+          } else if (proposedX < blockEndX && proposedX > blockEndX - blockWidth / 2) {
+            // Snap to right edge of block
+            finalX = blockEndX + collisionBuffer
           }
         } else {
-          // When dragging, prevent any overlap
-          const currentX = clipX + TimelineUtils.timeToPixel(startTime, pixelsPerMs)
+          // When dragging, allow sliding past if moving decisively
+          const movementDelta = Math.abs(proposedX - currentX)
           
-          // Check if we're moving left or right
-          if (proposedX > currentX) {
-            // Moving right - stop at the left edge of the blocking block
-            finalX = blockX - finalWidth
-          } else {
-            // Moving left - stop at the right edge of the blocking block
-            finalX = blockEndX
+          if (movementDelta < 50) {
+            // Small movement - snap to edge
+            if (proposedX > currentX) {
+              // Moving right
+              finalX = blockX - finalWidth - collisionBuffer
+            } else {
+              // Moving left
+              finalX = blockEndX + collisionBuffer
+            }
           }
+          // Large movement - allow passing through
         }
       } else {
-        // No overlap, check for snapping to edges
+        // No overlap, optional snapping to edges for alignment
         if (Math.abs((proposedX + proposedWidth) - blockX) < snapThreshold) {
           // Snap right edge to left edge of block
           if (isResizing) {
-            finalWidth = blockX - proposedX
+            finalWidth = blockX - proposedX - collisionBuffer
           } else {
-            finalX = blockX - finalWidth
+            finalX = blockX - finalWidth - collisionBuffer
           }
         } else if (Math.abs(proposedX - blockEndX) < snapThreshold) {
           // Snap left edge to right edge of block
-          finalX = blockEndX
+          finalX = blockEndX + collisionBuffer
         }
       }
     }
 
-    // Don't constrain to clip duration - zoom blocks can extend beyond
-    // Only constrain to the left edge of the clip
+    // Only constrain to the left edge of the timeline
     finalX = Math.max(clipX, finalX)
     
     // Ensure minimum width
