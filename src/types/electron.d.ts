@@ -39,7 +39,6 @@ export interface ElectronAPI {
     path: string
     timestamp: string | Date
     size?: number
-    videoSize?: number
   }>>
   readLocalFile?: (absolutePath: string) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>
   getFileSize?: (filePath: string) => Promise<{ success: boolean; data?: { size: number }; error?: string }>

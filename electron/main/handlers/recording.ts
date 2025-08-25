@@ -39,29 +39,11 @@ export function registerRecordingHandlers(): void {
           const filePath = path.join(recordingsDir, f)
           const stats = fsSync.statSync(filePath)
           
-          // Try to find associated video file
-          let videoSize = 0
-          const baseName = f.replace('.ssproj', '')
-          const possibleVideoFiles = [
-            `${baseName}.webm`,
-            `${baseName}.mp4`
-          ]
-          
-          for (const videoFile of possibleVideoFiles) {
-            const videoPath = path.join(recordingsDir, videoFile)
-            if (fsSync.existsSync(videoPath)) {
-              const videoStats = fsSync.statSync(videoPath)
-              videoSize = videoStats.size
-              break
-            }
-          }
-          
           return {
             name: f,
             path: filePath,
             timestamp: stats.mtime,
-            size: stats.size,
-            videoSize: videoSize
+            size: stats.size
           }
         })
         .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())

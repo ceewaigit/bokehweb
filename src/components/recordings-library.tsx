@@ -97,49 +97,29 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                     }
                   }
                   
-                  // Try to get actual video duration
+                  // Get actual video duration from the video file
                   if (window.electronAPI?.getVideoUrl) {
                     try {
                       const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
                       if (videoUrl) {
                         const videoDuration = await getVideoDuration(videoUrl)
                         if (videoDuration > 0) {
-                          // Update the recording duration
+                          // Update the recording duration with actual video duration
                           recording.project.recordings[0].duration = videoDuration
                           
-                          // Update timeline duration if it's 0 or missing
-                          if (!recording.project.timeline?.duration || recording.project.timeline.duration === 0) {
-                            if (!recording.project.timeline) {
-                              recording.project.timeline = {
-                                tracks: [],
-                                duration: videoDuration
-                              }
-                            } else {
-                              recording.project.timeline.duration = videoDuration
+                          // Ensure timeline exists and has the correct duration
+                          if (!recording.project.timeline) {
+                            recording.project.timeline = {
+                              tracks: [],
+                              duration: videoDuration
                             }
+                          } else {
+                            recording.project.timeline.duration = videoDuration
                           }
                         }
                       }
                     } catch (e) {
                       console.log('Could not get video duration:', e)
-                    }
-                  }
-                  
-                  // Fallback: Calculate duration from recordings if we couldn't get it from video
-                  if (!recording.project.timeline?.duration || recording.project.timeline.duration === 0) {
-                    const totalDuration = recording.project.recordings.reduce((sum: number, rec: any) => {
-                      return sum + (rec.duration || 0)
-                    }, 0)
-                    
-                    if (totalDuration > 0) {
-                      if (!recording.project.timeline) {
-                        recording.project.timeline = {
-                          tracks: [],
-                          duration: totalDuration
-                        }
-                      } else {
-                        recording.project.timeline.duration = totalDuration
-                      }
                     }
                   }
                 }
@@ -607,17 +587,13 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         </AnimatePresence>
 
                         {/* Duration badge */}
-                        {(() => {
-                          const duration = recording.project?.timeline?.duration || 
-                                         recording.project?.recordings?.[0]?.duration || 0
-                          return duration > 0 ? (
-                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md">
-                              <span className="text-[10px] font-mono text-white">
-                                {formatTime(duration / 1000)}
-                              </span>
-                            </div>
-                          ) : null
-                        })()}
+                        {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
+                          <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md">
+                            <span className="text-[10px] font-mono text-white">
+                              {formatTime(recording.project.timeline.duration / 1000)}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Enhanced info section */}

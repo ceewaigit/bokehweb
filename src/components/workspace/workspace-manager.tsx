@@ -28,8 +28,8 @@ async function loadProjectRecording(
   setLoadingMessage: (message: string) => void,
   newProject: (name: string) => void
 ) {
-  if (!recording.isProject || !recording.project) {
-    alert('This video file does not have an associated project. Please load a .screencast project file instead.')
+  if (!recording.project) {
+    alert('This recording does not have an associated project. Please try loading a different .ssproj file.')
     return false
   }
 
