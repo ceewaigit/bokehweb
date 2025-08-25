@@ -4,8 +4,6 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { promisify } from 'util'
 
-const execAsync = promisify(exec)
-
 interface DesktopSourceOptions {
   types?: string[]
   thumbnailSize?: { width: number; height: number }
@@ -81,21 +79,21 @@ export function registerSourceHandlers(): void {
       }
 
       // Use desktopCapturer properly with error handling
-      
+
       const types = options.types || ['screen', 'window']
       const thumbnailSize = options.thumbnailSize || { width: 150, height: 150 }
-      
+
       try {
         const sources = await desktopCapturer.getSources({
           types: types as any,
           thumbnailSize: thumbnailSize,
           fetchWindowIcons: false
         })
-        
-        
+
+
         // Import window bounds helper dynamically
         const { getWindowBoundsForSource } = await import('../native/window-bounds')
-        
+
         // Map the sources to our format with bounds information
         const mappedSources = await Promise.all(sources.map(async source => {
           // Get window bounds for window sources
@@ -105,7 +103,7 @@ export function registerSourceHandlers(): void {
             if (bounds) {
             }
           }
-          
+
           return {
             id: source.id,
             name: source.name,
@@ -114,11 +112,11 @@ export function registerSourceHandlers(): void {
             bounds // Include window bounds if available
           }
         }))
-        
+
         if (mappedSources.length === 0) {
           throw new Error('No sources found. Please check screen recording permissions.')
         }
-        
+
         return mappedSources
       } catch (captureError) {
         console.error('desktopCapturer failed:', captureError)
@@ -174,7 +172,7 @@ export function registerSourceHandlers(): void {
           types: ['window'],
           thumbnailSize: { width: 1, height: 1 }
         })
-        
+
         const source = sources.find(s => s.id === sourceId)
         if (source) {
           const { getWindowBoundsForSource } = await import('../native/window-bounds')
@@ -189,7 +187,7 @@ export function registerSourceHandlers(): void {
           }
         }
       }
-      
+
       return null
     } catch (error) {
       console.error('Failed to get source bounds:', error)
@@ -208,7 +206,7 @@ export function registerSourceHandlers(): void {
   ipcMain.handle('get-macos-wallpapers', async () => {
     const wallpapers = []
     const desktopPicturesPath = '/System/Library/Desktop Pictures'
-    
+
     // Only use full-resolution HEIC files that actually exist
     // Skip .madesktop files as they only have low-res thumbnails available
     const availableWallpapers = [
@@ -222,12 +220,12 @@ export function registerSourceHandlers(): void {
       { name: 'iMac Silver', file: 'iMac Silver.heic' },
       { name: 'iMac Yellow', file: 'iMac Yellow.heic' }
     ]
-    
+
     for (const wallpaper of availableWallpapers) {
       try {
         const fullPath = path.join(desktopPicturesPath, wallpaper.file)
         await fs.access(fullPath)
-        
+
         // Generate small thumbnail (150px) for UI preview
         let thumbnail = null
         try {
@@ -235,17 +233,17 @@ export function registerSourceHandlers(): void {
           execSync(`sips -Z 150 -s format jpeg "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
           const thumbBuffer = await fs.readFile(tempFile)
           thumbnail = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`
-          await fs.unlink(tempFile).catch(() => {})
-        } catch {}
-        
+          await fs.unlink(tempFile).catch(() => { })
+        } catch { }
+
         wallpapers.push({
           name: wallpaper.name,
           path: fullPath,
           thumbnail
         })
-      } catch {}
+      } catch { }
     }
-    
+
     return {
       wallpapers,
       gradients: []
@@ -259,36 +257,73 @@ export function registerSourceHandlers(): void {
         '/Library/Desktop Pictures',
         path.join(process.env.HOME || '', 'Pictures')
       ]
-      
+
       const isAllowed = allowedDirs.some(dir => imagePath.startsWith(dir))
       if (!isAllowed) {
         throw new Error('Access denied')
       }
-      
+
       const ext = path.extname(imagePath).toLowerCase()
-      
+
       // HEIC requires special handling on macOS
       if (process.platform === 'darwin' && ext === '.heic') {
         // Convert HEIC to JPEG using sips
         const tempFile = path.join(require('os').tmpdir(), `wallpaper-${Date.now()}.jpg`)
         execSync(`sips -s format jpeg "${imagePath}" --out "${tempFile}"`, { stdio: 'ignore' })
-        
+
         // Read converted image
         const convertedBuffer = await fs.readFile(tempFile)
         const base64 = convertedBuffer.toString('base64')
-        
+
         // Clean up temp file
-        try { await fs.unlink(tempFile) } catch {}
-        
+        try { await fs.unlink(tempFile) } catch { }
+
         return `data:image/jpeg;base64,${base64}`
       }
-      
+
       // For all other formats, use nativeImage
       const imageBuffer = await fs.readFile(imagePath)
       const image = nativeImage.createFromBuffer(imageBuffer)
       return image.toDataURL()
     } catch (error) {
       console.error('Error loading wallpaper image:', error)
+      throw error
+    }
+  })
+
+  // Image selection for custom backgrounds
+  ipcMain.handle('select-image-file', async (event: IpcMainInvokeEvent) => {
+    const { dialog } = require('electron')
+    const mainWindow = BrowserWindow.fromWebContents(event.sender)
+
+    if (!mainWindow) return null
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select Background Image',
+      filters: [
+        { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    })
+
+    if (result.canceled || !result.filePaths[0]) {
+      return null
+    }
+
+    return result.filePaths[0]
+  })
+
+  ipcMain.handle('load-image-as-data-url', async (event: IpcMainInvokeEvent, imagePath: string) => {
+    try {
+      // Read the image file
+      const imageBuffer = await fs.readFile(imagePath)
+      const image = nativeImage.createFromBuffer(imageBuffer)
+
+      // Convert to data URL
+      return image.toDataURL()
+    } catch (error) {
+      console.error('Error loading image as data URL:', error)
       throw error
     }
   })

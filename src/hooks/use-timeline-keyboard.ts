@@ -21,6 +21,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     seek,
     selectClip,
     clearSelection,
+    clearEffectSelection,
     removeClip,
     splitClip,
     duplicateClip,
@@ -28,7 +29,9 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     addClip,
     setZoom,
     zoom,
-    removeZoomBlock
+    removeZoomBlock,
+    addZoomBlock,
+    updateZoomBlock
   } = useProjectStore()
 
   const [clipboard, setClipboard] = useState<Clip | null>(null)
@@ -39,8 +42,6 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
   useEffect(() => {
     if (!enabled) return
 
-    console.log('[useTimelineKeyboard] Initializing keyboard handlers')
-    
     // Set context
     keyboardManager.setContext('timeline')
 
@@ -67,7 +68,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       if (playbackSpeedRef.current !== 0) {
         const frameTime = 1000 / 30 // 30fps
         const interval = frameTime / Math.abs(playbackSpeedRef.current)
-        
+
         shuttleIntervalRef.current = setInterval(() => {
           const newTime = currentTime + (interval * playbackSpeedRef.current)
           seek(Math.max(0, newTime))
@@ -94,7 +95,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       if (playbackSpeedRef.current !== 0) {
         const frameTime = 1000 / 30 // 30fps
         const interval = frameTime / Math.abs(playbackSpeedRef.current)
-        
+
         shuttleIntervalRef.current = setInterval(() => {
           const newTime = currentTime + (interval * playbackSpeedRef.current)
           const maxTime = currentProject?.timeline?.duration || 0
@@ -115,15 +116,15 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       pause()
     }
 
-    // Frame navigation
-    const handleFramePrevious = () => {
-      console.log('[Keyboard] Previous frame')
+    // Frame navigation - prevent default to stop scrolling
+    const handleFramePrevious = (e?: any) => {
+      if (e?.event) e.event.preventDefault()
       const frameTime = 1000 / 30 // 30fps
       seek(Math.max(0, currentTime - frameTime))
     }
 
-    const handleFrameNext = () => {
-      console.log('[Keyboard] Next frame')
+    const handleFrameNext = (e?: any) => {
+      if (e?.event) e.event.preventDefault()
       const frameTime = 1000 / 30 // 30fps
       const maxTime = currentProject?.timeline?.duration || 0
       seek(Math.min(maxTime, currentTime + frameTime))
@@ -156,7 +157,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         .flatMap(t => t.clips)
         .sort((a, b) => a.startTime - b.startTime)
         .filter(c => c.startTime < currentTime)
-      
+
       if (clips.length > 0) {
         const clip = clips[clips.length - 1]
         seek(clip.startTime)
@@ -170,7 +171,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         .flatMap(t => t.clips)
         .sort((a, b) => a.startTime - b.startTime)
         .filter(c => c.startTime > currentTime)
-      
+
       if (clips.length > 0) {
         const clip = clips[0]
         seek(clip.startTime)
@@ -180,11 +181,17 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     // Editing with undo support
     const handleCopy = () => {
+      // Only copy clips when no effect layer is selected
+      if (selectedEffectLayer) {
+        toast('Cannot copy effects')
+        return
+      }
+
       if (selectedClips.length === 1 && currentProject) {
         const clip = currentProject.timeline.tracks
           .flatMap(t => t.clips)
           .find(c => c.id === selectedClips[0])
-        
+
         if (clip) {
           setClipboard(clip)
           toast('Clip copied')
@@ -197,10 +204,10 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
         const clip = currentProject.timeline.tracks
           .flatMap(t => t.clips)
           .find(c => c.id === selectedClips[0])
-        
+
         if (clip) {
           setClipboard(clip)
-          
+
           undoManager.execute({
             id: `cut-${clip.id}`,
             timestamp: Date.now(),
@@ -212,7 +219,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
               addClip(clip)
             }
           })
-          
+
           toast('Clip cut')
         }
       }
@@ -225,7 +232,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           id: `clip-${Date.now()}`,
           startTime: currentTime
         }
-        
+
         undoManager.execute({
           id: `paste-${newClip.id}`,
           timestamp: Date.now(),
@@ -237,7 +244,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
             removeClip(newClip.id)
           }
         })
-        
+
         toast('Clip pasted')
       }
     }
@@ -248,7 +255,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           ...clipboard,
           id: `clip-${Date.now()}`,
         }
-        
+
         undoManager.execute({
           id: `paste-in-place-${newClip.id}`,
           timestamp: Date.now(),
@@ -260,7 +267,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
             removeClip(newClip.id)
           }
         })
-        
+
         toast('Clip pasted in place')
       }
     }
@@ -270,22 +277,43 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       if (selectedEffectLayer) {
         // Handle effect-specific deletion
         if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id && selectedClips.length === 1) {
-          // Delete the specific zoom block
-          removeZoomBlock(selectedClips[0], selectedEffectLayer.id)
-          toast('Zoom block deleted')
+          const clipId = selectedClips[0]
+          const blockId = selectedEffectLayer.id
+
+          // Find the zoom block to save for undo
+          const clip = currentProject?.timeline.tracks
+            .flatMap(t => t.clips)
+            .find(c => c.id === clipId)
+          const zoomBlock = clip?.effects?.zoom?.blocks?.find(b => b.id === blockId)
+
+          if (zoomBlock) {
+            undoManager.execute({
+              id: `delete-zoom-${blockId}`,
+              timestamp: Date.now(),
+              description: 'Delete zoom block',
+              execute: () => {
+                removeZoomBlock(clipId, blockId)
+                clearEffectSelection()
+              },
+              undo: () => {
+                addZoomBlock(clipId, zoomBlock)
+              }
+            })
+            toast('Zoom block deleted')
+          }
         }
         // Don't delete clips when effect layer is selected
         return
       }
-      
+
       // Only delete clips if no effect layer is selected
       if (selectedClips.length > 0 && currentProject) {
         const clips = currentProject.timeline.tracks
           .flatMap(t => t.clips)
           .filter(c => selectedClips.includes(c.id))
-        
+
         undoManager.beginGroup()
-        
+
         clips.forEach(clip => {
           undoManager.execute({
             id: `delete-${clip.id}`,
@@ -299,7 +327,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
             }
           })
         })
-        
+
         undoManager.endGroup()
         clearSelection()
         toast(`${clips.length} clip${clips.length > 1 ? 's' : ''} deleted`)
@@ -310,22 +338,22 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       if (selectedClips.length === 1) {
         const clipId = selectedClips[0]
         const newClipId = duplicateClip(clipId)
-        
+
         if (newClipId && currentProject) {
           const originalClip = currentProject.timeline.tracks
             .flatMap(t => t.clips)
             .find(c => c.id === clipId)
-          
+
           const newClip = currentProject.timeline.tracks
             .flatMap(t => t.clips)
             .find(c => c.id === newClipId)
-          
+
           if (originalClip && newClip) {
             undoManager.execute({
               id: `duplicate-${newClipId}`,
               timestamp: Date.now(),
               description: 'Duplicate clip',
-              execute: () => {}, // Already executed
+              execute: () => { }, // Already executed
               undo: () => {
                 removeClip(newClipId)
               },
@@ -333,7 +361,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
                 addClip(newClip)
               }
             })
-            
+
             toast('Clip duplicated')
           }
         }
@@ -350,12 +378,20 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     const handleSelectAll = () => {
       if (currentProject) {
+        // Clear effect selection first
+        clearEffectSelection()
+
         const allClipIds = currentProject.timeline.tracks
           .flatMap(t => t.clips)
           .map(c => c.id)
-        
+
+        // Clear and then select all
+        clearSelection()
         allClipIds.forEach(id => selectClip(id, true))
-        toast(`${allClipIds.length} clips selected`)
+
+        if (allClipIds.length > 0) {
+          toast(`${allClipIds.length} clips selected`)
+        }
       }
     }
 
@@ -431,7 +467,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       if (shuttleIntervalRef.current) {
         clearInterval(shuttleIntervalRef.current)
       }
-      
+
       // Remove all handlers
       keyboardManager.removeAllListeners('playPause')
       keyboardManager.removeAllListeners('shuttleReverse')
@@ -474,13 +510,16 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     seek,
     selectClip,
     clearSelection,
+    clearEffectSelection,
     removeClip,
     splitClip,
     duplicateClip,
     addClip,
     setZoom,
     zoom,
-    removeZoomBlock
+    removeZoomBlock,
+    addZoomBlock,
+    updateZoomBlock
   ])
 
   return {

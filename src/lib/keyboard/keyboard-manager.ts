@@ -101,6 +101,7 @@ class KeyboardManager extends EventEmitter {
       action: 'framePrevious',
       description: 'Previous Frame',
       context: ['timeline'],
+      preventDefault: true
     })
 
     this.register({
@@ -109,6 +110,7 @@ class KeyboardManager extends EventEmitter {
       action: 'frameNext',
       description: 'Next Frame',
       context: ['timeline'],
+      preventDefault: true
     })
 
     this.register({
@@ -118,6 +120,7 @@ class KeyboardManager extends EventEmitter {
       action: 'framePrevious10',
       description: 'Previous 10 Frames',
       context: ['timeline'],
+      preventDefault: true
     })
 
     this.register({
@@ -127,6 +130,7 @@ class KeyboardManager extends EventEmitter {
       action: 'frameNext10',
       description: 'Next 10 Frames',
       context: ['timeline'],
+      preventDefault: true
     })
 
     // Track Navigation
@@ -486,8 +490,6 @@ class KeyboardManager extends EventEmitter {
     window.addEventListener('keydown', this.handleKeyDown.bind(this))
     window.addEventListener('keyup', this.handleKeyUp.bind(this))
     window.addEventListener('blur', this.handleBlur.bind(this))
-    
-    console.log('[KeyboardManager] Initialized with shortcuts:', this.shortcuts.size)
   }
 
   private handleKeyDown(event: KeyboardEvent) {
@@ -503,17 +505,15 @@ class KeyboardManager extends EventEmitter {
 
     const shortcut = this.findMatchingShortcut(event)
     if (shortcut) {
-      console.log('[KeyboardManager] Shortcut matched:', shortcut.id, shortcut.action)
-      
       if (shortcut.preventDefault) {
         event.preventDefault()
       }
-      
+
       this.emit('shortcut', {
         shortcut,
         event
       })
-      
+
       this.emit(shortcut.action, {
         shortcut,
         event
@@ -532,12 +532,15 @@ class KeyboardManager extends EventEmitter {
   private findMatchingShortcut(event: KeyboardEvent): KeyboardShortcut | null {
     const key = event.key
     const modifiers: ('cmd' | 'ctrl' | 'alt' | 'shift')[] = []
-    
+
     if (event.metaKey || event.ctrlKey) modifiers.push('cmd')
     if (event.altKey) modifiers.push('alt')
     if (event.shiftKey) modifiers.push('shift')
 
-    for (const shortcut of this.shortcuts.values()) {
+    // Use Array.from to convert iterator to array
+    const shortcuts = Array.from(this.shortcuts.values())
+
+    for (const shortcut of shortcuts) {
       if (!shortcut.context.includes(this.activeContext) && !shortcut.context.includes('global')) {
         continue
       }
@@ -556,13 +559,13 @@ class KeyboardManager extends EventEmitter {
 
   public register(shortcut: KeyboardShortcut) {
     const id = shortcut.id
-    
+
     // Check for custom override
     const custom = this.customShortcuts.get(id)
     if (custom) {
       shortcut = { ...shortcut, ...custom }
     }
-    
+
     this.shortcuts.set(id, shortcut)
   }
 
@@ -589,13 +592,13 @@ class KeyboardManager extends EventEmitter {
 
   public getShortcuts(context?: KeyboardContext): KeyboardShortcut[] {
     const shortcuts = Array.from(this.shortcuts.values())
-    
+
     if (context) {
-      return shortcuts.filter(s => 
+      return shortcuts.filter(s =>
         s.context.includes(context) || s.context.includes('global')
       )
     }
-    
+
     return shortcuts
   }
 
@@ -604,15 +607,15 @@ class KeyboardManager extends EventEmitter {
     if (!shortcut) return ''
 
     const keys: string[] = []
-    
+
     if (shortcut.modifiers?.includes('cmd')) keys.push('⌘')
     if (shortcut.modifiers?.includes('ctrl')) keys.push('⌃')
     if (shortcut.modifiers?.includes('alt')) keys.push('⌥')
     if (shortcut.modifiers?.includes('shift')) keys.push('⇧')
-    
+
     const keyLabel = this.getKeyLabel(shortcut.key)
     keys.push(keyLabel)
-    
+
     return keys.join('')
   }
 
@@ -633,13 +636,13 @@ class KeyboardManager extends EventEmitter {
       'Home': '↖',
       'End': '↘',
     }
-    
+
     return labels[key] || key.toUpperCase()
   }
 
   public customizeShortcut(id: string, customization: Partial<KeyboardShortcut>) {
     this.customShortcuts.set(id, customization)
-    
+
     // Re-register if it exists
     const existing = this.shortcuts.get(id)
     if (existing) {

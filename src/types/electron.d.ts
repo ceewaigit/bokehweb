@@ -65,6 +65,8 @@ export interface ElectronAPI {
     gradients: Array<{ name: string; path: string; colors: string[] }>
   }>
   loadWallpaperImage?: (imagePath: string) => Promise<string>
+  selectImageFile?: () => Promise<string | null>
+  loadImageAsDataUrl?: (imagePath: string) => Promise<string>
   selectScreenArea?: () => Promise<{
     success: boolean
     cancelled?: boolean

@@ -58,11 +58,11 @@ const electronAPI = {
   getDesktopSources: async (options?: DesktopSourceOptions): Promise<DesktopSource[]> => {
     console.log('🎥 Preload: Requesting desktop sources via IPC')
     const sources = await ipcRenderer.invoke('get-desktop-sources', options)
-    
+
     if (!sources || sources.length === 0) {
       throw new Error('No desktop sources available. Please check screen recording permissions.')
     }
-    
+
     return sources
   },
 
@@ -154,16 +154,23 @@ const electronAPI = {
   // System information
   getPlatform: (): Promise<NodeJS.Platform> =>
     ipcRenderer.invoke('get-platform'),
-  
+
   // macOS wallpapers
   getMacOSWallpapers: (): Promise<{ wallpapers: any[], gradients: any[] }> =>
     ipcRenderer.invoke('get-macos-wallpapers'),
-  
+
   loadWallpaperImage: (imagePath: string): Promise<string> =>
     ipcRenderer.invoke('load-wallpaper-image', imagePath),
-  
+
+  // Image selection for custom backgrounds
+  selectImageFile: (): Promise<string | null> =>
+    ipcRenderer.invoke('select-image-file'),
+
+  loadImageAsDataUrl: (imagePath: string): Promise<string> =>
+    ipcRenderer.invoke('load-image-as-data-url', imagePath),
+
   // Native screen area selection
-  selectScreenArea: (): Promise<{ 
+  selectScreenArea: (): Promise<{
     success: boolean
     cancelled?: boolean
     area?: { x: number; y: number; width: number; height: number; displayId: number }

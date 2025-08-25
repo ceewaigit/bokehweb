@@ -173,7 +173,7 @@ export interface ClipEffects {
 
   // Background
   background: {
-    type: 'none' | 'color' | 'gradient' | 'image' | 'blur' | 'wallpaper'
+    type: 'none' | 'color' | 'gradient' | 'image' | 'wallpaper'
     color?: string
     gradient?: {
       colors: string[]
