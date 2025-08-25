@@ -6,12 +6,12 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly PAN_SMOOTHING = 0.02  // Professional smoothing like Screen Studio
-  private readonly EDGE_THRESHOLD = 0.12  // More responsive edge detection
-  private readonly RECENTERING_MARGIN = 0.20  // Smoother recentering
-  private readonly MAX_PAN_SPEED = 0.008  // Ultra-smooth maximum speed
-  private readonly MOMENTUM_FACTOR = 0.97  // Professional momentum retention
-  private readonly FRICTION = 0.995  // Minimal friction for butter-smooth gliding
+  private readonly PAN_SMOOTHING = 0.06  // 3x more responsive for faster tracking
+  private readonly EDGE_THRESHOLD = 0.25  // Trigger panning when mouse is within 25% of edge
+  private readonly RECENTERING_MARGIN = 0.15  // Less wasted space when recentering
+  private readonly MAX_PAN_SPEED = 0.020  // 2.5x faster to keep up with mouse
+  private readonly MOMENTUM_FACTOR = 0.94  // Slightly less momentum for better control
+  private readonly FRICTION = 0.990  // More friction for tighter tracking
   private targetPanX: number = 0
   private targetPanY: number = 0
   private velocityX: number = 0
@@ -20,6 +20,10 @@ export class ZoomPanCalculator {
   private lastPanY: number = 0
   private smoothedTargetX: number = 0  // Smoothed target for double smoothing
   private smoothedTargetY: number = 0
+  private lastMouseX: number = 0  // Track mouse velocity
+  private lastMouseY: number = 0
+  private mouseVelocityX: number = 0
+  private mouseVelocityY: number = 0
 
   /**
    * Calculate pan offset using edge-based triggering like Screen Studio
@@ -34,6 +38,19 @@ export class ZoomPanCalculator {
     currentPanX: number = 0,
     currentPanY: number = 0
   ): { x: number; y: number } {
+    // Calculate mouse velocity for predictive panning
+    const mouseVelX = mouseX - this.lastMouseX
+    const mouseVelY = mouseY - this.lastMouseY
+    this.mouseVelocityX = this.mouseVelocityX * 0.7 + mouseVelX * 0.3
+    this.mouseVelocityY = this.mouseVelocityY * 0.7 + mouseVelY * 0.3
+    this.lastMouseX = mouseX
+    this.lastMouseY = mouseY
+    
+    // Predict where mouse will be in a few frames
+    const predictionFrames = 8  // Look ahead 8 frames
+    const predictedMouseX = mouseX + this.mouseVelocityX * predictionFrames
+    const predictedMouseY = mouseY + this.mouseVelocityY * predictionFrames
+    
     // Calculate viewport dimensions in pixels
     const viewportWidth = videoWidth / zoomScale
     const viewportHeight = videoHeight / zoomScale
@@ -54,17 +71,17 @@ export class ZoomPanCalculator {
     const recenterMarginX = viewportWidth * this.RECENTERING_MARGIN
     const recenterMarginY = viewportHeight * this.RECENTERING_MARGIN
     
-    // Check if mouse is near edges or outside viewport
-    const nearLeftEdge = mouseX < viewportLeft + edgeZoneX
-    const nearRightEdge = mouseX > viewportRight - edgeZoneX
-    const nearTopEdge = mouseY < viewportTop + edgeZoneY
-    const nearBottomEdge = mouseY > viewportBottom - edgeZoneY
+    // Check if mouse (current or predicted) is near edges or outside viewport
+    const nearLeftEdge = mouseX < viewportLeft + edgeZoneX || predictedMouseX < viewportLeft + edgeZoneX * 0.8
+    const nearRightEdge = mouseX > viewportRight - edgeZoneX || predictedMouseX > viewportRight - edgeZoneX * 0.8
+    const nearTopEdge = mouseY < viewportTop + edgeZoneY || predictedMouseY < viewportTop + edgeZoneY * 0.8
+    const nearBottomEdge = mouseY > viewportBottom - edgeZoneY || predictedMouseY > viewportBottom - edgeZoneY * 0.8
     
     // Check if mouse is completely outside viewport (needs immediate panning)
-    const outsideLeft = mouseX < viewportLeft
-    const outsideRight = mouseX > viewportRight
-    const outsideTop = mouseY < viewportTop
-    const outsideBottom = mouseY > viewportBottom
+    const outsideLeft = mouseX < viewportLeft || predictedMouseX < viewportLeft
+    const outsideRight = mouseX > viewportRight || predictedMouseX > viewportRight
+    const outsideTop = mouseY < viewportTop || predictedMouseY < viewportTop
+    const outsideBottom = mouseY > viewportBottom || predictedMouseY > viewportBottom
     
     // Calculate new target pan only if near edges or outside
     let newTargetPanX = currentPanX
@@ -146,10 +163,27 @@ export class ZoomPanCalculator {
     const distanceX = Math.abs(this.smoothedTargetX - currentPanX)
     const distanceY = Math.abs(this.smoothedTargetY - currentPanY)
     
-    // Professional urgency calculation
+    // Calculate distance from mouse to edge for progressive urgency
+    const distToLeftEdge = Math.max(0, mouseX - viewportLeft) / edgeZoneX
+    const distToRightEdge = Math.max(0, viewportRight - mouseX) / edgeZoneX
+    const distToTopEdge = Math.max(0, mouseY - viewportTop) / edgeZoneY
+    const distToBottomEdge = Math.max(0, viewportBottom - mouseY) / edgeZoneY
+    
+    // Find minimum distance to any edge (0 = at edge, 1 = far from edge)
+    const minEdgeDistX = Math.min(distToLeftEdge, distToRightEdge)
+    const minEdgeDistY = Math.min(distToTopEdge, distToBottomEdge)
+    
+    // Progressive urgency based on edge proximity
     let urgency = this.PAN_SMOOTHING
     if (outsideLeft || outsideRight || outsideTop || outsideBottom) {
-      urgency *= 2.5 // Faster response when outside viewport
+      urgency *= 4.0 // 4x faster response when outside viewport
+    } else if (nearLeftEdge || nearRightEdge) {
+      // Progressive urgency: closer to edge = faster response
+      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistX, 1.0)) * 2.0
+      urgency *= edgeUrgency
+    } else if (nearTopEdge || nearBottomEdge) {
+      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistY, 1.0)) * 2.0
+      urgency *= edgeUrgency
     }
     
     // Distance-based speed (slow down as we approach target)
@@ -158,9 +192,9 @@ export class ZoomPanCalculator {
     const easedDistanceX = professionalEase(distanceNormX)
     const easedDistanceY = professionalEase(distanceNormY)
     
-    // Calculate smooth delta with spring physics
-    const springConstant = urgency
-    const dampingFactor = 0.85
+    // Calculate smooth delta with optimized spring physics
+    const springConstant = urgency * 1.5  // Stronger spring for snappier response
+    const dampingFactor = 0.75  // Less damping for faster movement
     
     const springForceX = (this.smoothedTargetX - currentPanX) * springConstant * easedDistanceX
     const springForceY = (this.smoothedTargetY - currentPanY) * springConstant * easedDistanceY
@@ -173,10 +207,13 @@ export class ZoomPanCalculator {
     const deltaX = dampedForceX + this.velocityX * 0.2
     const deltaY = dampedForceY + this.velocityY * 0.2
     
-    // Professional speed limiting
-    const speedLimit = this.MAX_PAN_SPEED * (1 + easedDistanceX * 0.5)
-    const clampedDeltaX = Math.max(-speedLimit, Math.min(speedLimit, deltaX))
-    const clampedDeltaY = Math.max(-speedLimit, Math.min(speedLimit, deltaY))
+    // Dynamic speed limiting based on urgency and distance
+    const baseSpeedLimit = this.MAX_PAN_SPEED
+    const speedMultiplier = outsideLeft || outsideRight || outsideTop || outsideBottom ? 2.0 : 1.0
+    const speedLimitX = baseSpeedLimit * speedMultiplier * (1 + easedDistanceX * 0.5)
+    const speedLimitY = baseSpeedLimit * speedMultiplier * (1 + easedDistanceY * 0.5)
+    const clampedDeltaX = Math.max(-speedLimitX, Math.min(speedLimitX, deltaX))
+    const clampedDeltaY = Math.max(-speedLimitY, Math.min(speedLimitY, deltaY))
     
     return {
       x: currentPanX + clampedDeltaX,

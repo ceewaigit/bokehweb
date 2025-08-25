@@ -7,7 +7,6 @@ import { ElectronRecorder, type ElectronRecordingResult } from '@/lib/recording'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { useRecordingTimer } from './use-recording-timer'
 // Processing progress type
 interface ProcessingProgress {
   progress: number
@@ -27,6 +26,8 @@ const RECORDING_CONSTANTS = {
 export function useRecording() {
   const recorderRef = useRef<ElectronRecorder | null>(null)
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null)
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const timerStartTimeRef = useRef<number>(0)
 
   const {
     isRecording,
@@ -38,13 +39,57 @@ export function useRecording() {
     setStatus
   } = useRecordingStore()
 
-  const { currentProject, newProject } = useProjectStore()
+  // Timer functions integrated directly
+  const stopTimer = useCallback(() => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current)
+      timerIntervalRef.current = null
+    }
+  }, [])
 
-  // Use the recording timer hook
-  const timer = useRecordingTimer({
-    onTick: setDuration,
-    interval: RECORDING_CONSTANTS.TIMER_INTERVAL
-  })
+  const startTimer = useCallback((initialDuration = 0) => {
+    // Prevent starting timer if already running or not in recording state
+    if (timerIntervalRef.current) {
+      logger.debug('Timer already running, clearing first')
+    }
+    
+    stopTimer() // Clear any existing timer
+    
+    // Set the start time accounting for any previous duration
+    timerStartTimeRef.current = Date.now() - initialDuration
+    
+    timerIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - timerStartTimeRef.current
+      setDuration(elapsed)
+    }, RECORDING_CONSTANTS.TIMER_INTERVAL)
+    
+    logger.debug(`Timer started with initial duration: ${initialDuration}ms`)
+  }, [setDuration, stopTimer])
+
+  const pauseTimer = useCallback(() => {
+    if (timerIntervalRef.current) {
+      stopTimer()
+      logger.debug('Timer paused')
+    }
+  }, [stopTimer])
+
+  const resumeTimer = useCallback((currentDuration: number) => {
+    if (!timerIntervalRef.current) {
+      startTimer(currentDuration)
+      logger.debug(`Timer resumed from ${currentDuration}ms`)
+    }
+  }, [startTimer])
+
+  // Cleanup timer on unmount - no dependencies to ensure it always runs
+  useEffect(() => {
+    return () => {
+      // Direct cleanup without using stopTimer to avoid stale closure issues
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current)
+        timerIntervalRef.current = null
+      }
+    }
+  }, [])
 
   // Simple duration validation - no longer needed with proper MediaRecorder
   const validateResult = useCallback((result: ElectronRecordingResult): boolean => {
@@ -120,10 +165,16 @@ export function useRecording() {
       setRecording(true)
       setStatus('recording')
 
-      // Start duration timer
+      // Start duration timer only after recording has successfully started
       setDuration(0) // Reset duration to 0
-      timer.start(0)
-      logger.debug('Timer started for recording')
+      
+      // Verify recording is actually active before starting timer
+      if (recorderRef.current.isCurrentlyRecording()) {
+        startTimer(0)
+        logger.debug('Timer started for recording')
+      } else {
+        logger.warn('Recording not active after start, timer not started')
+      }
 
       // Mark recording as globally active
       if (typeof window !== 'undefined') {
@@ -136,9 +187,11 @@ export function useRecording() {
       handleRecordingError(error)
       setStatus('idle')
       setRecording(false)
-      timer.stop()
+      // Ensure timer is stopped on any error
+      stopTimer()
+      setDuration(0)
     }
-  }, [isRecording, setRecording, setStatus, handleRecordingError, timer, setDuration])
+  }, [isRecording, setRecording, setStatus, handleRecordingError, stopTimer, startTimer, setDuration])
 
   const stopRecording = useCallback(async () => {
     logger.debug('useRecording.stopRecording called')
@@ -164,7 +217,7 @@ export function useRecording() {
       setStatus('processing')
 
       // Stop duration timer
-      timer.stop()
+      stopTimer()
 
       // Stop recording and get result
       const result = await recorder.stopRecording()
@@ -225,8 +278,9 @@ export function useRecording() {
     } catch (error) {
       logger.error('Failed to stop recording:', error)
 
-      // Reset state on error
-      timer.stop()
+      // Reset state on error - ensure complete cleanup
+      stopTimer()
+      setDuration(0) // Reset duration on error
       setRecording(false)
       setPaused(false)
       setStatus('idle')
@@ -240,26 +294,42 @@ export function useRecording() {
 
       return null
     }
-  }, [setRecording, setPaused, setStatus, validateResult, timer])
+  }, [setRecording, setPaused, setStatus, validateResult, stopTimer])
 
   const pauseRecording = useCallback(() => {
-    if (recorderRef.current && isRecording) {
-      recorderRef.current.pauseRecording()
-      setPaused(true)
-      timer.pause()
+    if (recorderRef.current && isRecording && !isPaused) {
+      try {
+        recorderRef.current.pauseRecording()
+        setPaused(true)
+        pauseTimer()
+        logger.info('Recording paused')
+      } catch (error) {
+        logger.error('Failed to pause recording:', error)
+      }
+    } else {
+      logger.debug(`Cannot pause - recording: ${isRecording}, paused: ${isPaused}`)
     }
-  }, [isRecording, setPaused, timer])
+  }, [isRecording, isPaused, setPaused, pauseTimer])
 
   const resumeRecording = useCallback(() => {
-    if (recorderRef.current && isPaused) {
-      recorderRef.current.resumeRecording()
-      setPaused(false)
+    if (recorderRef.current && isPaused && isRecording) {
+      try {
+        recorderRef.current.resumeRecording()
+        setPaused(false)
 
-      // Resume duration timer from current duration
-      const currentDurationMs = useRecordingStore.getState().duration
-      timer.resume(currentDurationMs)
+        // Resume duration timer from current duration
+        const currentDurationMs = useRecordingStore.getState().duration
+        resumeTimer(currentDurationMs)
+        logger.info(`Recording resumed from ${currentDurationMs}ms`)
+      } catch (error) {
+        logger.error('Failed to resume recording:', error)
+        // On resume failure, try to maintain consistent state
+        setPaused(true)
+      }
+    } else {
+      logger.debug(`Cannot resume - recording: ${isRecording}, paused: ${isPaused}`)
     }
-  }, [isPaused, setPaused, timer])
+  }, [isPaused, isRecording, setPaused, resumeTimer])
 
 
   return {

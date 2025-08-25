@@ -31,10 +31,6 @@ export function createRecordButton(): BrowserWindow {
   const recordButton = new BrowserWindow({
     width: 200,
     height: 67,
-    minWidth: 180,
-    minHeight: 50,
-    maxWidth: 450,
-    maxHeight: 400,
     x: Math.floor(display.workAreaSize.width / 2 - 100),
     y: 20,
     frame: false,

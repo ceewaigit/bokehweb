@@ -146,10 +146,6 @@ export function applyZoomToPoint(
 
   // The video div is transformed with CSS transform and transformOrigin: '50% 50%'
   // This means the video scales from its center, then translates
-  
-  // Get the center of the video (transform origin)
-  const videoCenterX = videoOffset.x + videoOffset.width / 2;
-  const videoCenterY = videoOffset.y + videoOffset.height / 2;
 
   // First, get the point relative to the video's top-left corner
   const relativeToVideoX = pointX - videoOffset.x;
