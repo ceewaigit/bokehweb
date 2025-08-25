@@ -336,8 +336,13 @@ export function WorkspaceManager() {
         
         // Save the project
         await saveCurrentProject()
+        
+        // Use the project's modifiedAt timestamp after saving
+        const savedProject = useProjectStore.getState().currentProject
+        if (savedProject?.modifiedAt) {
+          setLastSavedAt(savedProject.modifiedAt)
+        }
         setHasUnsavedChanges(false)
-        setLastSavedAt(new Date().toISOString())
       }
     }
     
@@ -550,21 +555,27 @@ export function WorkspaceManager() {
 
               newProject('New Project')
               setLocalEffects(null)
+              
+              // Get the new project's modifiedAt timestamp
+              const newProj = useProjectStore.getState().currentProject
+              if (newProj?.modifiedAt) {
+                setLastSavedAt(newProj.modifiedAt)
+              }
               setHasUnsavedChanges(false)
-              setLastSavedAt(new Date().toISOString())
             }}
             onSaveProject={async () => {
-              console.log('Save button clicked')
               if (localEffects && selectedClipId) {
-                console.log('Saving local effects first')
                 updateClipEffects(selectedClipId, localEffects)
                 setLocalEffects(null)
               }
-              console.log('Calling saveCurrentProject')
               await saveCurrentProject()
-              console.log('Project saved successfully')
+              
+              // Use the project's modifiedAt timestamp after saving
+              const savedProject = useProjectStore.getState().currentProject
+              if (savedProject?.modifiedAt) {
+                setLastSavedAt(savedProject.modifiedAt)
+              }
               setHasUnsavedChanges(false)
-              setLastSavedAt(new Date().toISOString())
             }}
             onOpenProject={async (path: string) => {
               await openProject(path)

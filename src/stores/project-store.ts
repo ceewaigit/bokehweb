@@ -164,15 +164,10 @@ export const useProjectStore = create<ProjectStore>()(
     },
 
     saveCurrentProject: async () => {
-      console.log('saveCurrentProject called')
       const { currentProject } = get()
-      if (!currentProject) {
-        console.log('No current project to save')
-        return
-      }
+      if (!currentProject) return
 
       try {
-        console.log('Updating project modifiedAt timestamp')
         // Update modifiedAt through Immer's set function
         set((state) => {
           if (state.currentProject) {
@@ -183,9 +178,7 @@ export const useProjectStore = create<ProjectStore>()(
         // Get the updated project after the state change
         const updatedProject = get().currentProject
         if (updatedProject) {
-          console.log('Saving project to storage:', updatedProject.name)
           await RecordingStorage.saveProject(updatedProject)
-          console.log('Project saved to storage successfully')
         }
       } catch (error) {
         console.error('Failed to save project:', error)
