@@ -10,6 +10,8 @@ import type { Clip, Recording, ClipEffects } from '@/types/project'
 interface PreviewAreaRemotionProps {
   selectedClip: Clip | null
   selectedRecording: Recording | null | undefined
+  playheadClip?: Clip | null
+  playheadRecording?: Recording | null | undefined
   currentTime: number
   isPlaying: boolean
   localEffects?: ClipEffects | null
@@ -19,6 +21,8 @@ interface PreviewAreaRemotionProps {
 export function PreviewAreaRemotion({
   selectedClip,
   selectedRecording,
+  playheadClip,
+  playheadRecording,
   currentTime,
   isPlaying,
   localEffects,
@@ -26,25 +30,29 @@ export function PreviewAreaRemotion({
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  
+  // Use playhead clip/recording for preview, fallback to selected
+  const previewClip = playheadClip || selectedClip
+  const previewRecording = playheadRecording || selectedRecording
 
   // Load video URL when recording changes
   useEffect(() => {
-    if (!selectedRecording) {
+    if (!previewRecording) {
       setVideoUrl(null)
       return
     }
 
     // Get cached blob URL first - should already be loaded by workspace-manager
-    const cachedUrl = RecordingStorage.getBlobUrl(selectedRecording.id)
+    const cachedUrl = RecordingStorage.getBlobUrl(previewRecording.id)
     
     if (cachedUrl) {
       // Video is already loaded, use it immediately
       setVideoUrl(cachedUrl)
-    } else if (selectedRecording.filePath) {
+    } else if (previewRecording.filePath) {
       // Load the video (edge case - should rarely happen)
       globalBlobManager.ensureVideoLoaded(
-        selectedRecording.id,
-        selectedRecording.filePath
+        previewRecording.id,
+        previewRecording.filePath
       ).then(url => {
         if (url) {
           setVideoUrl(url)
@@ -53,7 +61,7 @@ export function PreviewAreaRemotion({
         console.error('Error loading video:', error)
       })
     }
-  }, [selectedRecording?.id]);
+  }, [previewRecording?.id]);
 
   // Sync playback state
   useEffect(() => {
@@ -68,20 +76,20 @@ export function PreviewAreaRemotion({
 
   // Sync current time when scrubbing (not playing)
   useEffect(() => {
-    if (!playerRef.current || !selectedClip || isPlaying) return;
+    if (!playerRef.current || !previewClip || isPlaying) return;
 
     // Convert timeline time to clip-relative frame
-    const clipStart = selectedClip.startTime;
+    const clipStart = previewClip.startTime;
     const clipProgress = Math.max(0, currentTime - clipStart);
     const frameRate = 30
     const targetFrame = Math.floor((clipProgress / 1000) * frameRate);
 
     playerRef.current.seekTo(targetFrame);
-  }, [currentTime, selectedClip, isPlaying]);
+  }, [currentTime, previewClip, isPlaying]);
 
   // Handle time updates from player during playback
   useEffect(() => {
-    if (!playerRef.current || !selectedClip || !onTimeUpdate || !isPlaying) return;
+    if (!playerRef.current || !previewClip || !onTimeUpdate || !isPlaying) return;
 
     const updateInterval = setInterval(() => {
       if (!playerRef.current) return;
@@ -89,61 +97,42 @@ export function PreviewAreaRemotion({
       const currentFrame = playerRef.current.getCurrentFrame();
       const frameRate = 30;
       const clipProgress = (currentFrame / frameRate) * 1000;
-      const timelineTime = selectedClip.startTime + clipProgress;
+      const timelineTime = previewClip.startTime + clipProgress;
 
       onTimeUpdate(timelineTime);
     }, 1000 / 30); // Update at 30fps
 
     return () => clearInterval(updateInterval);
-  }, [selectedClip, onTimeUpdate, isPlaying]);
+  }, [previewClip, onTimeUpdate, isPlaying]);
 
-  // Get video dimensions and padding
-  const videoWidth = selectedRecording?.width || 1920;
-  const videoHeight = selectedRecording?.height || 1080;
-  const padding = (localEffects || selectedClip?.effects)?.background?.padding || 0;
+  // Get video dimensions and effects
+  const videoWidth = previewRecording?.width || 1920;
+  const videoHeight = previewRecording?.height || 1080;
+  const effectsToUse = localEffects || (selectedClip?.id === previewClip?.id ? selectedClip?.effects : previewClip?.effects)
+  const padding = effectsToUse?.background?.padding || 0;
 
-  // Calculate composition size to maintain video aspect ratio with padding
-  // We want the composition to match the video aspect ratio
+  // Calculate composition size
   const videoAspectRatio = videoWidth / videoHeight;
-
-  // Use a base size and scale to maintain aspect ratio
-  const baseSize = 1920; // Base width for standard videos
-  let compositionWidth: number;
-  let compositionHeight: number;
-
-  if (videoAspectRatio > 1) {
-    // Landscape video
-    compositionWidth = baseSize;
-    compositionHeight = Math.round(baseSize / videoAspectRatio);
-  } else {
-    // Portrait or square video
-    compositionHeight = baseSize;
-    compositionWidth = Math.round(baseSize * videoAspectRatio);
-  }
-
-  // Add padding to composition size
-  compositionWidth += padding * 2;
-  compositionHeight += padding * 2;
+  const baseSize = 1920;
+  const compositionWidth = (videoAspectRatio > 1 ? baseSize : Math.round(baseSize * videoAspectRatio)) + padding * 2;
+  const compositionHeight = (videoAspectRatio > 1 ? Math.round(baseSize / videoAspectRatio) : baseSize) + padding * 2;
 
   // Calculate composition props
   const compositionProps = {
     videoUrl: videoUrl || '',
-    clip: selectedClip,
-    effects: localEffects || selectedClip?.effects || null,
-    cursorEvents: selectedRecording?.metadata?.mouseEvents || [],
-    clickEvents: selectedRecording?.metadata?.clickEvents || [],
-    keystrokeEvents: (selectedRecording?.metadata as any)?.keystrokeEvents || [],
+    clip: previewClip,
+    effects: effectsToUse || null,
+    cursorEvents: previewRecording?.metadata?.mouseEvents || [],
+    clickEvents: previewRecording?.metadata?.clickEvents || [],
+    keystrokeEvents: (previewRecording?.metadata as any)?.keystrokeEvents || [],
     videoWidth,
     videoHeight,
-    captureArea: undefined // Full screen recordings display naturally
+    captureArea: undefined
   };
 
-  // Calculate duration in frames
-  const durationInFrames = selectedClip
-    ? Math.ceil((selectedClip.duration / 1000) * 30) // 30fps
-    : 900; // Default 30 seconds
+  const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
 
-  if (!selectedRecording) {
+  if (!previewRecording) {
     return (
       <div className="relative w-full h-full overflow-hidden bg-background">
         <div className="absolute inset-0 flex items-center justify-center p-8">

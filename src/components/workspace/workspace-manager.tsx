@@ -275,8 +275,17 @@ export function WorkspaceManager() {
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
 
+  // Get clip at playhead position
+  const playheadClip = useProjectStore.getState().getCurrentClip()
+  
+  // Get recording for selected clip (for editing)
   const selectedRecording = selectedClip && currentProject
     ? currentProject.recordings.find(r => r.id === selectedClip.recordingId)
+    : null
+  
+  // Get recording for playhead clip (for preview)
+  const playheadRecording = playheadClip && currentProject
+    ? currentProject.recordings.find(r => r.id === playheadClip.recordingId)
     : null
 
   const activeEffects = localEffects || selectedClip?.effects
@@ -527,6 +536,8 @@ export function WorkspaceManager() {
               <PreviewAreaRemotion
                 selectedClip={selectedClip}
                 selectedRecording={selectedRecording}
+                playheadClip={playheadClip}
+                playheadRecording={playheadRecording}
                 currentTime={currentTime}
                 isPlaying={isPlaying}
                 localEffects={localEffects}

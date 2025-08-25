@@ -84,22 +84,17 @@ export function TimelineCanvas({
   const duration = currentProject?.timeline?.duration || 10000
   const pixelsPerMs = TimelineUtils.calculatePixelsPerMs(stageSize.width, zoom)
   const timelineWidth = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
-  const hasZoomTrack = selectedClips.length > 0 &&
-    currentProject?.timeline.tracks.find(t => t.type === 'video')?.clips.some(
-      c => selectedClips.includes(c.id) && c.effects?.zoom?.enabled
-    )
+  // Show zoom track if ANY video clip has zoom enabled
+  const hasZoomTrack = currentProject?.timeline.tracks
+    .find(t => t.type === 'video')?.clips
+    .some(c => c.effects?.zoom?.enabled) ?? false
 
-  // Dynamic track heights - fill available space
+  // Dynamic track heights
   const rulerHeight = TIMELINE_LAYOUT.RULER_HEIGHT
   const remainingHeight = stageSize.height - rulerHeight
-
-  // Distribute height proportionally (no fallbacks needed)
   const videoTrackHeight = Math.floor(remainingHeight * (hasZoomTrack ? 0.45 : 0.55))
   const audioTrackHeight = Math.floor(remainingHeight * (hasZoomTrack ? 0.35 : 0.45))
   const zoomTrackHeight = hasZoomTrack ? Math.floor(remainingHeight * 0.2) : 0
-
-  // Direct values, no unnecessary variables
-  const totalHeight = stageSize.height
   const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
 
   // Use keyboard shortcuts
@@ -264,7 +259,7 @@ export function TimelineCanvas({
         <Stage
           key={themeKey}
           width={stageWidth}
-          height={totalHeight}
+          height={stageSize.height}
           onMouseDown={handleStageClick}
         >
           {/* Background Layer */}
@@ -273,7 +268,7 @@ export function TimelineCanvas({
               x={0}
               y={0}
               width={stageWidth}
-              height={totalHeight}
+              height={stageSize.height}
               fill={colors.background}
             />
 
@@ -345,18 +340,22 @@ export function TimelineCanvas({
                 )
               })}
 
-            {/* Zoom blocks - draggable */}
-            {hasZoomTrack && selectedClips.length > 0 && (() => {
-              const selectedClip = currentProject.timeline.tracks
-                .find(t => t.type === 'video')
-                ?.clips.find(c => selectedClips.includes(c.id))
+            {/* Zoom blocks - show for ALL video clips with zoom enabled */}
+            {hasZoomTrack && (() => {
+              const videoTrack = currentProject.timeline.tracks.find(t => t.type === 'video')
+              if (!videoTrack) return null
 
-              const clipEffects = localEffects || selectedClip?.effects
-              if (!clipEffects?.zoom?.enabled || !selectedClip) return null
+              // Render zoom blocks for ALL clips that have zoom enabled
+              return videoTrack.clips.map(clip => {
+                // Use local effects if this is the selected clip, otherwise use clip's effects
+                const isSelectedClip = selectedClips.includes(clip.id)
+                const clipEffects = (isSelectedClip && localEffects) || clip.effects
+                
+                if (!clipEffects?.zoom?.enabled || !clipEffects.zoom.blocks?.length) return null
 
-              const clipX = TimelineUtils.timeToPixel(selectedClip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+                const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
 
-              return clipEffects.zoom.blocks?.map((block: ZoomBlock) => (
+                return clipEffects.zoom.blocks.map((block: ZoomBlock) => (
                 <TimelineZoomBlock
                   key={block.id}
                   blockId={block.id}
@@ -369,78 +368,76 @@ export function TimelineCanvas({
                   introMs={block.introMs || 300}
                   outroMs={block.outroMs || 300}
                   scale={block.scale}
-                  isSelected={selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
+                  isSelected={isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
                   allBlocks={clipEffects.zoom.blocks || []}
                   clipX={clipX}
-                  clipDuration={selectedClip.duration}
+                  clipDuration={clip.duration}
                   pixelsPerMs={pixelsPerMs}
                   onSelect={() => {
-                    selectClip(selectedClip.id) // Keep clip selected
+                    selectClip(clip.id) // Select the clip
                     selectEffectLayer('zoom', block.id) // Select zoom block
                   }}
                   onDragEnd={(newX) => {
                     const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
                     const updates = {
-                      startTime: Math.max(0, Math.min(selectedClip.duration - (block.endTime - block.startTime), newStartTime)),
-                      endTime: Math.max(0, Math.min(selectedClip.duration, newStartTime + (block.endTime - block.startTime)))
+                      startTime: Math.max(0, Math.min(clip.duration - (block.endTime - block.startTime), newStartTime)),
+                      endTime: Math.max(0, Math.min(clip.duration, newStartTime + (block.endTime - block.startTime)))
                     }
                     // Use prop if provided, otherwise use store
-                    if (onZoomBlockUpdate) {
-                      onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                    if (isSelectedClip && onZoomBlockUpdate) {
+                      onZoomBlockUpdate(clip.id, block.id, updates)
                     } else {
-                      updateZoomBlock(selectedClip.id, block.id, updates)
+                      updateZoomBlock(clip.id, block.id, updates)
                     }
                   }}
                   onResize={(newWidth, side) => {
-                    console.log('Timeline onResize:', { newWidth, side, block })
                     if (side === 'right') {
                       const newEndTime = block.startTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
-                      console.log('Calculated newEndTime:', newEndTime, 'from width:', newWidth)
-                      const updates = { endTime: Math.min(newEndTime, selectedClip.duration) }
-                      if (onZoomBlockUpdate) {
-                        onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                      const updates = { endTime: Math.min(newEndTime, clip.duration) }
+                      if (isSelectedClip && onZoomBlockUpdate) {
+                        onZoomBlockUpdate(clip.id, block.id, updates)
                       } else {
-                        updateZoomBlock(selectedClip.id, block.id, updates)
+                        updateZoomBlock(clip.id, block.id, updates)
                       }
                     } else {
                       const currentWidth = TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)
                       const deltaWidth = currentWidth - newWidth
                       const newStartTime = block.startTime + TimelineUtils.pixelToTime(deltaWidth, pixelsPerMs)
                       const updates = { startTime: Math.max(0, newStartTime) }
-                      if (onZoomBlockUpdate) {
-                        onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                      if (isSelectedClip && onZoomBlockUpdate) {
+                        onZoomBlockUpdate(clip.id, block.id, updates)
                       } else {
-                        updateZoomBlock(selectedClip.id, block.id, updates)
+                        updateZoomBlock(clip.id, block.id, updates)
                       }
                     }
                   }}
                   onUpdate={(updates) => {
-                    console.log('Direct onUpdate called:', { clipId: selectedClip.id, blockId: block.id, updates })
-                    if (onZoomBlockUpdate) {
-                      onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                    if (isSelectedClip && onZoomBlockUpdate) {
+                      onZoomBlockUpdate(clip.id, block.id, updates)
                     } else {
-                      updateZoomBlock(selectedClip.id, block.id, updates)
+                      updateZoomBlock(clip.id, block.id, updates)
                     }
                   }}
                   onIntroChange={(newIntroMs) => {
                     const updates = { introMs: Math.max(0, Math.min(2000, newIntroMs)) }
-                    if (onZoomBlockUpdate) {
-                      onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                    if (isSelectedClip && onZoomBlockUpdate) {
+                      onZoomBlockUpdate(clip.id, block.id, updates)
                     } else {
-                      updateZoomBlock(selectedClip.id, block.id, updates)
+                      updateZoomBlock(clip.id, block.id, updates)
                     }
                   }}
                   onOutroChange={(newOutroMs) => {
                     const updates = { outroMs: Math.max(0, Math.min(2000, newOutroMs)) }
-                    if (onZoomBlockUpdate) {
-                      onZoomBlockUpdate(selectedClip.id, block.id, updates)
+                    if (isSelectedClip && onZoomBlockUpdate) {
+                      onZoomBlockUpdate(clip.id, block.id, updates)
                     } else {
-                      updateZoomBlock(selectedClip.id, block.id, updates)
+                      updateZoomBlock(clip.id, block.id, updates)
                     }
                   }}
                 />
               ))
-            })()}
+            })
+          })()}
 
             {/* Audio clips */}
             {currentProject.timeline.tracks
@@ -463,7 +460,7 @@ export function TimelineCanvas({
           <Layer>
             <TimelinePlayhead
               currentTime={currentTime}
-              totalHeight={totalHeight}
+              totalHeight={stageSize.height}
               pixelsPerMs={pixelsPerMs}
               timelineWidth={timelineWidth}
               maxTime={currentProject.timeline.duration}
