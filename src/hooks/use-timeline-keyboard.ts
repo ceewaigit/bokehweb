@@ -317,20 +317,38 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
           // Sort existing blocks by start time (create a copy to avoid mutating)
           const existingBlocks = [...(targetClip.effects?.zoom?.blocks || [])].sort((a, b) => a.startTime - b.startTime)
           
-          // Simple strategy: if there's overlap, just place after all existing blocks
-          if (existingBlocks.length > 0) {
+          // Find a non-overlapping position
+          let attempts = 0
+          const maxAttempts = existingBlocks.length + 1
+          
+          while (attempts < maxAttempts) {
             // Check for overlap at current position
-            const hasOverlap = existingBlocks.some(b => {
-              // Add small buffer to prevent edge cases
-              const buffer = 10
-              return pasteStartTime < (b.endTime + buffer) && (pasteStartTime + blockDuration) > (b.startTime - buffer)
-            })
+            const hasOverlap = existingBlocks.some(b => 
+              pasteStartTime < b.endTime && (pasteStartTime + blockDuration) > b.startTime
+            )
             
-            if (hasOverlap) {
-              // Just place it after the last block with a gap
-              const lastBlock = existingBlocks[existingBlocks.length - 1]
-              pasteStartTime = lastBlock.endTime + 200 // Decent gap
+            if (!hasOverlap) {
+              break // Found a good spot
             }
+            
+            // Find next position after overlapping blocks
+            const overlappingBlocks = existingBlocks.filter(b => 
+              pasteStartTime < b.endTime && (pasteStartTime + blockDuration) > b.startTime
+            )
+            
+            if (overlappingBlocks.length > 0) {
+              // Move to after the last overlapping block
+              const lastOverlap = overlappingBlocks[overlappingBlocks.length - 1]
+              pasteStartTime = lastOverlap.endTime + 100 // Small gap
+            } else {
+              // Safety: if no overlaps found but hasOverlap was true, move to end
+              if (existingBlocks.length > 0) {
+                pasteStartTime = existingBlocks[existingBlocks.length - 1].endTime + 100
+              }
+              break
+            }
+            
+            attempts++
           }
           
           // Don't constrain to clip duration - zoom blocks can extend beyond
