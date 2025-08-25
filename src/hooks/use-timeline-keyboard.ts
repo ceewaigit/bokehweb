@@ -98,6 +98,9 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
   }
 
   useEffect(() => {
+    console.log('[KEYBOARD] Effect running, enabled:', enabled)
+    console.log('[KEYBOARD] Registering keyboard handlers')
+    
     if (!enabled) return
 
     // Set context
@@ -244,8 +247,16 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
 
     // Editing with undo support
     const handleCopy = () => {
+      console.log('[COPY] Starting copy operation')
+      console.log('[COPY] Selected clips:', storeRef.current.selectedClips)
+      console.log('[COPY] Selected effect layer:', storeRef.current.selectedEffectLayer)
+      
       const clip = getSelectedClip()
-      if (!clip) return
+      console.log('[COPY] Selected clip:', clip)
+      if (!clip) {
+        console.log('[COPY] No clip selected, aborting')
+        return
+      }
 
       // Copy effect if one is selected
       if (storeRef.current.selectedEffectLayer) {
@@ -257,6 +268,7 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
               data: { ...zoomBlock },
               sourceClipId: clip.id
             }
+            console.log('[COPY] Zoom block copied to effectClipboard:', effectClipboardRef.current)
             toast('Zoom block copied')
           }
         } else {
@@ -268,12 +280,15 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
               data: { ...effectData },
               sourceClipId: clip.id
             }
+            console.log('[COPY] Effect copied to effectClipboard:', effectClipboardRef.current)
             toast(`${storeRef.current.selectedEffectLayer.type.charAt(0).toUpperCase() + storeRef.current.selectedEffectLayer.type.slice(1)} copied`)
           }
         }
       } else {
         // Copy entire clip
         clipClipboardRef.current = clip
+        console.log('[COPY] Clip copied to clipClipboard:', clipClipboardRef.current)
+        console.log('[COPY] clipClipboardRef after copy:', clipClipboardRef)
         toast('Clip copied')
       }
     }
@@ -301,8 +316,15 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     }
 
     const handlePaste = () => {
+      console.log('[PASTE] Starting paste operation')
+      console.log('[PASTE] clipClipboardRef:', clipClipboardRef.current)
+      console.log('[PASTE] effectClipboardRef:', effectClipboardRef.current)
+      console.log('[PASTE] Current time:', storeRef.current.currentTime)
+      console.log('[PASTE] Selected clips:', storeRef.current.selectedClips)
+      
       // Paste effect if we have one and a target clip
       if (effectClipboardRef.current) {
+        console.log('[PASTE] Pasting effect')
         const targetClip = getSelectedClip()
         if (!targetClip) {
           toast.error('Select a clip to paste the effect')
@@ -443,8 +465,14 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     }
 
     const handleDelete = () => {
+      console.log('[DELETE] Starting delete operation')
+      console.log('[DELETE] Selected clips:', storeRef.current.selectedClips)
+      console.log('[DELETE] Selected effect layer:', storeRef.current.selectedEffectLayer)
+      console.log('[DELETE] Current project:', storeRef.current.currentProject)
+      
       // Check if an effect layer is selected (like a zoom block)
       if (storeRef.current.selectedEffectLayer) {
+        console.log('[DELETE] Deleting effect layer')
         // Handle effect-specific deletion
         if (storeRef.current.selectedEffectLayer.type === 'zoom' && storeRef.current.selectedEffectLayer.id && storeRef.current.selectedClips.length === 1) {
           const clipId = storeRef.current.selectedClips[0]
@@ -477,10 +505,13 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
       }
 
       // Only delete clips if no effect layer is selected
+      console.log('[DELETE] No effect layer selected, checking clips to delete')
       if (storeRef.current.selectedClips.length > 0 && storeRef.current.currentProject) {
+        console.log('[DELETE] Found selected clips to delete')
         const clips = storeRef.current.currentProject.timeline.tracks
           .flatMap(t => t.clips)
           .filter(c => storeRef.current.selectedClips.includes(c.id))
+        console.log('[DELETE] Clips to delete:', clips)
 
         undoManager.beginGroup()
 
@@ -624,6 +655,8 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
     keyboardManager.on('save', handleSave)
 
     return () => {
+      console.log('[KEYBOARD] Cleaning up keyboard handlers')
+      
       // Cleanup shuttle
       if (shuttleIntervalRef.current) {
         clearInterval(shuttleIntervalRef.current)

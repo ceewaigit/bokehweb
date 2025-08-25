@@ -47,10 +47,8 @@ export const TimelineZoomBlock = React.memo(({
   const shapeRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
 
-  // Attach transformer when selected
   useEffect(() => {
     if (isSelected && trRef.current && shapeRef.current) {
-      // Attach transformer
       trRef.current.nodes([shapeRef.current])
       trRef.current.getLayer()?.batchDraw()
     }
