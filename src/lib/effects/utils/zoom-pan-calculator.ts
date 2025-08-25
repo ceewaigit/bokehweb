@@ -10,16 +10,10 @@ export class ZoomPanCalculator {
   private readonly EDGE_THRESHOLD = 0.25  // Trigger panning when mouse is within 25% of edge
   private readonly RECENTERING_MARGIN = 0.15  // Less wasted space when recentering
   private readonly MAX_PAN_SPEED = 0.020  // 2.5x faster to keep up with mouse
-  private readonly MOMENTUM_FACTOR = 0.94  // Slightly less momentum for better control
-  private readonly FRICTION = 0.990  // More friction for tighter tracking
   private targetPanX: number = 0
   private targetPanY: number = 0
   private velocityX: number = 0
   private velocityY: number = 0
-  private lastPanX: number = 0
-  private lastPanY: number = 0
-  private smoothedTargetX: number = 0  // Smoothed target for double smoothing
-  private smoothedTargetY: number = 0
   private lastMouseX: number = 0  // Track mouse velocity
   private lastMouseY: number = 0
   private mouseVelocityX: number = 0
@@ -119,49 +113,28 @@ export class ZoomPanCalculator {
     newTargetPanX = Math.max(-maxPanX, Math.min(maxPanX, newTargetPanX))
     newTargetPanY = Math.max(-maxPanY, Math.min(maxPanY, newTargetPanY))
     
-    // Smooth target changes for professional feel
-    const targetSmoothing = 0.85
-    if (newTargetPanX !== this.targetPanX || newTargetPanY !== this.targetPanY) {
-      // Apply smoothing to target changes themselves
-      this.smoothedTargetX = this.smoothedTargetX * targetSmoothing + newTargetPanX * (1 - targetSmoothing)
-      this.smoothedTargetY = this.smoothedTargetY * targetSmoothing + newTargetPanY * (1 - targetSmoothing)
-      this.targetPanX = newTargetPanX
-      this.targetPanY = newTargetPanY
-    } else {
-      // Continue smoothing towards target
-      this.smoothedTargetX = this.smoothedTargetX * 0.95 + this.targetPanX * 0.05
-      this.smoothedTargetY = this.smoothedTargetY * 0.95 + this.targetPanY * 0.05
+    // Update target if changed
+    this.targetPanX = newTargetPanX
+    this.targetPanY = newTargetPanY
+    
+    // Professional easing function
+    const ease = (t: number) => {
+      if (t < 0.5) return 4 * t * t * t
+      const f = (2 * t) - 2
+      return 1 + f * f * f / 2
     }
     
-    // Professional easing function (matches Screen Studio)
-    const professionalEase = (t: number) => {
-      if (t < 0.5) {
-        return 4 * t * t * t
-      } else {
-        const f = (2 * t) - 2
-        return 1 + f * f * f / 2
-      }
-    }
+    // Calculate velocity for momentum
+    const deltaX = this.targetPanX - currentPanX
+    const deltaY = this.targetPanY - currentPanY
     
-    // Calculate smooth velocity
-    const frameVelocityX = currentPanX - this.lastPanX
-    const frameVelocityY = currentPanY - this.lastPanY
-    
-    // Apply professional momentum
-    this.velocityX = this.velocityX * this.MOMENTUM_FACTOR + frameVelocityX * (1 - this.MOMENTUM_FACTOR)
-    this.velocityY = this.velocityY * this.MOMENTUM_FACTOR + frameVelocityY * (1 - this.MOMENTUM_FACTOR)
-    
-    // Apply minimal friction for butter-smooth movement
-    this.velocityX *= this.FRICTION
-    this.velocityY *= this.FRICTION
-    
-    // Store current position
-    this.lastPanX = currentPanX
-    this.lastPanY = currentPanY
+    // Update velocity with spring physics
+    this.velocityX = this.velocityX * 0.9 + deltaX * 0.1
+    this.velocityY = this.velocityY * 0.9 + deltaY * 0.1
     
     // Calculate distance for adaptive smoothing
-    const distanceX = Math.abs(this.smoothedTargetX - currentPanX)
-    const distanceY = Math.abs(this.smoothedTargetY - currentPanY)
+    const distanceX = Math.abs(deltaX)
+    const distanceY = Math.abs(deltaY)
     
     // Calculate distance from mouse to edge for progressive urgency
     const distToLeftEdge = Math.max(0, mouseX - viewportLeft) / edgeZoneX
@@ -189,31 +162,23 @@ export class ZoomPanCalculator {
     // Distance-based speed (slow down as we approach target)
     const distanceNormX = Math.min(distanceX / 0.3, 1)
     const distanceNormY = Math.min(distanceY / 0.3, 1)
-    const easedDistanceX = professionalEase(distanceNormX)
-    const easedDistanceY = professionalEase(distanceNormY)
+    const easedDistanceX = ease(distanceNormX)
+    const easedDistanceY = ease(distanceNormY)
     
-    // Calculate smooth delta with optimized spring physics
-    const springConstant = urgency * 1.5  // Stronger spring for snappier response
-    const dampingFactor = 0.75  // Less damping for faster movement
+    // Apply spring physics with urgency
+    const springForceX = deltaX * urgency * easedDistanceX
+    const springForceY = deltaY * urgency * easedDistanceY
     
-    const springForceX = (this.smoothedTargetX - currentPanX) * springConstant * easedDistanceX
-    const springForceY = (this.smoothedTargetY - currentPanY) * springConstant * easedDistanceY
-    
-    // Apply damping for professional feel
-    const dampedForceX = springForceX * dampingFactor
-    const dampedForceY = springForceY * dampingFactor
-    
-    // Combine forces with velocity
-    const deltaX = dampedForceX + this.velocityX * 0.2
-    const deltaY = dampedForceY + this.velocityY * 0.2
+    // Combine spring force with velocity
+    const finalDeltaX = springForceX + this.velocityX * 0.2
+    const finalDeltaY = springForceY + this.velocityY * 0.2
     
     // Dynamic speed limiting based on urgency and distance
-    const baseSpeedLimit = this.MAX_PAN_SPEED
     const speedMultiplier = outsideLeft || outsideRight || outsideTop || outsideBottom ? 2.0 : 1.0
-    const speedLimitX = baseSpeedLimit * speedMultiplier * (1 + easedDistanceX * 0.5)
-    const speedLimitY = baseSpeedLimit * speedMultiplier * (1 + easedDistanceY * 0.5)
-    const clampedDeltaX = Math.max(-speedLimitX, Math.min(speedLimitX, deltaX))
-    const clampedDeltaY = Math.max(-speedLimitY, Math.min(speedLimitY, deltaY))
+    const speedLimitX = this.MAX_PAN_SPEED * speedMultiplier * (1 + easedDistanceX * 0.5)
+    const speedLimitY = this.MAX_PAN_SPEED * speedMultiplier * (1 + easedDistanceY * 0.5)
+    const clampedDeltaX = Math.max(-speedLimitX, Math.min(speedLimitX, finalDeltaX))
+    const clampedDeltaY = Math.max(-speedLimitY, Math.min(speedLimitY, finalDeltaY))
     
     return {
       x: currentPanX + clampedDeltaX,
