@@ -17,7 +17,6 @@ interface TimelineZoomBlockProps {
   allBlocks: ZoomBlock[]
   blockId: string
   clipX: number
-  clipDuration: number
   pixelsPerMs: number
   onSelect: () => void
   onDragEnd: (newX: number) => void
@@ -36,7 +35,6 @@ export const TimelineZoomBlock = React.memo(({
   allBlocks,
   blockId,
   clipX,
-  clipDuration,
   pixelsPerMs,
   onSelect,
   onDragEnd,
@@ -125,11 +123,10 @@ export const TimelineZoomBlock = React.memo(({
       }
     }
 
-    // Clip bounds
+    // Don't constrain to clip duration - zoom blocks can extend beyond
+    // Only constrain to the left edge of the clip
     finalX = Math.max(clipX, finalX)
-    const maxX = clipX + TimelineUtils.timeToPixel(clipDuration, pixelsPerMs) - finalWidth
-    finalX = Math.min(maxX, finalX)
-
+    
     // Ensure minimum width
     finalWidth = Math.max(TimelineUtils.timeToPixel(100, pixelsPerMs), finalWidth)
 
@@ -170,7 +167,7 @@ export const TimelineZoomBlock = React.memo(({
 
           onUpdate({
             startTime: Math.max(0, newStartTime),
-            endTime: Math.min(clipDuration, newStartTime + duration)
+            endTime: newStartTime + duration
           })
 
           onDragEnd(newX)
@@ -197,7 +194,7 @@ export const TimelineZoomBlock = React.memo(({
 
           onUpdate({
             startTime: Math.max(0, newStartTime),
-            endTime: Math.min(clipDuration, newEndTime)
+            endTime: newEndTime
           })
         }}
       />
@@ -224,15 +221,11 @@ export const TimelineZoomBlock = React.memo(({
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
           boundBoxFunc={(oldBox, newBox) => {
-            // Limit min/max width
+            // Only limit minimum width
             const minWidth = TimelineUtils.timeToPixel(100, pixelsPerMs)
-            const maxWidth = TimelineUtils.timeToPixel(clipDuration, pixelsPerMs)
 
             if (newBox.width < minWidth) {
               newBox.width = minWidth
-            }
-            if (newBox.width > maxWidth) {
-              newBox.width = maxWidth
             }
 
             // Keep height fixed

@@ -345,27 +345,13 @@ export function useTimelineKeyboard({ enabled = true }: UseTimelineKeyboardProps
             pasteStartTime = existingBlocks[existingBlocks.length - 1].endTime + 100
           }
           
-          // Make sure it fits within clip duration
-          if (pasteStartTime + blockDuration > targetClip.duration) {
-            // Try to fit it at the end
-            pasteStartTime = Math.max(0, targetClip.duration - blockDuration)
-            
-            // Check if this position is available
-            const finalOverlap = existingBlocks.some(b => 
-              pasteStartTime < b.endTime && (pasteStartTime + blockDuration) > b.startTime
-            )
-            
-            if (finalOverlap) {
-              toast.error('No space available for zoom block')
-              return
-            }
-          }
-          
+          // Don't constrain to clip duration - zoom blocks can extend beyond
+          // Zoom blocks represent when to zoom, not constrained by video length
           const newBlock = {
             ...zoomBlock,
             id: `zoom-${Date.now()}`,
             startTime: pasteStartTime,
-            endTime: Math.min(targetClip.duration, pasteStartTime + blockDuration)
+            endTime: pasteStartTime + blockDuration
           }
           
           undoManager.execute({

@@ -335,7 +335,6 @@ export function TimelineCanvas({
                   isSelected={isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
                   allBlocks={clipEffects.zoom.blocks || []}
                   clipX={clipX}
-                  clipDuration={clip.duration}
                   pixelsPerMs={pixelsPerMs}
                   onSelect={() => {
                     selectClip(clip.id) // Select the clip
