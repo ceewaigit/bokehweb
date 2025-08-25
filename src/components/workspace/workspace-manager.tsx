@@ -306,6 +306,25 @@ export function WorkspaceManager() {
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
+  
+  // Track project changes for save button state
+  const lastModifiedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!currentProject) return
+    
+    // Subscribe to all project store changes
+    const unsubscribe = useProjectStore.subscribe((state) => {
+      if (state.currentProject && state.currentProject.modifiedAt) {
+        // Check if modifiedAt has changed
+        if (lastModifiedRef.current && lastModifiedRef.current !== state.currentProject.modifiedAt) {
+          setHasUnsavedChanges(true)
+        }
+        lastModifiedRef.current = state.currentProject.modifiedAt
+      }
+    })
+    
+    return () => unsubscribe()
+  }, [currentProject?.id])
 
   // Get clip at playhead position
   const playheadClip = useProjectStore.getState().getCurrentClip()
@@ -512,6 +531,11 @@ export function WorkspaceManager() {
               newProject('New Project')
               setLocalEffects(null)
               setHasUnsavedChanges(false)
+              // Reset the last modified reference for the new project
+              const project = useProjectStore.getState().currentProject
+              if (project) {
+                lastModifiedRef.current = project.modifiedAt || null
+              }
             }}
             onSaveProject={async () => {
               if (localEffects && selectedClipId) {
@@ -520,11 +544,21 @@ export function WorkspaceManager() {
               }
               await saveCurrentProject()
               setHasUnsavedChanges(false)
+              // Update the last modified reference after saving
+              const project = useProjectStore.getState().currentProject
+              if (project) {
+                lastModifiedRef.current = project.modifiedAt || null
+              }
             }}
             onOpenProject={async (path: string) => {
               await openProject(path)
               setLocalEffects(null)
               setHasUnsavedChanges(false)
+              // Reset the last modified reference for the new project
+              const project = useProjectStore.getState().currentProject
+              if (project) {
+                lastModifiedRef.current = project.modifiedAt || null
+              }
             }}
             onBackToLibrary={() => {
               // Clean up resources and navigate back to library
