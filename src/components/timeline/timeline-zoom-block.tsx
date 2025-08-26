@@ -47,15 +47,17 @@ export const TimelineZoomBlock = React.memo(({
   const colors = useTimelineColors()
   const [isDragging, setIsDragging] = useState(false)
   const [currentX, setCurrentX] = useState(x)
+  const [currentWidth, setCurrentWidth] = useState(width)
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
 
-  // Sync position when not dragging
+  // Sync position and width when not dragging/resizing
   useEffect(() => {
     if (!isDragging) {
       setCurrentX(x)
+      setCurrentWidth(width)
     }
-  }, [x, isDragging])
+  }, [x, width, isDragging])
 
   // Setup transformer
   useEffect(() => {
@@ -65,8 +67,8 @@ export const TimelineZoomBlock = React.memo(({
     }
   }, [isSelected])
 
-  // Simple collision check
-  const getValidPosition = (proposedX: number, proposedWidth: number = width): number => {
+  // Get valid position for dragging
+  const getValidDragPosition = (proposedX: number): number => {
     const gap = 5
     const blocks = allBlocks
       .filter(b => b.id !== blockId)
@@ -78,14 +80,13 @@ export const TimelineZoomBlock = React.memo(({
 
     // Check for collision
     for (const block of blocks) {
-      if (proposedX < block.endX && (proposedX + proposedWidth) > block.x) {
-        // Collision detected - snap to the side
-        const leftDistance = Math.abs(block.x - gap - proposedWidth - proposedX)
+      if (proposedX < block.endX && (proposedX + width) > block.x) {
+        // Collision detected - snap to the closer side
+        const leftDistance = Math.abs(block.x - gap - width - proposedX)
         const rightDistance = Math.abs(block.endX + gap - proposedX)
 
-        // Choose the closer side
         if (leftDistance < rightDistance) {
-          return Math.max(clipX, block.x - proposedWidth - gap)
+          return Math.max(clipX, block.x - width - gap)
         } else {
           return block.endX + gap
         }
@@ -98,20 +99,61 @@ export const TimelineZoomBlock = React.memo(({
       if (Math.abs(proposedX - (block.endX + gap)) < snapThreshold) {
         return block.endX + gap
       }
-      if (Math.abs((proposedX + proposedWidth) - (block.x - gap)) < snapThreshold) {
-        return block.x - proposedWidth - gap
+      if (Math.abs((proposedX + width) - (block.x - gap)) < snapThreshold) {
+        return block.x - width - gap
       }
     }
 
     return Math.max(clipX, proposedX)
   }
 
+  // Get valid size for resizing
+  const getValidResizeWidth = (proposedWidth: number, x: number, resizingLeft: boolean): { width: number; x: number } => {
+    const gap = 5
+    const minWidth = TimelineUtils.timeToPixel(100, pixelsPerMs)
+    let finalWidth = Math.max(minWidth, proposedWidth)
+    let finalX = x
+
+    const blocks = allBlocks
+      .filter(b => b.id !== blockId)
+      .map(b => ({
+        x: clipX + TimelineUtils.timeToPixel(b.startTime, pixelsPerMs),
+        endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
+      }))
+
+    // Check collision when resizing
+    for (const block of blocks) {
+      if (resizingLeft) {
+        // Resizing from left edge
+        if (finalX < block.endX && (finalX + finalWidth) > block.x) {
+          if (finalX < block.endX && finalX > block.x) {
+            // Limit resize at collision point
+            finalX = block.endX + gap
+            finalWidth = (x + width) - finalX
+          }
+        }
+      } else {
+        // Resizing from right edge
+        const newEndX = x + finalWidth
+        if (x < block.endX && newEndX > block.x) {
+          if (newEndX > block.x && newEndX < block.endX) {
+            // Limit resize at collision point
+            finalWidth = block.x - x - gap
+          }
+        }
+      }
+    }
+
+    return { width: Math.max(minWidth, finalWidth), x: finalX }
+  }
+
   // Generate zoom curve visualization
   const generateZoomCurve = () => {
     const points: number[] = []
+    const w = currentWidth // Use current width for real-time updates
 
     // Ensure we have valid dimensions
-    if (!width || !height || isNaN(width) || isNaN(height)) {
+    if (!w || !height || isNaN(w) || isNaN(height)) {
       return points
     }
 
@@ -119,9 +161,9 @@ export const TimelineZoomBlock = React.memo(({
     const curveY = height / 2
 
     // Calculate phase widths
-    const introWidth = Math.min(TimelineUtils.timeToPixel(introMs, pixelsPerMs), width * 0.4)
-    const outroWidth = Math.min(TimelineUtils.timeToPixel(outroMs, pixelsPerMs), width * 0.4)
-    const plateauWidth = Math.max(0, width - introWidth - outroWidth)
+    const introWidth = Math.min(TimelineUtils.timeToPixel(introMs, pixelsPerMs), w * 0.4)
+    const outroWidth = Math.min(TimelineUtils.timeToPixel(outroMs, pixelsPerMs), w * 0.4)
+    const plateauWidth = Math.max(0, w - introWidth - outroWidth)
 
     // Ensure valid widths
     if (isNaN(introWidth) || isNaN(outroWidth) || isNaN(plateauWidth)) {
@@ -169,7 +211,7 @@ export const TimelineZoomBlock = React.memo(({
         y={y}
         draggable
         dragBoundFunc={(pos) => {
-          const validX = getValidPosition(pos.x)
+          const validX = getValidDragPosition(pos.x)
           setCurrentX(validX)
           return { x: validX, y: y }
         }}
@@ -192,7 +234,7 @@ export const TimelineZoomBlock = React.memo(({
         <Rect
           x={0}
           y={0}
-          width={width}
+          width={currentWidth}
           height={height}
           fill={colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
           cornerRadius={4}
@@ -220,7 +262,7 @@ export const TimelineZoomBlock = React.memo(({
             <Line
               points={[
                 ...curvePoints,
-                width, height / 2,
+                currentWidth, height / 2,
                 0, height / 2
               ]}
               fill="rgba(255, 255, 255, 0.15)"
@@ -252,13 +294,22 @@ export const TimelineZoomBlock = React.memo(({
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
           boundBoxFunc={(oldBox, newBox) => {
-            const minWidth = TimelineUtils.timeToPixel(100, pixelsPerMs)
-            newBox.width = Math.max(minWidth, newBox.width)
+            // Determine which side is being resized
+            const resizingLeft = newBox.x !== oldBox.x
+            const currentPos = currentX
+            
+            // Get valid resize dimensions
+            const valid = getValidResizeWidth(newBox.width, resizingLeft ? newBox.x : currentPos, resizingLeft)
+            
+            newBox.width = valid.width
+            newBox.x = resizingLeft ? valid.x : currentPos
             newBox.height = oldBox.height
-
-            // Check collision for resize
-            const validX = getValidPosition(newBox.x, newBox.width)
-            newBox.x = validX
+            
+            // Update width state for real-time preview
+            setCurrentWidth(valid.width)
+            if (resizingLeft) {
+              setCurrentX(valid.x)
+            }
 
             return newBox
           }}
@@ -273,17 +324,13 @@ export const TimelineZoomBlock = React.memo(({
             const node = groupRef.current
             if (!node) return
 
-            const scaleX = node.scaleX()
-            const newWidth = Math.max(TimelineUtils.timeToPixel(100, pixelsPerMs), width * scaleX)
-            const newX = node.x()
-
-            // Reset scale
-            node.scaleX(1)
-            node.scaleY(1)
+            // The width and position are already updated via boundBoxFunc
+            const finalWidth = currentWidth
+            const finalX = currentX
 
             // Calculate new times
-            const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
-            const newEndTime = newStartTime + TimelineUtils.pixelToTime(newWidth, pixelsPerMs)
+            const newStartTime = TimelineUtils.pixelToTime(finalX - clipX, pixelsPerMs)
+            const newEndTime = newStartTime + TimelineUtils.pixelToTime(finalWidth, pixelsPerMs)
 
             onUpdate({
               startTime: Math.max(0, newStartTime),
