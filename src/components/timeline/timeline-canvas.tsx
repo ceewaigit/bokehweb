@@ -284,7 +284,7 @@ export function TimelineCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-background"
         tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
         onMouseDown={() => {
@@ -500,7 +500,7 @@ export function TimelineCanvas({
       </div>
 
       {/* Timeline Info - Compact */}
-      <div className="flex items-center justify-between px-3 py-1 bg-card">
+      <div className="flex items-center justify-between px-3 py-1 bg-background">
         <span className="text-[10px] font-medium text-muted-foreground">
           {selectedClips.length > 0 ? `${selectedClips.length} SELECTED` : ''}
         </span>

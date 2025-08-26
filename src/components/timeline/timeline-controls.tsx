@@ -60,7 +60,7 @@ export const TimelineControls = React.memo(({
   const hasSingleSelection = selectedClips.length === 1
 
   return (
-    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 bg-card/95">
+    <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 bg-background/95">
       <div className="flex items-center gap-1">
         {/* Playback Controls */}
         <Button

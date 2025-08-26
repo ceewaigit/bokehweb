@@ -123,7 +123,7 @@ export function EffectsSidebar({
   }
 
   return (
-    <div className={cn("flex flex-col bg-card/95", className)}>
+    <div className={cn("flex flex-col bg-background/95", className)}>
       {/* Selection Indicator */}
       {selectedEffectLayer && (
         <div className="px-3 py-1.5 bg-primary/5">

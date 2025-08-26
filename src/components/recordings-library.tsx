@@ -469,7 +469,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     <div className="flex-1 overflow-hidden bg-background">
       <div ref={containerRef} className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
         {/* Enhanced header */}
-        <div className="sticky top-0 z-30 bg-card/95 border-b border-border">
+        <div className="sticky top-0 z-30 bg-background/95 border-b border-border">
           <div className="px-6 py-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -536,7 +536,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                       transition={{ duration: 0.2, ease: "easeOut" }}
                       className={cn(
                         "relative rounded-xl overflow-hidden cursor-pointer",
-                        "bg-card/60 backdrop-blur-sm transition-all duration-200 border border-border/30",
+                        "bg-background/60 backdrop-blur-sm transition-all duration-200 border border-border/30",
                         isHovered
                           ? "shadow-2xl ring-1 ring-primary/10"
                           : "shadow-sm hover:shadow-xl"
@@ -625,7 +625,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                             transition={{ duration: 0.15 }}
                             className="absolute top-2 right-2"
                           >
-                            <div className="flex items-center gap-1 bg-card/95 rounded-lg p-1 shadow-lg">
+                            <div className="flex items-center gap-1 bg-background/95 rounded-lg p-1 shadow-lg">
                               <Button
                                 size="sm"
                                 variant="ghost"
