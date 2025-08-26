@@ -59,6 +59,11 @@ export const TimelineZoomBlock = React.memo(({
       setDragX(x)
       setResizeX(x)
       setResizeWidth(width)
+      // Force group position update
+      if (groupRef.current && groupRef.current.x() !== x) {
+        groupRef.current.x(x)
+        groupRef.current.getLayer()?.batchDraw()
+      }
     }
   }, [x, width, isDragging])
 
@@ -331,9 +336,14 @@ export const TimelineZoomBlock = React.memo(({
             // Reset to original position
             console.log('[ZoomBlock] Resetting to original position:', x)
             setDragX(x)
+            setResizeX(x)
             if (groupRef.current) {
               groupRef.current.x(x)
+              // Force re-render to ensure the group position is updated
+              groupRef.current.getLayer()?.batchDraw()
             }
+            // Maintain selection after reset
+            onSelect()
           } else {
             // Accept the new position
             console.log('[ZoomBlock] Accepting new position:', snappedX)

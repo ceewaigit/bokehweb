@@ -91,13 +91,22 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Paste handler
     const handlePaste = async () => {
+      console.log('[Keyboard] Paste key pressed')
+      
       // Get fresh store state
       const currentStore = useProjectStore.getState()
+      console.log('[Keyboard] Paste state:', {
+        selectedClips: currentStore.selectedClips,
+        selectedEffectLayer: currentStore.selectedEffectLayer,
+        clipboard: currentStore.clipboard
+      })
+      
       const freshContext = new DefaultCommandContext(currentStore)
       
       try {
         const command = new PasteCommand(freshContext)
         const result = await manager.execute(command)
+        console.log('[Keyboard] Paste result:', result)
         
         if (result.success) {
           if (result.data?.type === 'effect') {
@@ -106,10 +115,11 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
             toast('Clip pasted')
           }
         } else {
+          console.error('[Keyboard] Paste error:', result.error)
           toast.error(result.error as string)
         }
       } catch (err) {
-        console.error('Paste failed:', err)
+        console.error('[Keyboard] Paste failed:', err)
         toast.error('Failed to paste')
       }
     }
