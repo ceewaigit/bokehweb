@@ -8,9 +8,10 @@ import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineClipProps {
   clip: Clip
-  recording?: Recording | null  // Add recording prop
+  recording?: Recording | null
   trackType: 'video' | 'audio'
   trackY: number
+  trackHeight: number
   pixelsPerMs: number
   isSelected: boolean
   selectedEffectType?: 'zoom' | 'cursor' | 'background' | null
@@ -25,6 +26,7 @@ export const TimelineClip = React.memo(({
   recording,
   trackType,
   trackY,
+  trackHeight,
   pixelsPerMs,
   isSelected,
   selectedEffectType,
@@ -43,9 +45,7 @@ export const TimelineClip = React.memo(({
     TimelineUtils.timeToPixel(clip.duration, pixelsPerMs)
   )
 
-  const trackHeight = trackType === 'video' 
-    ? TIMELINE_LAYOUT.VIDEO_TRACK_HEIGHT 
-    : TIMELINE_LAYOUT.AUDIO_TRACK_HEIGHT
+  // Track height is now passed as a prop
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {

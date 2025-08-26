@@ -39,13 +39,6 @@ export interface KeyboardShortcut {
   preventDefault?: boolean
 }
 
-export interface KeyboardAction {
-  id: string
-  execute: () => void | Promise<void>
-  undo?: () => void | Promise<void>
-  description: string
-}
-
 class KeyboardManager extends EventEmitter {
   private shortcuts: Map<string, KeyboardShortcut> = new Map()
   private activeContext: KeyboardContext = 'timeline'

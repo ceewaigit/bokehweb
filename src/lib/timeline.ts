@@ -1,6 +1,6 @@
 import type { Clip, ZoomBlock } from '@/types/project'
 
-// Timeline layout constants (minimal set - tracks are now dynamic)
+// Timeline layout constants
 export const TIMELINE_LAYOUT = {
   RULER_HEIGHT: 32,
   TRACK_LABEL_WIDTH: 42,
@@ -8,10 +8,6 @@ export const TIMELINE_LAYOUT = {
   MIN_CLIP_WIDTH: 40,
   SNAP_THRESHOLD: 8,
   SNAP_INTERVAL: 100,
-  // Legacy track heights - only for fallback, should not be used
-  VIDEO_TRACK_HEIGHT: 100,
-  AUDIO_TRACK_HEIGHT: 70,
-  ZOOM_TRACK_HEIGHT: 60,
 } as const
 
 // Timeline utilities
@@ -52,21 +48,6 @@ export class TimelineUtils {
       return { major: 1000, minor: 50 }
     }
     return { major: 1000, minor: 100 }
-  }
-
-  // These methods are now deprecated since we use dynamic heights
-  // Keeping minimal version for any remaining references
-  static getTrackY(trackType: 'video' | 'zoom' | 'audio', hasZoomTrack: boolean = false): number {
-    // Simple fallback - should migrate away from this
-    const videoY = TIMELINE_LAYOUT.RULER_HEIGHT
-    switch (trackType) {
-      case 'video':
-        return videoY
-      case 'zoom':
-        return videoY + TIMELINE_LAYOUT.VIDEO_TRACK_HEIGHT
-      case 'audio':
-        return videoY + TIMELINE_LAYOUT.VIDEO_TRACK_HEIGHT + (hasZoomTrack ? TIMELINE_LAYOUT.ZOOM_TRACK_HEIGHT : 0)
-    }
   }
 }
 

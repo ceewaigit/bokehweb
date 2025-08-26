@@ -88,6 +88,21 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Delete handler
     const handleDelete = async () => {
+      // Check if an effect layer is selected (e.g., zoom block)
+      if (store.selectedEffectLayer) {
+        const { type, id } = store.selectedEffectLayer
+        
+        if (type === 'zoom' && id && store.selectedClips.length === 1) {
+          // Delete the zoom block
+          store.removeZoomBlock(store.selectedClips[0], id)
+          store.clearEffectSelection()
+          toast('Zoom block deleted')
+          return
+        }
+        // Handle other effect types if needed in the future
+      }
+
+      // Default behavior: delete clips
       const selectedClips = store.selectedClips
       if (selectedClips.length === 0) return
 

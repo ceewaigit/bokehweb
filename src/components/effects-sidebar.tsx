@@ -623,7 +623,7 @@ export function EffectsSidebar({
 
             <div className="p-3 bg-card/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
-                <span className="uppercase tracking-wider text-[10px]">Auto Zoom</span>
+                <span className="uppercase tracking-wider text-[10px]">Zoom Effects</span>
                 <Switch
                   checked={effects.zoom.enabled ?? false}
                   onCheckedChange={(checked) =>

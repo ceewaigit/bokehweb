@@ -503,8 +503,10 @@ export const useProjectStore = create<ProjectStore>()(
         track.clips.splice(clipIndex, 1, firstClip, secondClip)
 
         state.currentProject.modifiedAt = new Date().toISOString()
-        state.selectedClipId = secondClip.id
-        state.selectedClips = [secondClip.id]
+        // Select the left clip to keep focus at the split point
+        // This ensures the preview shows the end of the left clip (at the split point)
+        state.selectedClipId = firstClip.id
+        state.selectedClips = [firstClip.id]
       })
     },
 

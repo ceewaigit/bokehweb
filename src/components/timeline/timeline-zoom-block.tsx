@@ -48,6 +48,7 @@ export const TimelineZoomBlock = React.memo(({
   const [isDragging, setIsDragging] = useState(false)
   const [currentX, setCurrentX] = useState(x)
   const [currentWidth, setCurrentWidth] = useState(width)
+  const [isOverlapping, setIsOverlapping] = useState(false)
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
 
@@ -59,6 +60,27 @@ export const TimelineZoomBlock = React.memo(({
     }
   }, [x, width, isDragging])
 
+  // Check for overlaps
+  useEffect(() => {
+    const checkOverlap = () => {
+      const blocks = allBlocks
+        .filter(b => b.id !== blockId)
+        .map(b => ({
+          x: clipX + TimelineUtils.timeToPixel(b.startTime, pixelsPerMs),
+          endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
+        }))
+      
+      const blockEnd = currentX + currentWidth
+      const hasOverlap = blocks.some(block => 
+        (currentX < block.endX && blockEnd > block.x)
+      )
+      
+      setIsOverlapping(hasOverlap)
+    }
+    
+    checkOverlap()
+  }, [currentX, currentWidth, allBlocks, blockId, clipX, pixelsPerMs])
+
   // Setup transformer and update on selection or size changes
   useEffect(() => {
     if (isSelected && trRef.current && groupRef.current) {
@@ -67,54 +89,49 @@ export const TimelineZoomBlock = React.memo(({
       trRef.current.forceUpdate()
       trRef.current.getLayer()?.batchDraw()
     }
-  }, [isSelected, x, width, currentX, currentWidth])
+  }, [isSelected, x, width, currentX, currentWidth, pixelsPerMs]) // Added pixelsPerMs to dependencies
 
-  // Get valid position for dragging
+  // Get valid position for dragging with simple edge snapping
   const getValidDragPosition = (proposedX: number): number => {
-    const gap = 5
+    const snapThreshold = 10
     const blocks = allBlocks
       .filter(b => b.id !== blockId)
       .map(b => ({
         x: clipX + TimelineUtils.timeToPixel(b.startTime, pixelsPerMs),
         endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
       }))
-      .sort((a, b) => a.x - b.x)
 
-    // Check for collision
+    // Simple edge snapping without collision prevention
     for (const block of blocks) {
-      if (proposedX < block.endX && (proposedX + width) > block.x) {
-        // Collision detected - snap to the closer side
-        const leftDistance = Math.abs(block.x - gap - width - proposedX)
-        const rightDistance = Math.abs(block.endX + gap - proposedX)
-
-        if (leftDistance < rightDistance) {
-          return Math.max(clipX, block.x - width - gap)
-        } else {
-          return block.endX + gap
-        }
+      // Snap to left edge
+      if (Math.abs(proposedX - block.x) < snapThreshold) {
+        return block.x
+      }
+      // Snap to right edge
+      if (Math.abs(proposedX - block.endX) < snapThreshold) {
+        return block.endX
+      }
+      // Snap end to left edge
+      if (Math.abs((proposedX + width) - block.x) < snapThreshold) {
+        return block.x - width
+      }
+      // Snap end to right edge
+      if (Math.abs((proposedX + width) - block.endX) < snapThreshold) {
+        return block.endX - width
       }
     }
 
-    // Edge snapping (no collision)
-    const snapThreshold = 10
-    for (const block of blocks) {
-      if (Math.abs(proposedX - (block.endX + gap)) < snapThreshold) {
-        return block.endX + gap
-      }
-      if (Math.abs((proposedX + width) - (block.x - gap)) < snapThreshold) {
-        return block.x - width - gap
-      }
-    }
-
+    // Ensure block stays within clip bounds
     return Math.max(clipX, proposedX)
   }
 
-  // Get valid size for resizing
-  const getValidResizeWidth = (proposedWidth: number, x: number, resizingLeft: boolean): { width: number; x: number } => {
-    const gap = 5
+  // Simple resize validation with edge snapping
+  const getValidResizeWidth = (proposedWidth: number, proposedX: number): { width: number; x: number } => {
     const minWidth = TimelineUtils.timeToPixel(100, pixelsPerMs)
+    const snapThreshold = 10
+    
     let finalWidth = Math.max(minWidth, proposedWidth)
-    let finalX = x
+    let finalX = proposedX
 
     const blocks = allBlocks
       .filter(b => b.id !== blockId)
@@ -123,29 +140,28 @@ export const TimelineZoomBlock = React.memo(({
         endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
       }))
 
-    // Check collision when resizing
+    // Simple edge snapping during resize
     for (const block of blocks) {
-      if (resizingLeft) {
-        // Resizing from left edge
-        if (finalX < block.endX && (finalX + finalWidth) > block.x) {
-          if (finalX < block.endX && finalX > block.x) {
-            // Limit resize at collision point
-            finalX = block.endX + gap
-            finalWidth = (x + width) - finalX
-          }
-        }
-      } else {
-        // Resizing from right edge
-        const newEndX = x + finalWidth
-        if (x < block.endX && newEndX > block.x) {
-          if (newEndX > block.x && newEndX < block.endX) {
-            // Limit resize at collision point
-            finalWidth = block.x - x - gap
-          }
-        }
+      // Snap left edge
+      if (Math.abs(finalX - block.x) < snapThreshold) {
+        finalX = block.x
+      }
+      if (Math.abs(finalX - block.endX) < snapThreshold) {
+        finalX = block.endX
+      }
+      // Snap right edge
+      const rightEdge = finalX + finalWidth
+      if (Math.abs(rightEdge - block.x) < snapThreshold) {
+        finalWidth = block.x - finalX
+      }
+      if (Math.abs(rightEdge - block.endX) < snapThreshold) {
+        finalWidth = block.endX - finalX
       }
     }
 
+    // Ensure block stays within clip bounds
+    finalX = Math.max(clipX, finalX)
+    
     return { width: Math.max(minWidth, finalWidth), x: finalX }
   }
 
@@ -245,11 +261,11 @@ export const TimelineZoomBlock = React.memo(({
           y={0}
           width={currentWidth}
           height={height}
-          fill={colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
+          fill={isOverlapping ? 'rgba(239, 68, 68, 0.85)' : (colors.zoomBlock || 'rgba(147, 51, 234, 0.85)')}
           cornerRadius={4}
           opacity={isDragging ? 0.7 : (isSelected ? 0.95 : 0.85)}
-          stroke={isSelected ? colors.primary : undefined}
-          strokeWidth={isSelected ? 1.5 : 0}
+          stroke={isSelected ? colors.primary : (isOverlapping ? 'rgba(239, 68, 68, 1)' : undefined)}
+          strokeWidth={isSelected ? 1.5 : (isOverlapping ? 1 : 0)}
           shadowColor="black"
           shadowBlur={isSelected ? 6 : 2}
           shadowOpacity={0.2}
@@ -306,13 +322,15 @@ export const TimelineZoomBlock = React.memo(({
           boundBoxFunc={(oldBox, newBox) => {
             // Determine which side is being resized
             const resizingLeft = newBox.x !== oldBox.x
-            const currentPos = currentX
             
             // Get valid resize dimensions
-            const valid = getValidResizeWidth(newBox.width, resizingLeft ? newBox.x : currentPos, resizingLeft)
+            const valid = getValidResizeWidth(
+              newBox.width, 
+              resizingLeft ? newBox.x : currentX
+            )
             
             newBox.width = valid.width
-            newBox.x = resizingLeft ? valid.x : currentPos
+            newBox.x = valid.x
             newBox.height = oldBox.height
             
             // Update width state for real-time preview
@@ -330,10 +348,7 @@ export const TimelineZoomBlock = React.memo(({
           anchorStrokeWidth={1}
           anchorSize={10}
           anchorCornerRadius={2}
-          onTransformEnd={(e) => {
-            const node = groupRef.current
-            if (!node) return
-
+          onTransformEnd={() => {
             // The width and position are already updated via boundBoxFunc
             const finalWidth = currentWidth
             const finalX = currentX

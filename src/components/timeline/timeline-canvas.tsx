@@ -350,6 +350,7 @@ export function TimelineCanvas({
                     recording={recording}
                     trackType="video"
                     trackY={rulerHeight}
+                    trackHeight={videoTrackHeight}
                     pixelsPerMs={pixelsPerMs}
                     isSelected={selectedClips.includes(clip.id)}
                     selectedEffectType={selectedClips.includes(clip.id) ? selectedEffectLayer?.type : null}
@@ -435,6 +436,7 @@ export function TimelineCanvas({
                   clip={clip}
                   trackType="audio"
                   trackY={rulerHeight + videoTrackHeight + zoomTrackHeight}
+                  trackHeight={audioTrackHeight}
                   pixelsPerMs={pixelsPerMs}
                   isSelected={selectedClips.includes(clip.id)}
                   onSelect={handleClipSelect}

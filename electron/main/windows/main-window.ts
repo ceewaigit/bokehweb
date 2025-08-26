@@ -7,17 +7,7 @@ import { getAppURL, isDev } from '../config'
 export function createMainWindow(): BrowserWindow {
   console.log('[MainWindow] Creating main window...')
   
-  // Platform-specific vibrancy/material settings
-  const platformOptions: any = {}
-  
-  if (process.platform === 'darwin') {
-    // macOS vibrancy for glassmorphism
-    platformOptions.vibrancy = 'under-window' // Can be changed dynamically
-    platformOptions.visualEffectState = 'active'
-  } else if (process.platform === 'win32') {
-    // Windows 11 acrylic/mica effect
-    platformOptions.backgroundMaterial = 'acrylic' // or 'mica', 'tabbed'
-  }
+  // No platform-specific transparency - keep window solid
   
   const mainWindow = new BrowserWindow({
     width: 1400,
@@ -25,8 +15,8 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 1200,
     minHeight: 800,
     show: false,
-    transparent: true, // Enable transparency for glassmorphism
-    backgroundColor: '#00000000', // Fully transparent background
+    transparent: false, // Don't make entire window transparent
+    backgroundColor: '#ffffff', // Solid background
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -40,13 +30,12 @@ export function createMainWindow(): BrowserWindow {
     },
     titleBarStyle: 'hiddenInset',
     titleBarOverlay: {
-      color: '#00000000', // Transparent title bar
+      color: '#ffffff', // Solid white title bar
       symbolColor: '#000000',
       height: 40
     },
     frame: true,
-    trafficLightPosition: { x: 20, y: 16 },
-    ...platformOptions
+    trafficLightPosition: { x: 20, y: 16 }
   })
 
   setupPermissions(mainWindow)

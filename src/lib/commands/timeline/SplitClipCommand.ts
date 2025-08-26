@@ -109,6 +109,13 @@ export class SplitClipCommand extends Command<SplitClipResult> {
 
     // Execute split using store method
     store.splitClip(this.clipId, this.splitTime)
+    
+    // Keep the playhead at the split point so the preview shows the correct frame
+    // This ensures the preview shows the start of the right clip, not the next frame
+    const projectStore = this.context.getStore() as any
+    if (projectStore.setCurrentTime) {
+      projectStore.setCurrentTime(this.splitTime)
+    }
 
     return {
       success: true,

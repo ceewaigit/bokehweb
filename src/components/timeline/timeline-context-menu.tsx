@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2 } from 'lucide-react'
 
 interface TimelineContextMenuProps {
@@ -28,13 +28,35 @@ export const TimelineContextMenu = React.memo(({
   onDelete,
   onClose
 }: TimelineContextMenuProps) => {
+  const menuRef = useRef<HTMLDivElement>(null)
+  
   const handleAction = (action: () => void) => {
     action()
     onClose()
   }
+  
+  // Handle click outside to close menu
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose()
+      }
+    }
+    
+    // Add listener with a small delay to avoid immediate close on right-click
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+    }, 100)
+    
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [onClose])
 
   return (
     <div
+      ref={menuRef}
       className="fixed bg-popover border border-border rounded-md shadow-md p-1 z-[100]"
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
