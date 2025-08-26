@@ -72,9 +72,12 @@ export class PasteCommand extends Command<PasteResult> {
           }
         }
         
+        // Generate truly unique ID with timestamp + random value to avoid any conflicts
+        const uniqueId = `zoom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        
         const newBlock: ZoomBlock = {
           ...zoomBlock,
-          id: `zoom-${Date.now()}`,
+          id: uniqueId,
           startTime: pasteStartTime,
           endTime: pasteStartTime + blockDuration
         }

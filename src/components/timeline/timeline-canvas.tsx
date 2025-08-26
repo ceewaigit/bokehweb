@@ -284,12 +284,18 @@ export function TimelineCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-background"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-background select-none"
         tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
         onMouseDown={() => {
           // Ensure container maintains focus for keyboard events
           containerRef.current?.focus()
+        }}
+        style={{
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          MozUserSelect: 'none',
+          msUserSelect: 'none'
         }}
       >
         <Stage
@@ -297,6 +303,12 @@ export function TimelineCanvas({
           width={stageWidth}
           height={stageSize.height}
           onMouseDown={handleStageClick}
+          style={{
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            MozUserSelect: 'none',
+            msUserSelect: 'none'
+          }}
         >
           {/* Background Layer */}
           <Layer>

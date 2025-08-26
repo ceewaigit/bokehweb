@@ -420,6 +420,13 @@ export const useProjectStore = create<ProjectStore>()(
           clip.effects.zoom.blocks = []
         }
 
+        // Check for duplicate IDs and generate a new one if needed
+        const existingBlock = clip.effects.zoom.blocks.find(b => b.id === block.id)
+        if (existingBlock) {
+          // Generate a new unique ID if duplicate found
+          block.id = `zoom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }
+
         clip.effects.zoom.blocks.push(block)
         clip.effects.zoom.blocks.sort((a, b) => a.startTime - b.startTime)
         state.currentProject.modifiedAt = new Date().toISOString()
@@ -435,7 +442,12 @@ export const useProjectStore = create<ProjectStore>()(
         const clip = result.clip
         if (!clip.effects?.zoom?.blocks) return
 
-        clip.effects.zoom.blocks = clip.effects.zoom.blocks.filter(b => b.id !== blockId)
+        // Find the index of the block to remove
+        const blockIndex = clip.effects.zoom.blocks.findIndex(b => b.id === blockId)
+        if (blockIndex === -1) return
+        
+        // Use splice to remove the block (Immer will detect this mutation)
+        clip.effects.zoom.blocks.splice(blockIndex, 1)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
     },

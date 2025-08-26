@@ -213,4 +213,20 @@
   .recording-inactive {
     color: hsl(var(--recording-inactive));
   }
+
+  /* Prevent canvas selection */
+  canvas {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+
+  /* Konva specific - prevent selection on Konva containers */
+  .konvajs-content {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+  }
 }
