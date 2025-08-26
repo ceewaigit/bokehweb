@@ -46,9 +46,21 @@ export const TimelineZoomBlock = React.memo(({
 }: TimelineZoomBlockProps) => {
   const colors = useTimelineColors()
   const [isDragging, setIsDragging] = useState(false)
+  const [dragX, setDragX] = useState(x)
+  const [resizeWidth, setResizeWidth] = useState(width)
+  const [resizeX, setResizeX] = useState(x)
   const [isOverlapping, setIsOverlapping] = useState(false)
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
+  
+  // Update local state when props change
+  useEffect(() => {
+    if (!isDragging) {
+      setDragX(x)
+      setResizeX(x)
+      setResizeWidth(width)
+    }
+  }, [x, width, isDragging])
 
   // Check for overlaps
   useEffect(() => {
@@ -60,16 +72,18 @@ export const TimelineZoomBlock = React.memo(({
           endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
         }))
 
-      const blockEnd = x + width
+      const currentX = isDragging ? dragX : x
+      const currentWidth = isDragging ? width : resizeWidth
+      const blockEnd = currentX + currentWidth
       const hasOverlap = blocks.some(block =>
-        (x < block.endX && blockEnd > block.x)
+        (currentX < block.endX && blockEnd > block.x)
       )
 
       setIsOverlapping(hasOverlap)
     }
 
     checkOverlap()
-  }, [x, width, allBlocks, blockId, clipX, pixelsPerMs])
+  }, [x, width, dragX, resizeWidth, isDragging, allBlocks, blockId, clipX, pixelsPerMs])
 
   // Setup transformer when selected
   useEffect(() => {
@@ -270,13 +284,15 @@ export const TimelineZoomBlock = React.memo(({
     <>
       <Group
         ref={groupRef}
-        x={x}
+        x={dragX}
         y={y}
         draggable
         dragBoundFunc={(pos) => {
-          // Constrain to clip boundaries
+          // Allow dragging but track position
+          const constrainedX = Math.max(clipX, pos.x)
+          setDragX(constrainedX)
           return {
-            x: Math.max(clipX, pos.x),
+            x: constrainedX,
             y: y
           }
         }}
@@ -291,17 +307,36 @@ export const TimelineZoomBlock = React.memo(({
           // Apply snapping
           const snappedX = getValidDragPosition(draggedX)
 
-          // Calculate new times
+          // Check for collision at the snapped position
           const newStartTime = TimelineUtils.pixelToTime(snappedX - clipX, pixelsPerMs)
           const duration = endTime - startTime
+          const newEndTime = newStartTime + duration
+          
+          // Check if this would cause an overlap
+          const wouldOverlap = allBlocks
+            .filter(b => b.id !== blockId)
+            .some(block => {
+              return (newStartTime < block.endTime && newEndTime > block.startTime)
+            })
 
-          // Update position - let the parent handle validation
-          onUpdate({
-            startTime: Math.max(0, newStartTime),
-            endTime: Math.max(0, newStartTime + duration)
-          })
-
-          onDragEnd(snappedX)
+          if (wouldOverlap) {
+            // Reset to original position
+            setDragX(x)
+            if (groupRef.current) {
+              groupRef.current.x(x)
+            }
+          } else {
+            // Accept the new position
+            setDragX(snappedX)
+            
+            // Update position
+            onUpdate({
+              startTime: Math.max(0, newStartTime),
+              endTime: Math.max(0, newEndTime)
+            })
+            
+            onDragEnd(snappedX)
+          }
         }}
         onClick={(e) => {
           e.cancelBubble = true

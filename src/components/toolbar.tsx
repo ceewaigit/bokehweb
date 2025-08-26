@@ -12,8 +12,7 @@ import {
   Sun,
   Moon,
   Monitor,
-  Library,
-  Settings
+  Library
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { useRecordingStore } from '@/stores/recording-store'
@@ -26,14 +25,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
-import { GlassmorphismSettings } from '@/components/settings/glassmorphism-settings'
 
 interface ToolbarProps {
   project: Project | null
@@ -64,7 +55,6 @@ export function Toolbar({
 
   const { theme, setTheme } = useTheme()
   const [propertiesOpen, setPropertiesOpen] = useState(true)
-  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const handleToggleProperties = () => {
     setPropertiesOpen(!propertiesOpen)
@@ -215,14 +205,6 @@ export function Toolbar({
         </Button>
 
         {/* Settings Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSettingsOpen(true)}
-          className="h-7 w-7 hover:bg-card/50"
-        >
-          <Settings className="w-3.5 h-3.5" />
-        </Button>
 
         {/* Theme Toggle */}
         <DropdownMenu>
@@ -267,18 +249,6 @@ export function Toolbar({
         </Button>
       </div>
 
-      {/* Settings Dialog */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-md glassmorphism">
-          <DialogHeader>
-            <DialogTitle>Appearance Settings</DialogTitle>
-            <DialogDescription>
-              Customize the appearance of your interface
-            </DialogDescription>
-          </DialogHeader>
-          <GlassmorphismSettings />
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

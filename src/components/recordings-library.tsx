@@ -469,7 +469,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     <div className="flex-1 overflow-hidden bg-background">
       <div ref={containerRef} className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
         {/* Enhanced header */}
-        <div className="sticky top-0 z-30 glassmorphism border-b border-border">
+        <div className="sticky top-0 z-30 bg-card/95 border-b border-border">
           <div className="px-6 py-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -625,7 +625,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                             transition={{ duration: 0.15 }}
                             className="absolute top-2 right-2"
                           >
-                            <div className="flex items-center gap-1 glassmorphism rounded-lg p-1 shadow-lg">
+                            <div className="flex items-center gap-1 bg-card/95 rounded-lg p-1 shadow-lg">
                               <Button
                                 size="sm"
                                 variant="ghost"
