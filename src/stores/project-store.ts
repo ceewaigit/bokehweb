@@ -442,13 +442,21 @@ export const useProjectStore = create<ProjectStore>()(
         const clip = result.clip
         if (!clip.effects?.zoom?.blocks) return
 
-        // Find the index of the block to remove
-        const blockIndex = clip.effects.zoom.blocks.findIndex(b => b.id === blockId)
-        if (blockIndex === -1) return
+        // Check if block exists
+        const blockExists = clip.effects.zoom.blocks.some(b => b.id === blockId)
+        if (!blockExists) {
+          console.warn(`[Store] Block ${blockId} not found in clip ${clipId}`)
+          return
+        }
         
-        // Use splice to remove the block (Immer will detect this mutation)
-        clip.effects.zoom.blocks.splice(blockIndex, 1)
+        // Create a new array without the block to ensure React detects the change
+        const newBlocks = clip.effects.zoom.blocks.filter(b => b.id !== blockId)
+        clip.effects.zoom.blocks = newBlocks
+        
+        // Update modification timestamp
         state.currentProject.modifiedAt = new Date().toISOString()
+        
+        console.log(`[Store] Removed zoom block ${blockId}, remaining blocks:`, newBlocks.length)
       })
     },
 

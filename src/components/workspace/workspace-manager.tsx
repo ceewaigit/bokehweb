@@ -236,6 +236,35 @@ export function WorkspaceManager() {
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId) || null
 
+  // Sync localEffects when clip effects change (e.g., after deletion via keyboard)
+  useEffect(() => {
+    if (localEffects && selectedClip) {
+      // Check if zoom blocks in localEffects match the actual clip
+      const localZoomBlocks = localEffects.zoom?.blocks || []
+      const clipZoomBlocks = selectedClip.effects?.zoom?.blocks || []
+      
+      // If block counts differ, clear localEffects
+      if (localZoomBlocks.length !== clipZoomBlocks.length) {
+        console.log('[WorkspaceManager] Zoom block count mismatch, clearing localEffects')
+        setLocalEffects(null)
+        setHasUnsavedChanges(false)
+        return
+      }
+      
+      // Check if all block IDs match
+      const localIds = localZoomBlocks.map((b: ZoomBlock) => b.id).sort()
+      const clipIds = clipZoomBlocks.map((b: ZoomBlock) => b.id).sort()
+      const idsMatch = localIds.length === clipIds.length && 
+                       localIds.every((id: string, index: number) => id === clipIds[index])
+      
+      if (!idsMatch) {
+        console.log('[WorkspaceManager] Zoom block IDs mismatch, clearing localEffects')
+        setLocalEffects(null)
+        setHasUnsavedChanges(false)
+      }
+    }
+  }, [selectedClip?.effects?.zoom?.blocks, localEffects])
+
   // Handle zoom block updates for local state with undo/redo support
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
     const currentEffects = localEffects || selectedClip?.effects || DEFAULT_CLIP_EFFECTS

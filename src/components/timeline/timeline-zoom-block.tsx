@@ -168,7 +168,7 @@ export const TimelineZoomBlock = React.memo(({
     return Math.max(clipX, bestSnapX)
   }
 
-  // Simple resize validation with edge snapping
+  // Resize validation with collision detection and edge snapping
   const getValidResizeWidth = (proposedWidth: number, proposedX: number, isResizingLeft: boolean): { width: number; x: number } => {
     const minWidth = TimelineUtils.timeToPixel(100, pixelsPerMs)
     const snapThreshold = 10
@@ -180,21 +180,36 @@ export const TimelineZoomBlock = React.memo(({
       .filter(b => b.id !== blockId)
       .map(b => ({
         x: clipX + TimelineUtils.timeToPixel(b.startTime, pixelsPerMs),
-        endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
+        endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs),
+        startTime: b.startTime,
+        endTime: b.endTime
       }))
+      .sort((a, b) => a.x - b.x)
 
-    // Handle snapping based on resize direction
+    // Handle collision detection and snapping based on resize direction
     if (isResizingLeft) {
       // Store the original right edge position using current props
       const rightEdge = x + width
-
-      // Resizing from left - snap left edge
+      
+      // Check for collisions when resizing left
       for (const block of blocks) {
-        if (Math.abs(finalX - block.x) < snapThreshold) {
-          finalX = block.x
+        // If we're moving left edge past another block's right edge (collision)
+        if (finalX < block.endX && rightEdge > block.endX) {
+          // Prevent overlap by limiting how far left we can go
+          finalX = Math.max(finalX, block.endX + 1)
         }
-        if (Math.abs(finalX - block.endX) < snapThreshold) {
+      }
+
+      // Apply snapping after collision check
+      for (const block of blocks) {
+        const distToBlockStart = Math.abs(finalX - block.x)
+        const distToBlockEnd = Math.abs(finalX - block.endX)
+        
+        // Only snap if we're not creating an overlap
+        if (distToBlockEnd < snapThreshold && finalX >= block.endX) {
           finalX = block.endX
+        } else if (distToBlockStart < snapThreshold && finalX >= block.endX) {
+          finalX = block.x
         }
       }
 
@@ -213,16 +228,34 @@ export const TimelineZoomBlock = React.memo(({
       // Final boundary check
       finalX = Math.max(clipX, finalX)
     } else {
-      // Resizing from right - snap right edge
-      const rightEdge = finalX + finalWidth
+      // Resizing from right
+      const leftEdge = finalX
+      let rightEdge = finalX + finalWidth
+      
+      // Check for collisions when resizing right
       for (const block of blocks) {
-        if (Math.abs(rightEdge - block.x) < snapThreshold) {
-          finalWidth = block.x - finalX
+        // If we're moving right edge past another block's left edge (collision)
+        if (rightEdge > block.x && leftEdge < block.x) {
+          // Prevent overlap by limiting how far right we can go
+          rightEdge = Math.min(rightEdge, block.x - 1)
+          finalWidth = rightEdge - finalX
         }
-        if (Math.abs(rightEdge - block.endX) < snapThreshold) {
+      }
+      
+      // Apply snapping after collision check
+      for (const block of blocks) {
+        const currentRightEdge = finalX + finalWidth
+        const distToBlockStart = Math.abs(currentRightEdge - block.x)
+        const distToBlockEnd = Math.abs(currentRightEdge - block.endX)
+        
+        // Only snap if we're not creating an overlap
+        if (distToBlockStart < snapThreshold && currentRightEdge <= block.x) {
+          finalWidth = block.x - finalX
+        } else if (distToBlockEnd < snapThreshold && currentRightEdge <= block.x) {
           finalWidth = block.endX - finalX
         }
       }
+      
       finalWidth = Math.max(minWidth, finalWidth)
     }
 
