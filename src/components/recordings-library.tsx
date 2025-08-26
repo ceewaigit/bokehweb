@@ -292,10 +292,10 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden bg-background">
         {/* Header skeleton */}
         <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-2xl">
-          <div className="px-6 py-3.5">
+          <div className="px-6 py-2.5 ml-20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-5 w-16 bg-muted/30 rounded animate-pulse" />
@@ -374,7 +374,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
       <div className="flex-1 overflow-hidden">
         {/* Header */}
         <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-2xl">
-          <div className="px-6 py-3.5">
+          <div className="px-6 py-2.5 ml-20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h1 className="text-sm font-semibold text-foreground">Library</h1>
@@ -470,7 +470,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
       <div ref={containerRef} className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
         {/* Enhanced header */}
         <div className="sticky top-0 z-30 bg-background/95 border-b border-border">
-          <div className="px-6 py-3.5">
+          <div className="px-6 py-2.5 ml-20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h1 className="text-sm font-semibold text-foreground">Library</h1>
