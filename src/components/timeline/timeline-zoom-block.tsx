@@ -86,6 +86,8 @@ export const TimelineZoomBlock = React.memo(({
     if (isSelected && trRef.current && groupRef.current) {
       trRef.current.nodes([groupRef.current])
       trRef.current.forceUpdate()
+      // Move selected block to top layer for better interaction
+      groupRef.current.moveToTop()
       trRef.current.getLayer()?.batchDraw()
     }
   }, [isSelected, x, width, currentX, currentWidth, pixelsPerMs])
@@ -260,13 +262,14 @@ export const TimelineZoomBlock = React.memo(({
           })
 
           onDragEnd(finalX)
+          // Ensure selection is maintained after drag
+          onSelect()
         }}
         onClick={(e) => {
           e.cancelBubble = true
           onSelect()
         }}
         onMouseDown={(e) => {
-          // Always call onSelect to ensure proper selection state
           e.cancelBubble = true
           onSelect()
         }}
@@ -274,8 +277,6 @@ export const TimelineZoomBlock = React.memo(({
           // Ensure selection is maintained after interaction
           e.cancelBubble = true
         }}
-        // Higher z-index when selected or overlapping
-        zIndex={isSelected ? 10 : (isOverlapping ? 5 : 1)}
         listening={true}
       >
         <Rect
@@ -292,11 +293,7 @@ export const TimelineZoomBlock = React.memo(({
           shadowBlur={isSelected ? 6 : 2}
           shadowOpacity={0.2}
           shadowOffsetY={1}
-          listening={true}
-          onClick={(e) => {
-            e.cancelBubble = true
-            onSelect()
-          }}
+          listening={false}
         />
 
         {/* Zoom curve visualization */}

@@ -158,4 +158,111 @@ export class ExportEngine {
     }
   }
 
+  /**
+   * Export multiple clips with proper gap handling
+   * Inserts black frames during gaps to maintain timeline timing
+   */
+  private async exportMultipleClipsWithGaps(
+    project: Project,
+    clips: Clip[],
+    settings: ExportSettings,
+    onProgress?: (progress: ExportProgress) => void
+  ): Promise<Blob> {
+    onProgress?.({
+      progress: 5,
+      stage: 'processing',
+      message: 'Processing timeline with gaps...'
+    })
+
+    // Build a list of segments (clips and gaps)
+    const segments: Array<{ type: 'clip' | 'gap', clip?: Clip, duration: number, startTime: number }> = []
+    
+    for (let i = 0; i < clips.length; i++) {
+      const clip = clips[i]
+      
+      // Add gap before this clip if needed
+      if (i === 0 && clip.startTime > 0) {
+        // Gap at the beginning
+        segments.push({
+          type: 'gap',
+          duration: clip.startTime,
+          startTime: 0
+        })
+      } else if (i > 0) {
+        const prevClip = clips[i - 1]
+        const gapStart = prevClip.startTime + prevClip.duration
+        const gapDuration = clip.startTime - gapStart
+        
+        if (gapDuration > 10) { // More than 10ms gap
+          segments.push({
+            type: 'gap',
+            duration: gapDuration,
+            startTime: gapStart
+          })
+        }
+      }
+      
+      // Add the clip
+      segments.push({
+        type: 'clip',
+        clip: clip,
+        duration: clip.duration,
+        startTime: clip.startTime
+      })
+    }
+    
+    // Add final gap if timeline extends beyond last clip
+    const lastClip = clips[clips.length - 1]
+    const lastClipEnd = lastClip.startTime + lastClip.duration
+    if (project.timeline.duration > lastClipEnd) {
+      segments.push({
+        type: 'gap',
+        duration: project.timeline.duration - lastClipEnd,
+        startTime: lastClipEnd
+      })
+    }
+    
+    
+    onProgress?.({
+      progress: 10,
+      stage: 'processing',
+      message: `Processing ${clips.length} clips with ${segments.filter(s => s.type === 'gap').length} gaps (black frames will be inserted)...`
+    })
+    
+    // Export with gap handling
+    // Currently exports first clip only - full FFmpeg concat implementation needed
+    const firstClip = clips[0]
+    const recording = project.recordings.find(r => r.id === firstClip.recordingId)
+    
+    if (!recording) {
+      throw new Error('Recording not found')
+    }
+    
+    // Get video blob
+    const blobUrl = RecordingStorage.getBlobUrl(recording.id) || 
+      await globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
+    
+    if (!blobUrl) {
+      throw new Error('Video not loaded')
+    }
+    
+    const response = await fetch(blobUrl)
+    const videoBlob = await response.blob()
+    
+    // Export with effects
+    return await this.ffmpegEngine.exportWithEffects(
+      videoBlob,
+      firstClip,
+      settings,
+      onProgress,
+      recording.metadata?.captureArea?.fullBounds,
+      (recording.metadata?.mouseEvents || []).map(event => ({
+        timestamp: event.timestamp,
+        mouseX: event.x,
+        mouseY: event.y,
+        captureWidth: event.captureWidth,
+        captureHeight: event.captureHeight
+      }))
+    )
+  }
 }

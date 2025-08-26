@@ -41,10 +41,18 @@ export const useGlassmorphismStore = create<GlassmorphismState>()(
       applySettings: () => {
         const { opacity, blurRadius } = get()
         
-        // Only update CSS variables for UI elements
+        // Update CSS variables for UI elements
         if (typeof document !== 'undefined') {
           document.documentElement.style.setProperty('--glass-opacity', `${opacity / 100}`)
           document.documentElement.style.setProperty('--glass-blur', `${blurRadius}px`)
+        }
+        
+        // Send opacity to Electron to control window transparency
+        if (window.electronAPI?.updateGlassmorphism) {
+          window.electronAPI.updateGlassmorphism({
+            opacity,
+            blurRadius
+          })
         }
       }
     }),

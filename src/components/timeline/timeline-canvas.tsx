@@ -516,7 +516,6 @@ export function TimelineCanvas({
           }}
           onCopy={(id) => {
             // Copy is handled by keyboard shortcuts
-            console.log('Copy clip:', id)
           }}
           onDelete={async (id) => {
             if (commandManagerRef.current && commandContextRef.current) {

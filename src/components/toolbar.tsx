@@ -71,7 +71,7 @@ export function Toolbar({
   }
 
   return (
-    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden glassmorphism" 
+    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-card/95 border-b" 
          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -270,7 +270,7 @@ export function Toolbar({
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-w-md glassmorphism">
           <DialogHeader>
-            <DialogTitle>Settings</DialogTitle>
+            <DialogTitle>Window Settings</DialogTitle>
           </DialogHeader>
           <GlassmorphismSettings />
         </DialogContent>

@@ -44,7 +44,9 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Copy handler
     const handleCopy = async () => {
-      const command = new CopyCommand(context)
+      // Update context with fresh store state
+      contextRef.current = new DefaultCommandContext(useProjectStore.getState())
+      const command = new CopyCommand(contextRef.current)
       const result = await manager.execute(command)
       
       if (result.success) {
@@ -72,7 +74,9 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Paste handler
     const handlePaste = async () => {
-      const command = new PasteCommand(context)
+      // Update context with fresh store state
+      contextRef.current = new DefaultCommandContext(useProjectStore.getState())
+      const command = new PasteCommand(contextRef.current)
       const result = await manager.execute(command)
       
       if (result.success) {
@@ -88,21 +92,28 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Delete handler
     const handleDelete = async () => {
+      // Get fresh store state
+      const currentStore = useProjectStore.getState()
+      
+      console.log('Delete handler - selectedEffectLayer:', currentStore.selectedEffectLayer)
+      console.log('Delete handler - selectedClips:', currentStore.selectedClips)
+      
       // Check if an effect layer is selected (e.g., zoom block)
-      if (store.selectedEffectLayer) {
-        const { type, id } = store.selectedEffectLayer
+      if (currentStore.selectedEffectLayer) {
+        const { type, id } = currentStore.selectedEffectLayer
         
-        if (type === 'zoom' && id && store.selectedClips.length === 1) {
+        if (type === 'zoom' && id && currentStore.selectedClips.length === 1) {
           // Delete the zoom block
-          store.removeZoomBlock(store.selectedClips[0], id)
-          store.clearEffectSelection()
+          console.log('Deleting zoom block:', id, 'from clip:', currentStore.selectedClips[0])
+          currentStore.removeZoomBlock(currentStore.selectedClips[0], id)
+          currentStore.clearEffectSelection()
           toast('Zoom block deleted')
           return
         }
       }
 
       // Default behavior: delete clips
-      const selectedClips = store.selectedClips
+      const selectedClips = currentStore.selectedClips
       if (selectedClips.length === 0) return
 
       // Begin group for multiple deletions

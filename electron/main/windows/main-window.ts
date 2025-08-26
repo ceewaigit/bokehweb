@@ -13,8 +13,8 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 1200,
     minHeight: 800,
     show: false,
-    transparent: false,
-    backgroundColor: '#1a1a1a',
+    transparent: true,
+    backgroundColor: '#00000000',
     vibrancy: 'under-window', // macOS vibrancy for true glassmorphism
     backgroundMaterial: 'acrylic', // Windows 11 acrylic effect
     webPreferences: {
