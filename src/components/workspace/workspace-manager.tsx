@@ -619,7 +619,7 @@ export function WorkspaceManager() {
             {/* Properties Panel - Fixed width when open, same height as preview */}
             {isPropertiesOpen && (
               <div
-                className="bg-background/40 backdrop-blur-sm overflow-hidden border-r border-border/50"
+                className="bg-background/40 backdrop-blur-sm overflow-hidden"
                 style={{ width: `${propertiesPanelWidth}px` }}
               >
                 <EffectsSidebar

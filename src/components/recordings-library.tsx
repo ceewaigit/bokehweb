@@ -320,7 +320,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 transition={{ delay: i * 0.03, duration: 0.3 }}
                 className="group relative"
               >
-                <div className="relative rounded-xl overflow-hidden bg-card/80 backdrop-blur-sm border border-border/50">
+                <div className="relative rounded-xl overflow-hidden bg-background backdrop-blur-sm border border-border/50">
                   <div className="aspect-video relative bg-gradient-to-br from-muted/10 to-muted/5">
                     <div className="absolute inset-0 flex items-center justify-center">
                       <motion.div
@@ -466,7 +466,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   }
 
   return (
-    <div className="flex-1 overflow-hidden">
+    <div className="flex-1 overflow-hidden bg-background">
       <div ref={containerRef} className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
         {/* Enhanced header */}
         <div className="sticky top-0 z-30 glassmorphism border-b border-border">

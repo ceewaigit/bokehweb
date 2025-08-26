@@ -161,7 +161,7 @@ export function PreviewAreaRemotion({
 
 
   return (
-    <div className="relative w-full h-full overflow-hidden">
+    <div className="relative w-full h-full overflow-hidden bg-background">
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div 
           className="relative w-full h-full flex items-center justify-center"

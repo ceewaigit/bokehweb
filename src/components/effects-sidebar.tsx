@@ -115,7 +115,7 @@ export function EffectsSidebar({
   // Update background while preserving existing properties
   const updateBackgroundEffect = (updates: any) => {
     if (!effects || !selectedClip) return
-    
+
     updateEffect('background', {
       ...effects.background,
       ...updates
