@@ -254,7 +254,7 @@ export function TimelineCanvas({
   }
 
   return (
-    <div className={cn("flex flex-col h-full w-full glassmorphism", className)}>
+    <div className={cn("flex flex-col h-full w-full", className)}>
       <TimelineControls
         isPlaying={isPlaying}
         zoom={zoom}
@@ -277,6 +277,10 @@ export function TimelineCanvas({
         className="flex-1 overflow-x-auto overflow-y-hidden relative"
         tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
+        onMouseDown={() => {
+          // Ensure container maintains focus for keyboard events
+          containerRef.current?.focus()
+        }}
       >
         <Stage
           key={themeKey}

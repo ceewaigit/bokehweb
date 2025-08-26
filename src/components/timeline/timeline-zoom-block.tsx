@@ -135,6 +135,9 @@ export const TimelineZoomBlock = React.memo(({
 
     // Handle snapping based on resize direction
     if (isResizingLeft) {
+      // Store the original right edge position
+      const rightEdge = currentX + currentWidth
+      
       // Resizing from left - snap left edge
       for (const block of blocks) {
         if (Math.abs(finalX - block.x) < snapThreshold) {
@@ -144,8 +147,21 @@ export const TimelineZoomBlock = React.memo(({
           finalX = block.endX
         }
       }
-      // Recalculate width based on new position
-      finalWidth = (currentX + currentWidth) - finalX
+      
+      // Ensure we don't go past the clip boundary
+      finalX = Math.max(clipX, finalX)
+      
+      // Recalculate width to maintain the right edge position
+      finalWidth = rightEdge - finalX
+      
+      // Ensure minimum width
+      if (finalWidth < minWidth) {
+        finalWidth = minWidth
+        finalX = rightEdge - minWidth
+      }
+      
+      // Final boundary check
+      finalX = Math.max(clipX, finalX)
     } else {
       // Resizing from right - snap right edge
       const rightEdge = finalX + finalWidth
@@ -157,10 +173,8 @@ export const TimelineZoomBlock = React.memo(({
           finalWidth = block.endX - finalX
         }
       }
+      finalWidth = Math.max(minWidth, finalWidth)
     }
-
-    finalX = Math.max(clipX, finalX)
-    finalWidth = Math.max(minWidth, finalWidth)
     
     return { width: finalWidth, x: finalX }
   }
@@ -252,12 +266,17 @@ export const TimelineZoomBlock = React.memo(({
           onSelect()
         }}
         onMouseDown={(e) => {
-          // Ensure the block gets focus and selection
+          // Always call onSelect to ensure proper selection state
           e.cancelBubble = true
           onSelect()
         }}
+        onMouseUp={(e) => {
+          // Ensure selection is maintained after interaction
+          e.cancelBubble = true
+        }}
         // Higher z-index when selected or overlapping
         zIndex={isSelected ? 10 : (isOverlapping ? 5 : 1)}
+        listening={true}
       >
         <Rect
           x={0}
@@ -273,6 +292,11 @@ export const TimelineZoomBlock = React.memo(({
           shadowBlur={isSelected ? 6 : 2}
           shadowOpacity={0.2}
           shadowOffsetY={1}
+          listening={true}
+          onClick={(e) => {
+            e.cancelBubble = true
+            onSelect()
+          }}
         />
 
         {/* Zoom curve visualization */}

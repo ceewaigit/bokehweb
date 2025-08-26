@@ -520,7 +520,7 @@ export function WorkspaceManager() {
 
   return (
     <>
-      <div className="fixed inset-0 flex flex-col bg-background" style={{ width: '100vw', height: '100vh' }}>
+      <div className="fixed inset-0 flex flex-col" style={{ width: '100vw', height: '100vh' }}>
         {/* Top Toolbar - Compact with macOS traffic light padding */}
         <div className="flex-shrink-0 bg-card/50 overflow-hidden" style={{ height: '48px', paddingLeft: '80px' }}>
           <Toolbar
@@ -603,7 +603,7 @@ export function WorkspaceManager() {
           {/* Top Section - Preview and Sidebar (60% height) */}
           <div className="flex" style={{ height: '60%' }}>
             {/* Preview Area */}
-            <div className="bg-background overflow-hidden" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
+            <div className="overflow-hidden" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
               <PreviewAreaRemotion
                 selectedClip={selectedClip}
                 selectedRecording={selectedRecording}

@@ -292,7 +292,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   if (loading) {
     return (
-      <div className="flex-1 bg-background overflow-hidden">
+      <div className="flex-1 overflow-hidden">
         {/* Header skeleton */}
         <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-2xl">
           <div className="px-6 py-3.5">
@@ -371,7 +371,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   if (recordings.length === 0) {
     return (
-      <div className="flex-1 bg-background overflow-hidden">
+      <div className="flex-1 overflow-hidden">
         {/* Header */}
         <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-2xl">
           <div className="px-6 py-3.5">
@@ -466,7 +466,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   }
 
   return (
-    <div className="flex-1 bg-background overflow-hidden">
+    <div className="flex-1 overflow-hidden">
       <div ref={containerRef} className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
         {/* Enhanced header */}
         <div className="sticky top-0 z-30 glassmorphism border-b border-border">
