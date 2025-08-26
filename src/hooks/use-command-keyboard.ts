@@ -44,19 +44,26 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Copy handler
     const handleCopy = async () => {
-      // Update context with fresh store state
-      contextRef.current = new DefaultCommandContext(useProjectStore.getState())
-      const command = new CopyCommand(contextRef.current)
-      const result = await manager.execute(command)
+      // Get fresh store state
+      const currentStore = useProjectStore.getState()
+      const freshContext = new DefaultCommandContext(currentStore)
       
-      if (result.success) {
-        if (result.data?.type === 'effect') {
-          toast(`${result.data.effectType} copied`)
+      try {
+        const command = new CopyCommand(freshContext)
+        const result = await manager.execute(command)
+        
+        if (result.success) {
+          if (result.data?.type === 'effect') {
+            toast(`${result.data.effectType} block copied`)
+          } else {
+            toast('Clip copied')
+          }
         } else {
-          toast('Clip copied')
+          toast.error(result.error as string)
         }
-      } else {
-        toast.error(result.error as string)
+      } catch (err) {
+        console.error('Copy failed:', err)
+        toast.error('Failed to copy')
       }
     }
 
@@ -76,48 +83,61 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Paste handler
     const handlePaste = async () => {
-      // Update context with fresh store state
-      contextRef.current = new DefaultCommandContext(useProjectStore.getState())
-      const command = new PasteCommand(contextRef.current)
-      const result = await manager.execute(command)
+      // Get fresh store state
+      const currentStore = useProjectStore.getState()
+      const freshContext = new DefaultCommandContext(currentStore)
       
-      if (result.success) {
-        if (result.data?.type === 'effect') {
-          toast(`${result.data.effectType} pasted`)
+      try {
+        const command = new PasteCommand(freshContext)
+        const result = await manager.execute(command)
+        
+        if (result.success) {
+          if (result.data?.type === 'effect') {
+            toast(`${result.data.effectType} block pasted`)
+          } else {
+            toast('Clip pasted')
+          }
         } else {
-          toast('Clip pasted')
+          toast.error(result.error as string)
         }
-      } else {
-        toast.error(result.error as string)
+      } catch (err) {
+        console.error('Paste failed:', err)
+        toast.error('Failed to paste')
       }
     }
 
     // Delete handler
     const handleDelete = async () => {
-      // Get fresh store state
+      // Get absolutely fresh store state
       const currentStore = useProjectStore.getState()
       
-      // Update context with fresh store state
-      contextRef.current = new DefaultCommandContext(currentStore)
+      // Create new context with fresh state
+      const freshContext = new DefaultCommandContext(currentStore)
       
       // Check if an effect layer is selected (e.g., zoom block)
-      if (currentStore.selectedEffectLayer) {
-        const { type, id } = currentStore.selectedEffectLayer
-        
-        if (type === 'zoom' && id && currentStore.selectedClips.length === 1) {
+      const effectLayer = currentStore.selectedEffectLayer
+      if (effectLayer && effectLayer.type === 'zoom' && effectLayer.id) {
+        const selectedClips = currentStore.selectedClips
+        if (selectedClips.length === 1) {
           // Use command pattern for zoom block deletion
           const command = new RemoveZoomBlockCommand(
-            contextRef.current,
-            currentStore.selectedClips[0],
-            id
+            freshContext,
+            selectedClips[0],
+            effectLayer.id
           )
-          const result = await manager.execute(command)
           
-          if (result.success) {
-            currentStore.clearEffectSelection()
-            toast('Zoom block deleted')
-          } else {
-            toast.error(result.error as string)
+          try {
+            const result = await manager.execute(command)
+            if (result.success) {
+              // Clear selection after successful deletion
+              useProjectStore.getState().clearEffectSelection()
+              toast('Zoom block deleted')
+            } else {
+              toast.error(result.error as string)
+            }
+          } catch (err) {
+            console.error('Delete zoom block failed:', err)
+            toast.error('Failed to delete zoom block')
           }
           return
         }

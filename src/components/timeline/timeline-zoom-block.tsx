@@ -46,17 +46,9 @@ export const TimelineZoomBlock = React.memo(({
 }: TimelineZoomBlockProps) => {
   const colors = useTimelineColors()
   const [isDragging, setIsDragging] = useState(false)
-  const [currentX, setCurrentX] = useState(x)
-  const [currentWidth, setCurrentWidth] = useState(width)
   const [isOverlapping, setIsOverlapping] = useState(false)
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
-
-  // Sync position and width from props
-  useEffect(() => {
-    setCurrentX(x)
-    setCurrentWidth(width)
-  }, [x, width])
 
   // Check for overlaps
   useEffect(() => {
@@ -68,16 +60,16 @@ export const TimelineZoomBlock = React.memo(({
           endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
         }))
 
-      const blockEnd = currentX + currentWidth
+      const blockEnd = x + width
       const hasOverlap = blocks.some(block =>
-        (currentX < block.endX && blockEnd > block.x)
+        (x < block.endX && blockEnd > block.x)
       )
 
       setIsOverlapping(hasOverlap)
     }
 
     checkOverlap()
-  }, [currentX, currentWidth, allBlocks, blockId, clipX, pixelsPerMs])
+  }, [x, width, allBlocks, blockId, clipX, pixelsPerMs])
 
   // Setup transformer when selected
   useEffect(() => {
@@ -116,8 +108,8 @@ export const TimelineZoomBlock = React.memo(({
       }))
       .sort((a, b) => a.x - b.x) // Sort blocks by position for predictable snapping
 
-    // Store the current width for consistent snapping
-    const blockWidth = currentWidth || width
+    // Use the prop width for consistent snapping
+    const blockWidth = width
 
     // Try to find the best snap position
     let bestSnapX = proposedX
@@ -174,8 +166,8 @@ export const TimelineZoomBlock = React.memo(({
 
     // Handle snapping based on resize direction
     if (isResizingLeft) {
-      // Store the original right edge position
-      const rightEdge = currentX + currentWidth
+      // Store the original right edge position using current props
+      const rightEdge = x + width
 
       // Resizing from left - snap left edge
       for (const block of blocks) {
@@ -221,7 +213,7 @@ export const TimelineZoomBlock = React.memo(({
   // Generate zoom curve visualization
   const generateZoomCurve = () => {
     const points: number[] = []
-    const w = currentWidth // Use current width for real-time updates
+    const w = width // Use prop width
 
     // Ensure we have valid dimensions
     if (!w || !height || isNaN(w) || isNaN(height)) {
@@ -278,61 +270,38 @@ export const TimelineZoomBlock = React.memo(({
     <>
       <Group
         ref={groupRef}
-        x={currentX}
+        x={x}
         y={y}
         draggable
         dragBoundFunc={(pos) => {
-          // Allow free movement during drag, only constrain to clip boundaries
-          const constrainedX = Math.max(clipX, pos.x)
-          setCurrentX(constrainedX)
-          return { x: constrainedX, y: y }
+          // Constrain to clip boundaries
+          return {
+            x: Math.max(clipX, pos.x),
+            y: y
+          }
         }}
         onDragStart={() => {
           setIsDragging(true)
-          onSelect() // Ensure block is selected when dragging starts
+          onSelect()
         }}
         onDragEnd={(e) => {
           setIsDragging(false)
           const draggedX = e.target.x()
-          
-          // Apply snapping only on drag end
+
+          // Apply snapping
           const snappedX = getValidDragPosition(draggedX)
-          
-          // Calculate new times based on snapped position
+
+          // Calculate new times
           const newStartTime = TimelineUtils.pixelToTime(snappedX - clipX, pixelsPerMs)
           const duration = endTime - startTime
-          const newEndTime = newStartTime + duration
-          
-          // Check if the new position would create an overlap
-          const wouldOverlap = allBlocks
-            .filter(b => b.id !== blockId)
-            .some(block => {
-              const blockStart = block.startTime
-              const blockEnd = block.endTime
-              return (newStartTime < blockEnd && newEndTime > blockStart)
-            })
-          
-          if (wouldOverlap) {
-            // Reset to original position if overlap detected
-            setCurrentX(x)
-            if (groupRef.current) {
-              groupRef.current.x(x)
-            }
-          } else {
-            // Apply the new position
-            setCurrentX(snappedX)
-            if (groupRef.current) {
-              groupRef.current.x(snappedX)
-            }
-            
-            // Update position
-            onUpdate({
-              startTime: Math.max(0, newStartTime),
-              endTime: Math.max(0, newEndTime)
-            })
-            
-            onDragEnd(snappedX)
-          }
+
+          // Update position - let the parent handle validation
+          onUpdate({
+            startTime: Math.max(0, newStartTime),
+            endTime: Math.max(0, newStartTime + duration)
+          })
+
+          onDragEnd(snappedX)
         }}
         onClick={(e) => {
           e.cancelBubble = true
@@ -351,7 +320,7 @@ export const TimelineZoomBlock = React.memo(({
         <Rect
           x={0}
           y={0}
-          width={currentWidth}
+          width={width}
           height={height}
           fill={isOverlapping && !isSelected ? 'rgba(239, 68, 68, 0.85)' : (colors.zoomBlock || 'rgba(147, 51, 234, 0.85)')}
           cornerRadius={4}
@@ -380,7 +349,7 @@ export const TimelineZoomBlock = React.memo(({
             <Line
               points={[
                 ...curvePoints,
-                currentWidth, height / 2,
+                width, height / 2,
                 0, height / 2
               ]}
               fill="rgba(255, 255, 255, 0.15)"
@@ -419,7 +388,7 @@ export const TimelineZoomBlock = React.memo(({
             // Get valid resize dimensions
             const valid = getValidResizeWidth(
               newBox.width,
-              resizingLeft ? newBox.x : currentX,
+              resizingLeft ? newBox.x : x,
               resizingLeft
             )
 
@@ -427,9 +396,7 @@ export const TimelineZoomBlock = React.memo(({
             newBox.x = valid.x
             newBox.height = oldBox.height
 
-            // Update state for real-time preview
-            setCurrentWidth(valid.width)
-            setCurrentX(valid.x)
+            // Real-time preview handled by boundBoxFunc return
 
             return newBox
           }}
@@ -443,9 +410,11 @@ export const TimelineZoomBlock = React.memo(({
           keepRatio={false}
           ignoreStroke={true}
           onTransformEnd={() => {
-            // The width and position are already updated via boundBoxFunc
-            const finalWidth = currentWidth
-            const finalX = currentX
+            // Get the final dimensions from the node
+            const node = groupRef.current
+            if (!node) return
+            const finalWidth = node.width()
+            const finalX = node.x()
 
             // Calculate new times
             const newStartTime = TimelineUtils.pixelToTime(finalX - clipX, pixelsPerMs)
