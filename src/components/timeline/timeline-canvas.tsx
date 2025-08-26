@@ -73,8 +73,6 @@ export function TimelineCanvas({
     updateZoomBlock,
     clearSelection,
     splitClip,
-    trimClipStart,
-    trimClipEnd,
     duplicateClip
   } = useProjectStore()
 
