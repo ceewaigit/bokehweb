@@ -46,16 +46,12 @@ export const useGlassmorphismStore = create<GlassmorphismState>()(
           // Convert opacity to 0-1 range for CSS
           const cssOpacity = opacity / 100
           
-          // Set glassmorphism overlay opacity
+          // Set glassmorphism overlay opacity for dialogs
           document.documentElement.style.setProperty('--glass-opacity', `${cssOpacity}`)
           document.documentElement.style.setProperty('--glass-blur', `${blurRadius}px`)
-          
-          // Set window background opacity (like Warp terminal)
-          // This controls the background transparency while keeping text opaque
-          document.documentElement.style.setProperty('--window-bg-opacity', `${cssOpacity}`)
         }
         
-        // Notify Electron (though it doesn't need to do anything now)
+        // Send opacity to Electron to control entire window transparency
         if (window.electronAPI?.updateGlassmorphism) {
           window.electronAPI.updateGlassmorphism({
             opacity,

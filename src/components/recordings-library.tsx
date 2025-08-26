@@ -294,7 +294,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     return (
       <div className="flex-1 overflow-hidden">
         {/* Header skeleton */}
-        <div className="sticky top-0 z-20 backdrop-blur-2xl">
+        <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-2xl">
           <div className="px-6 py-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -320,7 +320,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 transition={{ delay: i * 0.03, duration: 0.3 }}
                 className="group relative"
               >
-                <div className="relative rounded-xl overflow-hidden backdrop-blur-sm border border-border/50">
+                <div className="relative rounded-xl overflow-hidden bg-card/80 backdrop-blur-sm border border-border/50">
                   <div className="aspect-video relative bg-gradient-to-br from-muted/10 to-muted/5">
                     <div className="absolute inset-0 flex items-center justify-center">
                       <motion.div
@@ -360,7 +360,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           transition={{ delay: 0.2 }}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
         >
-          <div className="backdrop-blur-xl rounded-full px-4 py-2 flex items-center gap-3 shadow-2xl border border-border/50">
+          <div className="bg-background/80 backdrop-blur-xl rounded-full px-4 py-2 flex items-center gap-3 shadow-2xl border border-border/50">
             <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
             <span className="text-xs font-medium text-muted-foreground">Loading your recordings...</span>
           </div>
@@ -373,7 +373,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     return (
       <div className="flex-1 overflow-hidden">
         {/* Header */}
-        <div className="sticky top-0 z-20 backdrop-blur-2xl">
+        <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-2xl">
           <div className="px-6 py-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -536,7 +536,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                       transition={{ duration: 0.2, ease: "easeOut" }}
                       className={cn(
                         "relative rounded-xl overflow-hidden cursor-pointer",
-                        "backdrop-blur-sm transition-all duration-200 border border-border/30",
+                        "bg-card/60 backdrop-blur-sm transition-all duration-200 border border-border/30",
                         isHovered
                           ? "shadow-2xl ring-1 ring-primary/10"
                           : "shadow-sm hover:shadow-xl"

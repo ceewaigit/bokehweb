@@ -522,7 +522,7 @@ export function WorkspaceManager() {
     <>
       <div className="fixed inset-0 flex flex-col" style={{ width: '100vw', height: '100vh' }}>
         {/* Top Toolbar - Compact with macOS traffic light padding */}
-        <div className="flex-shrink-0 backdrop-blur-sm overflow-hidden border-b border-border/50" style={{ height: '48px', paddingLeft: '80px' }}>
+        <div className="flex-shrink-0 bg-background/60 backdrop-blur-sm overflow-hidden border-b border-border/50" style={{ height: '48px', paddingLeft: '80px' }}>
           <Toolbar
             project={currentProject}
             onToggleProperties={handleToggleProperties}
@@ -619,7 +619,7 @@ export function WorkspaceManager() {
             {/* Properties Panel - Fixed width when open, same height as preview */}
             {isPropertiesOpen && (
               <div
-                className="backdrop-blur-sm overflow-hidden border-r border-border/50"
+                className="bg-background/40 backdrop-blur-sm overflow-hidden border-r border-border/50"
                 style={{ width: `${propertiesPanelWidth}px` }}
               >
                 <EffectsSidebar
@@ -634,7 +634,7 @@ export function WorkspaceManager() {
           </div>
 
           {/* Timeline Section - Full width at bottom (40% height) */}
-          <div className="backdrop-blur-sm overflow-hidden border-t border-border/50" style={{ height: '40%', width: '100vw' }}>
+          <div className="bg-background/60 backdrop-blur-sm overflow-hidden border-t border-border/50" style={{ height: '40%', width: '100vw' }}>
             <TimelineCanvas
               className="h-full w-full"
               currentProject={currentProject}

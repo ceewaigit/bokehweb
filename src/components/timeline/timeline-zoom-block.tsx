@@ -52,13 +52,11 @@ export const TimelineZoomBlock = React.memo(({
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
 
-  // Sync position and width when not dragging/resizing
+  // Sync position and width from props
   useEffect(() => {
-    if (!isDragging) {
-      setCurrentX(x)
-      setCurrentWidth(width)
-    }
-  }, [x, width, isDragging])
+    setCurrentX(x)
+    setCurrentWidth(width)
+  }, [x, width])
 
   // Check for overlaps
   useEffect(() => {
@@ -81,21 +79,31 @@ export const TimelineZoomBlock = React.memo(({
     checkOverlap()
   }, [currentX, currentWidth, allBlocks, blockId, clipX, pixelsPerMs])
 
-  // Setup transformer and update on selection or size changes
+  // Setup transformer when selected
   useEffect(() => {
-    if (isSelected && trRef.current && groupRef.current) {
+    if (isSelected) {
       // Small delay to ensure DOM is ready
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (trRef.current && groupRef.current) {
-          trRef.current.nodes([groupRef.current])
-          trRef.current.forceUpdate()
-          // Move selected block to top layer for better interaction
-          groupRef.current.moveToTop()
-          trRef.current.getLayer()?.batchDraw()
+          try {
+            trRef.current.nodes([groupRef.current])
+            trRef.current.forceUpdate()
+            groupRef.current.moveToTop()
+            const layer = trRef.current.getLayer()
+            if (layer) {
+              layer.batchDraw()
+            }
+          } catch (e) {
+            console.warn('Transformer update failed:', e)
+          }
         }
-      }, 0)
+      }, 10)
+      return () => clearTimeout(timer)
+    } else if (trRef.current) {
+      // Detach transformer when not selected
+      trRef.current.nodes([])
     }
-  }, [isSelected, x, width, currentX, currentWidth, pixelsPerMs])
+  }, [isSelected])
 
   // Get valid position for dragging with improved edge snapping
   const getValidDragPosition = (proposedX: number): number => {
@@ -274,40 +282,69 @@ export const TimelineZoomBlock = React.memo(({
         y={y}
         draggable
         dragBoundFunc={(pos) => {
-          const validX = getValidDragPosition(pos.x)
-          setCurrentX(validX)
-          return { x: validX, y: y }
+          // Allow free movement during drag, only constrain to clip boundaries
+          const constrainedX = Math.max(clipX, pos.x)
+          setCurrentX(constrainedX)
+          return { x: constrainedX, y: y }
         }}
-        onDragStart={() => setIsDragging(true)}
+        onDragStart={() => {
+          setIsDragging(true)
+          onSelect() // Ensure block is selected when dragging starts
+        }}
         onDragEnd={(e) => {
           setIsDragging(false)
-          const finalX = e.target.x()
-          const newStartTime = TimelineUtils.pixelToTime(finalX - clipX, pixelsPerMs)
+          const draggedX = e.target.x()
+          
+          // Apply snapping only on drag end
+          const snappedX = getValidDragPosition(draggedX)
+          
+          // Calculate new times based on snapped position
+          const newStartTime = TimelineUtils.pixelToTime(snappedX - clipX, pixelsPerMs)
           const duration = endTime - startTime
-
-          // Ensure selection is maintained
-          onSelect()
-
-          // Update position
-          onUpdate({
-            startTime: Math.max(0, newStartTime),
-            endTime: newStartTime + duration
-          })
-
-          onDragEnd(finalX)
+          const newEndTime = newStartTime + duration
+          
+          // Check if the new position would create an overlap
+          const wouldOverlap = allBlocks
+            .filter(b => b.id !== blockId)
+            .some(block => {
+              const blockStart = block.startTime
+              const blockEnd = block.endTime
+              return (newStartTime < blockEnd && newEndTime > blockStart)
+            })
+          
+          if (wouldOverlap) {
+            // Reset to original position if overlap detected
+            setCurrentX(x)
+            if (groupRef.current) {
+              groupRef.current.x(x)
+            }
+          } else {
+            // Apply the new position
+            setCurrentX(snappedX)
+            if (groupRef.current) {
+              groupRef.current.x(snappedX)
+            }
+            
+            // Update position
+            onUpdate({
+              startTime: Math.max(0, newStartTime),
+              endTime: Math.max(0, newEndTime)
+            })
+            
+            onDragEnd(snappedX)
+          }
         }}
         onClick={(e) => {
           e.cancelBubble = true
-          onSelect()
+          // Always ensure selection on click
+          if (!isDragging) {
+            onSelect()
+          }
         }}
         onMouseDown={(e) => {
           e.cancelBubble = true
-          // Always select on mouse down for immediate feedback
+          // Select immediately on mousedown for better responsiveness
           onSelect()
-        }}
-        onMouseUp={(e) => {
-          // Ensure selection is maintained after interaction
-          e.cancelBubble = true
         }}
         listening={true}
       >
@@ -326,8 +363,6 @@ export const TimelineZoomBlock = React.memo(({
           shadowOpacity={0.2}
           shadowOffsetY={1}
           listening={true}
-          // Add hit detection for better overlapping block selection
-          hitStrokeWidth={4}
         />
 
         {/* Zoom curve visualization */}
@@ -373,7 +408,7 @@ export const TimelineZoomBlock = React.memo(({
       {/* Transformer outside of group to avoid parent-child error */}
       {isSelected && (
         <Transformer
-          key={`transformer-${blockId}-${Date.now()}`} // Unique key to force recreation
+          key={`transformer-${blockId}`}
           ref={trRef}
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
