@@ -47,7 +47,7 @@ async function loadProjectRecording(
 
   // Set last saved timestamp to the project's modified time
   setLastSavedAt(project.modifiedAt || new Date().toISOString())
-  
+
   // Load each recording from the project
   for (let i = 0; i < project.recordings.length; i++) {
     const rec = project.recordings[i]
@@ -310,33 +310,33 @@ export function WorkspaceManager() {
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
-  
+
   // Track unsaved changes by comparing saved timestamp with current
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
-  
+
   // Simple check: if project modifiedAt differs from lastSavedAt, we have unsaved changes
   useEffect(() => {
     if (currentProject?.modifiedAt && lastSavedAt) {
       setHasUnsavedChanges(currentProject.modifiedAt !== lastSavedAt)
     }
   }, [currentProject?.modifiedAt, lastSavedAt])
-  
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       // Cmd+S or Ctrl+S to save
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        
+
         // Save any pending local effects
         if (localEffects && selectedClipId) {
           updateClipEffects(selectedClipId, localEffects)
           setLocalEffects(null)
         }
-        
+
         // Save the project
         await saveCurrentProject()
-        
+
         // Use the project's modifiedAt timestamp after saving
         const savedProject = useProjectStore.getState().currentProject
         if (savedProject?.modifiedAt) {
@@ -345,7 +345,7 @@ export function WorkspaceManager() {
         setHasUnsavedChanges(false)
       }
     }
-    
+
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [localEffects, selectedClipId, updateClipEffects, saveCurrentProject])
@@ -555,7 +555,7 @@ export function WorkspaceManager() {
 
               newProject('New Project')
               setLocalEffects(null)
-              
+
               // Get the new project's modifiedAt timestamp
               const newProj = useProjectStore.getState().currentProject
               if (newProj?.modifiedAt) {
@@ -569,7 +569,7 @@ export function WorkspaceManager() {
                 setLocalEffects(null)
               }
               await saveCurrentProject()
-              
+
               // Use the project's modifiedAt timestamp after saving
               const savedProject = useProjectStore.getState().currentProject
               if (savedProject?.modifiedAt) {
