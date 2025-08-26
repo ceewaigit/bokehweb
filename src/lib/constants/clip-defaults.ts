@@ -4,8 +4,6 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   zoom: {
     enabled: false,
     blocks: [],
-    sensitivity: 1.0,
-    maxZoom: 2.0,
     smoothing: 0.1
   },
   cursor: {
@@ -43,8 +41,6 @@ export const SCREEN_STUDIO_CLIP_EFFECTS: ClipEffects = {
   zoom: {
     enabled: true,
     blocks: [],
-    sensitivity: 1.0,
-    maxZoom: 2.0,
     smoothing: 0.1
   },
   cursor: {

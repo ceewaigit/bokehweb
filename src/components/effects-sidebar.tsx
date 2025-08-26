@@ -123,10 +123,10 @@ export function EffectsSidebar({
   }
 
   return (
-    <div className={cn("bg-gradient-to-b from-background/95 to-background/90 backdrop-blur-xl border-l border-border/50 flex flex-col", className)}>
+    <div className={cn("bg-gradient-to-b from-background/95 to-background/90 backdrop-blur-xl flex flex-col", className)}>
       {/* Selection Indicator */}
       {selectedEffectLayer && (
-        <div className="px-3 py-1.5 bg-primary/5 border-b border-border/30">
+        <div className="px-3 py-1.5 bg-primary/5">
           <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-medium">
             {selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id ?
               `Zoom Block` :
@@ -136,7 +136,7 @@ export function EffectsSidebar({
       )}
 
       {/* Section Tabs */}
-      <div className="flex gap-0.5 p-2 border-b border-border/30">
+      <div className="flex gap-0.5 p-2">
         <button
           onClick={() => setActiveTab('background')}
           className={cn(
@@ -260,7 +260,7 @@ export function EffectsSidebar({
                           )}
                           {isLoading && (
                             <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <div className="w-4 h-4  border-white/30 border-t-white rounded-full animate-spin" />
                             </div>
                           )}
                           <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
@@ -312,7 +312,7 @@ export function EffectsSidebar({
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Solid Color</h3>
 
                 {/* Color picker - streamlined single section */}
-                <div className="flex gap-2 items-center p-3 bg-card/30 rounded-lg border border-border/30">
+                <div className="flex gap-2 items-center p-3 bg-card/30 rounded-lg ">
                   <input
                     type="color"
                     value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
@@ -349,7 +349,7 @@ export function EffectsSidebar({
                         })
                       }
                     }}
-                    className="flex-1 px-3 py-2 text-sm font-mono bg-background/50 border border-border/30 rounded"
+                    className="flex-1 px-3 py-2 text-sm font-mono bg-background/50  rounded"
                     placeholder="#000000"
                     maxLength={7}
                   />
@@ -370,10 +370,10 @@ export function EffectsSidebar({
                         })
                       }}
                       className={cn(
-                        "aspect-square rounded-md border-2 transition-all hover:scale-110",
+                        "aspect-square rounded-md  transition-all hover:scale-110",
                         effects.background?.type === 'color' && effects.background?.color?.toUpperCase() === color.toUpperCase()
-                          ? "border-primary shadow-lg"
-                          : "border-border/30 hover:border-border/50"
+                          ? "ring-2 ring-primary shadow-lg"
+                          : "ring-1 ring-border/30 hover:ring-border/50"
                       )}
                       style={{ backgroundColor: color }}
                       title={color}
@@ -433,7 +433,7 @@ export function EffectsSidebar({
 
             {/* Background Blur - Only show for image-based backgrounds */}
             {(backgroundType === 'wallpaper' || backgroundType === 'image') && (
-              <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+              <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
                 <label className="text-xs font-medium flex items-center justify-between">
                   <span className="uppercase tracking-wider text-[10px]">Blur</span>
                   <Switch
@@ -464,7 +464,7 @@ export function EffectsSidebar({
         {activeTab === 'cursor' && effects?.cursor && (
           <div className="space-y-3">
             {/* Master cursor visibility toggle */}
-            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+            <div className="p-3 bg-card/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Show Cursor</span>
                 <Switch
@@ -479,7 +479,7 @@ export function EffectsSidebar({
             {/* Only show cursor settings when enabled */}
             {effects.cursor.enabled && (
               <>
-                <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+                <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
                   <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Size</label>
                   <Slider
                     value={[effects.cursor.size ?? 3.0]}
@@ -492,7 +492,7 @@ export function EffectsSidebar({
                   <span className="text-[10px] text-muted-foreground/70 font-mono">{(effects.cursor.size ?? 3.0).toFixed(1)}x</span>
                 </div>
 
-                <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+                <div className="p-3 bg-card/30 rounded-lg ">
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Click Animation</span>
                     <Switch
@@ -504,7 +504,7 @@ export function EffectsSidebar({
                   </label>
                 </div>
 
-                <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+                <div className="p-3 bg-card/30 rounded-lg ">
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Motion Blur</span>
                     <Switch
@@ -516,7 +516,7 @@ export function EffectsSidebar({
                   </label>
                 </div>
 
-                <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+                <div className="p-3 bg-card/30 rounded-lg ">
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Hide When Idle</span>
                     <Switch
@@ -529,7 +529,7 @@ export function EffectsSidebar({
                 </div>
 
                 {effects.cursor.hideOnIdle && (
-                  <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+                  <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
                     <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Idle Timeout</label>
                     <Slider
                       value={[(effects.cursor.idleTimeout ?? 3000) / 1000]}
@@ -556,7 +556,7 @@ export function EffectsSidebar({
 
               return (
                 <div key={`zoom-block-${selectedEffectLayer.id}`}>
-                  <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
+                  <div className="p-3 bg-primary/5 rounded-lg border ring-2 ring-primary/20 space-y-3">
                     <h4 className="text-xs font-medium uppercase tracking-wider text-primary/80">Block Settings</h4>
 
                     <div className="space-y-1.5">
@@ -616,12 +616,12 @@ export function EffectsSidebar({
                       {(selectedBlock.outroMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{selectedBlock.outroMs}ms</span>}
                     </div>
                   </div>
-                  <div className="border-t border-border/30 pt-3" />
+                  <div className=" pt-3" />
                 </div>
               )
             })()}
 
-            <div className="p-3 bg-card/30 rounded-lg border border-border/30">
+            <div className="p-3 bg-card/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Auto Zoom</span>
                 <Switch
@@ -633,33 +633,8 @@ export function EffectsSidebar({
               </label>
             </div>
 
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
-              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Max Scale</label>
-              <Slider
-                value={[effects.zoom.maxZoom ?? 2.0]}
-                onValueChange={([value]) => updateEffect('zoom', { maxZoom: value })}
-                min={1}
-                max={4}
-                step={0.1}
-                className="w-full"
-              />
-              <span className="text-[10px] text-muted-foreground/70 font-mono">{(effects.zoom.maxZoom ?? 2.0).toFixed(1)}x</span>
-            </div>
-
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
-              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Sensitivity</label>
-              <Slider
-                value={[effects.zoom.sensitivity ?? 1.0]}
-                onValueChange={([value]) => updateEffect('zoom', { sensitivity: value })}
-                min={0.1}
-                max={2}
-                step={0.1}
-                className="w-full"
-              />
-            </div>
-
             {/* Reset Zoom Detection Button */}
-            <div className="pt-3 border-t border-border/30">
+            <div className="pt-3 ">
               <button
                 onClick={() => {
                   // Trigger zoom detection reset - keep existing blocks until new ones are generated
@@ -668,7 +643,7 @@ export function EffectsSidebar({
                     regenerate: Date.now() // Add timestamp to trigger regeneration
                   })
                 }}
-                className="w-full px-2 py-1.5 text-[10px] uppercase tracking-wider font-medium bg-card/50 hover:bg-card/70 border border-border/30 rounded-md transition-all"
+                className="w-full px-2 py-1.5 text-[10px] uppercase tracking-wider font-medium bg-card/50 hover:bg-card/70  rounded-md transition-all"
               >
                 Reset Zoom Detection
               </button>
@@ -682,7 +657,7 @@ export function EffectsSidebar({
 
         {activeTab === 'shape' && (
           <div className="space-y-3">
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Padding</label>
               <Slider
                 value={[effects.background.padding || 0]}
@@ -709,7 +684,7 @@ export function EffectsSidebar({
               )}
             </div>
 
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corners</label>
               <Slider
                 value={[effects.video.cornerRadius]}
@@ -722,7 +697,7 @@ export function EffectsSidebar({
               {effects.video.cornerRadius > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.cornerRadius}px</span>}
             </div>
 
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg border border-border/30">
+            <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Shadow</span>
                 <Switch

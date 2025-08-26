@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 :root {
+  /* Glassmorphism - simplified */
+  --glass-opacity: 0.8;
+  --glass-blur: 10px;
+  
   /* Spacing System */
   --spacing-xs: 0.25rem;    /* 4px */
   --spacing-sm: 0.5rem;     /* 8px */
@@ -146,6 +150,19 @@
 }
 
 @layer components {
+  /* Single glassmorphism class */
+  .glassmorphism {
+    background: rgba(255, 255, 255, calc(var(--glass-opacity) * 0.1));
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .dark .glassmorphism {
+    background: rgba(0, 0, 0, calc(var(--glass-opacity) * 0.3));
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
   /* Electron title bar */
   .drag-region {
     -webkit-app-region: drag;

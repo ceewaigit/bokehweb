@@ -48,6 +48,9 @@ export interface ElectronAPI {
   // Dialog APIs
   showSaveDialog: (options: any) => Promise<{ canceled: boolean; filePath?: string }>
   showOpenDialog: (options: any) => Promise<{ canceled: boolean; filePaths: string[] }>
+  
+  // Glassmorphism
+  updateGlassmorphism?: (settings: any) => Promise<{ success: boolean }>
   showMessageBox: (options: any) => Promise<{ response: number; checkboxChecked: boolean }>
 
   // File operations

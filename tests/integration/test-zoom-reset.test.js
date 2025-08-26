@@ -54,9 +54,7 @@ function testZoomResetFunctionality() {
       enabled: true,
       blocks: [
         { id: 'old-block-1', startTime: 100, endTime: 500, scale: 1.5 }
-      ],
-      sensitivity: 1.0,
-      maxZoom: 2.0
+      ]
     }
   }
   

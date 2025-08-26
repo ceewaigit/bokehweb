@@ -11,6 +11,7 @@ import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 import { setupNativeRecorder } from './handlers/native-recorder'
+import { registerGlassmorphismHandlers } from './handlers/glassmorphism'
 
 // Register custom protocols before app ready
 // This ensures they're available when needed
@@ -62,6 +63,7 @@ function registerAllHandlers(): void {
   registerFileOperationHandlers()
   registerDialogHandlers()
   registerWindowControlHandlers()
+  registerGlassmorphismHandlers()
   setupNativeRecorder()
 }
 

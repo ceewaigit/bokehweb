@@ -176,6 +176,9 @@ const electronAPI = {
     area?: { x: number; y: number; width: number; height: number; displayId: number }
   }> => ipcRenderer.invoke('select-screen-area'),
 
+  // Glassmorphism
+  updateGlassmorphism: (settings: any) => ipcRenderer.invoke('update-glassmorphism', settings),
+
   // Recording and workspace control
   openWorkspace: () =>
     ipcRenderer.send('open-workspace'),

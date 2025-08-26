@@ -153,8 +153,6 @@ export interface ClipEffects {
   zoom: {
     enabled: boolean
     blocks: ZoomBlock[]  // Screen Studio style zoom blocks
-    sensitivity: number
-    maxZoom: number
     smoothing: number
     regenerate?: number  // Timestamp to trigger regeneration
   }

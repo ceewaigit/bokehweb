@@ -19,7 +19,7 @@ import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { ClipEffects, ZoomBlock } from '@/types/project'
 import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
-import { undoManager } from '@/lib/keyboard/undo-manager'
+import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -277,35 +277,17 @@ export function WorkspaceManager() {
       }
     }
 
-    // Create undoable action
-    undoManager.execute({
-      id: `update-zoom-block-${blockId}-${Date.now()}`,
-      timestamp: Date.now(),
-      description: `Update zoom block`,
-      execute: () => {
-        setLocalEffects(newEffects)
-        setHasUnsavedChanges(true)
-      },
-      undo: () => {
-        // Restore the previous block state
-        const restoredBlocks = currentZoom.blocks.map((block: ZoomBlock) =>
-          block.id === blockId ? previousBlock : block
-        )
-        const restoredEffects = {
-          ...previousEffects,
-          zoom: {
-            ...previousEffects.zoom,
-            blocks: restoredBlocks
-          }
-        }
-        setLocalEffects(restoredEffects)
-        setHasUnsavedChanges(true)
-      },
-      redo: () => {
-        setLocalEffects(newEffects)
-        setHasUnsavedChanges(true)
-      }
-    })
+    // Update local state immediately for UI responsiveness
+    setLocalEffects(newEffects)
+    setHasUnsavedChanges(true)
+    
+    // Also update via command for undo/redo support
+    const store = useProjectStore.getState()
+    const context = new DefaultCommandContext(store)
+    const commandManager = CommandManager.getInstance(context)
+    const command = new UpdateZoomBlockCommand(context, clipId, blockId, updates)
+    commandManager.execute(command)
+    
   }, [localEffects, selectedClip?.effects])
 
   // Playback control ref
@@ -540,7 +522,7 @@ export function WorkspaceManager() {
     <>
       <div className="fixed inset-0 flex flex-col bg-background" style={{ width: '100vw', height: '100vh' }}>
         {/* Top Toolbar - Compact with macOS traffic light padding */}
-        <div className="flex-shrink-0 border-b bg-card/50 overflow-hidden" style={{ height: '48px', paddingLeft: '80px' }}>
+        <div className="flex-shrink-0 bg-card/50 overflow-hidden" style={{ height: '48px', paddingLeft: '80px' }}>
           <Toolbar
             project={currentProject}
             onToggleProperties={handleToggleProperties}
@@ -621,7 +603,7 @@ export function WorkspaceManager() {
           {/* Top Section - Preview and Sidebar (60% height) */}
           <div className="flex" style={{ height: '60%' }}>
             {/* Preview Area */}
-            <div className="bg-background border-b overflow-hidden" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
+            <div className="bg-background overflow-hidden" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
               <PreviewAreaRemotion
                 selectedClip={selectedClip}
                 selectedRecording={selectedRecording}
@@ -637,7 +619,7 @@ export function WorkspaceManager() {
             {/* Properties Panel - Fixed width when open, same height as preview */}
             {isPropertiesOpen && (
               <div
-                className="bg-card border-l overflow-hidden"
+                className="bg-card overflow-hidden"
                 style={{ width: `${propertiesPanelWidth}px` }}
               >
                 <EffectsSidebar

@@ -12,7 +12,8 @@ import {
   Sun,
   Moon,
   Monitor,
-  Library
+  Library,
+  Settings
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { useRecordingStore } from '@/stores/recording-store'
@@ -25,6 +26,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { GlassmorphismSettings } from '@/components/settings/glassmorphism-settings'
 
 interface ToolbarProps {
   project: Project | null
@@ -55,6 +63,7 @@ export function Toolbar({
 
   const { theme, setTheme } = useTheme()
   const [propertiesOpen, setPropertiesOpen] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const handleToggleProperties = () => {
     setPropertiesOpen(!propertiesOpen)
@@ -62,7 +71,7 @@ export function Toolbar({
   }
 
   return (
-    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-card/50 backdrop-blur-xl border-b border-border/50" 
+    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-card/50 backdrop-blur-xl" 
          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -74,7 +83,7 @@ export function Toolbar({
           </span>
         </div>
 
-        <div className="w-px h-5 bg-border/30" />
+        <div className="w-px h-5 bg-muted-foreground/20" />
 
         {/* Back to Library Button */}
         {onBackToLibrary && (
@@ -88,7 +97,7 @@ export function Toolbar({
               <Library className="w-3 h-3 mr-1 flex-shrink-0" />
               <span className="whitespace-nowrap">Library</span>
             </Button>
-            <div className="w-px h-5 bg-border/30" />
+            <div className="w-px h-5 bg-muted-foreground/20" />
           </>
         )}
 
@@ -139,7 +148,7 @@ export function Toolbar({
           disabled={!project}
           className={cn(
             "h-7 px-2 text-[11px] font-medium",
-            hasUnsavedChanges ? "bg-primary/20 hover:bg-primary/30 border border-primary/30" : "hover:bg-card/50"
+            hasUnsavedChanges ? "bg-primary/20 hover:bg-primary/30" : "hover:bg-card/50"
           )}
         >
           <Save className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -156,7 +165,7 @@ export function Toolbar({
       <div className="flex-1 flex items-center justify-center gap-2 min-w-0 overflow-hidden">
         {/* Project Name and Time Display */}
         {project && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-background/50 rounded-md border border-border/20 flex-shrink-0">
+          <div className="flex items-center gap-2 px-3 py-1 bg-background/50 rounded-md flex-shrink-0">
             <span className="text-[11px] font-semibold text-foreground/90">{project.name}</span>
             <span className="text-[10px] text-muted-foreground/50">•</span>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -169,7 +178,7 @@ export function Toolbar({
 
         {/* Recording Status */}
         {status !== 'idle' && (
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-destructive/10 rounded-md border border-destructive/20 flex-shrink-0">
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-destructive/10 rounded-md flex-shrink-0">
             <div className={cn(
               "w-1.5 h-1.5 rounded-full",
               status === 'recording' && "bg-red-500 animate-pulse",
@@ -190,7 +199,7 @@ export function Toolbar({
 
       {/* Right Section - Export and Settings - Not draggable */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        <div className="w-px h-5 bg-border/30" />
+        <div className="w-px h-5 bg-muted-foreground/20" />
 
         {/* Export Button */}
         <Button
@@ -202,6 +211,16 @@ export function Toolbar({
         >
           <Download className="w-3 h-3 mr-1.5 flex-shrink-0" />
           <span className="whitespace-nowrap">Export</span>
+        </Button>
+
+        {/* Settings Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSettingsOpen(true)}
+          className="h-7 w-7 hover:bg-card/50"
+        >
+          <Settings className="w-3.5 h-3.5" />
         </Button>
 
         {/* Theme Toggle */}
@@ -246,6 +265,16 @@ export function Toolbar({
           }
         </Button>
       </div>
+
+      {/* Settings Dialog */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-md glassmorphism">
+          <DialogHeader>
+            <DialogTitle>Settings</DialogTitle>
+          </DialogHeader>
+          <GlassmorphismSettings />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
