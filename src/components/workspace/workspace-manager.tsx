@@ -245,7 +245,6 @@ export function WorkspaceManager() {
       
       // If block counts differ, clear localEffects
       if (localZoomBlocks.length !== clipZoomBlocks.length) {
-        console.log('[WorkspaceManager] Zoom block count mismatch, clearing localEffects')
         setLocalEffects(null)
         setHasUnsavedChanges(false)
         return
@@ -258,7 +257,6 @@ export function WorkspaceManager() {
                        localIds.every((id: string, index: number) => id === clipIds[index])
       
       if (!idsMatch) {
-        console.log('[WorkspaceManager] Zoom block IDs mismatch, clearing localEffects')
         setLocalEffects(null)
         setHasUnsavedChanges(false)
       }

@@ -49,7 +49,6 @@ export const TimelineZoomBlock = React.memo(({
   const [dragX, setDragX] = useState(x)
   const [resizeWidth, setResizeWidth] = useState(width)
   const [resizeX, setResizeX] = useState(x)
-  const [isOverlapping, setIsOverlapping] = useState(false)
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
   
@@ -67,29 +66,6 @@ export const TimelineZoomBlock = React.memo(({
     }
   }, [x, width, isDragging])
 
-  // Check for overlaps
-  useEffect(() => {
-    const checkOverlap = () => {
-      const blocks = allBlocks
-        .filter(b => b.id !== blockId)
-        .map(b => ({
-          x: clipX + TimelineUtils.timeToPixel(b.startTime, pixelsPerMs),
-          endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
-        }))
-
-      const currentX = isDragging ? dragX : x
-      const currentWidth = isDragging ? width : resizeWidth
-      const blockEnd = currentX + currentWidth
-      const hasOverlap = blocks.some(block =>
-        (currentX < block.endX && blockEnd > block.x)
-      )
-
-      setIsOverlapping(hasOverlap)
-    }
-
-    checkOverlap()
-  }, [x, width, dragX, resizeWidth, isDragging, allBlocks, blockId, clipX, pixelsPerMs])
-
   // Setup transformer when selected
   useEffect(() => {
     if (isSelected) {
@@ -105,7 +81,7 @@ export const TimelineZoomBlock = React.memo(({
               layer.batchDraw()
             }
           } catch (e) {
-            console.warn('Transformer update failed:', e)
+            // Silently handle transformer update failures
           }
         }
       }, 10)
@@ -339,13 +315,11 @@ export const TimelineZoomBlock = React.memo(({
           onSelect()
         }}
         onDragEnd={(e) => {
-          console.log('[ZoomBlock] Drag end - blockId:', blockId, 'isDragging:', isDragging)
           setIsDragging(false)
           const draggedX = e.target.x()
 
           // Apply snapping
           const snappedX = getValidDragPosition(draggedX)
-          console.log('[ZoomBlock] Positions - dragged:', draggedX, 'snapped:', snappedX, 'original:', x)
 
           // Check for collision at the snapped position
           const newStartTime = TimelineUtils.pixelToTime(snappedX - clipX, pixelsPerMs)
@@ -355,19 +329,10 @@ export const TimelineZoomBlock = React.memo(({
           // Check if this would cause an overlap
           const wouldOverlap = allBlocks
             .filter(b => b.id !== blockId)
-            .some(block => {
-              const overlaps = (newStartTime < block.endTime && newEndTime > block.startTime)
-              if (overlaps) {
-                console.log('[ZoomBlock] Overlap detected with block:', block.id)
-              }
-              return overlaps
-            })
-
-          console.log('[ZoomBlock] Would overlap?', wouldOverlap)
+            .some(block => (newStartTime < block.endTime && newEndTime > block.startTime))
 
           if (wouldOverlap) {
             // Reset to original position
-            console.log('[ZoomBlock] Resetting to original position:', x)
             setDragX(x)
             setResizeX(x)
             if (groupRef.current) {
@@ -379,7 +344,6 @@ export const TimelineZoomBlock = React.memo(({
             onSelect()
           } else {
             // Accept the new position
-            console.log('[ZoomBlock] Accepting new position:', snappedX)
             setDragX(snappedX)
             
             // Update position
@@ -393,7 +357,6 @@ export const TimelineZoomBlock = React.memo(({
         }}
         onClick={(e) => {
           e.cancelBubble = true
-          console.log('[ZoomBlock] Click - blockId:', blockId, 'isSelected:', isSelected)
           // Always ensure selection on click
           if (!isDragging) {
             onSelect()
@@ -401,7 +364,6 @@ export const TimelineZoomBlock = React.memo(({
         }}
         onMouseDown={(e) => {
           e.cancelBubble = true
-          console.log('[ZoomBlock] MouseDown - blockId:', blockId, 'selecting...')
           // Select immediately on mousedown for better responsiveness
           onSelect()
         }}
@@ -412,11 +374,11 @@ export const TimelineZoomBlock = React.memo(({
           y={0}
           width={resizeWidth}
           height={height}
-          fill={isOverlapping && !isSelected ? 'rgba(239, 68, 68, 0.85)' : (colors.zoomBlock || 'rgba(147, 51, 234, 0.85)')}
+          fill={colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
           cornerRadius={4}
           opacity={isDragging ? 0.7 : (isSelected ? 0.95 : 0.85)}
-          stroke={isSelected ? colors.primary : (isOverlapping ? 'rgba(239, 68, 68, 1)' : undefined)}
-          strokeWidth={isSelected ? 1.5 : (isOverlapping ? 1 : 0)}
+          stroke={isSelected ? colors.primary : undefined}
+          strokeWidth={isSelected ? 1.5 : 0}
           shadowColor="black"
           shadowBlur={isSelected ? 6 : 2}
           shadowOpacity={0.2}

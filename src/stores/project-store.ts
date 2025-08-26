@@ -444,19 +444,13 @@ export const useProjectStore = create<ProjectStore>()(
 
         // Check if block exists
         const blockExists = clip.effects.zoom.blocks.some(b => b.id === blockId)
-        if (!blockExists) {
-          console.warn(`[Store] Block ${blockId} not found in clip ${clipId}`)
-          return
-        }
+        if (!blockExists) return
         
         // Create a new array without the block to ensure React detects the change
-        const newBlocks = clip.effects.zoom.blocks.filter(b => b.id !== blockId)
-        clip.effects.zoom.blocks = newBlocks
+        clip.effects.zoom.blocks = clip.effects.zoom.blocks.filter(b => b.id !== blockId)
         
         // Update modification timestamp
         state.currentProject.modifiedAt = new Date().toISOString()
-        
-        console.log(`[Store] Removed zoom block ${blockId}, remaining blocks:`, newBlocks.length)
       })
     },
 

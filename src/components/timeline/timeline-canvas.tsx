@@ -284,7 +284,7 @@ export function TimelineCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-background select-none"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-background select-none outline-none focus:outline-none"
         tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
         onMouseDown={() => {
@@ -295,7 +295,8 @@ export function TimelineCanvas({
           userSelect: 'none',
           WebkitUserSelect: 'none',
           MozUserSelect: 'none',
-          msUserSelect: 'none'
+          msUserSelect: 'none',
+          outline: 'none'
         }}
       >
         <Stage
@@ -432,14 +433,12 @@ export function TimelineCanvas({
                       clipX={clipX}
                       pixelsPerMs={pixelsPerMs}
                       onSelect={() => {
-                        console.log('[Timeline] Selecting zoom block:', block.id, 'for clip:', clip.id)
                         // Ensure selection is properly set
                         selectClip(clip.id)
                         selectEffectLayer('zoom', block.id)
                         // Force focus to container for keyboard events
                         setTimeout(() => {
                           containerRef.current?.focus()
-                          console.log('[Timeline] Container focused')
                         }, 0)
                       }}
                       onDragEnd={(newX) => {

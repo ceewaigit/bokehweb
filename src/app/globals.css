@@ -229,4 +229,11 @@
     -moz-user-select: none !important;
     -ms-user-select: none !important;
   }
+
+  /* Remove focus outlines on timeline elements */
+  .timeline-container *:focus,
+  .timeline-container *:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
 }
