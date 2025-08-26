@@ -301,11 +301,13 @@ export const TimelineZoomBlock = React.memo(({
           onSelect()
         }}
         onDragEnd={(e) => {
+          console.log('[ZoomBlock] Drag end - blockId:', blockId, 'isDragging:', isDragging)
           setIsDragging(false)
           const draggedX = e.target.x()
 
           // Apply snapping
           const snappedX = getValidDragPosition(draggedX)
+          console.log('[ZoomBlock] Positions - dragged:', draggedX, 'snapped:', snappedX, 'original:', x)
 
           // Check for collision at the snapped position
           const newStartTime = TimelineUtils.pixelToTime(snappedX - clipX, pixelsPerMs)
@@ -316,17 +318,25 @@ export const TimelineZoomBlock = React.memo(({
           const wouldOverlap = allBlocks
             .filter(b => b.id !== blockId)
             .some(block => {
-              return (newStartTime < block.endTime && newEndTime > block.startTime)
+              const overlaps = (newStartTime < block.endTime && newEndTime > block.startTime)
+              if (overlaps) {
+                console.log('[ZoomBlock] Overlap detected with block:', block.id)
+              }
+              return overlaps
             })
+
+          console.log('[ZoomBlock] Would overlap?', wouldOverlap)
 
           if (wouldOverlap) {
             // Reset to original position
+            console.log('[ZoomBlock] Resetting to original position:', x)
             setDragX(x)
             if (groupRef.current) {
               groupRef.current.x(x)
             }
           } else {
             // Accept the new position
+            console.log('[ZoomBlock] Accepting new position:', snappedX)
             setDragX(snappedX)
             
             // Update position
@@ -340,6 +350,7 @@ export const TimelineZoomBlock = React.memo(({
         }}
         onClick={(e) => {
           e.cancelBubble = true
+          console.log('[ZoomBlock] Click - blockId:', blockId, 'isSelected:', isSelected)
           // Always ensure selection on click
           if (!isDragging) {
             onSelect()
@@ -347,6 +358,7 @@ export const TimelineZoomBlock = React.memo(({
         }}
         onMouseDown={(e) => {
           e.cancelBubble = true
+          console.log('[ZoomBlock] MouseDown - blockId:', blockId, 'selecting...')
           // Select immediately on mousedown for better responsiveness
           onSelect()
         }}

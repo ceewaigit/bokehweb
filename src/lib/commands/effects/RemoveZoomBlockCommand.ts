@@ -31,10 +31,13 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
+    console.log('[RemoveZoomBlockCommand] Executing - clipId:', this.clipId, 'blockId:', this.blockId)
+    
     const store = this.context.getStore()
     const result = this.context.findClip(this.clipId)
     
     if (!result) {
+      console.error('[RemoveZoomBlockCommand] Clip not found:', this.clipId)
       return {
         success: false,
         error: `Clip ${this.clipId} not found`
@@ -42,20 +45,28 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
     }
 
     const { clip } = result
+    console.log('[RemoveZoomBlockCommand] Found clip, checking for zoom block...')
+    console.log('[RemoveZoomBlockCommand] Clip effects:', clip.effects)
+    
     const block = clip.effects?.zoom?.blocks?.find(b => b.id === this.blockId)
     
     if (!block) {
+      console.error('[RemoveZoomBlockCommand] Zoom block not found:', this.blockId)
+      console.log('[RemoveZoomBlockCommand] Available blocks:', clip.effects?.zoom?.blocks?.map(b => b.id))
       return {
         success: false,
         error: `Zoom block ${this.blockId} not found`
       }
     }
 
+    console.log('[RemoveZoomBlockCommand] Found zoom block, removing...')
+    
     // Store block for undo
     this.block = JSON.parse(JSON.stringify(block))
 
     // Remove zoom block using store method
     store.removeZoomBlock(this.clipId, this.blockId)
+    console.log('[RemoveZoomBlockCommand] Block removed successfully')
 
     return {
       success: true,

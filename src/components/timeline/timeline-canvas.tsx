@@ -420,12 +420,14 @@ export function TimelineCanvas({
                       clipX={clipX}
                       pixelsPerMs={pixelsPerMs}
                       onSelect={() => {
+                        console.log('[Timeline] Selecting zoom block:', block.id, 'for clip:', clip.id)
                         // Ensure selection is properly set
                         selectClip(clip.id)
                         selectEffectLayer('zoom', block.id)
                         // Force focus to container for keyboard events
                         setTimeout(() => {
                           containerRef.current?.focus()
+                          console.log('[Timeline] Container focused')
                         }, 0)
                       }}
                       onDragEnd={(newX) => {
