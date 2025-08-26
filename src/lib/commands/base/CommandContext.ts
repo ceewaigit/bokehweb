@@ -108,17 +108,31 @@ export function findNextValidPosition(
   desiredStart: number,
   duration: number
 ): number {
+  const GAP_BETWEEN_CLIPS = 100 // 100ms gap for better visual separation
   const otherClips = track.clips
     .filter(c => c.id !== clipId)
     .sort((a, b) => a.startTime - b.startTime)
 
-  for (const clip of otherClips) {
-    const clipEnd = clip.startTime + clip.duration
-    if (desiredStart < clipEnd && (desiredStart + duration) > clip.startTime) {
-      return clipEnd + 1
+  let currentPosition = desiredStart
+  let foundOverlap = true
+  
+  // Keep checking until we find a position with no overlaps
+  while (foundOverlap) {
+    foundOverlap = false
+    
+    for (const clip of otherClips) {
+      const clipEnd = clip.startTime + clip.duration
+      // Check if current position would overlap with this clip
+      if (currentPosition < clipEnd && (currentPosition + duration) > clip.startTime) {
+        // Move to after this clip with a gap
+        currentPosition = clipEnd + GAP_BETWEEN_CLIPS
+        foundOverlap = true
+        break // Start checking from beginning with new position
+      }
     }
   }
-  return desiredStart
+  
+  return currentPosition
 }
 
 export function calculateTimelineDuration(project: Project): number {

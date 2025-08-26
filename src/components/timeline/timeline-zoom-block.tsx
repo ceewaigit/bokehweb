@@ -256,14 +256,16 @@ export const TimelineZoomBlock = React.memo(({
           const newStartTime = TimelineUtils.pixelToTime(finalX - clipX, pixelsPerMs)
           const duration = endTime - startTime
 
+          // First call onSelect to ensure selection
+          onSelect()
+          
+          // Then update position
           onUpdate({
             startTime: Math.max(0, newStartTime),
             endTime: newStartTime + duration
           })
 
           onDragEnd(finalX)
-          // Ensure selection is maintained after drag
-          onSelect()
         }}
         onClick={(e) => {
           e.cancelBubble = true
@@ -284,7 +286,7 @@ export const TimelineZoomBlock = React.memo(({
           y={0}
           width={currentWidth}
           height={height}
-          fill={isOverlapping ? 'rgba(239, 68, 68, 0.85)' : (colors.zoomBlock || 'rgba(147, 51, 234, 0.85)')}
+          fill={isOverlapping && !isSelected ? 'rgba(239, 68, 68, 0.85)' : (colors.zoomBlock || 'rgba(147, 51, 234, 0.85)')}
           cornerRadius={4}
           opacity={isDragging ? 0.7 : (isSelected ? 0.95 : 0.85)}
           stroke={isSelected ? colors.primary : (isOverlapping ? 'rgba(239, 68, 68, 1)' : undefined)}

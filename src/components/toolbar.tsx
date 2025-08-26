@@ -270,7 +270,7 @@ export function Toolbar({
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="max-w-md glassmorphism">
           <DialogHeader>
-            <DialogTitle>Window Settings</DialogTitle>
+            <DialogTitle>Appearance Settings</DialogTitle>
           </DialogHeader>
           <GlassmorphismSettings />
         </DialogContent>

@@ -6,6 +6,7 @@
   /* Glassmorphism - simplified */
   --glass-opacity: 0.7;
   --glass-blur: 20px;
+  --window-bg-opacity: 0.95;
   
   /* Spacing System */
   --spacing-xs: 0.25rem;    /* 4px */
@@ -126,6 +127,25 @@
     padding: 0;
   }
   
+  /* App background with adjustable opacity */
+  .app-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, var(--window-bg-opacity));
+    z-index: -1;
+  }
+  
+  .dark .app-background {
+    background: rgba(0, 0, 0, var(--window-bg-opacity));
+  }
+  
+  .light .app-background {
+    background: rgba(255, 255, 255, var(--window-bg-opacity));
+  }
+  
   #__next {
     height: 100vh;
     width: 100vw;
@@ -153,17 +173,17 @@
 @layer components {
   /* True glassmorphism with transparency */
   .glassmorphism {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, calc(var(--glass-opacity) * 0.15));
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, calc(var(--glass-opacity) * 0.3));
   }
   
   .dark .glassmorphism {
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, calc(var(--glass-opacity) * 0.6));
     backdrop-filter: blur(var(--glass-blur));
     -webkit-backdrop-filter: blur(var(--glass-blur));
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, calc(var(--glass-opacity) * 0.15));
   }
   
   /* Electron title bar */

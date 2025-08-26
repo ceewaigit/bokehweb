@@ -40,7 +40,6 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
     if (!enabled || !commandManagerRef.current) return
 
     const manager = commandManagerRef.current
-    const context = contextRef.current!
 
     // Copy handler
     const handleCopy = async () => {
@@ -95,16 +94,12 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       // Get fresh store state
       const currentStore = useProjectStore.getState()
       
-      console.log('Delete handler - selectedEffectLayer:', currentStore.selectedEffectLayer)
-      console.log('Delete handler - selectedClips:', currentStore.selectedClips)
-      
       // Check if an effect layer is selected (e.g., zoom block)
       if (currentStore.selectedEffectLayer) {
         const { type, id } = currentStore.selectedEffectLayer
         
         if (type === 'zoom' && id && currentStore.selectedClips.length === 1) {
           // Delete the zoom block
-          console.log('Deleting zoom block:', id, 'from clip:', currentStore.selectedClips[0])
           currentStore.removeZoomBlock(currentStore.selectedClips[0], id)
           currentStore.clearEffectSelection()
           toast('Zoom block deleted')

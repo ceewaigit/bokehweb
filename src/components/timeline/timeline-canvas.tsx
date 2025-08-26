@@ -28,7 +28,9 @@ import {
   UpdateClipCommand,
   RemoveClipCommand,
   SplitClipCommand,
-  DuplicateClipCommand
+  DuplicateClipCommand,
+  TrimStartCommand,
+  TrimEndCommand
 } from '@/lib/commands'
 
 interface TimelineCanvasProps {
@@ -188,17 +190,27 @@ export function TimelineCanvas({
     }
   }, [selectedClips, currentTime])
 
-  const handleTrimStart = useCallback(() => {
-    if (selectedClips.length === 1) {
-      trimClipStart(selectedClips[0], currentTime)
+  const handleTrimStart = useCallback(async () => {
+    if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
+      const command = new TrimStartCommand(
+        commandContextRef.current,
+        selectedClips[0],
+        currentTime
+      )
+      await commandManagerRef.current.execute(command)
     }
-  }, [selectedClips, trimClipStart, currentTime])
+  }, [selectedClips, currentTime])
 
-  const handleTrimEnd = useCallback(() => {
-    if (selectedClips.length === 1) {
-      trimClipEnd(selectedClips[0], currentTime)
+  const handleTrimEnd = useCallback(async () => {
+    if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
+      const command = new TrimEndCommand(
+        commandContextRef.current,
+        selectedClips[0],
+        currentTime
+      )
+      await commandManagerRef.current.execute(command)
     }
-  }, [selectedClips, trimClipEnd, currentTime])
+  }, [selectedClips, currentTime])
 
   const handleDelete = useCallback(async () => {
     if (!commandManagerRef.current || !commandContextRef.current) return
@@ -406,9 +418,13 @@ export function TimelineCanvas({
                       clipX={clipX}
                       pixelsPerMs={pixelsPerMs}
                       onSelect={() => {
+                        // Ensure selection is properly set
                         selectClip(clip.id)
                         selectEffectLayer('zoom', block.id)
-                        containerRef.current?.focus()
+                        // Force focus to container for keyboard events
+                        setTimeout(() => {
+                          containerRef.current?.focus()
+                        }, 0)
                       }}
                       onDragEnd={(newX) => {
                         const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
@@ -503,8 +519,26 @@ export function TimelineCanvas({
               await commandManagerRef.current.execute(command)
             }
           }}
-          onTrimStart={(id) => trimClipStart(id, currentTime)}
-          onTrimEnd={(id) => trimClipEnd(id, currentTime)}
+          onTrimStart={async (id) => {
+            if (commandManagerRef.current && commandContextRef.current) {
+              const command = new TrimStartCommand(
+                commandContextRef.current,
+                id,
+                currentTime
+              )
+              await commandManagerRef.current.execute(command)
+            }
+          }}
+          onTrimEnd={async (id) => {
+            if (commandManagerRef.current && commandContextRef.current) {
+              const command = new TrimEndCommand(
+                commandContextRef.current,
+                id,
+                currentTime
+              )
+              await commandManagerRef.current.execute(command)
+            }
+          }}
           onDuplicate={async (id) => {
             if (commandManagerRef.current && commandContextRef.current) {
               const command = new DuplicateClipCommand(

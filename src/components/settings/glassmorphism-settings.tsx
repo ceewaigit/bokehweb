@@ -17,12 +17,12 @@ export function GlassmorphismSettings() {
   return (
     <div className="space-y-6 p-6">
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Window</h3>
+        <h3 className="text-lg font-semibold">Window Transparency</h3>
 
         {/* Window Opacity */}
         <div className="space-y-2">
           <Label htmlFor="opacity" className="text-sm font-normal">
-            Window Opacity: {opacity}
+            Window Opacity: {opacity}%
           </Label>
           <Slider
             id="opacity"
@@ -35,28 +35,11 @@ export function GlassmorphismSettings() {
           />
         </div>
 
-        {/* Window Blur */}
-        <div className="space-y-2">
-          <Label htmlFor="blur" className="text-sm font-normal flex items-center gap-2">
-            Window Blur Radius: {blurRadius}
-            <Info className="w-4 h-4 text-muted-foreground" />
-          </Label>
-          <Slider
-            id="blur"
-            min={0}
-            max={30}
-            step={2}
-            value={[blurRadius]}
-            onValueChange={([value]) => setBlurRadius(value)}
-            className="w-full"
-          />
-        </div>
-
-        {/* Preview */}
-        <div className="mt-6 p-4 rounded-lg glassmorphism">
-          <p className="text-sm font-medium">Preview</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Adjust the sliders to see changes in real-time.
+        {/* Info */}
+        <div className="mt-4 p-3 rounded-lg bg-muted/50">
+          <p className="text-xs text-muted-foreground">
+            Adjust the window opacity to make the entire application translucent. 
+            Lower values make the window more transparent.
           </p>
         </div>
       </div>
