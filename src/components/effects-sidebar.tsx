@@ -123,7 +123,7 @@ export function EffectsSidebar({
   }
 
   return (
-    <div className={cn("bg-gradient-to-b from-background/95 to-background/90 backdrop-blur-xl flex flex-col", className)}>
+    <div className={cn("glassmorphism flex flex-col", className)}>
       {/* Selection Indicator */}
       {selectedEffectLayer && (
         <div className="px-3 py-1.5 bg-primary/5">

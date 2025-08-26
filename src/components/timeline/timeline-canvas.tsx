@@ -254,7 +254,7 @@ export function TimelineCanvas({
   }
 
   return (
-    <div className={cn("flex flex-col h-full w-full bg-background", className)}>
+    <div className={cn("flex flex-col h-full w-full glassmorphism", className)}>
       <TimelineControls
         isPlaying={isPlaying}
         zoom={zoom}
@@ -274,7 +274,7 @@ export function TimelineCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-card/50"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative"
         tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       >
@@ -369,62 +369,76 @@ export function TimelineCanvas({
               const videoTrack = currentProject.timeline.tracks.find(t => t.type === 'video')
               if (!videoTrack) return null
 
-              // Render zoom blocks for ALL clips that have zoom enabled
-              return videoTrack.clips.map(clip => {
-                // Use local effects if this is the selected clip, otherwise use clip's effects
+              // Collect and sort zoom blocks to render selected ones on top
+              const zoomBlocks: React.ReactElement[] = []
+              const selectedZoomBlocks: React.ReactElement[] = []
+              
+              videoTrack.clips.forEach(clip => {
                 const isSelectedClip = selectedClips.includes(clip.id)
                 const clipEffects = (isSelectedClip && localEffects) || clip.effects
 
-                if (!clipEffects?.zoom?.enabled || !clipEffects.zoom.blocks?.length) return null
+                if (!clipEffects?.zoom?.enabled || !clipEffects.zoom.blocks?.length) return
 
                 const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
 
-                return clipEffects.zoom.blocks.map((block: ZoomBlock) => (
-                  <TimelineZoomBlock
-                    key={block.id}
-                    blockId={block.id}
-                    x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
-                    y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
-                    width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
-                    height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
-                    startTime={block.startTime}
-                    endTime={block.endTime}
-                    scale={block.scale}
-                    introMs={block.introMs}
-                    outroMs={block.outroMs}
-                    isSelected={isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
-                    allBlocks={clipEffects.zoom.blocks || []}
-                    clipX={clipX}
-                    pixelsPerMs={pixelsPerMs}
-                    onSelect={() => {
-                      selectClip(clip.id) // Select the clip
-                      selectEffectLayer('zoom', block.id) // Select zoom block
-                      // Ensure container has focus for keyboard events
-                      containerRef.current?.focus()
-                    }}
-                    onDragEnd={(newX) => {
-                      const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
-                      const updates = {
-                        startTime: Math.max(0, Math.min(clip.duration - (block.endTime - block.startTime), newStartTime)),
-                        endTime: Math.max(0, Math.min(clip.duration, newStartTime + (block.endTime - block.startTime)))
-                      }
-                      // Use prop if provided, otherwise use store
-                      if (isSelectedClip && onZoomBlockUpdate) {
-                        onZoomBlockUpdate(clip.id, block.id, updates)
-                      } else {
-                        updateZoomBlock(clip.id, block.id, updates)
-                      }
-                    }}
-                    onUpdate={(updates) => {
-                      if (isSelectedClip && onZoomBlockUpdate) {
-                        onZoomBlockUpdate(clip.id, block.id, updates)
-                      } else {
-                        updateZoomBlock(clip.id, block.id, updates)
-                      }
-                    }}
-                  />
-                ))
+                clipEffects.zoom.blocks.forEach((block: ZoomBlock) => {
+                  const isBlockSelected = isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id
+                  
+                  const blockElement = (
+                    <TimelineZoomBlock
+                      key={`${clip.id}-${block.id}`}
+                      blockId={block.id}
+                      x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
+                      y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
+                      width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
+                      height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+                      startTime={block.startTime}
+                      endTime={block.endTime}
+                      scale={block.scale}
+                      introMs={block.introMs}
+                      outroMs={block.outroMs}
+                      isSelected={isBlockSelected}
+                      allBlocks={clipEffects.zoom.blocks || []}
+                      clipX={clipX}
+                      pixelsPerMs={pixelsPerMs}
+                      onSelect={() => {
+                        selectClip(clip.id)
+                        selectEffectLayer('zoom', block.id)
+                        containerRef.current?.focus()
+                      }}
+                      onDragEnd={(newX) => {
+                        const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
+                        const updates = {
+                          startTime: Math.max(0, Math.min(clip.duration - (block.endTime - block.startTime), newStartTime)),
+                          endTime: Math.max(0, Math.min(clip.duration, newStartTime + (block.endTime - block.startTime)))
+                        }
+                        if (isSelectedClip && onZoomBlockUpdate) {
+                          onZoomBlockUpdate(clip.id, block.id, updates)
+                        } else {
+                          updateZoomBlock(clip.id, block.id, updates)
+                        }
+                      }}
+                      onUpdate={(updates) => {
+                        if (isSelectedClip && onZoomBlockUpdate) {
+                          onZoomBlockUpdate(clip.id, block.id, updates)
+                        } else {
+                          updateZoomBlock(clip.id, block.id, updates)
+                        }
+                      }}
+                    />
+                  )
+                  
+                  // Add to appropriate array
+                  if (isBlockSelected) {
+                    selectedZoomBlocks.push(blockElement)
+                  } else {
+                    zoomBlocks.push(blockElement)
+                  }
+                })
               })
+              
+              // Render non-selected blocks first, then selected ones on top
+              return [...zoomBlocks, ...selectedZoomBlocks]
             })()}
 
             {/* Audio clips */}

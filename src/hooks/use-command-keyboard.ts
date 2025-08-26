@@ -99,7 +99,6 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
           toast('Zoom block deleted')
           return
         }
-        // Handle other effect types if needed in the future
       }
 
       // Default behavior: delete clips

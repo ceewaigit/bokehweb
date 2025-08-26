@@ -71,7 +71,7 @@ export function Toolbar({
   }
 
   return (
-    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-card/50 backdrop-blur-xl" 
+    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden glassmorphism" 
          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>

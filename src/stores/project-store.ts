@@ -502,6 +502,8 @@ export const useProjectStore = create<ProjectStore>()(
         const clipIndex = track.clips.findIndex(c => c.id === clipId)
         track.clips.splice(clipIndex, 1, firstClip, secondClip)
 
+        // Recalculate timeline duration after split
+        state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
         // Select the left clip to keep focus at the split point
         // This ensures the preview shows the end of the left clip (at the split point)
@@ -526,6 +528,8 @@ export const useProjectStore = create<ProjectStore>()(
         clip.duration -= trimAmount
         clip.sourceIn += trimAmount
 
+        // Recalculate timeline duration after trim
+        state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
     },
@@ -544,6 +548,8 @@ export const useProjectStore = create<ProjectStore>()(
         clip.duration = newEndTime - clip.startTime
         clip.sourceOut = clip.sourceIn + clip.duration
 
+        // Recalculate timeline duration after trim
+        state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
     },

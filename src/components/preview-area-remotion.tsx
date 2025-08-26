@@ -132,6 +132,20 @@ export function PreviewAreaRemotion({
 
   const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
 
+  // Check if there's no clip at the current playhead position
+  if (!playheadClip || !playheadRecording) {
+    return (
+      <div className="relative w-full h-full overflow-hidden bg-background">
+        <div className="absolute inset-0 flex items-center justify-center p-8">
+          <div className="text-gray-500 text-center">
+            <p className="text-lg font-medium mb-2">No content</p>
+            <p className="text-sm">No clip at current playhead position</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   if (!previewRecording) {
     return (
       <div className="relative w-full h-full overflow-hidden bg-background">
