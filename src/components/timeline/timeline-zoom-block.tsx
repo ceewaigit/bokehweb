@@ -227,7 +227,7 @@ export const TimelineZoomBlock = React.memo(({
   // Generate zoom curve visualization
   const generateZoomCurve = () => {
     const points: number[] = []
-    const w = width // Use prop width
+    const w = resizeWidth // Use current resize width
 
     // Ensure we have valid dimensions
     if (!w || !height || isNaN(w) || isNaN(height)) {
@@ -355,7 +355,7 @@ export const TimelineZoomBlock = React.memo(({
         <Rect
           x={0}
           y={0}
-          width={width}
+          width={resizeWidth}
           height={height}
           fill={isOverlapping && !isSelected ? 'rgba(239, 68, 68, 0.85)' : (colors.zoomBlock || 'rgba(147, 51, 234, 0.85)')}
           cornerRadius={4}
@@ -384,7 +384,7 @@ export const TimelineZoomBlock = React.memo(({
             <Line
               points={[
                 ...curvePoints,
-                width, height / 2,
+                resizeWidth, height / 2,
                 0, height / 2
               ]}
               fill="rgba(255, 255, 255, 0.15)"
@@ -423,15 +423,17 @@ export const TimelineZoomBlock = React.memo(({
             // Get valid resize dimensions
             const valid = getValidResizeWidth(
               newBox.width,
-              resizingLeft ? newBox.x : x,
+              resizingLeft ? newBox.x : resizeX,
               resizingLeft
             )
+
+            // Update state for real-time preview
+            setResizeWidth(valid.width)
+            setResizeX(valid.x)
 
             newBox.width = valid.width
             newBox.x = valid.x
             newBox.height = oldBox.height
-
-            // Real-time preview handled by boundBoxFunc return
 
             return newBox
           }}
@@ -445,11 +447,9 @@ export const TimelineZoomBlock = React.memo(({
           keepRatio={false}
           ignoreStroke={true}
           onTransformEnd={() => {
-            // Get the final dimensions from the node
-            const node = groupRef.current
-            if (!node) return
-            const finalWidth = node.width()
-            const finalX = node.x()
+            // Use the resize state for final values
+            const finalWidth = resizeWidth
+            const finalX = resizeX
 
             // Calculate new times
             const newStartTime = TimelineUtils.pixelToTime(finalX - clipX, pixelsPerMs)
