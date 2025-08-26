@@ -17,8 +17,19 @@ import { TimelineZoomBlock } from './timeline-zoom-block'
 
 // Utilities
 import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
-import { useTimelineKeyboard } from '@/hooks/use-timeline-keyboard'
+import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
+import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
+
+// Commands
+import { 
+  CommandManager,
+  DefaultCommandContext,
+  UpdateClipCommand,
+  RemoveClipCommand,
+  SplitClipCommand,
+  DuplicateClipCommand
+} from '@/lib/commands'
 
 interface TimelineCanvasProps {
   className?: string
@@ -95,8 +106,21 @@ export function TimelineCanvas({
   const zoomTrackHeight = hasZoomTrack ? Math.floor(remainingHeight * 0.2) : 0
   const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
 
-  // Use keyboard shortcuts
-  useTimelineKeyboard({ enabled: true })
+  // Initialize command manager
+  const commandManagerRef = useRef<CommandManager | null>(null)
+  const commandContextRef = useRef<DefaultCommandContext | null>(null)
+  
+  useEffect(() => {
+    const store = useProjectStore.getState()
+    commandContextRef.current = new DefaultCommandContext(store)
+    commandManagerRef.current = CommandManager.getInstance(commandContextRef.current)
+  }, [])
+  
+  // Use command-based keyboard shortcuts for editing operations (copy, cut, paste, delete, etc.)
+  useCommandKeyboard({ enabled: true })
+  
+  // Use playback-specific keyboard shortcuts (play, pause, seek, shuttle, etc.)
+  useTimelinePlayback({ enabled: true })
 
   // Handle window resize
   useEffect(() => {
@@ -140,17 +164,29 @@ export function TimelineCanvas({
     selectClip(clipId)
   }, [onClipSelect, selectClip])
 
-  // Handle clip drag
-  const handleClipDragEnd = useCallback((clipId: string, newStartTime: number) => {
-    updateClip(clipId, { startTime: newStartTime })
-  }, [updateClip])
+  // Handle clip drag using command pattern
+  const handleClipDragEnd = useCallback(async (clipId: string, newStartTime: number) => {
+    if (!commandManagerRef.current || !commandContextRef.current) return
+    
+    const command = new UpdateClipCommand(
+      commandContextRef.current,
+      clipId,
+      { startTime: newStartTime }
+    )
+    await commandManagerRef.current.execute(command)
+  }, [])
 
-  // Handle control actions
-  const handleSplit = useCallback(() => {
-    if (selectedClips.length === 1) {
-      splitClip(selectedClips[0], currentTime)
+  // Handle control actions using command pattern
+  const handleSplit = useCallback(async () => {
+    if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
+      const command = new SplitClipCommand(
+        commandContextRef.current,
+        selectedClips[0],
+        currentTime
+      )
+      await commandManagerRef.current.execute(command)
     }
-  }, [selectedClips, splitClip, currentTime])
+  }, [selectedClips, currentTime])
 
   const handleTrimStart = useCallback(() => {
     if (selectedClips.length === 1) {
@@ -164,16 +200,35 @@ export function TimelineCanvas({
     }
   }, [selectedClips, trimClipEnd, currentTime])
 
-  const handleDelete = useCallback(() => {
-    selectedClips.forEach(clipId => removeClip(clipId))
-    clearSelection()
-  }, [selectedClips, removeClip, clearSelection])
-
-  const handleDuplicate = useCallback(() => {
-    if (selectedClips.length === 1) {
-      duplicateClip(selectedClips[0])
+  const handleDelete = useCallback(async () => {
+    if (!commandManagerRef.current || !commandContextRef.current) return
+    
+    // Begin group for multiple deletions
+    if (selectedClips.length > 1) {
+      commandManagerRef.current.beginGroup(`delete-${Date.now()}`)
     }
-  }, [selectedClips, duplicateClip])
+    
+    for (const clipId of selectedClips) {
+      const command = new RemoveClipCommand(commandContextRef.current, clipId)
+      await commandManagerRef.current.execute(command)
+    }
+    
+    if (selectedClips.length > 1) {
+      await commandManagerRef.current.endGroup()
+    }
+    
+    clearSelection()
+  }, [selectedClips, clearSelection])
+
+  const handleDuplicate = useCallback(async () => {
+    if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
+      const command = new DuplicateClipCommand(
+        commandContextRef.current,
+        selectedClips[0]
+      )
+      await commandManagerRef.current.execute(command)
+    }
+  }, [selectedClips])
 
   // Stage click handler - click to seek and clear selections
   const handleStageClick = useCallback((e: any) => {
@@ -220,6 +275,7 @@ export function TimelineCanvas({
       <div
         ref={containerRef}
         className="flex-1 overflow-x-auto overflow-y-hidden relative bg-card/50"
+        tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
       >
         <Stage
@@ -333,6 +389,8 @@ export function TimelineCanvas({
                     startTime={block.startTime}
                     endTime={block.endTime}
                     scale={block.scale}
+                    introMs={block.introMs}
+                    outroMs={block.outroMs}
                     isSelected={isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id}
                     allBlocks={clipEffects.zoom.blocks || []}
                     clipX={clipX}
@@ -340,6 +398,8 @@ export function TimelineCanvas({
                     onSelect={() => {
                       selectClip(clip.id) // Select the clip
                       selectEffectLayer('zoom', block.id) // Select zoom block
+                      // Ensure container has focus for keyboard events
+                      containerRef.current?.focus()
                     }}
                     onDragEnd={(newX) => {
                       const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
@@ -398,7 +458,7 @@ export function TimelineCanvas({
       </div>
 
       {/* Timeline Info - Compact */}
-      <div className="flex items-center justify-between px-3 py-1 border-t border-border bg-card">
+      <div className="flex items-center justify-between px-3 py-1 bg-card">
         <span className="text-[10px] font-medium text-muted-foreground">
           {selectedClips.length > 0 ? `${selectedClips.length} SELECTED` : ''}
         </span>
@@ -413,15 +473,40 @@ export function TimelineCanvas({
           x={contextMenu.x}
           y={contextMenu.y}
           clipId={contextMenu.clipId}
-          onSplit={(id) => splitClip(id, currentTime)}
+          onSplit={async (id) => {
+            if (commandManagerRef.current && commandContextRef.current) {
+              const command = new SplitClipCommand(
+                commandContextRef.current,
+                id,
+                currentTime
+              )
+              await commandManagerRef.current.execute(command)
+            }
+          }}
           onTrimStart={(id) => trimClipStart(id, currentTime)}
           onTrimEnd={(id) => trimClipEnd(id, currentTime)}
-          onDuplicate={duplicateClip}
+          onDuplicate={async (id) => {
+            if (commandManagerRef.current && commandContextRef.current) {
+              const command = new DuplicateClipCommand(
+                commandContextRef.current,
+                id
+              )
+              await commandManagerRef.current.execute(command)
+            }
+          }}
           onCopy={(id) => {
             // Copy is handled by keyboard shortcuts
             console.log('Copy clip:', id)
           }}
-          onDelete={removeClip}
+          onDelete={async (id) => {
+            if (commandManagerRef.current && commandContextRef.current) {
+              const command = new RemoveClipCommand(
+                commandContextRef.current,
+                id
+              )
+              await commandManagerRef.current.execute(command)
+            }
+          }}
           onClose={() => setContextMenu(null)}
         />
       )}
