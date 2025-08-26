@@ -59,13 +59,15 @@ export const TimelineZoomBlock = React.memo(({
     }
   }, [x, width, isDragging])
 
-  // Setup transformer
+  // Setup transformer and update on selection or size changes
   useEffect(() => {
     if (isSelected && trRef.current && groupRef.current) {
       trRef.current.nodes([groupRef.current])
+      // Force update transformer when dimensions change (e.g., timeline zoom)
+      trRef.current.forceUpdate()
       trRef.current.getLayer()?.batchDraw()
     }
-  }, [isSelected])
+  }, [isSelected, x, width, currentX, currentWidth])
 
   // Get valid position for dragging
   const getValidDragPosition = (proposedX: number): number => {
@@ -229,7 +231,14 @@ export const TimelineZoomBlock = React.memo(({
 
           onDragEnd(finalX)
         }}
-        onClick={onSelect}
+        onClick={(e) => {
+          e.cancelBubble = true
+          onSelect()
+        }}
+        onMouseDown={(e) => {
+          // Ensure the block gets focus
+          e.cancelBubble = true
+        }}
       >
         <Rect
           x={0}
@@ -290,6 +299,7 @@ export const TimelineZoomBlock = React.memo(({
       {/* Transformer outside of group to avoid parent-child error */}
       {isSelected && (
         <Transformer
+          key={`transformer-${blockId}-${pixelsPerMs}`} // Force recreate on zoom change
           ref={trRef}
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
