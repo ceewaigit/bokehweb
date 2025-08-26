@@ -293,7 +293,7 @@ export const TimelineZoomBlock = React.memo(({
           shadowBlur={isSelected ? 6 : 2}
           shadowOpacity={0.2}
           shadowOffsetY={1}
-          listening={false}
+          listening={true}
         />
 
         {/* Zoom curve visualization */}

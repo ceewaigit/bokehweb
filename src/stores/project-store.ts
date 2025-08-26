@@ -41,17 +41,31 @@ const hasClipOverlap = (track: Track, clipId: string, startTime: number, duratio
 }
 
 const findNextValidPosition = (track: Track, clipId: string, desiredStart: number, duration: number): number => {
+  const GAP_BETWEEN_CLIPS = 100 // 100ms gap for better visual separation
   const otherClips = track.clips
     .filter(c => c.id !== clipId)
     .sort((a, b) => a.startTime - b.startTime)
 
-  for (const clip of otherClips) {
-    const clipEnd = clip.startTime + clip.duration
-    if (desiredStart < clipEnd && (desiredStart + duration) > clip.startTime) {
-      return clipEnd + 1
+  let currentPosition = desiredStart
+  let foundOverlap = true
+  
+  // Keep checking until we find a position with no overlaps
+  while (foundOverlap) {
+    foundOverlap = false
+    
+    for (const clip of otherClips) {
+      const clipEnd = clip.startTime + clip.duration
+      // Check if current position would overlap with this clip
+      if (currentPosition < clipEnd && (currentPosition + duration) > clip.startTime) {
+        // Move to after this clip with a gap
+        currentPosition = clipEnd + GAP_BETWEEN_CLIPS
+        foundOverlap = true
+        break // Start checking from beginning with new position
+      }
     }
   }
-  return desiredStart
+  
+  return currentPosition
 }
 
 // Store the animation frame ID outside the store to avoid serialization issues
@@ -563,8 +577,8 @@ export const useProjectStore = create<ProjectStore>()(
 
       const { clip, track } = result
       
-      // Start with position right after the original clip
-      let desiredStartTime = clip.startTime + clip.duration + 0.1
+      // Start with position right after the original clip with proper gap
+      let desiredStartTime = clip.startTime + clip.duration + 100 // 100ms gap
       
       // Check for overlaps and find next valid position
       if (hasClipOverlap(track, '', desiredStartTime, clip.duration)) {

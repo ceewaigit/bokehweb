@@ -114,7 +114,7 @@ export const TimelineClip = React.memo(({
 
         setThumbnails(newThumbnails)
       } catch (error) {
-        console.error('Failed to load video thumbnails:', error)
+        // Failed to load thumbnails - will show placeholder
       }
     }
 
