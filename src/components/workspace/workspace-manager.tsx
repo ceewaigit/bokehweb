@@ -450,7 +450,7 @@ export function WorkspaceManager() {
   // Show loading screen when processing
   if (isLoading) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-background z-50">
+      <div className="fixed inset-0 flex flex-col items-center justify-center z-50">
         <div className="text-center space-y-6">
           {/* Single animated spinner */}
           <div className="w-16 h-16 border-4 border-primary/20 rounded-full border-t-primary animate-spin" />
@@ -476,7 +476,7 @@ export function WorkspaceManager() {
   if (!currentProject) {
     return (
       <>
-        <div className="fixed inset-0 flex flex-col bg-background">
+        <div className="fixed inset-0 flex flex-col">
           <RecordingsLibrary
             onSelectRecording={async (recording) => {
               setIsLoading(true)
@@ -520,9 +520,9 @@ export function WorkspaceManager() {
 
   return (
     <>
-      <div className="fixed inset-0 flex flex-col bg-background" style={{ width: '100vw', height: '100vh' }}>
+      <div className="fixed inset-0 flex flex-col" style={{ width: '100vw', height: '100vh' }}>
         {/* Top Toolbar - Compact with macOS traffic light padding */}
-        <div className="flex-shrink-0 bg-card/50 overflow-hidden" style={{ height: '48px', paddingLeft: '80px' }}>
+        <div className="flex-shrink-0 backdrop-blur-sm overflow-hidden border-b border-border/50" style={{ height: '48px', paddingLeft: '80px' }}>
           <Toolbar
             project={currentProject}
             onToggleProperties={handleToggleProperties}
@@ -619,7 +619,7 @@ export function WorkspaceManager() {
             {/* Properties Panel - Fixed width when open, same height as preview */}
             {isPropertiesOpen && (
               <div
-                className="bg-card overflow-hidden"
+                className="backdrop-blur-sm overflow-hidden border-r border-border/50"
                 style={{ width: `${propertiesPanelWidth}px` }}
               >
                 <EffectsSidebar
@@ -634,7 +634,7 @@ export function WorkspaceManager() {
           </div>
 
           {/* Timeline Section - Full width at bottom (40% height) */}
-          <div className="bg-card/50 overflow-hidden" style={{ height: '40%', width: '100vw' }}>
+          <div className="backdrop-blur-sm overflow-hidden border-t border-border/50" style={{ height: '40%', width: '100vw' }}>
             <TimelineCanvas
               className="h-full w-full"
               currentProject={currentProject}

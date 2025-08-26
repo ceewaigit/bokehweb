@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
 import type { Clip, Recording } from '@/types/project'
-import { TIMELINE_LAYOUT, TimelineUtils, createClipDragBoundFunc } from '@/lib/timeline'
+import { TIMELINE_LAYOUT, TimelineUtils, createClipDragBoundFunc, checkClipOverlap } from '@/lib/timeline'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -15,6 +15,7 @@ interface TimelineClipProps {
   pixelsPerMs: number
   isSelected: boolean
   selectedEffectType?: 'zoom' | 'cursor' | 'background' | null
+  otherClipsInTrack?: Clip[]
   onSelect: (clipId: string) => void
   onSelectEffect?: (type: 'zoom' | 'cursor' | 'background') => void
   onDragEnd: (clipId: string, newStartTime: number) => void
@@ -30,12 +31,15 @@ export const TimelineClip = React.memo(({
   pixelsPerMs,
   isSelected,
   selectedEffectType,
+  otherClipsInTrack = [],
   onSelect,
   onSelectEffect,
   onDragEnd,
   onContextMenu
 }: TimelineClipProps) => {
   const [thumbnails, setThumbnails] = useState<HTMLCanvasElement[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragPosition, setDragPosition] = useState<{ x: number; hasOverlap: boolean } | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const colors = useTimelineColors()
   
@@ -128,28 +132,78 @@ export const TimelineClip = React.memo(({
     }
   }, [recording?.id, recording?.filePath, clip.duration, clipWidth, trackHeight, trackType])
 
+  // Prepare other clips data for collision detection
+  const otherClipsData = otherClipsInTrack
+    .filter(c => c.id !== clip.id)
+    .map(c => ({ startTime: c.startTime, duration: c.duration }))
+
   return (
-    <Group
-      x={clipX}
-      y={trackY + TIMELINE_LAYOUT.TRACK_PADDING}
-      draggable
-      dragBoundFunc={createClipDragBoundFunc(trackY, pixelsPerMs)}
-      onDragEnd={(e) => {
-        const newX = e.target.x()
-        const newTime = TimelineUtils.pixelToTime(
-          newX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
-          pixelsPerMs
-        )
-        onDragEnd(clip.id, Math.max(0, newTime))
-      }}
-      onClick={() => onSelect(clip.id)}
-      onContextMenu={(e) => {
-        if (onContextMenu) {
-          e.evt.preventDefault()
-          onContextMenu(e, clip.id)
-        }
-      }}
-    >
+    <>
+      {/* Ghost preview when dragging */}
+      {isDragging && dragPosition && (
+        <Rect
+          x={dragPosition.x}
+          y={trackY + TIMELINE_LAYOUT.TRACK_PADDING}
+          width={clipWidth}
+          height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+          fill={dragPosition.hasOverlap ? colors.destructive : colors.success}
+          opacity={0.3}
+          cornerRadius={6}
+          listening={false}
+        />
+      )}
+      
+      <Group
+        x={clipX}
+        y={trackY + TIMELINE_LAYOUT.TRACK_PADDING}
+        draggable
+        dragBoundFunc={createClipDragBoundFunc(trackY, pixelsPerMs)}
+        onDragStart={() => setIsDragging(true)}
+        onDragMove={(e) => {
+          const currentX = e.target.x()
+          const proposedTime = TimelineUtils.pixelToTime(
+            currentX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
+            pixelsPerMs
+          )
+          
+          // Check for overlaps
+          const overlapCheck = checkClipOverlap(proposedTime, clip.duration, otherClipsData)
+          
+          // Update drag preview position
+          setDragPosition({
+            x: overlapCheck.hasOverlap && overlapCheck.nearestValidPosition !== undefined
+              ? TimelineUtils.timeToPixel(overlapCheck.nearestValidPosition, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+              : currentX,
+            hasOverlap: overlapCheck.hasOverlap
+          })
+        }}
+        onDragEnd={(e) => {
+          setIsDragging(false)
+          setDragPosition(null)
+          
+          const newX = e.target.x()
+          const proposedTime = TimelineUtils.pixelToTime(
+            newX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
+            pixelsPerMs
+          )
+          
+          // Check for overlaps and use valid position
+          const overlapCheck = checkClipOverlap(proposedTime, clip.duration, otherClipsData)
+          const finalTime = overlapCheck.hasOverlap && overlapCheck.nearestValidPosition !== undefined
+            ? overlapCheck.nearestValidPosition
+            : proposedTime
+          
+          onDragEnd(clip.id, Math.max(0, finalTime))
+        }}
+        onClick={() => onSelect(clip.id)}
+        onContextMenu={(e) => {
+          if (onContextMenu) {
+            e.evt.preventDefault()
+            onContextMenu(e, clip.id)
+          }
+        }}
+        opacity={isDragging ? 0.6 : 1}
+      >
       {/* Clip background with rounded corners */}
       <Rect
         width={clipWidth}
@@ -305,5 +359,6 @@ export const TimelineClip = React.memo(({
         return badges.length > 0 ? <Group x={6} y={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2 - 20}>{badges}</Group> : null
       })()}
     </Group>
+    </>
   )
 })

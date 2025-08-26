@@ -22,7 +22,7 @@ import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
 
 // Commands
-import { 
+import {
   CommandManager,
   DefaultCommandContext,
   UpdateClipCommand,
@@ -109,16 +109,16 @@ export function TimelineCanvas({
   // Initialize command manager
   const commandManagerRef = useRef<CommandManager | null>(null)
   const commandContextRef = useRef<DefaultCommandContext | null>(null)
-  
+
   useEffect(() => {
     const store = useProjectStore.getState()
     commandContextRef.current = new DefaultCommandContext(store)
     commandManagerRef.current = CommandManager.getInstance(commandContextRef.current)
   }, [])
-  
+
   // Use command-based keyboard shortcuts for editing operations (copy, cut, paste, delete, etc.)
   useCommandKeyboard({ enabled: true })
-  
+
   // Use playback-specific keyboard shortcuts (play, pause, seek, shuttle, etc.)
   useTimelinePlayback({ enabled: true })
 
@@ -167,7 +167,7 @@ export function TimelineCanvas({
   // Handle clip drag using command pattern
   const handleClipDragEnd = useCallback(async (clipId: string, newStartTime: number) => {
     if (!commandManagerRef.current || !commandContextRef.current) return
-    
+
     const command = new UpdateClipCommand(
       commandContextRef.current,
       clipId,
@@ -212,21 +212,21 @@ export function TimelineCanvas({
 
   const handleDelete = useCallback(async () => {
     if (!commandManagerRef.current || !commandContextRef.current) return
-    
+
     // Begin group for multiple deletions
     if (selectedClips.length > 1) {
       commandManagerRef.current.beginGroup(`delete-${Date.now()}`)
     }
-    
+
     for (const clipId of selectedClips) {
       const command = new RemoveClipCommand(commandContextRef.current, clipId)
       await commandManagerRef.current.execute(command)
     }
-    
+
     if (selectedClips.length > 1) {
       await commandManagerRef.current.endGroup()
     }
-    
+
     clearSelection()
   }, [selectedClips, clearSelection])
 
@@ -353,9 +353,11 @@ export function TimelineCanvas({
           {/* Clips Layer */}
           <Layer>
             {/* Video clips */}
-            {currentProject.timeline.tracks
-              .find(t => t.type === 'video')
-              ?.clips.map(clip => {
+            {(() => {
+              const videoTrack = currentProject.timeline.tracks.find(t => t.type === 'video')
+              const videoClips = videoTrack?.clips || []
+
+              return videoClips.map(clip => {
                 const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
                 return (
                   <TimelineClip
@@ -368,6 +370,7 @@ export function TimelineCanvas({
                     pixelsPerMs={pixelsPerMs}
                     isSelected={selectedClips.includes(clip.id)}
                     selectedEffectType={selectedClips.includes(clip.id) ? selectedEffectLayer?.type : null}
+                    otherClipsInTrack={videoClips}
                     onSelect={handleClipSelect}
                     onSelectEffect={(type) => {
                       selectEffectLayer(type)
@@ -376,7 +379,8 @@ export function TimelineCanvas({
                     onContextMenu={handleClipContextMenu}
                   />
                 )
-              })}
+              })
+            })()}
 
             {/* Zoom blocks - show for ALL video clips with zoom enabled */}
             {hasZoomTrack && (() => {
@@ -386,7 +390,7 @@ export function TimelineCanvas({
               // Collect and sort zoom blocks to render selected ones on top
               const zoomBlocks: React.ReactElement[] = []
               const selectedZoomBlocks: React.ReactElement[] = []
-              
+
               videoTrack.clips.forEach(clip => {
                 const isSelectedClip = selectedClips.includes(clip.id)
                 const clipEffects = (isSelectedClip && localEffects) || clip.effects
@@ -397,7 +401,7 @@ export function TimelineCanvas({
 
                 clipEffects.zoom.blocks.forEach((block: ZoomBlock) => {
                   const isBlockSelected = isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id
-                  
+
                   const blockElement = (
                     <TimelineZoomBlock
                       key={`${clip.id}-${block.id}`}
@@ -445,7 +449,7 @@ export function TimelineCanvas({
                       }}
                     />
                   )
-                  
+
                   // Add to appropriate array
                   if (isBlockSelected) {
                     selectedZoomBlocks.push(blockElement)
@@ -454,15 +458,17 @@ export function TimelineCanvas({
                   }
                 })
               })
-              
+
               // Render non-selected blocks first, then selected ones on top
               return [...zoomBlocks, ...selectedZoomBlocks]
             })()}
 
             {/* Audio clips */}
-            {currentProject.timeline.tracks
-              .find(t => t.type === 'audio')
-              ?.clips.map(clip => (
+            {(() => {
+              const audioTrack = currentProject.timeline.tracks.find(t => t.type === 'audio')
+              const audioClips = audioTrack?.clips || []
+
+              return audioClips.map(clip => (
                 <TimelineClip
                   key={clip.id}
                   clip={clip}
@@ -471,10 +477,12 @@ export function TimelineCanvas({
                   trackHeight={audioTrackHeight}
                   pixelsPerMs={pixelsPerMs}
                   isSelected={selectedClips.includes(clip.id)}
+                  otherClipsInTrack={audioClips}
                   onSelect={handleClipSelect}
                   onDragEnd={handleClipDragEnd}
                 />
-              ))}
+              ))
+            })()}
           </Layer>
 
           {/* Playhead Layer */}
@@ -546,7 +554,7 @@ export function TimelineCanvas({
               await commandManagerRef.current.execute(command)
             }
           }}
-          onCopy={(id) => {
+          onCopy={() => {
             // Copy is handled by keyboard shortcuts
           }}
           onDelete={async (id) => {

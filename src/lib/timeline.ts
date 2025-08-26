@@ -76,6 +76,52 @@ export function createClipDragBoundFunc(
   }
 }
 
+// Helper to check if a clip would overlap at a given position
+export function checkClipOverlap(
+  proposedStartTime: number,
+  duration: number,
+  otherClips: Array<{ startTime: number; duration: number }>,
+  minGap: number = 50
+): { hasOverlap: boolean; nearestValidPosition?: number } {
+  for (const clip of otherClips) {
+    const clipEnd = clip.startTime + clip.duration
+    const proposedEnd = proposedStartTime + duration
+
+    // Check for overlap with gap
+    if (proposedStartTime < clipEnd + minGap && proposedEnd > clip.startTime - minGap) {
+      // Calculate nearest valid position
+      const afterClip = clipEnd + minGap
+      const beforeClip = Math.max(0, clip.startTime - duration - minGap)
+
+      // Choose the closest valid position
+      const distanceAfter = Math.abs(proposedStartTime - afterClip)
+      const distanceBefore = Math.abs(proposedStartTime - beforeClip)
+
+      return {
+        hasOverlap: true,
+        nearestValidPosition: distanceAfter < distanceBefore ? afterClip : beforeClip
+      }
+    }
+  }
+
+  return { hasOverlap: false }
+}
+
+// Helper to find magnetic snap points
+export function findSnapPoints(
+  otherClips: Array<{ startTime: number; duration: number }>,
+  snapThreshold: number = 100
+): number[] {
+  const snapPoints: number[] = [0] // Always include timeline start
+
+  for (const clip of otherClips) {
+    snapPoints.push(clip.startTime) // Clip start
+    snapPoints.push(clip.startTime + clip.duration) // Clip end
+  }
+
+  return snapPoints
+}
+
 
 // Keyboard shortcut handlers
 export const TimelineKeyboardShortcuts = {

@@ -8,6 +8,7 @@ import {
   SplitClipCommand,
   DuplicateClipCommand,
   RemoveClipCommand,
+  RemoveZoomBlockCommand,
   CopyCommand,
   CutCommand,
   PasteCommand
@@ -61,7 +62,9 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Cut handler
     const handleCut = async () => {
-      const command = new CutCommand(context)
+      // Update context with fresh store state
+      contextRef.current = new DefaultCommandContext(useProjectStore.getState())
+      const command = new CutCommand(contextRef.current)
       const result = await manager.execute(command)
       
       if (result.success) {
@@ -94,15 +97,28 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       // Get fresh store state
       const currentStore = useProjectStore.getState()
       
+      // Update context with fresh store state
+      contextRef.current = new DefaultCommandContext(currentStore)
+      
       // Check if an effect layer is selected (e.g., zoom block)
       if (currentStore.selectedEffectLayer) {
         const { type, id } = currentStore.selectedEffectLayer
         
         if (type === 'zoom' && id && currentStore.selectedClips.length === 1) {
-          // Delete the zoom block
-          currentStore.removeZoomBlock(currentStore.selectedClips[0], id)
-          currentStore.clearEffectSelection()
-          toast('Zoom block deleted')
+          // Use command pattern for zoom block deletion
+          const command = new RemoveZoomBlockCommand(
+            contextRef.current,
+            currentStore.selectedClips[0],
+            id
+          )
+          const result = await manager.execute(command)
+          
+          if (result.success) {
+            currentStore.clearEffectSelection()
+            toast('Zoom block deleted')
+          } else {
+            toast.error(result.error as string)
+          }
           return
         }
       }
@@ -117,7 +133,9 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       }
 
       for (const clipId of selectedClips) {
-        const command = new RemoveClipCommand(context, clipId)
+        // Update context with fresh store state for each deletion
+        contextRef.current = new DefaultCommandContext(useProjectStore.getState())
+        const command = new RemoveClipCommand(contextRef.current, clipId)
         await manager.execute(command)
       }
 
@@ -131,16 +149,19 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Split handler
     const handleSplit = async () => {
-      const selectedClips = store.selectedClips
+      const currentStore = useProjectStore.getState()
+      const selectedClips = currentStore.selectedClips
       if (selectedClips.length !== 1) {
         toast.error('Select exactly one clip to split')
         return
       }
 
+      // Update context with fresh store state
+      contextRef.current = new DefaultCommandContext(currentStore)
       const command = new SplitClipCommand(
-        context,
+        contextRef.current,
         selectedClips[0],
-        store.currentTime
+        currentStore.currentTime
       )
       
       const result = await manager.execute(command)
@@ -154,7 +175,8 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Duplicate handler
     const handleDuplicate = async () => {
-      const selectedClips = store.selectedClips
+      const currentStore = useProjectStore.getState()
+      const selectedClips = currentStore.selectedClips
       if (selectedClips.length === 0) return
 
       // Begin group for multiple duplications
@@ -163,7 +185,9 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       }
 
       for (const clipId of selectedClips) {
-        const command = new DuplicateClipCommand(context, clipId)
+        // Update context with fresh store state
+        contextRef.current = new DefaultCommandContext(currentStore)
+        const command = new DuplicateClipCommand(contextRef.current, clipId)
         await manager.execute(command)
       }
 

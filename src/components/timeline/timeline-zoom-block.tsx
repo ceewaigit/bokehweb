@@ -69,30 +69,35 @@ export const TimelineZoomBlock = React.memo(({
           x: clipX + TimelineUtils.timeToPixel(b.startTime, pixelsPerMs),
           endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
         }))
-      
+
       const blockEnd = currentX + currentWidth
-      const hasOverlap = blocks.some(block => 
+      const hasOverlap = blocks.some(block =>
         (currentX < block.endX && blockEnd > block.x)
       )
-      
+
       setIsOverlapping(hasOverlap)
     }
-    
+
     checkOverlap()
   }, [currentX, currentWidth, allBlocks, blockId, clipX, pixelsPerMs])
 
   // Setup transformer and update on selection or size changes
   useEffect(() => {
     if (isSelected && trRef.current && groupRef.current) {
-      trRef.current.nodes([groupRef.current])
-      trRef.current.forceUpdate()
-      // Move selected block to top layer for better interaction
-      groupRef.current.moveToTop()
-      trRef.current.getLayer()?.batchDraw()
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        if (trRef.current && groupRef.current) {
+          trRef.current.nodes([groupRef.current])
+          trRef.current.forceUpdate()
+          // Move selected block to top layer for better interaction
+          groupRef.current.moveToTop()
+          trRef.current.getLayer()?.batchDraw()
+        }
+      }, 0)
     }
   }, [isSelected, x, width, currentX, currentWidth, pixelsPerMs])
 
-  // Get valid position for dragging with simple edge snapping
+  // Get valid position for dragging with improved edge snapping
   const getValidDragPosition = (proposedX: number): number => {
     const snapThreshold = 10
     const blocks = allBlocks
@@ -101,30 +106,54 @@ export const TimelineZoomBlock = React.memo(({
         x: clipX + TimelineUtils.timeToPixel(b.startTime, pixelsPerMs),
         endX: clipX + TimelineUtils.timeToPixel(b.endTime, pixelsPerMs)
       }))
+      .sort((a, b) => a.x - b.x) // Sort blocks by position for predictable snapping
+
+    // Store the current width for consistent snapping
+    const blockWidth = currentWidth || width
+
+    // Try to find the best snap position
+    let bestSnapX = proposedX
+    let minSnapDistance = snapThreshold
 
     for (const block of blocks) {
-      if (Math.abs(proposedX - block.x) < snapThreshold) {
-        return block.x
+      // Snap left edge to other block's left edge
+      const leftToLeftDistance = Math.abs(proposedX - block.x)
+      if (leftToLeftDistance < minSnapDistance) {
+        minSnapDistance = leftToLeftDistance
+        bestSnapX = block.x
       }
-      if (Math.abs(proposedX - block.endX) < snapThreshold) {
-        return block.endX
+
+      // Snap left edge to other block's right edge
+      const leftToRightDistance = Math.abs(proposedX - block.endX)
+      if (leftToRightDistance < minSnapDistance) {
+        minSnapDistance = leftToRightDistance
+        bestSnapX = block.endX
       }
-      if (Math.abs((proposedX + width) - block.x) < snapThreshold) {
-        return block.x - width
+
+      // Snap right edge to other block's left edge
+      const rightToLeftDistance = Math.abs((proposedX + blockWidth) - block.x)
+      if (rightToLeftDistance < minSnapDistance) {
+        minSnapDistance = rightToLeftDistance
+        bestSnapX = block.x - blockWidth
       }
-      if (Math.abs((proposedX + width) - block.endX) < snapThreshold) {
-        return block.endX - width
+
+      // Snap right edge to other block's right edge
+      const rightToRightDistance = Math.abs((proposedX + blockWidth) - block.endX)
+      if (rightToRightDistance < minSnapDistance) {
+        minSnapDistance = rightToRightDistance
+        bestSnapX = block.endX - blockWidth
       }
     }
 
-    return Math.max(clipX, proposedX)
+    // Ensure we don't go past the clip boundary
+    return Math.max(clipX, bestSnapX)
   }
 
   // Simple resize validation with edge snapping
   const getValidResizeWidth = (proposedWidth: number, proposedX: number, isResizingLeft: boolean): { width: number; x: number } => {
     const minWidth = TimelineUtils.timeToPixel(100, pixelsPerMs)
     const snapThreshold = 10
-    
+
     let finalWidth = Math.max(minWidth, proposedWidth)
     let finalX = proposedX
 
@@ -139,7 +168,7 @@ export const TimelineZoomBlock = React.memo(({
     if (isResizingLeft) {
       // Store the original right edge position
       const rightEdge = currentX + currentWidth
-      
+
       // Resizing from left - snap left edge
       for (const block of blocks) {
         if (Math.abs(finalX - block.x) < snapThreshold) {
@@ -149,19 +178,19 @@ export const TimelineZoomBlock = React.memo(({
           finalX = block.endX
         }
       }
-      
+
       // Ensure we don't go past the clip boundary
       finalX = Math.max(clipX, finalX)
-      
+
       // Recalculate width to maintain the right edge position
       finalWidth = rightEdge - finalX
-      
+
       // Ensure minimum width
       if (finalWidth < minWidth) {
         finalWidth = minWidth
         finalX = rightEdge - minWidth
       }
-      
+
       // Final boundary check
       finalX = Math.max(clipX, finalX)
     } else {
@@ -177,7 +206,7 @@ export const TimelineZoomBlock = React.memo(({
       }
       finalWidth = Math.max(minWidth, finalWidth)
     }
-    
+
     return { width: finalWidth, x: finalX }
   }
 
@@ -256,10 +285,10 @@ export const TimelineZoomBlock = React.memo(({
           const newStartTime = TimelineUtils.pixelToTime(finalX - clipX, pixelsPerMs)
           const duration = endTime - startTime
 
-          // First call onSelect to ensure selection
+          // Ensure selection is maintained
           onSelect()
-          
-          // Then update position
+
+          // Update position
           onUpdate({
             startTime: Math.max(0, newStartTime),
             endTime: newStartTime + duration
@@ -273,6 +302,7 @@ export const TimelineZoomBlock = React.memo(({
         }}
         onMouseDown={(e) => {
           e.cancelBubble = true
+          // Always select on mouse down for immediate feedback
           onSelect()
         }}
         onMouseUp={(e) => {
@@ -296,6 +326,8 @@ export const TimelineZoomBlock = React.memo(({
           shadowOpacity={0.2}
           shadowOffsetY={1}
           listening={true}
+          // Add hit detection for better overlapping block selection
+          hitStrokeWidth={4}
         />
 
         {/* Zoom curve visualization */}
@@ -341,25 +373,25 @@ export const TimelineZoomBlock = React.memo(({
       {/* Transformer outside of group to avoid parent-child error */}
       {isSelected && (
         <Transformer
-          key={`transformer-${blockId}-${pixelsPerMs}`} // Force recreate on zoom change
+          key={`transformer-${blockId}-${Date.now()}`} // Unique key to force recreation
           ref={trRef}
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
           boundBoxFunc={(oldBox, newBox) => {
             // Determine which side is being resized
             const resizingLeft = newBox.x !== oldBox.x
-            
+
             // Get valid resize dimensions
             const valid = getValidResizeWidth(
-              newBox.width, 
+              newBox.width,
               resizingLeft ? newBox.x : currentX,
               resizingLeft
             )
-            
+
             newBox.width = valid.width
             newBox.x = valid.x
             newBox.height = oldBox.height
-            
+
             // Update state for real-time preview
             setCurrentWidth(valid.width)
             setCurrentX(valid.x)
@@ -373,6 +405,8 @@ export const TimelineZoomBlock = React.memo(({
           anchorStrokeWidth={1}
           anchorSize={10}
           anchorCornerRadius={2}
+          keepRatio={false}
+          ignoreStroke={true}
           onTransformEnd={() => {
             // The width and position are already updated via boundBoxFunc
             const finalWidth = currentWidth

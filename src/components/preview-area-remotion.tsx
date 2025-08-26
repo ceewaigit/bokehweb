@@ -135,7 +135,7 @@ export function PreviewAreaRemotion({
   // Check if there's no clip at the current playhead position
   if (!playheadClip || !playheadRecording) {
     return (
-      <div className="relative w-full h-full overflow-hidden bg-background">
+      <div className="relative w-full h-full overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center p-8">
           <div className="text-gray-500 text-center">
             <p className="text-lg font-medium mb-2">No content</p>
@@ -148,7 +148,7 @@ export function PreviewAreaRemotion({
   
   if (!previewRecording) {
     return (
-      <div className="relative w-full h-full overflow-hidden bg-background">
+      <div className="relative w-full h-full overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center p-8">
           <div className="text-gray-500 text-center">
             <p className="text-lg font-medium mb-2">No recording selected</p>
@@ -161,7 +161,7 @@ export function PreviewAreaRemotion({
 
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-background">
+    <div className="relative w-full h-full overflow-hidden">
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div 
           className="relative w-full h-full flex items-center justify-center"
