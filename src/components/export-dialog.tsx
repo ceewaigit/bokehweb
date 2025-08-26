@@ -78,7 +78,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-card border border-border rounded-lg w-[600px] max-h-[80vh] overflow-auto">
+      <div className="bg-background border border-border rounded-lg w-[600px] max-h-[80vh] overflow-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="text-lg font-semibold">Export Project</h2>

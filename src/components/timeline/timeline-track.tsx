@@ -17,21 +17,21 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
     switch (type) {
       case 'video':
         return { 
-          bgFill: colors.muted, 
+          bgFill: colors.background, 
           bgOpacity: 0.5, 
           labelText: 'V', 
           labelColor: colors.mutedForeground
         }
       case 'zoom':
         return { 
-          bgFill: colors.info, 
+          bgFill: colors.muted, 
           bgOpacity: 0.05, 
           labelText: 'Z', 
           labelColor: colors.info
         }
       case 'audio':
         return { 
-          bgFill: colors.muted, 
+          bgFill: colors.background, 
           bgOpacity: 0.3, 
           labelText: 'A', 
           labelColor: colors.mutedForeground
@@ -51,6 +51,8 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         height={height}
         fill={style.bgFill}
         opacity={style.bgOpacity}
+        stroke={colors.muted}
+        strokeWidth={4}
       />
       
       {/* Track label background */}
@@ -59,7 +61,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         y={y}
         width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
         height={height}
-        fill={colors.card}
+        fill={colors.background}
         opacity={0.95}
       />
       

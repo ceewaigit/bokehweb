@@ -313,7 +313,7 @@ export function TimelineCanvas({
               y={0}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
               height={rulerHeight}
-              fill={colors.card}
+              fill={colors.background}
             />
 
             <TimelineTrack

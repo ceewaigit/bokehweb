@@ -97,7 +97,7 @@ export function Toolbar({
           variant="ghost"
           size="sm"
           onClick={onNewProject}
-          className="h-7 px-2 text-[11px] font-medium hover:bg-card/50"
+          className="h-7 px-2 text-[11px] font-medium hover:bg-background/50"
         >
           <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">New</span>
@@ -126,7 +126,7 @@ export function Toolbar({
               }
             }
           }}
-          className="h-7 px-2 text-[11px] font-medium hover:bg-card/50"
+          className="h-7 px-2 text-[11px] font-medium hover:bg-background/50"
         >
           <FolderOpen className="w-3 h-3 mr-1 flex-shrink-0" />
           <span className="whitespace-nowrap">Open</span>
@@ -212,7 +212,7 @@ export function Toolbar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-card/50"
+              className="h-7 w-7 hover:bg-background/50"
             >
               {theme === 'light' && <Sun className="w-3.5 h-3.5" />}
               {theme === 'dark' && <Moon className="w-3.5 h-3.5" />}
@@ -240,7 +240,7 @@ export function Toolbar({
           variant="ghost"
           size="icon"
           onClick={handleToggleProperties}
-          className="h-7 w-7 hover:bg-card/50"
+          className="h-7 w-7 hover:bg-background/50"
         >
           {propertiesOpen ?
             <PanelRightClose className="w-3.5 h-3.5" /> :

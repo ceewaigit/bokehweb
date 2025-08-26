@@ -91,7 +91,7 @@ export function EffectsSidebar({
 
   if (!selectedClip || !effects) {
     return (
-      <div className={cn("bg-card/30 backdrop-blur-md border-l border-border/50 p-4", className)}>
+      <div className={cn("bg-background/30 backdrop-blur-md border-l border-border/50 p-4", className)}>
         <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">No clip selected</p>
       </div>
     )
@@ -143,7 +143,7 @@ export function EffectsSidebar({
             "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
             activeTab === 'background'
               ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
+              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
           <Palette className="w-3 h-3" />
@@ -155,7 +155,7 @@ export function EffectsSidebar({
             "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
             activeTab === 'cursor'
               ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
+              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
           <MousePointer className="w-3 h-3" />
@@ -167,7 +167,7 @@ export function EffectsSidebar({
             "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
             activeTab === 'zoom'
               ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
+              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
           <Camera className="w-3 h-3" />
@@ -179,7 +179,7 @@ export function EffectsSidebar({
             "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
             activeTab === 'shape'
               ? "bg-primary/10 text-primary shadow-sm"
-              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
+              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
           <Square className="w-3 h-3" />
@@ -192,7 +192,7 @@ export function EffectsSidebar({
         {activeTab === 'background' && (
           <div className="space-y-3">
             {/* Background Type Tabs */}
-            <div className="flex gap-1 p-0.5 bg-card/50 rounded-md">
+            <div className="flex gap-1 p-0.5 bg-background/50 rounded-md">
               {(['wallpaper', 'gradient', 'color', 'image'] as const).map(type => (
                 <button
                   key={type}
@@ -312,7 +312,7 @@ export function EffectsSidebar({
                 <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Solid Color</h3>
 
                 {/* Color picker - streamlined single section */}
-                <div className="flex gap-2 items-center p-3 bg-card/30 rounded-lg ">
+                <div className="flex gap-2 items-center p-3 bg-background/30 rounded-lg ">
                   <input
                     type="color"
                     value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
@@ -433,7 +433,7 @@ export function EffectsSidebar({
 
             {/* Background Blur - Only show for image-based backgrounds */}
             {(backgroundType === 'wallpaper' || backgroundType === 'image') && (
-              <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
+              <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
                 <label className="text-xs font-medium flex items-center justify-between">
                   <span className="uppercase tracking-wider text-[10px]">Blur</span>
                   <Switch
@@ -464,7 +464,7 @@ export function EffectsSidebar({
         {activeTab === 'cursor' && effects?.cursor && (
           <div className="space-y-3">
             {/* Master cursor visibility toggle */}
-            <div className="p-3 bg-card/30 rounded-lg ">
+            <div className="p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Show Cursor</span>
                 <Switch
@@ -479,7 +479,7 @@ export function EffectsSidebar({
             {/* Only show cursor settings when enabled */}
             {effects.cursor.enabled && (
               <>
-                <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
+                <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
                   <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Size</label>
                   <Slider
                     value={[effects.cursor.size ?? 3.0]}
@@ -492,7 +492,7 @@ export function EffectsSidebar({
                   <span className="text-[10px] text-muted-foreground/70 font-mono">{(effects.cursor.size ?? 3.0).toFixed(1)}x</span>
                 </div>
 
-                <div className="p-3 bg-card/30 rounded-lg ">
+                <div className="p-3 bg-background/30 rounded-lg ">
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Click Animation</span>
                     <Switch
@@ -504,7 +504,7 @@ export function EffectsSidebar({
                   </label>
                 </div>
 
-                <div className="p-3 bg-card/30 rounded-lg ">
+                <div className="p-3 bg-background/30 rounded-lg ">
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Motion Blur</span>
                     <Switch
@@ -516,7 +516,7 @@ export function EffectsSidebar({
                   </label>
                 </div>
 
-                <div className="p-3 bg-card/30 rounded-lg ">
+                <div className="p-3 bg-background/30 rounded-lg ">
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Hide When Idle</span>
                     <Switch
@@ -529,7 +529,7 @@ export function EffectsSidebar({
                 </div>
 
                 {effects.cursor.hideOnIdle && (
-                  <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
+                  <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
                     <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Idle Timeout</label>
                     <Slider
                       value={[(effects.cursor.idleTimeout ?? 3000) / 1000]}
@@ -621,7 +621,7 @@ export function EffectsSidebar({
               )
             })()}
 
-            <div className="p-3 bg-card/30 rounded-lg ">
+            <div className="p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Zoom Effects</span>
                 <Switch
@@ -643,7 +643,7 @@ export function EffectsSidebar({
                     regenerate: Date.now() // Add timestamp to trigger regeneration
                   })
                 }}
-                className="w-full px-2 py-1.5 text-[10px] uppercase tracking-wider font-medium bg-card/50 hover:bg-card/70  rounded-md transition-all"
+                className="w-full px-2 py-1.5 text-[10px] uppercase tracking-wider font-medium bg-background/50 hover:bg-background/70  rounded-md transition-all"
               >
                 Reset Zoom Detection
               </button>
@@ -657,7 +657,7 @@ export function EffectsSidebar({
 
         {activeTab === 'shape' && (
           <div className="space-y-3">
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
+            <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Padding</label>
               <Slider
                 value={[effects.background.padding || 0]}
@@ -684,7 +684,7 @@ export function EffectsSidebar({
               )}
             </div>
 
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
+            <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corners</label>
               <Slider
                 value={[effects.video.cornerRadius]}
@@ -697,7 +697,7 @@ export function EffectsSidebar({
               {effects.video.cornerRadius > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.cornerRadius}px</span>}
             </div>
 
-            <div className="space-y-2 p-3 bg-card/30 rounded-lg ">
+            <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Shadow</span>
                 <Switch
