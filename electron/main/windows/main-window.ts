@@ -7,16 +7,16 @@ import { getAppURL, isDev } from '../config'
 export function createMainWindow(): BrowserWindow {
   console.log('[MainWindow] Creating main window...')
   
-  // No platform-specific transparency - keep window solid
-  
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 800,
     show: false,
-    transparent: false, // Don't make entire window transparent
-    backgroundColor: '#ffffff', // Solid background
+    transparent: false,
+    backgroundColor: '#1a1a1a',
+    vibrancy: 'under-window', // macOS vibrancy for true glassmorphism
+    backgroundMaterial: 'acrylic', // Windows 11 acrylic effect
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
