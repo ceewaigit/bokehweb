@@ -834,7 +834,7 @@ export function EffectsSidebar({
             <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corner Radius</label>
               <Slider
-                value={[(backgroundEffect?.data as BackgroundEffectData).cornerRadius || 0]}
+                value={[(backgroundEffect?.data as BackgroundEffectData).cornerRadius ?? 25]}
                 onValueChange={([value]) => updateBackgroundEffect({
                   cornerRadius: value
                 })}
@@ -844,11 +844,11 @@ export function EffectsSidebar({
                 className="w-full"
               />
               <div className="flex justify-between items-center">
-                <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).cornerRadius || 0}px</span>
-                {(backgroundEffect?.data as BackgroundEffectData).cornerRadius !== 16 && (
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).cornerRadius ?? 25}px</span>
+                {(backgroundEffect?.data as BackgroundEffectData).cornerRadius !== 25 && (
                   <button
                     onClick={() => updateBackgroundEffect({
-                      cornerRadius: 16
+                      cornerRadius: 25
                     })}
                     className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
                   >
@@ -861,7 +861,7 @@ export function EffectsSidebar({
             <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Shadow Intensity</label>
               <Slider
-                value={[(backgroundEffect?.data as BackgroundEffectData).shadowIntensity || 0]}
+                value={[(backgroundEffect?.data as BackgroundEffectData).shadowIntensity ?? 85]}
                 onValueChange={([value]) => updateBackgroundEffect({
                   shadowIntensity: value
                 })}
@@ -871,11 +871,11 @@ export function EffectsSidebar({
                 className="w-full"
               />
               <div className="flex justify-between items-center">
-                <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).shadowIntensity || 0}%</span>
-                {(backgroundEffect?.data as BackgroundEffectData).shadowIntensity !== 50 && (
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).shadowIntensity ?? 85}%</span>
+                {(backgroundEffect?.data as BackgroundEffectData).shadowIntensity !== 85 && (
                   <button
                     onClick={() => updateBackgroundEffect({
-                      shadowIntensity: 50
+                      shadowIntensity: 85
                     })}
                     className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
                   >
