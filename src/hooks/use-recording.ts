@@ -52,17 +52,17 @@ export function useRecording() {
     if (timerIntervalRef.current) {
       logger.debug('Timer already running, clearing first')
     }
-    
+
     stopTimer() // Clear any existing timer
-    
+
     // Set the start time accounting for any previous duration
     timerStartTimeRef.current = Date.now() - initialDuration
-    
+
     timerIntervalRef.current = setInterval(() => {
       const elapsed = Date.now() - timerStartTimeRef.current
       setDuration(elapsed)
     }, RECORDING_CONSTANTS.TIMER_INTERVAL)
-    
+
     logger.debug(`Timer started with initial duration: ${initialDuration}ms`)
   }, [setDuration, stopTimer])
 
@@ -167,7 +167,7 @@ export function useRecording() {
 
       // Start duration timer only after recording has successfully started
       setDuration(0) // Reset duration to 0
-      
+
       // Verify recording is actually active before starting timer
       if (recorderRef.current.isCurrentlyRecording()) {
         startTimer(0)

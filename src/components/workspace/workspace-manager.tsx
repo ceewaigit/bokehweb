@@ -131,7 +131,7 @@ async function loadProjectRecording(
   if (!project.timeline.effects) {
     project.timeline.effects = []
   }
-  
+
   // For migration: Ensure clips have background effects if they're missing
   // This is only for projects that were created before effects were properly saved
   for (const track of project.timeline.tracks) {
@@ -140,12 +140,12 @@ async function loadProjectRecording(
         const hasBackground = project.timeline.effects.some(
           (e: any) => e.clipId === clip.id && e.type === 'background'
         )
-        
+
         if (!hasBackground) {
           // Only add background for migration - new recordings should have it already
           const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
           const defaultWallpaper = getDefaultWallpaper()
-          
+
           project.timeline.effects.push({
             id: `background-${clip.id}`,
             type: 'background',
@@ -268,11 +268,11 @@ export function WorkspaceManager() {
     // Work with local effects or fall back to saved effects
     const currentEffects = localEffects || clipEffects || []
     const zoomEffect = currentEffects.find(e => e.type === 'zoom' && e.id === blockId)
-    
+
     if (zoomEffect) {
       // Update the effect in local state
       let updatedEffect: Effect
-      
+
       // Check if this is a timing update or data update
       if ('startTime' in updates || 'endTime' in updates) {
         // Timing update - update the effect times directly
@@ -291,15 +291,15 @@ export function WorkspaceManager() {
           }
         }
       }
-      
+
       // Update local effects array
-      const newEffects = currentEffects.map(e => 
+      const newEffects = currentEffects.map(e =>
         e.id === blockId ? updatedEffect : e
       )
-      
+
       setLocalEffects(newEffects)
       setHasUnsavedChanges(true)
-      
+
       // Also update via command for undo/redo support
       const store = useProjectStore.getState()
       const context = new DefaultCommandContext(store)
@@ -330,7 +330,7 @@ export function WorkspaceManager() {
       existingEffects.forEach(effect => {
         updateEffect(effect.id, { ...effect, enabled: false })
       })
-      
+
       // Add all local effects as saved effects
       localEffects.forEach(effect => {
         if (existingEffects.find(e => e.id === effect.id)) {
@@ -341,12 +341,12 @@ export function WorkspaceManager() {
           addEffect(effect)
         }
       })
-      
+
       setLocalEffects(null)
     }
-    
+
     await saveCurrentProject()
-    
+
     // Use the project's modifiedAt timestamp after saving
     const savedProject = useProjectStore.getState().currentProject
     if (savedProject?.modifiedAt) {
@@ -433,9 +433,9 @@ export function WorkspaceManager() {
 
     // Work with local effects or fall back to saved effects
     const currentEffects = localEffects || clipEffects || []
-    
+
     let newEffects: Effect[]
-    
+
     // For zoom effects with a selected effect layer, update the specific zoom effect
     if (type === 'zoom' && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id) {
       const existingEffectIndex = currentEffects.findIndex(e => e.id === selectedEffectLayer.id)
@@ -452,20 +452,20 @@ export function WorkspaceManager() {
     } else {
       // For background and cursor, update the single effect of that type
       // Don't filter by enabled for cursor to preserve settings when toggling
-      const existingEffectIndex = type === 'cursor' 
+      const existingEffectIndex = type === 'cursor'
         ? currentEffects.findIndex(e => e.type === type)
         : currentEffects.findIndex(e => e.type === type && e.enabled)
-      
+
       if (existingEffectIndex >= 0) {
         // Update existing effect in local state
         newEffects = [...currentEffects]
-        
+
         // Handle enabled property if present in data
         const enabled = data.enabled !== undefined ? data.enabled : newEffects[existingEffectIndex].enabled
-        
+
         // Remove enabled from data to avoid duplication
         const { enabled: dataEnabled, ...effectData } = data
-        
+
         newEffects[existingEffectIndex] = {
           ...newEffects[existingEffectIndex],
           data: effectData,
@@ -475,7 +475,7 @@ export function WorkspaceManager() {
         // Add new effect to local state
         // Extract enabled from data if present
         const { enabled: dataEnabled, ...effectData } = data
-        
+
         const newEffect: Effect = {
           id: `${type}-${selectedClipId}-${Date.now()}`,
           type,
@@ -488,7 +488,7 @@ export function WorkspaceManager() {
         newEffects = [...currentEffects, newEffect]
       }
     }
-    
+
     // Update local state
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
@@ -600,7 +600,7 @@ export function WorkspaceManager() {
               setLocalEffects(null)
               setHasUnsavedChanges(false)
               setLastSavedAt(useProjectStore.getState().currentProject?.modifiedAt || null)
-              
+
               // Calculate and set optimal zoom for the opened project
               const project = useProjectStore.getState().currentProject
               if (project) {

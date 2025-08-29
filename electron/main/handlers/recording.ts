@@ -32,13 +32,13 @@ export function registerRecordingHandlers(): void {
     try {
       const recordingsDir = getRecordingsDirectory()
       const files = await fs.readdir(recordingsDir)
-  
+
       const recordings = files
         .filter(f => f.endsWith('.ssproj'))
         .map(f => {
           const filePath = path.join(recordingsDir, f)
           const stats = fsSync.statSync(filePath)
-          
+
           return {
             name: f,
             path: filePath,
@@ -53,7 +53,7 @@ export function registerRecordingHandlers(): void {
       return []
     }
   })
-  
+
   ipcMain.handle('get-file-size', async (event: IpcMainInvokeEvent, filePath: string) => {
     try {
       const stats = await fs.stat(filePath)

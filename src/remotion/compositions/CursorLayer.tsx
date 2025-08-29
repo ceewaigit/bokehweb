@@ -58,7 +58,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Check if cursor is idle
   const isIdle = useMemo(() => {
     if (!cursorData?.hideOnIdle) return false;
-    
+
     // If no cursor events, never hide for idle
     if (cursorEvents.length === 0) return false;
 
@@ -201,7 +201,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const activeClick = useMemo(() => {
     // Check if click effects are enabled
     if (!cursorData?.clickEffects) return null;
-    
+
     return clickEvents.find(click => {
       const clickDuration = 300; // ms for click animation
       return currentTimeMs >= click.timestamp &&

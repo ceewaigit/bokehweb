@@ -411,7 +411,7 @@ export function TimelineCanvas({
 
               videoTrack.clips.forEach(clip => {
                 const isSelectedClip = selectedClips.includes(clip.id)
-                
+
                 // Get zoom effects for this clip
                 const clipZoomEffects = zoomEffects.filter(e => e.clipId === clip.id)
                 if (clipZoomEffects.length === 0) return
@@ -465,7 +465,7 @@ export function TimelineCanvas({
                             startTime: updates.startTime ?? effect.startTime,
                             endTime: updates.endTime ?? effect.endTime
                           })
-                          
+
                           // Also update via onZoomBlockUpdate for local effects
                           if (onZoomBlockUpdate) {
                             onZoomBlockUpdate(clip.id, effect.id, updates)
@@ -476,6 +476,12 @@ export function TimelineCanvas({
                           updateEffect(effect.id, {
                             data: { ...currentData, ...updates }
                           })
+                          
+                          // IMPORTANT: Also update via onZoomBlockUpdate for local effects
+                          // This ensures the preview updates immediately without needing to save
+                          if (onZoomBlockUpdate) {
+                            onZoomBlockUpdate(clip.id, effect.id, updates)
+                          }
                         }
                       }}
                     />

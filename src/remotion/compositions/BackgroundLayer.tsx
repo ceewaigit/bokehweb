@@ -25,7 +25,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
         backgroundStyle = {
           background: `linear-gradient(${angle}deg, ${gradientColors})`
         };
-        
+
         // Layer wallpaper on top if available
         if (backgroundData.wallpaper) {
           // We'll need to return a more complex structure for layered backgrounds

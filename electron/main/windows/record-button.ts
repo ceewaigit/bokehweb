@@ -68,14 +68,14 @@ export function createRecordButton(): BrowserWindow {
 
   // Don't ignore mouse events - we need interaction
   recordButton.setIgnoreMouseEvents(false)
-  
+
   // Platform-specific window configuration
   if (process.platform === 'darwin') {
     recordButton.setFullScreenable(false)
     // Use screen-saver level on macOS - this keeps it above other windows
     // and helps with window exclusion in screen capture
     recordButton.setAlwaysOnTop(true, 'screen-saver', 1)
-    
+
     // Set additional window properties to help with exclusion from capture
     // This sets the window to not be captured by some screen recording APIs
     recordButton.setContentProtection(true)

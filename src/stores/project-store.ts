@@ -280,7 +280,7 @@ export const useProjectStore = create<ProjectStore>()(
         // Import default wallpaper if available
         const { getDefaultWallpaper } = require('@/lib/constants/default-effects')
         const defaultWallpaper = getDefaultWallpaper()
-        
+
         const backgroundEffect: Effect = {
           id: `background-${clipId}`,
           type: 'background',

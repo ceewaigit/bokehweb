@@ -152,14 +152,14 @@ export interface Effect {
   id: string
   type: 'zoom' | 'cursor' | 'background' | 'annotation'
   clipId: string  // Associated clip
-  
+
   // Timing relative to clip
   startTime: number  // Start time relative to clip
   endTime: number    // End time relative to clip
-  
+
   // Effect-specific data
   data: ZoomEffectData | CursorEffectData | BackgroundEffectData | AnnotationData
-  
+
   // Common properties
   enabled: boolean
   locked?: boolean

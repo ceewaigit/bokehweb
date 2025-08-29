@@ -112,14 +112,13 @@ export function PreviewAreaRemotion({
   // Get effects from timeline.effects for this clip
   const currentProjectRef = useProjectStore(state => state.currentProject)
   const clipEffects = currentProjectRef?.timeline?.effects?.filter((e: any) => e.clipId === previewClip?.id && e.enabled) || []
-  const backgroundEffect = clipEffects.find((e: any) => e.type === 'background')
-  const padding = (backgroundEffect?.data as any)?.padding || 0;
 
-  // Calculate composition size
+  // Calculate composition size based on video aspect ratio
+  // Don't add padding to composition size - padding is handled internally in the composition
   const videoAspectRatio = videoWidth / videoHeight;
   const baseSize = 1920;
-  const compositionWidth = (videoAspectRatio > 1 ? baseSize : Math.round(baseSize * videoAspectRatio)) + padding * 2;
-  const compositionHeight = (videoAspectRatio > 1 ? Math.round(baseSize / videoAspectRatio) : baseSize) + padding * 2;
+  const compositionWidth = videoAspectRatio > 1 ? baseSize : Math.round(baseSize * videoAspectRatio);
+  const compositionHeight = videoAspectRatio > 1 ? Math.round(baseSize / videoAspectRatio) : baseSize;
 
   // Calculate composition props
   const compositionProps = {

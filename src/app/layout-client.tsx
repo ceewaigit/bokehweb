@@ -16,7 +16,7 @@ export default function LayoutClient({
     // Only run once on initial mount
     RecordingStorage.clearAllBlobUrls()
   }, [])
-  
+
   return (
     <ThemeProvider>
       <ErrorBoundary>

@@ -32,8 +32,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   );
   const backgroundData = backgroundEffect?.data as any
   const padding = backgroundData?.padding || 0;
-  const cornerRadius = backgroundData?.cornerRadius || 16;
-  const shadowIntensity = backgroundData?.shadowIntensity ?? 50;
+  const cornerRadius = backgroundData?.cornerRadius || 0;
+  const shadowIntensity = backgroundData?.shadowIntensity || 0;
   
   // Calculate video position using shared utility
   const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(

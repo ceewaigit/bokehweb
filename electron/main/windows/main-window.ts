@@ -6,7 +6,7 @@ import { getAppURL, isDev } from '../config'
 
 export function createMainWindow(): BrowserWindow {
   console.log('[MainWindow] Creating main window...')
-  
+
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -40,7 +40,7 @@ export function createMainWindow(): BrowserWindow {
 
   // Don't load URL here - let the caller handle it
   // This prevents double loading
-  
+
   if (isDev) {
     mainWindow.webContents.openDevTools()
   }

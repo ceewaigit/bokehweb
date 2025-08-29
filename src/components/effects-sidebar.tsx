@@ -48,7 +48,7 @@ export function EffectsSidebar({
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
-  
+
   // Extract current effects from the array
   const backgroundEffect = effects?.find(e => e.type === 'background' && e.enabled)
   const cursorEffect = effects?.find(e => e.type === 'cursor')  // Don't filter by enabled for cursor
@@ -104,7 +104,7 @@ export function EffectsSidebar({
 
   const updateEffect = (category: 'background' | 'cursor' | 'zoom', updates: any) => {
     if (!selectedClip) return
-    
+
     // For cursor effects, preserve all existing data
     if (category === 'cursor' && cursorEffect) {
       const currentData = cursorEffect.data as CursorEffectData
@@ -116,14 +116,10 @@ export function EffectsSidebar({
 
   // Update background while preserving existing properties
   const updateBackgroundEffect = (updates: any) => {
-    if (!selectedClip) return
-    
-    const currentBg = backgroundEffect?.data as BackgroundEffectData || {
-      type: 'gradient',
-      gradient: { colors: ['#2D3748', '#1A202C'], angle: 135 },
-      padding: 120
-    }
-    
+    if (!selectedClip || !backgroundEffect) return
+
+    const currentBg = backgroundEffect.data as BackgroundEffectData
+
     updateEffect('background', {
       ...currentBg,
       ...updates
@@ -458,24 +454,24 @@ export function EffectsSidebar({
                   const bgData = backgroundEffect?.data as BackgroundEffectData
                   return bgData?.blur && bgData.blur > 0
                 })() && (
-                  <>
-                    <Slider
-                      value={[(() => {
+                    <>
+                      <Slider
+                        value={[(() => {
+                          const bgData = backgroundEffect?.data as BackgroundEffectData
+                          return bgData?.blur || 10
+                        })()]}
+                        onValueChange={([value]) => updateBackgroundEffect({ blur: value })}
+                        min={1}
+                        max={50}
+                        step={1}
+                        className="w-full"
+                      />
+                      <span className="text-[10px] text-muted-foreground/70 font-mono">{(() => {
                         const bgData = backgroundEffect?.data as BackgroundEffectData
                         return bgData?.blur || 10
-                      })()]}
-                      onValueChange={([value]) => updateBackgroundEffect({ blur: value })}
-                      min={1}
-                      max={50}
-                      step={1}
-                      className="w-full"
-                    />
-                    <span className="text-[10px] text-muted-foreground/70 font-mono">{(() => {
-                      const bgData = backgroundEffect?.data as BackgroundEffectData
-                      return bgData?.blur || 10
-                    })()}px</span>
-                  </>
-                )}
+                      })()}px</span>
+                    </>
+                  )}
               </div>
             )}
           </div>
