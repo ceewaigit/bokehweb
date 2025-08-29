@@ -689,6 +689,7 @@ export function EffectsSidebar({
               const selectedBlock = zoomEffects.find(e => e.id === selectedEffectLayer.id)
               if (!selectedBlock) return null
               const zoomData = selectedBlock.data as ZoomEffectData
+              if (!zoomData) return null
 
               return (
                 <div key={`zoom-block-${selectedEffectLayer.id}`}>
@@ -699,7 +700,7 @@ export function EffectsSidebar({
                       <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Scale</label>
                       <Slider
                         key={`scale-${selectedEffectLayer.id}`}
-                        value={[zoomData.scale]}
+                        value={[zoomData.scale ?? 2.0]}
                         onValueChange={([value]) => {
                           // Find the specific zoom effect and update its data
                           const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
@@ -715,7 +716,7 @@ export function EffectsSidebar({
                         step={0.1}
                         className="w-full"
                       />
-                      <span className="text-[10px] text-muted-foreground/70 font-mono">{zoomData.scale.toFixed(1)}x</span>
+                      <span className="text-[10px] text-muted-foreground/70 font-mono">{(zoomData.scale ?? 2.0).toFixed(1)}x</span>
                     </div>
 
                     <div className="space-y-1.5">
