@@ -319,8 +319,12 @@ export class RecordingStorage {
           button: m.key || 'left' as const
         }))
 
+      // Filter out standalone modifier keys (CapsLock, Shift, etc.) but keep them when combined with other keys
+      const modifierKeys = ['CapsLock', 'Shift', 'Control', 'Alt', 'Meta', 'Command', 'Option', 'Fn']
+      
       const keyboardEvents = metadata
         .filter(m => m.eventType === 'keypress' && m.keyEventType === 'keydown')
+        .filter(m => !modifierKeys.includes(m.key))  // Filter out standalone modifier keys
         .map(m => ({
           timestamp: m.timestamp,
           key: m.key || '',
@@ -468,7 +472,7 @@ export class RecordingStorage {
             fadeOutDuration: 300,
             maxWidth: 300
           },
-          enabled: true
+          enabled: false  // Default to hidden
         })
       } else {
         logger.info('⚠️ No keyboard events detected - skipping keystroke effect')

@@ -30,6 +30,7 @@ export interface VideoLayerProps {
     height: number;
   };
   zoomCenter?: { x: number; y: number };
+  cinematicPan?: { x: number; y: number };
 }
 
 export interface BackgroundLayerProps {

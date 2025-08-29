@@ -313,7 +313,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
         currentTimeMs,  // Use actual time, not fixed 500
         videoOffset.width,  // Use video dimensions, same as VideoLayer
         videoOffset.height,
-        zoomState ? { x: zoomState.x, y: zoomState.y } : { x: 0.5, y: 0.5 }  // Use zoom center position
+        zoomState ? { x: zoomState.x, y: zoomState.y } : { x: 0.5, y: 0.5 },  // Use zoom center position
+        zoomState ? { x: zoomState.panX || 0, y: zoomState.panY || 0 } : { x: 0, y: 0 }  // Include pan
       );
 
       // Apply the zoom to the cursor position

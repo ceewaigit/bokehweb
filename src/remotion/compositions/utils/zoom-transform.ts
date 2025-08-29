@@ -79,14 +79,15 @@ export function calculateZoomScale(
 
 /**
  * Calculate the complete zoom transformation for a video element
- * Creates a cinematic zoom to a fixed point
+ * Creates a cinematic zoom with optional smooth panning
  */
 export function calculateZoomTransform(
   activeBlock: ZoomBlock | undefined,
   currentTimeMs: number,
   videoWidth: number,
   videoHeight: number,
-  zoomCenter: { x: number; y: number } // Fixed zoom center (normalized 0-1)
+  zoomCenter: { x: number; y: number }, // Fixed zoom center (normalized 0-1)
+  cinematicPan?: { x: number; y: number } // Optional cinematic pan (normalized)
 ): ZoomState {
   if (!activeBlock) {
     return {
@@ -130,9 +131,9 @@ export function calculateZoomTransform(
   const scaleCompensationX = -offsetFromCenterX * (scale - 1);
   const scaleCompensationY = -offsetFromCenterY * (scale - 1);
 
-  // No panning for cinematic zoom - just pure zoom to center
-  const panX = 0;
-  const panY = 0;
+  // Apply cinematic pan if provided (already smoothed in MainComposition)
+  const panX = (cinematicPan?.x || 0) * videoWidth;
+  const panY = (cinematicPan?.y || 0) * videoHeight;
 
   return {
     scale,

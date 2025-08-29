@@ -28,6 +28,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const zoomStateRef = useRef<Map<string, {
     centerX: number;
     centerY: number;
+    panX: number;
+    panY: number;
     initialized: boolean
   }>>(new Map());
 
@@ -103,6 +105,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           blockZoomState = {
             centerX,
             centerY,
+            panX: 0,
+            panY: 0,
             initialized: true
           };
           zoomStateRef.current.set(activeZoomBlock.id, blockZoomState);
@@ -123,21 +127,99 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           outroMs
         );
 
-        // For cinematic zoom, we don't pan at all - just zoom to the fixed center
-        // This creates a stable, professional zoom effect
+        // Calculate phase-based panning for cinematic effect
         let panX = 0;
         let panY = 0;
+        
+        if (elapsed < introMs) {
+          // Intro phase: minimal panning, focus on zoom
+          // Start from 0 and slowly introduce any necessary pan
+          const introProgress = elapsed / introMs;
+          
+          // Only apply 20% of pan during intro for stability
+          if (cursorEvents.length > 0 && blockZoomState) {
+            const mousePos = zoomPanCalculator.interpolateMousePosition(
+              cursorEvents,
+              currentTimeMs
+            );
+            
+            if (mousePos) {
+              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
+              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
+              
+              const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
+                mousePos.x,
+                mousePos.y,
+                captureWidth,
+                captureHeight,
+                scale,
+                blockZoomState.panX,
+                blockZoomState.panY
+              );
+              
+              // Apply only partial pan during intro
+              blockZoomState.panX = cinematicPan.x * introProgress * 0.2;
+              blockZoomState.panY = cinematicPan.y * introProgress * 0.2;
+            }
+          }
+          
+          panX = blockZoomState.panX;
+          panY = blockZoomState.panY;
+          
+        } else if (elapsed > blockDuration - outroMs) {
+          // Outro phase: smoothly return to center
+          const outroProgress = (elapsed - (blockDuration - outroMs)) / outroMs;
+          const fadeOut = 1 - (outroProgress * outroProgress); // Quadratic ease
+          
+          if (blockZoomState) {
+            panX = blockZoomState.panX * fadeOut;
+            panY = blockZoomState.panY * fadeOut;
+          }
+          
+        } else {
+          // Hold phase: full cinematic panning to follow mouse
+          if (cursorEvents.length > 0 && blockZoomState) {
+            const mousePos = zoomPanCalculator.interpolateMousePosition(
+              cursorEvents,
+              currentTimeMs
+            );
+            
+            if (mousePos) {
+              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
+              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
+              
+              // Calculate smooth cinematic pan
+              const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
+                mousePos.x,
+                mousePos.y,
+                captureWidth,
+                captureHeight,
+                scale,
+                blockZoomState.panX,
+                blockZoomState.panY
+              );
+              
+              // Update pan state
+              blockZoomState.panX = cinematicPan.x;
+              blockZoomState.panY = cinematicPan.y;
+              
+              panX = blockZoomState.panX;
+              panY = blockZoomState.panY;
+            }
+          } else if (blockZoomState) {
+            // Use existing pan if no mouse events
+            panX = blockZoomState.panX;
+            panY = blockZoomState.panY;
+          }
+        }
 
-        // No panning during zoom for cinematic effect
-        // The zoom simply scales towards the fixed center point
-
-        // Use the fixed zoom center from block initialization
+        // Use the fixed zoom center with cinematic pan
         zoomState = {
           scale,
           x: blockZoomState.centerX,
           y: blockZoomState.centerY,
-          panX: 0,  // No panning for cinematic zoom
-          panY: 0   // No panning for cinematic zoom
+          panX,  // Cinematic pan based on phase
+          panY   // Cinematic pan based on phase
         };
       } else {
         // No active zoom block - clear any cached states for memory efficiency
@@ -181,6 +263,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             videoHeight={videoHeight}
             captureArea={captureArea}
             zoomCenter={completeZoomState.scale > 1 ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
+            cinematicPan={completeZoomState.scale > 1 ? { x: completeZoomState.panX, y: completeZoomState.panY } : undefined}
           />
         </Sequence>
       )}

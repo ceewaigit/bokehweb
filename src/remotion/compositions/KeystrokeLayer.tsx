@@ -30,7 +30,23 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
   
   // Initialize renderer once
   useEffect(() => {
-    rendererRef.current = new KeystrokeRenderer({
+    if (!rendererRef.current) {
+      rendererRef.current = new KeystrokeRenderer({
+        fontSize: settings.fontSize || 16,
+        fontFamily: settings.fontFamily || 'SF Pro Display, system-ui, -apple-system, sans-serif',
+        backgroundColor: settings.backgroundColor || 'rgba(0, 0, 0, 0.8)',
+        textColor: settings.textColor || '#ffffff',
+        borderColor: settings.borderColor || 'rgba(255, 255, 255, 0.2)',
+        borderRadius: settings.borderRadius || 6,
+        padding: settings.padding || 12,
+        fadeOutDuration: settings.fadeOutDuration || 300,
+        position: settings.position || 'bottom-center',
+        maxWidth: settings.maxWidth || 300
+      });
+    }
+    
+    // Update renderer settings when they change
+    rendererRef.current.updateSettings({
       fontSize: settings.fontSize || 16,
       fontFamily: settings.fontFamily || 'SF Pro Display, system-ui, -apple-system, sans-serif',
       backgroundColor: settings.backgroundColor || 'rgba(0, 0, 0, 0.8)',
@@ -50,10 +66,11 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
     // Set keyboard events
     rendererRef.current.setKeyboardEvents(keyboardEvents);
     
+    // Cleanup only on unmount
     return () => {
       rendererRef.current?.reset();
     };
-  }, [settings]);
+  }, [settings, keyboardEvents]);
   
   // Update canvas when ref changes
   useEffect(() => {

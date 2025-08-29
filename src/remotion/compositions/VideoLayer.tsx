@@ -11,13 +11,15 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoWidth,
   videoHeight,
   captureArea,
-  zoomCenter
+  zoomCenter,
+  cinematicPan
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // Use fixed zoom center from MainComposition
+  // Use fixed zoom center and optional pan from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
+  const smoothPan = cinematicPan || { x: 0, y: 0 };
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
@@ -52,13 +54,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
     );
 
-    // Calculate zoom transformation with fixed center for cinematic effect
+    // Calculate zoom transformation with fixed center and cinematic pan
     const zoomTransform = calculateZoomTransform(
       activeBlock,
       currentTimeMs,
       drawWidth,
       drawHeight,
-      fixedZoomCenter  // Fixed zoom center for stable zoom
+      fixedZoomCenter,  // Fixed zoom center for stable zoom
+      smoothPan  // Cinematic pan for edge following
     );
 
     // Generate transform string
