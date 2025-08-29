@@ -56,7 +56,7 @@ export class ExportEngine {
       if (!recording) {
         throw new Error('Recording not found')
       }
-      
+
       // Warn if there are multiple clips with gaps
       if (videoClips.length > 1) {
         // Check for gaps
@@ -70,7 +70,7 @@ export class ExportEngine {
             break
           }
         }
-        
+
         if (hasGaps) {
           onProgress?.({
             progress: 5,
@@ -107,11 +107,11 @@ export class ExportEngine {
         captureArea.sourceId?.startsWith('area:')
       )
 
-      const hasEffects = firstClip.effects && (
-        firstClip.effects.zoom?.enabled ||
-        firstClip.effects.background?.padding ||
-        firstClip.effects.video?.cornerRadius
-      )
+      // Check if there are any effects for this clip
+      const clipEffects = project.timeline.effects?.filter(
+        e => e.clipId === firstClip.id && e.enabled
+      ) || []
+      const hasEffects = clipEffects.length > 0
 
       if (hasEffects || needsCropping) {
         // Export with effects and/or cropping using FFmpeg
@@ -176,10 +176,10 @@ export class ExportEngine {
 
     // Build a list of segments (clips and gaps)
     const segments: Array<{ type: 'clip' | 'gap', clip?: Clip, duration: number, startTime: number }> = []
-    
+
     for (let i = 0; i < clips.length; i++) {
       const clip = clips[i]
-      
+
       // Add gap before this clip if needed
       if (i === 0 && clip.startTime > 0) {
         // Gap at the beginning
@@ -192,7 +192,7 @@ export class ExportEngine {
         const prevClip = clips[i - 1]
         const gapStart = prevClip.startTime + prevClip.duration
         const gapDuration = clip.startTime - gapStart
-        
+
         if (gapDuration > 10) { // More than 10ms gap
           segments.push({
             type: 'gap',
@@ -201,7 +201,7 @@ export class ExportEngine {
           })
         }
       }
-      
+
       // Add the clip
       segments.push({
         type: 'clip',
@@ -210,7 +210,7 @@ export class ExportEngine {
         startTime: clip.startTime
       })
     }
-    
+
     // Add final gap if timeline extends beyond last clip
     const lastClip = clips[clips.length - 1]
     const lastClipEnd = lastClip.startTime + lastClip.duration
@@ -221,34 +221,34 @@ export class ExportEngine {
         startTime: lastClipEnd
       })
     }
-    
-    
+
+
     onProgress?.({
       progress: 10,
       stage: 'processing',
       message: `Processing ${clips.length} clips with ${segments.filter(s => s.type === 'gap').length} gaps (black frames will be inserted)...`
     })
-    
+
     // Export with gap handling
     // Currently exports first clip only - full FFmpeg concat implementation needed
     const firstClip = clips[0]
     const recording = project.recordings.find(r => r.id === firstClip.recordingId)
-    
+
     if (!recording) {
       throw new Error('Recording not found')
     }
-    
+
     // Get video blob
-    const blobUrl = RecordingStorage.getBlobUrl(recording.id) || 
+    const blobUrl = RecordingStorage.getBlobUrl(recording.id) ||
       await globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
-    
+
     if (!blobUrl) {
       throw new Error('Video not loaded')
     }
-    
+
     const response = await fetch(blobUrl)
     const videoBlob = await response.blob()
-    
+
     // Export with effects
     return await this.ffmpegEngine.exportWithEffects(
       videoBlob,

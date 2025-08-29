@@ -66,8 +66,7 @@ export class AddClipCommand extends Command<{ clipId: string }> {
         startTime: this.startTime ?? project.timeline.duration,
         duration: recording.duration,
         sourceIn: 0,
-        sourceOut: recording.duration,
-        effects: JSON.parse(JSON.stringify(DEFAULT_CLIP_EFFECTS))
+        sourceOut: recording.duration
       }
     }
 
@@ -76,6 +75,13 @@ export class AddClipCommand extends Command<{ clipId: string }> {
       return {
         success: false,
         error: 'No video track found'
+      }
+    }
+
+    if (!this.clip) {
+      return {
+        success: false,
+        error: 'Failed to create clip'
       }
     }
 

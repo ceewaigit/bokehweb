@@ -136,9 +136,11 @@ export class FFmpegExportEngine {
       }
 
       // Apply zoom effect if enabled
-      if (clip.effects?.zoom?.enabled && clip.effects.zoom.blocks?.length) {
+      // Get zoom effects from project context (passed in settings)
+      const zoomEffects = (settings as any).zoomEffects || []
+      if (zoomEffects.length > 0) {
         // For simplicity, apply a static zoom to the first target
-        const firstBlock = clip.effects.zoom.blocks[0]
+        const firstBlock = zoomEffects[0]
         if (firstBlock) {
           const scale = firstBlock.scale || 2
 
@@ -160,14 +162,16 @@ export class FFmpegExportEngine {
       }
 
       // Apply corner radius effect
-      if (clip.effects?.video?.cornerRadius) {
+      // Check for corner radius setting (passed in settings)
+      const cornerRadius = (settings as any).cornerRadius
+      if (cornerRadius) {
         // FFmpeg doesn't have direct corner radius, but we can simulate with a mask
         // For now, skip this as it's complex
       }
 
-      // Apply padding/background
-      if (clip.effects?.background?.padding) {
-        const padding = clip.effects.background.padding
+      // Check for padding setting (passed in settings)
+      const padding = (settings as any).padding
+      if (padding) {
         filters.push(`pad=iw+${padding * 2}:ih+${padding * 2}:${padding}:${padding}:color=black`)
       }
 

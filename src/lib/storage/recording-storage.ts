@@ -4,8 +4,7 @@
  */
 
 import { logger } from '@/lib/utils/logger'
-import type { Project, Recording, Clip, CaptureArea } from '@/types/project'
-import { SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
+import type { Project, Recording, Clip, CaptureArea, Effect, ZoomEffectData, BackgroundEffectData, CursorEffectData } from '@/types/project'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 export class RecordingStorage {
@@ -356,27 +355,14 @@ export class RecordingStorage {
 
       project.recordings.push(recording)
 
-      // Auto-generate zoom blocks
-      const detector = new ZoomDetector()
-      const zoomBlocks = detector.detectZoomBlocks(
-        mouseEvents,
-        captureWidth || width,
-        captureHeight || height,
-        duration
-      )
-
-      // Create and add clip with effects
-      const clipEffects = structuredClone(SCREEN_STUDIO_CLIP_EFFECTS)
-      clipEffects.zoom.blocks = zoomBlocks
-
+      // Create and add clip (without effects)
       const clip: Clip = {
         id: `clip-${Date.now()}`,
         recordingId: recording.id,
         startTime: 0,
         duration,
         sourceIn: 0,
-        sourceOut: duration,
-        effects: clipEffects
+        sourceOut: duration
       }
 
       const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
@@ -385,6 +371,78 @@ export class RecordingStorage {
       }
 
       project.timeline.duration = duration
+
+      // Auto-generate zoom effects as separate entities
+      const detector = new ZoomDetector()
+      const zoomBlocks = detector.detectZoomBlocks(
+        mouseEvents,
+        captureWidth || width,
+        captureHeight || height,
+        duration
+      )
+
+      // Initialize effects array if needed
+      if (!project.timeline.effects) {
+        project.timeline.effects = []
+      }
+
+      // Add zoom effects
+      zoomBlocks.forEach((block, index) => {
+        project.timeline.effects!.push({
+          id: `zoom-${clip.id}-${index}`,
+          type: 'zoom',
+          clipId: clip.id,
+          startTime: block.startTime,
+          endTime: block.endTime,
+          data: {
+            scale: block.scale,
+            targetX: block.targetX,
+            targetY: block.targetY,
+            introMs: block.introMs || 300,
+            outroMs: block.outroMs || 300,
+            smoothing: 0.1
+          },
+          enabled: true
+        })
+      })
+
+      // Add default background effect
+      project.timeline.effects!.push({
+        id: `background-${clip.id}`,
+        type: 'background',
+        clipId: clip.id,
+        startTime: 0,
+        endTime: duration,
+        data: {
+          type: 'wallpaper',
+          gradient: {
+            colors: ['#2D3748', '#1A202C'],
+            angle: 135
+          },
+          wallpaper: undefined,
+          padding: 120
+        },
+        enabled: true
+      })
+
+      // Add default cursor effect
+      project.timeline.effects!.push({
+        id: `cursor-${clip.id}`,
+        type: 'cursor',
+        clipId: clip.id,
+        startTime: 0,
+        endTime: duration,
+        data: {
+          style: 'macOS',
+          size: 4.0,
+          color: '#ffffff',
+          clickEffects: true,
+          motionBlur: true,
+          hideOnIdle: true,
+          idleTimeout: 3000
+        },
+        enabled: true
+      })
 
       // Save project file
       const projectPath = await this.saveProject(project, `${baseName}.ssproj`)

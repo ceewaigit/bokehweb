@@ -79,35 +79,8 @@ export class SplitClipCommand extends Command<SplitClipResult> {
       sourceIn: clip.sourceIn + relativeTime
     }
 
-    // Handle effects for split clips
-    if (clip.effects) {
-      // Split zoom blocks
-      if (clip.effects.zoom?.blocks) {
-        const leftBlocks = clip.effects.zoom.blocks.filter(
-          block => block.startTime < relativeTime
-        ).map(block => ({
-          ...block,
-          endTime: Math.min(block.endTime, relativeTime)
-        }))
-
-        const rightBlocks = clip.effects.zoom.blocks.filter(
-          block => block.endTime > relativeTime
-        ).map(block => ({
-          ...block,
-          startTime: Math.max(0, block.startTime - relativeTime),
-          endTime: block.endTime - relativeTime
-        }))
-
-        if (this.leftClip && this.leftClip.effects?.zoom) {
-          this.leftClip.effects.zoom.blocks = leftBlocks
-        }
-        if (this.rightClip && this.rightClip.effects?.zoom) {
-          this.rightClip.effects.zoom.blocks = rightBlocks
-        }
-      }
-    }
-
     // Execute split using store method
+    // Effects are now handled independently by the store
     store.splitClip(this.clipId, this.splitTime)
     
     // Get the actual created clips from the project after split

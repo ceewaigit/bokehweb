@@ -2,7 +2,6 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import { AddClipCommand } from '../timeline/AddClipCommand'
 import { AddZoomBlockCommand } from '../effects/AddZoomBlockCommand'
-import { UpdateClipEffectsCommand } from '../effects/UpdateClipEffectsCommand'
 import type { Clip, ZoomBlock } from '@/types/project'
 
 export interface PasteResult {
@@ -64,11 +63,14 @@ export class PasteCommand extends Command<PasteResult> {
         let pasteStartTime = Math.max(0, currentTime - targetClip.startTime)
         
         // Find non-overlapping position
-        const existingBlocks = [...(targetClip.effects?.zoom?.blocks || [])].sort((a, b) => a.startTime - b.startTime)
+        const store = this.context.getStore()
+        const existingZoomEffects = store.getEffectsForClip(targetClipId)
+          .filter(e => e.type === 'zoom')
+          .sort((a, b) => a.startTime - b.startTime)
         
-        for (const block of existingBlocks) {
-          if (pasteStartTime < block.endTime && (pasteStartTime + blockDuration) > block.startTime) {
-            pasteStartTime = block.endTime + 100
+        for (const effect of existingZoomEffects) {
+          if (pasteStartTime < effect.endTime && (pasteStartTime + blockDuration) > effect.startTime) {
+            pasteStartTime = effect.endTime + 100
           }
         }
         
@@ -98,26 +100,38 @@ export class PasteCommand extends Command<PasteResult> {
         // Paste cursor/background settings
         const effectType = clipboard.effect.type
         const effectData = clipboard.effect.data
+        const store = this.context.getStore()
         
-        this.pastedCommand = new UpdateClipEffectsCommand(
-          this.context,
-          targetClipId,
-          { [effectType]: effectData }
-        )
+        // Find existing effect of this type and update it
+        const existingEffects = store.getEffectsForClip(targetClipId)
+        const existingEffect = existingEffects.find(e => e.type === effectType)
         
-        const result = await this.pastedCommand.execute()
+        if (existingEffect) {
+          // Update existing effect
+          store.updateEffect(existingEffect.id, {
+            data: effectData
+          })
+        } else {
+          // Create new effect if none exists
+          store.addEffect({
+            id: `${effectType}-${targetClipId}`,
+            type: effectType as 'cursor' | 'background',
+            clipId: targetClipId,
+            startTime: 0,
+            endTime: targetClip.duration,
+            data: effectData,
+            enabled: true
+          })
+        }
         
-        if (result.success) {
-          return {
-            success: true,
-            data: {
-              type: 'effect',
-              effectType,
-              clipId: targetClipId
-            }
+        return {
+          success: true,
+          data: {
+            type: 'effect',
+            effectType,
+            clipId: targetClipId
           }
         }
-        return result as CommandResult<PasteResult>
       }
     }
 
@@ -127,13 +141,11 @@ export class PasteCommand extends Command<PasteResult> {
       // Import default effects
       const { DEFAULT_CLIP_EFFECTS } = await import('@/lib/constants/clip-defaults')
       
-      // Copy clip but reset effects to defaults
+      // Copy clip (without effects since they're independent now)
       const newClip: Clip = {
         ...clipboard.clip,
         id: `clip-${Date.now()}`,
-        startTime: currentTime,
-        // Reset effects to default values instead of copying them
-        effects: JSON.parse(JSON.stringify(DEFAULT_CLIP_EFFECTS))
+        startTime: currentTime
       }
       
       this.pastedCommand = new AddClipCommand(this.context, newClip)

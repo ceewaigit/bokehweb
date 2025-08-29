@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { cn, formatTime } from '@/lib/utils'
-import type { Project, ZoomBlock, ClipEffects } from '@/types/project'
+import type { Project, ZoomBlock, ClipEffects, ZoomEffectData, Effect } from '@/types/project'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -70,7 +70,7 @@ export function TimelineCanvas({
     clearEffectSelection,
     removeClip,
     updateClip,
-    updateZoomBlock,
+    updateEffect,
     clearSelection,
     splitClip,
     duplicateClip
@@ -93,10 +93,8 @@ export function TimelineCanvas({
   const duration = currentProject?.timeline?.duration || 10000
   const pixelsPerMs = TimelineUtils.calculatePixelsPerMs(stageSize.width, zoom)
   const timelineWidth = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
-  // Show zoom track if ANY video clip has zoom enabled
-  const hasZoomTrack = currentProject?.timeline.tracks
-    .find(t => t.type === 'video')?.clips
-    .some(c => c.effects?.zoom?.enabled) ?? false
+  // Show zoom track if ANY zoom effects exist
+  const hasZoomTrack = currentProject?.timeline.effects?.some(e => e.type === 'zoom' && e.enabled) ?? false
 
   // Dynamic track heights
   const rulerHeight = TIMELINE_LAYOUT.RULER_HEIGHT
@@ -374,6 +372,7 @@ export function TimelineCanvas({
 
               return videoClips.map(clip => {
                 const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
+                const clipEffects = currentProject.timeline.effects?.filter(e => e.clipId === clip.id) || []
                 return (
                   <TimelineClip
                     key={clip.id}
@@ -386,6 +385,7 @@ export function TimelineCanvas({
                     isSelected={selectedClips.includes(clip.id)}
                     selectedEffectType={selectedClips.includes(clip.id) ? selectedEffectLayer?.type : null}
                     otherClipsInTrack={videoClips}
+                    clipEffects={clipEffects}
                     onSelect={handleClipSelect}
                     onSelectEffect={(type) => {
                       selectEffectLayer(type)
@@ -406,38 +406,43 @@ export function TimelineCanvas({
               const zoomBlocks: React.ReactElement[] = []
               const selectedZoomBlocks: React.ReactElement[] = []
 
+              // Get zoom effects from timeline.effects
+              const zoomEffects = currentProject.timeline.effects?.filter(e => e.type === 'zoom' && e.enabled) || []
+
               videoTrack.clips.forEach(clip => {
                 const isSelectedClip = selectedClips.includes(clip.id)
-                const clipEffects = (isSelectedClip && localEffects) || clip.effects
-
-                if (!clipEffects?.zoom?.enabled || !clipEffects.zoom.blocks?.length) return
+                
+                // Get zoom effects for this clip
+                const clipZoomEffects = zoomEffects.filter(e => e.clipId === clip.id)
+                if (clipZoomEffects.length === 0) return
 
                 const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
 
-                clipEffects.zoom.blocks.forEach((block: ZoomBlock) => {
-                  const isBlockSelected = isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === block.id
+                clipZoomEffects.forEach((effect) => {
+                  const isBlockSelected = isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === effect.id
+                  const zoomData = effect.data as ZoomEffectData
 
                   const blockElement = (
                     <TimelineZoomBlock
-                      key={`${clip.id}-${block.id}`}
-                      blockId={block.id}
-                      x={clipX + TimelineUtils.timeToPixel(block.startTime, pixelsPerMs)}
+                      key={effect.id}
+                      blockId={effect.id}
+                      x={clipX + TimelineUtils.timeToPixel(effect.startTime, pixelsPerMs)}
                       y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
-                      width={TimelineUtils.timeToPixel(block.endTime - block.startTime, pixelsPerMs)}
+                      width={TimelineUtils.timeToPixel(effect.endTime - effect.startTime, pixelsPerMs)}
                       height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
-                      startTime={block.startTime}
-                      endTime={block.endTime}
-                      scale={block.scale}
-                      introMs={block.introMs}
-                      outroMs={block.outroMs}
+                      startTime={effect.startTime}
+                      endTime={effect.endTime}
+                      scale={zoomData.scale}
+                      introMs={zoomData.introMs}
+                      outroMs={zoomData.outroMs}
                       isSelected={isBlockSelected}
-                      allBlocks={clipEffects.zoom.blocks || []}
+                      allBlocks={clipZoomEffects as any}
                       clipX={clipX}
                       pixelsPerMs={pixelsPerMs}
                       onSelect={() => {
                         // Ensure selection is properly set
                         selectClip(clip.id)
-                        selectEffectLayer('zoom', block.id)
+                        selectEffectLayer('zoom', effect.id)
                         // Force focus to container for keyboard events
                         setTimeout(() => {
                           containerRef.current?.focus()
@@ -445,22 +450,19 @@ export function TimelineCanvas({
                       }}
                       onDragEnd={(newX) => {
                         const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
-                        const updates = {
-                          startTime: Math.max(0, Math.min(clip.duration - (block.endTime - block.startTime), newStartTime)),
-                          endTime: Math.max(0, Math.min(clip.duration, newStartTime + (block.endTime - block.startTime)))
-                        }
-                        if (isSelectedClip && onZoomBlockUpdate) {
-                          onZoomBlockUpdate(clip.id, block.id, updates)
-                        } else {
-                          updateZoomBlock(clip.id, block.id, updates)
-                        }
+                        const duration = effect.endTime - effect.startTime
+                        // Update the effect directly in timeline.effects
+                        updateEffect(effect.id, {
+                          startTime: Math.max(0, Math.min(clip.duration - duration, newStartTime)),
+                          endTime: Math.max(0, Math.min(clip.duration, newStartTime + duration))
+                        })
                       }}
                       onUpdate={(updates) => {
-                        if (isSelectedClip && onZoomBlockUpdate) {
-                          onZoomBlockUpdate(clip.id, block.id, updates)
-                        } else {
-                          updateZoomBlock(clip.id, block.id, updates)
-                        }
+                        // Update the effect data
+                        const currentData = effect.data as ZoomEffectData
+                        updateEffect(effect.id, {
+                          data: { ...currentData, ...updates }
+                        })
                       }}
                     />
                   )

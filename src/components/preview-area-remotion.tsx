@@ -5,6 +5,7 @@ import { Player, PlayerRef } from '@remotion/player'
 import { MainComposition } from '@/remotion/compositions/MainComposition'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Recording, ClipEffects } from '@/types/project'
 
 interface PreviewAreaRemotionProps {
@@ -108,8 +109,11 @@ export function PreviewAreaRemotion({
   // Get video dimensions and effects
   const videoWidth = previewRecording?.width || 1920;
   const videoHeight = previewRecording?.height || 1080;
-  const effectsToUse = localEffects || (selectedClip?.id === previewClip?.id ? selectedClip?.effects : previewClip?.effects)
-  const padding = effectsToUse?.background?.padding || 0;
+  // Get effects from timeline.effects for this clip
+  const currentProjectRef = useProjectStore(state => state.currentProject)
+  const clipEffects = currentProjectRef?.timeline?.effects?.filter((e: any) => e.clipId === previewClip?.id && e.enabled) || []
+  const backgroundEffect = clipEffects.find((e: any) => e.type === 'background')
+  const padding = (backgroundEffect?.data as any)?.padding || 0;
 
   // Calculate composition size
   const videoAspectRatio = videoWidth / videoHeight;
@@ -121,7 +125,7 @@ export function PreviewAreaRemotion({
   const compositionProps = {
     videoUrl: videoUrl || '',
     clip: previewClip,
-    effects: effectsToUse || null,
+    effects: localEffects || clipEffects || null,
     cursorEvents: previewRecording?.metadata?.mouseEvents || [],
     clickEvents: previewRecording?.metadata?.clickEvents || [],
     keystrokeEvents: (previewRecording?.metadata as any)?.keystrokeEvents || [],

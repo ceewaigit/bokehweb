@@ -16,6 +16,7 @@ interface TimelineClipProps {
   isSelected: boolean
   selectedEffectType?: 'zoom' | 'cursor' | 'background' | null
   otherClipsInTrack?: Clip[]
+  clipEffects?: any[]  // Effects for this clip from timeline.effects
   onSelect: (clipId: string) => void
   onSelectEffect?: (type: 'zoom' | 'cursor' | 'background') => void
   onDragEnd: (clipId: string, newStartTime: number) => void
@@ -32,6 +33,7 @@ export const TimelineClip = React.memo(({
   isSelected,
   selectedEffectType,
   otherClipsInTrack = [],
+  clipEffects = [],
   onSelect,
   onSelectEffect,
   onDragEnd,
@@ -268,7 +270,8 @@ export const TimelineClip = React.memo(({
           onSelectEffect?.(type)
         }
         
-        if (clip.effects?.zoom?.enabled) {
+        const hasZoomEffect = clipEffects.some(e => e.type === 'zoom' && e.enabled)
+        if (hasZoomEffect) {
           badges.push(
             <Group 
               key="zoom"
@@ -291,7 +294,8 @@ export const TimelineClip = React.memo(({
         }
         
         // Only show cursor badge when cursor is enabled
-        if (clip.effects?.cursor?.enabled) {
+        const hasCursorEffect = clipEffects.some(e => e.type === 'cursor' && e.enabled)
+        if (hasCursorEffect) {
           badges.push(
             <Group 
               key="cursor"
@@ -313,7 +317,8 @@ export const TimelineClip = React.memo(({
           xOffset += 36
         }
         
-        if (clip.effects?.background?.type && clip.effects.background.type !== 'none') {
+        const backgroundEffect = clipEffects.find(e => e.type === 'background' && e.enabled)
+        if (backgroundEffect?.data?.type && backgroundEffect.data.type !== 'none') {
           badges.push(
             <Group 
               key="bg"

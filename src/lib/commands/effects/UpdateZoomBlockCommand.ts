@@ -25,40 +25,55 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
   }
 
   canExecute(): boolean {
-    const result = this.context.findClip(this.clipId)
-    if (!result) return false
-    
-    const { clip } = result
-    const block = clip.effects?.zoom?.blocks?.find(b => b.id === this.blockId)
-    return block !== undefined
+    const store = this.context.getStore()
+    const effects = store.getEffectsForClip(this.clipId)
+    const effect = effects.find((e: any) => e.id === this.blockId && e.type === 'zoom')
+    return effect !== undefined
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
-    const result = this.context.findClip(this.clipId)
-    
-    if (!result) {
-      return {
-        success: false,
-        error: `Clip ${this.clipId} not found`
-      }
-    }
+    const effects = store.getEffectsForClip(this.clipId)
+    const effect = effects.find((e: any) => e.id === this.blockId && e.type === 'zoom')
 
-    const { clip } = result
-    const block = clip.effects?.zoom?.blocks?.find(b => b.id === this.blockId)
-    
-    if (!block) {
+    if (!effect) {
       return {
         success: false,
-        error: `Zoom block ${this.blockId} not found`
+        error: `Zoom effect ${this.blockId} not found`
       }
     }
 
     // Store original state
-    this.originalBlock = JSON.parse(JSON.stringify(block))
+    const zoomData = effect.data as any
+    this.originalBlock = {
+      id: effect.id,
+      startTime: effect.startTime,
+      endTime: effect.endTime,
+      scale: zoomData.scale,
+      targetX: zoomData.targetX,
+      targetY: zoomData.targetY,
+      introMs: zoomData.introMs,
+      outroMs: zoomData.outroMs
+    }
 
-    // Update zoom block using store method
-    store.updateZoomBlock(this.clipId, this.blockId, this.updates)
+    // Update the effect with new zoom data
+    const updatedData = {
+      ...zoomData,
+      scale: this.updates.scale ?? zoomData.scale,
+      targetX: this.updates.targetX ?? zoomData.targetX,
+      targetY: this.updates.targetY ?? zoomData.targetY,
+      introMs: this.updates.introMs ?? zoomData.introMs,
+      outroMs: this.updates.outroMs ?? zoomData.outroMs
+    }
+
+    // Also update timing if provided
+    const updatedEffect: any = {
+      startTime: this.updates.startTime ?? effect.startTime,
+      endTime: this.updates.endTime ?? effect.endTime,
+      data: updatedData
+    }
+
+    store.updateEffect(this.blockId, updatedEffect)
 
     return {
       success: true,
@@ -75,9 +90,22 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
     }
 
     const store = this.context.getStore()
-    
+
     // Restore original block properties
-    store.updateZoomBlock(this.clipId, this.blockId, this.originalBlock)
+    const updatedData = {
+      scale: this.originalBlock.scale || 2,
+      targetX: this.originalBlock.targetX,
+      targetY: this.originalBlock.targetY,
+      introMs: this.originalBlock.introMs || 300,
+      outroMs: this.originalBlock.outroMs || 300,
+      smoothing: 0.1
+    }
+
+    store.updateEffect(this.blockId, {
+      startTime: this.originalBlock.startTime,
+      endTime: this.originalBlock.endTime,
+      data: updatedData
+    })
 
     return {
       success: true,
@@ -87,9 +115,28 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
 
   doRedo(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
-    
-    // Reapply updates
-    store.updateZoomBlock(this.clipId, this.blockId, this.updates)
+
+    // Re-apply updates  
+    const effects = store.getEffectsForClip(this.clipId)
+    const effect = effects.find((e: any) => e.id === this.blockId && e.type === 'zoom')
+
+    if (effect) {
+      const zoomData = effect.data as any
+      const updatedData = {
+        ...zoomData,
+        scale: this.updates.scale ?? zoomData.scale,
+        targetX: this.updates.targetX ?? zoomData.targetX,
+        targetY: this.updates.targetY ?? zoomData.targetY,
+        introMs: this.updates.introMs ?? zoomData.introMs,
+        outroMs: this.updates.outroMs ?? zoomData.outroMs
+      }
+
+      store.updateEffect(this.blockId, {
+        startTime: this.updates.startTime ?? effect.startTime,
+        endTime: this.updates.endTime ?? effect.endTime,
+        data: updatedData
+      })
+    }
 
     return {
       success: true,

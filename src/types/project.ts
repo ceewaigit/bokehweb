@@ -142,9 +142,6 @@ export interface Clip {
   sourceIn: number     // Start point in source recording
   sourceOut: number    // End point in source recording
 
-  // Applied effects (will be migrated to independent effects)
-  effects: ClipEffects
-
   // Transitions
   transitionIn?: Transition
   transitionOut?: Transition

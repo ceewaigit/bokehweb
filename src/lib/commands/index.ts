@@ -20,8 +20,7 @@ export {
 export {
   AddZoomBlockCommand,
   RemoveZoomBlockCommand,
-  UpdateZoomBlockCommand,
-  UpdateClipEffectsCommand
+  UpdateZoomBlockCommand
 } from './effects'
 
 // Clipboard commands
@@ -42,7 +41,6 @@ import { TrimCommand } from './timeline/TrimCommand'
 import { AddZoomBlockCommand } from './effects/AddZoomBlockCommand'
 import { RemoveZoomBlockCommand } from './effects/RemoveZoomBlockCommand'
 import { UpdateZoomBlockCommand } from './effects/UpdateZoomBlockCommand'
-import { UpdateClipEffectsCommand } from './effects/UpdateClipEffectsCommand'
 import { CopyCommand } from './clipboard/CopyCommand'
 import { CutCommand } from './clipboard/CutCommand'
 import { PasteCommand } from './clipboard/PasteCommand'
@@ -60,7 +58,6 @@ export function registerAllCommands(manager: CommandManager): void {
   manager.registerCommand('AddZoomBlock', AddZoomBlockCommand as any)
   manager.registerCommand('RemoveZoomBlock', RemoveZoomBlockCommand as any)
   manager.registerCommand('UpdateZoomBlock', UpdateZoomBlockCommand as any)
-  manager.registerCommand('UpdateClipEffects', UpdateClipEffectsCommand as any)
   
   // Clipboard commands
   manager.registerCommand('Copy', CopyCommand as any)

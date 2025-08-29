@@ -16,7 +16,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
-import type { ClipEffects, ZoomBlock } from '@/types/project'
+import type { ClipEffects, ZoomBlock, ZoomEffectData, CursorEffectData, BackgroundEffectData } from '@/types/project'
 import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
@@ -137,23 +137,26 @@ async function loadProjectRecording(
   const optimalZoom = TimelineUtils.calculateOptimalZoom(project.timeline.duration, viewportWidth)
   useProjectStore.getState().setAutoZoom(optimalZoom)
 
-  // Apply wallpaper to all clips that need it
+  // Apply wallpaper to all background effects that need it
   const wallpaper = DEFAULT_CLIP_EFFECTS.background.wallpaper ||
     SCREEN_STUDIO_CLIP_EFFECTS.background.wallpaper
   if (wallpaper) {
-    project.timeline.tracks.forEach((track: any) => {
-      track.clips.forEach((clip: any) => {
-        // Update clips that have wallpaper type but no wallpaper data
-        if (clip.effects?.background &&
-          clip.effects.background.type === 'wallpaper' &&
-          !clip.effects.background.wallpaper) {
-          useProjectStore.getState().updateClipEffectCategory(
-            clip.id,
-            'background',
-            { wallpaper, type: 'wallpaper' }
-          )
-        }
-      })
+    const effects = project.timeline.effects || []
+    effects.forEach((effect: any) => {
+      if (effect.type === 'background' && 
+          effect.data?.type === 'wallpaper' && 
+          !effect.data?.wallpaper) {
+        useProjectStore.getState().updateEffect(
+          effect.id,
+          { 
+            data: { 
+              ...effect.data, 
+              wallpaper, 
+              type: 'wallpaper' 
+            } 
+          }
+        )
+      }
     })
   }
 
@@ -210,7 +213,8 @@ export function WorkspaceManager() {
     pause: storePause,
     seek: storeSeek,
     selectClip,
-    updateClipEffects,
+    updateEffect,
+    getEffectsForClip,
     saveCurrentProject,
     openProject,
     setZoom,
@@ -242,15 +246,55 @@ export function WorkspaceManager() {
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId) || null
 
+  // Get effects for the selected clip
+  const clipEffects = selectedClipId ? getEffectsForClip(selectedClipId) : []
+  const zoomEffects = clipEffects.filter(e => e.type === 'zoom' && e.enabled)
+  
+  // Build current effects from timeline.effects for selected clip
+  const buildClipEffects = useCallback((): ClipEffects => {
+    if (!selectedClipId || !clipEffects.length) return DEFAULT_CLIP_EFFECTS
+    
+    const zoomEffects = clipEffects.filter(e => e.type === 'zoom')
+    const cursorEffect = clipEffects.find(e => e.type === 'cursor')
+    const backgroundEffect = clipEffects.find(e => e.type === 'background')
+    
+    // Convert zoom effects to blocks format
+    const zoomBlocks: ZoomBlock[] = zoomEffects.map(e => {
+      const data = e.data as ZoomEffectData
+      return {
+        id: e.id,
+        startTime: e.startTime,
+        endTime: e.endTime,
+        scale: data.scale,
+        targetX: data.targetX,
+        targetY: data.targetY,
+        introMs: data.introMs,
+        outroMs: data.outroMs
+      }
+    })
+    
+    return {
+      zoom: {
+        enabled: zoomEffects.length > 0,
+        blocks: zoomBlocks,
+        smoothing: zoomEffects[0] ? (zoomEffects[0].data as ZoomEffectData).smoothing : 0.1,
+        regenerate: undefined
+      },
+      cursor: cursorEffect ? cursorEffect.data as CursorEffectData : DEFAULT_CLIP_EFFECTS.cursor,
+      background: backgroundEffect ? backgroundEffect.data as BackgroundEffectData : DEFAULT_CLIP_EFFECTS.background,
+      video: DEFAULT_CLIP_EFFECTS.video,
+      annotations: []
+    }
+  }, [selectedClipId, clipEffects])
+
   // Sync localEffects when clip effects change (e.g., after deletion via keyboard)
   useEffect(() => {
-    if (localEffects && selectedClip) {
-      // Check if zoom blocks in localEffects match the actual clip
+    if (localEffects && selectedClipId) {
+      // Check if zoom blocks in localEffects match the actual effects
       const localZoomBlocks = localEffects.zoom?.blocks || []
-      const clipZoomBlocks = selectedClip.effects?.zoom?.blocks || []
       
       // If block counts differ, clear localEffects
-      if (localZoomBlocks.length !== clipZoomBlocks.length) {
+      if (localZoomBlocks.length !== zoomEffects.length) {
         setLocalEffects(null)
         setHasUnsavedChanges(false)
         return
@@ -258,20 +302,20 @@ export function WorkspaceManager() {
       
       // Check if all block IDs match
       const localIds = localZoomBlocks.map((b: ZoomBlock) => b.id).sort()
-      const clipIds = clipZoomBlocks.map((b: ZoomBlock) => b.id).sort()
-      const idsMatch = localIds.length === clipIds.length && 
-                       localIds.every((id: string, index: number) => id === clipIds[index])
+      const effectIds = zoomEffects.map((e: any) => e.id).sort()
+      const idsMatch = localIds.length === effectIds.length && 
+                       localIds.every((id: string, index: number) => id === effectIds[index])
       
       if (!idsMatch) {
         setLocalEffects(null)
         setHasUnsavedChanges(false)
       }
     }
-  }, [selectedClip?.effects?.zoom?.blocks, localEffects])
+  }, [zoomEffects, localEffects, selectedClipId])
 
   // Handle zoom block updates for local state with undo/redo support
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
-    const currentEffects = localEffects || selectedClip?.effects || DEFAULT_CLIP_EFFECTS
+    const currentEffects = localEffects || buildClipEffects()
     const currentZoom = currentEffects.zoom
 
     // Validate the update doesn't cause overlaps
@@ -321,7 +365,7 @@ export function WorkspaceManager() {
     const command = new UpdateZoomBlockCommand(context, clipId, blockId, updates)
     commandManager.execute(command)
     
-  }, [localEffects, selectedClip?.effects])
+  }, [localEffects, buildClipEffects])
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
@@ -345,7 +389,40 @@ export function WorkspaceManager() {
 
         // Save any pending local effects
         if (localEffects && selectedClipId) {
-          updateClipEffects(selectedClipId, localEffects)
+          // Update each effect type separately
+          if (localEffects.zoom) {
+            const zoomEffect = clipEffects.find(e => e.type === 'zoom')
+            if (zoomEffect) {
+              updateEffect(zoomEffect.id, { 
+                data: { 
+                  ...zoomEffect.data, 
+                  ...localEffects.zoom 
+                } 
+              })
+            }
+          }
+          if (localEffects.cursor) {
+            const cursorEffect = clipEffects.find(e => e.type === 'cursor')
+            if (cursorEffect) {
+              updateEffect(cursorEffect.id, { 
+                data: { 
+                  ...cursorEffect.data, 
+                  ...localEffects.cursor 
+                } 
+              })
+            }
+          }
+          if (localEffects.background) {
+            const bgEffect = clipEffects.find(e => e.type === 'background')
+            if (bgEffect) {
+              updateEffect(bgEffect.id, { 
+                data: { 
+                  ...bgEffect.data, 
+                  ...localEffects.background 
+                } 
+              })
+            }
+          }
           setLocalEffects(null)
         }
 
@@ -363,7 +440,7 @@ export function WorkspaceManager() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [localEffects, selectedClipId, updateClipEffects, saveCurrentProject])
+  }, [localEffects, selectedClipId, updateEffect, clipEffects, saveCurrentProject])
 
   // Get clip at playhead position
   const playheadClip = useProjectStore.getState().getCurrentClip()
@@ -378,7 +455,7 @@ export function WorkspaceManager() {
     ? currentProject.recordings.find(r => r.id === playheadClip.recordingId)
     : null
 
-  const activeEffects = localEffects || selectedClip?.effects
+  const activeEffects = localEffects || buildClipEffects()
 
   // Define handlePause first since it's used in useEffect
   const handlePause = useCallback(() => {
@@ -454,7 +531,29 @@ export function WorkspaceManager() {
         }
 
         // Immediately save the regenerated blocks to prevent empty state
-        updateClipEffects(selectedClipId, effects)
+        // Find and update the zoom effect for this clip
+        const zoomEffect = clipEffects.find(e => e.type === 'zoom')
+        if (zoomEffect) {
+          // Remove old zoom effects and add new ones
+          const otherEffects = clipEffects.filter(e => e.type !== 'zoom')
+          newZoomBlocks.forEach((block, index) => {
+            updateEffect(`zoom-${selectedClipId}-${index}`, {
+              type: 'zoom',
+              clipId: selectedClipId,
+              startTime: block.startTime,
+              endTime: block.endTime,
+              data: {
+                scale: block.scale,
+                targetX: block.targetX,
+                targetY: block.targetY,
+                introMs: block.introMs || 300,
+                outroMs: block.outroMs || 300,
+                smoothing: 0.1
+              },
+              enabled: true
+            })
+          })
+        }
         setLocalEffects(null)
         setHasUnsavedChanges(false)
         return // Exit early since we've already saved
@@ -465,7 +564,7 @@ export function WorkspaceManager() {
       setHasUnsavedChanges(true)
 
     }
-  }, [selectedClipId, selectedRecording, updateClipEffects])
+  }, [selectedClipId, selectedRecording, updateEffect, clipEffects])
 
   const handleToggleProperties = useCallback(() => {
     toggleProperties()
@@ -580,7 +679,40 @@ export function WorkspaceManager() {
             }}
             onSaveProject={async () => {
               if (localEffects && selectedClipId) {
-                updateClipEffects(selectedClipId, localEffects)
+                // Update each effect type separately
+                if (localEffects.zoom) {
+                  const zoomEffect = clipEffects.find(e => e.type === 'zoom')
+                  if (zoomEffect) {
+                    updateEffect(zoomEffect.id, { 
+                      data: { 
+                        ...zoomEffect.data, 
+                        ...localEffects.zoom 
+                      } 
+                    })
+                  }
+                }
+                if (localEffects.cursor) {
+                  const cursorEffect = clipEffects.find(e => e.type === 'cursor')
+                  if (cursorEffect) {
+                    updateEffect(cursorEffect.id, { 
+                      data: { 
+                        ...cursorEffect.data, 
+                        ...localEffects.cursor 
+                      } 
+                    })
+                  }
+                }
+                if (localEffects.background) {
+                  const bgEffect = clipEffects.find(e => e.type === 'background')
+                  if (bgEffect) {
+                    updateEffect(bgEffect.id, { 
+                      data: { 
+                        ...bgEffect.data, 
+                        ...localEffects.background 
+                      } 
+                    })
+                  }
+                }
                 setLocalEffects(null)
               }
               await saveCurrentProject()
@@ -666,7 +798,7 @@ export function WorkspaceManager() {
                 <EffectsSidebar
                   className="h-full w-full"
                   selectedClip={selectedClip}
-                  effects={activeEffects || selectedClip?.effects}
+                  effects={activeEffects || buildClipEffects()}
                   selectedEffectLayer={selectedEffectLayer}
                   onEffectChange={handleEffectChange}
                 />

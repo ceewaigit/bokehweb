@@ -54,10 +54,12 @@ export class CopyCommand extends Command<CopyResult> {
 
     // Copy effect if one is selected
     if (selectedEffectLayer) {
+      const effects = store.getEffectsForClip(clipId)
+      
       if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id) {
-        const zoomBlock = clip.effects?.zoom?.blocks?.find(b => b.id === selectedEffectLayer.id)
-        if (zoomBlock) {
-          store.copyEffect('zoom', { ...zoomBlock }, clipId)
+        const zoomEffect = effects.find((e: any) => e.id === selectedEffectLayer.id && e.type === 'zoom')
+        if (zoomEffect) {
+          store.copyEffect('zoom', { ...zoomEffect.data }, clipId)
           return {
             success: true,
             data: {
@@ -70,9 +72,9 @@ export class CopyCommand extends Command<CopyResult> {
         }
       } else {
         // Copy cursor or background settings
-        const effectData = clip.effects?.[selectedEffectLayer.type]
-        if (effectData) {
-          store.copyEffect(selectedEffectLayer.type, { ...effectData }, clipId)
+        const effect = effects.find((e: any) => e.type === selectedEffectLayer.type)
+        if (effect) {
+          store.copyEffect(selectedEffectLayer.type, { ...effect.data }, clipId)
           return {
             success: true,
             data: {

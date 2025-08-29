@@ -15,10 +15,6 @@ interface ProjectStore {
   addClip: (clip: Clip | string, startTime?: number) => void
   removeClip: (clipId: string) => void
   updateClip: (clipId: string, updates: Partial<Clip>) => void
-  updateClipEffects: (clipId: string, effects: Partial<import('@/types/project').ClipEffects>) => void
-  updateZoomBlock: (clipId: string, blockId: string, updates: Partial<import('@/types/project').ZoomBlock>) => void
-  addZoomBlock: (clipId: string, block: import('@/types/project').ZoomBlock) => void
-  removeZoomBlock: (clipId: string, blockId: string) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
   splitClip: (clipId: string, splitTime: number) => void
   trimClipStart: (clipId: string, newStartTime: number) => void
@@ -27,6 +23,14 @@ interface ProjectStore {
   copyClip: (clip: Clip) => void
   copyEffect: (type: 'zoom' | 'cursor' | 'background', data: any, sourceClipId: string) => void
   clearClipboard: () => void
+  
+  // New: Independent Effects Management
+  addEffect: (effect: import('@/types/project').Effect) => void
+  removeEffect: (effectId: string) => void
+  updateEffect: (effectId: string, updates: Partial<import('@/types/project').Effect>) => void
+  getEffectsForClip: (clipId: string) => import('@/types/project').Effect[]
+  duplicateEffectsForClip: (sourceClipId: string, targetClipId: string) => void
+  adjustEffectsForClipChange: (clipId: string, changeType: 'split' | 'trim', params: any) => void
 }
 
 export interface CommandContext {

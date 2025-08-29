@@ -1,6 +1,6 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { ZoomBlock } from '@/types/project'
+import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
 
 export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   private block: ZoomBlock
@@ -41,8 +41,26 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
       this.block.id = `zoom-${Date.now()}`
     }
 
-    // Add zoom block using store method
-    store.addZoomBlock(this.clipId, this.block)
+    // Create a new zoom effect from the block
+    const zoomEffect: Effect = {
+      id: this.block.id,
+      type: 'zoom',
+      clipId: this.clipId,
+      startTime: this.block.startTime,
+      endTime: this.block.endTime,
+      data: {
+        scale: this.block.scale,
+        targetX: this.block.targetX,
+        targetY: this.block.targetY,
+        introMs: this.block.introMs || 300,
+        outroMs: this.block.outroMs || 300,
+        smoothing: 0.1
+      } as ZoomEffectData,
+      enabled: true
+    }
+
+    // Add zoom effect using store method
+    store.addEffect(zoomEffect)
 
     return {
       success: true,
@@ -53,8 +71,8 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   doUndo(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
     
-    // Remove the zoom block
-    store.removeZoomBlock(this.clipId, this.block.id)
+    // Remove the zoom effect
+    store.removeEffect(this.block.id)
 
     return {
       success: true,
@@ -65,8 +83,24 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   doRedo(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
     
-    // Re-add the zoom block
-    store.addZoomBlock(this.clipId, this.block)
+    // Re-add the zoom effect
+    const zoomEffect: Effect = {
+      id: this.block.id,
+      type: 'zoom',
+      clipId: this.clipId,
+      startTime: this.block.startTime,
+      endTime: this.block.endTime,
+      data: {
+        scale: this.block.scale,
+        targetX: this.block.targetX,
+        targetY: this.block.targetY,
+        introMs: this.block.introMs || 300,
+        outroMs: this.block.outroMs || 300,
+        smoothing: 0.1
+      } as ZoomEffectData,
+      enabled: true
+    }
+    store.addEffect(zoomEffect)
 
     return {
       success: true,

@@ -7,7 +7,10 @@ import {
   type ClipEffects,
   type Track,
   type ZoomBlock,
-  type Effect
+  type Effect,
+  type ZoomEffectData,
+  type BackgroundEffectData,
+  type CursorEffectData
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
@@ -49,11 +52,11 @@ const findNextValidPosition = (track: Track, clipId: string, desiredStart: numbe
 
   let currentPosition = desiredStart
   let foundOverlap = true
-  
+
   // Keep checking until we find a position with no overlaps
   while (foundOverlap) {
     foundOverlap = false
-    
+
     for (const clip of otherClips) {
       const clipEnd = clip.startTime + clip.duration
       // Check if current position would overlap with this clip
@@ -65,7 +68,7 @@ const findNextValidPosition = (track: Track, clipId: string, desiredStart: numbe
       }
     }
   }
-  
+
   return currentPosition
 }
 
@@ -101,11 +104,6 @@ interface ProjectStore {
   addClip: (clip: Clip | string, startTime?: number) => void
   removeClip: (clipId: string) => void
   updateClip: (clipId: string, updates: Partial<Clip>) => void
-  updateClipEffects: (clipId: string, effects: Partial<ClipEffects>) => void
-  updateClipEffectCategory: (clipId: string, category: string, updates: any) => void
-  updateZoomBlock: (clipId: string, blockId: string, updates: Partial<ZoomBlock>) => void
-  addZoomBlock: (clipId: string, block: ZoomBlock) => void
-  removeZoomBlock: (clipId: string, blockId: string) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
   selectEffectLayer: (type: 'zoom' | 'cursor' | 'background', id?: string) => void
   clearEffectSelection: () => void
@@ -114,7 +112,7 @@ interface ProjectStore {
   trimClipStart: (clipId: string, newStartTime: number) => void
   trimClipEnd: (clipId: string, newEndTime: number) => void
   duplicateClip: (clipId: string) => string | null
-  
+
   // Clipboard
   copyClip: (clip: Clip) => void
   copyEffect: (type: 'zoom' | 'cursor' | 'background', data: any, sourceClipId: string) => void
@@ -213,7 +211,7 @@ export const useProjectStore = create<ProjectStore>()(
             state.currentProject.modifiedAt = new Date().toISOString()
           }
         })
-        
+
         // Get the updated project after the state change
         const updatedProject = get().currentProject
         if (updatedProject) {
@@ -234,7 +232,18 @@ export const useProjectStore = create<ProjectStore>()(
 
         state.currentProject.recordings.push(completeRecording)
 
-        // Generate zoom effects
+        // Create and add clip (without effects)
+        const clipId = `clip-${Date.now()}`
+        const clip: Clip = {
+          id: clipId,
+          recordingId: completeRecording.id,
+          startTime: state.currentProject.timeline.duration,
+          duration: recording.duration,
+          sourceIn: 0,
+          sourceOut: recording.duration
+        }
+
+        // Generate and add zoom effects as separate entities
         const zoomDetector = new ZoomDetector()
         const zoomBlocks = zoomDetector.detectZoomBlocks(
           completeRecording.metadata?.mouseEvents || [],
@@ -243,20 +252,70 @@ export const useProjectStore = create<ProjectStore>()(
           completeRecording.duration
         )
 
-        // Use structuredClone for deep copy - now includes wallpaper
-        const clipEffects = structuredClone(SCREEN_STUDIO_CLIP_EFFECTS)
-        clipEffects.zoom.blocks = zoomBlocks
-
-        // Create and add clip
-        const clip: Clip = {
-          id: `clip-${Date.now()}`,
-          recordingId: completeRecording.id,
-          startTime: state.currentProject.timeline.duration,
-          duration: recording.duration,
-          sourceIn: 0,
-          sourceOut: recording.duration,
-          effects: clipEffects
+        // Initialize effects array if needed
+        if (!state.currentProject.timeline.effects) {
+          state.currentProject.timeline.effects = []
         }
+
+        // Add zoom effects as separate entities
+        zoomBlocks.forEach((block, index) => {
+          const zoomEffect: Effect = {
+            id: `zoom-${clipId}-${index}`,
+            type: 'zoom',
+            clipId: clipId,
+            startTime: block.startTime,
+            endTime: block.endTime,
+            data: {
+              scale: block.scale,
+              targetX: block.targetX,
+              targetY: block.targetY,
+              introMs: block.introMs || 300,
+              outroMs: block.outroMs || 300,
+              smoothing: 0.1
+            } as ZoomEffectData,
+            enabled: true
+          }
+          state.currentProject!.timeline.effects.push(zoomEffect)
+        })
+
+        // Add default background and cursor effects
+        const backgroundEffect: Effect = {
+          id: `background-${clipId}`,
+          type: 'background',
+          clipId: clipId,
+          startTime: 0,
+          endTime: recording.duration,
+          data: {
+            type: 'wallpaper',
+            gradient: {
+              colors: ['#2D3748', '#1A202C'],
+              angle: 135
+            },
+            wallpaper: undefined,
+            padding: 120
+          } as BackgroundEffectData,
+          enabled: true
+        }
+        state.currentProject.timeline.effects.push(backgroundEffect)
+
+        const cursorEffect: Effect = {
+          id: `cursor-${clipId}`,
+          type: 'cursor',
+          clipId: clipId,
+          startTime: 0,
+          endTime: recording.duration,
+          data: {
+            style: 'macOS',
+            size: 4.0,
+            color: '#ffffff',
+            clickEffects: true,
+            motionBlur: true,
+            hideOnIdle: true,
+            idleTimeout: 3000
+          } as CursorEffectData,
+          enabled: true
+        }
+        state.currentProject.timeline.effects.push(cursorEffect)
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
@@ -298,8 +357,7 @@ export const useProjectStore = create<ProjectStore>()(
             startTime: startTime ?? state.currentProject.timeline.duration,
             duration: recording.duration,
             sourceIn: 0,
-            sourceOut: recording.duration,
-            effects: structuredClone(DEFAULT_CLIP_EFFECTS)
+            sourceOut: recording.duration
           }
         }
 
@@ -309,7 +367,7 @@ export const useProjectStore = create<ProjectStore>()(
           if (hasClipOverlap(videoTrack, '', clip.startTime, clip.duration)) {
             clip.startTime = findNextValidPosition(videoTrack, '', clip.startTime, clip.duration)
           }
-          
+
           videoTrack.clips.push(clip)
         }
 
@@ -370,104 +428,6 @@ export const useProjectStore = create<ProjectStore>()(
       // Removed auto-save - now requires explicit save action
     },
 
-    updateClipEffects: (clipId, effects) => {
-      set((state) => {
-        if (!state.currentProject) return
-
-        const result = findClipById(state.currentProject, clipId)
-        if (!result) return
-
-        // Deep merge the effects to preserve nested properties
-        result.clip.effects = {
-          ...result.clip.effects,
-          ...effects
-        }
-        state.currentProject.modifiedAt = new Date().toISOString()
-      })
-
-      // Removed auto-save - now requires explicit save action
-    },
-
-    updateClipEffectCategory: (clipId, category, updates) => {
-      set((state) => {
-        if (!state.currentProject) return
-
-        const result = findClipById(state.currentProject, clipId)
-        if (!result || !result.clip.effects) return
-
-        // Simple merge - just spread the updates
-        result.clip.effects[category as keyof typeof result.clip.effects] = {
-          ...result.clip.effects[category as keyof typeof result.clip.effects],
-          ...updates
-        }
-
-        state.currentProject.modifiedAt = new Date().toISOString()
-      })
-    },
-
-    updateZoomBlock: (clipId, blockId, updates) => {
-      set((state) => {
-        if (!state.currentProject) return
-        const result = findClipById(state.currentProject, clipId)
-        if (!result) return
-
-        const clip = result.clip
-        if (!clip.effects?.zoom?.blocks) return
-
-        const block = clip.effects.zoom.blocks.find(b => b.id === blockId)
-        if (block) {
-          Object.assign(block, updates)
-          state.currentProject.modifiedAt = new Date().toISOString()
-        }
-      })
-    },
-
-    addZoomBlock: (clipId, block) => {
-      set((state) => {
-        if (!state.currentProject) return
-        const result = findClipById(state.currentProject, clipId)
-        if (!result) return
-
-        const clip = result.clip
-        if (!clip.effects?.zoom) return
-
-        if (!clip.effects.zoom.blocks) {
-          clip.effects.zoom.blocks = []
-        }
-
-        // Check for duplicate IDs and generate a new one if needed
-        const existingBlock = clip.effects.zoom.blocks.find(b => b.id === block.id)
-        if (existingBlock) {
-          // Generate a new unique ID if duplicate found
-          block.id = `zoom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        }
-
-        clip.effects.zoom.blocks.push(block)
-        clip.effects.zoom.blocks.sort((a, b) => a.startTime - b.startTime)
-        state.currentProject.modifiedAt = new Date().toISOString()
-      })
-    },
-
-    removeZoomBlock: (clipId, blockId) => {
-      set((state) => {
-        if (!state.currentProject) return
-        const result = findClipById(state.currentProject, clipId)
-        if (!result) return
-
-        const clip = result.clip
-        if (!clip.effects?.zoom?.blocks) return
-
-        // Check if block exists
-        const blockExists = clip.effects.zoom.blocks.some(b => b.id === blockId)
-        if (!blockExists) return
-        
-        // Create a new array without the block to ensure React detects the change
-        clip.effects.zoom.blocks = clip.effects.zoom.blocks.filter(b => b.id !== blockId)
-        
-        // Update modification timestamp
-        state.currentProject.modifiedAt = new Date().toISOString()
-      })
-    },
 
     selectClip: (clipId, multi = false) => {
       set((state) => {
@@ -541,39 +501,24 @@ export const useProjectStore = create<ProjectStore>()(
         const splitPoint = splitTime - clip.startTime
         const timestamp = Date.now()
 
-        // Create first clip
+        // Create first clip - simple and clean
         const firstClip: Clip = {
-          ...structuredClone(clip),
           id: `${clip.id}-split1-${timestamp}`,
+          recordingId: clip.recordingId,
+          startTime: clip.startTime,
           duration: splitPoint,
+          sourceIn: clip.sourceIn,
           sourceOut: clip.sourceIn + splitPoint
         }
 
         // Create second clip
         const secondClip: Clip = {
-          ...structuredClone(clip),
           id: `${clip.id}-split2-${timestamp}`,
+          recordingId: clip.recordingId,
           startTime: splitTime,
           duration: clip.duration - splitPoint,
-          sourceIn: clip.sourceIn + splitPoint
-        }
-
-        // Split zoom blocks between clips
-        if (clip.effects?.zoom?.blocks) {
-          firstClip.effects.zoom.blocks = clip.effects.zoom.blocks
-            .filter(block => block.startTime < splitPoint)
-            .map(block => ({
-              ...block,
-              endTime: Math.min(block.endTime, splitPoint)
-            }))
-
-          secondClip.effects.zoom.blocks = clip.effects.zoom.blocks
-            .filter(block => block.endTime > splitPoint)
-            .map(block => ({
-              ...block,
-              startTime: Math.max(0, block.startTime - splitPoint),
-              endTime: block.endTime - splitPoint
-            }))
+          sourceIn: clip.sourceIn + splitPoint,
+          sourceOut: clip.sourceOut
         }
 
         const clipIndex = track.clips.findIndex(c => c.id === clipId)
@@ -601,25 +546,11 @@ export const useProjectStore = create<ProjectStore>()(
         if (newStartTime >= clip.startTime + clip.duration || newStartTime < 0) return
 
         const trimAmount = newStartTime - clip.startTime
-        const oldDuration = clip.duration
-        
+
         // Update clip timing
         clip.startTime = newStartTime
         clip.duration -= trimAmount
         clip.sourceIn += trimAmount
-
-        // Adjust effects for the trim
-        if (clip.effects?.zoom?.blocks) {
-          // Remove blocks that are completely trimmed out
-          // and adjust remaining blocks
-          clip.effects.zoom.blocks = clip.effects.zoom.blocks
-            .filter(block => block.endTime > trimAmount)
-            .map(block => ({
-              ...block,
-              startTime: Math.max(0, block.startTime - trimAmount),
-              endTime: block.endTime - trimAmount
-            }))
-        }
 
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
@@ -639,22 +570,10 @@ export const useProjectStore = create<ProjectStore>()(
         if (newEndTime <= clip.startTime || newEndTime < 0) return
 
         const newDuration = newEndTime - clip.startTime
-        
+
         // Update clip timing
         clip.duration = newDuration
         clip.sourceOut = clip.sourceIn + clip.duration
-
-        // Adjust effects for the trim
-        if (clip.effects?.zoom?.blocks) {
-          // Remove blocks that start after the new duration
-          // and trim blocks that extend past it
-          clip.effects.zoom.blocks = clip.effects.zoom.blocks
-            .filter(block => block.startTime < newDuration)
-            .map(block => ({
-              ...block,
-              endTime: Math.min(block.endTime, newDuration)
-            }))
-        }
 
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
@@ -670,15 +589,15 @@ export const useProjectStore = create<ProjectStore>()(
       if (!result) return null
 
       const { clip, track } = result
-      
+
       // Start with position right after the original clip with proper gap
       let desiredStartTime = clip.startTime + clip.duration + 100 // 100ms gap
-      
+
       // Check for overlaps and find next valid position
       if (hasClipOverlap(track, '', desiredStartTime, clip.duration)) {
         desiredStartTime = findNextValidPosition(track, '', desiredStartTime, clip.duration)
       }
-      
+
       const newClip: Clip = {
         ...clip,
         id: `${clip.id}-copy-${Date.now()}`,
@@ -688,19 +607,19 @@ export const useProjectStore = create<ProjectStore>()(
       state.addClip(newClip)
       return newClip.id
     },
-    
+
     copyClip: (clip) => {
       set((state) => {
         state.clipboard = { clip }
       })
     },
-    
+
     copyEffect: (type, data, sourceClipId) => {
       set((state) => {
         state.clipboard = { effect: { type, data, sourceClipId } }
       })
     },
-    
+
     clearClipboard: () => {
       set((state) => {
         state.clipboard = {}
@@ -875,12 +794,12 @@ export const useProjectStore = create<ProjectStore>()(
     addEffect: (effect) => {
       set((state) => {
         if (!state.currentProject) return
-        
+
         // Initialize effects array if it doesn't exist
         if (!state.currentProject.timeline.effects) {
           state.currentProject.timeline.effects = []
         }
-        
+
         state.currentProject.timeline.effects.push(effect)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
@@ -889,7 +808,7 @@ export const useProjectStore = create<ProjectStore>()(
     removeEffect: (effectId) => {
       set((state) => {
         if (!state.currentProject || !state.currentProject.timeline.effects) return
-        
+
         const index = state.currentProject.timeline.effects.findIndex(e => e.id === effectId)
         if (index !== -1) {
           state.currentProject.timeline.effects.splice(index, 1)
@@ -901,7 +820,7 @@ export const useProjectStore = create<ProjectStore>()(
     updateEffect: (effectId, updates) => {
       set((state) => {
         if (!state.currentProject || !state.currentProject.timeline.effects) return
-        
+
         const effect = state.currentProject.timeline.effects.find(e => e.id === effectId)
         if (effect) {
           Object.assign(effect, updates)
@@ -913,29 +832,29 @@ export const useProjectStore = create<ProjectStore>()(
     getEffectsForClip: (clipId) => {
       const { currentProject } = get()
       if (!currentProject?.timeline.effects) return []
-      
+
       return currentProject.timeline.effects.filter(e => e.clipId === clipId)
     },
 
     duplicateEffectsForClip: (sourceClipId, targetClipId) => {
       set((state) => {
         if (!state.currentProject) return
-        
+
         // Initialize effects array if needed
         if (!state.currentProject.timeline.effects) {
           state.currentProject.timeline.effects = []
         }
-        
+
         const sourceEffects = state.currentProject.timeline.effects.filter(
           e => e.clipId === sourceClipId
         )
-        
+
         const duplicatedEffects = sourceEffects.map(effect => ({
-          ...structuredClone(effect),
+          ...JSON.parse(JSON.stringify(effect)),
           id: `${effect.id}-copy-${Date.now()}`,
           clipId: targetClipId
         }))
-        
+
         state.currentProject.timeline.effects.push(...duplicatedEffects)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
@@ -944,14 +863,14 @@ export const useProjectStore = create<ProjectStore>()(
     adjustEffectsForClipChange: (clipId, changeType, params) => {
       set((state) => {
         if (!state.currentProject || !state.currentProject.timeline.effects) return
-        
+
         const clipEffects = state.currentProject.timeline.effects.filter(
           e => e.clipId === clipId
         )
-        
+
         if (changeType === 'split') {
           const { splitPoint, leftClipId, rightClipId } = params
-          
+
           clipEffects.forEach(effect => {
             if (effect.endTime <= splitPoint) {
               // Effect stays with left clip
@@ -963,17 +882,17 @@ export const useProjectStore = create<ProjectStore>()(
               effect.endTime -= splitPoint
             } else {
               // Effect spans the split point - duplicate and adjust
-              const leftEffect = structuredClone(effect)
+              const leftEffect = JSON.parse(JSON.stringify(effect))
               leftEffect.id = `${effect.id}-left`
               leftEffect.clipId = leftClipId
               leftEffect.endTime = splitPoint
-              
-              const rightEffect = structuredClone(effect)
+
+              const rightEffect = JSON.parse(JSON.stringify(effect))
               rightEffect.id = `${effect.id}-right`
               rightEffect.clipId = rightClipId
               rightEffect.startTime = 0
               rightEffect.endTime -= splitPoint
-              
+
               // Remove original and add split versions
               const effects = state.currentProject!.timeline.effects!
               const index = effects.findIndex(e => e.id === effect.id)
@@ -984,7 +903,7 @@ export const useProjectStore = create<ProjectStore>()(
           })
         } else if (changeType === 'trim') {
           const { side, trimAmount } = params
-          
+
           if (side === 'start') {
             // Remove effects that are completely trimmed out
             // and adjust remaining effects
@@ -1006,7 +925,7 @@ export const useProjectStore = create<ProjectStore>()(
           } else {
             // Trim end - remove effects that start after new duration
             const { newDuration } = params
-            
+
             clipEffects.forEach(effect => {
               if (effect.startTime >= newDuration) {
                 // Remove effect
@@ -1023,7 +942,7 @@ export const useProjectStore = create<ProjectStore>()(
             })
           }
         }
-        
+
         state.currentProject.modifiedAt = new Date().toISOString()
       })
     }
