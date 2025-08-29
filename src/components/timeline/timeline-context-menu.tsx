@@ -54,18 +54,14 @@ export const TimelineContextMenu = React.memo(({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [onClose])
-
-  console.log('TimelineContextMenu rendering at:', x, y, 'for clip:', clipId)
   
   const menuContent = (
     <div
       ref={menuRef}
-      className="fixed bg-popover border border-border rounded-md shadow-md p-1 z-[9999] min-w-[200px]"
+      className="fixed bg-popover border border-border rounded-md shadow-lg p-1 z-[9999] min-w-[200px]"
       style={{ 
         left: `${x}px`, 
-        top: `${y}px`,
-        backgroundColor: 'white',
-        border: '1px solid #ccc'
+        top: `${y}px`
       }}
       onClick={(e) => e.stopPropagation()}
     >
