@@ -380,7 +380,7 @@ export class ElectronRecorder {
         modifiers: data.modifiers || [],
         keyEventType: data.type // 'keydown' or 'keyup'
       })
-      logger.debug(`Keyboard event: ${data.type} ${data.key}`)
+      logger.info(`🎹 Keyboard event captured: ${data.type} ${data.key} at ${timestamp}ms`)
     }
 
     // Register listeners if available
@@ -392,6 +392,12 @@ export class ElectronRecorder {
     // Register keyboard listener
     if (window.electronAPI?.onKeyboardEvent) {
       window.electronAPI.onKeyboardEvent(handleKeyboardEvent)
+    }
+
+    // Start keyboard tracking
+    if (window.electronAPI?.startKeyboardTracking) {
+      logger.info('Starting keyboard tracking...')
+      await window.electronAPI.startKeyboardTracking()
     }
 
     // Start tracking in main process

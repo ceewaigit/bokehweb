@@ -159,7 +159,9 @@ async function loadProjectRecording(
                 angle: 135
               },
               wallpaper: defaultWallpaper,
-              padding: 80
+              padding: 80,
+              cornerRadius: 25,
+              shadowIntensity: 85
             },
             enabled: true
           })
@@ -450,11 +452,8 @@ export function WorkspaceManager() {
         return
       }
     } else {
-      // For background and cursor, update the single effect of that type
-      // Don't filter by enabled for cursor to preserve settings when toggling
-      const existingEffectIndex = type === 'cursor'
-        ? currentEffects.findIndex(e => e.type === type)
-        : currentEffects.findIndex(e => e.type === type && e.enabled)
+      // For background, cursor, and keystroke, update the single effect of that type
+      const existingEffectIndex = currentEffects.findIndex(e => e.type === type)
 
       if (existingEffectIndex >= 0) {
         // Update existing effect in local state

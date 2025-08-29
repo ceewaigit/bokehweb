@@ -52,8 +52,8 @@ export function EffectsSidebar({
 
   // Extract current effects from the array
   const backgroundEffect = effects?.find(e => e.type === 'background' && e.enabled)
-  const cursorEffect = effects?.find(e => e.type === 'cursor')  // Don't filter by enabled for cursor
-  const keystrokeEffect = effects?.find(e => e.type === 'keystroke')  // Don't filter by enabled for keystroke
+  const cursorEffect = effects?.find(e => e.type === 'cursor')
+  const keystrokeEffect = effects?.find(e => e.type === 'keystroke')
   const zoomEffects = effects?.filter(e => e.type === 'zoom' && e.enabled) || []
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
@@ -685,9 +685,10 @@ export function EffectsSidebar({
         {activeTab === 'zoom' && zoomEffects.length > 0 && (
           <div className="space-y-3">
             {/* Show specific zoom block controls if one is selected */}
-            {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks && (() => {
-              const selectedBlock = ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks.find((b: any) => b.id === selectedEffectLayer.id)
+            {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && (() => {
+              const selectedBlock = zoomEffects.find(e => e.id === selectedEffectLayer.id)
               if (!selectedBlock) return null
+              const zoomData = selectedBlock.data as ZoomEffectData
 
               return (
                 <div key={`zoom-block-${selectedEffectLayer.id}`}>
@@ -698,7 +699,7 @@ export function EffectsSidebar({
                       <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Scale</label>
                       <Slider
                         key={`scale-${selectedEffectLayer.id}`}
-                        value={[selectedBlock.scale]}
+                        value={[zoomData.scale]}
                         onValueChange={([value]) => {
                           // Find the specific zoom effect and update its data
                           const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
@@ -714,14 +715,14 @@ export function EffectsSidebar({
                         step={0.1}
                         className="w-full"
                       />
-                      <span className="text-[10px] text-muted-foreground/70 font-mono">{selectedBlock.scale.toFixed(1)}x</span>
+                      <span className="text-[10px] text-muted-foreground/70 font-mono">{zoomData.scale.toFixed(1)}x</span>
                     </div>
 
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Intro</label>
                       <Slider
                         key={`intro-${selectedEffectLayer.id}`}
-                        value={[selectedBlock.introMs || 500]}
+                        value={[zoomData.introMs || 500]}
                         onValueChange={([value]) => {
                           // Find the specific zoom effect and update its data
                           const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
@@ -737,14 +738,14 @@ export function EffectsSidebar({
                         step={50}
                         className="w-full"
                       />
-                      {(selectedBlock.introMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{selectedBlock.introMs}ms</span>}
+                      {(zoomData.introMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{zoomData.introMs}ms</span>}
                     </div>
 
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Outro</label>
                       <Slider
                         key={`outro-${selectedEffectLayer.id}`}
-                        value={[selectedBlock.outroMs || 500]}
+                        value={[zoomData.outroMs || 500]}
                         onValueChange={([value]) => {
                           // Find the specific zoom effect and update its data
                           const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
@@ -760,7 +761,7 @@ export function EffectsSidebar({
                         step={50}
                         className="w-full"
                       />
-                      {(selectedBlock.outroMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{selectedBlock.outroMs}ms</span>}
+                      {(zoomData.outroMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{zoomData.outroMs}ms</span>}
                     </div>
                   </div>
                   <div className=" pt-3" />
@@ -772,7 +773,7 @@ export function EffectsSidebar({
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Zoom Effects</span>
                 <Switch
-                  checked={({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).enabled ?? false}
+                  checked={zoomEffects.length > 0}
                   onCheckedChange={(checked) =>
                     updateEffect('zoom', { enabled: checked })
                   }
@@ -784,9 +785,8 @@ export function EffectsSidebar({
             <div className="pt-3 ">
               <button
                 onClick={() => {
-                  // Trigger zoom detection reset - keep existing blocks until new ones are generated
+                  // Trigger zoom detection reset
                   updateEffect('zoom', {
-                    ...({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }),
                     regenerate: Date.now() // Add timestamp to trigger regeneration
                   })
                 }}

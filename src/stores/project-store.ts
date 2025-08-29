@@ -294,7 +294,9 @@ export const useProjectStore = create<ProjectStore>()(
               angle: 135
             },
             wallpaper: defaultWallpaper,
-            padding: 80
+            padding: 80,
+            cornerRadius: 25,
+            shadowIntensity: 85
           } as BackgroundEffectData,
           enabled: true
         }

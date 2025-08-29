@@ -1,77 +1,42 @@
 /**
  * Shared zoom transformation utilities for video and cursor layers
+ * Uses deterministic, frame-perfect easing without spring physics
  */
 
-import { interpolate } from 'remotion';
 import type { ZoomBlock } from '@/types/project';
-import { easeOutExpo, smoothStep } from '@/lib/utils/easing';
 
-// Professional easing curves for cinematic zoom
-const easeInExpo = (t: number): number => {
-  return t === 0 ? 0 : Math.pow(2, 10 * t - 10);
+/**
+ * Professional easing curves for smooth, cinematic zoom
+ * These are deterministic and frame-perfect
+ */
+
+// Smooth exponential ease out for zoom in
+export const easeOutExpo = (t: number): number => {
+  return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
 };
 
-// Custom zoom easing - combines exponential and smooth curves
-const zoomInEasing = (t: number): number => {
-  // Use exponential easing for zoom in (fast start, smooth deceleration)
-  // Combined with smoothstep for extra polish
+// Very smooth cubic bezier curve
+const smoothCubic = (t: number): number => {
+  return t * t * (3 - 2 * t);
+};
+
+// Professional zoom easing - deterministic and smooth
+const professionalZoomIn = (progress: number): number => {
+  // Use a combination of curves for the smoothest result
+  // Start with exponential, blend with cubic for polish
+  const expo = easeOutExpo(progress);
+  const cubic = smoothCubic(progress);
+  // Weighted blend favoring exponential
+  return expo * 0.8 + cubic * 0.2;
+};
+
+const professionalZoomOut = (progress: number): number => {
+  // Mirror of zoom in for symmetry
+  const t = 1 - progress;
   const expo = easeOutExpo(t);
-  const smooth = smoothStep(t);
-  return expo * 0.7 + smooth * 0.3; // Blend for best feel
+  const cubic = smoothCubic(t);
+  return 1 - (expo * 0.8 + cubic * 0.2);
 };
-
-const zoomOutEasing = (t: number): number => {
-  // Inverse of zoom in for symmetrical feel
-  const expo = 1 - easeOutExpo(1 - t);
-  const smooth = smoothStep(t);
-  return expo * 0.7 + smooth * 0.3;
-};
-
-// Spring physics for natural motion
-class SpringSmoothing {
-  private velocity: number = 0;
-  private lastValue: number = 1;
-  private lastTime: number = 0;
-  
-  update(targetValue: number, currentTime: number, stiffness: number = 0.15, damping: number = 0.92): number {
-    if (this.lastTime === 0) {
-      this.lastTime = currentTime;
-      this.lastValue = targetValue;
-      return targetValue;
-    }
-    
-    const deltaTime = Math.min((currentTime - this.lastTime) / 16.67, 2); // Normalize to 60fps
-    this.lastTime = currentTime;
-    
-    // Spring physics
-    const displacement = targetValue - this.lastValue;
-    const springForce = displacement * stiffness;
-    this.velocity = (this.velocity + springForce) * damping;
-    
-    // Apply velocity with clamping
-    const maxVelocity = Math.abs(displacement) * 0.5;
-    this.velocity = Math.max(-maxVelocity, Math.min(maxVelocity, this.velocity));
-    
-    this.lastValue += this.velocity * deltaTime;
-    
-    // Snap to target if very close
-    if (Math.abs(this.lastValue - targetValue) < 0.001) {
-      this.lastValue = targetValue;
-      this.velocity = 0;
-    }
-    
-    return this.lastValue;
-  }
-  
-  reset() {
-    this.velocity = 0;
-    this.lastValue = 1;
-    this.lastTime = 0;
-  }
-}
-
-// Global spring instances for smoothing
-const scaleSpring = new SpringSmoothing();
 
 interface ZoomState {
   scale: number;
@@ -83,44 +48,38 @@ interface ZoomState {
 
 /**
  * Calculate the zoom scale for a given time within a zoom block
+ * This is now completely deterministic based on elapsed time
  */
 export function calculateZoomScale(
   elapsed: number,
   blockDuration: number,
   targetScale: number,
   introMs: number = 500,
-  outroMs: number = 500,
-  useSpring: boolean = true
+  outroMs: number = 500
 ): number {
-  let rawScale: number;
+  // Clamp elapsed time to valid range
+  const clampedElapsed = Math.max(0, Math.min(blockDuration, elapsed));
   
-  if (elapsed < introMs) {
-    // Intro phase - zoom in with professional easing
-    const progress = Math.max(0, Math.min(1, elapsed / introMs));
-    const easedProgress = zoomInEasing(progress);
-    rawScale = 1 + (targetScale - 1) * easedProgress;
-  } else if (elapsed > blockDuration - outroMs) {
-    // Outro phase - zoom out with smooth easing
-    const outroElapsed = elapsed - (blockDuration - outroMs);
-    const progress = Math.max(0, Math.min(1, outroElapsed / outroMs));
-    const easedProgress = zoomOutEasing(progress);
-    rawScale = targetScale - (targetScale - 1) * easedProgress;
+  if (clampedElapsed < introMs) {
+    // Intro phase - zoom in smoothly
+    const progress = Math.min(1, Math.max(0, clampedElapsed / introMs));
+    const easedProgress = professionalZoomIn(progress);
+    return 1 + (targetScale - 1) * easedProgress;
+  } else if (clampedElapsed > blockDuration - outroMs) {
+    // Outro phase - zoom out smoothly
+    const outroElapsed = clampedElapsed - (blockDuration - outroMs);
+    const progress = Math.min(1, Math.max(0, outroElapsed / outroMs));
+    const easedProgress = professionalZoomOut(progress);
+    return targetScale - (targetScale - 1) * easedProgress;
   } else {
-    // Hold phase - maintain zoom scale with slight spring dampening
-    rawScale = targetScale;
+    // Hold phase - maintain exact zoom scale
+    return targetScale;
   }
-  
-  // Apply spring smoothing for extra polish (optional)
-  if (useSpring) {
-    // Use current time as elapsed for spring physics
-    return scaleSpring.update(rawScale, elapsed);
-  }
-  
-  return rawScale;
 }
 
 /**
  * Calculate the complete zoom transformation for a video element
+ * Now simplified without competing pan calculations
  */
 export function calculateZoomTransform(
   activeBlock: ZoomBlock | undefined,
@@ -143,7 +102,7 @@ export function calculateZoomTransform(
   const blockDuration = activeBlock.endTime - activeBlock.startTime;
   const elapsed = currentTimeMs - activeBlock.startTime;
 
-  // Calculate zoom scale
+  // Calculate zoom scale - completely deterministic
   const scale = calculateZoomScale(
     elapsed,
     blockDuration,
@@ -152,7 +111,7 @@ export function calculateZoomTransform(
     activeBlock.outroMs
   );
 
-  // Use current mouse position as zoom center, fallback to center if not available
+  // Use mouse position for zoom center
   const zoomCenterX = mousePosition?.x ?? 0.5;
   const zoomCenterY = mousePosition?.y ?? 0.5;
 
@@ -172,9 +131,9 @@ export function calculateZoomTransform(
   const scaleCompensationX = -offsetFromCenterX * (scale - 1);
   const scaleCompensationY = -offsetFromCenterY * (scale - 1);
 
-  // Add dynamic pan offset (scaled with zoom)
-  const panX = smoothPan.x * videoWidth * scale;
-  const panY = smoothPan.y * videoHeight * scale;
+  // Use pan values directly from MainComposition (already smoothed)
+  const panX = smoothPan.x * videoWidth;
+  const panY = smoothPan.y * videoHeight;
 
   return {
     scale,
@@ -207,9 +166,6 @@ export function applyZoomToPoint(
   const relativeToVideoY = pointY - videoOffset.y;
 
   // Now scale this position (video scales from its center)
-  // After scaling, a point at (x,y) relative to video top-left becomes:
-  // newX = centerX + (x - centerX) * scale
-  // Which simplifies to: newX = x * scale + centerX * (1 - scale)
   const scaledRelativeX = relativeToVideoX * zoomTransform.scale + (videoOffset.width / 2) * (1 - zoomTransform.scale);
   const scaledRelativeY = relativeToVideoY * zoomTransform.scale + (videoOffset.height / 2) * (1 - zoomTransform.scale);
 
@@ -226,22 +182,19 @@ export function applyZoomToPoint(
 
 /**
  * Generate CSS transform string for video element with GPU acceleration
+ * Now with sub-pixel rounding to prevent jitter
  */
 export function getZoomTransformString(zoomTransform: ZoomState): string {
-  if (zoomTransform.scale === 1) {
+  if (Math.abs(zoomTransform.scale - 1) < 0.001) {
     return '';
   }
 
-  const translateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
-  const translateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
+  // Round translations to 2 decimal places to prevent sub-pixel jitter
+  const translateX = Math.round((zoomTransform.scaleCompensationX + zoomTransform.panX) * 100) / 100;
+  const translateY = Math.round((zoomTransform.scaleCompensationY + zoomTransform.panY) * 100) / 100;
+  const scale = Math.round(zoomTransform.scale * 1000) / 1000; // 3 decimal places for scale
 
   // Use transform3d for GPU acceleration and smoother animation
-  return `translate3d(${translateX}px, ${translateY}px, 0) scale3d(${zoomTransform.scale}, ${zoomTransform.scale}, 1)`;
+  return `translate3d(${translateX}px, ${translateY}px, 0) scale3d(${scale}, ${scale}, 1)`;
 }
 
-/**
- * Reset spring smoothing when switching zoom blocks
- */
-export function resetZoomSmoothing(): void {
-  scaleSpring.reset();
-}

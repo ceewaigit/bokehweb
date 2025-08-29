@@ -326,6 +326,8 @@ export class RecordingStorage {
           key: m.key || '',
           modifiers: m.modifiers || []
         }))
+      
+      logger.info(`📊 Saving recording with ${keyboardEvents.length} keyboard events`)
 
       const reconstructedCaptureArea = sourceBounds ? {
         fullBounds: sourceBounds,
@@ -420,7 +422,9 @@ export class RecordingStorage {
             angle: 135
           },
           wallpaper: undefined,
-          padding: 120
+          padding: 80,
+          cornerRadius: 25,
+          shadowIntensity: 85
         },
         enabled: true
       })
@@ -446,6 +450,7 @@ export class RecordingStorage {
 
       // Add keystroke effect if keyboard events exist
       if (keyboardEvents.length > 0) {
+        logger.info(`✅ Creating keystroke effect for ${keyboardEvents.length} keyboard events`)
         project.timeline.effects!.push({
           id: `keystroke-${clip.id}`,
           type: 'keystroke',
@@ -465,6 +470,8 @@ export class RecordingStorage {
           },
           enabled: true
         })
+      } else {
+        logger.info('⚠️ No keyboard events detected - skipping keystroke effect')
       }
 
       // Save project file

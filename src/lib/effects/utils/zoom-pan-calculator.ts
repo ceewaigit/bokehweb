@@ -6,18 +6,12 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly PAN_SMOOTHING = 0.04  // Gentler smoothing for less jank
-  private readonly EDGE_THRESHOLD = 0.30  // Trigger panning when mouse is within 30% of edge
-  private readonly RECENTERING_MARGIN = 0.20  // More comfortable viewing margin
-  private readonly MAX_PAN_SPEED = 0.015  // Slower max speed for smoother motion
-  private targetPanX: number = 0
-  private targetPanY: number = 0
+  private readonly PAN_SMOOTHING = 0.02  // Very gentle smoothing for stable motion
+  private readonly EDGE_THRESHOLD = 0.35  // Trigger panning when mouse is within 35% of edge
+  private readonly RECENTERING_MARGIN = 0.25  // Comfortable viewing margin
+  private readonly MAX_PAN_SPEED = 0.008  // Much slower for stability
   private velocityX: number = 0
   private velocityY: number = 0
-  private lastMouseX: number = 0  // Track mouse velocity
-  private lastMouseY: number = 0
-  private mouseVelocityX: number = 0
-  private mouseVelocityY: number = 0
 
   /**
    * Calculate pan offset using edge-based triggering like Screen Studio
@@ -32,18 +26,6 @@ export class ZoomPanCalculator {
     currentPanX: number = 0,
     currentPanY: number = 0
   ): { x: number; y: number } {
-    // Calculate mouse velocity for predictive panning
-    const mouseVelX = mouseX - this.lastMouseX
-    const mouseVelY = mouseY - this.lastMouseY
-    this.mouseVelocityX = this.mouseVelocityX * 0.7 + mouseVelX * 0.3
-    this.mouseVelocityY = this.mouseVelocityY * 0.7 + mouseVelY * 0.3
-    this.lastMouseX = mouseX
-    this.lastMouseY = mouseY
-    
-    // Predict where mouse will be in a few frames
-    const predictionFrames = 8  // Look ahead 8 frames
-    const predictedMouseX = mouseX + this.mouseVelocityX * predictionFrames
-    const predictedMouseY = mouseY + this.mouseVelocityY * predictionFrames
     
     // Calculate viewport dimensions in pixels
     const viewportWidth = videoWidth / zoomScale
@@ -65,17 +47,17 @@ export class ZoomPanCalculator {
     const recenterMarginX = viewportWidth * this.RECENTERING_MARGIN
     const recenterMarginY = viewportHeight * this.RECENTERING_MARGIN
     
-    // Check if mouse (current or predicted) is near edges or outside viewport
-    const nearLeftEdge = mouseX < viewportLeft + edgeZoneX || predictedMouseX < viewportLeft + edgeZoneX * 0.8
-    const nearRightEdge = mouseX > viewportRight - edgeZoneX || predictedMouseX > viewportRight - edgeZoneX * 0.8
-    const nearTopEdge = mouseY < viewportTop + edgeZoneY || predictedMouseY < viewportTop + edgeZoneY * 0.8
-    const nearBottomEdge = mouseY > viewportBottom - edgeZoneY || predictedMouseY > viewportBottom - edgeZoneY * 0.8
+    // Check if mouse is near edges or outside viewport
+    const nearLeftEdge = mouseX < viewportLeft + edgeZoneX
+    const nearRightEdge = mouseX > viewportRight - edgeZoneX
+    const nearTopEdge = mouseY < viewportTop + edgeZoneY
+    const nearBottomEdge = mouseY > viewportBottom - edgeZoneY
     
-    // Check if mouse is completely outside viewport (needs immediate panning)
-    const outsideLeft = mouseX < viewportLeft || predictedMouseX < viewportLeft
-    const outsideRight = mouseX > viewportRight || predictedMouseX > viewportRight
-    const outsideTop = mouseY < viewportTop || predictedMouseY < viewportTop
-    const outsideBottom = mouseY > viewportBottom || predictedMouseY > viewportBottom
+    // Check if mouse is completely outside viewport
+    const outsideLeft = mouseX < viewportLeft
+    const outsideRight = mouseX > viewportRight
+    const outsideTop = mouseY < viewportTop
+    const outsideBottom = mouseY > viewportBottom
     
     // Calculate new target pan only if near edges or outside
     let newTargetPanX = currentPanX
@@ -113,23 +95,22 @@ export class ZoomPanCalculator {
     newTargetPanX = Math.max(-maxPanX, Math.min(maxPanX, newTargetPanX))
     newTargetPanY = Math.max(-maxPanY, Math.min(maxPanY, newTargetPanY))
     
-    // Update target if changed
-    this.targetPanX = newTargetPanX
-    this.targetPanY = newTargetPanY
     
-    // Professional easing function - smoother cubic
+    // Very smooth easing for stability
     const ease = (t: number) => {
-      // Use smoother cubic bezier for less aggressive acceleration
-      return t * t * (3.0 - 2.0 * t); // smoothstep function
+      // Extra smooth cubic for minimal acceleration changes
+      const t2 = t * t;
+      const t3 = t2 * t;
+      return t3 * (t * (t * 6 - 15) + 10); // smootherstep
     }
     
     // Calculate velocity for momentum
-    const deltaX = this.targetPanX - currentPanX
-    const deltaY = this.targetPanY - currentPanY
+    const deltaX = newTargetPanX - currentPanX
+    const deltaY = newTargetPanY - currentPanY
     
-    // Update velocity with gentler spring physics
-    this.velocityX = this.velocityX * 0.94 + deltaX * 0.06  // More damping
-    this.velocityY = this.velocityY * 0.94 + deltaY * 0.06
+    // Update velocity with heavy damping for stability
+    this.velocityX = this.velocityX * 0.96 + deltaX * 0.04  // Heavy damping
+    this.velocityY = this.velocityY * 0.96 + deltaY * 0.04
     
     // Calculate distance for adaptive smoothing
     const distanceX = Math.abs(deltaX)
@@ -145,16 +126,16 @@ export class ZoomPanCalculator {
     const minEdgeDistX = Math.min(distToLeftEdge, distToRightEdge)
     const minEdgeDistY = Math.min(distToTopEdge, distToBottomEdge)
     
-    // Progressive urgency based on edge proximity - gentler
+    // Conservative urgency for stable panning
     let urgency = this.PAN_SMOOTHING
     if (outsideLeft || outsideRight || outsideTop || outsideBottom) {
-      urgency *= 2.5 // 2.5x response when outside viewport (was 4x)
+      urgency *= 1.8 // Gentle response even when outside
     } else if (nearLeftEdge || nearRightEdge) {
-      // Progressive urgency: closer to edge = faster response (gentler curve)
-      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistX, 1.0)) * 1.5
+      // Very gentle progressive urgency
+      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistX, 1.0)) * 0.8
       urgency *= edgeUrgency
     } else if (nearTopEdge || nearBottomEdge) {
-      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistY, 1.0)) * 1.5
+      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistY, 1.0)) * 0.8
       urgency *= edgeUrgency
     }
     

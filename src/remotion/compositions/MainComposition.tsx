@@ -8,7 +8,7 @@ import type { MainCompositionProps } from './types';
 import type { ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ZoomBlock } from '@/types/project';
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
-import { calculateZoomScale, resetZoomSmoothing } from './utils/zoom-transform';
+import { calculateZoomScale } from './utils/zoom-transform';
 import { smoothStep } from '@/lib/utils/easing';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
@@ -25,13 +25,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
-  // Track dynamic pan state for each zoom block
-  const smoothPanRef = useRef({ 
-    x: 0, 
-    y: 0, 
-    lastBlockId: null as string | null,
-    initialized: false
-  });
+  // Track pan state with proper initialization per zoom block
+  // Using a Map to store state per block ID for clean transitions
+  const panStateRef = useRef<Map<string, { x: number; y: number; initialized: boolean }>>(new Map());
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
@@ -81,13 +77,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       );
 
       if (activeZoomBlock) {
-        // Reset pan and smoothing when entering a new zoom block
-        if (smoothPanRef.current.lastBlockId !== activeZoomBlock.id) {
-          smoothPanRef.current.x = 0;
-          smoothPanRef.current.y = 0;
-          smoothPanRef.current.lastBlockId = activeZoomBlock.id;
-          smoothPanRef.current.initialized = false; // Force re-initialization for new block
-          resetZoomSmoothing(); // Reset spring smoothing for new block
+        // Get or initialize pan state for this specific zoom block
+        let blockPanState = panStateRef.current.get(activeZoomBlock.id);
+        if (!blockPanState) {
+          blockPanState = { x: 0, y: 0, initialized: false };
+          panStateRef.current.set(activeZoomBlock.id, blockPanState);
         }
 
         // Calculate zoom interpolation
@@ -96,23 +90,21 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
-        // Use shared zoom scale calculation with spring smoothing
+        // Use deterministic zoom scale calculation
         const scale = calculateZoomScale(
           elapsed,
           blockDuration,
           activeZoomBlock.scale || 2,
           introMs,
-          outroMs,
-          true // Enable spring smoothing for buttery smooth zoom
+          outroMs
         );
         
         // Initialize pan variables
         let panX = 0;
         let panY = 0;
 
-        // Initialize pan position based on current mouse position at the start
-        if (elapsed === 0 || !smoothPanRef.current.initialized) {
-          // Get mouse position at the start of the zoom block
+        // Initialize pan position based on mouse position at zoom start
+        if (!blockPanState.initialized) {
           let targetX = 0.5;
           let targetY = 0.5;
           if (cursorEvents.length > 0) {
@@ -133,18 +125,18 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             targetY,
             activeZoomBlock.scale || 2
           );
-          smoothPanRef.current.x = initialPan.x;
-          smoothPanRef.current.y = initialPan.y;
-          smoothPanRef.current.initialized = true;
+          blockPanState.x = initialPan.x;
+          blockPanState.y = initialPan.y;
+          blockPanState.initialized = true;
         }
 
         if (elapsed < introMs) {
-          // Intro phase - gentle pan with damping
-          const introProgress = elapsed / introMs;
-          const dampingFactor = smoothStep(introProgress) * 0.5; // Reduced pan intensity during zoom
+          // Intro phase - smoothly interpolate pan
+          const introProgress = Math.min(1, elapsed / introMs);
+          const easedProgress = smoothStep(introProgress);
 
-          // Get current mouse position for subtle panning
-          if (cursorEvents.length > 0) {
+          // During intro, gently ease into any pan offset
+          if (cursorEvents.length > 0 && blockPanState) {
             const mousePos = zoomPanCalculator.interpolateMousePosition(
               cursorEvents,
               currentTimeMs
@@ -154,35 +146,38 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               const captureWidth = cursorEvents[0].captureWidth || videoWidth;
               const captureHeight = cursorEvents[0].captureHeight || videoHeight;
 
-              // Calculate edge-based pan with damping
+              // Calculate pan with reduced responsiveness during zoom
               const targetPan = zoomPanCalculator.calculateSmoothPan(
                 mousePos.x,
                 mousePos.y,
                 captureWidth,
                 captureHeight,
                 scale,
-                smoothPanRef.current.x,
-                smoothPanRef.current.y
+                blockPanState.x,
+                blockPanState.y
               );
 
-              // Apply damping to reduce pan intensity during zoom transition
-              smoothPanRef.current.x = smoothPanRef.current.x + (targetPan.x - smoothPanRef.current.x) * dampingFactor;
-              smoothPanRef.current.y = smoothPanRef.current.y + (targetPan.y - smoothPanRef.current.y) * dampingFactor;
+              // Smoothly blend to target during intro
+              const blendFactor = easedProgress * 0.3; // Max 30% responsiveness during intro
+              blockPanState.x = blockPanState.x + (targetPan.x - blockPanState.x) * blendFactor;
+              blockPanState.y = blockPanState.y + (targetPan.y - blockPanState.y) * blendFactor;
               
-              panX = smoothPanRef.current.x;
-              panY = smoothPanRef.current.y;
+              panX = blockPanState.x;
+              panY = blockPanState.y;
             }
           }
         } else if (elapsed > blockDuration - outroMs) {
           // Outro phase - smoothly return to center
           const outroElapsed = elapsed - (blockDuration - outroMs);
-          const outroProgress = outroElapsed / outroMs;
-          const easedProgress = smoothStep(outroProgress); // Gentler easing for pan
+          const outroProgress = Math.min(1, outroElapsed / outroMs);
+          const easedProgress = smoothStep(outroProgress);
 
           // Smoothly transition pan back to center during outro
-          const fadeOutPan = 1 - easedProgress;
-          panX = smoothPanRef.current.x * fadeOutPan;
-          panY = smoothPanRef.current.y * fadeOutPan;
+          if (blockPanState) {
+            const fadeOutPan = 1 - easedProgress;
+            panX = blockPanState.x * fadeOutPan;
+            panY = blockPanState.y * fadeOutPan;
+          }
           
         } else {
           // Hold phase - use edge-based panning
@@ -198,27 +193,29 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             const captureWidth = cursorEvents[0].captureWidth || videoWidth;
             const captureHeight = cursorEvents[0].captureHeight || videoHeight;
             
-            // Use edge-based pan calculator
-            const panOffset = zoomPanCalculator.calculateSmoothPan(
-              mousePos.x,
-              mousePos.y,
-              captureWidth,
-              captureHeight,
-              scale,
-              smoothPanRef.current.x,
-              smoothPanRef.current.y
-            );
+            // Use edge-based pan calculator with block-specific state
+            if (blockPanState) {
+              const panOffset = zoomPanCalculator.calculateSmoothPan(
+                mousePos.x,
+                mousePos.y,
+                captureWidth,
+                captureHeight,
+                scale,
+                blockPanState.x,
+                blockPanState.y
+              );
 
-            // Update pan position directly (calculator handles smoothing)
-            smoothPanRef.current.x = panOffset.x;
-            smoothPanRef.current.y = panOffset.y;
-            
-            panX = smoothPanRef.current.x;
-            panY = smoothPanRef.current.y;
-          } else {
+              // Update pan position with smooth interpolation
+              blockPanState.x = panOffset.x;
+              blockPanState.y = panOffset.y;
+              
+              panX = blockPanState.x;
+              panY = blockPanState.y;
+            }
+          } else if (blockPanState) {
             // No mouse events, use current pan
-            panX = smoothPanRef.current.x;
-            panY = smoothPanRef.current.y;
+            panX = blockPanState.x;
+            panY = blockPanState.y;
           }
         }
 
@@ -247,13 +244,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           panY
         };
       } else {
-        // No active zoom block - reset state
-        if (smoothPanRef.current.lastBlockId !== null) {
-          smoothPanRef.current.x = 0;
-          smoothPanRef.current.y = 0;
-          smoothPanRef.current.lastBlockId = null;
-          smoothPanRef.current.initialized = false;
-        }
+        // No active zoom block - no pan needed
+        // Pan state is preserved per block for consistency
       }
     }
 

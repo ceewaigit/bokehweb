@@ -95,8 +95,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             transform,
             transformOrigin: '50% 50%',
             pointerEvents: 'none',
-            willChange: 'transform', // GPU acceleration hint
-            backfaceVisibility: 'hidden' // Prevent flicker
+            willChange: 'transform' // GPU acceleration hint
           }}
         />
       )}
@@ -112,9 +111,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           overflow: 'hidden',
           transform,
           transformOrigin: '50% 50%',
-          willChange: 'transform', // GPU acceleration hint
-          backfaceVisibility: 'hidden', // Prevent flicker
-          perspective: 1000 // Enable 3D acceleration
+          willChange: 'transform' // GPU acceleration hint
         }}
       >
         <Video
