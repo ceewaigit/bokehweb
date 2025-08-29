@@ -578,10 +578,14 @@ export function EffectsSidebar({
                         key={`scale-${selectedEffectLayer.id}`}
                         value={[selectedBlock.scale]}
                         onValueChange={([value]) => {
-                          const updatedBlocks = ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks?.map((b: any) =>
-                            b.id === selectedBlock.id ? { ...b, scale: value } : b
-                          )
-                          updateEffect('zoom', { ...({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }), blocks: updatedBlocks })
+                          // Find the specific zoom effect and update its data
+                          const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
+                          if (zoomEffect) {
+                            updateEffect('zoom', {
+                              ...zoomEffect.data,
+                              scale: value
+                            })
+                          }
                         }}
                         min={1}
                         max={4}
@@ -597,10 +601,14 @@ export function EffectsSidebar({
                         key={`intro-${selectedEffectLayer.id}`}
                         value={[selectedBlock.introMs || 500]}
                         onValueChange={([value]) => {
-                          const updatedBlocks = ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks?.map((b: any) =>
-                            b.id === selectedBlock.id ? { ...b, introMs: value } : b
-                          )
-                          updateEffect('zoom', { ...({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }), blocks: updatedBlocks })
+                          // Find the specific zoom effect and update its data
+                          const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
+                          if (zoomEffect) {
+                            updateEffect('zoom', {
+                              ...zoomEffect.data,
+                              introMs: value
+                            })
+                          }
                         }}
                         min={0}
                         max={1000}
@@ -616,10 +624,14 @@ export function EffectsSidebar({
                         key={`outro-${selectedEffectLayer.id}`}
                         value={[selectedBlock.outroMs || 500]}
                         onValueChange={([value]) => {
-                          const updatedBlocks = ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks?.map((b: any) =>
-                            b.id === selectedBlock.id ? { ...b, outroMs: value } : b
-                          )
-                          updateEffect('zoom', { ...({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }), blocks: updatedBlocks })
+                          // Find the specific zoom effect and update its data
+                          const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
+                          if (zoomEffect) {
+                            updateEffect('zoom', {
+                              ...zoomEffect.data,
+                              outroMs: value
+                            })
+                          }
                         }}
                         min={0}
                         max={1000}

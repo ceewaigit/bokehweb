@@ -294,7 +294,7 @@ export const useProjectStore = create<ProjectStore>()(
               angle: 135
             },
             wallpaper: defaultWallpaper,
-            padding: 120
+            padding: 80
           } as BackgroundEffectData,
           enabled: true
         }
@@ -387,12 +387,20 @@ export const useProjectStore = create<ProjectStore>()(
       set((state) => {
         if (!state.currentProject) return
 
+        // Remove the clip from tracks
         for (const track of state.currentProject.timeline.tracks) {
           const index = track.clips.findIndex(c => c.id === clipId)
           if (index !== -1) {
             track.clips.splice(index, 1)
             break
           }
+        }
+
+        // Remove all effects associated with this clip
+        if (state.currentProject.timeline.effects) {
+          state.currentProject.timeline.effects = state.currentProject.timeline.effects.filter(
+            e => e.clipId !== clipId
+          )
         }
 
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)

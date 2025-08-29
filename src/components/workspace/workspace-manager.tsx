@@ -127,6 +127,47 @@ async function loadProjectRecording(
     }
   }
 
+  // Initialize effects array if it doesn't exist (for very old projects)
+  if (!project.timeline.effects) {
+    project.timeline.effects = []
+  }
+  
+  // For migration: Ensure clips have background effects if they're missing
+  // This is only for projects that were created before effects were properly saved
+  for (const track of project.timeline.tracks) {
+    if (track.type === 'video') {
+      for (const clip of track.clips) {
+        const hasBackground = project.timeline.effects.some(
+          (e: any) => e.clipId === clip.id && e.type === 'background'
+        )
+        
+        if (!hasBackground) {
+          // Only add background for migration - new recordings should have it already
+          const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
+          const defaultWallpaper = getDefaultWallpaper()
+          
+          project.timeline.effects.push({
+            id: `background-${clip.id}`,
+            type: 'background',
+            clipId: clip.id,
+            startTime: 0,
+            endTime: clip.duration,
+            data: {
+              type: 'wallpaper',
+              gradient: {
+                colors: ['#2D3748', '#1A202C'],
+                angle: 135
+              },
+              wallpaper: defaultWallpaper,
+              padding: 80
+            },
+            enabled: true
+          })
+        }
+      }
+    }
+  }
+
   // Set the project ONCE after all recordings are processed
   useProjectStore.getState().setProject(project)
 
@@ -134,8 +175,6 @@ async function loadProjectRecording(
   const viewportWidth = window.innerWidth
   const optimalZoom = TimelineUtils.calculateOptimalZoom(project.timeline.duration, viewportWidth)
   useProjectStore.getState().setAutoZoom(optimalZoom)
-
-  // Wallpaper initialization removed - will be handled per effect
 
   const firstClip = project.timeline.tracks
     .flatMap((t: any) => t.clips)
@@ -225,17 +264,14 @@ export function WorkspaceManager() {
 
   // Get effects for the selected clip
   const clipEffects = selectedClipId ? getEffectsForClip(selectedClipId) : []
-  
-  // Removed buildClipEffects - using Effect[] directly
-
-  // Removed localEffects syncing - using clipEffects directly
-
-  // Removed handleZoomBlockUpdate - using direct updateEffect instead
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
-    // Find the zoom effect and update it
-    const zoomEffect = clipEffects?.find(e => e.type === 'zoom' && e.id === blockId)
+    // Work with local effects or fall back to saved effects
+    const currentEffects = localEffects || clipEffects || []
+    const zoomEffect = currentEffects.find(e => e.type === 'zoom' && e.id === blockId)
+    
     if (zoomEffect) {
-      updateEffect(blockId, {
+      // Update the effect in local state
+      const updatedEffect = {
         ...zoomEffect,
         startTime: updates.startTime ?? zoomEffect.startTime,
         endTime: updates.endTime ?? zoomEffect.endTime,
@@ -243,18 +279,24 @@ export function WorkspaceManager() {
           ...(zoomEffect.data as ZoomEffectData),
           ...updates
         }
-      })
+      }
+      
+      // Update local effects array
+      const newEffects = currentEffects.map(e => 
+        e.id === blockId ? updatedEffect : e
+      )
+      
+      setLocalEffects(newEffects)
+      setHasUnsavedChanges(true)
+      
+      // Also update via command for undo/redo support
+      const store = useProjectStore.getState()
+      const context = new DefaultCommandContext(store)
+      const commandManager = CommandManager.getInstance(context)
+      const command = new UpdateZoomBlockCommand(context, clipId, blockId, updates)
+      commandManager.execute(command)
     }
-    setHasUnsavedChanges(true)
-    
-    // Also update via command for undo/redo support
-    const store = useProjectStore.getState()
-    const context = new DefaultCommandContext(store)
-    const commandManager = CommandManager.getInstance(context)
-    const command = new UpdateZoomBlockCommand(context, clipId, blockId, updates)
-    commandManager.execute(command)
-    
-  }, [localEffects])
+  }, [clipEffects, localEffects])
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
@@ -269,51 +311,52 @@ export function WorkspaceManager() {
     }
   }, [currentProject?.modifiedAt, lastSavedAt])
 
+  // Consolidated save function
+  const handleSaveProject = useCallback(async () => {
+    if (localEffects && selectedClipId) {
+      // Remove all existing effects for this clip
+      const existingEffects = clipEffects || []
+      existingEffects.forEach(effect => {
+        updateEffect(effect.id, { ...effect, enabled: false })
+      })
+      
+      // Add all local effects as saved effects
+      localEffects.forEach(effect => {
+        if (existingEffects.find(e => e.id === effect.id)) {
+          // Update existing effect
+          updateEffect(effect.id, effect)
+        } else {
+          // Add new effect
+          addEffect(effect)
+        }
+      })
+      
+      setLocalEffects(null)
+    }
+    
+    await saveCurrentProject()
+    
+    // Use the project's modifiedAt timestamp after saving
+    const savedProject = useProjectStore.getState().currentProject
+    if (savedProject?.modifiedAt) {
+      setLastSavedAt(savedProject.modifiedAt)
+    }
+    setHasUnsavedChanges(false)
+  }, [localEffects, selectedClipId, clipEffects, updateEffect, addEffect, saveCurrentProject])
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       // Cmd+S or Ctrl+S to save
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-
-        // Save any pending local effects
-        if (localEffects && selectedClipId) {
-          // Remove all existing effects for this clip
-          const existingEffects = clipEffects || []
-          existingEffects.forEach(effect => {
-            updateEffect(effect.id, { ...effect, enabled: false })
-          })
-          
-          // Add all local effects as saved effects
-          localEffects.forEach(effect => {
-            if (existingEffects.find(e => e.id === effect.id)) {
-              // Update existing effect
-              updateEffect(effect.id, effect)
-            } else {
-              // Add new effect
-              addEffect(effect)
-            }
-          })
-          
-          setLocalEffects(null)
-          setHasUnsavedChanges(false)
-        }
-
-        // Save the project
-        await saveCurrentProject()
-
-        // Use the project's modifiedAt timestamp after saving
-        const savedProject = useProjectStore.getState().currentProject
-        if (savedProject?.modifiedAt) {
-          setLastSavedAt(savedProject.modifiedAt)
-        }
-        setHasUnsavedChanges(false)
+        await handleSaveProject()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [localEffects, selectedClipId, updateEffect, clipEffects, saveCurrentProject])
+  }, [handleSaveProject])
 
   // Get clip at playhead position
   const playheadClip = useProjectStore.getState().getCurrentClip()
@@ -328,8 +371,6 @@ export function WorkspaceManager() {
     ? currentProject.recordings.find(r => r.id === playheadClip.recordingId)
     : null
 
-  // Use local effects if available, otherwise use saved effects
-  const activeEffects = localEffects || clipEffects || []
 
   // Define handlePause first since it's used in useEffect
   const handlePause = useCallback(() => {
@@ -361,10 +402,6 @@ export function WorkspaceManager() {
     }
   }, [isPlaying, currentTime, selectedClip, handlePause])
 
-
-  // Video loading is already handled when the project is loaded
-  // No need to duplicate the loading here
-
   // Centralized playback control
   const handlePlay = useCallback(() => {
     if (!selectedClip || !selectedRecording) return
@@ -386,48 +423,52 @@ export function WorkspaceManager() {
     // Work with local effects or fall back to saved effects
     const currentEffects = localEffects || clipEffects || []
     
-    // Find existing effect in local state
-    const existingEffectIndex = currentEffects.findIndex(e => e.type === type && e.enabled)
-    
     let newEffects: Effect[]
     
-    if (existingEffectIndex >= 0) {
-      // Update existing effect in local state
-      newEffects = [...currentEffects]
-      newEffects[existingEffectIndex] = {
-        ...newEffects[existingEffectIndex],
-        data
+    // For zoom effects with a selected effect layer, update the specific zoom effect
+    if (type === 'zoom' && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id) {
+      const existingEffectIndex = currentEffects.findIndex(e => e.id === selectedEffectLayer.id)
+      if (existingEffectIndex >= 0) {
+        newEffects = [...currentEffects]
+        newEffects[existingEffectIndex] = {
+          ...newEffects[existingEffectIndex],
+          data
+        }
+      } else {
+        // Shouldn't happen, but handle gracefully
+        return
       }
     } else {
-      // Add new effect to local state
-      const newEffect: Effect = {
-        id: `${type}-${selectedClipId}-${Date.now()}`,
-        type,
-        clipId: selectedClipId,
-        startTime: 0,
-        endTime: selectedClip?.duration || 0,
-        data,
-        enabled: true
+      // For background and cursor, update the single effect of that type
+      const existingEffectIndex = currentEffects.findIndex(e => e.type === type && e.enabled)
+      
+      if (existingEffectIndex >= 0) {
+        // Update existing effect in local state
+        newEffects = [...currentEffects]
+        newEffects[existingEffectIndex] = {
+          ...newEffects[existingEffectIndex],
+          data
+        }
+      } else {
+        // Add new effect to local state
+        const newEffect: Effect = {
+          id: `${type}-${selectedClipId}-${Date.now()}`,
+          type,
+          clipId: selectedClipId,
+          startTime: 0,
+          endTime: selectedClip?.duration || 0,
+          data,
+          enabled: true
+        }
+        newEffects = [...currentEffects, newEffect]
       }
-      newEffects = [...currentEffects, newEffect]
     }
     
     // Update local state
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
-  }, [selectedClipId, selectedClip, clipEffects, localEffects])
+  }, [selectedClipId, selectedClip, clipEffects, localEffects, selectedEffectLayer])
 
-  const handleToggleProperties = useCallback(() => {
-    toggleProperties()
-  }, [toggleProperties])
-
-  const handleExport = useCallback(() => {
-    setExportOpen(true)
-  }, [setExportOpen])
-
-  const handleCloseExport = useCallback(() => {
-    setExportOpen(false)
-  }, [setExportOpen])
 
 
   // Show loading screen when processing
@@ -508,8 +549,8 @@ export function WorkspaceManager() {
         <div className="flex-shrink-0 bg-background/60 backdrop-blur-sm overflow-hidden border-b border-border/50" style={{ height: '48px', paddingLeft: '80px' }}>
           <Toolbar
             project={currentProject}
-            onToggleProperties={handleToggleProperties}
-            onExport={handleExport}
+            onToggleProperties={toggleProperties}
+            onExport={() => setExportOpen(true)}
             onNewProject={async () => {
               // Ensure wallpaper is loaded
               await initializeDefaultWallpaper()
@@ -528,37 +569,7 @@ export function WorkspaceManager() {
               }
               setHasUnsavedChanges(false)
             }}
-            onSaveProject={async () => {
-              if (localEffects && selectedClipId) {
-                // Remove all existing effects for this clip
-                const existingEffects = clipEffects || []
-                existingEffects.forEach(effect => {
-                  updateEffect(effect.id, { ...effect, enabled: false })
-                })
-                
-                // Add all local effects as saved effects
-                localEffects.forEach(effect => {
-                  if (existingEffects.find(e => e.id === effect.id)) {
-                    // Update existing effect
-                    updateEffect(effect.id, effect)
-                  } else {
-                    // Add new effect
-                    addEffect(effect)
-                  }
-                })
-                
-                setLocalEffects(null)
-                setHasUnsavedChanges(false)
-              }
-              await saveCurrentProject()
-
-              // Use the project's modifiedAt timestamp after saving
-              const savedProject = useProjectStore.getState().currentProject
-              if (savedProject?.modifiedAt) {
-                setLastSavedAt(savedProject.modifiedAt)
-              }
-              setHasUnsavedChanges(false)
-            }}
+            onSaveProject={handleSaveProject}
             onOpenProject={async (path: string) => {
               await openProject(path)
               setLocalEffects(null)
@@ -619,7 +630,7 @@ export function WorkspaceManager() {
                 playheadRecording={playheadRecording}
                 currentTime={currentTime}
                 isPlaying={isPlaying}
-                localEffects={clipEffects}
+                localEffects={localEffects || clipEffects}
                 onTimeUpdate={(time) => storeSeek(time)}
               />
             </div>
@@ -633,7 +644,7 @@ export function WorkspaceManager() {
                 <EffectsSidebar
                   className="h-full w-full"
                   selectedClip={selectedClip}
-                  effects={activeEffects}
+                  effects={localEffects || clipEffects || []}
                   selectedEffectLayer={selectedEffectLayer}
                   onEffectChange={handleEffectChange}
                 />
@@ -663,7 +674,7 @@ export function WorkspaceManager() {
         {/* Dialogs and Modals */}
         <ExportDialog
           isOpen={isExportOpen}
-          onClose={handleCloseExport}
+          onClose={() => setExportOpen(false)}
         />
       </div>
 

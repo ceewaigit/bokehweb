@@ -83,7 +83,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           borderRadius: '12px',
           overflow: 'hidden',
           transform,
-          transformOrigin: '50% 50%'
+          transformOrigin: '50% 50%',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3), 0 10px 20px rgba(0, 0, 0, 0.2)'
         }}
       >
         <Video

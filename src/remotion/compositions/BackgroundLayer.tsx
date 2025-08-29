@@ -15,12 +15,28 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
 
   switch (backgroundData.type) {
     case 'wallpaper':
-      if (!backgroundData.wallpaper) return null;
-      backgroundStyle = {
-        backgroundImage: `url(${backgroundData.wallpaper})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
-      };
+      // Wallpaper type must render gradient (wallpaper is optional enhancement)
+      if (backgroundData.gradient?.colors?.length) {
+        const { colors, angle = 135 } = backgroundData.gradient;
+        const gradientColors = colors.map((color, index) => {
+          const percentage = (index / (colors.length - 1)) * 100;
+          return `${color} ${percentage}%`;
+        }).join(', ');
+        backgroundStyle = {
+          background: `linear-gradient(${angle}deg, ${gradientColors})`
+        };
+        
+        // Layer wallpaper on top if available
+        if (backgroundData.wallpaper) {
+          // We'll need to return a more complex structure for layered backgrounds
+          // For now, just use wallpaper when available
+          backgroundStyle = {
+            backgroundImage: `url(${backgroundData.wallpaper})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          };
+        }
+      }
       break;
 
     case 'color':
