@@ -451,25 +451,39 @@ export function WorkspaceManager() {
       }
     } else {
       // For background and cursor, update the single effect of that type
-      const existingEffectIndex = currentEffects.findIndex(e => e.type === type && e.enabled)
+      // Don't filter by enabled for cursor to preserve settings when toggling
+      const existingEffectIndex = type === 'cursor' 
+        ? currentEffects.findIndex(e => e.type === type)
+        : currentEffects.findIndex(e => e.type === type && e.enabled)
       
       if (existingEffectIndex >= 0) {
         // Update existing effect in local state
         newEffects = [...currentEffects]
+        
+        // Handle enabled property if present in data
+        const enabled = data.enabled !== undefined ? data.enabled : newEffects[existingEffectIndex].enabled
+        
+        // Remove enabled from data to avoid duplication
+        const { enabled: dataEnabled, ...effectData } = data
+        
         newEffects[existingEffectIndex] = {
           ...newEffects[existingEffectIndex],
-          data
+          data: effectData,
+          enabled
         }
       } else {
         // Add new effect to local state
+        // Extract enabled from data if present
+        const { enabled: dataEnabled, ...effectData } = data
+        
         const newEffect: Effect = {
           id: `${type}-${selectedClipId}-${Date.now()}`,
           type,
           clipId: selectedClipId,
           startTime: 0,
           endTime: selectedClip?.duration || 0,
-          data,
-          enabled: true
+          data: effectData,
+          enabled: dataEnabled !== undefined ? dataEnabled : true
         }
         newEffects = [...currentEffects, newEffect]
       }

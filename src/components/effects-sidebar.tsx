@@ -51,7 +51,7 @@ export function EffectsSidebar({
   
   // Extract current effects from the array
   const backgroundEffect = effects?.find(e => e.type === 'background' && e.enabled)
-  const cursorEffect = effects?.find(e => e.type === 'cursor' && e.enabled)
+  const cursorEffect = effects?.find(e => e.type === 'cursor')  // Don't filter by enabled for cursor
   const zoomEffects = effects?.filter(e => e.type === 'zoom' && e.enabled) || []
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
@@ -481,23 +481,39 @@ export function EffectsSidebar({
           </div>
         )}
 
-        {activeTab === 'cursor' && cursorEffect && (
+        {activeTab === 'cursor' && (
           <div className="space-y-3">
             {/* Master cursor visibility toggle */}
             <div className="p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Show Cursor</span>
                 <Switch
-                  checked={cursorEffect !== undefined}
-                  onCheckedChange={(checked) =>
-                    updateEffect('cursor', { enabled: checked })
-                  }
+                  checked={cursorEffect?.enabled ?? false}
+                  onCheckedChange={(checked) => {
+                    if (cursorEffect) {
+                      // Update existing cursor effect's enabled state
+                      const currentData = cursorEffect.data as CursorEffectData
+                      onEffectChange('cursor', { ...currentData, enabled: checked })
+                    } else {
+                      // Create new cursor effect
+                      onEffectChange('cursor', {
+                        style: 'default',
+                        size: 3.0,
+                        color: '#ffffff',
+                        clickEffects: true,
+                        motionBlur: false,
+                        hideOnIdle: false,
+                        idleTimeout: 3000,
+                        enabled: checked
+                      })
+                    }
+                  }}
                 />
               </label>
             </div>
 
             {/* Only show cursor settings when enabled */}
-            {cursorEffect && (
+            {cursorEffect?.enabled && (
               <>
                 <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
                   <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Size</label>
@@ -714,6 +730,60 @@ export function EffectsSidebar({
                   </button>
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
+              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corner Radius</label>
+              <Slider
+                value={[(backgroundEffect?.data as BackgroundEffectData).cornerRadius || 0]}
+                onValueChange={([value]) => updateBackgroundEffect({
+                  cornerRadius: value
+                })}
+                min={0}
+                max={50}
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).cornerRadius || 0}px</span>
+                {(backgroundEffect?.data as BackgroundEffectData).cornerRadius !== 16 && (
+                  <button
+                    onClick={() => updateBackgroundEffect({
+                      cornerRadius: 16
+                    })}
+                    className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
+              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Shadow Intensity</label>
+              <Slider
+                value={[(backgroundEffect?.data as BackgroundEffectData).shadowIntensity || 0]}
+                onValueChange={([value]) => updateBackgroundEffect({
+                  shadowIntensity: value
+                })}
+                min={0}
+                max={100}
+                step={5}
+                className="w-full"
+              />
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).shadowIntensity || 0}%</span>
+                {(backgroundEffect?.data as BackgroundEffectData).shadowIntensity !== 50 && (
+                  <button
+                    onClick={() => updateBackgroundEffect({
+                      shadowIntensity: 50
+                    })}
+                    className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
 
           </div>
