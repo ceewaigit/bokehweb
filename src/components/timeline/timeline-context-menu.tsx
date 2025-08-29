@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2 } from 'lucide-react'
 
 interface TimelineContextMenuProps {
@@ -54,11 +55,18 @@ export const TimelineContextMenu = React.memo(({
     }
   }, [onClose])
 
-  return (
+  console.log('TimelineContextMenu rendering at:', x, y, 'for clip:', clipId)
+  
+  const menuContent = (
     <div
       ref={menuRef}
-      className="fixed bg-popover border border-border rounded-md shadow-md p-1 z-[100]"
-      style={{ left: x, top: y }}
+      className="fixed bg-popover border border-border rounded-md shadow-md p-1 z-[9999] min-w-[200px]"
+      style={{ 
+        left: `${x}px`, 
+        top: `${y}px`,
+        backgroundColor: 'white',
+        border: '1px solid #ccc'
+      }}
       onClick={(e) => e.stopPropagation()}
     >
       <button
@@ -107,4 +115,11 @@ export const TimelineContextMenu = React.memo(({
       </button>
     </div>
   )
+
+  // Use portal to render at document body level
+  if (typeof document !== 'undefined') {
+    return ReactDOM.createPortal(menuContent, document.body)
+  }
+  
+  return menuContent
 })
