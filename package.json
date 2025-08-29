@@ -7,7 +7,7 @@
   "main": "electron/dist/main/index.js",
   "homepage": "./",
   "config": {
-    "forge": "./forge.config.simple.js"
+    "forge": "./forge.config.js"
   },
   "scripts": {
     "dev": "NODE_ENV=development next dev",
