@@ -151,6 +151,7 @@ export function TimelineCanvas({
 
   // Handle clip context menu
   const handleClipContextMenu = useCallback((e: any, clipId: string) => {
+    console.log('Context menu triggered for clip:', clipId, 'at', e.evt.clientX, e.evt.clientY)
     setContextMenu({
       x: e.evt.clientX,
       y: e.evt.clientY,
@@ -524,7 +525,9 @@ export function TimelineCanvas({
       </div>
 
       {/* Context Menu */}
-      {contextMenu && (
+      {contextMenu && (() => {
+        console.log('Rendering context menu:', contextMenu)
+        return (
         <TimelineContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
@@ -582,7 +585,8 @@ export function TimelineCanvas({
           }}
           onClose={() => setContextMenu(null)}
         />
-      )}
+        )
+      })()}
     </div>
   )
 }
