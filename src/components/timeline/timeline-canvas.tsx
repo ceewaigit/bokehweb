@@ -493,6 +493,7 @@ export function TimelineCanvas({
                   otherClipsInTrack={audioClips}
                   onSelect={handleClipSelect}
                   onDragEnd={handleClipDragEnd}
+                  onContextMenu={handleClipContextMenu}
                 />
               ))
             })()}
