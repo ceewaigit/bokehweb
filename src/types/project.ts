@@ -210,6 +210,8 @@ export interface BackgroundEffectData {
   wallpaper?: string
   blur?: number
   padding: number
+  cornerRadius?: number  // Video corner radius in pixels
+  shadowIntensity?: number  // Shadow intensity 0-100
 }
 
 export interface AnnotationData {

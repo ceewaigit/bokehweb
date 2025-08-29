@@ -104,7 +104,14 @@ export function EffectsSidebar({
 
   const updateEffect = (category: 'background' | 'cursor' | 'zoom', updates: any) => {
     if (!selectedClip) return
-    onEffectChange(category, updates)
+    
+    // For cursor effects, preserve all existing data
+    if (category === 'cursor' && cursorEffect) {
+      const currentData = cursorEffect.data as CursorEffectData
+      onEffectChange(category, { ...currentData, ...updates })
+    } else {
+      onEffectChange(category, updates)
+    }
   }
 
   // Update background while preserving existing properties

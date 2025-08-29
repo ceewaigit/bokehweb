@@ -23,14 +23,17 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
 
-  // Get background effect for padding
+  // Get background effect for padding and styling
   const backgroundEffect = effects?.find(e => 
     e.type === 'background' && 
     e.enabled &&
     currentTimeMs >= e.startTime && 
     currentTimeMs <= e.endTime
   );
-  const padding = backgroundEffect ? (backgroundEffect.data as any).padding : 0;
+  const backgroundData = backgroundEffect?.data as any
+  const padding = backgroundData?.padding || 0;
+  const cornerRadius = backgroundData?.cornerRadius || 16;
+  const shadowIntensity = backgroundData?.shadowIntensity ?? 50;
   
   // Calculate video position using shared utility
   const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
@@ -71,8 +74,31 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     objectFit: 'contain' as const
   };
 
+  // Calculate shadow based on intensity (0-100)
+  const shadowOpacity = (shadowIntensity / 100) * 0.5;
+  const shadowBlur = 25 + (shadowIntensity / 100) * 25;
+  const shadowSpread = -12 + (shadowIntensity / 100) * 6;
+  
   return (
     <AbsoluteFill>
+      {/* Shadow layer - rendered separately to ensure visibility */}
+      {shadowIntensity > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: offsetX,
+            top: offsetY,
+            width: drawWidth,
+            height: drawHeight,
+            borderRadius: `${cornerRadius}px`,
+            boxShadow: `0 ${shadowBlur}px ${shadowBlur * 2}px ${shadowSpread}px rgba(0, 0, 0, ${shadowOpacity}), 0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px ${shadowSpread * 0.66}px rgba(0, 0, 0, ${shadowOpacity * 0.8})`,
+            transform,
+            transformOrigin: '50% 50%',
+            pointerEvents: 'none'
+          }}
+        />
+      )}
+      {/* Video container */}
       <div
         style={{
           position: 'absolute',
@@ -80,11 +106,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           top: offsetY,
           width: drawWidth,
           height: drawHeight,
-          borderRadius: '12px',
+          borderRadius: `${cornerRadius}px`,
           overflow: 'hidden',
           transform,
-          transformOrigin: '50% 50%',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3), 0 10px 20px rgba(0, 0, 0, 0.2)'
+          transformOrigin: '50% 50%'
         }}
       >
         <Video

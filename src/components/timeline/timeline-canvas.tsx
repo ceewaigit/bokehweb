@@ -458,11 +458,25 @@ export function TimelineCanvas({
                         })
                       }}
                       onUpdate={(updates) => {
-                        // Update the effect data
-                        const currentData = effect.data as ZoomEffectData
-                        updateEffect(effect.id, {
-                          data: { ...currentData, ...updates }
-                        })
+                        // Check if this is a timing update (has startTime or endTime)
+                        if ('startTime' in updates || 'endTime' in updates) {
+                          // Update timing directly
+                          updateEffect(effect.id, {
+                            startTime: updates.startTime ?? effect.startTime,
+                            endTime: updates.endTime ?? effect.endTime
+                          })
+                          
+                          // Also update via onZoomBlockUpdate for local effects
+                          if (onZoomBlockUpdate) {
+                            onZoomBlockUpdate(clip.id, effect.id, updates)
+                          }
+                        } else {
+                          // Update zoom data (scale, introMs, outroMs, etc.)
+                          const currentData = effect.data as ZoomEffectData
+                          updateEffect(effect.id, {
+                            data: { ...currentData, ...updates }
+                          })
+                        }
                       }}
                     />
                   )

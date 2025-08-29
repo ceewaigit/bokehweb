@@ -271,13 +271,24 @@ export function WorkspaceManager() {
     
     if (zoomEffect) {
       // Update the effect in local state
-      const updatedEffect = {
-        ...zoomEffect,
-        startTime: updates.startTime ?? zoomEffect.startTime,
-        endTime: updates.endTime ?? zoomEffect.endTime,
-        data: {
-          ...(zoomEffect.data as ZoomEffectData),
-          ...updates
+      let updatedEffect: Effect
+      
+      // Check if this is a timing update or data update
+      if ('startTime' in updates || 'endTime' in updates) {
+        // Timing update - update the effect times directly
+        updatedEffect = {
+          ...zoomEffect,
+          startTime: updates.startTime ?? zoomEffect.startTime,
+          endTime: updates.endTime ?? zoomEffect.endTime
+        }
+      } else {
+        // Data update - update the zoom data
+        updatedEffect = {
+          ...zoomEffect,
+          data: {
+            ...(zoomEffect.data as ZoomEffectData),
+            ...updates
+          }
         }
       }
       
