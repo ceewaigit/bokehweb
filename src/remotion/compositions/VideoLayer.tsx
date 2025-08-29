@@ -11,14 +11,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoWidth,
   videoHeight,
   captureArea,
-  preCalculatedPan,
-  mousePosition
+  zoomCenter
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // Use pre-calculated pan from MainComposition
-  const smoothPan = preCalculatedPan || { x: 0, y: 0 };
+  // Use fixed zoom center from MainComposition
+  const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
@@ -53,14 +52,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
     );
 
-    // Calculate zoom transformation using shared utility
+    // Calculate zoom transformation with fixed center for cinematic effect
     const zoomTransform = calculateZoomTransform(
       activeBlock,
       currentTimeMs,
       drawWidth,
       drawHeight,
-      smoothPan,
-      mousePosition  // Pass current mouse position for dynamic zoom target
+      fixedZoomCenter  // Fixed zoom center for stable zoom
     );
 
     // Generate transform string

@@ -9,7 +9,6 @@ import type { ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeE
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 import { calculateZoomScale } from './utils/zoom-transform';
-import { smoothStep } from '@/lib/utils/easing';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -25,17 +24,20 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
-  // Track pan state with proper initialization per zoom block
-  // Using a Map to store state per block ID for clean transitions
-  const panStateRef = useRef<Map<string, { x: number; y: number; initialized: boolean }>>(new Map());
+  // Track zoom state per block for consistency
+  const zoomStateRef = useRef<Map<string, {
+    centerX: number;
+    centerY: number;
+    initialized: boolean
+  }>>(new Map());
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
 
   // Extract active effects from the array
-  const activeEffects = effects?.filter(e => 
-    e.enabled && 
-    currentTimeMs >= e.startTime && 
+  const activeEffects = effects?.filter(e =>
+    e.enabled &&
+    currentTimeMs >= e.startTime &&
     currentTimeMs <= e.endTime
   ) || [];
 
@@ -77,11 +79,33 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       );
 
       if (activeZoomBlock) {
-        // Get or initialize pan state for this specific zoom block
-        let blockPanState = panStateRef.current.get(activeZoomBlock.id);
-        if (!blockPanState) {
-          blockPanState = { x: 0, y: 0, initialized: false };
-          panStateRef.current.set(activeZoomBlock.id, blockPanState);
+        // Get or initialize zoom state for this specific zoom block
+        let blockZoomState = zoomStateRef.current.get(activeZoomBlock.id);
+        if (!blockZoomState) {
+          // Initialize zoom center ONCE at the start of the zoom block
+          let centerX = 0.5;
+          let centerY = 0.5;
+
+          // Get mouse position at zoom START (not current position)
+          if (cursorEvents.length > 0) {
+            const startMousePos = zoomPanCalculator.interpolateMousePosition(
+              cursorEvents,
+              activeZoomBlock.startTime // Use block start time, not current time
+            );
+            if (startMousePos) {
+              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
+              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
+              centerX = startMousePos.x / captureWidth;
+              centerY = startMousePos.y / captureHeight;
+            }
+          }
+
+          blockZoomState = {
+            centerX,
+            centerY,
+            initialized: true
+          };
+          zoomStateRef.current.set(activeZoomBlock.id, blockZoomState);
         }
 
         // Calculate zoom interpolation
@@ -98,154 +122,35 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           introMs,
           outroMs
         );
-        
-        // Initialize pan variables
+
+        // For cinematic zoom, we don't pan at all - just zoom to the fixed center
+        // This creates a stable, professional zoom effect
         let panX = 0;
         let panY = 0;
 
-        // Initialize pan position based on mouse position at zoom start
-        if (!blockPanState.initialized) {
-          let targetX = 0.5;
-          let targetY = 0.5;
-          if (cursorEvents.length > 0) {
-            const startMousePos = zoomPanCalculator.interpolateMousePosition(
-              cursorEvents,
-              activeZoomBlock.startTime
-            );
-            if (startMousePos) {
-              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
-              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-              targetX = startMousePos.x / captureWidth;
-              targetY = startMousePos.y / captureHeight;
-            }
-          }
-          
-          const initialPan = zoomPanCalculator.calculateInitialPan(
-            targetX,
-            targetY,
-            activeZoomBlock.scale || 2
-          );
-          blockPanState.x = initialPan.x;
-          blockPanState.y = initialPan.y;
-          blockPanState.initialized = true;
-        }
+        // No panning during zoom for cinematic effect
+        // The zoom simply scales towards the fixed center point
 
-        if (elapsed < introMs) {
-          // Intro phase - smoothly interpolate pan
-          const introProgress = Math.min(1, elapsed / introMs);
-          const easedProgress = smoothStep(introProgress);
-
-          // During intro, gently ease into any pan offset
-          if (cursorEvents.length > 0 && blockPanState) {
-            const mousePos = zoomPanCalculator.interpolateMousePosition(
-              cursorEvents,
-              currentTimeMs
-            );
-
-            if (mousePos) {
-              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
-              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-
-              // Calculate pan with reduced responsiveness during zoom
-              const targetPan = zoomPanCalculator.calculateSmoothPan(
-                mousePos.x,
-                mousePos.y,
-                captureWidth,
-                captureHeight,
-                scale,
-                blockPanState.x,
-                blockPanState.y
-              );
-
-              // Smoothly blend to target during intro
-              const blendFactor = easedProgress * 0.3; // Max 30% responsiveness during intro
-              blockPanState.x = blockPanState.x + (targetPan.x - blockPanState.x) * blendFactor;
-              blockPanState.y = blockPanState.y + (targetPan.y - blockPanState.y) * blendFactor;
-              
-              panX = blockPanState.x;
-              panY = blockPanState.y;
-            }
-          }
-        } else if (elapsed > blockDuration - outroMs) {
-          // Outro phase - smoothly return to center
-          const outroElapsed = elapsed - (blockDuration - outroMs);
-          const outroProgress = Math.min(1, outroElapsed / outroMs);
-          const easedProgress = smoothStep(outroProgress);
-
-          // Smoothly transition pan back to center during outro
-          if (blockPanState) {
-            const fadeOutPan = 1 - easedProgress;
-            panX = blockPanState.x * fadeOutPan;
-            panY = blockPanState.y * fadeOutPan;
-          }
-          
-        } else {
-          // Hold phase - use edge-based panning
-
-          // Get interpolated mouse position at current time
-          const mousePos = zoomPanCalculator.interpolateMousePosition(
-            cursorEvents,
-            currentTimeMs
-          );
-
-          if (mousePos && cursorEvents.length > 0) {
-            // Get capture dimensions from the first event
-            const captureWidth = cursorEvents[0].captureWidth || videoWidth;
-            const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-            
-            // Use edge-based pan calculator with block-specific state
-            if (blockPanState) {
-              const panOffset = zoomPanCalculator.calculateSmoothPan(
-                mousePos.x,
-                mousePos.y,
-                captureWidth,
-                captureHeight,
-                scale,
-                blockPanState.x,
-                blockPanState.y
-              );
-
-              // Update pan position with smooth interpolation
-              blockPanState.x = panOffset.x;
-              blockPanState.y = panOffset.y;
-              
-              panX = blockPanState.x;
-              panY = blockPanState.y;
-            }
-          } else if (blockPanState) {
-            // No mouse events, use current pan
-            panX = blockPanState.x;
-            panY = blockPanState.y;
-          }
-        }
-
-        // Get mouse position at zoom START for zoom center (not current position)
-        // This ensures zoom centers on where the mouse was when zoom started
-        let x = 0.5;
-        let y = 0.5;
-        if (cursorEvents.length > 0) {
-          const zoomStartMousePos = zoomPanCalculator.interpolateMousePosition(
-            cursorEvents,
-            activeZoomBlock.startTime  // Use zoom block start time, not current time
-          );
-          if (zoomStartMousePos) {
-            const captureWidth = cursorEvents[0].captureWidth || videoWidth;
-            const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-            x = zoomStartMousePos.x / captureWidth;
-            y = zoomStartMousePos.y / captureHeight;
-          }
-        }
-
+        // Use the fixed zoom center from block initialization
         zoomState = {
           scale,
-          x,
-          y,
-          panX,
-          panY
+          x: blockZoomState.centerX,
+          y: blockZoomState.centerY,
+          panX: 0,  // No panning for cinematic zoom
+          panY: 0   // No panning for cinematic zoom
         };
       } else {
-        // No active zoom block - no pan needed
-        // Pan state is preserved per block for consistency
+        // No active zoom block - clear any cached states for memory efficiency
+        // Only keep states for blocks within 5 seconds of current time
+        const currentTime = currentTimeMs;
+        const keysToDelete: string[] = [];
+        zoomStateRef.current.forEach((_, blockId) => {
+          const block = zoomBlocks.find(b => b.id === blockId);
+          if (block && (currentTime < block.startTime - 5000 || currentTime > block.endTime + 5000)) {
+            keysToDelete.push(blockId);
+          }
+        });
+        keysToDelete.forEach(key => zoomStateRef.current.delete(key));
       }
     }
 
@@ -275,8 +180,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             videoWidth={videoWidth}
             videoHeight={videoHeight}
             captureArea={captureArea}
-            preCalculatedPan={completeZoomState.scale > 1 ? { x: completeZoomState.panX, y: completeZoomState.panY } : undefined}
-            mousePosition={completeZoomState.scale > 1 ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
+            zoomCenter={completeZoomState.scale > 1 ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
           />
         </Sequence>
       )}

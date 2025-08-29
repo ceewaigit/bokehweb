@@ -29,8 +29,7 @@ export interface VideoLayerProps {
     width: number;
     height: number;
   };
-  preCalculatedPan?: { x: number; y: number };
-  mousePosition?: { x: number; y: number };
+  zoomCenter?: { x: number; y: number };
 }
 
 export interface BackgroundLayerProps {

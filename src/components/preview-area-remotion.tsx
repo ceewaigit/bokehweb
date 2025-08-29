@@ -127,7 +127,7 @@ export function PreviewAreaRemotion({
     effects: localEffects || clipEffects || null,
     cursorEvents: previewRecording?.metadata?.mouseEvents || [],
     clickEvents: previewRecording?.metadata?.clickEvents || [],
-    keystrokeEvents: (previewRecording?.metadata as any)?.keystrokeEvents || [],
+    keystrokeEvents: (previewRecording?.metadata as any)?.keyboardEvents || [],
     videoWidth,
     videoHeight,
     captureArea: undefined
