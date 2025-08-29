@@ -29,8 +29,8 @@ import {
   RemoveClipCommand,
   SplitClipCommand,
   DuplicateClipCommand,
-  TrimStartCommand,
-  TrimEndCommand
+  TrimCommand,
+  CopyCommand
 } from '@/lib/commands'
 
 interface TimelineCanvasProps {
@@ -190,10 +190,11 @@ export function TimelineCanvas({
 
   const handleTrimStart = useCallback(async () => {
     if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
-      const command = new TrimStartCommand(
+      const command = new TrimCommand(
         commandContextRef.current,
         selectedClips[0],
-        currentTime
+        currentTime,
+        'start'
       )
       await commandManagerRef.current.execute(command)
     }
@@ -201,10 +202,11 @@ export function TimelineCanvas({
 
   const handleTrimEnd = useCallback(async () => {
     if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
-      const command = new TrimEndCommand(
+      const command = new TrimCommand(
         commandContextRef.current,
         selectedClips[0],
-        currentTime
+        currentTime,
+        'end'
       )
       await commandManagerRef.current.execute(command)
     }
@@ -541,20 +543,22 @@ export function TimelineCanvas({
           }}
           onTrimStart={async (id) => {
             if (commandManagerRef.current && commandContextRef.current) {
-              const command = new TrimStartCommand(
+              const command = new TrimCommand(
                 commandContextRef.current,
                 id,
-                currentTime
+                currentTime,
+                'start'
               )
               await commandManagerRef.current.execute(command)
             }
           }}
           onTrimEnd={async (id) => {
             if (commandManagerRef.current && commandContextRef.current) {
-              const command = new TrimEndCommand(
+              const command = new TrimCommand(
                 commandContextRef.current,
                 id,
-                currentTime
+                currentTime,
+                'end'
               )
               await commandManagerRef.current.execute(command)
             }
@@ -568,8 +572,14 @@ export function TimelineCanvas({
               await commandManagerRef.current.execute(command)
             }
           }}
-          onCopy={() => {
-            // Copy is handled by keyboard shortcuts
+          onCopy={async (id) => {
+            if (commandManagerRef.current && commandContextRef.current) {
+              const command = new CopyCommand(
+                commandContextRef.current,
+                id
+              )
+              await commandManagerRef.current.execute(command)
+            }
           }}
           onDelete={async (id) => {
             if (commandManagerRef.current && commandContextRef.current) {

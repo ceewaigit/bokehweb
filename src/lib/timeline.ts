@@ -32,10 +32,30 @@ export class TimelineUtils {
   }
 
   static calculateTimelineWidth(duration: number, pixelsPerMs: number, minWidth: number): number {
-    // Ensure timeline uses full available width
-    const calculatedWidth = duration * pixelsPerMs
+    // Add 30% extra padding beyond the last clip for better editing experience
+    const extraPadding = duration * 0.3
+    const totalDuration = duration + extraPadding
+    const calculatedWidth = totalDuration * pixelsPerMs
     const minUsableWidth = minWidth - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
     return Math.max(calculatedWidth, minUsableWidth)
+  }
+
+  static calculateOptimalZoom(duration: number, viewportWidth: number): number {
+    // We want to show the full duration plus 10% padding on screen initially
+    const targetDuration = duration * 1.1
+    
+    // Base scale is 10 seconds visible at zoom 1.0
+    const baseVisibleDuration = 10000 // 10 seconds in ms
+    
+    // Calculate required zoom to fit target duration in viewport
+    const optimalZoom = baseVisibleDuration / targetDuration
+    
+    // Clamp zoom to reasonable values
+    // Minimum 0.1 (very zoomed out), maximum 2.0 (for initial view)
+    const clampedZoom = Math.max(0.1, Math.min(2.0, optimalZoom))
+    
+    // Round to nearest 0.05 for cleaner values
+    return Math.round(clampedZoom * 20) / 20
   }
 
 

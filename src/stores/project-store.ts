@@ -6,7 +6,8 @@ import {
   type Recording,
   type ClipEffects,
   type Track,
-  type ZoomBlock
+  type ZoomBlock,
+  type Effect
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
@@ -78,6 +79,7 @@ interface ProjectStore {
   currentTime: number
   isPlaying: boolean
   zoom: number
+  zoomManuallyAdjusted: boolean
   selectedClipId: string | null
   selectedClips: string[]
   selectedEffectLayer: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
@@ -122,7 +124,8 @@ interface ProjectStore {
   play: () => void
   pause: () => void
   seek: (time: number) => void
-  setZoom: (zoom: number) => void
+  setZoom: (zoom: number, isManual?: boolean) => void
+  setAutoZoom: (zoom: number) => void
 
   // Getters
   getCurrentClip: () => Clip | null
@@ -130,6 +133,14 @@ interface ProjectStore {
 
   // Cleanup
   cleanupProject: () => void
+
+  // New: Independent Effects Management
+  addEffect: (effect: Effect) => void
+  removeEffect: (effectId: string) => void
+  updateEffect: (effectId: string, updates: Partial<Effect>) => void
+  getEffectsForClip: (clipId: string) => Effect[]
+  duplicateEffectsForClip: (sourceClipId: string, targetClipId: string) => void
+  adjustEffectsForClipChange: (clipId: string, changeType: 'split' | 'trim', params: any) => void
 }
 
 export const useProjectStore = create<ProjectStore>()(
@@ -138,6 +149,7 @@ export const useProjectStore = create<ProjectStore>()(
     currentTime: 0,
     isPlaying: false,
     zoom: 0.5,
+    zoomManuallyAdjusted: false,
     selectedClipId: null,
     selectedClips: [],
     selectedEffectLayer: null,
@@ -149,6 +161,7 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClipId = null
         state.selectedClips = []
         state.selectedEffectLayer = null
+        state.zoomManuallyAdjusted = false
       })
     },
 
@@ -158,6 +171,7 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClipId = null
         state.selectedClips = []
         state.selectedEffectLayer = null
+        state.zoomManuallyAdjusted = false
       })
     },
 
@@ -180,6 +194,7 @@ export const useProjectStore = create<ProjectStore>()(
         set((state) => {
           state.currentProject = project
           state.selectedClipId = null
+          state.zoomManuallyAdjusted = false
         })
       } catch (error) {
         console.error('Failed to open project:', error)
@@ -511,20 +526,41 @@ export const useProjectStore = create<ProjectStore>()(
         if (splitTime <= clip.startTime || splitTime >= clip.startTime + clip.duration) return
 
         const splitPoint = splitTime - clip.startTime
+        const timestamp = Date.now()
 
+        // Create first clip
         const firstClip: Clip = {
-          ...clip,
-          id: `${clip.id}-split1-${Date.now()}`,
+          ...structuredClone(clip),
+          id: `${clip.id}-split1-${timestamp}`,
           duration: splitPoint,
           sourceOut: clip.sourceIn + splitPoint
         }
 
+        // Create second clip
         const secondClip: Clip = {
-          ...clip,
-          id: `${clip.id}-split2-${Date.now()}`,
+          ...structuredClone(clip),
+          id: `${clip.id}-split2-${timestamp}`,
           startTime: splitTime,
           duration: clip.duration - splitPoint,
           sourceIn: clip.sourceIn + splitPoint
+        }
+
+        // Split zoom blocks between clips
+        if (clip.effects?.zoom?.blocks) {
+          firstClip.effects.zoom.blocks = clip.effects.zoom.blocks
+            .filter(block => block.startTime < splitPoint)
+            .map(block => ({
+              ...block,
+              endTime: Math.min(block.endTime, splitPoint)
+            }))
+
+          secondClip.effects.zoom.blocks = clip.effects.zoom.blocks
+            .filter(block => block.endTime > splitPoint)
+            .map(block => ({
+              ...block,
+              startTime: Math.max(0, block.startTime - splitPoint),
+              endTime: block.endTime - splitPoint
+            }))
         }
 
         const clipIndex = track.clips.findIndex(c => c.id === clipId)
@@ -552,9 +588,25 @@ export const useProjectStore = create<ProjectStore>()(
         if (newStartTime >= clip.startTime + clip.duration || newStartTime < 0) return
 
         const trimAmount = newStartTime - clip.startTime
+        const oldDuration = clip.duration
+        
+        // Update clip timing
         clip.startTime = newStartTime
         clip.duration -= trimAmount
         clip.sourceIn += trimAmount
+
+        // Adjust effects for the trim
+        if (clip.effects?.zoom?.blocks) {
+          // Remove blocks that are completely trimmed out
+          // and adjust remaining blocks
+          clip.effects.zoom.blocks = clip.effects.zoom.blocks
+            .filter(block => block.endTime > trimAmount)
+            .map(block => ({
+              ...block,
+              startTime: Math.max(0, block.startTime - trimAmount),
+              endTime: block.endTime - trimAmount
+            }))
+        }
 
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
@@ -573,8 +625,23 @@ export const useProjectStore = create<ProjectStore>()(
 
         if (newEndTime <= clip.startTime || newEndTime < 0) return
 
-        clip.duration = newEndTime - clip.startTime
+        const newDuration = newEndTime - clip.startTime
+        
+        // Update clip timing
+        clip.duration = newDuration
         clip.sourceOut = clip.sourceIn + clip.duration
+
+        // Adjust effects for the trim
+        if (clip.effects?.zoom?.blocks) {
+          // Remove blocks that start after the new duration
+          // and trim blocks that extend past it
+          clip.effects.zoom.blocks = clip.effects.zoom.blocks
+            .filter(block => block.startTime < newDuration)
+            .map(block => ({
+              ...block,
+              endTime: Math.min(block.endTime, newDuration)
+            }))
+        }
 
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
@@ -728,9 +795,21 @@ export const useProjectStore = create<ProjectStore>()(
       })
     },
 
-    setZoom: (zoom) => {
+    setZoom: (zoom, isManual = true) => {
       set((state) => {
         state.zoom = Math.max(0.1, Math.min(10, zoom))
+        if (isManual) {
+          state.zoomManuallyAdjusted = true
+        }
+      })
+    },
+
+    setAutoZoom: (zoom) => {
+      set((state) => {
+        // Only set auto zoom if user hasn't manually adjusted
+        if (!state.zoomManuallyAdjusted) {
+          state.zoom = Math.max(0.1, Math.min(10, zoom))
+        }
       })
     },
 
@@ -776,6 +855,163 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClipId = null
         state.selectedClips = []
         state.selectedEffectLayer = null
+      })
+    },
+
+    // New: Independent Effects Management
+    addEffect: (effect) => {
+      set((state) => {
+        if (!state.currentProject) return
+        
+        // Initialize effects array if it doesn't exist
+        if (!state.currentProject.timeline.effects) {
+          state.currentProject.timeline.effects = []
+        }
+        
+        state.currentProject.timeline.effects.push(effect)
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
+    },
+
+    removeEffect: (effectId) => {
+      set((state) => {
+        if (!state.currentProject || !state.currentProject.timeline.effects) return
+        
+        const index = state.currentProject.timeline.effects.findIndex(e => e.id === effectId)
+        if (index !== -1) {
+          state.currentProject.timeline.effects.splice(index, 1)
+          state.currentProject.modifiedAt = new Date().toISOString()
+        }
+      })
+    },
+
+    updateEffect: (effectId, updates) => {
+      set((state) => {
+        if (!state.currentProject || !state.currentProject.timeline.effects) return
+        
+        const effect = state.currentProject.timeline.effects.find(e => e.id === effectId)
+        if (effect) {
+          Object.assign(effect, updates)
+          state.currentProject.modifiedAt = new Date().toISOString()
+        }
+      })
+    },
+
+    getEffectsForClip: (clipId) => {
+      const { currentProject } = get()
+      if (!currentProject?.timeline.effects) return []
+      
+      return currentProject.timeline.effects.filter(e => e.clipId === clipId)
+    },
+
+    duplicateEffectsForClip: (sourceClipId, targetClipId) => {
+      set((state) => {
+        if (!state.currentProject) return
+        
+        // Initialize effects array if needed
+        if (!state.currentProject.timeline.effects) {
+          state.currentProject.timeline.effects = []
+        }
+        
+        const sourceEffects = state.currentProject.timeline.effects.filter(
+          e => e.clipId === sourceClipId
+        )
+        
+        const duplicatedEffects = sourceEffects.map(effect => ({
+          ...structuredClone(effect),
+          id: `${effect.id}-copy-${Date.now()}`,
+          clipId: targetClipId
+        }))
+        
+        state.currentProject.timeline.effects.push(...duplicatedEffects)
+        state.currentProject.modifiedAt = new Date().toISOString()
+      })
+    },
+
+    adjustEffectsForClipChange: (clipId, changeType, params) => {
+      set((state) => {
+        if (!state.currentProject || !state.currentProject.timeline.effects) return
+        
+        const clipEffects = state.currentProject.timeline.effects.filter(
+          e => e.clipId === clipId
+        )
+        
+        if (changeType === 'split') {
+          const { splitPoint, leftClipId, rightClipId } = params
+          
+          clipEffects.forEach(effect => {
+            if (effect.endTime <= splitPoint) {
+              // Effect stays with left clip
+              effect.clipId = leftClipId
+            } else if (effect.startTime >= splitPoint) {
+              // Effect moves to right clip with adjusted timing
+              effect.clipId = rightClipId
+              effect.startTime -= splitPoint
+              effect.endTime -= splitPoint
+            } else {
+              // Effect spans the split point - duplicate and adjust
+              const leftEffect = structuredClone(effect)
+              leftEffect.id = `${effect.id}-left`
+              leftEffect.clipId = leftClipId
+              leftEffect.endTime = splitPoint
+              
+              const rightEffect = structuredClone(effect)
+              rightEffect.id = `${effect.id}-right`
+              rightEffect.clipId = rightClipId
+              rightEffect.startTime = 0
+              rightEffect.endTime -= splitPoint
+              
+              // Remove original and add split versions
+              const effects = state.currentProject!.timeline.effects!
+              const index = effects.findIndex(e => e.id === effect.id)
+              if (index !== -1) {
+                effects.splice(index, 1, leftEffect, rightEffect)
+              }
+            }
+          })
+        } else if (changeType === 'trim') {
+          const { side, trimAmount } = params
+          
+          if (side === 'start') {
+            // Remove effects that are completely trimmed out
+            // and adjust remaining effects
+            clipEffects.forEach(effect => {
+              if (effect.endTime <= trimAmount) {
+                // Remove effect
+                const index = state.currentProject!.timeline.effects!.findIndex(
+                  e => e.id === effect.id
+                )
+                if (index !== -1) {
+                  state.currentProject!.timeline.effects!.splice(index, 1)
+                }
+              } else {
+                // Adjust timing
+                effect.startTime = Math.max(0, effect.startTime - trimAmount)
+                effect.endTime -= trimAmount
+              }
+            })
+          } else {
+            // Trim end - remove effects that start after new duration
+            const { newDuration } = params
+            
+            clipEffects.forEach(effect => {
+              if (effect.startTime >= newDuration) {
+                // Remove effect
+                const index = state.currentProject!.timeline.effects!.findIndex(
+                  e => e.id === effect.id
+                )
+                if (index !== -1) {
+                  state.currentProject!.timeline.effects!.splice(index, 1)
+                }
+              } else if (effect.endTime > newDuration) {
+                // Trim effect end time
+                effect.endTime = newDuration
+              }
+            })
+          }
+        }
+        
+        state.currentProject.modifiedAt = new Date().toISOString()
       })
     }
   }))

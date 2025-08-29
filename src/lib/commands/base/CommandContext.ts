@@ -21,6 +21,8 @@ interface ProjectStore {
   removeZoomBlock: (clipId: string, blockId: string) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
   splitClip: (clipId: string, splitTime: number) => void
+  trimClipStart: (clipId: string, newStartTime: number) => void
+  trimClipEnd: (clipId: string, newEndTime: number) => void
   duplicateClip: (clipId: string) => string | null
   copyClip: (clip: Clip) => void
   copyEffect: (type: 'zoom' | 'cursor' | 'background', data: any, sourceClipId: string) => void

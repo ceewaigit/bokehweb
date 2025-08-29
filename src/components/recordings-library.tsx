@@ -111,7 +111,8 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                           if (!recording.project.timeline) {
                             recording.project.timeline = {
                               tracks: [],
-                              duration: videoDuration
+                              duration: videoDuration,
+                              effects: []
                             }
                           } else {
                             recording.project.timeline.duration = videoDuration

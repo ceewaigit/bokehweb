@@ -166,7 +166,8 @@ export class RecordingStorage {
             locked: false
           }
         ],
-        duration: 0
+        duration: 0,
+        effects: []  // Initialize effects array
       },
       settings: {
         resolution: { width: 1920, height: 1080 },
@@ -293,10 +294,10 @@ export class RecordingStorage {
       const firstMouseEvent = metadata.find(m => m.eventType === 'mouse' && m.captureWidth && m.captureHeight)
       const captureWidth = firstMouseEvent?.captureWidth || captureArea?.fullBounds?.width || width
       const captureHeight = firstMouseEvent?.captureHeight || captureArea?.fullBounds?.height || height
-      
+
       const firstEventWithBounds = metadata.find(m => m.sourceBounds)
       const sourceBounds = firstEventWithBounds?.sourceBounds
-      
+
       const mouseEvents = metadata
         .filter(m => m.eventType === 'mouse')
         .map(m => ({

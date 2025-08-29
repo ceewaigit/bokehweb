@@ -13,8 +13,7 @@ export {
   SplitClipCommand,
   DuplicateClipCommand,
   UpdateClipCommand,
-  TrimStartCommand,
-  TrimEndCommand
+  TrimCommand
 } from './timeline'
 
 // Effect commands
@@ -39,8 +38,7 @@ import { RemoveClipCommand } from './timeline/RemoveClipCommand'
 import { SplitClipCommand } from './timeline/SplitClipCommand'
 import { DuplicateClipCommand } from './timeline/DuplicateClipCommand'
 import { UpdateClipCommand } from './timeline/UpdateClipCommand'
-import { TrimStartCommand } from './timeline/TrimStartCommand'
-import { TrimEndCommand } from './timeline/TrimEndCommand'
+import { TrimCommand } from './timeline/TrimCommand'
 import { AddZoomBlockCommand } from './effects/AddZoomBlockCommand'
 import { RemoveZoomBlockCommand } from './effects/RemoveZoomBlockCommand'
 import { UpdateZoomBlockCommand } from './effects/UpdateZoomBlockCommand'
@@ -56,8 +54,7 @@ export function registerAllCommands(manager: CommandManager): void {
   manager.registerCommand('SplitClip', SplitClipCommand as any)
   manager.registerCommand('DuplicateClip', DuplicateClipCommand as any)
   manager.registerCommand('UpdateClip', UpdateClipCommand as any)
-  manager.registerCommand('TrimStart', TrimStartCommand as any)
-  manager.registerCommand('TrimEnd', TrimEndCommand as any)
+  manager.registerCommand('Trim', TrimCommand as any)
   
   // Effect commands
   manager.registerCommand('AddZoomBlock', AddZoomBlockCommand as any)

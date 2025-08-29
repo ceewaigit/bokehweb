@@ -117,6 +117,8 @@ export interface ScreenEvent {
 export interface Timeline {
   tracks: Track[]
   duration: number
+  // Effects are stored independently
+  effects: Effect[]
 }
 
 export interface Track {
@@ -140,12 +142,30 @@ export interface Clip {
   sourceIn: number     // Start point in source recording
   sourceOut: number    // End point in source recording
 
-  // Applied effects (non-destructive)
+  // Applied effects (will be migrated to independent effects)
   effects: ClipEffects
 
   // Transitions
   transitionIn?: Transition
   transitionOut?: Transition
+}
+
+// New: Independent effect entity
+export interface Effect {
+  id: string
+  type: 'zoom' | 'cursor' | 'background' | 'annotation'
+  clipId: string  // Associated clip
+  
+  // Timing relative to clip
+  startTime: number  // Start time relative to clip
+  endTime: number    // End time relative to clip
+  
+  // Effect-specific data
+  data: ZoomEffectData | CursorEffectData | BackgroundEffectData | AnnotationData
+  
+  // Common properties
+  enabled: boolean
+  locked?: boolean
 }
 
 export interface ClipEffects {
@@ -207,6 +227,46 @@ export interface ZoomBlock {
   targetY?: number
   introMs?: number  // Duration of zoom in animation
   outroMs?: number  // Duration of zoom out animation
+}
+
+// New: Effect-specific data types for independent effects
+export interface ZoomEffectData {
+  scale: number
+  targetX?: number
+  targetY?: number
+  introMs: number
+  outroMs: number
+  smoothing: number
+}
+
+export interface CursorEffectData {
+  style: 'default' | 'macOS' | 'custom'
+  size: number
+  color: string
+  clickEffects: boolean
+  motionBlur: boolean
+  hideOnIdle: boolean
+  idleTimeout: number
+}
+
+export interface BackgroundEffectData {
+  type: 'none' | 'color' | 'gradient' | 'image' | 'wallpaper'
+  color?: string
+  gradient?: {
+    colors: string[]
+    angle: number
+  }
+  image?: string
+  wallpaper?: string
+  blur?: number
+  padding: number
+}
+
+export interface AnnotationData {
+  type: 'text' | 'arrow' | 'highlight' | 'keyboard'
+  position: { x: number; y: number }
+  content?: string
+  style?: any
 }
 
 export interface Annotation {

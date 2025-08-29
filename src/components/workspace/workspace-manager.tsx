@@ -20,6 +20,7 @@ import type { ClipEffects, ZoomBlock } from '@/types/project'
 import { DEFAULT_CLIP_EFFECTS, SCREEN_STUDIO_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
+import { TimelineUtils } from '@/lib/timeline'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -130,6 +131,11 @@ async function loadProjectRecording(
 
   // Set the project ONCE after all recordings are processed
   useProjectStore.getState().setProject(project)
+
+  // Calculate and set optimal zoom for the timeline
+  const viewportWidth = window.innerWidth
+  const optimalZoom = TimelineUtils.calculateOptimalZoom(project.timeline.duration, viewportWidth)
+  useProjectStore.getState().setAutoZoom(optimalZoom)
 
   // Apply wallpaper to all clips that need it
   const wallpaper = DEFAULT_CLIP_EFFECTS.background.wallpaper ||
@@ -591,6 +597,14 @@ export function WorkspaceManager() {
               setLocalEffects(null)
               setHasUnsavedChanges(false)
               setLastSavedAt(useProjectStore.getState().currentProject?.modifiedAt || null)
+              
+              // Calculate and set optimal zoom for the opened project
+              const project = useProjectStore.getState().currentProject
+              if (project) {
+                const viewportWidth = window.innerWidth
+                const optimalZoom = TimelineUtils.calculateOptimalZoom(project.timeline.duration, viewportWidth)
+                useProjectStore.getState().setAutoZoom(optimalZoom)
+              }
             }}
             onBackToLibrary={() => {
               // Clean up resources and navigate back to library
