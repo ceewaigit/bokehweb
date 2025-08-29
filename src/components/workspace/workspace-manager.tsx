@@ -428,7 +428,7 @@ export function WorkspaceManager() {
     selectClip(clipId)
   }, [selectClip])
 
-  const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background', data: any) => {
+  const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
     if (!selectedClipId) return
 
     // Work with local effects or fall back to saved effects

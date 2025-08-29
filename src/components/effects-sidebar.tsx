@@ -6,11 +6,12 @@ import {
   Palette,
   MousePointer,
   Square,
+  Keyboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import type { Clip, Effect, BackgroundEffectData, CursorEffectData, ZoomEffectData } from '@/types/project'
+import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ZoomEffectData } from '@/types/project'
 
 const WALLPAPERS = [
   { id: 'gradient-1', colors: ['#FF6B6B', '#4ECDC4'] },
@@ -34,8 +35,8 @@ interface EffectsSidebarProps {
   className?: string
   selectedClip: Clip | null
   effects: Effect[] | undefined
-  selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
-  onEffectChange: (type: 'zoom' | 'cursor' | 'background', data: any) => void
+  selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'keystroke' | 'background'; id?: string } | null
+  onEffectChange: (type: 'zoom' | 'cursor' | 'keystroke' | 'background', data: any) => void
 }
 
 export function EffectsSidebar({
@@ -45,13 +46,14 @@ export function EffectsSidebar({
   selectedEffectLayer,
   onEffectChange
 }: EffectsSidebarProps) {
-  const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
+  const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'keystroke' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
 
   // Extract current effects from the array
   const backgroundEffect = effects?.find(e => e.type === 'background' && e.enabled)
   const cursorEffect = effects?.find(e => e.type === 'cursor')  // Don't filter by enabled for cursor
+  const keystrokeEffect = effects?.find(e => e.type === 'keystroke')  // Don't filter by enabled for keystroke
   const zoomEffects = effects?.filter(e => e.type === 'zoom' && e.enabled) || []
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
@@ -102,12 +104,15 @@ export function EffectsSidebar({
     )
   }
 
-  const updateEffect = (category: 'background' | 'cursor' | 'zoom', updates: any) => {
+  const updateEffect = (category: 'background' | 'cursor' | 'zoom' | 'keystroke', updates: any) => {
     if (!selectedClip) return
 
     // For cursor effects, preserve all existing data
     if (category === 'cursor' && cursorEffect) {
       const currentData = cursorEffect.data as CursorEffectData
+      onEffectChange(category, { ...currentData, ...updates })
+    } else if (category === 'keystroke' && keystrokeEffect) {
+      const currentData = keystrokeEffect.data as KeystrokeEffectData
       onEffectChange(category, { ...currentData, ...updates })
     } else {
       onEffectChange(category, updates)
@@ -164,6 +169,18 @@ export function EffectsSidebar({
         >
           <MousePointer className="w-3 h-3" />
           <span className="hidden sm:inline">Cursor</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('keystroke')}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            activeTab === 'keystroke'
+              ? "bg-primary/10 text-primary shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+          )}
+        >
+          <Keyboard className="w-3 h-3" />
+          <span className="hidden sm:inline">Keys</span>
         </button>
         <button
           onClick={() => setActiveTab('zoom')}
@@ -574,6 +591,92 @@ export function EffectsSidebar({
                     <span className="text-[10px] text-muted-foreground/70 font-mono">{(((cursorEffect?.data as CursorEffectData).idleTimeout ?? 3000) / 1000).toFixed(1)}s</span>
                   </div>
                 )}
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'keystroke' && (
+          <div className="space-y-3">
+            {/* Master keystroke visibility toggle */}
+            <div className="p-3 bg-background/30 rounded-lg ">
+              <label className="text-xs font-medium flex items-center justify-between">
+                <span className="uppercase tracking-wider text-[10px]">Show Keystrokes</span>
+                <Switch
+                  checked={keystrokeEffect?.enabled ?? false}
+                  onCheckedChange={(checked) => {
+                    if (keystrokeEffect) {
+                      // Update existing keystroke effect's enabled state
+                      const currentData = keystrokeEffect.data as KeystrokeEffectData
+                      onEffectChange('keystroke', { ...currentData, enabled: checked })
+                    } else {
+                      // Create new keystroke effect
+                      onEffectChange('keystroke', {
+                        position: 'bottom-center',
+                        fontSize: 16,
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        textColor: '#ffffff',
+                        borderColor: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: 6,
+                        padding: 12,
+                        fadeOutDuration: 300,
+                        maxWidth: 300,
+                        enabled: checked
+                      })
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {/* Keystroke settings */}
+            {keystrokeEffect?.enabled && (
+              <>
+                <div className="space-y-2 p-3 bg-background/30 rounded-lg">
+                  <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Position</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(['bottom-center', 'bottom-right', 'top-center'] as const).map((pos) => (
+                      <button
+                        key={pos}
+                        onClick={() => updateEffect('keystroke', { position: pos })}
+                        className={cn(
+                          "px-2 py-1 text-[10px] rounded transition-all",
+                          (keystrokeEffect?.data as KeystrokeEffectData)?.position === pos
+                            ? "bg-primary/20 text-primary"
+                            : "bg-background/50 text-muted-foreground hover:bg-background/70"
+                        )}
+                      >
+                        {pos.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2 p-3 bg-background/30 rounded-lg">
+                  <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Font Size</label>
+                  <Slider
+                    value={[(keystrokeEffect?.data as KeystrokeEffectData)?.fontSize ?? 16]}
+                    onValueChange={([value]) => updateEffect('keystroke', { fontSize: value })}
+                    min={12}
+                    max={24}
+                    step={1}
+                    className="w-full"
+                  />
+                  <span className="text-[10px] text-muted-foreground/70 font-mono">{(keystrokeEffect?.data as KeystrokeEffectData)?.fontSize ?? 16}px</span>
+                </div>
+
+                <div className="space-y-2 p-3 bg-background/30 rounded-lg">
+                  <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Fade Duration</label>
+                  <Slider
+                    value={[((keystrokeEffect?.data as KeystrokeEffectData)?.fadeOutDuration ?? 300) / 100]}
+                    onValueChange={([value]) => updateEffect('keystroke', { fadeOutDuration: value * 100 })}
+                    min={1}
+                    max={10}
+                    step={0.5}
+                    className="w-full"
+                  />
+                  <span className="text-[10px] text-muted-foreground/70 font-mono">{(((keystrokeEffect?.data as KeystrokeEffectData)?.fadeOutDuration ?? 300) / 100).toFixed(1)}s</span>
+                </div>
               </>
             )}
           </div>

@@ -444,6 +444,29 @@ export class RecordingStorage {
         enabled: true
       })
 
+      // Add keystroke effect if keyboard events exist
+      if (keyboardEvents.length > 0) {
+        project.timeline.effects!.push({
+          id: `keystroke-${clip.id}`,
+          type: 'keystroke',
+          clipId: clip.id,
+          startTime: 0,
+          endTime: duration,
+          data: {
+            position: 'bottom-center',
+            fontSize: 16,
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            textColor: '#ffffff',
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+            borderRadius: 6,
+            padding: 12,
+            fadeOutDuration: 300,
+            maxWidth: 300
+          },
+          enabled: true
+        })
+      }
+
       // Save project file
       const projectPath = await this.saveProject(project, `${baseName}.ssproj`)
 

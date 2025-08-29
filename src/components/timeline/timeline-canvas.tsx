@@ -95,13 +95,17 @@ export function TimelineCanvas({
   const timelineWidth = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
   // Show zoom track if ANY zoom effects exist
   const hasZoomTrack = currentProject?.timeline.effects?.some(e => e.type === 'zoom' && e.enabled) ?? false
+  // Show keystroke track if ANY keystroke effects exist
+  const hasKeystrokeTrack = currentProject?.timeline.effects?.some(e => e.type === 'keystroke' && e.enabled) ?? false
 
   // Dynamic track heights
   const rulerHeight = TIMELINE_LAYOUT.RULER_HEIGHT
   const remainingHeight = stageSize.height - rulerHeight
-  const videoTrackHeight = Math.floor(remainingHeight * (hasZoomTrack ? 0.45 : 0.55))
-  const audioTrackHeight = Math.floor(remainingHeight * (hasZoomTrack ? 0.35 : 0.45))
-  const zoomTrackHeight = hasZoomTrack ? Math.floor(remainingHeight * 0.2) : 0
+  const totalTracks = 2 + (hasZoomTrack ? 1 : 0) + (hasKeystrokeTrack ? 1 : 0)
+  const videoTrackHeight = Math.floor(remainingHeight * (totalTracks === 2 ? 0.55 : totalTracks === 3 ? 0.4 : 0.35))
+  const audioTrackHeight = Math.floor(remainingHeight * (totalTracks === 2 ? 0.45 : totalTracks === 3 ? 0.3 : 0.25))
+  const zoomTrackHeight = hasZoomTrack ? Math.floor(remainingHeight * (totalTracks === 4 ? 0.2 : 0.3)) : 0
+  const keystrokeTrackHeight = hasKeystrokeTrack ? Math.floor(remainingHeight * (totalTracks === 4 ? 0.2 : totalTracks === 3 ? 0.3 : 0.25)) : 0
   const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
 
   // Initialize command manager
@@ -345,9 +349,18 @@ export function TimelineCanvas({
               />
             )}
 
+            {hasKeystrokeTrack && (
+              <TimelineTrack
+                type="keystroke"
+                y={rulerHeight + videoTrackHeight + zoomTrackHeight}
+                width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
+                height={keystrokeTrackHeight}
+              />
+            )}
+
             <TimelineTrack
               type="audio"
-              y={rulerHeight + videoTrackHeight + zoomTrackHeight}
+              y={rulerHeight + videoTrackHeight + zoomTrackHeight + keystrokeTrackHeight}
               width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
               height={audioTrackHeight}
             />
@@ -512,7 +525,7 @@ export function TimelineCanvas({
                   key={clip.id}
                   clip={clip}
                   trackType="audio"
-                  trackY={rulerHeight + videoTrackHeight + zoomTrackHeight}
+                  trackY={rulerHeight + videoTrackHeight + zoomTrackHeight + keystrokeTrackHeight}
                   trackHeight={audioTrackHeight}
                   pixelsPerMs={pixelsPerMs}
                   isSelected={selectedClips.includes(clip.id)}
