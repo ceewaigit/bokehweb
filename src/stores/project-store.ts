@@ -516,14 +516,27 @@ export const useProjectStore = create<ProjectStore>()(
 
     splitClip: (clipId, splitTime) => {
       set((state) => {
-        if (!state.currentProject) return
+        if (!state.currentProject) {
+          console.error('splitClip: No current project')
+          return
+        }
 
         const result = findClipById(state.currentProject, clipId)
-        if (!result) return
+        if (!result) {
+          console.error('splitClip: Clip not found:', clipId)
+          return
+        }
 
         const { clip, track } = result
 
-        if (splitTime <= clip.startTime || splitTime >= clip.startTime + clip.duration) return
+        if (splitTime <= clip.startTime || splitTime >= clip.startTime + clip.duration) {
+          console.error('splitClip: Invalid split time', {
+            splitTime,
+            clipStart: clip.startTime,
+            clipEnd: clip.startTime + clip.duration
+          })
+          return
+        }
 
         const splitPoint = splitTime - clip.startTime
         const timestamp = Date.now()

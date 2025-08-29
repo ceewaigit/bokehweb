@@ -532,13 +532,20 @@ export function TimelineCanvas({
           y={contextMenu.y}
           clipId={contextMenu.clipId}
           onSplit={async (id) => {
+            console.log('Context menu split clicked for clip:', id, 'at time:', currentTime)
             if (commandManagerRef.current && commandContextRef.current) {
               const command = new SplitClipCommand(
                 commandContextRef.current,
                 id,
                 currentTime
               )
-              await commandManagerRef.current.execute(command)
+              const result = await commandManagerRef.current.execute(command)
+              console.log('Split command result:', result)
+              if (!result.success) {
+                console.error('Split failed:', result.error)
+              }
+            } else {
+              console.error('Command manager or context not available')
             }
           }}
           onTrimStart={async (id) => {

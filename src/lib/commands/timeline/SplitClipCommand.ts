@@ -110,11 +110,20 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     // Execute split using store method
     store.splitClip(this.clipId, this.splitTime)
     
-    // Keep the playhead at the split point so the preview shows the correct frame
-    // This ensures the preview shows the start of the right clip, not the next frame
-    const projectStore = this.context.getStore() as any
-    if (projectStore.setCurrentTime) {
-      projectStore.setCurrentTime(this.splitTime)
+    // Get the actual created clips from the project after split
+    const project = this.context.getProject()
+    if (project && this.trackId) {
+      const track = project.timeline.tracks.find(t => t.id === this.trackId)
+      if (track) {
+        // Find the two clips that replaced the original
+        const clips = track.clips.filter(c => c.id.startsWith(`${this.clipId}-split`))
+        if (clips.length === 2) {
+          // Sort by start time to identify left and right
+          clips.sort((a, b) => a.startTime - b.startTime)
+          this.leftClip = clips[0]
+          this.rightClip = clips[1]
+        }
+      }
     }
 
     return {
