@@ -5,6 +5,11 @@ import * as fs from 'fs'
 export const isDev = process.env.NODE_ENV === 'development'
 
 export function getAppURL(route: string = ''): string {
+  console.log('🔍 getAppURL called with route:', route)
+  console.log('🔍 isDev:', isDev)
+  console.log('🔍 MAIN_WINDOW_WEBPACK_ENTRY:', process.env.MAIN_WINDOW_WEBPACK_ENTRY)
+  console.log('🔍 DEV_SERVER_URL:', process.env.DEV_SERVER_URL)
+  
   if (isDev && !process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
     // Development mode with Next.js dev server
     const devServerUrl = process.env.DEV_SERVER_URL || 'http://localhost:3000'
@@ -18,6 +23,7 @@ export function getAppURL(route: string = ''): string {
   // For webpack builds (both dev and production)
   if (process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
     const baseUrl = process.env.MAIN_WINDOW_WEBPACK_ENTRY
+    console.log('🔍 Using webpack entry URL:', baseUrl)
 
     // For routes, we need to navigate within the single-page app
     if (route) {

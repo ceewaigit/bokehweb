@@ -4,7 +4,7 @@
   "description": "Professional screen recording and editing app built with Electron and Next.js",
   "author": "FlowCapture Team",
   "private": true,
-  "main": "electron/dist/main/index.js",
+  "main": ".webpack/main/index.js",
   "homepage": "./",
   "config": {
     "forge": "./forge.config.js"
