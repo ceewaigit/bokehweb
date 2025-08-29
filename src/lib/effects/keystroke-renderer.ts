@@ -33,10 +33,7 @@ export class KeystrokeRenderer {
   private keyHistory: KeyboardEvent[] = []
   private currentIndex = 0
   
-  // Text grouping state
-  private textBuffer: string = ''
-  private bufferStartTime: number = 0
-  private lastKeyTime: number = 0
+  // Track current keystroke index
 
   // Timing constants
   private readonly DISPLAY_DURATION = 2000 // ms - how long to show grouped text
@@ -91,19 +88,53 @@ export class KeystrokeRenderer {
   render(timestamp: number, videoWidth: number, videoHeight: number) {
     if (!this.canvas || !this.ctx || this.keyHistory.length === 0) return
 
-    // Process new keystrokes and group them
+    // Process new keystrokes
     while (this.currentIndex < this.keyHistory.length) {
       const event = this.keyHistory[this.currentIndex]
       if (event.timestamp > timestamp) break
 
-      // Add to buffer
-      this.processKeystroke(event, timestamp)
-      this.currentIndex++
-    }
+      // Filter out standalone modifier keys
+      const modifierKeys = ['CapsLock', 'Shift', 'Control', 'Alt', 'Meta', 'Command', 'Option', 'Fn']
+      if (!modifierKeys.includes(event.key)) {
+        // Format the key for display
+        let keyDisplay = event.key  // Show raw key for normal typing
+        
+        // Only format if it's a special key or has modifiers
+        if (event.modifiers && event.modifiers.length > 0) {
+          keyDisplay = this.formatSingleKey(event.key, event.modifiers)
+        } else if (event.key.length > 1) {
+          // Special keys like Enter, Tab, etc.
+          keyDisplay = this.formatKey(event.key)
+        }
+        
+        if (keyDisplay) {
+          const keystrokeId = `${event.timestamp}-${event.key}`
+          const position = this.calculatePosition(
+            this.activeKeystrokes.size,
+            videoWidth,
+            videoHeight
+          )
 
-    // Check if it's time to display the buffered text
-    if (this.textBuffer.length > 0 && this.shouldDisplayBuffer(timestamp)) {
-      this.createTextGroup(timestamp, videoWidth, videoHeight)
+          this.activeKeystrokes.set(keystrokeId, {
+            id: keystrokeId,
+            text: keyDisplay,
+            startTime: event.timestamp,
+            fadeStartTime: event.timestamp + this.DISPLAY_DURATION,
+            opacity: 1,
+            x: position.x,
+            y: position.y,
+            fadeIn: true
+          })
+
+          // Remove oldest if we have too many
+          if (this.activeKeystrokes.size > this.MAX_CONCURRENT) {
+            const oldest = Array.from(this.activeKeystrokes.keys())[0]
+            this.activeKeystrokes.delete(oldest)
+          }
+        }
+      }
+
+      this.currentIndex++
     }
 
     // Update and render active keystrokes
@@ -138,83 +169,7 @@ export class KeystrokeRenderer {
     toRemove.forEach(id => this.activeKeystrokes.delete(id))
   }
 
-  private processKeystroke(event: KeyboardEvent, _currentTimestamp: number) {
-    // Check if this is a trigger to display (Enter, click, or long pause)
-    const timeSinceLastKey = event.timestamp - this.lastKeyTime
-    const isEnter = event.key === 'Enter' || event.key === 'Return'
-    const isPause = this.lastKeyTime > 0 && timeSinceLastKey > this.options.groupingDelay!
-    
-    // If we should display the buffer, reset it for next group
-    if (this.textBuffer.length > 0 && (isEnter || isPause)) {
-      // Buffer will be displayed by shouldDisplayBuffer check in render
-      // Don't reset here, let createTextGroup handle it
-    }
-    
-    // Start new buffer if needed
-    if (this.textBuffer.length === 0) {
-      this.bufferStartTime = event.timestamp
-    }
-    
-    // Add to buffer (skip Enter key display)
-    if (!isEnter) {
-      const keyDisplay = this.formatSingleKey(event.key, event.modifiers)
-      if (keyDisplay) {
-        // Add space between keys, but not at the beginning
-        if (this.textBuffer.length > 0 && !this.isSpecialKey(event.key)) {
-          this.textBuffer += ' '
-        }
-        this.textBuffer += keyDisplay
-      }
-    }
-    
-    this.lastKeyTime = event.timestamp
-  }
-  
-  private shouldDisplayBuffer(timestamp: number): boolean {
-    // Check if enough time has passed since the last key
-    return this.lastKeyTime > 0 && 
-           this.textBuffer.length > 0 &&
-           (timestamp - this.lastKeyTime) > this.options.groupingDelay!
-  }
-  
-  private createTextGroup(timestamp: number, videoWidth: number, videoHeight: number) {
-    if (!this.textBuffer.length) return
-    
-    const groupId = `group-${this.bufferStartTime}`
-    const position = this.calculatePosition(
-      this.activeKeystrokes.size,
-      videoWidth,
-      videoHeight
-    )
-    
-    this.activeKeystrokes.set(groupId, {
-      id: groupId,
-      text: this.textBuffer,
-      startTime: this.bufferStartTime,
-      fadeStartTime: timestamp + this.options.groupDisplayDuration!,
-      opacity: 1,
-      x: position.x,
-      y: position.y,
-      fadeIn: true
-    })
-    
-    // Remove oldest if we have too many
-    if (this.activeKeystrokes.size > this.MAX_CONCURRENT) {
-      const oldest = Array.from(this.activeKeystrokes.keys())[0]
-      this.activeKeystrokes.delete(oldest)
-    }
-    
-    // Reset buffer
-    this.textBuffer = ''
-    this.bufferStartTime = 0
-  }
-  
-  private isSpecialKey(key: string): boolean {
-    const specialKeys = ['Enter', 'Return', 'Tab', 'Backspace', 'Delete', 'Escape', 
-                         'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-                         'Home', 'End', 'PageUp', 'PageDown']
-    return specialKeys.includes(key)
-  }
+  // Removed complex buffering methods - keeping it simple for now
   
   private formatSingleKey(key: string, modifiers: string[]): string {
     // Handle modifier combos (e.g., Cmd+C)
@@ -368,9 +323,6 @@ export class KeystrokeRenderer {
   reset() {
     this.currentIndex = 0
     this.activeKeystrokes.clear()
-    this.textBuffer = ''
-    this.bufferStartTime = 0
-    this.lastKeyTime = 0
   }
 
   // Check if there are keystrokes to render at given time

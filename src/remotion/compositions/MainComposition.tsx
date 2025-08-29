@@ -157,9 +157,10 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
                 blockZoomState.panY
               );
               
-              // Apply only partial pan during intro
-              blockZoomState.panX = cinematicPan.x * introProgress * 0.2;
-              blockZoomState.panY = cinematicPan.y * introProgress * 0.2;
+              // Apply gradual pan during intro (start at 30%, increase to 100%)
+              const panStrength = 0.3 + (0.7 * introProgress);
+              blockZoomState.panX = cinematicPan.x * panStrength;
+              blockZoomState.panY = cinematicPan.y * panStrength;
             }
           }
           
@@ -167,13 +168,40 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           panY = blockZoomState.panY;
           
         } else if (elapsed > blockDuration - outroMs) {
-          // Outro phase: smoothly return to center
+          // Outro phase: maintain pan longer, then smoothly return to center
           const outroProgress = (elapsed - (blockDuration - outroMs)) / outroMs;
-          const fadeOut = 1 - (outroProgress * outroProgress); // Quadratic ease
           
           if (blockZoomState) {
-            panX = blockZoomState.panX * fadeOut;
-            panY = blockZoomState.panY * fadeOut;
+            // Keep following mouse for first 50% of outro, then fade
+            if (outroProgress < 0.5 && cursorEvents.length > 0) {
+              const mousePos = zoomPanCalculator.interpolateMousePosition(
+                cursorEvents,
+                currentTimeMs
+              );
+              
+              if (mousePos) {
+                const captureWidth = cursorEvents[0].captureWidth || videoWidth;
+                const captureHeight = cursorEvents[0].captureHeight || videoHeight;
+                
+                const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
+                  mousePos.x,
+                  mousePos.y,
+                  captureWidth,
+                  captureHeight,
+                  scale,
+                  blockZoomState.panX,
+                  blockZoomState.panY
+                );
+                
+                blockZoomState.panX = cinematicPan.x;
+                blockZoomState.panY = cinematicPan.y;
+              }
+            }
+            
+            // Fade out pan in last 50% of outro
+            const fadeFactor = outroProgress < 0.5 ? 1 : (1 - ((outroProgress - 0.5) * 2));
+            panX = blockZoomState.panX * fadeFactor;
+            panY = blockZoomState.panY * fadeFactor;
           }
           
         } else {

@@ -562,22 +562,48 @@ function stopKeyboardTracking(): void {
 
 // Helper function to convert keycodes to readable keys
 function getKeyFromCode(keycode: number): string {
-  // Basic mapping - can be extended
+  // uiohook-napi uses native system keycodes
+  // These mappings are for macOS virtual keycodes
   const keyMap: Record<number, string> = {
-    4: 'a', 5: 'b', 6: 'c', 7: 'd', 8: 'e', 9: 'f', 10: 'g', 11: 'h',
-    12: 'i', 13: 'j', 14: 'k', 15: 'l', 16: 'm', 17: 'n', 18: 'o', 19: 'p',
-    20: 'q', 21: 'r', 22: 's', 23: 't', 24: 'u', 25: 'v', 26: 'w', 27: 'x',
-    28: 'y', 29: 'z', 30: '1', 31: '2', 32: '3', 33: '4', 34: '5', 35: '6',
-    36: '7', 37: '8', 38: '9', 39: '0', 40: 'Enter', 41: 'Escape', 42: 'Backspace',
-    43: 'Tab', 44: ' ', 45: '-', 46: '=', 47: '[', 48: ']', 49: '\\', 51: ';',
-    52: "'", 53: '`', 54: ',', 55: '.', 56: '/', 57: 'CapsLock', 58: 'F1',
-    59: 'F2', 60: 'F3', 61: 'F4', 62: 'F5', 63: 'F6', 64: 'F7', 65: 'F8',
-    66: 'F9', 67: 'F10', 68: 'F11', 69: 'F12', 79: 'ArrowRight', 80: 'ArrowLeft',
-    81: 'ArrowDown', 82: 'ArrowUp', 88: 'Enter', 224: 'Control', 225: 'Shift',
-    226: 'Alt', 227: 'Meta'
+    // Letters (macOS virtual keycodes)
+    0: 'a', 11: 'b', 8: 'c', 2: 'd', 14: 'e', 3: 'f', 5: 'g', 4: 'h',
+    34: 'i', 38: 'j', 40: 'k', 37: 'l', 46: 'm', 45: 'n', 31: 'o', 35: 'p',
+    12: 'q', 15: 'r', 1: 's', 17: 't', 32: 'u', 9: 'v', 13: 'w', 7: 'x',
+    16: 'y', 6: 'z',
+    
+    // Numbers
+    18: '1', 19: '2', 20: '3', 21: '4', 23: '5', 22: '6', 26: '7', 28: '8', 25: '9', 29: '0',
+    
+    // Special characters
+    27: '-', 24: '=', 33: '[', 30: ']', 42: '\\', 41: ';', 39: "'",
+    50: '`', 43: ',', 47: '.', 44: '/',
+    
+    // Special keys
+    36: 'Enter', 53: 'Escape', 51: 'Backspace', 48: 'Tab', 49: ' ',
+    57: 'CapsLock',
+    
+    // Function keys
+    122: 'F1', 120: 'F2', 99: 'F3', 118: 'F4', 96: 'F5', 97: 'F6',
+    98: 'F7', 100: 'F8', 101: 'F9', 109: 'F10', 103: 'F11', 111: 'F12',
+    
+    // Arrow keys
+    124: 'ArrowRight', 123: 'ArrowLeft', 125: 'ArrowDown', 126: 'ArrowUp',
+    
+    // Modifiers
+    59: 'Control', 56: 'Shift', 58: 'Alt', 55: 'Meta',
+    
+    // Numpad
+    82: '0', 83: '1', 84: '2', 85: '3', 86: '4', 87: '5',
+    88: '6', 89: '7', 91: '8', 92: '9',
+    
+    // Home/End/PageUp/PageDown
+    115: 'Home', 119: 'End', 116: 'PageUp', 121: 'PageDown',
+    
+    // Delete
+    117: 'Delete'
   }
   
-  return keyMap[keycode] || `Key${keycode}`
+  return keyMap[keycode] || `Unknown_${keycode}`
 }
 
 export function cleanupMouseTracking(): void {
