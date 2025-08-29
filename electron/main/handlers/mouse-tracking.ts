@@ -49,6 +49,8 @@ let mouseHistory: Array<{ x: number; y: number; time: number }> = []
 let uiohookStarted = false
 let isMouseDown = false
 let lastClickPosition = { x: 0, y: 0 }
+let isKeyboardTracking = false
+let keyboardEventSender: WebContents | null = null
 
 interface MouseTrackingOptions {
   intervalMs?: number
@@ -118,6 +120,9 @@ export function registerMouseTrackingHandlers(): void {
 
       // Start click detection using global mouse hooks with source info
       startClickDetection(sourceType, sourceId)
+      
+      // Also start keyboard tracking
+      startKeyboardTracking(event.sender)
 
       let lastPosition: Electron.Point | null = null
       let lastVelocity = { x: 0, y: 0 }
@@ -296,6 +301,26 @@ export function registerMouseTrackingHandlers(): void {
       return { success: false, error: error.message }
     }
   })
+  
+  ipcMain.handle('start-keyboard-tracking', async (event: IpcMainInvokeEvent) => {
+    try {
+      startKeyboardTracking(event.sender)
+      return { success: true }
+    } catch (error: any) {
+      logger.error('Error starting keyboard tracking:', error)
+      return { success: false, error: error.message }
+    }
+  })
+  
+  ipcMain.handle('stop-keyboard-tracking', async () => {
+    try {
+      stopKeyboardTracking()
+      return { success: true }
+    } catch (error: any) {
+      logger.error('Error stopping keyboard tracking:', error)
+      return { success: false, error: error.message }
+    }
+  })
 
   ipcMain.handle('get-mouse-position', async () => {
     try {
@@ -435,6 +460,126 @@ function stopClickDetection(): void {
   }
 }
 
+// Keyboard tracking functions
+function startKeyboardTracking(sender: WebContents): void {
+  if (isKeyboardTracking) return
+  
+  // Check if uiohook is available
+  if (!uIOhook) {
+    logger.warn('uiohook-napi not available, keyboard tracking disabled')
+    return
+  }
+  
+  isKeyboardTracking = true
+  keyboardEventSender = sender
+  
+  try {
+    // Start uiohook if not already started
+    if (!uiohookStarted) {
+      logger.info('Starting uiohook-napi for keyboard tracking...')
+      uIOhook.start()
+      uiohookStarted = true
+      logger.info('uiohook-napi started successfully')
+    }
+    
+    // Register keyboard event handlers
+    const handleKeyDown = (event: any) => {
+      if (!isKeyboardTracking || !keyboardEventSender) return
+      
+      // Extract modifiers
+      const modifiers: string[] = []
+      if (event.metaKey || event.ctrlKey) modifiers.push('cmd')
+      if (event.altKey) modifiers.push('alt')
+      if (event.shiftKey) modifiers.push('shift')
+      
+      // Convert keycode to readable key
+      const key = getKeyFromCode(event.keycode)
+      
+      // Send keyboard event
+      keyboardEventSender.send('keyboard-event', {
+        type: 'keydown',
+        key,
+        modifiers,
+        timestamp: Date.now(),
+        rawKeycode: event.keycode
+      })
+      
+      logger.debug(`Key down: ${modifiers.join('+')} ${key}`)
+    }
+    
+    const handleKeyUp = (event: any) => {
+      if (!isKeyboardTracking || !keyboardEventSender) return
+      
+      const key = getKeyFromCode(event.keycode)
+      
+      keyboardEventSender.send('keyboard-event', {
+        type: 'keyup',
+        key,
+        timestamp: Date.now(),
+        rawKeycode: event.keycode
+      })
+    }
+    
+    // Register the handlers
+    uIOhook.on('keydown', handleKeyDown)
+    uIOhook.on('keyup', handleKeyUp)
+    
+    // Store handlers for cleanup
+    ;(global as any).uiohookKeyDownHandler = handleKeyDown
+    ;(global as any).uiohookKeyUpHandler = handleKeyUp
+    
+    logger.info('Keyboard tracking started successfully')
+    
+  } catch (error) {
+    logger.error('Failed to start keyboard tracking:', error)
+    isKeyboardTracking = false
+  }
+}
+
+function stopKeyboardTracking(): void {
+  isKeyboardTracking = false
+  keyboardEventSender = null
+  
+  if (!uIOhook) return
+  
+  try {
+    // Remove keyboard handlers
+    if ((global as any).uiohookKeyDownHandler) {
+      uIOhook.off('keydown', (global as any).uiohookKeyDownHandler)
+      delete (global as any).uiohookKeyDownHandler
+    }
+    
+    if ((global as any).uiohookKeyUpHandler) {
+      uIOhook.off('keyup', (global as any).uiohookKeyUpHandler)
+      delete (global as any).uiohookKeyUpHandler
+    }
+    
+    logger.info('Keyboard tracking stopped')
+  } catch (error) {
+    logger.error('Error stopping keyboard tracking:', error)
+  }
+}
+
+// Helper function to convert keycodes to readable keys
+function getKeyFromCode(keycode: number): string {
+  // Basic mapping - can be extended
+  const keyMap: Record<number, string> = {
+    4: 'a', 5: 'b', 6: 'c', 7: 'd', 8: 'e', 9: 'f', 10: 'g', 11: 'h',
+    12: 'i', 13: 'j', 14: 'k', 15: 'l', 16: 'm', 17: 'n', 18: 'o', 19: 'p',
+    20: 'q', 21: 'r', 22: 's', 23: 't', 24: 'u', 25: 'v', 26: 'w', 27: 'x',
+    28: 'y', 29: 'z', 30: '1', 31: '2', 32: '3', 33: '4', 34: '5', 35: '6',
+    36: '7', 37: '8', 38: '9', 39: '0', 40: 'Enter', 41: 'Escape', 42: 'Backspace',
+    43: 'Tab', 44: ' ', 45: '-', 46: '=', 47: '[', 48: ']', 49: '\\', 51: ';',
+    52: "'", 53: '`', 54: ',', 55: '.', 56: '/', 57: 'CapsLock', 58: 'F1',
+    59: 'F2', 60: 'F3', 61: 'F4', 62: 'F5', 63: 'F6', 64: 'F7', 65: 'F8',
+    66: 'F9', 67: 'F10', 68: 'F11', 69: 'F12', 79: 'ArrowRight', 80: 'ArrowLeft',
+    81: 'ArrowDown', 82: 'ArrowUp', 88: 'Enter', 224: 'Control', 225: 'Shift',
+    226: 'Alt', 227: 'Meta'
+  }
+  
+  return keyMap[keycode] || `Key${keycode}`
+}
+
 export function cleanupMouseTracking(): void {
   if (mouseTrackingInterval) {
     clearInterval(mouseTrackingInterval)
@@ -442,6 +587,7 @@ export function cleanupMouseTracking(): void {
     isMouseTracking = false
   }
   stopClickDetection()
+  stopKeyboardTracking()
 
   // Ensure uiohook is fully cleaned up
   if (uiohookStarted) {

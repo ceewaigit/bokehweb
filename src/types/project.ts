@@ -150,7 +150,7 @@ export interface Clip {
 // New: Independent effect entity
 export interface Effect {
   id: string
-  type: 'zoom' | 'cursor' | 'background' | 'annotation'
+  type: 'zoom' | 'cursor' | 'keystroke' | 'background' | 'annotation'
   clipId: string  // Associated clip
 
   // Timing relative to clip
@@ -158,7 +158,7 @@ export interface Effect {
   endTime: number    // End time relative to clip
 
   // Effect-specific data
-  data: ZoomEffectData | CursorEffectData | BackgroundEffectData | AnnotationData
+  data: ZoomEffectData | CursorEffectData | KeystrokeEffectData | BackgroundEffectData | AnnotationData
 
   // Common properties
   enabled: boolean
@@ -197,6 +197,19 @@ export interface CursorEffectData {
   motionBlur: boolean
   hideOnIdle: boolean
   idleTimeout: number
+}
+
+export interface KeystrokeEffectData {
+  position?: 'bottom-center' | 'bottom-right' | 'top-center'
+  fontSize?: number
+  fontFamily?: string
+  backgroundColor?: string
+  textColor?: string
+  borderColor?: string
+  borderRadius?: number
+  padding?: number
+  fadeOutDuration?: number
+  maxWidth?: number
 }
 
 export interface BackgroundEffectData {

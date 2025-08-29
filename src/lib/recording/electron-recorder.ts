@@ -240,9 +240,12 @@ export class ElectronRecorder {
     // Handle native recorder
     if (this.useNativeRecorder && this.nativeRecorderPath && window.electronAPI?.nativeRecorder) {
       try {
-        // Stop mouse tracking
+        // Stop mouse and keyboard tracking
         if (window.electronAPI?.stopMouseTracking) {
           await window.electronAPI.stopMouseTracking()
+        }
+        if (window.electronAPI?.stopKeyboardTracking) {
+          await window.electronAPI.stopKeyboardTracking()
         }
 
         // Stop native recording
@@ -368,10 +371,27 @@ export class ElectronRecorder {
       })
     }
 
+    const handleKeyboardEvent = (_event: unknown, data: any) => {
+      const timestamp = Date.now() - this.startTime
+      this.metadata.push({
+        timestamp,
+        eventType: 'keypress',
+        key: data.key,
+        modifiers: data.modifiers || [],
+        keyEventType: data.type // 'keydown' or 'keyup'
+      })
+      logger.debug(`Keyboard event: ${data.type} ${data.key}`)
+    }
+
     // Register listeners if available
     if (window.electronAPI?.onMouseMove && window.electronAPI?.onMouseClick) {
       window.electronAPI.onMouseMove(handleMouseMove)
       window.electronAPI.onMouseClick(handleMouseClick)
+    }
+
+    // Register keyboard listener
+    if (window.electronAPI?.onKeyboardEvent) {
+      window.electronAPI.onKeyboardEvent(handleKeyboardEvent)
     }
 
     // Start tracking in main process

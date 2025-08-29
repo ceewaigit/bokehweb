@@ -4,10 +4,12 @@
 
 export interface ElectronMetadata {
   timestamp: number
-  mouseX: number
-  mouseY: number
+  mouseX?: number  // Optional for keyboard events
+  mouseY?: number  // Optional for keyboard events
   eventType: 'mouse' | 'click' | 'keypress' | 'scroll'
   key?: string
+  modifiers?: string[]
+  keyEventType?: 'keydown' | 'keyup'
   velocity?: { x: number; y: number }
   scrollDelta?: { x: number; y: number }
   captureWidth?: number

@@ -141,6 +141,19 @@ const electronAPI = {
     ipcRenderer.on('mouse-click', wrappedCallback)
     return () => ipcRenderer.removeListener('mouse-click', wrappedCallback)
   },
+  
+  // Keyboard tracking
+  startKeyboardTracking: () => ipcRenderer.invoke('start-keyboard-tracking'),
+  stopKeyboardTracking: () => ipcRenderer.invoke('stop-keyboard-tracking'),
+  onKeyboardEvent: (callback: (event: IpcRendererEvent, data: any) => void) => {
+    const wrappedCallback = (event: IpcRendererEvent, data: any) => {
+      if (data && typeof data === 'object') {
+        callback(event, data)
+      }
+    }
+    ipcRenderer.on('keyboard-event', wrappedCallback)
+    return () => ipcRenderer.removeListener('keyboard-event', wrappedCallback)
+  },
 
   removeMouseListener: (event: string, callback: (...args: any[]) => void) => {
     ipcRenderer.removeListener(event, callback)

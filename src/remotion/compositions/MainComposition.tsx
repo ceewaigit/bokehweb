@@ -3,11 +3,13 @@ import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotio
 import { VideoLayer } from './VideoLayer';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CursorLayer } from './CursorLayer';
+import { KeystrokeLayer } from './KeystrokeLayer';
 import type { MainCompositionProps } from './types';
-import type { ZoomEffectData, BackgroundEffectData, CursorEffectData, ZoomBlock } from '@/types/project';
+import type { ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ZoomBlock } from '@/types/project';
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
-import { calculateZoomScale, easeInOutQuint } from './utils/zoom-transform';
+import { calculateZoomScale, resetZoomSmoothing } from './utils/zoom-transform';
+import { smoothStep } from '@/lib/utils/easing';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -15,7 +17,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   effects,
   cursorEvents,
   clickEvents,
-  keystrokeEvents: _keystrokeEvents, // Not yet implemented
+  keystrokeEvents,
   videoWidth,
   videoHeight,
   captureArea
@@ -44,6 +46,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   // Find specific effect types
   const backgroundEffect = activeEffects.find(e => e.type === 'background');
   const cursorEffect = activeEffects.find(e => e.type === 'cursor');
+  const keystrokeEffect = activeEffects.find(e => e.type === 'keystroke');
   const zoomEffects = activeEffects.filter(e => e.type === 'zoom');
 
   // Extract background padding
@@ -78,12 +81,13 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       );
 
       if (activeZoomBlock) {
-        // Reset pan when entering a new zoom block
+        // Reset pan and smoothing when entering a new zoom block
         if (smoothPanRef.current.lastBlockId !== activeZoomBlock.id) {
           smoothPanRef.current.x = 0;
           smoothPanRef.current.y = 0;
           smoothPanRef.current.lastBlockId = activeZoomBlock.id;
           smoothPanRef.current.initialized = false; // Force re-initialization for new block
+          resetZoomSmoothing(); // Reset spring smoothing for new block
         }
 
         // Calculate zoom interpolation
@@ -92,13 +96,14 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
-        // Use shared zoom scale calculation
+        // Use shared zoom scale calculation with spring smoothing
         const scale = calculateZoomScale(
           elapsed,
           blockDuration,
           activeZoomBlock.scale || 2,
           introMs,
-          outroMs
+          outroMs,
+          true // Enable spring smoothing for buttery smooth zoom
         );
         
         // Initialize pan variables
@@ -134,9 +139,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         }
 
         if (elapsed < introMs) {
-          // Intro phase - edge-based panning with smooth intro
+          // Intro phase - gentle pan with damping
+          const introProgress = elapsed / introMs;
+          const dampingFactor = smoothStep(introProgress) * 0.5; // Reduced pan intensity during zoom
 
-          // Get current mouse position for edge-based panning
+          // Get current mouse position for subtle panning
           if (cursorEvents.length > 0) {
             const mousePos = zoomPanCalculator.interpolateMousePosition(
               cursorEvents,
@@ -147,7 +154,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               const captureWidth = cursorEvents[0].captureWidth || videoWidth;
               const captureHeight = cursorEvents[0].captureHeight || videoHeight;
 
-              // Calculate edge-based pan with current scale
+              // Calculate edge-based pan with damping
               const targetPan = zoomPanCalculator.calculateSmoothPan(
                 mousePos.x,
                 mousePos.y,
@@ -158,19 +165,19 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
                 smoothPanRef.current.y
               );
 
-              // Smoothly update pan during intro
-              smoothPanRef.current.x = targetPan.x;
-              smoothPanRef.current.y = targetPan.y;
+              // Apply damping to reduce pan intensity during zoom transition
+              smoothPanRef.current.x = smoothPanRef.current.x + (targetPan.x - smoothPanRef.current.x) * dampingFactor;
+              smoothPanRef.current.y = smoothPanRef.current.y + (targetPan.y - smoothPanRef.current.y) * dampingFactor;
               
               panX = smoothPanRef.current.x;
               panY = smoothPanRef.current.y;
             }
           }
         } else if (elapsed > blockDuration - outroMs) {
-          // Outro phase - smoothly return to center with ultra-smooth easing
+          // Outro phase - smoothly return to center
           const outroElapsed = elapsed - (blockDuration - outroMs);
           const outroProgress = outroElapsed / outroMs;
-          const easedProgress = easeInOutQuint(outroProgress);
+          const easedProgress = smoothStep(outroProgress); // Gentler easing for pan
 
           // Smoothly transition pan back to center during outro
           const fadeOutPan = 1 - easedProgress;
@@ -278,6 +285,16 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             captureArea={captureArea}
             preCalculatedPan={completeZoomState.scale > 1 ? { x: completeZoomState.panX, y: completeZoomState.panY } : undefined}
             mousePosition={completeZoomState.scale > 1 ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
+          />
+        </Sequence>
+      )}
+
+      {/* Keystroke Layer - Show when enabled and keystrokes exist */}
+      {keystrokeEffect && keystrokeEvents && keystrokeEvents.length > 0 && (
+        <Sequence from={0}>
+          <KeystrokeLayer
+            keyboardEvents={keystrokeEvents}
+            settings={keystrokeEffect.data as KeystrokeEffectData}
           />
         </Sequence>
       )}

@@ -407,7 +407,9 @@ export function TimelineCanvas({
               const selectedZoomBlocks: React.ReactElement[] = []
 
               // Get zoom effects from timeline.effects
-              const zoomEffects = currentProject.timeline.effects?.filter(e => e.type === 'zoom' && e.enabled) || []
+              // Use localEffects if available, otherwise fall back to project effects
+              const effectsSource = localEffects || currentProject.timeline.effects || []
+              const zoomEffects = effectsSource.filter(e => e.type === 'zoom' && e.enabled)
 
               videoTrack.clips.forEach(clip => {
                 const isSelectedClip = selectedClips.includes(clip.id)

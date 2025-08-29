@@ -4,14 +4,74 @@
 
 import { interpolate } from 'remotion';
 import type { ZoomBlock } from '@/types/project';
+import { easeOutExpo, smoothStep } from '@/lib/utils/easing';
 
-// Ultra-smooth easing for butter-like zoom and pan transitions
-export const easeInOutQuint = (t: number): number => {
-  if (t < 0.5) {
-    return 16 * t * t * t * t * t;
-  }
-  return 1 - Math.pow(-2 * t + 2, 5) / 2;
+// Professional easing curves for cinematic zoom
+const easeInExpo = (t: number): number => {
+  return t === 0 ? 0 : Math.pow(2, 10 * t - 10);
 };
+
+// Custom zoom easing - combines exponential and smooth curves
+const zoomInEasing = (t: number): number => {
+  // Use exponential easing for zoom in (fast start, smooth deceleration)
+  // Combined with smoothstep for extra polish
+  const expo = easeOutExpo(t);
+  const smooth = smoothStep(t);
+  return expo * 0.7 + smooth * 0.3; // Blend for best feel
+};
+
+const zoomOutEasing = (t: number): number => {
+  // Inverse of zoom in for symmetrical feel
+  const expo = 1 - easeOutExpo(1 - t);
+  const smooth = smoothStep(t);
+  return expo * 0.7 + smooth * 0.3;
+};
+
+// Spring physics for natural motion
+class SpringSmoothing {
+  private velocity: number = 0;
+  private lastValue: number = 1;
+  private lastTime: number = 0;
+  
+  update(targetValue: number, currentTime: number, stiffness: number = 0.15, damping: number = 0.92): number {
+    if (this.lastTime === 0) {
+      this.lastTime = currentTime;
+      this.lastValue = targetValue;
+      return targetValue;
+    }
+    
+    const deltaTime = Math.min((currentTime - this.lastTime) / 16.67, 2); // Normalize to 60fps
+    this.lastTime = currentTime;
+    
+    // Spring physics
+    const displacement = targetValue - this.lastValue;
+    const springForce = displacement * stiffness;
+    this.velocity = (this.velocity + springForce) * damping;
+    
+    // Apply velocity with clamping
+    const maxVelocity = Math.abs(displacement) * 0.5;
+    this.velocity = Math.max(-maxVelocity, Math.min(maxVelocity, this.velocity));
+    
+    this.lastValue += this.velocity * deltaTime;
+    
+    // Snap to target if very close
+    if (Math.abs(this.lastValue - targetValue) < 0.001) {
+      this.lastValue = targetValue;
+      this.velocity = 0;
+    }
+    
+    return this.lastValue;
+  }
+  
+  reset() {
+    this.velocity = 0;
+    this.lastValue = 1;
+    this.lastTime = 0;
+  }
+}
+
+// Global spring instances for smoothing
+const scaleSpring = new SpringSmoothing();
 
 interface ZoomState {
   scale: number;
@@ -29,39 +89,34 @@ export function calculateZoomScale(
   blockDuration: number,
   targetScale: number,
   introMs: number = 500,
-  outroMs: number = 500
+  outroMs: number = 500,
+  useSpring: boolean = true
 ): number {
+  let rawScale: number;
+  
   if (elapsed < introMs) {
-    // Intro phase - zoom in smoothly
-    const progress = elapsed / introMs;
-    return interpolate(
-      progress,
-      [0, 1],
-      [1, targetScale],
-      {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-        easing: easeInOutQuint  // Ultra-smooth butter-like zoom in
-      }
-    );
+    // Intro phase - zoom in with professional easing
+    const progress = Math.max(0, Math.min(1, elapsed / introMs));
+    const easedProgress = zoomInEasing(progress);
+    rawScale = 1 + (targetScale - 1) * easedProgress;
   } else if (elapsed > blockDuration - outroMs) {
-    // Outro phase - zoom out smoothly
+    // Outro phase - zoom out with smooth easing
     const outroElapsed = elapsed - (blockDuration - outroMs);
-    const progress = outroElapsed / outroMs;
-    return interpolate(
-      progress,
-      [0, 1],
-      [targetScale, 1],
-      {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-        easing: easeInOutQuint  // Ultra-smooth butter-like zoom out
-      }
-    );
+    const progress = Math.max(0, Math.min(1, outroElapsed / outroMs));
+    const easedProgress = zoomOutEasing(progress);
+    rawScale = targetScale - (targetScale - 1) * easedProgress;
   } else {
-    // Hold phase - maintain zoom scale
-    return targetScale;
+    // Hold phase - maintain zoom scale with slight spring dampening
+    rawScale = targetScale;
   }
+  
+  // Apply spring smoothing for extra polish (optional)
+  if (useSpring) {
+    // Use current time as elapsed for spring physics
+    return scaleSpring.update(rawScale, elapsed);
+  }
+  
+  return rawScale;
 }
 
 /**
@@ -170,7 +225,7 @@ export function applyZoomToPoint(
 }
 
 /**
- * Generate CSS transform string for video element
+ * Generate CSS transform string for video element with GPU acceleration
  */
 export function getZoomTransformString(zoomTransform: ZoomState): string {
   if (zoomTransform.scale === 1) {
@@ -180,5 +235,13 @@ export function getZoomTransformString(zoomTransform: ZoomState): string {
   const translateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
   const translateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
 
-  return `translate(${translateX}px, ${translateY}px) scale(${zoomTransform.scale})`;
+  // Use transform3d for GPU acceleration and smoother animation
+  return `translate3d(${translateX}px, ${translateY}px, 0) scale3d(${zoomTransform.scale}, ${zoomTransform.scale}, 1)`;
+}
+
+/**
+ * Reset spring smoothing when switching zoom blocks
+ */
+export function resetZoomSmoothing(): void {
+  scaleSpring.reset();
 }

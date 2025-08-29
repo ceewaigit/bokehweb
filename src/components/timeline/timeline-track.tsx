@@ -4,7 +4,7 @@ import { TIMELINE_LAYOUT } from '@/lib/timeline'
 import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineTrackProps {
-  type: 'video' | 'zoom' | 'audio'
+  type: 'video' | 'zoom' | 'keystroke' | 'audio'
   y: number
   width: number
   height: number
@@ -28,6 +28,13 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
           bgOpacity: 0.05, 
           labelText: 'Z', 
           labelColor: colors.info
+        }
+      case 'keystroke':
+        return { 
+          bgFill: colors.muted, 
+          bgOpacity: 0.05, 
+          labelText: 'K', 
+          labelColor: colors.warning
         }
       case 'audio':
         return { 

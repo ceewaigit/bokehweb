@@ -94,7 +94,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             boxShadow: `0 ${shadowBlur}px ${shadowBlur * 2}px ${shadowSpread}px rgba(0, 0, 0, ${shadowOpacity}), 0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px ${shadowSpread * 0.66}px rgba(0, 0, 0, ${shadowOpacity * 0.8})`,
             transform,
             transformOrigin: '50% 50%',
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            willChange: 'transform', // GPU acceleration hint
+            backfaceVisibility: 'hidden' // Prevent flicker
           }}
         />
       )}
@@ -109,7 +111,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           borderRadius: `${cornerRadius}px`,
           overflow: 'hidden',
           transform,
-          transformOrigin: '50% 50%'
+          transformOrigin: '50% 50%',
+          willChange: 'transform', // GPU acceleration hint
+          backfaceVisibility: 'hidden', // Prevent flicker
+          perspective: 1000 // Enable 3D acceleration
         }}
       >
         <Video

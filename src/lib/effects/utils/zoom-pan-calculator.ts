@@ -6,10 +6,10 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  private readonly PAN_SMOOTHING = 0.06  // 3x more responsive for faster tracking
-  private readonly EDGE_THRESHOLD = 0.25  // Trigger panning when mouse is within 25% of edge
-  private readonly RECENTERING_MARGIN = 0.15  // Less wasted space when recentering
-  private readonly MAX_PAN_SPEED = 0.020  // 2.5x faster to keep up with mouse
+  private readonly PAN_SMOOTHING = 0.04  // Gentler smoothing for less jank
+  private readonly EDGE_THRESHOLD = 0.30  // Trigger panning when mouse is within 30% of edge
+  private readonly RECENTERING_MARGIN = 0.20  // More comfortable viewing margin
+  private readonly MAX_PAN_SPEED = 0.015  // Slower max speed for smoother motion
   private targetPanX: number = 0
   private targetPanY: number = 0
   private velocityX: number = 0
@@ -117,20 +117,19 @@ export class ZoomPanCalculator {
     this.targetPanX = newTargetPanX
     this.targetPanY = newTargetPanY
     
-    // Professional easing function
+    // Professional easing function - smoother cubic
     const ease = (t: number) => {
-      if (t < 0.5) return 4 * t * t * t
-      const f = (2 * t) - 2
-      return 1 + f * f * f / 2
+      // Use smoother cubic bezier for less aggressive acceleration
+      return t * t * (3.0 - 2.0 * t); // smoothstep function
     }
     
     // Calculate velocity for momentum
     const deltaX = this.targetPanX - currentPanX
     const deltaY = this.targetPanY - currentPanY
     
-    // Update velocity with spring physics
-    this.velocityX = this.velocityX * 0.9 + deltaX * 0.1
-    this.velocityY = this.velocityY * 0.9 + deltaY * 0.1
+    // Update velocity with gentler spring physics
+    this.velocityX = this.velocityX * 0.94 + deltaX * 0.06  // More damping
+    this.velocityY = this.velocityY * 0.94 + deltaY * 0.06
     
     // Calculate distance for adaptive smoothing
     const distanceX = Math.abs(deltaX)
@@ -146,16 +145,16 @@ export class ZoomPanCalculator {
     const minEdgeDistX = Math.min(distToLeftEdge, distToRightEdge)
     const minEdgeDistY = Math.min(distToTopEdge, distToBottomEdge)
     
-    // Progressive urgency based on edge proximity
+    // Progressive urgency based on edge proximity - gentler
     let urgency = this.PAN_SMOOTHING
     if (outsideLeft || outsideRight || outsideTop || outsideBottom) {
-      urgency *= 4.0 // 4x faster response when outside viewport
+      urgency *= 2.5 // 2.5x response when outside viewport (was 4x)
     } else if (nearLeftEdge || nearRightEdge) {
-      // Progressive urgency: closer to edge = faster response
-      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistX, 1.0)) * 2.0
+      // Progressive urgency: closer to edge = faster response (gentler curve)
+      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistX, 1.0)) * 1.5
       urgency *= edgeUrgency
     } else if (nearTopEdge || nearBottomEdge) {
-      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistY, 1.0)) * 2.0
+      const edgeUrgency = 1.0 + (1.0 - Math.min(minEdgeDistY, 1.0)) * 1.5
       urgency *= edgeUrgency
     }
     

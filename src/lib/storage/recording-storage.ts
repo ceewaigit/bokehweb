@@ -298,11 +298,11 @@ export class RecordingStorage {
       const sourceBounds = firstEventWithBounds?.sourceBounds
 
       const mouseEvents = metadata
-        .filter(m => m.eventType === 'mouse')
+        .filter(m => m.eventType === 'mouse' && m.mouseX !== undefined && m.mouseY !== undefined)
         .map(m => ({
           timestamp: m.timestamp,
-          x: m.mouseX,
-          y: m.mouseY,
+          x: m.mouseX!,
+          y: m.mouseY!,
           screenWidth: m.screenWidth || captureWidth,
           screenHeight: m.screenHeight || captureHeight,
           captureWidth: m.captureWidth || captureWidth,
@@ -311,20 +311,20 @@ export class RecordingStorage {
         }))
 
       const clickEvents = metadata
-        .filter(m => m.eventType === 'click')
+        .filter(m => m.eventType === 'click' && m.mouseX !== undefined && m.mouseY !== undefined)
         .map(m => ({
           timestamp: m.timestamp,
-          x: m.mouseX,
-          y: m.mouseY,
+          x: m.mouseX!,
+          y: m.mouseY!,
           button: m.key || 'left' as const
         }))
 
       const keyboardEvents = metadata
-        .filter(m => m.eventType === 'keypress')
+        .filter(m => m.eventType === 'keypress' && m.keyEventType === 'keydown')
         .map(m => ({
           timestamp: m.timestamp,
-          key: m.key,
-          modifiers: []
+          key: m.key || '',
+          modifiers: m.modifiers || []
         }))
 
       const reconstructedCaptureArea = sourceBounds ? {

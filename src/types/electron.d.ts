@@ -27,6 +27,11 @@ export interface ElectronAPI {
   onMouseClick: (callback: any) => () => void
   onScroll?: (callback: any) => () => void
   removeAllMouseListeners: () => void
+  
+  // Keyboard tracking
+  startKeyboardTracking?: () => Promise<any>
+  stopKeyboardTracking?: () => Promise<any>
+  onKeyboardEvent?: (callback: any) => () => void
 
   // Recording and workspace control
   openWorkspace?: () => Promise<void>
