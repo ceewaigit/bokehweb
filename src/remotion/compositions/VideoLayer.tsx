@@ -4,13 +4,10 @@ import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
 
-export const VideoLayer: React.FC<VideoLayerProps & { 
-  preCalculatedPan?: { x: number; y: number },
-  mousePosition?: { x: number; y: number }  // Current mouse position for zoom target
-}> = ({
+export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
   effects,
-  zoom,
+  zoomBlocks,
   videoWidth,
   videoHeight,
   captureArea,
@@ -26,8 +23,16 @@ export const VideoLayer: React.FC<VideoLayerProps & {
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
 
+  // Get background effect for padding
+  const backgroundEffect = effects?.find(e => 
+    e.type === 'background' && 
+    e.enabled &&
+    currentTimeMs >= e.startTime && 
+    currentTimeMs <= e.endTime
+  );
+  const padding = backgroundEffect ? (backgroundEffect.data as any).padding : 0;
+  
   // Calculate video position using shared utility
-  const padding = effects?.background?.padding || 0;
   const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
     width,
     height,
@@ -39,9 +44,9 @@ export const VideoLayer: React.FC<VideoLayerProps & {
   // Apply zoom if enabled
   let transform = '';
 
-  if (zoom?.enabled && zoom.blocks) {
+  if (zoomBlocks && zoomBlocks.length > 0) {
     // Find active zoom block
-    const activeBlock = zoom.blocks.find(
+    const activeBlock = zoomBlocks.find(
       block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
     );
 
@@ -59,19 +64,7 @@ export const VideoLayer: React.FC<VideoLayerProps & {
     transform = getZoomTransformString(zoomTransform);
   }
 
-  // Apply corner radius if specified
-  const cornerRadius = effects?.video?.cornerRadius || 0;
-  const borderRadiusStyle = cornerRadius > 0 ? `${cornerRadius}px` : '0';
-
-  // Apply shadow if enabled
-  const shadowStyle = effects?.video?.shadow?.enabled
-    ? {
-      filter: `drop-shadow(${effects.video.shadow.offset.x}px ${effects.video.shadow.offset.y}px ${effects.video.shadow.blur}px ${effects.video.shadow.color})`
-    }
-    : {};
-
   // Simple video style - always show full video with contain
-  // Area selection feature can be added back when properly implemented
   const videoStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
@@ -87,11 +80,10 @@ export const VideoLayer: React.FC<VideoLayerProps & {
           top: offsetY,
           width: drawWidth,
           height: drawHeight,
-          borderRadius: borderRadiusStyle,
+          borderRadius: '12px',
           overflow: 'hidden',
           transform,
-          transformOrigin: '50% 50%',
-          ...shadowStyle
+          transformOrigin: '50% 50%'
         }}
       >
         <Video

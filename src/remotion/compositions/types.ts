@@ -1,9 +1,9 @@
-import type { Clip, ClipEffects, MouseEvent, ClickEvent } from '@/types/project';
+import type { Clip, MouseEvent, ClickEvent, Effect, BackgroundEffectData, ZoomBlock, CursorEffectData } from '@/types/project';
 
 export interface MainCompositionProps {
   videoUrl: string;
   clip: Clip | null;
-  effects: ClipEffects | null;
+  effects: Effect[] | null;
   cursorEvents: MouseEvent[];
   clickEvents: ClickEvent[];
   keystrokeEvents: any[];
@@ -19,8 +19,8 @@ export interface MainCompositionProps {
 
 export interface VideoLayerProps {
   videoUrl: string;
-  effects?: ClipEffects | null;
-  zoom?: ClipEffects['zoom'];
+  effects?: Effect[] | null;
+  zoomBlocks?: ZoomBlock[];
   videoWidth: number;
   videoHeight: number;
   captureArea?: {
@@ -29,10 +29,12 @@ export interface VideoLayerProps {
     width: number;
     height: number;
   };
+  preCalculatedPan?: { x: number; y: number };
+  mousePosition?: { x: number; y: number };
 }
 
 export interface BackgroundLayerProps {
-  effects?: ClipEffects['background'];
+  backgroundData?: BackgroundEffectData;
   videoWidth: number;
   videoHeight: number;
 }
@@ -47,7 +49,7 @@ export interface CursorLayerProps {
     width: number;
     height: number;
   };
-  zoom?: ClipEffects['zoom'];  // Use the same zoom structure as VideoLayer
+  zoomBlocks?: ZoomBlock[];
   zoomState?: {  // Add the complete zoom state for manual zoom
     scale: number;
     x: number;
@@ -57,5 +59,5 @@ export interface CursorLayerProps {
   };
   videoWidth: number;
   videoHeight: number;
-  cursorEffects?: ClipEffects['cursor'];
+  cursorData?: CursorEffectData;
 }

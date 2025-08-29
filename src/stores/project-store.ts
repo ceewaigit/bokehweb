@@ -4,7 +4,6 @@ import {
   type Project,
   type Clip,
   type Recording,
-  type ClipEffects,
   type Track,
   type ZoomBlock,
   type Effect,
@@ -13,7 +12,6 @@ import {
   type CursorEffectData
 } from '@/types/project'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { SCREEN_STUDIO_CLIP_EFFECTS, DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 
@@ -279,6 +277,10 @@ export const useProjectStore = create<ProjectStore>()(
         })
 
         // Add default background and cursor effects
+        // Import default wallpaper if available
+        const { getDefaultWallpaper } = require('@/lib/constants/default-effects')
+        const defaultWallpaper = getDefaultWallpaper()
+        
         const backgroundEffect: Effect = {
           id: `background-${clipId}`,
           type: 'background',
@@ -291,7 +293,7 @@ export const useProjectStore = create<ProjectStore>()(
               colors: ['#2D3748', '#1A202C'],
               angle: 135
             },
-            wallpaper: undefined,
+            wallpaper: defaultWallpaper,
             padding: 120
           } as BackgroundEffectData,
           enabled: true

@@ -25,7 +25,6 @@ export type {
   ClickEvent,
   Timeline,
   Track,
-  ClipEffects,
   Annotation,
   Transition,
   ExportPreset,

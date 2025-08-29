@@ -165,55 +165,8 @@ export interface Effect {
   locked?: boolean
 }
 
-export interface ClipEffects {
-  // Zoom and pan
-  zoom: {
-    enabled: boolean
-    blocks: ZoomBlock[]  // Screen Studio style zoom blocks
-    smoothing: number
-    regenerate?: number  // Timestamp to trigger regeneration
-  }
-
-  // Cursor styling
-  cursor: {
-    enabled?: boolean  // Whether to show cursor at all (defaults to false)
-    style: 'default' | 'macOS' | 'custom'
-    size: number
-    color: string
-    clickEffects: boolean
-    motionBlur: boolean
-    hideOnIdle: boolean
-    idleTimeout: number // milliseconds
-  }
-
-  // Background
-  background: {
-    type: 'none' | 'color' | 'gradient' | 'image' | 'wallpaper'
-    color?: string
-    gradient?: {
-      colors: string[]
-      angle: number
-    }
-    image?: string
-    wallpaper?: string  // Path to macOS wallpaper
-    blur?: number
-    padding: number
-  }
-
-  // Video styling
-  video: {
-    cornerRadius: number
-    shadow: {
-      enabled: boolean
-      blur: number
-      color: string
-      offset: { x: number; y: number }
-    }
-  }
-
-  // Annotations
-  annotations: Annotation[]
-}
+// ClipEffects removed - use Effect[] instead
+// Effects are stored independently in timeline.effects
 
 export interface ZoomBlock {
   id: string

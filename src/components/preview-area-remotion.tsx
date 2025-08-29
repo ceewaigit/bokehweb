@@ -6,7 +6,7 @@ import { MainComposition } from '@/remotion/compositions/MainComposition'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useProjectStore } from '@/stores/project-store'
-import type { Clip, Recording, ClipEffects } from '@/types/project'
+import type { Clip, Recording, Effect } from '@/types/project'
 
 interface PreviewAreaRemotionProps {
   selectedClip: Clip | null
@@ -15,7 +15,7 @@ interface PreviewAreaRemotionProps {
   playheadRecording?: Recording | null | undefined
   currentTime: number
   isPlaying: boolean
-  localEffects?: ClipEffects | null
+  localEffects?: Effect[] | null
   onTimeUpdate?: (time: number) => void
 }
 

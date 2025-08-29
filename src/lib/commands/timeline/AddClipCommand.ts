@@ -1,7 +1,6 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext, hasClipOverlap, findNextValidPosition, calculateTimelineDuration } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
-import { DEFAULT_CLIP_EFFECTS } from '@/lib/constants/clip-defaults'
 
 export class AddClipCommand extends Command<{ clipId: string }> {
   private clip?: Clip

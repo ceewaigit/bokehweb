@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import type { Clip, ClipEffects } from '@/types/project'
+import type { Clip, Effect, BackgroundEffectData, CursorEffectData, ZoomEffectData } from '@/types/project'
 
 const WALLPAPERS = [
   { id: 'gradient-1', colors: ['#FF6B6B', '#4ECDC4'] },
@@ -33,9 +33,9 @@ const WALLPAPERS = [
 interface EffectsSidebarProps {
   className?: string
   selectedClip: Clip | null
-  effects: ClipEffects | undefined
+  effects: Effect[] | undefined
   selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
-  onEffectChange: (effects: ClipEffects) => void
+  onEffectChange: (type: 'zoom' | 'cursor' | 'background', data: any) => void
 }
 
 export function EffectsSidebar({
@@ -48,6 +48,11 @@ export function EffectsSidebar({
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'zoom' | 'shape'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
+  
+  // Extract current effects from the array
+  const backgroundEffect = effects?.find(e => e.type === 'background' && e.enabled)
+  const cursorEffect = effects?.find(e => e.type === 'cursor' && e.enabled)
+  const zoomEffects = effects?.filter(e => e.type === 'zoom' && e.enabled) || []
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
 
@@ -97,27 +102,23 @@ export function EffectsSidebar({
     )
   }
 
-  const updateEffect = (category: string, updates: any) => {
-    if (!effects || !selectedClip) return
-
-    // Use the passed callback to handle effect changes properly
-    // This ensures local effects and zoom block updates work correctly
-    const updatedEffects = {
-      ...effects,
-      [category]: {
-        ...effects[category as keyof ClipEffects],
-        ...updates
-      }
-    }
-    onEffectChange(updatedEffects)
+  const updateEffect = (category: 'background' | 'cursor' | 'zoom', updates: any) => {
+    if (!selectedClip) return
+    onEffectChange(category, updates)
   }
 
   // Update background while preserving existing properties
   const updateBackgroundEffect = (updates: any) => {
-    if (!effects || !selectedClip) return
-
+    if (!selectedClip) return
+    
+    const currentBg = backgroundEffect?.data as BackgroundEffectData || {
+      type: 'gradient',
+      gradient: { colors: ['#2D3748', '#1A202C'], angle: 135 },
+      padding: 120
+    }
+    
     updateEffect('background', {
-      ...effects.background,
+      ...currentBg,
       ...updates
     })
   }
@@ -315,7 +316,7 @@ export function EffectsSidebar({
                 <div className="flex gap-2 items-center p-3 bg-background/30 rounded-lg ">
                   <input
                     type="color"
-                    value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
+                    value={(backgroundEffect?.data as BackgroundEffectData)?.type === 'color' ? ((backgroundEffect?.data as BackgroundEffectData)?.color || '#000000') : '#000000'}
                     onChange={(e) => {
                       updateBackgroundEffect({
                         type: 'color',
@@ -323,11 +324,11 @@ export function EffectsSidebar({
                       })
                     }}
                     className="w-12 h-12 rounded-md cursor-pointer border-0 bg-transparent"
-                    style={{ backgroundColor: effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000' }}
+                    style={{ backgroundColor: (backgroundEffect?.data as BackgroundEffectData)?.type === 'color' ? ((backgroundEffect?.data as BackgroundEffectData)?.color || '#000000') : '#000000' }}
                   />
                   <input
                     type="text"
-                    value={effects.background?.type === 'color' ? (effects.background?.color || '#000000') : '#000000'}
+                    value={(backgroundEffect?.data as BackgroundEffectData)?.type === 'color' ? ((backgroundEffect?.data as BackgroundEffectData)?.color || '#000000') : '#000000'}
                     onChange={(e) => {
                       const value = e.target.value;
                       // Allow typing and validate on complete hex
@@ -371,7 +372,7 @@ export function EffectsSidebar({
                       }}
                       className={cn(
                         "aspect-square rounded-md  transition-all hover:scale-110",
-                        effects.background?.type === 'color' && effects.background?.color?.toUpperCase() === color.toUpperCase()
+                        (backgroundEffect?.data as BackgroundEffectData)?.type === 'color' && (backgroundEffect?.data as BackgroundEffectData)?.color?.toUpperCase() === color.toUpperCase()
                           ? "ring-2 ring-primary shadow-lg"
                           : "ring-1 ring-border/30 hover:ring-border/50"
                       )}
@@ -408,10 +409,10 @@ export function EffectsSidebar({
                 >
                   Choose Image File...
                 </button>
-                {effects.background?.image && (
+                {(backgroundEffect?.data as BackgroundEffectData)?.image && (
                   <div className="relative aspect-video rounded-md overflow-hidden ring-1 ring-border/20">
                     <img
-                      src={effects.background.image}
+                      src={(backgroundEffect?.data as BackgroundEffectData).image}
                       alt="Background"
                       className="w-full h-full object-cover"
                     />
@@ -437,23 +438,35 @@ export function EffectsSidebar({
                 <label className="text-xs font-medium flex items-center justify-between">
                   <span className="uppercase tracking-wider text-[10px]">Blur</span>
                   <Switch
-                    checked={effects.background.blur !== undefined && effects.background.blur > 0}
+                    checked={(() => {
+                      const bgData = backgroundEffect?.data as BackgroundEffectData
+                      return bgData?.blur ? bgData.blur > 0 : false
+                    })()}
                     onCheckedChange={(checked) =>
                       updateBackgroundEffect({ blur: checked ? 10 : undefined })
                     }
                   />
                 </label>
-                {effects.background.blur !== undefined && effects.background.blur > 0 && (
+                {(() => {
+                  const bgData = backgroundEffect?.data as BackgroundEffectData
+                  return bgData?.blur && bgData.blur > 0
+                })() && (
                   <>
                     <Slider
-                      value={[effects.background.blur]}
+                      value={[(() => {
+                        const bgData = backgroundEffect?.data as BackgroundEffectData
+                        return bgData?.blur || 10
+                      })()]}
                       onValueChange={([value]) => updateBackgroundEffect({ blur: value })}
                       min={1}
                       max={50}
                       step={1}
                       className="w-full"
                     />
-                    <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.blur}px</span>
+                    <span className="text-[10px] text-muted-foreground/70 font-mono">{(() => {
+                      const bgData = backgroundEffect?.data as BackgroundEffectData
+                      return bgData?.blur || 10
+                    })()}px</span>
                   </>
                 )}
               </div>
@@ -461,14 +474,14 @@ export function EffectsSidebar({
           </div>
         )}
 
-        {activeTab === 'cursor' && effects?.cursor && (
+        {activeTab === 'cursor' && cursorEffect && (
           <div className="space-y-3">
             {/* Master cursor visibility toggle */}
             <div className="p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Show Cursor</span>
                 <Switch
-                  checked={effects.cursor.enabled ?? false}
+                  checked={cursorEffect !== undefined}
                   onCheckedChange={(checked) =>
                     updateEffect('cursor', { enabled: checked })
                   }
@@ -477,26 +490,26 @@ export function EffectsSidebar({
             </div>
 
             {/* Only show cursor settings when enabled */}
-            {effects.cursor.enabled && (
+            {cursorEffect && (
               <>
                 <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
                   <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Size</label>
                   <Slider
-                    value={[effects.cursor.size ?? 3.0]}
+                    value={[(cursorEffect?.data as CursorEffectData).size ?? 3.0]}
                     onValueChange={([value]) => updateEffect('cursor', { size: value })}
                     min={0.5}
                     max={8}
                     step={0.1}
                     className="w-full"
                   />
-                  <span className="text-[10px] text-muted-foreground/70 font-mono">{(effects.cursor.size ?? 3.0).toFixed(1)}x</span>
+                  <span className="text-[10px] text-muted-foreground/70 font-mono">{((cursorEffect?.data as CursorEffectData).size ?? 3.0).toFixed(1)}x</span>
                 </div>
 
                 <div className="p-3 bg-background/30 rounded-lg ">
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Click Animation</span>
                     <Switch
-                      checked={effects.cursor.clickEffects ?? false}
+                      checked={(cursorEffect?.data as CursorEffectData).clickEffects ?? false}
                       onCheckedChange={(checked) =>
                         updateEffect('cursor', { clickEffects: checked })
                       }
@@ -508,7 +521,7 @@ export function EffectsSidebar({
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Motion Blur</span>
                     <Switch
-                      checked={effects.cursor.motionBlur ?? false}
+                      checked={(cursorEffect?.data as CursorEffectData).motionBlur ?? false}
                       onCheckedChange={(checked) =>
                         updateEffect('cursor', { motionBlur: checked })
                       }
@@ -520,7 +533,7 @@ export function EffectsSidebar({
                   <label className="text-xs font-medium flex items-center justify-between">
                     <span className="uppercase tracking-wider text-[10px]">Hide When Idle</span>
                     <Switch
-                      checked={effects.cursor.hideOnIdle ?? false}
+                      checked={(cursorEffect?.data as CursorEffectData).hideOnIdle ?? false}
                       onCheckedChange={(checked) =>
                         updateEffect('cursor', { hideOnIdle: checked })
                       }
@@ -528,18 +541,18 @@ export function EffectsSidebar({
                   </label>
                 </div>
 
-                {effects.cursor.hideOnIdle && (
+                {(cursorEffect?.data as CursorEffectData).hideOnIdle && (
                   <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
                     <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Idle Timeout</label>
                     <Slider
-                      value={[(effects.cursor.idleTimeout ?? 3000) / 1000]}
+                      value={[((cursorEffect?.data as CursorEffectData).idleTimeout ?? 3000) / 1000]}
                       onValueChange={([value]) => updateEffect('cursor', { idleTimeout: value * 1000 })}
                       min={1}
                       max={10}
                       step={0.5}
                       className="w-full"
                     />
-                    <span className="text-[10px] text-muted-foreground/70 font-mono">{((effects.cursor.idleTimeout ?? 3000) / 1000).toFixed(1)}s</span>
+                    <span className="text-[10px] text-muted-foreground/70 font-mono">{(((cursorEffect?.data as CursorEffectData).idleTimeout ?? 3000) / 1000).toFixed(1)}s</span>
                   </div>
                 )}
               </>
@@ -547,11 +560,11 @@ export function EffectsSidebar({
           </div>
         )}
 
-        {activeTab === 'zoom' && effects?.zoom && (
+        {activeTab === 'zoom' && zoomEffects.length > 0 && (
           <div className="space-y-3">
             {/* Show specific zoom block controls if one is selected */}
-            {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && effects.zoom.blocks && (() => {
-              const selectedBlock = effects.zoom.blocks.find((b: any) => b.id === selectedEffectLayer.id)
+            {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks && (() => {
+              const selectedBlock = ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks.find((b: any) => b.id === selectedEffectLayer.id)
               if (!selectedBlock) return null
 
               return (
@@ -565,10 +578,10 @@ export function EffectsSidebar({
                         key={`scale-${selectedEffectLayer.id}`}
                         value={[selectedBlock.scale]}
                         onValueChange={([value]) => {
-                          const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
+                          const updatedBlocks = ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks?.map((b: any) =>
                             b.id === selectedBlock.id ? { ...b, scale: value } : b
                           )
-                          updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                          updateEffect('zoom', { ...({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }), blocks: updatedBlocks })
                         }}
                         min={1}
                         max={4}
@@ -584,10 +597,10 @@ export function EffectsSidebar({
                         key={`intro-${selectedEffectLayer.id}`}
                         value={[selectedBlock.introMs || 500]}
                         onValueChange={([value]) => {
-                          const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
+                          const updatedBlocks = ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks?.map((b: any) =>
                             b.id === selectedBlock.id ? { ...b, introMs: value } : b
                           )
-                          updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                          updateEffect('zoom', { ...({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }), blocks: updatedBlocks })
                         }}
                         min={0}
                         max={1000}
@@ -603,10 +616,10 @@ export function EffectsSidebar({
                         key={`outro-${selectedEffectLayer.id}`}
                         value={[selectedBlock.outroMs || 500]}
                         onValueChange={([value]) => {
-                          const updatedBlocks = effects.zoom.blocks?.map((b: any) =>
+                          const updatedBlocks = ({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).blocks?.map((b: any) =>
                             b.id === selectedBlock.id ? { ...b, outroMs: value } : b
                           )
-                          updateEffect('zoom', { ...effects.zoom, blocks: updatedBlocks })
+                          updateEffect('zoom', { ...({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }), blocks: updatedBlocks })
                         }}
                         min={0}
                         max={1000}
@@ -625,7 +638,7 @@ export function EffectsSidebar({
               <label className="text-xs font-medium flex items-center justify-between">
                 <span className="uppercase tracking-wider text-[10px]">Zoom Effects</span>
                 <Switch
-                  checked={effects.zoom.enabled ?? false}
+                  checked={({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }).enabled ?? false}
                   onCheckedChange={(checked) =>
                     updateEffect('zoom', { enabled: checked })
                   }
@@ -639,7 +652,7 @@ export function EffectsSidebar({
                 onClick={() => {
                   // Trigger zoom detection reset - keep existing blocks until new ones are generated
                   updateEffect('zoom', {
-                    ...effects.zoom,
+                    ...({ enabled: zoomEffects.length > 0, blocks: zoomEffects.map(e => ({ ...(e.data as ZoomEffectData), id: e.id, startTime: e.startTime, endTime: e.endTime })) }),
                     regenerate: Date.now() // Add timestamp to trigger regeneration
                   })
                 }}
@@ -660,7 +673,7 @@ export function EffectsSidebar({
             <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Padding</label>
               <Slider
-                value={[effects.background.padding || 0]}
+                value={[(backgroundEffect?.data as BackgroundEffectData).padding || 0]}
                 onValueChange={([value]) => updateBackgroundEffect({
                   padding: value
                 })}
@@ -669,9 +682,9 @@ export function EffectsSidebar({
                 step={5}
                 className="w-full"
               />
-              {(effects.background.padding || 0) > 0 && (
+              {((backgroundEffect?.data as BackgroundEffectData).padding || 0) > 0 && (
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.background.padding}px</span>
+                  <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).padding}px</span>
                   <button
                     onClick={() => updateBackgroundEffect({
                       padding: 80
@@ -684,75 +697,6 @@ export function EffectsSidebar({
               )}
             </div>
 
-            <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
-              <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corners</label>
-              <Slider
-                value={[effects.video.cornerRadius]}
-                onValueChange={([value]) => updateEffect('video', { cornerRadius: value })}
-                min={0}
-                max={50}
-                step={1}
-                className="w-full"
-              />
-              {effects.video.cornerRadius > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.cornerRadius}px</span>}
-            </div>
-
-            <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
-              <label className="text-xs font-medium flex items-center justify-between">
-                <span className="uppercase tracking-wider text-[10px]">Shadow</span>
-                <Switch
-                  checked={effects.video.shadow.enabled}
-                  onCheckedChange={(checked) =>
-                    updateEffect('video', {
-                      ...effects.video,
-                      shadow: { ...effects.video.shadow, enabled: checked }
-                    })
-                  }
-                />
-              </label>
-              {effects.video.shadow.enabled && (
-                <>
-                  <div className="space-y-1">
-                    <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Blur</label>
-                    <Slider
-                      value={[effects.video.shadow.blur]}
-                      onValueChange={([value]) =>
-                        updateEffect('video', {
-                          ...effects.video,
-                          shadow: { ...effects.video.shadow, blur: value }
-                        })
-                      }
-                      min={0}
-                      max={120}
-                      step={5}
-                      className="w-full"
-                    />
-                    {effects.video.shadow.blur > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.shadow.blur}px</span>}
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Y Offset</label>
-                    <Slider
-                      value={[effects.video.shadow.offset.y]}
-                      onValueChange={([value]) =>
-                        updateEffect('video', {
-                          ...effects.video,
-                          shadow: {
-                            ...effects.video.shadow,
-                            offset: { ...effects.video.shadow.offset, y: value }
-                          }
-                        })
-                      }
-                      min={0}
-                      max={50}
-                      step={5}
-                      className="w-full"
-                    />
-                    {effects.video.shadow.offset.y > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{effects.video.shadow.offset.y}px</span>}
-                  </div>
-                </>
-              )}
-            </div>
           </div>
         )}
       </div>

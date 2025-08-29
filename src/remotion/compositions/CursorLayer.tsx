@@ -15,11 +15,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   clickEvents,
   fps,
   videoOffset,
-  zoom,
+  zoomBlocks,
   zoomState,
   videoWidth,
   videoHeight,
-  cursorEffects
+  cursorData
 }) => {
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
@@ -57,17 +57,23 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Check if cursor is idle
   const isIdle = useMemo(() => {
-    if (!cursorEffects?.hideOnIdle) return false;
+    if (!cursorData?.hideOnIdle) return false;
+    
+    // If no cursor events, never hide for idle
+    if (cursorEvents.length === 0) return false;
 
-    const idleTimeout = cursorEffects?.idleTimeout ?? 3000; // Default 3 seconds
+    const idleTimeout = cursorData?.idleTimeout ?? 3000; // Default 3 seconds
     const timeSinceLastMovement = currentTimeMs - lastMovementTimeRef.current;
 
     return timeSinceLastMovement > idleTimeout;
-  }, [currentTimeMs, cursorEffects?.hideOnIdle, cursorEffects?.idleTimeout]);
+  }, [currentTimeMs, cursorData?.hideOnIdle, cursorData?.idleTimeout, cursorEvents.length]);
 
   // Get interpolated cursor position with ultra-heavy smoothing
   const cursorPosition = useMemo(() => {
-    if (cursorEvents.length === 0) return null;
+    // If no cursor events, return a default position (center of screen)
+    if (cursorEvents.length === 0) {
+      return { x: videoWidth / 2, y: videoHeight / 2 };
+    }
 
     const targetTime = currentTimeMs;
 
@@ -194,14 +200,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Check for active click animation (only if click effects are enabled)
   const activeClick = useMemo(() => {
     // Check if click effects are enabled
-    if (!cursorEffects?.clickEffects) return null;
+    if (!cursorData?.clickEffects) return null;
     
     return clickEvents.find(click => {
       const clickDuration = 300; // ms for click animation
       return currentTimeMs >= click.timestamp &&
         currentTimeMs <= click.timestamp + clickDuration;
     });
-  }, [clickEvents, currentTimeMs, cursorEffects?.clickEffects]);
+  }, [clickEvents, currentTimeMs, cursorData?.clickEffects]);
 
   // Calculate click animation scale
   const clickScale = useMemo(() => {
@@ -277,7 +283,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   }, [frame]);
 
   // Apply cursor size from effects (default to 4.0 to match UI)
-  const cursorSize = cursorEffects?.size ?? 4.0;
+  const cursorSize = cursorData?.size ?? 4.0;
 
   // Get cursor hotspot and dimensions
   const hotspot = CURSOR_HOTSPOTS[cursorType];
@@ -293,9 +299,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorY = cursorTipY;
 
   // Apply zoom transformation EXACTLY like VideoLayer does
-  if (zoom?.enabled && zoom.blocks) {
+  if (zoomBlocks && zoomBlocks.length > 0) {
     // Find active zoom block - same as VideoLayer
-    const activeBlock = zoom.blocks.find(
+    const activeBlock = zoomBlocks.find(
       block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
     );
 

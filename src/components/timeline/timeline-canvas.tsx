@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { cn, formatTime } from '@/lib/utils'
-import type { Project, ZoomBlock, ClipEffects, ZoomEffectData, Effect } from '@/types/project'
+import type { Project, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -44,7 +44,7 @@ interface TimelineCanvasProps {
   onSeek: (time: number) => void
   onClipSelect: (clipId: string) => void
   onZoomChange: (zoom: number) => void
-  localEffects?: ClipEffects | null
+  localEffects?: Effect[] | null
   onZoomBlockUpdate?: (clipId: string, blockId: string, updates: Partial<ZoomBlock>) => void
 }
 

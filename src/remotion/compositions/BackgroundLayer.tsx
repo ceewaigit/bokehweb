@@ -3,21 +3,21 @@ import { AbsoluteFill } from 'remotion';
 import type { BackgroundLayerProps } from './types';
 
 export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
-  effects,
+  backgroundData,
   videoWidth,
   videoHeight
 }) => {
-  if (!effects?.type) {
+  if (!backgroundData?.type) {
     return null;
   }
 
   let backgroundStyle: React.CSSProperties = {};
 
-  switch (effects.type) {
+  switch (backgroundData.type) {
     case 'wallpaper':
-      if (!effects.wallpaper) return null;
+      if (!backgroundData.wallpaper) return null;
       backgroundStyle = {
-        backgroundImage: `url(${effects.wallpaper})`,
+        backgroundImage: `url(${backgroundData.wallpaper})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center'
       };
@@ -25,13 +25,13 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
 
     case 'color':
       backgroundStyle = {
-        backgroundColor: effects.color || '#000000'
+        backgroundColor: backgroundData.color || '#000000'
       };
       break;
 
     case 'gradient':
-      if (!effects.gradient?.colors?.length) return null;
-      const { colors, angle = 135 } = effects.gradient;
+      if (!backgroundData.gradient?.colors?.length) return null;
+      const { colors, angle = 135 } = backgroundData.gradient;
       const gradientColors = colors.map((color, index) => {
         const percentage = (index / (colors.length - 1)) * 100;
         return `${color} ${percentage}%`;
@@ -42,9 +42,9 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       break;
 
     case 'image':
-      if (!effects.image) return null;
+      if (!backgroundData.image) return null;
       backgroundStyle = {
-        backgroundImage: `url(${effects.image})`,
+        backgroundImage: `url(${backgroundData.image})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center'
       };
@@ -58,8 +58,8 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   }
 
   // Apply blur for image-based backgrounds
-  if (effects.blur && effects.blur > 0 && (effects.type === 'wallpaper' || effects.type === 'image')) {
-    backgroundStyle.filter = `blur(${effects.blur}px)`;
+  if (backgroundData.blur && backgroundData.blur > 0 && (backgroundData.type === 'wallpaper' || backgroundData.type === 'image')) {
+    backgroundStyle.filter = `blur(${backgroundData.blur}px)`;
   }
 
   return <AbsoluteFill style={backgroundStyle} />;

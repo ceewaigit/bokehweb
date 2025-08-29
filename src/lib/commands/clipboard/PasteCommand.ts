@@ -138,8 +138,6 @@ export class PasteCommand extends Command<PasteResult> {
     // Paste clip
     if (clipboard.clip) {
       const currentTime = this.pasteTime ?? this.context.getCurrentTime()
-      // Import default effects
-      const { DEFAULT_CLIP_EFFECTS } = await import('@/lib/constants/clip-defaults')
       
       // Copy clip (without effects since they're independent now)
       const newClip: Clip = {

@@ -4,6 +4,7 @@ import { VideoLayer } from './VideoLayer';
 import { BackgroundLayer } from './BackgroundLayer';
 import { CursorLayer } from './CursorLayer';
 import type { MainCompositionProps } from './types';
+import type { ZoomEffectData, BackgroundEffectData, CursorEffectData, ZoomBlock } from '@/types/project';
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 import { calculateZoomScale, easeInOutQuint } from './utils/zoom-transform';
@@ -30,16 +31,41 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     initialized: false
   });
 
-  // Calculate video position for cursor layer
-  const padding = effects?.background?.padding || 0;
-  const videoPosition = calculateVideoPosition(width, height, videoWidth, videoHeight, padding);
-
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
 
-  // Get zoom state if zoom is enabled
-  const zoomEnabled = effects?.zoom?.enabled;
-  const zoomBlocks = effects?.zoom?.blocks || [];
+  // Extract active effects from the array
+  const activeEffects = effects?.filter(e => 
+    e.enabled && 
+    currentTimeMs >= e.startTime && 
+    currentTimeMs <= e.endTime
+  ) || [];
+
+  // Find specific effect types
+  const backgroundEffect = activeEffects.find(e => e.type === 'background');
+  const cursorEffect = activeEffects.find(e => e.type === 'cursor');
+  const zoomEffects = activeEffects.filter(e => e.type === 'zoom');
+
+  // Extract background padding
+  const padding = backgroundEffect ? (backgroundEffect.data as BackgroundEffectData).padding : 0;
+  const videoPosition = calculateVideoPosition(width, height, videoWidth, videoHeight, padding);
+
+  // Convert zoom effects to zoom blocks
+  const zoomEnabled = zoomEffects.length > 0;
+  const zoomBlocks: ZoomBlock[] = zoomEffects.map(effect => {
+    const data = effect.data as ZoomEffectData;
+    return {
+      id: effect.id,
+      startTime: effect.startTime,
+      endTime: effect.endTime,
+      scale: data.scale,
+      targetX: data.targetX,
+      targetY: data.targetY,
+      introMs: data.introMs,
+      outroMs: data.outroMs,
+      smoothing: data.smoothing
+    };
+  });
 
   // Calculate complete zoom state including dynamic pan
   const completeZoomState = useMemo(() => {
@@ -230,13 +256,15 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {/* Background Layer */}
-      <Sequence from={0}>
-        <BackgroundLayer
-          effects={effects?.background}
-          videoWidth={width}
-          videoHeight={height}
-        />
-      </Sequence>
+      {backgroundEffect && (
+        <Sequence from={0}>
+          <BackgroundLayer
+            backgroundData={backgroundEffect.data as BackgroundEffectData}
+            videoWidth={width}
+            videoHeight={height}
+          />
+        </Sequence>
+      )}
 
       {/* Video Layer with effects */}
       {videoUrl && (
@@ -244,7 +272,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           <VideoLayer
             videoUrl={videoUrl}
             effects={effects}
-            zoom={effects?.zoom}
+            zoomBlocks={zoomBlocks}
             videoWidth={videoWidth}
             videoHeight={videoHeight}
             captureArea={captureArea}
@@ -255,7 +283,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       )}
 
       {/* Cursor Layer - Only show when explicitly enabled */}
-      {cursorEvents.length > 0 && effects?.cursor?.enabled && (
+      {cursorEffect && (
         <Sequence from={0}>
           <CursorLayer
             cursorEvents={cursorEvents}
@@ -267,11 +295,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               width: videoPosition.drawWidth,
               height: videoPosition.drawHeight
             }}
-            zoom={effects?.zoom}  // Pass the same zoom config as VideoLayer
-            zoomState={completeZoomState}  // Also pass the calculated state for pan
+            zoomBlocks={zoomBlocks}
+            zoomState={completeZoomState}
             videoWidth={videoWidth}
             videoHeight={videoHeight}
-            cursorEffects={effects?.cursor}
+            cursorData={cursorEffect.data as CursorEffectData}
           />
         </Sequence>
       )}
