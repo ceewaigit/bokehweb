@@ -407,7 +407,11 @@ export function TimelineCanvas({
 
               return videoClips.map(clip => {
                 const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
-                const clipEffects = currentProject.timeline.effects?.filter(e => e.clipId === clip.id) || []
+                // Get effects that overlap with this clip's time range
+                const clipEffects = currentProject.timeline.effects?.filter(e => 
+                  e.startTime < clip.startTime + clip.duration && 
+                  e.endTime > clip.startTime
+                ) || []
                 return (
                   <TimelineClip
                     key={clip.id}
@@ -448,12 +452,15 @@ export function TimelineCanvas({
 
               videoTrack.clips.forEach(clip => {
                 const isSelectedClip = selectedClips.includes(clip.id)
-
-                // Get zoom effects for this clip
-                const clipZoomEffects = zoomEffects.filter(e => e.clipId === clip.id)
-                if (clipZoomEffects.length === 0) return
-
                 const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+
+                // Get zoom effects that overlap with this clip's time range
+                const clipZoomEffects = zoomEffects.filter(e => 
+                  // Check if effect overlaps with clip time range
+                  e.startTime < clip.startTime + clip.duration && 
+                  e.endTime > clip.startTime
+                )
+                if (clipZoomEffects.length === 0) return
 
                 clipZoomEffects.forEach((effect) => {
                   const isBlockSelected = isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === effect.id
@@ -463,7 +470,7 @@ export function TimelineCanvas({
                     <TimelineZoomBlock
                       key={effect.id}
                       blockId={effect.id}
-                      x={clipX + TimelineUtils.timeToPixel(effect.startTime, pixelsPerMs)}
+                      x={TimelineUtils.timeToPixel(effect.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
                       y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
                       width={TimelineUtils.timeToPixel(effect.endTime - effect.startTime, pixelsPerMs)}
                       height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
@@ -486,12 +493,12 @@ export function TimelineCanvas({
                         }, 0)
                       }}
                       onDragEnd={(newX) => {
-                        const newStartTime = TimelineUtils.pixelToTime(newX - clipX, pixelsPerMs)
+                        const newStartTime = TimelineUtils.pixelToTime(newX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pixelsPerMs)
                         const duration = effect.endTime - effect.startTime
-                        // Update the effect directly in timeline.effects
+                        // Update the effect directly in timeline.effects with absolute positions
                         updateEffect(effect.id, {
-                          startTime: Math.max(0, Math.min(clip.duration - duration, newStartTime)),
-                          endTime: Math.max(0, Math.min(clip.duration, newStartTime + duration))
+                          startTime: Math.max(0, newStartTime),
+                          endTime: Math.max(duration, newStartTime + duration)
                         })
                       }}
                       onUpdate={(updates) => {

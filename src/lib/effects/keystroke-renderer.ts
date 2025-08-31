@@ -8,11 +8,9 @@ interface KeystrokeOptions {
   borderColor?: string
   borderRadius?: number
   padding?: number
-  fadeOutDuration?: number // ms
+  fadeOutDuration?: number
   position?: 'bottom-center' | 'bottom-right' | 'top-center'
   maxWidth?: number
-  groupingDelay?: number // ms - delay before showing grouped text
-  groupDisplayDuration?: number // ms - how long to show grouped text
 }
 
 interface ActiveKeystroke {
@@ -45,7 +43,6 @@ export class KeystrokeRenderer {
   // Timing constants
   private readonly DISPLAY_DURATION = 2500 // ms - how long to show text
   private readonly FADE_DURATION = 300 // ms - fade out animation
-  private readonly MAX_CONCURRENT = 1 // Show one text block at a time
   private readonly BUFFER_TIMEOUT = 800 // ms - time before flushing buffer
   private readonly FADE_IN_DURATION = 200 // ms - fade in animation
 
@@ -61,8 +58,6 @@ export class KeystrokeRenderer {
       fadeOutDuration: this.FADE_DURATION,
       position: 'bottom-center',
       maxWidth: 300,
-      groupingDelay: this.BUFFER_TIMEOUT,
-      groupDisplayDuration: this.DISPLAY_DURATION,
       ...options
     }
   }
@@ -152,6 +147,19 @@ export class KeystrokeRenderer {
             lastKeyTime: event.timestamp,
             keys: [event]
           })
+        } else if (event.key === 'Backspace' || event.key === 'Delete') {
+          // Handle backspace/delete in buffer
+          if (this.buffer && this.buffer.text.length > 0) {
+            // Remove last character from buffer
+            this.buffer.text = this.buffer.text.slice(0, -1)
+            this.buffer.lastKeyTime = event.timestamp
+            this.buffer.keys.push(event)
+            
+            // If buffer is now empty, clear it
+            if (this.buffer.text.length === 0) {
+              this.buffer = null
+            }
+          }
         } else {
           // Regular typing - add to buffer
           if (!this.buffer) {
@@ -183,28 +191,83 @@ export class KeystrokeRenderer {
       this.flushBuffer()
     }
 
-    // Process display queue - show buffered text
-    while (this.displayQueue.length > 0 && this.activeKeystrokes.size < this.MAX_CONCURRENT) {
-      const buffered = this.displayQueue.shift()!
-      if (timestamp - buffered.startTime < 5000) { // Don't show text older than 5 seconds
-        const position = this.calculatePosition(
-          this.activeKeystrokes.size,
-          videoWidth,
-          videoHeight
-        )
-
-        const keystrokeId = `buffer-${buffered.startTime}`
-        this.activeKeystrokes.set(keystrokeId, {
-          id: keystrokeId,
-          text: buffered.text,
-          startTime: timestamp,
-          fadeStartTime: timestamp + this.DISPLAY_DURATION,
-          opacity: 1,
-          x: position.x,
-          y: position.y,
-          fadeIn: true
-        })
+    // Show current buffer text progressively if it exists
+    if (this.buffer && this.buffer.text.length > 0) {
+      // Calculate how many characters to show based on actual typing speed
+      // Count how many keys were typed (excluding backspaces)
+      const typedKeys = this.buffer.keys.filter(k => k.key !== 'Backspace' && k.key !== 'Delete')
+      
+      // Show characters based on actual key timing
+      let charsToShow = 0
+      for (const key of typedKeys) {
+        if (key.timestamp <= timestamp) {
+          charsToShow++
+        } else {
+          break
+        }
       }
+      
+      // Ensure we don't exceed buffer text length
+      charsToShow = Math.min(charsToShow, this.buffer.text.length)
+      
+      if (charsToShow > 0) {
+        const displayText = this.buffer.text.substring(0, charsToShow)
+        const bufferId = 'current-buffer'
+        
+        // Update or create the current buffer display
+        if (!this.activeKeystrokes.has(bufferId)) {
+          const position = this.calculatePosition(0, videoWidth, videoHeight)
+          this.activeKeystrokes.set(bufferId, {
+            id: bufferId,
+            text: displayText,
+            startTime: timestamp,
+            fadeStartTime: timestamp + 10000, // Don't fade while typing
+            opacity: 1,
+            x: position.x,
+            y: position.y,
+            fadeIn: true
+          })
+        } else {
+          // Update existing text
+          const existing = this.activeKeystrokes.get(bufferId)!
+          existing.text = displayText
+          existing.fadeStartTime = timestamp + 10000 // Keep resetting fade
+        }
+      }
+    }
+
+    // Process display queue for completed text blocks
+    while (this.displayQueue.length > 0) {
+      const buffered = this.displayQueue.shift()!
+      
+      // Wait for the right time to show this text
+      if (buffered.startTime > timestamp) {
+        // Put it back, not time yet
+        this.displayQueue.unshift(buffered)
+        break
+      }
+      
+      // Remove current buffer display if exists
+      if (this.activeKeystrokes.has('current-buffer')) {
+        this.activeKeystrokes.delete('current-buffer')
+      }
+      
+      // Show the completed text for its display duration
+      const position = this.calculatePosition(0, videoWidth, videoHeight)
+      const keystrokeId = `buffer-${buffered.startTime}`
+      
+      this.activeKeystrokes.set(keystrokeId, {
+        id: keystrokeId,
+        text: buffered.text,
+        startTime: timestamp,
+        fadeStartTime: timestamp + this.DISPLAY_DURATION,
+        opacity: 1,
+        x: position.x,
+        y: position.y,
+        fadeIn: true
+      })
+      
+      // Since MAX_CONCURRENT is 1, we should already have removed the buffer above
     }
 
     // Update and render active keystrokes
@@ -239,7 +302,6 @@ export class KeystrokeRenderer {
     toRemove.forEach(id => this.activeKeystrokes.delete(id))
   }
 
-  // Removed complex buffering methods - keeping it simple for now
 
   private formatSingleKey(key: string, modifiers: string[]): string {
     // Handle modifier combos (e.g., Cmd+C)
@@ -287,30 +349,28 @@ export class KeystrokeRenderer {
   }
 
   private calculatePosition(
-    index: number,
+    _index: number, // Keep for compatibility but unused since we only show one at a time
     videoWidth: number,
     videoHeight: number
   ): { x: number; y: number } {
-    const margin = 20
-    const spacing = 10
-    const estimatedWidth = 100 // Rough estimate, will calculate actual
+    const margin = 40
 
     switch (this.options.position) {
       case 'bottom-right':
         return {
-          x: videoWidth - margin - estimatedWidth,
-          y: videoHeight - margin - (index * (this.options.fontSize! + this.options.padding! * 2 + spacing))
+          x: videoWidth - margin - 150, // Estimate for right alignment
+          y: videoHeight - margin
         }
       case 'top-center':
         return {
           x: videoWidth / 2,
-          y: margin + (index * (this.options.fontSize! + this.options.padding! * 2 + spacing))
+          y: margin
         }
       case 'bottom-center':
       default:
         return {
           x: videoWidth / 2,
-          y: videoHeight - margin - (index * (this.options.fontSize! + this.options.padding! * 2 + spacing))
+          y: videoHeight - margin
         }
     }
   }
@@ -397,7 +457,6 @@ export class KeystrokeRenderer {
     this.displayQueue = []
   }
 
-  // Check if there are keystrokes to render at given time
   hasKeystrokesAtTime(timestamp: number): boolean {
     return this.keyHistory.some(event =>
       event.timestamp <= timestamp &&

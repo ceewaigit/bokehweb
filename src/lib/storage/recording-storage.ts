@@ -394,14 +394,13 @@ export class RecordingStorage {
         project.timeline.effects = []
       }
 
-      // Add zoom effects
+      // Add zoom effects with absolute timeline positions
       zoomBlocks.forEach((block, index) => {
         project.timeline.effects!.push({
           id: `zoom-${clip.id}-${index}`,
           type: 'zoom',
-          clipId: clip.id,
-          startTime: block.startTime,
-          endTime: block.endTime,
+          startTime: clip.startTime + block.startTime,
+          endTime: clip.startTime + block.endTime,
           data: {
             scale: block.scale,
             targetX: block.targetX,
@@ -414,13 +413,14 @@ export class RecordingStorage {
         })
       })
 
-      // Add default background effect
-      project.timeline.effects!.push({
-        id: `background-${clip.id}`,
-        type: 'background',
-        clipId: clip.id,
-        startTime: 0,
-        endTime: duration,
+      // Add global background effect if it doesn't exist
+      const hasBackground = project.timeline.effects!.some(e => e.type === 'background')
+      if (!hasBackground) {
+        project.timeline.effects!.push({
+          id: `background-global`,
+          type: 'background',
+          startTime: 0,
+          endTime: Number.MAX_SAFE_INTEGER,
         data: {
           type: 'wallpaper',
           gradient: {
@@ -434,14 +434,16 @@ export class RecordingStorage {
         },
         enabled: true
       })
+      }
 
-      // Add default cursor effect
-      project.timeline.effects!.push({
-        id: `cursor-${clip.id}`,
-        type: 'cursor',
-        clipId: clip.id,
-        startTime: 0,
-        endTime: duration,
+      // Add global cursor effect if it doesn't exist
+      const hasCursor = project.timeline.effects!.some(e => e.type === 'cursor')
+      if (!hasCursor) {
+        project.timeline.effects!.push({
+          id: `cursor-global`,
+          type: 'cursor',
+          startTime: 0,
+          endTime: Number.MAX_SAFE_INTEGER,
         data: {
           style: 'macOS',
           size: 4.0,
@@ -453,16 +455,17 @@ export class RecordingStorage {
         },
         enabled: true
       })
+      }
 
-      // Add keystroke effect if keyboard events exist
-      if (keyboardEvents.length > 0) {
-        logger.info(`✅ Creating keystroke effect for ${keyboardEvents.length} keyboard events`)
+      // Add global keystroke effect if keyboard events exist and not already present
+      const hasKeystroke = project.timeline.effects!.some(e => e.type === 'keystroke')
+      if (keyboardEvents.length > 0 && !hasKeystroke) {
+        logger.info(`✅ Creating global keystroke effect for ${keyboardEvents.length} keyboard events`)
         project.timeline.effects!.push({
-          id: `keystroke-${clip.id}`,
+          id: `keystroke-global`,
           type: 'keystroke',
-          clipId: clip.id,
           startTime: 0,
-          endTime: duration,
+          endTime: Number.MAX_SAFE_INTEGER,
           data: {
             position: 'bottom-center',
             fontSize: 16,

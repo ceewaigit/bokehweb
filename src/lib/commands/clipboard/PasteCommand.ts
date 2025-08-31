@@ -112,13 +112,12 @@ export class PasteCommand extends Command<PasteResult> {
             data: effectData
           })
         } else {
-          // Create new effect if none exists
+          // Create new effect if none exists (timeline-global)
           store.addEffect({
-            id: `${effectType}-${targetClipId}`,
+            id: `${effectType}-global-${Date.now()}`,
             type: effectType as 'cursor' | 'background',
-            clipId: targetClipId,
-            startTime: 0,
-            endTime: targetClip.duration,
+            startTime: targetClip.startTime,
+            endTime: targetClip.startTime + targetClip.duration,
             data: effectData,
             enabled: true
           })

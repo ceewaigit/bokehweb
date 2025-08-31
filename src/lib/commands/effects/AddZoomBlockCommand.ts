@@ -41,11 +41,10 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
       this.block.id = `zoom-${Date.now()}`
     }
 
-    // Create a new zoom effect from the block
+    // Create a new zoom effect from the block (with absolute timeline positions)
     const zoomEffect: Effect = {
       id: this.block.id,
       type: 'zoom',
-      clipId: this.clipId,
       startTime: this.block.startTime,
       endTime: this.block.endTime,
       data: {
@@ -83,11 +82,10 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   doRedo(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
     
-    // Re-add the zoom effect
+    // Re-add the zoom effect (with absolute timeline positions)
     const zoomEffect: Effect = {
       id: this.block.id,
       type: 'zoom',
-      clipId: this.clipId,
       startTime: this.block.startTime,
       endTime: this.block.endTime,
       data: {

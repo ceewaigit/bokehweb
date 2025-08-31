@@ -62,29 +62,21 @@ export function getDefaultWallpaper(): string | undefined {
 export async function initializeDefaultWallpaper() {
   // Skip if already initialized
   if (wallpaperInitialized) {
-    console.log('Wallpaper already initialized, skipping')
     return
   }
 
   wallpaperInitialized = true
-  console.log('Initializing default wallpaper...')
 
   if (typeof window === 'undefined' || !window.electronAPI?.loadWallpaperImage) {
-    console.warn('ElectronAPI not available for wallpaper loading')
     return
   }
 
   try {
-    console.log('Loading Sonoma wallpaper...')
     const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
     if (dataUrl) {
-      console.log('Sonoma wallpaper loaded successfully, data URL length:', dataUrl.length)
       setDefaultWallpaper(dataUrl)
-    } else {
-      console.warn('No data URL returned for Sonoma wallpaper')
     }
   } catch (error) {
-    console.error('Failed to load Sonoma wallpaper:', error)
     // Silently fail - will use gradient background
   }
 }

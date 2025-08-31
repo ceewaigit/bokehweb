@@ -124,19 +124,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             console.error('Video playback error in VideoLayer:', e)
             // Don't throw - let Remotion handle gracefully
           }}
-          onVolumeChange={(e: any) => {
-            console.log('Video volume changed:', e.target?.volume, 'muted:', e.target?.muted)
-          }}
-          onLoadedMetadata={(e: any) => {
-            const video = e.target as HTMLVideoElement
-            // Note: audioTracks is not widely supported, check if video has audio differently
-            console.log('Video loaded - Duration:', video.duration, 'seconds')
-            console.log('Video muted state:', video.muted, 'Volume:', video.volume)
-            // Check if video likely has audio by trying to play and checking volume
-            if (video.volume > 0 && !video.muted) {
-              console.log('Video is configured for audio playback')
-            }
-          }}
         />
       </div>
     </AbsoluteFill>

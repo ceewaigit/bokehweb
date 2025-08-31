@@ -147,15 +147,14 @@ export interface Clip {
   transitionOut?: Transition
 }
 
-// New: Independent effect entity
+// New: Independent effect entity (timeline-global, not per-clip)
 export interface Effect {
   id: string
   type: 'zoom' | 'cursor' | 'keystroke' | 'background' | 'annotation'
-  clipId: string  // Associated clip
-
-  // Timing relative to clip
-  startTime: number  // Start time relative to clip
-  endTime: number    // End time relative to clip
+  
+  // Timing on timeline (absolute, not relative to any clip)
+  startTime: number  // Start time on timeline (absolute)
+  endTime: number    // End time on timeline (absolute)
 
   // Effect-specific data
   data: ZoomEffectData | CursorEffectData | KeystrokeEffectData | BackgroundEffectData | AnnotationData

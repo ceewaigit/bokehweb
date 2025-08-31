@@ -102,12 +102,16 @@ export function PreviewAreaRemotion({
     return () => clearInterval(updateInterval);
   }, [previewClip, onTimeUpdate, isPlaying]);
 
-  // Get video dimensions and effects
+  // Get video dimensions
   const videoWidth = previewRecording?.width || 1920;
   const videoHeight = previewRecording?.height || 1080;
-  // Get effects from timeline.effects for this clip
+  
+  // Get effects from timeline.effects active at current time (timeline-based)
   const currentProjectRef = useProjectStore(state => state.currentProject)
-  const clipEffects = currentProjectRef?.timeline?.effects?.filter((e: any) => e.clipId === previewClip?.id && e.enabled) || []
+  const currentTimeRef = useProjectStore(state => state.currentTime)
+  const clipEffects = currentProjectRef?.timeline?.effects?.filter((e: any) => 
+    currentTimeRef >= e.startTime && currentTimeRef <= e.endTime && e.enabled
+  ) || []
 
   // Calculate composition size based on video aspect ratio
   // Don't add padding to composition size - padding is handled internally in the composition

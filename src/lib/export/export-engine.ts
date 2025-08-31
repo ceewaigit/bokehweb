@@ -94,9 +94,11 @@ export class ExportEngine {
         captureArea.sourceId?.startsWith('area:')
       )
 
-      // Check if there are any effects for this clip
+      // Check if there are any effects active during this clip's time range
       const clipEffects = project.timeline.effects?.filter(
-        e => e.clipId === firstClip.id && e.enabled
+        e => e.startTime < firstClip.startTime + firstClip.duration && 
+             e.endTime > firstClip.startTime && 
+             e.enabled
       ) || []
       const hasEffects = clipEffects.length > 0
 

@@ -24,47 +24,27 @@ export class EffectUtils {
   }
 
   /**
-   * Clone multiple effects for a new clip
+   * Clone multiple effects (no longer needed - effects are timeline-global)
+   * @deprecated Effects are now timeline-global
    */
   static cloneEffectsForClip(effects: Effect[], newClipId: string): Effect[] {
-    return effects.map(effect =>
-      EffectUtils.cloneEffect(effect, { clipId: newClipId })
-    )
+    // No-op: Effects are timeline-global, not per-clip
+    return []
   }
 
   /**
-   * Split an effect at a specific point
+   * Split an effect at a specific point (effects are timeline-global, splits may still be needed for zoom effects)
    */
   static splitEffect(effect: Effect, splitPoint: number, leftClipId: string, rightClipId: string): Effect[] {
-    if (effect.endTime <= splitPoint) {
-      // Effect stays with left clip
-      return [{ ...effect, clipId: leftClipId }]
-    } else if (effect.startTime >= splitPoint) {
-      // Effect moves to right clip with adjusted timing
-      return [{
-        ...effect,
-        clipId: rightClipId,
-        startTime: effect.startTime - splitPoint,
-        endTime: effect.endTime - splitPoint
-      }]
-    } else {
-      // Effect spans the split point - create two effects
-      return [
-        {
-          ...effect,
-          id: `${effect.id}-left`,
-          clipId: leftClipId,
-          endTime: splitPoint
-        },
-        {
-          ...effect,
-          id: `${effect.id}-right`,
-          clipId: rightClipId,
-          startTime: 0,
-          endTime: effect.endTime - splitPoint
-        }
-      ]
+    // For timeline-global effects, we don't need to split most effects
+    // Only zoom effects might need splitting if they're specific to a region
+    if (effect.type !== 'zoom') {
+      // Background, cursor, keystroke effects don't need splitting
+      return [effect]
     }
+    
+    // For zoom effects, keep them as-is since they use absolute timeline positions
+    return [effect]
   }
 
   /**

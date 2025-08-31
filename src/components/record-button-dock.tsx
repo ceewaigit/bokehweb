@@ -34,7 +34,7 @@ interface Source {
 }
 
 export function RecordButtonDock() {
-  const [micEnabled, setMicEnabled] = useState(true)
+  const [audioEnabled, setAudioEnabled] = useState(true)  // System audio, not microphone
   const [cameraEnabled, setCameraEnabled] = useState(false)
   const [sources, setSources] = useState<Source[]>([])
   const [showSourcePicker, setShowSourcePicker] = useState(false)
@@ -180,9 +180,9 @@ export function RecordButtonDock() {
   // Update recording settings when audio changes
   useEffect(() => {
     updateSettings({
-      audioInput: micEnabled ? 'system' : 'none'
+      audioInput: audioEnabled ? 'system' : 'none'  // System audio from desktop
     })
-  }, [micEnabled, updateSettings])
+  }, [audioEnabled, updateSettings])
 
   // No hardcoded dimensions - let the content determine size
   // The window auto-sizes based on content via ResizeObserver in main process
@@ -194,6 +194,9 @@ export function RecordButtonDock() {
 
   const handleSourceSelect = async () => {
     if (!selectedSourceId) return
+
+    // Ensure wallpaper is loaded before starting recording
+    await initializeDefaultWallpaper()
 
     // Close picker immediately for smooth transition
     setShowSourcePicker(false)
@@ -280,17 +283,17 @@ export function RecordButtonDock() {
                   style={{ WebkitAppRegion: 'no-drag' } as any}
                   className={cn(
                     "relative p-1.5 rounded-lg transition-colors duration-100",
-                    micEnabled
+                    audioEnabled
                       ? "bg-primary/10 text-primary hover:bg-primary/20"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
-                  onClick={() => setMicEnabled(!micEnabled)}
-                  title={micEnabled
-                    ? 'Microphone On (Records your voice)'
-                    : 'Microphone Off (System audio may still be captured)'}
+                  onClick={() => setAudioEnabled(!audioEnabled)}
+                  title={audioEnabled
+                    ? 'System Audio On (Records computer audio)'
+                    : 'System Audio Off (No audio will be captured)'}
                 >
-                  {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
-                  {micEnabled && (
+                  {audioEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                  {audioEnabled && (
                     <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
                   )}
                 </button>

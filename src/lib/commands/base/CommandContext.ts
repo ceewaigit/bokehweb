@@ -24,13 +24,11 @@ interface ProjectStore {
   copyEffect: (type: 'zoom' | 'cursor' | 'background', data: any, sourceClipId: string) => void
   clearClipboard: () => void
   
-  // New: Independent Effects Management
+  // Effects Management (timeline-global)
   addEffect: (effect: import('@/types/project').Effect) => void
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<import('@/types/project').Effect>) => void
   getEffectsForClip: (clipId: string) => import('@/types/project').Effect[]
-  duplicateEffectsForClip: (sourceClipId: string, targetClipId: string) => void
-  adjustEffectsForClipChange: (clipId: string, changeType: 'split' | 'trim', params: any) => void
 }
 
 export interface CommandContext {

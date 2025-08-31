@@ -128,47 +128,56 @@ async function loadProjectRecording(
     }
   }
 
-  // Initialize effects array if it doesn't exist (for very old projects)
+  // Initialize effects array if it doesn't exist
   if (!project.timeline.effects) {
     project.timeline.effects = []
   }
 
-  // For migration: Ensure clips have background effects if they're missing
-  // This is only for projects that were created before effects were properly saved
-  for (const track of project.timeline.tracks) {
-    if (track.type === 'video') {
-      for (const clip of track.clips) {
-        const hasBackground = project.timeline.effects.some(
-          (e: any) => e.clipId === clip.id && e.type === 'background'
-        )
+  // Ensure global background and cursor effects exist
+  const hasGlobalBackground = project.timeline.effects.some((e: any) => e.type === 'background')
+  const hasGlobalCursor = project.timeline.effects.some((e: any) => e.type === 'cursor')
+  
+  if (!hasGlobalBackground) {
+    const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
+    const defaultWallpaper = getDefaultWallpaper()
 
-        if (!hasBackground) {
-          // Only add background for migration - new recordings should have it already
-          const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
-          const defaultWallpaper = getDefaultWallpaper()
-
-          project.timeline.effects.push({
-            id: `background-${clip.id}`,
-            type: 'background',
-            clipId: clip.id,
-            startTime: 0,
-            endTime: clip.duration,
-            data: {
-              type: 'wallpaper',
-              gradient: {
-                colors: ['#2D3748', '#1A202C'],
-                angle: 135
-              },
-              wallpaper: defaultWallpaper,
-              padding: 80,
-              cornerRadius: 25,
-              shadowIntensity: 85
-            },
-            enabled: true
-          })
-        }
-      }
-    }
+    project.timeline.effects.push({
+      id: 'background-global',
+      type: 'background',
+      startTime: 0,
+      endTime: Number.MAX_SAFE_INTEGER,
+      data: {
+        type: 'wallpaper',
+        gradient: {
+          colors: ['#2D3748', '#1A202C'],
+          angle: 135
+        },
+        wallpaper: defaultWallpaper,
+        padding: 80,
+        cornerRadius: 25,
+        shadowIntensity: 85
+      },
+      enabled: true
+    })
+  }
+  
+  if (!hasGlobalCursor) {
+    project.timeline.effects.push({
+      id: 'cursor-global',
+      type: 'cursor',
+      startTime: 0,
+      endTime: Number.MAX_SAFE_INTEGER,
+      data: {
+        style: 'macOS',
+        size: 4.0,
+        color: '#ffffff',
+        clickEffects: true,
+        motionBlur: true,
+        hideOnIdle: true,
+        idleTimeout: 3000
+      },
+      enabled: true
+    })
   }
 
   // Set the project ONCE after all recordings are processed
@@ -396,9 +405,6 @@ export function WorkspaceManager() {
   }, [selectClip])
 
   const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
-    // Use reactive playhead clip from store
-    if (!playheadClip) return
-
     // Work with local effects or fall back to saved effects
     const currentEffects = localEffects || playheadEffects || []
 
@@ -418,7 +424,7 @@ export function WorkspaceManager() {
         return
       }
     } else {
-      // For background, cursor, and keystroke, update the single effect of that type
+      // For background and cursor, update the global effect
       const existingEffectIndex = currentEffects.findIndex(e => e.type === type)
 
       if (existingEffectIndex >= 0) {
@@ -437,16 +443,16 @@ export function WorkspaceManager() {
           enabled
         }
       } else {
-        // Add new effect to local state
+        // Add new global effect
         // Extract enabled from data if present
         const { enabled: dataEnabled, ...effectData } = data
 
         const newEffect: Effect = {
-          id: `${type}-${playheadClip.id}-${Date.now()}`,
+          id: `${type}-global-${Date.now()}`,
           type,
-          clipId: playheadClip.id,
+          // Global effects cover entire timeline
           startTime: 0,
-          endTime: playheadClip.duration || 0,
+          endTime: Number.MAX_SAFE_INTEGER,
           data: effectData,
           enabled: dataEnabled !== undefined ? dataEnabled : true
         }
@@ -457,7 +463,7 @@ export function WorkspaceManager() {
     // Update local state
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
-  }, [playheadClip, playheadEffects, localEffects, selectedEffectLayer])
+  }, [playheadEffects, localEffects, selectedEffectLayer])
 
 
 

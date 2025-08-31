@@ -14,7 +14,6 @@ import {
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { EffectUtils } from '@/lib/utils/effect-utils'
 
 // Helper functions moved to top for better organization
 const findClipById = (project: Project, clipId: string): { clip: Clip; track: Track } | null => {
@@ -134,13 +133,11 @@ interface ProjectStore {
   // Cleanup
   cleanupProject: () => void
 
-  // New: Independent Effects Management
+  // Effects Management (timeline-global)
   addEffect: (effect: Effect) => void
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<Effect>) => void
   getEffectsForClip: (clipId: string) => Effect[]
-  duplicateEffectsForClip: (sourceClipId: string, targetClipId: string) => void
-  adjustEffectsForClipChange: (clipId: string, changeType: 'split' | 'trim', params: any) => void
 }
 
 // Helper to update playhead state based on current time
@@ -160,11 +157,15 @@ const updatePlayheadState = (state: any) => {
         state.playheadRecording = state.currentProject.recordings.find(
           (r: Recording) => r.id === clip.recordingId
         ) || null
-        state.playheadEffects = state.currentProject.timeline.effects?.filter(
-          (e: Effect) => e.clipId === clip.id
-        ) || []
         break
       }
+    }
+    
+    // Find effects active at current time (timeline-based, not clip-based)
+    if (state.currentProject.timeline.effects) {
+      state.playheadEffects = state.currentProject.timeline.effects.filter(
+        (e: Effect) => state.currentTime >= e.startTime && state.currentTime <= e.endTime && e.enabled
+      )
     }
   }
 }
@@ -301,14 +302,14 @@ export const useProjectStore = create<ProjectStore>()(
           state.currentProject.timeline.effects = []
         }
 
-        // Add zoom effects as separate entities
+        // Add zoom effects with absolute timeline positions
         zoomBlocks.forEach((block, index) => {
           const zoomEffect: Effect = {
             id: `zoom-${clipId}-${index}`,
             type: 'zoom',
-            clipId: clipId,
-            startTime: block.startTime,
-            endTime: block.endTime,
+            // Use absolute timeline positions
+            startTime: clip.startTime + block.startTime,
+            endTime: clip.startTime + block.endTime,
             data: {
               scale: block.scale,
               targetX: block.targetX,
@@ -322,52 +323,56 @@ export const useProjectStore = create<ProjectStore>()(
           state.currentProject!.timeline.effects.push(zoomEffect)
         })
 
-        // Add default background and cursor effects
-        // Import default wallpaper if available
-        const { getDefaultWallpaper } = require('@/lib/constants/default-effects')
-        const defaultWallpaper = getDefaultWallpaper()
-        
-        console.log('Adding background effect with wallpaper:', defaultWallpaper ? `Data URL (${defaultWallpaper.length} chars)` : 'undefined')
+        // Check if global background effect exists, if not create one
+        const existingBackground = state.currentProject.timeline.effects.find(e => e.type === 'background')
+        if (!existingBackground) {
+          const { getDefaultWallpaper } = require('@/lib/constants/default-effects')
+          const defaultWallpaper = getDefaultWallpaper()
 
-        const backgroundEffect: Effect = {
-          id: `background-${clipId}`,
-          type: 'background',
-          clipId: clipId,
-          startTime: 0,
-          endTime: recording.duration,
-          data: {
-            type: 'wallpaper',
-            gradient: {
-              colors: ['#2D3748', '#1A202C'],
-              angle: 135
-            },
-            wallpaper: defaultWallpaper,
-            padding: 80,
-            cornerRadius: 25,
-            shadowIntensity: 85
-          } as BackgroundEffectData,
-          enabled: true
+          const backgroundEffect: Effect = {
+            id: `background-global`,
+            type: 'background',
+            // Cover entire timeline
+            startTime: 0,
+            endTime: Number.MAX_SAFE_INTEGER, // Always cover entire timeline
+            data: {
+              type: 'wallpaper',
+              gradient: {
+                colors: ['#2D3748', '#1A202C'],
+                angle: 135
+              },
+              wallpaper: defaultWallpaper,
+              padding: 80,
+              cornerRadius: 25,
+              shadowIntensity: 85
+            } as BackgroundEffectData,
+            enabled: true
+          }
+          state.currentProject.timeline.effects.push(backgroundEffect)
         }
-        state.currentProject.timeline.effects.push(backgroundEffect)
 
-        const cursorEffect: Effect = {
-          id: `cursor-${clipId}`,
-          type: 'cursor',
-          clipId: clipId,
-          startTime: 0,
-          endTime: recording.duration,
-          data: {
-            style: 'macOS',
-            size: 4.0,
-            color: '#ffffff',
-            clickEffects: true,
-            motionBlur: true,
-            hideOnIdle: true,
-            idleTimeout: 3000
-          } as CursorEffectData,
-          enabled: true
+        // Check if global cursor effect exists, if not create one
+        const existingCursor = state.currentProject.timeline.effects.find(e => e.type === 'cursor')
+        if (!existingCursor) {
+          const cursorEffect: Effect = {
+            id: `cursor-global`,
+            type: 'cursor',
+            // Cover entire timeline
+            startTime: 0,
+            endTime: Number.MAX_SAFE_INTEGER, // Always cover entire timeline
+            data: {
+              style: 'macOS',
+              size: 4.0,
+              color: '#ffffff',
+              clickEffects: true,
+              motionBlur: true,
+              hideOnIdle: true,
+              idleTimeout: 3000
+            } as CursorEffectData,
+            enabled: true
+          }
+          state.currentProject.timeline.effects.push(cursorEffect)
         }
-        state.currentProject.timeline.effects.push(cursorEffect)
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
@@ -449,12 +454,8 @@ export const useProjectStore = create<ProjectStore>()(
           }
         }
 
-        // Remove all effects associated with this clip
-        if (state.currentProject.timeline.effects) {
-          state.currentProject.timeline.effects = state.currentProject.timeline.effects.filter(
-            e => e.clipId !== clipId
-          )
-        }
+        // Don't remove effects - they're timeline-global now
+        // Effects persist independently of clips
 
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
@@ -683,6 +684,9 @@ export const useProjectStore = create<ProjectStore>()(
       }
 
       state.addClip(newClip)
+      
+      // Don't duplicate effects - they're timeline-global now
+      
       return newClip.id
     },
 
@@ -808,6 +812,10 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClipId = null
         state.selectedClips = []
         state.selectedEffectLayer = null
+        // Clear playhead state
+        state.playheadClip = null
+        state.playheadRecording = null
+        state.playheadEffects = []
       })
     },
 
@@ -851,102 +859,24 @@ export const useProjectStore = create<ProjectStore>()(
     },
 
     getEffectsForClip: (clipId) => {
+      // No longer filtering by clipId - effects are timeline-global
       const { currentProject } = get()
       if (!currentProject?.timeline.effects) return []
-
-      return currentProject.timeline.effects.filter(e => e.clipId === clipId)
-    },
-
-    duplicateEffectsForClip: (sourceClipId, targetClipId) => {
-      set((state) => {
-        if (!state.currentProject) return
-
-        // Initialize effects array if needed
-        if (!state.currentProject.timeline.effects) {
-          state.currentProject.timeline.effects = []
-        }
-
-        const sourceEffects = state.currentProject.timeline.effects.filter(
-          e => e.clipId === sourceClipId
-        )
-
-        const duplicatedEffects = sourceEffects.map(effect => ({
-          ...JSON.parse(JSON.stringify(effect)),
-          id: `${effect.id}-copy-${Date.now()}`,
-          clipId: targetClipId
-        }))
-
-        state.currentProject.timeline.effects.push(...duplicatedEffects)
-        state.currentProject.modifiedAt = new Date().toISOString()
-      })
-    },
-
-    adjustEffectsForClipChange: (clipId, changeType, params) => {
-      set((state) => {
-        if (!state.currentProject || !state.currentProject.timeline.effects) return
-
-        const clipEffects = state.currentProject.timeline.effects.filter(
-          e => e.clipId === clipId
-        )
-
-        if (changeType === 'split') {
-          const { splitPoint, leftClipId, rightClipId } = params
-
-          clipEffects.forEach(effect => {
-            const splitEffects = EffectUtils.splitEffect(effect, splitPoint, leftClipId, rightClipId)
-
-            // Remove original and add split versions
-            const effects = state.currentProject!.timeline.effects!
-            const index = effects.findIndex(e => e.id === effect.id)
-            if (index !== -1) {
-              // Replace original with split effects
-              effects.splice(index, 1, ...splitEffects)
-            }
-          })
-        } else if (changeType === 'trim') {
-          const { side, trimAmount } = params
-
-          if (side === 'start') {
-            // Remove effects that are completely trimmed out
-            // and adjust remaining effects
-            clipEffects.forEach(effect => {
-              if (effect.endTime <= trimAmount) {
-                // Remove effect
-                const index = state.currentProject!.timeline.effects!.findIndex(
-                  e => e.id === effect.id
-                )
-                if (index !== -1) {
-                  state.currentProject!.timeline.effects!.splice(index, 1)
-                }
-              } else {
-                // Adjust timing
-                effect.startTime = Math.max(0, effect.startTime - trimAmount)
-                effect.endTime -= trimAmount
-              }
-            })
-          } else {
-            // Trim end - remove effects that start after new duration
-            const { newDuration } = params
-
-            clipEffects.forEach(effect => {
-              if (effect.startTime >= newDuration) {
-                // Remove effect
-                const index = state.currentProject!.timeline.effects!.findIndex(
-                  e => e.id === effect.id
-                )
-                if (index !== -1) {
-                  state.currentProject!.timeline.effects!.splice(index, 1)
-                }
-              } else if (effect.endTime > newDuration) {
-                // Trim effect end time
-                effect.endTime = newDuration
-              }
-            })
-          }
-        }
-
-        state.currentProject.modifiedAt = new Date().toISOString()
-      })
+      
+      // Find the clip to get its time range
+      let clip = null
+      for (const track of currentProject.timeline.tracks) {
+        clip = track.clips.find(c => c.id === clipId)
+        if (clip) break
+      }
+      
+      if (!clip) return []
+      
+      // Return effects that overlap with this clip's time range
+      return currentProject.timeline.effects.filter(e => 
+        e.startTime < clip.startTime + clip.duration && 
+        e.endTime > clip.startTime
+      )
     }
   }))
 )

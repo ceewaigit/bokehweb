@@ -152,36 +152,41 @@ export class ElectronRecorder {
       logger.info('Using MediaRecorder - cursor WILL be visible in recording')
       this.hasAudio = recordingSettings.audioInput !== 'none'
 
-      // Create constraints for video and audio separately
-      // Desktop audio capture doesn't work reliably, so we'll capture microphone
-      const constraints: any = {
-        audio: false,  // Will be added separately if needed
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id
+      // Get proper constraints from IPC for desktop audio
+      let constraints: any
+      
+      if (window.electronAPI?.getDesktopStream) {
+        // Use IPC to get constraints that include desktop audio
+        constraints = await window.electronAPI.getDesktopStream(primarySource.id, this.hasAudio)
+      } else {
+        // Fallback to manual constraints if IPC not available
+        logger.warn('IPC getDesktopStream not available, using manual constraints')
+        constraints = {
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: primarySource.id
+            }
           }
         }
       }
 
-      // Get media stream
+      // Get media stream with desktop audio
       try {
         this.stream = await navigator.mediaDevices.getUserMedia(constraints)
-        logger.info('Desktop capture stream acquired')
-
-        // Add microphone audio if requested
-        if (this.hasAudio) {
-          try {
-            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-            const audioTrack = audioStream.getAudioTracks()[0]
-            if (audioTrack) {
-              this.stream.addTrack(audioTrack)
-              logger.info(`Added microphone audio: ${audioTrack.label}`)
-            }
-          } catch (audioError) {
-            logger.warn('Failed to get microphone audio:', audioError)
-            this.hasAudio = false
-          }
+        logger.info('Desktop capture stream acquired with system audio')
+        
+        // Log audio tracks
+        const audioTracks = this.stream.getAudioTracks()
+        if (audioTracks.length > 0) {
+          logger.info(`✅ System audio captured: ${audioTracks.length} track(s)`)
+          audioTracks.forEach((track, i) => {
+            logger.info(`  Audio track ${i}: ${track.label}, enabled: ${track.enabled}, muted: ${track.muted}`)
+          })
+        } else if (this.hasAudio) {
+          logger.warn('⚠️ No audio tracks despite requesting audio - check screen recording permissions')
+          // Don't set hasAudio to false - let the user know audio was requested but not captured
         }
 
         // Simple track monitoring
@@ -227,13 +232,13 @@ export class ElectronRecorder {
         }
       }
 
-      logger.info(`Using MediaRecorder with mimeType: ${mimeType}, hasAudio: ${this.hasAudio}`)
-
       this.mediaRecorder = new MediaRecorder(this.stream, {
         mimeType,
         videoBitsPerSecond: 5000000,
         ...(this.hasAudio ? { audioBitsPerSecond: 128000 } : {})
       })
+      
+      logger.info(`MediaRecorder using: ${this.mediaRecorder.mimeType}`)
 
       // Set up MediaRecorder handlers
       this.chunks = []
@@ -356,9 +361,10 @@ export class ElectronRecorder {
 
       this.mediaRecorder!.onstop = async () => {
         const duration = Date.now() - this.startTime
-        const video = new Blob(this.chunks, { type: 'video/webm' })
+        const blobType = this.hasAudio ? 'video/webm;codecs=vp8,opus' : 'video/webm'
+        const video = new Blob(this.chunks, { type: blobType })
 
-        logger.info(`Recording complete: ${duration}ms, ${video.size} bytes`)
+        logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, type: ${video.type}, chunks: ${this.chunks.length}, hasAudio: ${this.hasAudio}`)
 
         const result = {
           video,
