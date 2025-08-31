@@ -38,7 +38,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     reset
   } = useExportStore()
 
-  const { currentProject, getCurrentClip } = useProjectStore()
+  const { currentProject, playheadClip } = useProjectStore()
 
   const presets = [
     { id: 'youtube-1080p', name: 'YouTube 1080p', desc: '1920×1080, 60fps, MP4' },

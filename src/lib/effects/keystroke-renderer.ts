@@ -17,13 +17,20 @@ interface KeystrokeOptions {
 
 interface ActiveKeystroke {
   id: string
-  text: string  // Changed from key to text to support grouped strings
+  text: string
   startTime: number
   fadeStartTime: number
   opacity: number
   x: number
   y: number
-  fadeIn?: boolean  // For smooth fade-in animation
+  fadeIn?: boolean
+}
+
+interface KeystrokeBuffer {
+  text: string
+  startTime: number
+  lastKeyTime: number
+  keys: KeyboardEvent[]
 }
 
 export class KeystrokeRenderer {
@@ -32,14 +39,14 @@ export class KeystrokeRenderer {
   private activeKeystrokes: Map<string, ActiveKeystroke> = new Map()
   private keyHistory: KeyboardEvent[] = []
   private currentIndex = 0
-  
-  // Track current keystroke index
+  private buffer: KeystrokeBuffer | null = null
+  private displayQueue: KeystrokeBuffer[] = []
 
   // Timing constants
-  private readonly DISPLAY_DURATION = 2000 // ms - how long to show grouped text
+  private readonly DISPLAY_DURATION = 2500 // ms - how long to show text
   private readonly FADE_DURATION = 300 // ms - fade out animation
-  private readonly MAX_CONCURRENT = 3 // max number of text groups shown at once
-  private readonly GROUPING_DELAY = 500 // ms - delay before showing grouped text
+  private readonly MAX_CONCURRENT = 1 // Show one text block at a time
+  private readonly BUFFER_TIMEOUT = 800 // ms - time before flushing buffer
   private readonly FADE_IN_DURATION = 200 // ms - fade in animation
 
   constructor(private options: KeystrokeOptions = {}) {
@@ -54,7 +61,7 @@ export class KeystrokeRenderer {
       fadeOutDuration: this.FADE_DURATION,
       position: 'bottom-center',
       maxWidth: 300,
-      groupingDelay: this.GROUPING_DELAY,
+      groupingDelay: this.BUFFER_TIMEOUT,
       groupDisplayDuration: this.DISPLAY_DURATION,
       ...options
     }
@@ -83,12 +90,30 @@ export class KeystrokeRenderer {
     this.keyHistory = events
     this.currentIndex = 0
     this.activeKeystrokes.clear()
+    this.buffer = null
+    this.displayQueue = []
+  }
+
+  private flushBuffer() {
+    if (!this.buffer || this.buffer.text.trim().length === 0) {
+      this.buffer = null
+      return
+    }
+
+    this.displayQueue.push({
+      text: this.buffer.text.trim(),
+      startTime: this.buffer.startTime,
+      lastKeyTime: this.buffer.lastKeyTime,
+      keys: [...this.buffer.keys]
+    })
+
+    this.buffer = null
   }
 
   render(timestamp: number, videoWidth: number, videoHeight: number) {
     if (!this.canvas || !this.ctx || this.keyHistory.length === 0) return
 
-    // Process new keystrokes
+    // Process new keystrokes into buffer
     while (this.currentIndex < this.keyHistory.length) {
       const event = this.keyHistory[this.currentIndex]
       if (event.timestamp > timestamp) break
@@ -96,45 +121,90 @@ export class KeystrokeRenderer {
       // Filter out standalone modifier keys
       const modifierKeys = ['CapsLock', 'Shift', 'Control', 'Alt', 'Meta', 'Command', 'Option', 'Fn']
       if (!modifierKeys.includes(event.key)) {
-        // Format the key for display
-        let keyDisplay = event.key  // Show raw key for normal typing
-        
-        // Only format if it's a special key or has modifiers
-        if (event.modifiers && event.modifiers.length > 0) {
-          keyDisplay = this.formatSingleKey(event.key, event.modifiers)
-        } else if (event.key.length > 1) {
-          // Special keys like Enter, Tab, etc.
-          keyDisplay = this.formatKey(event.key)
-        }
-        
-        if (keyDisplay) {
-          const keystrokeId = `${event.timestamp}-${event.key}`
-          const position = this.calculatePosition(
-            this.activeKeystrokes.size,
-            videoWidth,
-            videoHeight
-          )
+        // Check if we should flush buffer (Enter key, long pause, or special keys)
+        const shouldFlush =
+          event.key === 'Enter' ||
+          event.key === 'Tab' ||
+          event.key === 'Escape' ||
+          (this.buffer && event.timestamp - this.buffer.lastKeyTime > this.BUFFER_TIMEOUT) ||
+          (event.modifiers && event.modifiers.length > 0) // Shortcut keys flush buffer
 
-          this.activeKeystrokes.set(keystrokeId, {
-            id: keystrokeId,
+        if (shouldFlush && this.buffer) {
+          this.flushBuffer()
+        }
+
+        // Handle different key types
+        if (event.modifiers && event.modifiers.length > 0) {
+          // Shortcut keys show immediately
+          const keyDisplay = this.formatSingleKey(event.key, event.modifiers)
+          this.displayQueue.push({
             text: keyDisplay,
             startTime: event.timestamp,
-            fadeStartTime: event.timestamp + this.DISPLAY_DURATION,
-            opacity: 1,
-            x: position.x,
-            y: position.y,
-            fadeIn: true
+            lastKeyTime: event.timestamp,
+            keys: [event]
           })
-
-          // Remove oldest if we have too many
-          if (this.activeKeystrokes.size > this.MAX_CONCURRENT) {
-            const oldest = Array.from(this.activeKeystrokes.keys())[0]
-            this.activeKeystrokes.delete(oldest)
+        } else if (event.key === 'Enter' || event.key === 'Tab' || event.key === 'Escape') {
+          // Special keys show with their symbol
+          const keyDisplay = this.formatKey(event.key)
+          this.displayQueue.push({
+            text: keyDisplay,
+            startTime: event.timestamp,
+            lastKeyTime: event.timestamp,
+            keys: [event]
+          })
+        } else {
+          // Regular typing - add to buffer
+          if (!this.buffer) {
+            this.buffer = {
+              text: '',
+              startTime: event.timestamp,
+              lastKeyTime: event.timestamp,
+              keys: []
+            }
           }
+
+          // Add character to buffer
+          if (event.key === ' ') {
+            this.buffer.text += ' '
+          } else if (event.key.length === 1) {
+            this.buffer.text += event.key
+          }
+
+          this.buffer.lastKeyTime = event.timestamp
+          this.buffer.keys.push(event)
         }
       }
 
       this.currentIndex++
+    }
+
+    // Check if we should flush buffer due to timeout
+    if (this.buffer && timestamp - this.buffer.lastKeyTime > this.BUFFER_TIMEOUT) {
+      this.flushBuffer()
+    }
+
+    // Process display queue - show buffered text
+    while (this.displayQueue.length > 0 && this.activeKeystrokes.size < this.MAX_CONCURRENT) {
+      const buffered = this.displayQueue.shift()!
+      if (timestamp - buffered.startTime < 5000) { // Don't show text older than 5 seconds
+        const position = this.calculatePosition(
+          this.activeKeystrokes.size,
+          videoWidth,
+          videoHeight
+        )
+
+        const keystrokeId = `buffer-${buffered.startTime}`
+        this.activeKeystrokes.set(keystrokeId, {
+          id: keystrokeId,
+          text: buffered.text,
+          startTime: timestamp,
+          fadeStartTime: timestamp + this.DISPLAY_DURATION,
+          opacity: 1,
+          x: position.x,
+          y: position.y,
+          fadeIn: true
+        })
+      }
     }
 
     // Update and render active keystrokes
@@ -170,7 +240,7 @@ export class KeystrokeRenderer {
   }
 
   // Removed complex buffering methods - keeping it simple for now
-  
+
   private formatSingleKey(key: string, modifiers: string[]): string {
     // Handle modifier combos (e.g., Cmd+C)
     if (modifiers.length > 0 && key.length === 1) {
@@ -183,12 +253,12 @@ export class KeystrokeRenderer {
       parts.push(key.toUpperCase())
       return parts.join('')
     }
-    
+
     // For regular typing, just show the character
     if (key.length === 1) {
       return key
     }
-    
+
     // For special keys, show them with formatting
     return this.formatKey(key)
   }
@@ -323,6 +393,8 @@ export class KeystrokeRenderer {
   reset() {
     this.currentIndex = 0
     this.activeKeystrokes.clear()
+    this.buffer = null
+    this.displayQueue = []
   }
 
   // Check if there are keystrokes to render at given time

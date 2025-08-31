@@ -21,7 +21,9 @@ import {
   Monitor,
   AppWindow,
   Maximize2,
-  ChevronLeft
+  ChevronLeft,
+  AlertCircle,
+  Shield
 } from 'lucide-react'
 
 interface Source {
@@ -37,6 +39,7 @@ export function RecordButtonDock() {
   const [sources, setSources] = useState<Source[]>([])
   const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
+  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'unknown'>('unknown')
 
   // Use the centralized recording hook and store
   const {
@@ -79,6 +82,18 @@ export function RecordButtonDock() {
   // Initialize default wallpaper on mount
   useEffect(() => {
     initializeDefaultWallpaper()
+  }, [])
+
+  // Check screen recording permission on mount
+  useEffect(() => {
+    const checkPermission = async () => {
+      if (window.electronAPI?.checkScreenRecordingPermission) {
+        const result = await window.electronAPI.checkScreenRecordingPermission()
+        setPermissionStatus(result.granted ? 'granted' : 'denied')
+        logger.info('Screen recording permission:', result)
+      }
+    }
+    checkPermission()
   }, [])
 
   // Load sources when picker opens
@@ -243,6 +258,18 @@ export function RecordButtonDock() {
           willChange: 'transform'
         }}
       >
+        {/* Permission Warning */}
+        {permissionStatus === 'denied' && (
+          <div className="bg-orange-500/10 border border-orange-500/30 rounded-t-lg px-2 py-1">
+            <div className="flex items-center gap-1">
+              <AlertCircle className="w-3 h-3 text-orange-500" />
+              <span className="text-[10px] text-orange-500 font-medium">
+                Screen recording permission required
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Main Dock Bar - Compact Design */}
         <div className="inline-flex items-center justify-center gap-1 p-2" style={{ width: 'auto' }}>
           {!isRecording ? (
@@ -258,7 +285,9 @@ export function RecordButtonDock() {
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                   onClick={() => setMicEnabled(!micEnabled)}
-                  title={micEnabled ? 'Microphone Recording On' : 'Microphone Recording Off'}
+                  title={micEnabled
+                    ? 'Microphone On (Records your voice)'
+                    : 'Microphone Off (System audio may still be captured)'}
                 >
                   {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
                   {micEnabled && (
@@ -294,16 +323,41 @@ export function RecordButtonDock() {
                   "relative group",
                   "flex items-center justify-center",
                   "w-10 h-10",
-                  "bg-destructive hover:bg-destructive/90",
+                  permissionStatus === 'denied'
+                    ? "bg-orange-500 hover:bg-orange-600"
+                    : "bg-destructive hover:bg-destructive/90",
                   "rounded-full shadow-lg",
                   "transition-transform duration-150 hover:scale-105",
                   "active:scale-95"
                 )}
-                onClick={handleStartRecording}
-                title="Start Recording"
+                onClick={permissionStatus === 'denied' ? async () => {
+                  // Request permission
+                  if (window.electronAPI?.requestScreenRecordingPermission) {
+                    await window.electronAPI.requestScreenRecordingPermission()
+                    // Re-check permission after user potentially grants it
+                    setTimeout(async () => {
+                      if (window.electronAPI?.checkScreenRecordingPermission) {
+                        const result = await window.electronAPI.checkScreenRecordingPermission()
+                        setPermissionStatus(result.granted ? 'granted' : 'denied')
+                      }
+                    }, 1000)
+                  }
+                } : handleStartRecording}
+                title={permissionStatus === 'denied'
+                  ? "Screen Recording Permission Required - Click to Open Settings"
+                  : "Start Recording"}
               >
-                <div className="absolute inset-0 rounded-full bg-destructive/20 animate-pulse" />
-                <Circle className="w-5 h-5 text-destructive-foreground fill-current relative z-10" />
+                {permissionStatus === 'denied' ? (
+                  <>
+                    <div className="absolute inset-0 rounded-full bg-orange-500/20 animate-pulse" />
+                    <Shield className="w-5 h-5 text-white relative z-10" />
+                  </>
+                ) : (
+                  <>
+                    <div className="absolute inset-0 rounded-full bg-destructive/20 animate-pulse" />
+                    <Circle className="w-5 h-5 text-destructive-foreground fill-current relative z-10" />
+                  </>
+                )}
               </button>
 
               {/* Open Workspace */}

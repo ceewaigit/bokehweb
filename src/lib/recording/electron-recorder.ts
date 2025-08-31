@@ -60,6 +60,23 @@ export class ElectronRecorder {
         throw new ElectronError('Electron API not available', 'getDesktopSources')
       }
 
+      // Check screen recording permission on macOS
+      if (window.electronAPI?.checkScreenRecordingPermission) {
+        const permissionResult = await window.electronAPI.checkScreenRecordingPermission()
+        logger.info('Screen recording permission status:', permissionResult)
+
+        if (!permissionResult.granted) {
+          // Request permission and show system preferences
+          if (window.electronAPI?.requestScreenRecordingPermission) {
+            await window.electronAPI.requestScreenRecordingPermission()
+          }
+          throw new PermissionError(
+            'Screen recording permission is required.\n\nPlease grant permission in System Preferences > Security & Privacy > Screen Recording, then try again.',
+            'screen'
+          )
+        }
+      }
+
       // Get screen sources from main process
       const sources = await window.electronAPI.getDesktopSources({
         types: ['screen', 'window'],
@@ -106,6 +123,7 @@ export class ElectronRecorder {
       // Check if we should use native recorder (macOS 12.3+ with ScreenCaptureKit)
       if (this.useNativeRecorder && window.electronAPI?.nativeRecorder) {
         logger.info('🎯 Using native ScreenCaptureKit recorder - cursor will be HIDDEN!')
+        logger.info(`Audio setting: ${recordingSettings.audioInput} (native recorder always captures system audio)`)
 
         // Parse source ID to get display ID (screen:0:0 format)
         const parts = primarySource.id.split(':')
@@ -133,7 +151,7 @@ export class ElectronRecorder {
       // Fallback to MediaRecorder (cursor will be visible)
       logger.info('Using MediaRecorder - cursor WILL be visible in recording')
       this.hasAudio = recordingSettings.audioInput !== 'none'
-      
+
       // Create constraints for video and audio separately
       // Desktop audio capture doesn't work reliably, so we'll capture microphone
       const constraints: any = {
@@ -189,10 +207,27 @@ export class ElectronRecorder {
       const audioTracks = this.stream.getAudioTracks()
       logger.info(`Stream ready - Video: 1 track, Audio: ${audioTracks.length} track(s)`)
 
-      // Create MediaRecorder
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-        ? 'video/webm;codecs=vp8'
-        : 'video/webm'
+      // Create MediaRecorder with proper audio codec
+      let mimeType = 'video/webm'
+
+      // Try different codec combinations for better compatibility
+      if (this.hasAudio) {
+        // For recordings with audio, specify both video and audio codecs
+        if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+          mimeType = 'video/webm;codecs=vp8,opus'
+        } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+          mimeType = 'video/webm;codecs=vp9,opus'
+        } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+          mimeType = 'video/webm;codecs=vp8'
+        }
+      } else {
+        // For video-only, use simpler codec
+        if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+          mimeType = 'video/webm;codecs=vp8'
+        }
+      }
+
+      logger.info(`Using MediaRecorder with mimeType: ${mimeType}, hasAudio: ${this.hasAudio}`)
 
       this.mediaRecorder = new MediaRecorder(this.stream, {
         mimeType,
@@ -281,7 +316,7 @@ export class ElectronRecorder {
           duration,
           metadata: this.metadata,
           captureArea: this.captureArea,
-          hasAudio: true  // Native recorder now always includes audio
+          hasAudio: this.hasAudio  // Use the stored audio setting
         }
 
         this.isRecording = false

@@ -25,17 +25,17 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const currentTimeMs = (frame / fps) * 1000;
 
   // Get background effect for padding and styling
-  const backgroundEffect = effects?.find(e => 
-    e.type === 'background' && 
+  const backgroundEffect = effects?.find(e =>
+    e.type === 'background' &&
     e.enabled &&
-    currentTimeMs >= e.startTime && 
+    currentTimeMs >= e.startTime &&
     currentTimeMs <= e.endTime
   );
   const backgroundData = backgroundEffect?.data as any
   const padding = backgroundData?.padding || 0;
   const cornerRadius = backgroundData?.cornerRadius || 0;
   const shadowIntensity = backgroundData?.shadowIntensity || 0;
-  
+
   // Calculate video position using shared utility
   const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
     width,
@@ -79,7 +79,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const shadowOpacity = (shadowIntensity / 100) * 0.5;
   const shadowBlur = 25 + (shadowIntensity / 100) * 25;
   const shadowSpread = -12 + (shadowIntensity / 100) * 6;
-  
+
   return (
     <AbsoluteFill>
       {/* Shadow layer - rendered separately to ensure visibility */}
@@ -119,9 +119,23 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           src={videoUrl}
           style={videoStyle}
           volume={1}
+          muted={false}
           onError={(e) => {
             console.error('Video playback error in VideoLayer:', e)
             // Don't throw - let Remotion handle gracefully
+          }}
+          onVolumeChange={(e: any) => {
+            console.log('Video volume changed:', e.target?.volume, 'muted:', e.target?.muted)
+          }}
+          onLoadedMetadata={(e: any) => {
+            const video = e.target as HTMLVideoElement
+            // Note: audioTracks is not widely supported, check if video has audio differently
+            console.log('Video loaded - Duration:', video.duration, 'seconds')
+            console.log('Video muted state:', video.muted, 'Volume:', video.volume)
+            // Check if video likely has audio by trying to play and checking volume
+            if (video.volume > 0 && !video.muted) {
+              console.log('Video is configured for audio playback')
+            }
           }}
         />
       </div>

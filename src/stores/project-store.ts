@@ -143,6 +143,32 @@ interface ProjectStore {
   adjustEffectsForClipChange: (clipId: string, changeType: 'split' | 'trim', params: any) => void
 }
 
+// Helper to update playhead state based on current time
+const updatePlayheadState = (state: any) => {
+  state.playheadClip = null
+  state.playheadRecording = null
+  state.playheadEffects = []
+  
+  if (state.currentProject && state.currentTime !== undefined) {
+    // Find clip at current time
+    for (const track of state.currentProject.timeline.tracks) {
+      const clip = track.clips.find((c: Clip) =>
+        state.currentTime >= c.startTime && state.currentTime < c.startTime + c.duration
+      )
+      if (clip) {
+        state.playheadClip = clip
+        state.playheadRecording = state.currentProject.recordings.find(
+          (r: Recording) => r.id === clip.recordingId
+        ) || null
+        state.playheadEffects = state.currentProject.timeline.effects?.filter(
+          (e: Effect) => e.clipId === clip.id
+        ) || []
+        break
+      }
+    }
+  }
+}
+
 export const useProjectStore = create<ProjectStore>()(
   immer((set, get) => ({
     currentProject: null,
@@ -169,10 +195,9 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClips = []
         state.selectedEffectLayer = null
         state.zoomManuallyAdjusted = false
-        // Reset playhead state
-        state.playheadClip = null
-        state.playheadRecording = null
-        state.playheadEffects = []
+        state.currentTime = 0
+        // Update playhead state
+        updatePlayheadState(state)
       })
     },
 
@@ -183,10 +208,9 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClips = []
         state.selectedEffectLayer = null
         state.zoomManuallyAdjusted = false
-        // Reset playhead state
-        state.playheadClip = null
-        state.playheadRecording = null
-        state.playheadEffects = []
+        state.currentTime = 0
+        // Update playhead state based on current time
+        updatePlayheadState(state)
       })
     },
 
@@ -210,6 +234,9 @@ export const useProjectStore = create<ProjectStore>()(
           state.currentProject = project
           state.selectedClipId = null
           state.zoomManuallyAdjusted = false
+          state.currentTime = 0
+          // Update playhead state
+          updatePlayheadState(state)
         })
       } catch (error) {
         console.error('Failed to open project:', error)
@@ -403,6 +430,9 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject.modifiedAt = new Date().toISOString()
         state.selectedClipId = clip.id
         state.selectedClips = [clip.id]
+        
+        // Update playhead state in case the new clip is at current time
+        updatePlayheadState(state)
       })
     },
 
@@ -433,6 +463,9 @@ export const useProjectStore = create<ProjectStore>()(
           state.selectedClipId = null
         }
         state.selectedClips = state.selectedClips.filter(id => id !== clipId)
+        
+        // Update playhead state in case removed clip was at current time
+        updatePlayheadState(state)
       })
     },
 
@@ -456,6 +489,9 @@ export const useProjectStore = create<ProjectStore>()(
         Object.assign(clip, updates)
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
+        
+        // Update playhead state in case the updated clip affects current time
+        updatePlayheadState(state)
       })
 
       // Removed auto-save - now requires explicit save action
@@ -564,6 +600,9 @@ export const useProjectStore = create<ProjectStore>()(
         // This ensures the preview shows the end of the left clip (at the split point)
         state.selectedClipId = firstClip.id
         state.selectedClips = [firstClip.id]
+        
+        // Update playhead state in case split affects current time
+        updatePlayheadState(state)
       })
     },
 
@@ -588,6 +627,9 @@ export const useProjectStore = create<ProjectStore>()(
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
+        
+        // Update playhead state in case trim affects current time
+        updatePlayheadState(state)
       })
     },
 
@@ -611,6 +653,9 @@ export const useProjectStore = create<ProjectStore>()(
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
+        
+        // Update playhead state in case trim affects current time
+        updatePlayheadState(state)
       })
     },
 
@@ -717,29 +762,8 @@ export const useProjectStore = create<ProjectStore>()(
         const clampedTime = Math.max(0, Math.min(maxTime, time))
         state.currentTime = clampedTime
         
-        // Update playhead state reactively
-        state.playheadClip = null
-        state.playheadRecording = null
-        state.playheadEffects = []
-        
-        if (state.currentProject) {
-          // Find clip at this time
-          for (const track of state.currentProject.timeline.tracks) {
-            const clip = track.clips.find(c =>
-              clampedTime >= c.startTime && clampedTime < c.startTime + c.duration
-            )
-            if (clip) {
-              state.playheadClip = clip
-              state.playheadRecording = state.currentProject.recordings.find(
-                r => r.id === clip.recordingId
-              ) || null
-              state.playheadEffects = state.currentProject.timeline.effects?.filter(
-                e => e.clipId === clip.id
-              ) || []
-              break
-            }
-          }
-        }
+        // Update playhead state using helper
+        updatePlayheadState(state)
       })
     },
 

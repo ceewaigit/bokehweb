@@ -77,10 +77,13 @@
             config.scalesToFit = NO;
             config.queueDepth = 5;
             
-            // Configure audio capture
-            config.capturesAudio = YES;
+            // Configure audio capture - only if screen recording permission includes audio
+            // Note: On macOS, screen recording permission is required for system audio capture
+            config.capturesAudio = YES;  // Always try to capture if permission allows
             config.sampleRate = 48000;
             config.channelCount = 2;
+            
+            NSLog(@"Screen recording configured with audio capture enabled");
             
             // Setup asset writer
             NSError *writerError = nil;
@@ -137,6 +140,10 @@
             if ([self.assetWriter canAddInput:self.audioInput]) {
                 [self.assetWriter addInput:self.audioInput];
                 self.hasAudio = YES;
+                NSLog(@"Audio input added successfully to asset writer");
+            } else {
+                NSLog(@"Warning: Could not add audio input to asset writer");
+                self.hasAudio = NO;
             }
             
             if (![self.assetWriter startWriting]) {
