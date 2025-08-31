@@ -134,13 +134,10 @@ export class ElectronRecorder {
       logger.info('Using MediaRecorder - cursor WILL be visible in recording')
       this.hasAudio = recordingSettings.audioInput !== 'none'
       
+      // Create constraints for video and audio separately
+      // Desktop audio capture doesn't work reliably, so we'll capture microphone
       const constraints: any = {
-        audio: this.hasAudio ? {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: primarySource.id
-          }
-        } : false,
+        audio: false,  // Will be added separately if needed
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
@@ -153,6 +150,21 @@ export class ElectronRecorder {
       try {
         this.stream = await navigator.mediaDevices.getUserMedia(constraints)
         logger.info('Desktop capture stream acquired')
+
+        // Add microphone audio if requested
+        if (this.hasAudio) {
+          try {
+            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+            const audioTrack = audioStream.getAudioTracks()[0]
+            if (audioTrack) {
+              this.stream.addTrack(audioTrack)
+              logger.info(`Added microphone audio: ${audioTrack.label}`)
+            }
+          } catch (audioError) {
+            logger.warn('Failed to get microphone audio:', audioError)
+            this.hasAudio = false
+          }
+        }
 
         // Simple track monitoring
         this.stream.getTracks().forEach(track => {
@@ -172,6 +184,10 @@ export class ElectronRecorder {
       if (!videoTrack) {
         throw new Error('No video track found in stream')
       }
+
+      // Log final stream composition
+      const audioTracks = this.stream.getAudioTracks()
+      logger.info(`Stream ready - Video: 1 track, Audio: ${audioTracks.length} track(s)`)
 
       // Create MediaRecorder
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')

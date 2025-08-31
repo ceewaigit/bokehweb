@@ -118,6 +118,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
         <Video
           src={videoUrl}
           style={videoStyle}
+          volume={1}
           onError={(e) => {
             console.error('Video playback error in VideoLayer:', e)
             // Don't throw - let Remotion handle gracefully

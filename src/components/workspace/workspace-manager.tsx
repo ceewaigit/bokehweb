@@ -190,7 +190,7 @@ async function loadProjectRecording(
 }
 
 export function WorkspaceManager() {
-  // Store hooks - will gradually reduce direct store access
+  // Store hooks - using reactive state from single source of truth
   const {
     currentProject,
     newProject,
@@ -198,13 +198,15 @@ export function WorkspaceManager() {
     selectedEffectLayer,
     currentTime,
     isPlaying,
+    playheadClip,        // NEW: reactive from store
+    playheadRecording,   // NEW: reactive from store
+    playheadEffects,     // NEW: reactive from store
     play: storePlay,
     pause: storePause,
     seek: storeSeek,
     selectClip,
     updateEffect,
     addEffect,
-    getEffectsForClip,
     saveCurrentProject,
     openProject,
     setZoom,
@@ -237,14 +239,11 @@ export function WorkspaceManager() {
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId) || null
 
-  // Get clip at playhead position (for effects and preview)
-  const playheadClip = useProjectStore.getState().getCurrentClip()
-  
-  // Get effects for the playhead clip (not selected clip) - proper separation of concerns
-  const clipEffects = playheadClip?.id ? getEffectsForClip(playheadClip.id) : []
+  // Effects now come directly from store's reactive playheadEffects
+  // No need to calculate - store maintains this state
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
-    // Work with local effects or fall back to saved effects
-    const currentEffects = localEffects || clipEffects || []
+    // Work with local effects or fall back to saved effects from store
+    const currentEffects = localEffects || playheadEffects || []
     const zoomEffect = currentEffects.find(e => e.type === 'zoom' && e.id === blockId)
 
     if (zoomEffect) {
@@ -285,7 +284,7 @@ export function WorkspaceManager() {
       const command = new UpdateZoomBlockCommand(context, clipId, blockId, updates)
       commandManager.execute(command)
     }
-  }, [clipEffects, localEffects])
+  }, [playheadEffects, localEffects])
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
@@ -302,11 +301,10 @@ export function WorkspaceManager() {
 
   // Consolidated save function
   const handleSaveProject = useCallback(async () => {
-    // Save effects for the playhead clip, not selected clip
-    const currentClipAtPlayhead = useProjectStore.getState().getCurrentClip()
-    if (localEffects && currentClipAtPlayhead?.id) {
+    // Save effects for the playhead clip
+    if (localEffects && playheadClip?.id) {
       // Remove all existing effects for this clip
-      const existingEffects = clipEffects || []
+      const existingEffects = playheadEffects || []
       existingEffects.forEach(effect => {
         updateEffect(effect.id, { ...effect, enabled: false })
       })
@@ -333,7 +331,7 @@ export function WorkspaceManager() {
       setLastSavedAt(savedProject.modifiedAt)
     }
     setHasUnsavedChanges(false)
-  }, [localEffects, clipEffects, updateEffect, addEffect, saveCurrentProject])
+  }, [localEffects, playheadClip, playheadEffects, updateEffect, addEffect, saveCurrentProject])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -349,10 +347,8 @@ export function WorkspaceManager() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSaveProject])
 
-  // Get recording for playhead clip (for preview)
-  const playheadRecording = playheadClip && currentProject
-    ? currentProject.recordings.find(r => r.id === playheadClip.recordingId)
-    : null
+  // Playhead recording now comes directly from store's reactive state
+  // No need to calculate - store maintains this
 
 
   // Define handlePause first since it's used in useEffect
@@ -360,20 +356,16 @@ export function WorkspaceManager() {
     storePause()
   }, [storePause])
 
-  // Monitor clip boundaries during playback - use playhead clip, not selected
+  // Monitor clip boundaries during playback - use reactive playhead clip from store
   useEffect(() => {
-    const currentClip = useProjectStore.getState().getCurrentClip()
-    if (!currentClip || !isPlaying) return
+    if (!playheadClip || !isPlaying) return
 
     const syncInterval = setInterval(() => {
-      if (!isPlaying) return
-      
-      const currentClip = useProjectStore.getState().getCurrentClip()
-      if (!currentClip) return
+      if (!isPlaying || !playheadClip) return
 
-      const clipProgress = Math.max(0, currentTime - currentClip.startTime)
-      const sourceTime = (currentClip.sourceIn + clipProgress) / 1000
-      const maxTime = currentClip.sourceOut / 1000
+      const clipProgress = Math.max(0, currentTime - playheadClip.startTime)
+      const sourceTime = (playheadClip.sourceIn + clipProgress) / 1000
+      const maxTime = playheadClip.sourceOut / 1000
 
       if (sourceTime > maxTime) {
         handlePause()
@@ -387,7 +379,7 @@ export function WorkspaceManager() {
         clearInterval(playbackIntervalRef.current)
       }
     }
-  }, [isPlaying, currentTime, handlePause])
+  }, [isPlaying, currentTime, playheadClip, handlePause])
 
   // Centralized playback control - no selection required for playback
   const handlePlay = useCallback(() => {
@@ -404,12 +396,11 @@ export function WorkspaceManager() {
   }, [selectClip])
 
   const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
-    // Use playhead clip for effects, not selected clip - proper separation
-    const currentClipAtPlayhead = useProjectStore.getState().getCurrentClip()
-    if (!currentClipAtPlayhead) return
+    // Use reactive playhead clip from store
+    if (!playheadClip) return
 
     // Work with local effects or fall back to saved effects
-    const currentEffects = localEffects || clipEffects || []
+    const currentEffects = localEffects || playheadEffects || []
 
     let newEffects: Effect[]
 
@@ -451,11 +442,11 @@ export function WorkspaceManager() {
         const { enabled: dataEnabled, ...effectData } = data
 
         const newEffect: Effect = {
-          id: `${type}-${currentClipAtPlayhead.id}-${Date.now()}`,
+          id: `${type}-${playheadClip.id}-${Date.now()}`,
           type,
-          clipId: currentClipAtPlayhead.id,
+          clipId: playheadClip.id,
           startTime: 0,
-          endTime: currentClipAtPlayhead.duration || 0,
+          endTime: playheadClip.duration || 0,
           data: effectData,
           enabled: dataEnabled !== undefined ? dataEnabled : true
         }
@@ -466,7 +457,7 @@ export function WorkspaceManager() {
     // Update local state
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
-  }, [clipEffects, localEffects, selectedEffectLayer])
+  }, [playheadClip, playheadEffects, localEffects, selectedEffectLayer])
 
 
 
@@ -627,7 +618,7 @@ export function WorkspaceManager() {
                 playheadRecording={playheadRecording}
                 currentTime={currentTime}
                 isPlaying={isPlaying}
-                localEffects={localEffects || clipEffects}
+                localEffects={localEffects || playheadEffects}
                 onTimeUpdate={(time) => storeSeek(time)}
               />
             </div>
@@ -641,7 +632,7 @@ export function WorkspaceManager() {
                 <EffectsSidebar
                   className="h-full w-full"
                   selectedClip={selectedClip}
-                  effects={localEffects || clipEffects || []}
+                  effects={localEffects || playheadEffects || []}
                   selectedEffectLayer={selectedEffectLayer}
                   onEffectChange={handleEffectChange}
                 />

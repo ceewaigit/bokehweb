@@ -82,6 +82,13 @@ interface ProjectStore {
   isPlaying: boolean
   zoom: number
   zoomManuallyAdjusted: boolean
+  
+  // Playhead State (reactive - auto-updates with currentTime)
+  playheadClip: Clip | null
+  playheadRecording: Recording | null
+  playheadEffects: Effect[]
+  
+  // Selection State
   selectedClipId: string | null
   selectedClips: string[]
   selectedEffectLayer: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
@@ -124,10 +131,6 @@ interface ProjectStore {
   setZoom: (zoom: number, isManual?: boolean) => void
   setAutoZoom: (zoom: number) => void
 
-  // Getters
-  getCurrentClip: () => Clip | null
-  getCurrentRecording: () => Recording | null
-
   // Cleanup
   cleanupProject: () => void
 
@@ -147,6 +150,13 @@ export const useProjectStore = create<ProjectStore>()(
     isPlaying: false,
     zoom: 0.5,
     zoomManuallyAdjusted: false,
+    
+    // Playhead State
+    playheadClip: null,
+    playheadRecording: null,
+    playheadEffects: [],
+    
+    // Selection State
     selectedClipId: null,
     selectedClips: [],
     selectedEffectLayer: null,
@@ -159,6 +169,10 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClips = []
         state.selectedEffectLayer = null
         state.zoomManuallyAdjusted = false
+        // Reset playhead state
+        state.playheadClip = null
+        state.playheadRecording = null
+        state.playheadEffects = []
       })
     },
 
@@ -169,6 +183,10 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClips = []
         state.selectedEffectLayer = null
         state.zoomManuallyAdjusted = false
+        // Reset playhead state
+        state.playheadClip = null
+        state.playheadRecording = null
+        state.playheadEffects = []
       })
     },
 
@@ -281,6 +299,8 @@ export const useProjectStore = create<ProjectStore>()(
         // Import default wallpaper if available
         const { getDefaultWallpaper } = require('@/lib/constants/default-effects')
         const defaultWallpaper = getDefaultWallpaper()
+        
+        console.log('Adding background effect with wallpaper:', defaultWallpaper ? `Data URL (${defaultWallpaper.length} chars)` : 'undefined')
 
         const backgroundEffect: Effect = {
           id: `background-${clipId}`,
@@ -696,6 +716,30 @@ export const useProjectStore = create<ProjectStore>()(
         const maxTime = state.currentProject?.timeline?.duration || 0
         const clampedTime = Math.max(0, Math.min(maxTime, time))
         state.currentTime = clampedTime
+        
+        // Update playhead state reactively
+        state.playheadClip = null
+        state.playheadRecording = null
+        state.playheadEffects = []
+        
+        if (state.currentProject) {
+          // Find clip at this time
+          for (const track of state.currentProject.timeline.tracks) {
+            const clip = track.clips.find(c =>
+              clampedTime >= c.startTime && clampedTime < c.startTime + c.duration
+            )
+            if (clip) {
+              state.playheadClip = clip
+              state.playheadRecording = state.currentProject.recordings.find(
+                r => r.id === clip.recordingId
+              ) || null
+              state.playheadEffects = state.currentProject.timeline.effects?.filter(
+                e => e.clipId === clip.id
+              ) || []
+              break
+            }
+          }
+        }
       })
     },
 
@@ -717,25 +761,6 @@ export const useProjectStore = create<ProjectStore>()(
       })
     },
 
-    getCurrentClip: () => {
-      const { currentProject, currentTime } = get()
-      if (!currentProject) return null
-
-      for (const track of currentProject.timeline.tracks) {
-        const clip = track.clips.find(c =>
-          currentTime >= c.startTime && currentTime < c.startTime + c.duration
-        )
-        if (clip) return clip
-      }
-      return null
-    },
-
-    getCurrentRecording: () => {
-      const { currentProject } = get()
-      const clip = get().getCurrentClip()
-      if (!currentProject || !clip) return null
-      return currentProject.recordings.find(r => r.id === clip.recordingId) || null
-    },
 
 
     cleanupProject: () => {

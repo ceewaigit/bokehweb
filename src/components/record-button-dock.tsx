@@ -258,7 +258,7 @@ export function RecordButtonDock() {
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                   onClick={() => setMicEnabled(!micEnabled)}
-                  title={micEnabled ? 'Microphone On' : 'Microphone Off'}
+                  title={micEnabled ? 'Microphone Recording On' : 'Microphone Recording Off'}
                 >
                   {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
                   {micEnabled && (

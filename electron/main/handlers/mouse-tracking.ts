@@ -503,8 +503,6 @@ function startKeyboardTracking(sender: WebContents): void {
         timestamp: Date.now(),
         rawKeycode: event.keycode
       })
-      
-      logger.debug(`Key down: ${modifiers.join('+')} ${key}`)
     }
     
     const handleKeyUp = (event: any) => {
@@ -562,45 +560,42 @@ function stopKeyboardTracking(): void {
 
 // Helper function to convert keycodes to readable keys
 function getKeyFromCode(keycode: number): string {
-  // uiohook-napi uses native system keycodes
-  // These mappings are for macOS virtual keycodes
+  // uiohook-napi keycodes - cross-platform standard
   const keyMap: Record<number, string> = {
-    // Letters (macOS virtual keycodes)
-    0: 'a', 11: 'b', 8: 'c', 2: 'd', 14: 'e', 3: 'f', 5: 'g', 4: 'h',
-    34: 'i', 38: 'j', 40: 'k', 37: 'l', 46: 'm', 45: 'n', 31: 'o', 35: 'p',
-    12: 'q', 15: 'r', 1: 's', 17: 't', 32: 'u', 9: 'v', 13: 'w', 7: 'x',
-    16: 'y', 6: 'z',
+    // Letters
+    30: 'a', 48: 'b', 46: 'c', 32: 'd', 18: 'e', 33: 'f', 34: 'g', 35: 'h',
+    23: 'i', 36: 'j', 37: 'k', 38: 'l', 50: 'm', 49: 'n', 24: 'o', 25: 'p',
+    16: 'q', 19: 'r', 31: 's', 20: 't', 22: 'u', 47: 'v', 17: 'w', 45: 'x',
+    21: 'y', 44: 'z',
     
     // Numbers
-    18: '1', 19: '2', 20: '3', 21: '4', 23: '5', 22: '6', 26: '7', 28: '8', 25: '9', 29: '0',
+    2: '1', 3: '2', 4: '3', 5: '4', 6: '5', 7: '6', 8: '7', 9: '8', 10: '9', 11: '0',
     
     // Special characters
-    27: '-', 24: '=', 33: '[', 30: ']', 42: '\\', 41: ';', 39: "'",
-    50: '`', 43: ',', 47: '.', 44: '/',
+    12: '-', 13: '=', 26: '[', 27: ']', 43: '\\', 39: ';', 40: "'",
+    41: '`', 51: ',', 52: '.', 53: '/',
     
     // Special keys
-    36: 'Enter', 53: 'Escape', 51: 'Backspace', 48: 'Tab', 49: ' ',
-    57: 'CapsLock',
+    28: 'Enter', 1: 'Escape', 14: 'Backspace', 15: 'Tab', 57: ' ', 58: 'CapsLock',
     
     // Function keys
-    122: 'F1', 120: 'F2', 99: 'F3', 118: 'F4', 96: 'F5', 97: 'F6',
-    98: 'F7', 100: 'F8', 101: 'F9', 109: 'F10', 103: 'F11', 111: 'F12',
+    59: 'F1', 60: 'F2', 61: 'F3', 62: 'F4', 63: 'F5', 64: 'F6',
+    65: 'F7', 66: 'F8', 67: 'F9', 68: 'F10', 87: 'F11', 88: 'F12',
     
     // Arrow keys
-    124: 'ArrowRight', 123: 'ArrowLeft', 125: 'ArrowDown', 126: 'ArrowUp',
+    57419: 'ArrowLeft', 57421: 'ArrowRight', 57416: 'ArrowUp', 57424: 'ArrowDown',
     
-    // Modifiers
-    59: 'Control', 56: 'Shift', 58: 'Alt', 55: 'Meta',
+    // Modifiers (left and right variants)
+    29: 'Control', 42: 'Shift', 54: 'Shift', 56: 'Alt', 
+    3675: 'Meta', 3676: 'Meta',
     
     // Numpad
-    82: '0', 83: '1', 84: '2', 85: '3', 86: '4', 87: '5',
-    88: '6', 89: '7', 91: '8', 92: '9',
+    82: '0', 79: '1', 80: '2', 81: '3', 75: '4', 76: '5',
+    77: '6', 71: '7', 72: '8', 73: '9',
     
-    // Home/End/PageUp/PageDown
-    115: 'Home', 119: 'End', 116: 'PageUp', 121: 'PageDown',
-    
-    // Delete
-    117: 'Delete'
+    // Navigation
+    57415: 'Home', 57423: 'End', 57417: 'PageUp', 57425: 'PageDown',
+    57427: 'Delete', 57426: 'Insert',
   }
   
   return keyMap[keycode] || `Unknown_${keycode}`
