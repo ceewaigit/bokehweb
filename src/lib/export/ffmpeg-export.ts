@@ -184,10 +184,12 @@ export class FFmpegExportEngine {
 
       switch (settings.format) {
         case 'mp4':
-          codecOptions = '-c:v libx264 -preset fast -crf 22'
+          // Copy audio stream if present, otherwise use AAC
+          codecOptions = '-c:v libx264 -preset fast -crf 22 -c:a aac -b:a 128k'
           break
         case 'webm':
-          codecOptions = '-c:v libvpx-vp9 -crf 30 -b:v 0'
+          // Copy audio stream if present, otherwise use Opus
+          codecOptions = '-c:v libvpx-vp9 -crf 30 -b:v 0 -c:a libopus -b:a 128k'
           break
         case 'gif':
           codecOptions = ''

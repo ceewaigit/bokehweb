@@ -24,6 +24,7 @@ export interface ElectronRecordingResult {
   video: Blob
   duration: number
   metadata: ElectronMetadata[]
+  hasAudio?: boolean
   captureArea?: {
     fullBounds: { x: number; y: number; width: number; height: number }
     workArea: { x: number; y: number; width: number; height: number }

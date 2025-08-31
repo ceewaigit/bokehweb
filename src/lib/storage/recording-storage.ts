@@ -238,7 +238,8 @@ export class RecordingStorage {
     videoBlob: Blob,
     metadata: any[],
     projectName?: string,
-    captureArea?: CaptureArea
+    captureArea?: CaptureArea,
+    hasAudio?: boolean
   ): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
     if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
       return null
@@ -349,6 +350,7 @@ export class RecordingStorage {
         width,
         height,
         frameRate: 30,
+        hasAudio: hasAudio || false,
         captureArea: reconstructedCaptureArea,
         metadata: {
           mouseEvents,

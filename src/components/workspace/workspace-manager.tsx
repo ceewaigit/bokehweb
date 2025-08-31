@@ -19,6 +19,7 @@ import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
 import { TimelineUtils } from '@/lib/timeline'
+import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -186,34 +187,6 @@ async function loadProjectRecording(
   }
 
   return true
-}
-
-// Track if wallpaper has been initialized
-let wallpaperInitialized = false
-
-// Initialize default wallpaper on app startup
-async function initializeDefaultWallpaper() {
-  // Skip if already initialized
-  if (wallpaperInitialized) {
-    return
-  }
-
-  wallpaperInitialized = true
-
-  if (!window.electronAPI?.loadWallpaperImage) {
-    return
-  }
-
-  try {
-    const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
-    if (dataUrl) {
-      // Store wallpaper for later use - will be applied when creating effects
-      const { setDefaultWallpaper } = await import('@/lib/constants/default-effects')
-      setDefaultWallpaper(dataUrl)
-    }
-  } catch (error) {
-    // Silently fail - will use gradient background
-  }
 }
 
 export function WorkspaceManager() {

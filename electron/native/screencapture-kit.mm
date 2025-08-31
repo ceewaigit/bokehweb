@@ -10,11 +10,13 @@
 @property (nonatomic, strong) SCStream *stream;
 @property (nonatomic, strong) AVAssetWriter *assetWriter;
 @property (nonatomic, strong) AVAssetWriterInput *videoInput;
+@property (nonatomic, strong) AVAssetWriterInput *audioInput;
 @property (nonatomic, strong) AVAssetWriterInputPixelBufferAdaptor *adaptor;
 @property (nonatomic, strong) NSString *outputPath;
 @property (nonatomic, assign) BOOL isRecording;
 @property (nonatomic, assign) CMTime startTime;
 @property (nonatomic, assign) BOOL hasStartedSession;
+@property (nonatomic, assign) BOOL hasAudio;
 
 - (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path completion:(void (^)(NSError *))completion;
 - (void)stopRecording:(void (^)(NSString *, NSError *))completion;
@@ -75,6 +77,11 @@
             config.scalesToFit = NO;
             config.queueDepth = 5;
             
+            // Configure audio capture
+            config.capturesAudio = YES;
+            config.sampleRate = 48000;
+            config.channelCount = 2;
+            
             // Setup asset writer
             NSError *writerError = nil;
             self.assetWriter = [[AVAssetWriter alloc] initWithURL:[NSURL fileURLWithPath:path] fileType:AVFileTypeQuickTimeMovie error:&writerError];
@@ -107,6 +114,31 @@
             
             [self.assetWriter addInput:self.videoInput];
             
+            // Setup audio input
+            AudioChannelLayout stereoChannelLayout = {
+                .mChannelLayoutTag = kAudioChannelLayoutTag_Stereo,
+                .mChannelBitmap = kAudioChannelBit_Left | kAudioChannelBit_Right,
+                .mNumberChannelDescriptions = 0
+            };
+            
+            NSData *channelLayoutAsData = [NSData dataWithBytes:&stereoChannelLayout length:offsetof(AudioChannelLayout, mChannelDescriptions)];
+            
+            NSDictionary *audioSettings = @{
+                AVFormatIDKey: @(kAudioFormatMPEG4AAC),
+                AVNumberOfChannelsKey: @2,
+                AVSampleRateKey: @48000,
+                AVChannelLayoutKey: channelLayoutAsData,
+                AVEncoderBitRateKey: @128000
+            };
+            
+            self.audioInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeAudio outputSettings:audioSettings];
+            self.audioInput.expectsMediaDataInRealTime = YES;
+            
+            if ([self.assetWriter canAddInput:self.audioInput]) {
+                [self.assetWriter addInput:self.audioInput];
+                self.hasAudio = YES;
+            }
+            
             if (![self.assetWriter startWriting]) {
                 completion([NSError errorWithDomain:@"ScreenRecorder" code:2 userInfo:@{NSLocalizedDescriptionKey: @"Failed to start writing"}]);
                 return;
@@ -117,6 +149,16 @@
             
             NSError *addOutputError = nil;
             [self.stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&addOutputError];
+            
+            if (!addOutputError && self.hasAudio) {
+                NSError *audioOutputError = nil;
+                [self.stream addStreamOutput:self type:SCStreamOutputTypeAudio sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&audioOutputError];
+                
+                if (audioOutputError) {
+                    NSLog(@"Warning: Failed to add audio output: %@", audioOutputError);
+                    self.hasAudio = NO;
+                }
+            }
             
             if (addOutputError) {
                 completion(addOutputError);
@@ -139,7 +181,28 @@
 }
 
 - (void)stream:(SCStream *)stream didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer ofType:(SCStreamOutputType)type {
-    if (type != SCStreamOutputTypeScreen || !self.videoInput.isReadyForMoreMediaData) {
+    if (type == SCStreamOutputTypeScreen && self.videoInput.isReadyForMoreMediaData) {
+        CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+        if (!pixelBuffer) {
+            return;
+        }
+    } else if (type == SCStreamOutputTypeAudio && self.hasAudio && self.audioInput.isReadyForMoreMediaData) {
+        // Handle audio samples
+        CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+        
+        if (!self.hasStartedSession) {
+            [self.assetWriter startSessionAtSourceTime:presentationTime];
+            self.startTime = presentationTime;
+            self.hasStartedSession = YES;
+        }
+        
+        // Append audio sample buffer
+        if (![self.audioInput appendSampleBuffer:sampleBuffer]) {
+            NSLog(@\"Failed to append audio sample buffer\");
+        }
+        
+        return;
+    } else {
         return;
     }
     

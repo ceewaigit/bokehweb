@@ -46,6 +46,7 @@ export const SCREEN_STUDIO_CURSOR_DATA: CursorEffectData = {
 
 // Store for default wallpaper once loaded
 let defaultWallpaper: string | undefined = undefined
+let wallpaperInitialized = false
 
 export function setDefaultWallpaper(wallpaper: string) {
   defaultWallpaper = wallpaper
@@ -55,4 +56,27 @@ export function setDefaultWallpaper(wallpaper: string) {
 
 export function getDefaultWallpaper(): string | undefined {
   return defaultWallpaper
+}
+
+// Initialize default wallpaper on app startup
+export async function initializeDefaultWallpaper() {
+  // Skip if already initialized
+  if (wallpaperInitialized) {
+    return
+  }
+
+  wallpaperInitialized = true
+
+  if (typeof window === 'undefined' || !window.electronAPI?.loadWallpaperImage) {
+    return
+  }
+
+  try {
+    const dataUrl = await window.electronAPI.loadWallpaperImage('/System/Library/Desktop Pictures/Sonoma.heic')
+    if (dataUrl) {
+      setDefaultWallpaper(dataUrl)
+    }
+  } catch (error) {
+    // Silently fail - will use gradient background
+  }
 }

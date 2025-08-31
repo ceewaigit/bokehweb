@@ -8,6 +8,7 @@ import type { Project, Clip } from '@/types/project'
 import { globalBlobManager } from '../security/blob-url-manager'
 import { RecordingStorage } from '../storage/recording-storage'
 import { FFmpegExportEngine } from './ffmpeg-export'
+import { ExportUtils } from './export-utils'
 
 export interface ExportProgress {
   progress: number
@@ -57,27 +58,13 @@ export class ExportEngine {
         throw new Error('Recording not found')
       }
 
-      // Warn if there are multiple clips with gaps
-      if (videoClips.length > 1) {
-        // Check for gaps
-        let hasGaps = false
-        for (let i = 1; i < videoClips.length; i++) {
-          const prevClip = videoClips[i - 1]
-          const currClip = videoClips[i]
-          const gap = currClip.startTime - (prevClip.startTime + prevClip.duration)
-          if (gap > 10) { // More than 10ms gap
-            hasGaps = true
-            break
-          }
-        }
-
-        if (hasGaps) {
-          onProgress?.({
-            progress: 5,
-            stage: 'processing',
-            message: '⚠️ Timeline has gaps. Exporting first clip only.'
-          })
-        }
+      // Check for gaps in timeline
+      if (videoClips.length > 1 && ExportUtils.hasSignificantGaps(videoClips)) {
+        onProgress?.({
+          progress: 5,
+          stage: 'processing',
+          message: '⚠️ Timeline has gaps. Exporting first clip only.'
+        })
       }
 
       // Get the video blob
@@ -121,14 +108,10 @@ export class ExportEngine {
           message: needsCropping ? 'Preparing to crop and apply effects...' : 'Preparing to apply effects...'
         })
 
-        // Transform MouseEvent format to match FFmpeg's expected format
-        const transformedMouseEvents = (recording.metadata?.mouseEvents || []).map(event => ({
-          timestamp: event.timestamp,
-          mouseX: event.x,
-          mouseY: event.y,
-          captureWidth: event.captureWidth,
-          captureHeight: event.captureHeight
-        }))
+        // Transform mouse events using utility
+        const transformedMouseEvents = ExportUtils.transformMouseEvents(
+          recording.metadata?.mouseEvents || []
+        )
 
         return await this.ffmpegEngine.exportWithEffects(
           videoBlob,
@@ -174,42 +157,8 @@ export class ExportEngine {
       message: 'Processing timeline with gaps...'
     })
 
-    // Build a list of segments (clips and gaps)
-    const segments: Array<{ type: 'clip' | 'gap', clip?: Clip, duration: number, startTime: number }> = []
-
-    for (let i = 0; i < clips.length; i++) {
-      const clip = clips[i]
-
-      // Add gap before this clip if needed
-      if (i === 0 && clip.startTime > 0) {
-        // Gap at the beginning
-        segments.push({
-          type: 'gap',
-          duration: clip.startTime,
-          startTime: 0
-        })
-      } else if (i > 0) {
-        const prevClip = clips[i - 1]
-        const gapStart = prevClip.startTime + prevClip.duration
-        const gapDuration = clip.startTime - gapStart
-
-        if (gapDuration > 10) { // More than 10ms gap
-          segments.push({
-            type: 'gap',
-            duration: gapDuration,
-            startTime: gapStart
-          })
-        }
-      }
-
-      // Add the clip
-      segments.push({
-        type: 'clip',
-        clip: clip,
-        duration: clip.duration,
-        startTime: clip.startTime
-      })
-    }
+    // Build timeline segments using utility
+    const segments = ExportUtils.buildTimelineSegments(clips)
 
     // Add final gap if timeline extends beyond last clip
     const lastClip = clips[clips.length - 1]
@@ -249,20 +198,18 @@ export class ExportEngine {
     const response = await fetch(blobUrl)
     const videoBlob = await response.blob()
 
-    // Export with effects
+    // Export with effects using transformed mouse events
+    const transformedMouseEvents = ExportUtils.transformMouseEvents(
+      recording.metadata?.mouseEvents || []
+    )
+
     return await this.ffmpegEngine.exportWithEffects(
       videoBlob,
       firstClip,
       settings,
       onProgress,
       recording.metadata?.captureArea?.fullBounds,
-      (recording.metadata?.mouseEvents || []).map(event => ({
-        timestamp: event.timestamp,
-        mouseX: event.x,
-        mouseY: event.y,
-        captureWidth: event.captureWidth,
-        captureHeight: event.captureHeight
-      }))
+      transformedMouseEvents
     )
   }
 }

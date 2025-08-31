@@ -98,14 +98,36 @@ export function TimelineCanvas({
   // Show keystroke track if ANY keystroke effects exist
   const hasKeystrokeTrack = currentProject?.timeline.effects?.some(e => e.type === 'keystroke' && e.enabled) ?? false
 
-  // Dynamic track heights
-  const rulerHeight = TIMELINE_LAYOUT.RULER_HEIGHT
-  const remainingHeight = stageSize.height - rulerHeight
-  const totalTracks = 2 + (hasZoomTrack ? 1 : 0) + (hasKeystrokeTrack ? 1 : 0)
-  const videoTrackHeight = Math.floor(remainingHeight * (totalTracks === 2 ? 0.55 : totalTracks === 3 ? 0.4 : 0.35))
-  const audioTrackHeight = Math.floor(remainingHeight * (totalTracks === 2 ? 0.45 : totalTracks === 3 ? 0.3 : 0.25))
-  const zoomTrackHeight = hasZoomTrack ? Math.floor(remainingHeight * (totalTracks === 4 ? 0.2 : 0.3)) : 0
-  const keystrokeTrackHeight = hasKeystrokeTrack ? Math.floor(remainingHeight * (totalTracks === 4 ? 0.2 : totalTracks === 3 ? 0.3 : 0.25)) : 0
+  // Calculate track heights based on number of tracks
+  const calculateTrackHeights = () => {
+    const rulerHeight = TIMELINE_LAYOUT.RULER_HEIGHT
+    const remainingHeight = stageSize.height - rulerHeight
+    const totalTracks = 2 + (hasZoomTrack ? 1 : 0) + (hasKeystrokeTrack ? 1 : 0)
+
+    // Define height ratios for different track configurations
+    const heightRatios: Record<number, { video: number; audio: number; zoom?: number; keystroke?: number }> = {
+      2: { video: 0.55, audio: 0.45 },
+      3: { video: 0.4, audio: 0.3, zoom: 0.3, keystroke: 0.3 },
+      4: { video: 0.35, audio: 0.25, zoom: 0.2, keystroke: 0.2 }
+    }
+
+    const ratios = heightRatios[totalTracks] || heightRatios[2]
+
+    return {
+      ruler: rulerHeight,
+      video: Math.floor(remainingHeight * ratios.video),
+      audio: Math.floor(remainingHeight * ratios.audio),
+      zoom: hasZoomTrack ? Math.floor(remainingHeight * (ratios.zoom || 0)) : 0,
+      keystroke: hasKeystrokeTrack ? Math.floor(remainingHeight * (ratios.keystroke || 0)) : 0
+    }
+  }
+
+  const trackHeights = calculateTrackHeights()
+  const rulerHeight = trackHeights.ruler
+  const videoTrackHeight = trackHeights.video
+  const audioTrackHeight = trackHeights.audio
+  const zoomTrackHeight = trackHeights.zoom
+  const keystrokeTrackHeight = trackHeights.keystroke
   const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
 
   // Initialize command manager
@@ -491,7 +513,7 @@ export function TimelineCanvas({
                           updateEffect(effect.id, {
                             data: { ...currentData, ...updates }
                           })
-                          
+
                           // IMPORTANT: Also update via onZoomBlockUpdate for local effects
                           // This ensures the preview updates immediately without needing to save
                           if (onZoomBlockUpdate) {

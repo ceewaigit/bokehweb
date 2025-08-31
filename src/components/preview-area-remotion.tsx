@@ -31,10 +31,10 @@ export function PreviewAreaRemotion({
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  
-  // Use playhead clip/recording for preview, fallback to selected
-  const previewClip = playheadClip || selectedClip
-  const previewRecording = playheadRecording || selectedRecording
+
+  // Only use playhead clip/recording for preview - no fallback to maintain separation of concerns
+  const previewClip = playheadClip
+  const previewRecording = playheadRecording
 
   // Load video URL when recording changes
   useEffect(() => {
@@ -45,7 +45,7 @@ export function PreviewAreaRemotion({
 
     // Get cached blob URL first - should already be loaded by workspace-manager
     const cachedUrl = RecordingStorage.getBlobUrl(previewRecording.id)
-    
+
     if (cachedUrl) {
       // Video is already loaded, use it immediately
       setVideoUrl(cachedUrl)
@@ -135,20 +135,16 @@ export function PreviewAreaRemotion({
 
   const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
 
-  // Check if there's no clip at the current playhead position
+  // Check if there's no clip at the current playhead position - show black screen
   if (!playheadClip || !playheadRecording) {
     return (
-      <div className="relative w-full h-full overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center p-8">
-          <div className="text-gray-500 text-center">
-            <p className="text-lg font-medium mb-2">No content</p>
-            <p className="text-sm">No clip at current playhead position</p>
-          </div>
-        </div>
+      <div className="relative w-full h-full overflow-hidden bg-black">
+        {/* Pure black screen for gaps between clips - matches professional video editors */}
+        <div className="absolute inset-0 bg-black" />
       </div>
     );
   }
-  
+
   if (!previewRecording) {
     return (
       <div className="relative w-full h-full overflow-hidden">
@@ -166,7 +162,7 @@ export function PreviewAreaRemotion({
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div 
+        <div
           className="relative w-full h-full flex items-center justify-center"
         >
           {videoUrl ? (

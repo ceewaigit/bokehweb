@@ -4,9 +4,11 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { useRecordingStore } from '@/stores/recording-store'
 import { useProjectStore } from '@/stores/project-store'
 import { ElectronRecorder, type ElectronRecordingResult } from '@/lib/recording'
+import { RecordingError, RecordingErrorCode, PermissionError, ElectronError } from '@/lib/core/errors'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { useTimer } from './use-timer'
 // Processing progress type
 interface ProcessingProgress {
   progress: number
@@ -20,14 +22,11 @@ interface ProcessingProgress {
 const RECORDING_CONSTANTS = {
   METADATA_TIMEOUT: 3000,
   DURATION_SYNC_THRESHOLD: 2000,
-  TIMER_INTERVAL: 1000,
 } as const
 
 export function useRecording() {
   const recorderRef = useRef<ElectronRecorder | null>(null)
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null)
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const timerStartTimeRef = useRef<number>(0)
 
   const {
     isRecording,
@@ -39,55 +38,15 @@ export function useRecording() {
     setStatus
   } = useRecordingStore()
 
-  // Timer functions integrated directly
-  const stopTimer = useCallback(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current)
-      timerIntervalRef.current = null
-    }
-  }, [])
+  // Use the simplified timer hook
+  const timer = useTimer((elapsedMs) => {
+    setDuration(elapsedMs)
+  })
 
-  const startTimer = useCallback((initialDuration = 0) => {
-    // Prevent starting timer if already running or not in recording state
-    if (timerIntervalRef.current) {
-      logger.debug('Timer already running, clearing first')
-    }
-
-    stopTimer() // Clear any existing timer
-
-    // Set the start time accounting for any previous duration
-    timerStartTimeRef.current = Date.now() - initialDuration
-
-    timerIntervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - timerStartTimeRef.current
-      setDuration(elapsed)
-    }, RECORDING_CONSTANTS.TIMER_INTERVAL)
-
-    logger.debug(`Timer started with initial duration: ${initialDuration}ms`)
-  }, [setDuration, stopTimer])
-
-  const pauseTimer = useCallback(() => {
-    if (timerIntervalRef.current) {
-      stopTimer()
-      logger.debug('Timer paused')
-    }
-  }, [stopTimer])
-
-  const resumeTimer = useCallback((currentDuration: number) => {
-    if (!timerIntervalRef.current) {
-      startTimer(currentDuration)
-      logger.debug(`Timer resumed from ${currentDuration}ms`)
-    }
-  }, [startTimer])
-
-  // Cleanup timer on unmount - no dependencies to ensure it always runs
+  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
-      // Direct cleanup without using stopTimer to avoid stale closure issues
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current)
-        timerIntervalRef.current = null
-      }
+      timer.stop()
     }
   }, [])
 
@@ -97,39 +56,50 @@ export function useRecording() {
     return result && result.video && result.video.size > 0
   }, [])
 
-  // Better error handling - replace alerts with logging for now
+  // Better error handling with proper error types
   const handleRecordingError = useCallback((error: unknown) => {
     logger.error('Recording error:', error)
 
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    const isPermissionError = errorMessage.toLowerCase().includes('permission')
-
-    if (isPermissionError) {
-      logger.warn('Permission error detected')
-
-      // Check if it's our special permission required message
-      if (errorMessage.startsWith('PERMISSION_REQUIRED:')) {
-        // Extract the actual message after the prefix
-        const userMessage = errorMessage.replace('PERMISSION_REQUIRED: ', '')
-        alert(`🔓 Screen Recording Permission\n\n${userMessage}`)
-      } else if (errorMessage.startsWith('PERMISSION_WAITING:')) {
-        // This is the waiting for permission message
-        const userMessage = errorMessage.replace('PERMISSION_WAITING: ', '')
-        alert(`⏳ Waiting for Permission\n\n${userMessage}`)
-      } else if (errorMessage.startsWith('PERMISSION_TIMEOUT:')) {
-        // Permission check timed out
-        const userMessage = errorMessage.replace('PERMISSION_TIMEOUT: ', '')
-        alert(`⏱️ Permission Timeout\n\n${userMessage}`)
-      } else {
-        alert(`🎥 Screen Recording Permission Required\n\nPlease enable screen recording for Screen Studio:\n\n1. System Preferences will open automatically\n2. Check the box next to "Screen Studio"\n3. You may need to restart the app\n4. Then click "Record" again`)
+    let userMessage = 'Failed to start recording'
+    
+    if (error instanceof PermissionError) {
+      switch (error.code) {
+        case RecordingErrorCode.PERMISSION_WAITING:
+          userMessage = `⏳ Waiting for Permission\n\n${error.message}`
+          break
+        case RecordingErrorCode.PERMISSION_TIMEOUT:
+          userMessage = `⏱️ Permission Timeout\n\n${error.message}`
+          break
+        default:
+          userMessage = `🔓 Screen Recording Permission\n\n${error.message}`
       }
-    } else if (errorMessage.includes('electron desktopCapturer not available')) {
-      logger.error('Electron not available')
-      alert(`⚠️ Desktop Recording Not Available\n\nScreen Studio requires the Electron desktop app for screen recording.\n\nPlease make sure you're running the desktop version of the app.`)
-    } else {
-      logger.error('Recording failed:', errorMessage)
-      alert(`Failed to start recording: ${errorMessage}`)
+    } else if (error instanceof ElectronError) {
+      userMessage = `⚠️ Desktop Recording Not Available\n\nScreen Studio requires the Electron desktop app for screen recording.\n\nPlease make sure you're running the desktop version of the app.`
+    } else if (error instanceof RecordingError) {
+      userMessage = `Recording Error: ${error.message}`
+    } else if (error instanceof Error) {
+      const errorMessage = error.message
+      
+      // Handle legacy error messages for backward compatibility
+      if (errorMessage.startsWith('PERMISSION_REQUIRED:')) {
+        const msg = errorMessage.replace('PERMISSION_REQUIRED: ', '')
+        userMessage = `🔓 Screen Recording Permission\n\n${msg}`
+      } else if (errorMessage.startsWith('PERMISSION_WAITING:')) {
+        const msg = errorMessage.replace('PERMISSION_WAITING: ', '')
+        userMessage = `⏳ Waiting for Permission\n\n${msg}`
+      } else if (errorMessage.startsWith('PERMISSION_TIMEOUT:')) {
+        const msg = errorMessage.replace('PERMISSION_TIMEOUT: ', '')
+        userMessage = `⏱️ Permission Timeout\n\n${msg}`
+      } else if (errorMessage.includes('electron desktopCapturer not available')) {
+        userMessage = `⚠️ Desktop Recording Not Available\n\nScreen Studio requires the Electron desktop app for screen recording.`
+      } else if (errorMessage.toLowerCase().includes('permission')) {
+        userMessage = `🎥 Screen Recording Permission Required\n\nPlease enable screen recording for Screen Studio:\n\n1. System Preferences will open automatically\n2. Check the box next to "Screen Studio"\n3. You may need to restart the app\n4. Then click "Record" again`
+      } else {
+        userMessage = `Failed to start recording: ${errorMessage}`
+      }
     }
+    
+    alert(userMessage)
   }, [])
 
   // Initialize recorder
@@ -170,7 +140,7 @@ export function useRecording() {
 
       // Verify recording is actually active before starting timer
       if (recorderRef.current.isCurrentlyRecording()) {
-        startTimer(0)
+        timer.start(0)
         logger.debug('Timer started for recording')
       } else {
         logger.warn('Recording not active after start, timer not started')
@@ -188,10 +158,10 @@ export function useRecording() {
       setStatus('idle')
       setRecording(false)
       // Ensure timer is stopped on any error
-      stopTimer()
+      timer.stop()
       setDuration(0)
     }
-  }, [isRecording, setRecording, setStatus, handleRecordingError, stopTimer, startTimer, setDuration])
+  }, [isRecording, setRecording, setStatus, handleRecordingError, timer, setDuration])
 
   const stopRecording = useCallback(async () => {
     logger.debug('useRecording.stopRecording called')
@@ -217,7 +187,7 @@ export function useRecording() {
       setStatus('processing')
 
       // Stop duration timer
-      stopTimer()
+      timer.stop()
 
       // Stop recording and get result
       const result = await recorder.stopRecording()
@@ -252,7 +222,7 @@ export function useRecording() {
         const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
 
         // Save recording with project using consolidated function
-        const saved = await RecordingStorage.saveRecordingWithProject(result.video, result.metadata, projectName, result.captureArea)
+        const saved = await RecordingStorage.saveRecordingWithProject(result.video, result.metadata, projectName, result.captureArea, result.hasAudio)
 
         if (saved) {
           logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
@@ -279,7 +249,7 @@ export function useRecording() {
       logger.error('Failed to stop recording:', error)
 
       // Reset state on error - ensure complete cleanup
-      stopTimer()
+      timer.stop()
       setDuration(0) // Reset duration on error
       setRecording(false)
       setPaused(false)
@@ -294,14 +264,14 @@ export function useRecording() {
 
       return null
     }
-  }, [setRecording, setPaused, setStatus, validateResult, stopTimer])
+  }, [setRecording, setPaused, setStatus, validateResult, timer])
 
   const pauseRecording = useCallback(() => {
     if (recorderRef.current && isRecording && !isPaused) {
       try {
         recorderRef.current.pauseRecording()
         setPaused(true)
-        pauseTimer()
+        timer.pause()
         logger.info('Recording paused')
       } catch (error) {
         logger.error('Failed to pause recording:', error)
@@ -309,7 +279,7 @@ export function useRecording() {
     } else {
       logger.debug(`Cannot pause - recording: ${isRecording}, paused: ${isPaused}`)
     }
-  }, [isRecording, isPaused, setPaused, pauseTimer])
+  }, [isRecording, isPaused, setPaused, timer])
 
   const resumeRecording = useCallback(() => {
     if (recorderRef.current && isPaused && isRecording) {
@@ -319,7 +289,7 @@ export function useRecording() {
 
         // Resume duration timer from current duration
         const currentDurationMs = useRecordingStore.getState().duration
-        resumeTimer(currentDurationMs)
+        timer.resume()
         logger.info(`Recording resumed from ${currentDurationMs}ms`)
       } catch (error) {
         logger.error('Failed to resume recording:', error)
@@ -329,7 +299,7 @@ export function useRecording() {
     } else {
       logger.debug(`Cannot resume - recording: ${isRecording}, paused: ${isPaused}`)
     }
-  }, [isPaused, isRecording, setPaused, resumeTimer])
+  }, [isPaused, isRecording, setPaused, timer])
 
 
   return {

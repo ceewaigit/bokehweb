@@ -14,6 +14,7 @@ import {
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { EffectUtils } from '@/lib/utils/effect-utils'
 
 // Helper functions moved to top for better organization
 const findClipById = (project: Project, clipId: string): { clip: Clip; track: Track } | null => {
@@ -641,20 +642,9 @@ export const useProjectStore = create<ProjectStore>()(
     play: () => {
       const state = get()
 
-      // If we're not on a clip, jump to the first clip or start of timeline
-      if (!state.getCurrentClip() && state.currentProject) {
-        const firstClip = state.currentProject.timeline.tracks
-          .flatMap(t => t.clips)
-          .sort((a, b) => a.startTime - b.startTime)[0]
-
-        if (firstClip) {
-          // Jump to the start of the first clip and select it
-          state.seek(firstClip.startTime)
-          state.selectClip(firstClip.id)
-        } else if (state.currentTime >= state.currentProject.timeline.duration) {
-          // If at the end, restart from beginning
-          state.seek(0)
-        }
+      // If at the end of timeline, restart from beginning
+      if (state.currentProject && state.currentTime >= state.currentProject.timeline.duration) {
+        state.seek(0)
       }
 
       set({ isPlaying: true })
@@ -683,26 +673,8 @@ export const useProjectStore = create<ProjectStore>()(
           state.pause()
           state.seek(state.currentProject.timeline.duration)
         } else {
-          // Update time and check for clip boundaries
+          // Update time without auto-selecting clips
           state.seek(newTime)
-
-          // Check if we need to switch clips
-          const currentClip = state.getCurrentClip()
-          if (!currentClip && state.selectedClipId) {
-            // We've moved past the current clip, find the next one
-            const nextClip = state.currentProject.timeline.tracks
-              .flatMap(t => t.clips)
-              .filter(c => c.startTime >= newTime)
-              .sort((a, b) => a.startTime - b.startTime)[0]
-
-            if (nextClip) {
-              state.selectClip(nextClip.id)
-            }
-          } else if (currentClip && currentClip.id !== state.selectedClipId) {
-            // We've entered a new clip
-            state.selectClip(currentClip.id)
-          }
-
           animationFrameId = requestAnimationFrame(animate)
         }
       }
@@ -724,18 +696,6 @@ export const useProjectStore = create<ProjectStore>()(
         const maxTime = state.currentProject?.timeline?.duration || 0
         const clampedTime = Math.max(0, Math.min(maxTime, time))
         state.currentTime = clampedTime
-
-        // Auto-select clip at this time if not playing
-        if (!state.isPlaying && state.currentProject) {
-          const clipAtTime = state.currentProject.timeline.tracks
-            .flatMap(t => t.clips)
-            .find(c => clampedTime >= c.startTime && clampedTime < c.startTime + c.duration)
-
-          if (clipAtTime && clipAtTime.id !== state.selectedClipId) {
-            state.selectedClipId = clipAtTime.id
-            state.selectedClips = [clipAtTime.id]
-          }
-        }
       })
     },
 
@@ -884,33 +844,14 @@ export const useProjectStore = create<ProjectStore>()(
           const { splitPoint, leftClipId, rightClipId } = params
 
           clipEffects.forEach(effect => {
-            if (effect.endTime <= splitPoint) {
-              // Effect stays with left clip
-              effect.clipId = leftClipId
-            } else if (effect.startTime >= splitPoint) {
-              // Effect moves to right clip with adjusted timing
-              effect.clipId = rightClipId
-              effect.startTime -= splitPoint
-              effect.endTime -= splitPoint
-            } else {
-              // Effect spans the split point - duplicate and adjust
-              const leftEffect = JSON.parse(JSON.stringify(effect))
-              leftEffect.id = `${effect.id}-left`
-              leftEffect.clipId = leftClipId
-              leftEffect.endTime = splitPoint
+            const splitEffects = EffectUtils.splitEffect(effect, splitPoint, leftClipId, rightClipId)
 
-              const rightEffect = JSON.parse(JSON.stringify(effect))
-              rightEffect.id = `${effect.id}-right`
-              rightEffect.clipId = rightClipId
-              rightEffect.startTime = 0
-              rightEffect.endTime -= splitPoint
-
-              // Remove original and add split versions
-              const effects = state.currentProject!.timeline.effects!
-              const index = effects.findIndex(e => e.id === effect.id)
-              if (index !== -1) {
-                effects.splice(index, 1, leftEffect, rightEffect)
-              }
+            // Remove original and add split versions
+            const effects = state.currentProject!.timeline.effects!
+            const index = effects.findIndex(e => e.id === effect.id)
+            if (index !== -1) {
+              // Replace original with split effects
+              effects.splice(index, 1, ...splitEffects)
             }
           })
         } else if (changeType === 'trim') {

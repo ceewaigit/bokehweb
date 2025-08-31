@@ -21,6 +21,7 @@ export class ElectronRecorder {
   private isRecording = false
   private useNativeRecorder = false
   private nativeRecorderPath: string | null = null
+  private hasAudio = false
 
   constructor() {
     logger.debug('ElectronRecorder initialized')
@@ -131,9 +132,10 @@ export class ElectronRecorder {
 
       // Fallback to MediaRecorder (cursor will be visible)
       logger.info('Using MediaRecorder - cursor WILL be visible in recording')
-      const hasAudio = recordingSettings.audioInput !== 'none'
+      this.hasAudio = recordingSettings.audioInput !== 'none'
+      
       const constraints: any = {
-        audio: hasAudio ? {
+        audio: this.hasAudio ? {
           mandatory: {
             chromeMediaSource: 'desktop',
             chromeMediaSourceId: primarySource.id
@@ -179,7 +181,7 @@ export class ElectronRecorder {
       this.mediaRecorder = new MediaRecorder(this.stream, {
         mimeType,
         videoBitsPerSecond: 5000000,
-        ...(hasAudio ? { audioBitsPerSecond: 128000 } : {})
+        ...(this.hasAudio ? { audioBitsPerSecond: 128000 } : {})
       })
 
       // Set up MediaRecorder handlers
@@ -262,7 +264,8 @@ export class ElectronRecorder {
           video,
           duration,
           metadata: this.metadata,
-          captureArea: this.captureArea
+          captureArea: this.captureArea,
+          hasAudio: true  // Native recorder now always includes audio
         }
 
         this.isRecording = false
@@ -294,7 +297,8 @@ export class ElectronRecorder {
           video,
           duration,
           metadata: this.metadata,
-          captureArea: this.captureArea
+          captureArea: this.captureArea,
+          hasAudio: this.hasAudio
         })
         return
       }
@@ -309,7 +313,8 @@ export class ElectronRecorder {
           video,
           duration,
           metadata: this.metadata,
-          captureArea: this.captureArea
+          captureArea: this.captureArea,
+          hasAudio: this.hasAudio
         }
 
         this.isRecording = false

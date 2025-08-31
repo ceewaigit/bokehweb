@@ -8,9 +8,7 @@ import type { MouseEvent } from '@/types/project'
 export class ZoomPanCalculator {
   // Cinematic zoom settings
   private readonly ZOOM_EDGE_THRESHOLD = 0.20  // Trigger panning when mouse is within 20% of edge
-  private readonly ZOOM_DEAD_ZONE = 0.3  // 30% center area with no panning
   private readonly ZOOM_PAN_SMOOTHING = 0.03  // Smoother but more responsive
-  private readonly ZOOM_MAX_PAN = 0.35  // Allow more pan to keep mouse in view
 
   /**
    * Calculate cinematic pan for zoom - smooth and restricted
@@ -28,27 +26,27 @@ export class ZoomPanCalculator {
     // Normalize mouse position to 0-1
     const normalizedX = mouseX / videoWidth;
     const normalizedY = mouseY / videoHeight;
-    
+
     // Calculate viewport bounds in normalized space
     const viewportWidth = 1 / zoomScale;
     const viewportHeight = 1 / zoomScale;
-    
+
     // Calculate what portion of the video is visible
-    const viewportLeft = 0.5 - viewportWidth/2 - currentPanX;
-    const viewportRight = 0.5 + viewportWidth/2 - currentPanX;
-    const viewportTop = 0.5 - viewportHeight/2 - currentPanY;
-    const viewportBottom = 0.5 + viewportHeight/2 - currentPanY;
-    
+    const viewportLeft = 0.5 - viewportWidth / 2 - currentPanX;
+    const viewportRight = 0.5 + viewportWidth / 2 - currentPanX;
+    const viewportTop = 0.5 - viewportHeight / 2 - currentPanY;
+    const viewportBottom = 0.5 + viewportHeight / 2 - currentPanY;
+
     // Calculate safe zone (where mouse should ideally be)
     const safeMargin = this.ZOOM_EDGE_THRESHOLD;
     const safeLeft = viewportLeft + safeMargin * viewportWidth;
     const safeRight = viewportRight - safeMargin * viewportWidth;
     const safeTop = viewportTop + safeMargin * viewportHeight;
     const safeBottom = viewportBottom - safeMargin * viewportHeight;
-    
+
     let targetPanX = currentPanX;
     let targetPanY = currentPanY;
-    
+
     // Pan to keep mouse within safe zone
     if (normalizedX < safeLeft) {
       // Mouse is too far left, pan left to bring it back
@@ -59,7 +57,7 @@ export class ZoomPanCalculator {
       const offset = normalizedX - safeRight;
       targetPanX = currentPanX - offset * 0.5;
     }
-    
+
     if (normalizedY < safeTop) {
       // Mouse is too far up, pan up
       const offset = safeTop - normalizedY;
@@ -69,12 +67,12 @@ export class ZoomPanCalculator {
       const offset = normalizedY - safeBottom;
       targetPanY = currentPanY - offset * 0.5;
     }
-    
+
     // Clamp to maximum pan bounds (can't show outside video)
     const maxPan = (1 - viewportWidth) / 2;
     targetPanX = Math.max(-maxPan, Math.min(maxPan, targetPanX));
     targetPanY = Math.max(-maxPan, Math.min(maxPan, targetPanY));
-    
+
     // Apply smooth interpolation with urgency based on distance from edge
     const distFromEdgeX = Math.min(
       Math.abs(normalizedX - viewportLeft) / viewportWidth,
@@ -84,14 +82,14 @@ export class ZoomPanCalculator {
       Math.abs(normalizedY - viewportTop) / viewportHeight,
       Math.abs(viewportBottom - normalizedY) / viewportHeight
     );
-    
+
     // More urgent smoothing when closer to edge (to prevent escape)
     const urgencyX = distFromEdgeX < 0.1 ? 0.15 : this.ZOOM_PAN_SMOOTHING;
     const urgencyY = distFromEdgeY < 0.1 ? 0.15 : this.ZOOM_PAN_SMOOTHING;
-    
+
     const newPanX = currentPanX + (targetPanX - currentPanX) * urgencyX;
     const newPanY = currentPanY + (targetPanY - currentPanY) * urgencyY;
-    
+
     return {
       x: newPanX,
       y: newPanY

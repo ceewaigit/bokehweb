@@ -34,6 +34,9 @@ export interface Recording {
   height: number
   frameRate: number
 
+  // Audio information
+  hasAudio?: boolean
+
   // Capture area information
   captureArea?: CaptureArea
 
@@ -76,9 +79,6 @@ export interface RecordingMetadata {
 
   // Screen dimensions changes
   screenEvents: ScreenEvent[]
-
-  // Audio levels for waveform
-  audioLevels?: number[]
 
   // Capture area information for cropping during export
   captureArea?: CaptureArea

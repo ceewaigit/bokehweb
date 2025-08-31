@@ -245,6 +245,53 @@ export const TimelineClip = React.memo(({
         </Group>
       )}
 
+      {/* Audio waveform visualization for clips with audio */}
+      {trackType === 'video' && recording?.hasAudio && (
+        <Group y={trackHeight / 2} opacity={0.4}>
+          {/* Generate mirrored waveform bars for stereo effect */}
+          {Array.from({ length: Math.min(50, Math.floor(clipWidth / 3)) }, (_, i) => {
+            // Create a pseudo-random but consistent waveform pattern
+            const seed = clip.startTime + i * 137
+            const random = Math.sin(seed) * 0.5 + 0.5
+            const wave = Math.sin(i * 0.2) * Math.cos(i * 0.1 + clip.startTime * 0.001)
+            const barHeight = Math.max(2, Math.abs(wave) * 15 * (0.5 + random * 0.5))
+            const x = 5 + i * 3
+            
+            return (
+              <Group key={i}>
+                {/* Top bar (positive amplitude) */}
+                <Rect
+                  x={x}
+                  y={-barHeight}
+                  width={1.5}
+                  height={barHeight}
+                  fill={colors.success || '#10b981'}
+                  opacity={0.6 + random * 0.4}
+                />
+                {/* Bottom bar (negative amplitude - mirror) */}
+                <Rect
+                  x={x}
+                  y={0}
+                  width={1.5}
+                  height={barHeight}
+                  fill={colors.success || '#10b981'}
+                  opacity={0.6 + random * 0.4}
+                />
+              </Group>
+            )
+          })}
+          {/* Center line */}
+          <Rect
+            x={5}
+            y={-0.5}
+            width={Math.min(150, clipWidth - 10)}
+            height={1}
+            fill={colors.success || '#10b981'}
+            opacity={0.3}
+          />
+        </Group>
+      )}
+
       {/* Clip ID label */}
       <Text
         x={8}
@@ -337,6 +384,29 @@ export const TimelineClip = React.memo(({
               <Text x={5} y={3} text="B" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
             </Group>
           )
+          xOffset += 36
+        }
+
+        // Audio badge is now optional since we have waveform visualization
+        // Only show it if the clip is very small
+        if (recording?.hasAudio && clipWidth < 100) {
+          badges.push(
+            <Group 
+              key="audio"
+              x={xOffset} 
+              y={0}
+            >
+              <Rect 
+                width={20} 
+                height={14} 
+                fill={colors.success || '#10b981'} 
+                cornerRadius={2}
+                opacity={0.7}
+              />
+              <Text x={5} y={3} text="♫" fontSize={9} fill={colors.foreground} fontFamily="system-ui" />
+            </Group>
+          )
+          xOffset += 24
         }
         
         return badges.length > 0 ? <Group x={6} y={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2 - 20}>{badges}</Group> : null

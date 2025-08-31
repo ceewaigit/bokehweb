@@ -7,6 +7,7 @@ import { useRecordingStore } from '@/stores/recording-store'
 import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/utils/logger'
+import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import {
   Mic,
   MicOff,
@@ -73,6 +74,11 @@ export function RecordButtonDock() {
       root.style.width = '100%'
       root.style.height = '100%'
     }
+  }, [])
+
+  // Initialize default wallpaper on mount
+  useEffect(() => {
+    initializeDefaultWallpaper()
   }, [])
 
   // Load sources when picker opens
