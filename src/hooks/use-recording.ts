@@ -9,24 +9,9 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { logger } from '@/lib/utils/logger'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useTimer } from './use-timer'
-// Processing progress type
-interface ProcessingProgress {
-  progress: number
-  phase: string
-  message?: string
-  currentFrame?: number
-  totalFrames?: number
-}
-
-// Constants for better maintainability
-const RECORDING_CONSTANTS = {
-  METADATA_TIMEOUT: 3000,
-  DURATION_SYNC_THRESHOLD: 2000,
-} as const
 
 export function useRecording() {
   const recorderRef = useRef<ElectronRecorder | null>(null)
-  const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null)
 
   const {
     isRecording,
@@ -50,13 +35,8 @@ export function useRecording() {
     }
   }, [])
 
-  // Simple duration validation - no longer needed with proper MediaRecorder
-  const validateResult = useCallback((result: ElectronRecordingResult): boolean => {
-    // Basic validation - just check that we have a video blob
-    return result && result.video && result.video.size > 0
-  }, [])
 
-  // Better error handling with proper error types
+  // Error handling with proper error types
   const handleRecordingError = useCallback((error: unknown) => {
     logger.error('Recording error:', error)
 
@@ -78,25 +58,7 @@ export function useRecording() {
     } else if (error instanceof RecordingError) {
       userMessage = `Recording Error: ${error.message}`
     } else if (error instanceof Error) {
-      const errorMessage = error.message
-      
-      // Handle legacy error messages for backward compatibility
-      if (errorMessage.startsWith('PERMISSION_REQUIRED:')) {
-        const msg = errorMessage.replace('PERMISSION_REQUIRED: ', '')
-        userMessage = `🔓 Screen Recording Permission\n\n${msg}`
-      } else if (errorMessage.startsWith('PERMISSION_WAITING:')) {
-        const msg = errorMessage.replace('PERMISSION_WAITING: ', '')
-        userMessage = `⏳ Waiting for Permission\n\n${msg}`
-      } else if (errorMessage.startsWith('PERMISSION_TIMEOUT:')) {
-        const msg = errorMessage.replace('PERMISSION_TIMEOUT: ', '')
-        userMessage = `⏱️ Permission Timeout\n\n${msg}`
-      } else if (errorMessage.includes('electron desktopCapturer not available')) {
-        userMessage = `⚠️ Desktop Recording Not Available\n\nScreen Studio requires the Electron desktop app for screen recording.`
-      } else if (errorMessage.toLowerCase().includes('permission')) {
-        userMessage = `🎥 Screen Recording Permission Required\n\nPlease enable screen recording for Screen Studio:\n\n1. System Preferences will open automatically\n2. Check the box next to "Screen Studio"\n3. You may need to restart the app\n4. Then click "Record" again`
-      } else {
-        userMessage = `Failed to start recording: ${errorMessage}`
-      }
+      userMessage = `Failed to start recording: ${error.message}`
     }
     
     alert(userMessage)
@@ -191,12 +153,10 @@ export function useRecording() {
 
       // Stop recording and get result
       const result = await recorder.stopRecording()
-      if (!result || !validateResult(result)) {
+      if (!result || !result.video || result.video.size === 0) {
         throw new Error('Invalid recording result')
       }
 
-      // Clear processing progress when done
-      setProcessingProgress(null)
 
       logger.info(`Recording complete: ${result.duration}ms, ${result.video.size} bytes, ${result.metadata.length} events`)
 
@@ -259,12 +219,10 @@ export function useRecording() {
         (window as any).__screenRecorderActive = false
       }
 
-      // Clear processing progress on error
-      setProcessingProgress(null)
 
       return null
     }
-  }, [setRecording, setPaused, setStatus, validateResult, timer])
+  }, [setRecording, setPaused, setStatus, timer])
 
   const pauseRecording = useCallback(() => {
     if (recorderRef.current && isRecording && !isPaused) {
@@ -309,15 +267,10 @@ export function useRecording() {
     resumeRecording,
     isRecording,
     isPaused,
-    processingProgress,
     screenRecorder: recorderRef.current,
     isSupported: typeof navigator !== 'undefined' &&
       typeof navigator.mediaDevices !== 'undefined' &&
       typeof navigator.mediaDevices.getDisplayMedia === 'function',
-    getAvailableSources: async () => [
-      { id: 'screen', name: 'Screen', type: 'screen' },
-      { id: 'window', name: 'Window', type: 'window' }
-    ],
     duration: 0 // Duration is managed by the store
   }
 }

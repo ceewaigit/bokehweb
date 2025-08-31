@@ -232,13 +232,16 @@ export function WorkspaceManager() {
   const [localEffects, setLocalEffects] = useState<Effect[] | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  // Get selected clip first (needed for handleZoomBlockUpdate)
+  // Get selected clip (only needed for timeline editing operations)
   const selectedClip = currentProject?.timeline.tracks
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId) || null
 
-  // Get effects for the selected clip
-  const clipEffects = selectedClipId ? getEffectsForClip(selectedClipId) : []
+  // Get clip at playhead position (for effects and preview)
+  const playheadClip = useProjectStore.getState().getCurrentClip()
+  
+  // Get effects for the playhead clip (not selected clip) - proper separation of concerns
+  const clipEffects = playheadClip?.id ? getEffectsForClip(playheadClip.id) : []
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
     // Work with local effects or fall back to saved effects
     const currentEffects = localEffects || clipEffects || []
@@ -299,7 +302,9 @@ export function WorkspaceManager() {
 
   // Consolidated save function
   const handleSaveProject = useCallback(async () => {
-    if (localEffects && selectedClipId) {
+    // Save effects for the playhead clip, not selected clip
+    const currentClipAtPlayhead = useProjectStore.getState().getCurrentClip()
+    if (localEffects && currentClipAtPlayhead?.id) {
       // Remove all existing effects for this clip
       const existingEffects = clipEffects || []
       existingEffects.forEach(effect => {
@@ -328,7 +333,7 @@ export function WorkspaceManager() {
       setLastSavedAt(savedProject.modifiedAt)
     }
     setHasUnsavedChanges(false)
-  }, [localEffects, selectedClipId, clipEffects, updateEffect, addEffect, saveCurrentProject])
+  }, [localEffects, clipEffects, updateEffect, addEffect, saveCurrentProject])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -344,14 +349,6 @@ export function WorkspaceManager() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSaveProject])
 
-  // Get clip at playhead position
-  const playheadClip = useProjectStore.getState().getCurrentClip()
-
-  // Get recording for selected clip (for editing)
-  const selectedRecording = selectedClip && currentProject
-    ? currentProject.recordings.find(r => r.id === selectedClip.recordingId)
-    : null
-
   // Get recording for playhead clip (for preview)
   const playheadRecording = playheadClip && currentProject
     ? currentProject.recordings.find(r => r.id === playheadClip.recordingId)
@@ -363,16 +360,20 @@ export function WorkspaceManager() {
     storePause()
   }, [storePause])
 
-  // Monitor clip boundaries during playback
+  // Monitor clip boundaries during playback - use playhead clip, not selected
   useEffect(() => {
-    if (!selectedClip || !isPlaying) return
+    const currentClip = useProjectStore.getState().getCurrentClip()
+    if (!currentClip || !isPlaying) return
 
     const syncInterval = setInterval(() => {
       if (!isPlaying) return
+      
+      const currentClip = useProjectStore.getState().getCurrentClip()
+      if (!currentClip) return
 
-      const clipProgress = Math.max(0, currentTime - selectedClip.startTime)
-      const sourceTime = (selectedClip.sourceIn + clipProgress) / 1000
-      const maxTime = selectedClip.sourceOut / 1000
+      const clipProgress = Math.max(0, currentTime - currentClip.startTime)
+      const sourceTime = (currentClip.sourceIn + clipProgress) / 1000
+      const maxTime = currentClip.sourceOut / 1000
 
       if (sourceTime > maxTime) {
         handlePause()
@@ -386,13 +387,12 @@ export function WorkspaceManager() {
         clearInterval(playbackIntervalRef.current)
       }
     }
-  }, [isPlaying, currentTime, selectedClip, handlePause])
+  }, [isPlaying, currentTime, handlePause])
 
-  // Centralized playback control
+  // Centralized playback control - no selection required for playback
   const handlePlay = useCallback(() => {
-    if (!selectedClip || !selectedRecording) return
     storePlay()
-  }, [selectedClip, selectedRecording, storePlay])
+  }, [storePlay])
 
   const handleSeek = useCallback((time: number) => {
     storeSeek(time)
@@ -404,7 +404,9 @@ export function WorkspaceManager() {
   }, [selectClip])
 
   const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
-    if (!selectedClipId) return
+    // Use playhead clip for effects, not selected clip - proper separation
+    const currentClipAtPlayhead = useProjectStore.getState().getCurrentClip()
+    if (!currentClipAtPlayhead) return
 
     // Work with local effects or fall back to saved effects
     const currentEffects = localEffects || clipEffects || []
@@ -449,11 +451,11 @@ export function WorkspaceManager() {
         const { enabled: dataEnabled, ...effectData } = data
 
         const newEffect: Effect = {
-          id: `${type}-${selectedClipId}-${Date.now()}`,
+          id: `${type}-${currentClipAtPlayhead.id}-${Date.now()}`,
           type,
-          clipId: selectedClipId,
+          clipId: currentClipAtPlayhead.id,
           startTime: 0,
-          endTime: selectedClip?.duration || 0,
+          endTime: currentClipAtPlayhead.duration || 0,
           data: effectData,
           enabled: dataEnabled !== undefined ? dataEnabled : true
         }
@@ -464,7 +466,7 @@ export function WorkspaceManager() {
     // Update local state
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
-  }, [selectedClipId, selectedClip, clipEffects, localEffects, selectedEffectLayer])
+  }, [clipEffects, localEffects, selectedEffectLayer])
 
 
 
@@ -621,8 +623,6 @@ export function WorkspaceManager() {
             {/* Preview Area */}
             <div className="overflow-hidden" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
               <PreviewAreaRemotion
-                selectedClip={selectedClip}
-                selectedRecording={selectedRecording}
                 playheadClip={playheadClip}
                 playheadRecording={playheadRecording}
                 currentTime={currentTime}

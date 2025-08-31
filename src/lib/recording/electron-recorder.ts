@@ -481,27 +481,6 @@ export class ElectronRecorder {
     return 'recording'
   }
 
-  async getAvailableSources(): Promise<Array<{ id: string, name: string, type: string }>> {
-    try {
-      if (!window.electronAPI?.getDesktopSources) {
-        throw new Error('Desktop sources API not available')
-      }
-
-      const sources = await window.electronAPI.getDesktopSources({
-        types: ['screen', 'window'],
-        thumbnailSize: { width: 150, height: 150 }
-      })
-
-      return sources.map(source => ({
-        id: source.id,
-        name: source.name,
-        type: source.id.startsWith('screen:') ? 'screen' : 'window'
-      }))
-    } catch (error) {
-      logger.error('Failed to get available sources:', error)
-      return []
-    }
-  }
 }
 
 // Window interface is already extended in src/types/electron.d.ts

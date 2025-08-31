@@ -9,8 +9,6 @@ import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Recording, Effect } from '@/types/project'
 
 interface PreviewAreaRemotionProps {
-  selectedClip: Clip | null
-  selectedRecording: Recording | null | undefined
   playheadClip?: Clip | null
   playheadRecording?: Recording | null | undefined
   currentTime: number
@@ -20,8 +18,6 @@ interface PreviewAreaRemotionProps {
 }
 
 export function PreviewAreaRemotion({
-  selectedClip,
-  selectedRecording,
   playheadClip,
   playheadRecording,
   currentTime,
