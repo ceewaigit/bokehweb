@@ -206,6 +206,14 @@ async function loadProjectRecording(
     })
   }
 
+  // Log the project effects before setting
+  console.log('loadProjectRecording - Setting project with effects:', {
+    totalEffects: project.timeline.effects?.length || 0,
+    zoomEffects: project.timeline.effects?.filter((e: any) => e.type === 'zoom').length || 0,
+    backgroundEffects: project.timeline.effects?.filter((e: any) => e.type === 'background').length || 0,
+    effectTypes: project.timeline.effects?.map((e: any) => e.type) || []
+  })
+  
   // Set the project ONCE after all recordings are processed
   useProjectStore.getState().setProject(project)
 
@@ -336,28 +344,45 @@ export function WorkspaceManager() {
 
   // Consolidated save function
   const handleSaveProject = useCallback(async () => {
-    // Save effects for the playhead clip
-    if (localEffects && playheadClip?.id) {
-      // Remove all existing effects for this clip
-      const existingEffects = playheadEffects || []
-      existingEffects.forEach(effect => {
-        updateEffect(effect.id, { ...effect, enabled: false })
-      })
-
-      // Add all local effects as saved effects
-      localEffects.forEach(effect => {
-        if (existingEffects.find(e => e.id === effect.id)) {
-          // Update existing effect
-          updateEffect(effect.id, effect)
+    console.log('handleSaveProject - Starting save:', {
+      hasLocalEffects: !!localEffects,
+      localEffectsCount: localEffects?.length || 0,
+      projectEffectsCount: currentProject?.timeline?.effects?.length || 0,
+      zoomEffectsInProject: currentProject?.timeline?.effects?.filter(e => e.type === 'zoom').length || 0
+    })
+    
+    // If there are local unsaved effect changes, merge them into the project store
+    if (localEffects) {
+      console.log('handleSaveProject - Merging local effects into project store')
+      
+      // Get current project effects
+      const projectEffects = currentProject?.timeline?.effects || []
+      
+      // For each local effect, update or add it to the project store
+      localEffects.forEach(localEffect => {
+        const existingInProject = projectEffects.find(e => e.id === localEffect.id)
+        
+        if (existingInProject) {
+          // Update existing effect in the store
+          console.log('Updating effect in store:', localEffect.id, localEffect.type)
+          updateEffect(localEffect.id, localEffect)
         } else {
-          // Add new effect
-          addEffect(effect)
+          // Add new effect to the store
+          console.log('Adding new effect to store:', localEffect.id, localEffect.type)
+          addEffect(localEffect)
         }
       })
-
+      
+      // Clear local effects after merging
       setLocalEffects(null)
     }
 
+    // Save the entire current project to disk (including ALL effects)
+    console.log('handleSaveProject - Saving project with all effects:', {
+      totalEffects: currentProject?.timeline?.effects?.length || 0,
+      effectTypes: currentProject?.timeline?.effects?.map(e => ({ id: e.id, type: e.type, enabled: e.enabled })) || []
+    })
+    
     await saveCurrentProject()
 
     // Use the project's modifiedAt timestamp after saving

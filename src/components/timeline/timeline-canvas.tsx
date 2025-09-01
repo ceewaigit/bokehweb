@@ -449,6 +449,14 @@ export function TimelineCanvas({
               // Use localEffects if available, otherwise fall back to project effects
               const effectsSource = localEffects || currentProject.timeline.effects || []
               const zoomEffects = effectsSource.filter(e => e.type === 'zoom' && e.enabled)
+              
+              // Debug log for timeline zoom rendering
+              console.log('TimelineCanvas - Zoom effects check:', {
+                source: localEffects ? 'localEffects' : 'project.timeline.effects',
+                totalEffectsInSource: effectsSource.length,
+                zoomEffectsFound: zoomEffects.length,
+                allEffectTypes: effectsSource.map(e => ({ id: e.id, type: e.type, enabled: e.enabled }))
+              })
 
               videoTrack.clips.forEach(clip => {
                 const isSelectedClip = selectedClips.includes(clip.id)

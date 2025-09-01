@@ -58,7 +58,7 @@ export function PreviewAreaRemotion({
         console.error('Error loading video:', error)
       })
     }
-  }, [previewRecording?.id]);
+  }, [previewRecording?.id, playheadRecording]);
 
   // Sync playback state with timeline
   useEffect(() => {
@@ -130,9 +130,12 @@ export function PreviewAreaRemotion({
   const compositionWidth = videoAspectRatio > 1 ? baseSize : Math.round(baseSize * videoAspectRatio);
   const compositionHeight = videoAspectRatio > 1 ? Math.round(baseSize / videoAspectRatio) : baseSize;
 
+  // Determine if we should show video or black screen
+  const showBlackScreen = !playheadClip || !playheadRecording || !videoUrl;
+
   // Calculate composition props - use empty video when no clip
   const compositionProps = {
-    videoUrl: videoUrl || '',
+    videoUrl: showBlackScreen ? '' : (videoUrl || ''),
     clip: previewClip,
     effects: localEffects || clipEffects || null,
     cursorEvents: previewRecording?.metadata?.mouseEvents || [],
@@ -144,9 +147,6 @@ export function PreviewAreaRemotion({
   };
 
   const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
-
-  // Determine if we should show video or black screen
-  const showBlackScreen = !playheadClip || !playheadRecording || !videoUrl;
   const hasNoProject = !previewRecording && !playheadClip;
 
 
@@ -189,8 +189,7 @@ export function PreviewAreaRemotion({
               height: '100%',
               maxWidth: '100%',
               maxHeight: '100%',
-              objectFit: 'contain',
-              opacity: showBlackScreen ? 0 : 1
+              objectFit: 'contain'
             }}
             controls={false}
             loop={false}
