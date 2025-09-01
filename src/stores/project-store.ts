@@ -401,20 +401,17 @@ export const useProjectStore = create<ProjectStore>()(
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
-          // Use centralized ClipPositioning service for validation and positioning
-          const validationResult = ClipPositioning.validatePosition(
-            clip.startTime,
-            clip.duration,
-            videoTrack.clips,
-            undefined,
-            { enforceLeftmostConstraint: true, findAlternativeIfInvalid: true }
-          )
-
-          if (!validationResult.isValid && validationResult.suggestedPosition !== undefined) {
-            clip.startTime = validationResult.suggestedPosition
-            console.log(`Clip repositioned to ${clip.startTime} to avoid overlap`)
-          } else if (validationResult.isValid) {
-            clip.startTime = validationResult.finalPosition
+          // Force new clips to be positioned right after the last clip (no gaps)
+          if (videoTrack.clips.length > 0) {
+            // Find the end of the last clip in the timeline
+            const sortedClips = [...videoTrack.clips].sort((a, b) => 
+              (a.startTime + a.duration) - (b.startTime + b.duration)
+            )
+            const lastClip = sortedClips[sortedClips.length - 1]
+            clip.startTime = lastClip.startTime + lastClip.duration
+          } else {
+            // First clip starts at 0
+            clip.startTime = 0
           }
 
           videoTrack.clips.push(clip)
@@ -471,32 +468,15 @@ export const useProjectStore = create<ProjectStore>()(
 
         const { clip, track } = result
 
-        // Check for overlaps and leftmost constraint when position changes
+        // When position changes, force clip to snap to leftmost available position
         if (updates.startTime !== undefined) {
-          const duration = updates.duration || clip.duration
-
-          // Use centralized ClipPositioning service for validation
-          const validationResult = ClipPositioning.validatePosition(
-            updates.startTime,
-            duration,
-            track.clips,
-            clipId,
-            { enforceLeftmostConstraint: true }
-          )
-
-          if (!validationResult.isValid) {
-            console.warn(`Cannot move clip ${clipId} to position ${updates.startTime} - ${validationResult.reason}`)
-            if (validationResult.suggestedPosition !== undefined) {
-              // Use suggested position if available
-              updates.startTime = validationResult.suggestedPosition
-            } else {
-              // Reject the update entirely
-              return
-            }
-          } else {
-            // Use the validated position (may be snapped)
-            updates.startTime = validationResult.finalPosition
-          }
+          // Get the leftmost clip end position (excluding current clip)
+          const leftmostEnd = ClipPositioning.getLeftmostClipEnd(track.clips, clipId)
+          
+          // Force the clip to this position (no gaps allowed)
+          updates.startTime = leftmostEnd
+          
+          console.log(`Clip ${clipId} snapped to position ${updates.startTime} (no gaps allowed)`)
         }
 
         Object.assign(clip, updates)

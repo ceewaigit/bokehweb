@@ -148,39 +148,17 @@ export const TimelineClip = React.memo(({
       y={trackY + TimelineConfig.TRACK_PADDING}
       draggable
       dragBoundFunc={(pos) => {
-        // First convert position to time
-        const proposedTime = TimeConverter.pixelsToMs(
-          pos.x - TimelineConfig.TRACK_LABEL_WIDTH,
-          pixelsPerMs
-        )
+        // Force clip to snap directly to the right of the leftmost clip
+        // This ensures no gaps in the timeline
         
-        // Enforce minimum time constraint (after leftmost clip)
-        const constrainedTime = Math.max(minAllowedTime, proposedTime)
+        // The only valid position is immediately after the leftmost clip
+        const finalTime = minAllowedTime
         
-        // Apply magnetic snapping to the constrained time
-        const snapResult = ClipPositioning.applyMagneticSnap(
-          constrainedTime,
-          clip.duration,
-          otherClipsInTrack,
-          clip.id
-        )
-        
-        // Ensure snapped position still respects leftmost constraint
-        const finalTime = Math.max(minAllowedTime, snapResult.time)
-        
-        // Check for overlaps at final position
-        const overlapCheck = ClipPositioning.checkOverlap(
-          finalTime,
-          clip.duration,
-          otherClipsInTrack,
-          clip.id
-        )
-        
-        // Update validity state for visual feedback
-        setIsValidPosition(!overlapCheck.hasOverlap)
-        
-        // Convert back to pixels for final position
+        // Convert to pixels for final position
         const finalX = TimeConverter.msToPixels(finalTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+        
+        // Always valid since we're forcing to the only allowed position
+        setIsValidPosition(true)
         
         return {
           x: finalX,
@@ -195,27 +173,10 @@ export const TimelineClip = React.memo(({
       onDragEnd={(e) => {
         setIsDragging(false)
         
-        const draggedX = e.target.x()
-        const proposedTime = TimeConverter.pixelsToMs(
-          draggedX - TimelineConfig.TRACK_LABEL_WIDTH,
-          pixelsPerMs
-        )
+        // Always snap to the position right after the leftmost clip
+        const finalTime = minAllowedTime
         
-        // Ensure the proposed time is after the leftmost clip
-        const constrainedTime = Math.max(minAllowedTime, proposedTime)
-        
-        // Apply snapping to get final position
-        const snapResult = ClipPositioning.applyMagneticSnap(
-          constrainedTime,
-          clip.duration,
-          otherClipsInTrack,
-          clip.id
-        )
-        
-        // Ensure snapped position still respects leftmost constraint
-        const finalTime = Math.max(minAllowedTime, snapResult.time)
-        
-        // Check for overlaps at final position
+        // Check if this position would cause overlap (shouldn't happen but safety check)
         const overlapCheck = ClipPositioning.checkOverlap(
           finalTime,
           clip.duration,
@@ -224,7 +185,7 @@ export const TimelineClip = React.memo(({
         )
         
         if (overlapCheck.hasOverlap) {
-          // Invalid position - animate back to original
+          // If there's an overlap, return to original position
           const originalX = TimeConverter.msToPixels(originalPosition, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
           e.target.to({
             x: originalX,
@@ -235,7 +196,7 @@ export const TimelineClip = React.memo(({
           return
         }
         
-        // Valid position - use the final time
+        // Update clip position to be right after leftmost clip
         onDragEnd(clip.id, finalTime)
       }}
       onClick={() => onSelect(clip.id)}
