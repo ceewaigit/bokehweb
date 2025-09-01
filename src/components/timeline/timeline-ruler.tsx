@@ -1,6 +1,7 @@
 import React from 'react'
 import { Line, Text } from 'react-konva'
-import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
+import { TimelineConfig } from '@/lib/timeline/config'
+import { TimeConverter } from '@/lib/timeline/time-converter'
 import { formatTime } from '@/lib/utils'
 import { useTimelineColors } from '@/lib/timeline/colors'
 
@@ -13,16 +14,16 @@ interface TimelineRulerProps {
 
 export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPerMs }: TimelineRulerProps) => {
   const colors = useTimelineColors()
-  const { major, minor } = TimelineUtils.getRulerIntervals(zoom)
+  const { major, minor } = TimeConverter.getRulerIntervals(zoom)
   const marks: React.ReactNode[] = []
 
   // Calculate the maximum time we need to render marks for based on stage width
-  const maxTimeForStage = TimelineUtils.pixelToTime(stageWidth - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pixelsPerMs)
+  const maxTimeForStage = TimeConverter.pixelsToMs(stageWidth - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
   const maxTime = Math.max(duration, maxTimeForStage)
 
   for (let time = 0; time <= maxTime; time += minor) {
     const isMajor = time % major === 0
-    const x = TimelineUtils.timeToPixel(time, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+    const x = TimeConverter.msToPixels(time, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 
     // Only render marks that are within the stage width
     if (x > stageWidth) break
@@ -30,7 +31,7 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
     marks.push(
       <Line
         key={`mark-${time}`}
-        points={[x, TIMELINE_LAYOUT.RULER_HEIGHT - (isMajor ? 12 : 6), x, TIMELINE_LAYOUT.RULER_HEIGHT]}
+        points={[x, TimelineConfig.RULER_HEIGHT - (isMajor ? 12 : 6), x, TimelineConfig.RULER_HEIGHT]}
         stroke={colors.mutedForeground}
         strokeWidth={isMajor ? 1.5 : 0.5}
         opacity={isMajor ? 0.8 : 0.4}

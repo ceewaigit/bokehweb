@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
 import Konva from 'konva'
 import type { Clip, Recording } from '@/types/project'
-import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
-import { getMagneticSnap } from '@/lib/timeline/magnetic-snap'
+import { TimelineConfig } from '@/lib/timeline/config'
+import { TimeConverter } from '@/lib/timeline/time-converter'
+import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -48,10 +49,10 @@ export const TimelineClip = React.memo(({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const colors = useTimelineColors()
   
-  const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+  const clipX = TimeConverter.msToPixels(clip.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
   const clipWidth = Math.max(
-    TIMELINE_LAYOUT.MIN_CLIP_WIDTH,
-    TimelineUtils.timeToPixel(clip.duration, pixelsPerMs)
+    TimelineConfig.MIN_CLIP_WIDTH,
+    TimeConverter.msToPixels(clip.duration, pixelsPerMs)
   )
   
 
@@ -87,7 +88,7 @@ export const TimelineClip = React.memo(({
         videoRef.current = video
 
         // Calculate thumbnail dimensions
-        const thumbHeight = trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2
+        const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
         const aspectRatio = video.videoWidth / video.videoHeight
         const thumbWidth = Math.floor(thumbHeight * aspectRatio)
         
@@ -138,47 +139,55 @@ export const TimelineClip = React.memo(({
     }
   }, [recording?.id, recording?.filePath, clip.duration, clipWidth, trackHeight, trackType])
 
-  // Get magnetic snap utility
-  const magneticSnap = getMagneticSnap(pixelsPerMs)
+  // Calculate minimum allowed position (right of leftmost clip)
+  const minAllowedTime = ClipPositioning.getLeftmostClipEnd(otherClipsInTrack, clip.id)
+  const minAllowedX = TimeConverter.msToPixels(minAllowedTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 
   return (
     <Group
       x={clipX}
-      y={trackY + TIMELINE_LAYOUT.TRACK_PADDING}
+      y={trackY + TimelineConfig.TRACK_PADDING}
       draggable
       dragBoundFunc={(pos) => {
-        // Allow free movement during drag, only constrain to timeline boundaries
-        const constrainedX = Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pos.x)
+        // Constrain to right of leftmost clip
+        const constrainedX = Math.max(minAllowedX, pos.x)
         
         // Check if position is valid and apply magnetic snap
-        const proposedTime = TimelineUtils.pixelToTime(
-          constrainedX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
+        const proposedTime = TimeConverter.pixelsToMs(
+          constrainedX - TimelineConfig.TRACK_LABEL_WIDTH,
           pixelsPerMs
         )
         
-        const dropResult = magneticSnap.findValidDropPosition(
+        // Use ClipPositioning service for validation and snapping
+        const snapResult = ClipPositioning.applyMagneticSnap(
           proposedTime,
           clip.duration,
           otherClipsInTrack,
+          clip.id
+        )
+        const snappedTime = snapResult.time
+        
+        const validationResult = ClipPositioning.validatePosition(
+          snappedTime,
+          clip.duration,
+          otherClipsInTrack,
           clip.id,
-          pixelsPerMs
+          { enforceLeftmostConstraint: true }
         )
         
         // Update validity state for visual feedback
-        setIsValidPosition(dropResult.isValid)
+        setIsValidPosition(validationResult.isValid)
         
-        // Apply magnetic snap if near a snap point
-        if (dropResult.snappedTo) {
-          const snappedX = TimelineUtils.timeToPixel(dropResult.position, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-          return {
-            x: snappedX,
-            y: trackY + TIMELINE_LAYOUT.TRACK_PADDING
-          }
+        // Use the validated position
+        const finalX = TimeConverter.msToPixels(validationResult.finalPosition, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+        return {
+          x: finalX,
+          y: trackY + TimelineConfig.TRACK_PADDING
         }
         
         return {
           x: constrainedX,
-          y: trackY + TIMELINE_LAYOUT.TRACK_PADDING
+          y: trackY + TimelineConfig.TRACK_PADDING
         }
       }}
       onDragStart={() => {
@@ -190,23 +199,26 @@ export const TimelineClip = React.memo(({
         setIsDragging(false)
         
         const draggedX = e.target.x()
-        const proposedTime = TimelineUtils.pixelToTime(
-          draggedX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
+        const proposedTime = TimeConverter.pixelsToMs(
+          draggedX - TimelineConfig.TRACK_LABEL_WIDTH,
           pixelsPerMs
         )
         
-        // Check final position validity with magnetic snap
-        const dropResult = magneticSnap.findValidDropPosition(
-          proposedTime,
+        // Ensure the proposed time is after the leftmost clip
+        const constrainedTime = Math.max(minAllowedTime, proposedTime)
+        
+        // Check final position validity
+        const validationResult = ClipPositioning.validatePosition(
+          constrainedTime,
           clip.duration,
           otherClipsInTrack,
           clip.id,
-          pixelsPerMs
+          { enforceLeftmostConstraint: true }
         )
         
-        if (!dropResult.isValid) {
+        if (!validationResult.isValid) {
           // Invalid position - animate back to original
-          const originalX = TimelineUtils.timeToPixel(originalPosition, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+          const originalX = TimeConverter.msToPixels(originalPosition, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
           e.target.to({
             x: originalX,
             duration: 0.2,
@@ -216,9 +228,8 @@ export const TimelineClip = React.memo(({
           return
         }
         
-        // Valid position - update with snapped position if available
-        const finalTime = dropResult.position
-        onDragEnd(clip.id, Math.max(0, finalTime))
+        // Valid position - use the validated position
+        onDragEnd(clip.id, validationResult.finalPosition)
       }}
       onClick={() => onSelect(clip.id)}
       onContextMenu={(e) => {
@@ -232,7 +243,7 @@ export const TimelineClip = React.memo(({
       {/* Clip background with rounded corners */}
       <Rect
         width={clipWidth}
-        height={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+        height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
         fill={
           trackType === 'video' && thumbnails.length > 0 
             ? 'transparent' 
@@ -261,12 +272,12 @@ export const TimelineClip = React.memo(({
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
-          ctx.roundRect(0, 0, clipWidth, trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2, 6)
+          ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 6)
           ctx.closePath()
         }}>
           {/* Render each thumbnail frame */}
           {thumbnails.map((canvas, i) => {
-            const thumbHeight = trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2
+            const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
             const aspectRatio = canvas.width / canvas.height
             const thumbWidth = Math.floor(thumbHeight * aspectRatio)
             
@@ -460,7 +471,7 @@ export const TimelineClip = React.memo(({
           xOffset += 24
         }
         
-        return badges.length > 0 ? <Group x={6} y={trackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2 - 20}>{badges}</Group> : null
+        return badges.length > 0 ? <Group x={6} y={trackHeight - TimelineConfig.TRACK_PADDING * 2 - 20}>{badges}</Group> : null
       })()}
     </Group>
   )

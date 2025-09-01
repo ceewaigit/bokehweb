@@ -16,7 +16,8 @@ import { TimelineContextMenu } from './timeline-context-menu'
 import { TimelineZoomBlock } from './timeline-zoom-block'
 
 // Utilities
-import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
+import { TimelineConfig } from '@/lib/timeline/config'
+import { TimeConverter } from '@/lib/timeline/time-converter'
 import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -89,8 +90,8 @@ export function TimelineCanvas({
 
   // Calculate timeline dimensions
   const duration = currentProject?.timeline?.duration || 10000
-  const pixelsPerMs = TimelineUtils.calculatePixelsPerMs(stageSize.width, zoom)
-  const timelineWidth = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
+  const pixelsPerMs = TimeConverter.calculatePixelsPerMs(stageSize.width, zoom)
+  const timelineWidth = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
   // Show zoom track if ANY zoom effects exist
   const hasZoomTrack = currentProject?.timeline.effects?.some(e => e.type === 'zoom' && e.enabled) ?? false
   // Show keystroke track if ANY keystroke effects exist
@@ -98,7 +99,7 @@ export function TimelineCanvas({
 
   // Calculate track heights based on number of tracks
   const calculateTrackHeights = () => {
-    const rulerHeight = TIMELINE_LAYOUT.RULER_HEIGHT
+    const rulerHeight = TimelineConfig.RULER_HEIGHT
     const remainingHeight = stageSize.height - rulerHeight
     const totalTracks = 2 + (hasZoomTrack ? 1 : 0) + (hasKeystrokeTrack ? 1 : 0)
 
@@ -126,7 +127,7 @@ export function TimelineCanvas({
   const audioTrackHeight = trackHeights.audio
   const zoomTrackHeight = trackHeights.zoom
   const keystrokeTrackHeight = trackHeights.keystroke
-  const stageWidth = Math.max(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, stageSize.width)
+  const stageWidth = Math.max(timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH, stageSize.width)
 
   // Initialize command manager
   const commandManagerRef = useRef<CommandManager | null>(null)
@@ -160,7 +161,7 @@ export function TimelineCanvas({
   // Auto-scroll during playback
   useEffect(() => {
     if (!isPlaying || !containerRef.current) return
-    const playheadX = TimelineUtils.timeToPixel(currentTime, pixelsPerMs)
+    const playheadX = TimeConverter.msToPixels(currentTime, pixelsPerMs)
     const container = containerRef.current
     const scrollWidth = container.scrollWidth - container.clientWidth
 
@@ -269,9 +270,9 @@ export function TimelineCanvas({
     if (e.target === e.target.getStage()) {
       clearEffectSelection()
 
-      const x = e.evt.offsetX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+      const x = e.evt.offsetX - TimelineConfig.TRACK_LABEL_WIDTH
       if (x > 0) {
-        const time = TimelineUtils.pixelToTime(x, pixelsPerMs)
+        const time = TimeConverter.pixelsToMs(x, pixelsPerMs)
         const maxTime = currentProject?.timeline?.duration || 0
         const targetTime = Math.max(0, Math.min(maxTime, time))
         
@@ -363,7 +364,7 @@ export function TimelineCanvas({
             <Rect
               x={0}
               y={0}
-              width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
+              width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={rulerHeight}
               fill={colors.background}
             />
@@ -371,7 +372,7 @@ export function TimelineCanvas({
             <TimelineTrack
               type="video"
               y={rulerHeight}
-              width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
+              width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={videoTrackHeight}
             />
 
@@ -379,7 +380,7 @@ export function TimelineCanvas({
               <TimelineTrack
                 type="zoom"
                 y={rulerHeight + videoTrackHeight}
-                width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
+                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={zoomTrackHeight}
               />
             )}
@@ -388,7 +389,7 @@ export function TimelineCanvas({
               <TimelineTrack
                 type="keystroke"
                 y={rulerHeight + videoTrackHeight + zoomTrackHeight}
-                width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
+                width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={keystrokeTrackHeight}
               />
             )}
@@ -396,7 +397,7 @@ export function TimelineCanvas({
             <TimelineTrack
               type="audio"
               y={rulerHeight + videoTrackHeight + zoomTrackHeight + keystrokeTrackHeight}
-              width={timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
+              width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={audioTrackHeight}
             />
           </Layer>
@@ -469,10 +470,10 @@ export function TimelineCanvas({
                     <TimelineZoomBlock
                       key={effect.id}
                       blockId={effect.id}
-                      x={TimelineUtils.timeToPixel(effect.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
-                      y={rulerHeight + videoTrackHeight + TIMELINE_LAYOUT.TRACK_PADDING}
-                      width={TimelineUtils.timeToPixel(effect.endTime - effect.startTime, pixelsPerMs)}
-                      height={zoomTrackHeight - TIMELINE_LAYOUT.TRACK_PADDING * 2}
+                      x={TimeConverter.msToPixels(effect.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
+                      y={rulerHeight + videoTrackHeight + TimelineConfig.TRACK_PADDING}
+                      width={TimeConverter.msToPixels(effect.endTime - effect.startTime, pixelsPerMs)}
+                      height={zoomTrackHeight - TimelineConfig.TRACK_PADDING * 2}
                       startTime={effect.startTime}
                       endTime={effect.endTime}
                       scale={zoomData.scale}
@@ -490,7 +491,7 @@ export function TimelineCanvas({
                         }, 0)
                       }}
                       onDragEnd={(newX) => {
-                        const newStartTime = TimelineUtils.pixelToTime(newX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pixelsPerMs)
+                        const newStartTime = TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
                         const duration = effect.endTime - effect.startTime
                         
                         // Check for overlaps with other zoom effects (mutual exclusivity)

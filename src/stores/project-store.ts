@@ -14,6 +14,7 @@ import {
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 
 // Helper functions moved to top for better organization
 const findClipById = (project: Project, clipId: string): { clip: Clip; track: Track } | null => {
@@ -34,41 +35,6 @@ const calculateTimelineDuration = (project: Project): number => {
   return maxEndTime
 }
 
-const hasClipOverlap = (track: Track, clipId: string, startTime: number, duration: number): boolean => {
-  return track.clips.some(clip => {
-    if (clip.id === clipId) return false
-    const clipEnd = clip.startTime + clip.duration
-    return startTime < clipEnd && (startTime + duration) > clip.startTime
-  })
-}
-
-const findNextValidPosition = (track: Track, clipId: string, desiredStart: number, duration: number): number => {
-  const GAP_BETWEEN_CLIPS = 100 // 100ms gap for better visual separation
-  const otherClips = track.clips
-    .filter(c => c.id !== clipId)
-    .sort((a, b) => a.startTime - b.startTime)
-
-  let currentPosition = desiredStart
-  let foundOverlap = true
-
-  // Keep checking until we find a position with no overlaps
-  while (foundOverlap) {
-    foundOverlap = false
-
-    for (const clip of otherClips) {
-      const clipEnd = clip.startTime + clip.duration
-      // Check if current position would overlap with this clip
-      if (currentPosition < clipEnd && (currentPosition + duration) > clip.startTime) {
-        // Move to after this clip with a gap
-        currentPosition = clipEnd + GAP_BETWEEN_CLIPS
-        foundOverlap = true
-        break // Start checking from beginning with new position
-      }
-    }
-  }
-
-  return currentPosition
-}
 
 // Store the animation frame ID outside the store to avoid serialization issues
 let animationFrameId: number | null = null
@@ -435,23 +401,20 @@ export const useProjectStore = create<ProjectStore>()(
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
-          // Check for overlap and auto-position if needed
-          const wouldOverlap = videoTrack.clips.some(otherClip => {
-            const otherEnd = otherClip.startTime + otherClip.duration
-            const newEnd = clip.startTime + clip.duration
-            return (clip.startTime < otherEnd && newEnd > otherClip.startTime)
-          })
-
-          if (wouldOverlap) {
-            // Find a valid position at the end of the timeline
-            const sortedClips = [...videoTrack.clips].sort((a, b) => 
-              (a.startTime + a.duration) - (b.startTime + b.duration)
-            )
-            const lastClip = sortedClips[sortedClips.length - 1]
-            if (lastClip) {
-              clip.startTime = lastClip.startTime + lastClip.duration
-              console.log(`Clip repositioned to ${clip.startTime} to avoid overlap`)
-            }
+          // Use centralized ClipPositioning service for validation and positioning
+          const validationResult = ClipPositioning.validatePosition(
+            clip.startTime,
+            clip.duration,
+            videoTrack.clips,
+            undefined,
+            { enforceLeftmostConstraint: true, findAlternativeIfInvalid: true }
+          )
+          
+          if (!validationResult.isValid && validationResult.suggestedPosition !== undefined) {
+            clip.startTime = validationResult.suggestedPosition
+            console.log(`Clip repositioned to ${clip.startTime} to avoid overlap`)
+          } else if (validationResult.isValid) {
+            clip.startTime = validationResult.finalPosition
           }
 
           videoTrack.clips.push(clip)
@@ -508,23 +471,31 @@ export const useProjectStore = create<ProjectStore>()(
 
         const { clip, track } = result
 
-        // Check for overlaps when position changes
+        // Check for overlaps and leftmost constraint when position changes
         if (updates.startTime !== undefined) {
           const duration = updates.duration || clip.duration
-          const newStartTime = updates.startTime
-          // Check if this would actually overlap another clip
-          const wouldOverlap = track.clips.some(otherClip => {
-            if (otherClip.id === clipId) return false
-            const otherEnd = otherClip.startTime + otherClip.duration
-            const newEnd = newStartTime + duration
-            // Only check for actual overlap
-            return (newStartTime < otherEnd && newEnd > otherClip.startTime)
-          })
-
-          if (wouldOverlap) {
-            // Reject the update - don't allow overlaps
-            console.warn(`Cannot move clip ${clipId} to position ${newStartTime} - would overlap with another clip`)
-            return // Exit without updating
+          
+          // Use centralized ClipPositioning service for validation
+          const validationResult = ClipPositioning.validatePosition(
+            updates.startTime,
+            duration,
+            track.clips,
+            clipId,
+            { enforceLeftmostConstraint: true }
+          )
+          
+          if (!validationResult.isValid) {
+            console.warn(`Cannot move clip ${clipId} to position ${updates.startTime} - ${validationResult.reason}`)
+            if (validationResult.suggestedPosition !== undefined) {
+              // Use suggested position if available
+              updates.startTime = validationResult.suggestedPosition
+            } else {
+              // Reject the update entirely
+              return
+            }
+          } else {
+            // Use the validated position (may be snapped)
+            updates.startTime = validationResult.finalPosition
           }
         }
 

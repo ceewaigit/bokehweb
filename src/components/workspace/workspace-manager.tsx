@@ -18,7 +18,7 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
-import { TimelineUtils } from '@/lib/timeline'
+import { TimeConverter } from '@/lib/timeline/time-converter'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 
 // Extract project loading logic to reduce component complexity
@@ -195,7 +195,7 @@ async function loadProjectRecording(
 
   // Calculate and set optimal zoom for the timeline
   const viewportWidth = window.innerWidth
-  const optimalZoom = TimelineUtils.calculateOptimalZoom(project.timeline.duration, viewportWidth)
+  const optimalZoom = TimeConverter.calculateOptimalZoom(project.timeline.duration, viewportWidth)
   useProjectStore.getState().setAutoZoom(optimalZoom)
 
   const firstClip = project.timeline.tracks
@@ -610,7 +610,7 @@ export function WorkspaceManager() {
               const project = useProjectStore.getState().currentProject
               if (project) {
                 const viewportWidth = window.innerWidth
-                const optimalZoom = TimelineUtils.calculateOptimalZoom(project.timeline.duration, viewportWidth)
+                const optimalZoom = TimeConverter.calculateOptimalZoom(project.timeline.duration, viewportWidth)
                 useProjectStore.getState().setAutoZoom(optimalZoom)
               }
             }}

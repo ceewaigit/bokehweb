@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Rect, Text, Transformer, Line, Group } from 'react-konva'
 import type { ZoomBlock } from '@/types/project'
-import { TimelineUtils, TIMELINE_LAYOUT } from '@/lib/timeline'
+import { TimelineConfig } from '@/lib/timeline/config'
+import { TimeConverter } from '@/lib/timeline/time-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import Konva from 'konva'
 
@@ -82,8 +83,8 @@ export const TimelineZoomBlock = React.memo(({
     const blocks = allBlocks
       .filter(b => b.id !== blockId)
       .map(b => ({
-        x: TimelineUtils.timeToPixel(b.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
-        endX: TimelineUtils.timeToPixel(b.endTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+        x: TimeConverter.msToPixels(b.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH,
+        endX: TimeConverter.msToPixels(b.endTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
       }))
       .sort((a, b) => a.x - b.x) // Sort blocks by position for predictable snapping
 
@@ -125,12 +126,12 @@ export const TimelineZoomBlock = React.memo(({
     }
 
     // Ensure we don't go past the timeline start (after track label)
-    return Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, bestSnapX)
+    return Math.max(TimelineConfig.TRACK_LABEL_WIDTH, bestSnapX)
   }
 
   // Resize validation with collision detection and edge snapping
   const getValidResizeWidth = (proposedWidth: number, proposedX: number, isResizingLeft: boolean): { width: number; x: number } => {
-    const minWidth = TimelineUtils.timeToPixel(100, pixelsPerMs)
+    const minWidth = TimeConverter.msToPixels(100, pixelsPerMs)
     const snapThreshold = 10
 
     let finalWidth = Math.max(minWidth, proposedWidth)
@@ -139,8 +140,8 @@ export const TimelineZoomBlock = React.memo(({
     const blocks = allBlocks
       .filter(b => b.id !== blockId)
       .map(b => ({
-        x: TimelineUtils.timeToPixel(b.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
-        endX: TimelineUtils.timeToPixel(b.endTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
+        x: TimeConverter.msToPixels(b.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH,
+        endX: TimeConverter.msToPixels(b.endTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH,
         startTime: b.startTime,
         endTime: b.endTime
       }))
@@ -174,7 +175,7 @@ export const TimelineZoomBlock = React.memo(({
       }
 
       // Ensure we don't go past the timeline start
-      finalX = Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, finalX)
+      finalX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, finalX)
 
       // Recalculate width to maintain the right edge position
       finalWidth = rightEdge - finalX
@@ -186,7 +187,7 @@ export const TimelineZoomBlock = React.memo(({
       }
 
       // Final boundary check
-      finalX = Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, finalX)
+      finalX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, finalX)
     } else {
       // Resizing from right
       const leftEdge = finalX
@@ -236,8 +237,8 @@ export const TimelineZoomBlock = React.memo(({
     const curveY = height / 2
 
     // Calculate phase widths
-    const introWidth = Math.min(TimelineUtils.timeToPixel(introMs, pixelsPerMs), w * 0.4)
-    const outroWidth = Math.min(TimelineUtils.timeToPixel(outroMs, pixelsPerMs), w * 0.4)
+    const introWidth = Math.min(TimeConverter.msToPixels(introMs, pixelsPerMs), w * 0.4)
+    const outroWidth = Math.min(TimeConverter.msToPixels(outroMs, pixelsPerMs), w * 0.4)
     const plateauWidth = Math.max(0, w - introWidth - outroWidth)
 
     // Ensure valid widths
@@ -287,7 +288,7 @@ export const TimelineZoomBlock = React.memo(({
         draggable
         dragBoundFunc={(pos) => {
           // Allow dragging but constrain to timeline boundaries
-          const constrainedX = Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pos.x)
+          const constrainedX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, pos.x)
           return {
             x: constrainedX,
             y: y
@@ -305,7 +306,7 @@ export const TimelineZoomBlock = React.memo(({
           const snappedX = getValidDragPosition(draggedX, width)
 
           // Check for collision at the snapped position
-          const newStartTime = TimelineUtils.pixelToTime(snappedX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pixelsPerMs)
+          const newStartTime = TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
           const duration = endTime - startTime
           const newEndTime = newStartTime + duration
           
@@ -449,9 +450,9 @@ export const TimelineZoomBlock = React.memo(({
             node.width(transformedWidth)
             
             // Calculate new times based on transformed position
-            const adjustedX = transformedX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-            const newStartTime = TimelineUtils.pixelToTime(adjustedX, pixelsPerMs)
-            const newEndTime = newStartTime + TimelineUtils.pixelToTime(transformedWidth, pixelsPerMs)
+            const adjustedX = transformedX - TimelineConfig.TRACK_LABEL_WIDTH
+            const newStartTime = TimeConverter.pixelsToMs(adjustedX, pixelsPerMs)
+            const newEndTime = newStartTime + TimeConverter.pixelsToMs(transformedWidth, pixelsPerMs)
 
             // Update through parent callback
             onUpdate({

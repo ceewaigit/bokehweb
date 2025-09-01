@@ -1,6 +1,7 @@
 import React from 'react'
 import { Group, Line, Rect } from 'react-konva'
-import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
+import { TimelineConfig } from '@/lib/timeline/config'
+import { TimeConverter } from '@/lib/timeline/time-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelinePlayheadProps {
@@ -21,7 +22,7 @@ export const TimelinePlayhead = React.memo(({
   onSeek
 }: TimelinePlayheadProps) => {
   const colors = useTimelineColors()
-  const x = TimelineUtils.timeToPixel(currentTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+  const x = TimeConverter.msToPixels(currentTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 
   return (
     <Group
@@ -30,14 +31,14 @@ export const TimelinePlayhead = React.memo(({
       draggable
       dragBoundFunc={(pos) => {
         const newX = Math.max(
-          TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
-          Math.min(timelineWidth + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pos.x)
+          TimelineConfig.TRACK_LABEL_WIDTH,
+          Math.min(timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH, pos.x)
         )
         return { x: newX, y: 0 }
       }}
       onDragMove={(e) => {
-        const newX = e.target.x() - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-        const time = TimelineUtils.pixelToTime(newX, pixelsPerMs)
+        const newX = e.target.x() - TimelineConfig.TRACK_LABEL_WIDTH
+        const time = TimeConverter.pixelsToMs(newX, pixelsPerMs)
         onSeek(Math.max(0, Math.min(maxTime, time)))
       }}
     >

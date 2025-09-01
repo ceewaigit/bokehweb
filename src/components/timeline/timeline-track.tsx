@@ -1,6 +1,6 @@
 import React from 'react'
 import { Group, Rect, Text } from 'react-konva'
-import { TIMELINE_LAYOUT } from '@/lib/timeline'
+import { TimelineConfig } from '@/lib/timeline/config'
 import { useTimelineColors } from '@/lib/timeline/colors'
 
 interface TimelineTrackProps {
@@ -66,7 +66,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
       <Rect
         x={0}
         y={y}
-        width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH}
+        width={TimelineConfig.TRACK_LABEL_WIDTH}
         height={height}
         fill={colors.background}
         opacity={0.95}
@@ -76,7 +76,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
       <Rect
         x={0}
         y={y}
-        width={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH - 1}
+        width={TimelineConfig.TRACK_LABEL_WIDTH - 1}
         height={height}
         stroke={colors.border}
         strokeWidth={1}
@@ -86,7 +86,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
       
       {/* Track label text */}
       <Text
-        x={TIMELINE_LAYOUT.TRACK_LABEL_WIDTH / 2}
+        x={TimelineConfig.TRACK_LABEL_WIDTH / 2}
         y={y + height / 2}
         text={style.labelText}
         fontSize={11}
