@@ -8,6 +8,7 @@ import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors } from '@/lib/timeline/colors'
+import { WaveformAnalyzer, type WaveformData } from '@/lib/audio/waveform-analyzer'
 
 interface TimelineClipProps {
   clip: Clip
@@ -43,6 +44,7 @@ export const TimelineClip = React.memo(({
   onContextMenu
 }: TimelineClipProps) => {
   const [thumbnails, setThumbnails] = useState<HTMLCanvasElement[]>([])
+  const [waveformData, setWaveformData] = useState<WaveformData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isValidPosition, setIsValidPosition] = useState(true)
   const [originalPosition, setOriginalPosition] = useState<number>(0)
@@ -57,6 +59,40 @@ export const TimelineClip = React.memo(({
   
 
   // Track height is now passed as a prop
+
+  // Load audio waveform data
+  useEffect(() => {
+    if (!recording?.hasAudio || !recording?.filePath) return
+
+    const loadWaveform = async () => {
+      try {
+        // Get or load video URL
+        let blobUrl = RecordingStorage.getBlobUrl(recording.id)
+        if (!blobUrl && recording.filePath) {
+          blobUrl = await globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
+        }
+        
+        if (!blobUrl) return
+
+        // Analyze audio and extract waveform
+        const waveform = await WaveformAnalyzer.analyzeAudio(
+          blobUrl,
+          clip.id,
+          clip.sourceIn,
+          clip.sourceOut - clip.sourceIn,
+          50 // Samples per second for smooth visualization
+        )
+        
+        if (waveform) {
+          setWaveformData(waveform)
+        }
+      } catch (error) {
+        console.warn('Failed to load waveform:', error)
+      }
+    }
+
+    loadWaveform()
+  }, [recording?.id, recording?.filePath, recording?.hasAudio, clip.id, clip.sourceIn, clip.sourceOut])
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {
@@ -287,62 +323,58 @@ export const TimelineClip = React.memo(({
             ctx.closePath()
           }}
         >
-          {/* Generate smooth waveform bars */}
-          {Array.from({ length: Math.floor(clipWidth / 4) }, (_, i) => {
-            // Create a smooth, realistic waveform pattern
-            const x = i * 4 + 2
-            const progress = i / Math.max(1, Math.floor(clipWidth / 4) - 1)
+          {/* Generate waveform bars from real audio data or fallback */}
+          {(() => {
+            const barWidth = 2
+            const barGap = 2
+            const barCount = Math.floor(clipWidth / (barWidth + barGap))
             
-            // Multiple sine waves for more realistic audio pattern
-            const wave1 = Math.sin(i * 0.15 + clip.startTime * 0.001) * 0.8
-            const wave2 = Math.sin(i * 0.4 + clip.startTime * 0.002) * 0.3
-            const wave3 = Math.sin(i * 0.08 + clip.startTime * 0.0005) * 0.5
+            // Use real waveform data if available, otherwise use a simple pattern
+            const peaks = waveformData 
+              ? WaveformAnalyzer.resamplePeaks(waveformData.peaks, clipWidth, barWidth, barGap)
+              : Array.from({ length: barCount }, (_, i) => {
+                  // Fallback: simple sine wave pattern if no real data yet
+                  const progress = i / Math.max(1, barCount - 1)
+                  const envelope = Math.min(1, Math.min(progress * 10, (1 - progress) * 10))
+                  return Math.abs(Math.sin(i * 0.2)) * envelope * 0.7
+                })
             
-            // Combine waves with some randomness for variation
-            const seed = clip.startTime + i * 137
-            const random = (Math.sin(seed) * 0.5 + 0.5) * 0.3
-            
-            // Apply envelope to create natural fade in/out
-            const envelope = Math.min(
-              1,
-              Math.min(progress * 20, (1 - progress) * 20) // Quick fade in/out at edges
-            )
-            
-            // Calculate final amplitude
-            const amplitude = Math.abs(wave1 + wave2 + wave3) * envelope * (0.7 + random)
-            const maxHeight = (trackHeight - 16) / 2
-            const barHeight = Math.max(1, amplitude * maxHeight)
-            
-            // Only render bars that fit within the clip width
-            if (x + 2 > clipWidth) return null
-            
-            return (
-              <Group key={i}>
-                {/* Main waveform bar - symmetrical */}
-                <Rect
-                  x={x}
-                  y={-barHeight}
-                  width={2}
-                  height={barHeight * 2}
-                  fill={colors.foreground}
-                  opacity={0.25 + amplitude * 0.15}
-                  cornerRadius={1}
-                />
-                {/* Highlight on peaks for depth */}
-                {amplitude > 0.6 && (
+            return peaks.map((peak, i) => {
+              const x = i * (barWidth + barGap) + 2
+              const maxHeight = (trackHeight - 16) / 2
+              const barHeight = Math.max(1, peak * maxHeight)
+              
+              // Only render bars that fit within the clip width
+              if (x + barWidth > clipWidth) return null
+              
+              return (
+                <Group key={i}>
+                  {/* Main waveform bar - symmetrical */}
                   <Rect
                     x={x}
-                    y={-barHeight * 0.8}
-                    width={2}
-                    height={barHeight * 1.6}
+                    y={-barHeight}
+                    width={barWidth}
+                    height={barHeight * 2}
                     fill={colors.foreground}
-                    opacity={0.1}
+                    opacity={0.25 + peak * 0.2}
                     cornerRadius={1}
                   />
-                )}
-              </Group>
-            )
-          }).filter(Boolean)}
+                  {/* Highlight on peaks for depth */}
+                  {peak > 0.7 && (
+                    <Rect
+                      x={x}
+                      y={-barHeight * 0.9}
+                      width={barWidth}
+                      height={barHeight * 1.8}
+                      fill={colors.foreground}
+                      opacity={0.08}
+                      cornerRadius={1}
+                    />
+                  )}
+                </Group>
+              )
+            }).filter(Boolean)
+          })()}
           
           {/* Subtle center line */}
           <Rect

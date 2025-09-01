@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import {
   Camera,
   Palette,
@@ -121,6 +121,21 @@ export function EffectsSidebar({
     }
   }
 
+  // Debounced update for shape properties to prevent lag
+  const debouncedUpdateRef = useRef<NodeJS.Timeout>()
+  
+  const debouncedUpdateBackground = useCallback((updates: any) => {
+    // Clear any pending update
+    if (debouncedUpdateRef.current) {
+      clearTimeout(debouncedUpdateRef.current)
+    }
+    
+    // Schedule new update with 50ms delay
+    debouncedUpdateRef.current = setTimeout(() => {
+      updateBackgroundEffect(updates)
+    }, 50)
+  }, [])
+
   // Update background while preserving existing properties
   const updateBackgroundEffect = (updates: any) => {
     // If no background effect exists, create it with sensible defaults
@@ -147,6 +162,15 @@ export function EffectsSidebar({
       ...updates
     })
   }
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debouncedUpdateRef.current) {
+        clearTimeout(debouncedUpdateRef.current)
+      }
+    }
+  }, [])
 
   return (
     <div className={cn("flex flex-col bg-background/95 border-l border-border/50", className)}>
@@ -826,7 +850,7 @@ export function EffectsSidebar({
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Padding</label>
               <Slider
                 value={[(backgroundEffect?.data as BackgroundEffectData).padding || 0]}
-                onValueChange={([value]) => updateBackgroundEffect({
+                onValueChange={([value]) => debouncedUpdateBackground({
                   padding: value
                 })}
                 min={0}
@@ -853,7 +877,7 @@ export function EffectsSidebar({
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corner Radius</label>
               <Slider
                 value={[(backgroundEffect?.data as BackgroundEffectData).cornerRadius ?? 25]}
-                onValueChange={([value]) => updateBackgroundEffect({
+                onValueChange={([value]) => debouncedUpdateBackground({
                   cornerRadius: value
                 })}
                 min={0}
@@ -880,7 +904,7 @@ export function EffectsSidebar({
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Shadow Intensity</label>
               <Slider
                 value={[(backgroundEffect?.data as BackgroundEffectData).shadowIntensity ?? 85]}
-                onValueChange={([value]) => updateBackgroundEffect({
+                onValueChange={([value]) => debouncedUpdateBackground({
                   shadowIntensity: value
                 })}
                 min={0}

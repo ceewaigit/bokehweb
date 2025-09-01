@@ -124,6 +124,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             console.error('Video playback error in VideoLayer:', e)
             // Don't throw - let Remotion handle gracefully
           }}
+          // Performance optimization
+          acceptableTimeShiftInSeconds={0.1}
         />
       </div>
     </AbsoluteFill>
