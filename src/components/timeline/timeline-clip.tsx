@@ -146,6 +146,7 @@ export const TimelineClip = React.memo(({
       draggable
       dragBoundFunc={(pos) => {
         // Allow free movement during drag, only constrain to timeline boundaries
+        // Don't snap to other clips during drag - let user position freely
         const constrainedX = Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pos.x)
         return {
           x: constrainedX,
@@ -162,20 +163,19 @@ export const TimelineClip = React.memo(({
           pixelsPerMs
         )
         
-        // Check for overlaps but don't auto-reposition
+        // Check for overlaps
         const overlapCheck = checkClipOverlap(proposedTime, clip.duration, otherClipsData)
         
-        // Only prevent if there's an actual overlap
-        // Allow the drag if no overlap
-        let finalTime = proposedTime
+        // If there's an overlap, don't update the position at all
+        // The clip will snap back to its original position on next render
         if (overlapCheck.hasOverlap) {
-          // Snap back to original position if there's an overlap
-          finalTime = clip.startTime
-          const originalX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-          e.target.x(originalX)
+          // Don't update the position - just return without calling onDragEnd
+          // The clip will automatically snap back to its stored position
+          return
         }
         
-        onDragEnd(clip.id, Math.max(0, finalTime))
+        // No overlap, update to the new position
+        onDragEnd(clip.id, Math.max(0, proposedTime))
       }}
       onClick={() => onSelect(clip.id)}
       onContextMenu={(e) => {
