@@ -90,37 +90,16 @@ export class CopyCommand extends Command<CopyResult> {
     if (selectedEffectLayer && selectedEffectLayer.type !== 'zoom') {
       const effects = store.getEffectsForClip(clipId)
       
-      if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id) {
-        // This shouldn't happen now, but keeping for safety
-        const zoomEffect = effects.find((e: any) => e.id === selectedEffectLayer.id && e.type === 'zoom')
-        if (zoomEffect) {
-          store.copyEffect('zoom', { 
-            ...zoomEffect.data,
-            startTime: zoomEffect.startTime,
-            endTime: zoomEffect.endTime
-          }, clipId)
-          return {
-            success: true,
-            data: {
-              type: 'effect',
-              effectType: 'zoom',
-              blockId: selectedEffectLayer.id,
-              clipId
-            }
-          }
-        }
-      } else {
-        // Copy cursor or background settings
-        const effect = effects.find((e: any) => e.type === selectedEffectLayer.type)
-        if (effect) {
-          store.copyEffect(selectedEffectLayer.type, { ...effect.data }, clipId)
-          return {
-            success: true,
-            data: {
-              type: 'effect',
-              effectType: selectedEffectLayer.type,
-              clipId
-            }
+      // Copy cursor or background settings
+      const effect = effects.find((e: any) => e.type === selectedEffectLayer.type)
+      if (effect) {
+        store.copyEffect(selectedEffectLayer.type, { ...effect.data }, clipId)
+        return {
+          success: true,
+          data: {
+            type: 'effect',
+            effectType: selectedEffectLayer.type,
+            clipId
           }
         }
       }

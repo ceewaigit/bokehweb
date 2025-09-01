@@ -1,5 +1,5 @@
 import { Command, CommandResult } from '../base/Command'
-import { CommandContext, hasClipOverlap, findNextValidPosition, calculateTimelineDuration } from '../base/CommandContext'
+import { CommandContext, calculateTimelineDuration } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 
 export class UpdateClipCommand extends Command<{ clipId: string }> {
@@ -41,20 +41,9 @@ export class UpdateClipCommand extends Command<{ clipId: string }> {
     // Store original state
     this.originalClip = JSON.parse(JSON.stringify(clip))
     
-    // Check for overlaps if position is changing
+    // Don't auto-adjust positions - let the store handle overlap detection
+    // The store will prevent the update if it would cause an overlap
     this.adjustedUpdates = { ...this.updates }
-    
-    if (this.updates.startTime !== undefined) {
-      const duration = this.updates.duration || clip.duration
-      if (hasClipOverlap(track, this.clipId, this.updates.startTime, duration)) {
-        this.adjustedUpdates.startTime = findNextValidPosition(
-          track,
-          this.clipId,
-          this.updates.startTime,
-          duration
-        )
-      }
-    }
 
     // Apply updates using store method
     store.updateClip(this.clipId, this.adjustedUpdates)

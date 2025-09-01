@@ -435,7 +435,7 @@ export const useProjectStore = create<ProjectStore>()(
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
-          // Only adjust position if there's an actual overlap
+          // Only prevent adding if there's an actual overlap
           const wouldOverlap = videoTrack.clips.some(otherClip => {
             const otherEnd = otherClip.startTime + otherClip.duration
             const newEnd = clip.startTime + clip.duration
@@ -443,7 +443,14 @@ export const useProjectStore = create<ProjectStore>()(
           })
 
           if (wouldOverlap) {
-            clip.startTime = findNextValidPosition(videoTrack, '', clip.startTime, clip.duration)
+            console.warn('Cannot add clip - would overlap with existing clip')
+            // For new clips, find a valid position at the end
+            const lastClip = videoTrack.clips.sort((a, b) => 
+              (a.startTime + a.duration) - (b.startTime + b.duration)
+            )[videoTrack.clips.length - 1]
+            if (lastClip) {
+              clip.startTime = lastClip.startTime + lastClip.duration + 100 // Small gap for new clips
+            }
           }
 
           videoTrack.clips.push(clip)
@@ -500,22 +507,24 @@ export const useProjectStore = create<ProjectStore>()(
 
         const { clip, track } = result
 
-        // Only prevent actual overlaps, allow gaps
+        // Don't auto-adjust positions - let users place clips where they want
+        // Only warn or prevent if there would be an actual overlap
         if (updates.startTime !== undefined) {
           const duration = updates.duration || clip.duration
           const newStartTime = updates.startTime
-          // Check if this would actually overlap (not just be close to) another clip
+          // Check if this would actually overlap another clip
           const wouldOverlap = track.clips.some(otherClip => {
             if (otherClip.id === clipId) return false
             const otherEnd = otherClip.startTime + otherClip.duration
             const newEnd = newStartTime + duration
-            // Only prevent if there's actual overlap, not just proximity
+            // Only check for actual overlap
             return (newStartTime < otherEnd && newEnd > otherClip.startTime)
           })
 
           if (wouldOverlap) {
-            // Find the nearest position that doesn't overlap
-            updates.startTime = findNextValidPosition(track, clipId, newStartTime, duration)
+            // Don't move the clip - just prevent the update
+            console.warn('Cannot move clip - would overlap with another clip')
+            return // Exit without updating
           }
         }
 
@@ -701,12 +710,24 @@ export const useProjectStore = create<ProjectStore>()(
 
       const { clip, track } = result
 
-      // Start with position right after the original clip with proper gap
+      // Start with position right after the original clip with a small gap
       let desiredStartTime = clip.startTime + clip.duration + 100 // 100ms gap
 
-      // Check for overlaps and find next valid position
-      if (hasClipOverlap(track, '', desiredStartTime, clip.duration)) {
-        desiredStartTime = findNextValidPosition(track, '', desiredStartTime, clip.duration)
+      // Only check for actual overlaps, don't force repositioning
+      const wouldOverlap = track.clips.some(otherClip => {
+        const otherEnd = otherClip.startTime + otherClip.duration
+        const newEnd = desiredStartTime + clip.duration
+        return (desiredStartTime < otherEnd && newEnd > otherClip.startTime)
+      })
+
+      if (wouldOverlap) {
+        // Find the end of the timeline for the duplicate
+        const lastClip = track.clips.sort((a, b) => 
+          (a.startTime + a.duration) - (b.startTime + b.duration)
+        )[track.clips.length - 1]
+        if (lastClip) {
+          desiredStartTime = lastClip.startTime + lastClip.duration + 100
+        }
       }
 
       const newClip: Clip = {

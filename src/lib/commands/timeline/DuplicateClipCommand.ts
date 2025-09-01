@@ -36,16 +36,12 @@ export class DuplicateClipCommand extends Command<{ newClipId: string }> {
     const { clip, track } = result
     this.sourceClip = clip
 
-    // Create duplicate with new ID
+    // Create duplicate with new ID - place it right after the original clip
+    // Let the store handle overlap detection
     this.newClip = {
       ...JSON.parse(JSON.stringify(clip)),
       id: `clip-${Date.now()}`,
-      startTime: findNextValidPosition(
-        track,
-        '',
-        clip.startTime + clip.duration + 100,
-        clip.duration
-      )
+      startTime: clip.startTime + clip.duration + 100 // Small gap after original
     }
 
     // Use store's duplicateClip method

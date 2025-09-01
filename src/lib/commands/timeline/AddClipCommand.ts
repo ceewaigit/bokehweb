@@ -84,17 +84,8 @@ export class AddClipCommand extends Command<{ clipId: string }> {
       }
     }
 
-    // Check for overlaps and adjust position if needed
+    // Don't auto-adjust positions - let the store handle overlap detection
     this.actualStartTime = this.clip.startTime
-    if (hasClipOverlap(videoTrack, '', this.clip.startTime, this.clip.duration)) {
-      this.actualStartTime = findNextValidPosition(
-        videoTrack,
-        '',
-        this.clip.startTime,
-        this.clip.duration
-      )
-      this.clip.startTime = this.actualStartTime
-    }
 
     // Add clip using store method
     store.addClip(this.clip, this.clip.startTime)

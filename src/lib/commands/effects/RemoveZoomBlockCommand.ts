@@ -45,6 +45,7 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
     this.effect = JSON.parse(JSON.stringify(effect))
 
     // Remove effect using store method
+    const store = this.context.getStore()
     store.removeEffect(this.blockId)
     console.log('[RemoveZoomBlockCommand] Effect removed successfully')
 
