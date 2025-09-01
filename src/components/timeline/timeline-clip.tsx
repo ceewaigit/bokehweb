@@ -50,15 +50,6 @@ export const TimelineClip = React.memo(({
     TimelineUtils.timeToPixel(clip.duration, pixelsPerMs)
   )
   
-  // Log when clip position changes
-  useEffect(() => {
-    console.log(`Clip ${clip.id.slice(-4)} rendered at:`, {
-      startTime: clip.startTime,
-      pixelX: clipX,
-      pixelsPerMs
-    })
-  }, [clip.id, clip.startTime, clipX, pixelsPerMs])
-  
 
   // Track height is now passed as a prop
 
