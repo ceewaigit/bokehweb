@@ -142,33 +142,29 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       const effectLayer = currentStore.selectedEffectLayer
       if (effectLayer && effectLayer.type === 'zoom' && effectLayer.id) {
         console.log('[Keyboard] Zoom block selected for deletion:', effectLayer.id)
-        const selectedClips = currentStore.selectedClips
-        if (selectedClips.length === 1) {
-          // Use command pattern for zoom block deletion
-          const command = new RemoveZoomBlockCommand(
-            freshContext,
-            selectedClips[0],
-            effectLayer.id
-          )
-          
-          try {
-            console.log('[Keyboard] Executing RemoveZoomBlockCommand...')
-            const result = await manager.execute(command)
-            console.log('[Keyboard] Command result:', result)
-            if (result.success) {
-              // Clear selection after successful deletion
-              useProjectStore.getState().clearEffectSelection()
-              toast('Zoom block deleted')
-            } else {
-              console.error('[Keyboard] Delete failed:', result.error)
-              toast.error(result.error as string)
-            }
-          } catch (err) {
-            console.error('[Keyboard] Delete zoom block failed:', err)
-            toast.error('Failed to delete zoom block')
+        // Zoom effects are timeline-global, no clip needed
+        const command = new RemoveZoomBlockCommand(
+          freshContext,
+          effectLayer.id
+        )
+        
+        try {
+          console.log('[Keyboard] Executing RemoveZoomBlockCommand...')
+          const result = await manager.execute(command)
+          console.log('[Keyboard] Command result:', result)
+          if (result.success) {
+            // Clear selection after successful deletion
+            useProjectStore.getState().clearEffectSelection()
+            toast('Zoom block deleted')
+          } else {
+            console.error('[Keyboard] Delete failed:', result.error)
+            toast.error(result.error as string)
           }
-          return
+        } catch (err) {
+          console.error('[Keyboard] Delete zoom block failed:', err)
+          toast.error('Failed to delete zoom block')
         }
+        return
       }
 
       // Default behavior: delete clips

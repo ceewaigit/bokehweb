@@ -515,7 +515,8 @@ export const useProjectStore = create<ProjectStore>()(
 
           if (wouldOverlap) {
             // Find the nearest position that doesn't overlap
-            console.log('Preventing overlap, finding next valid position')
+            console.log('Preventing overlap, finding next valid position for clip:', clipId)
+            console.trace('Stack trace for overlap prevention')
             updates.startTime = findNextValidPosition(track, clipId, newStartTime, duration)
           }
         }
@@ -806,6 +807,7 @@ export const useProjectStore = create<ProjectStore>()(
     },
 
     setZoom: (zoom, isManual = true) => {
+      console.log('setZoom called with:', zoom, 'isManual:', isManual)
       set((state) => {
         state.zoom = Math.max(0.1, Math.min(10, zoom))
         if (isManual) {

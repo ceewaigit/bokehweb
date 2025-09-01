@@ -4,36 +4,32 @@ import type { Effect } from '@/types/project'
 
 export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
   private effect?: Effect
-  private clipId: string
   private blockId: string
 
   constructor(
     private context: CommandContext,
-    clipId: string,
     blockId: string
   ) {
     super({
       name: 'RemoveZoomBlock',
-      description: `Remove zoom block ${blockId} from clip ${clipId}`,
+      description: `Remove zoom block ${blockId}`,
       category: 'effects'
     })
-    this.clipId = clipId
     this.blockId = blockId
   }
 
   canExecute(): boolean {
-    const store = this.context.getStore()
-    const effects = store.getEffectsForClip(this.clipId)
-    const effect = effects.find((e: any) => e.id === this.blockId && e.type === 'zoom')
+    // Zoom effects are timeline-global, check project effects directly
+    const project = this.context.getProject()
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
     return effect !== undefined
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
-    console.log('[RemoveZoomBlockCommand] Executing - clipId:', this.clipId, 'blockId:', this.blockId)
+    console.log('[RemoveZoomBlockCommand] Executing - blockId:', this.blockId)
     
-    const store = this.context.getStore()
-    const effects = store.getEffectsForClip(this.clipId)
-    const effect = effects.find((e: any) => e.id === this.blockId && e.type === 'zoom')
+    const project = this.context.getProject()
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
     
     if (!effect) {
       console.error('[RemoveZoomBlockCommand] Zoom effect not found:', this.blockId)
