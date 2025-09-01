@@ -277,47 +277,81 @@ export const TimelineClip = React.memo(({
 
       {/* Audio waveform visualization for clips with audio */}
       {trackType === 'video' && recording?.hasAudio && (
-        <Group y={trackHeight / 2} opacity={0.4}>
-          {/* Generate mirrored waveform bars for stereo effect */}
-          {Array.from({ length: Math.min(50, Math.floor(clipWidth / 3)) }, (_, i) => {
-            // Create a pseudo-random but consistent waveform pattern
+        <Group 
+          y={trackHeight / 2} 
+          opacity={0.7}
+          clipFunc={(ctx) => {
+            // Clip to the bounds of the clip for clean edges
+            ctx.beginPath()
+            ctx.rect(0, -trackHeight/2 + 4, clipWidth, trackHeight - 8)
+            ctx.closePath()
+          }}
+        >
+          {/* Generate smooth waveform bars */}
+          {Array.from({ length: Math.floor(clipWidth / 4) }, (_, i) => {
+            // Create a smooth, realistic waveform pattern
+            const x = i * 4 + 2
+            const progress = i / Math.max(1, Math.floor(clipWidth / 4) - 1)
+            
+            // Multiple sine waves for more realistic audio pattern
+            const wave1 = Math.sin(i * 0.15 + clip.startTime * 0.001) * 0.8
+            const wave2 = Math.sin(i * 0.4 + clip.startTime * 0.002) * 0.3
+            const wave3 = Math.sin(i * 0.08 + clip.startTime * 0.0005) * 0.5
+            
+            // Combine waves with some randomness for variation
             const seed = clip.startTime + i * 137
-            const random = Math.sin(seed) * 0.5 + 0.5
-            const wave = Math.sin(i * 0.2) * Math.cos(i * 0.1 + clip.startTime * 0.001)
-            const barHeight = Math.max(2, Math.abs(wave) * 15 * (0.5 + random * 0.5))
-            const x = 5 + i * 3
+            const random = (Math.sin(seed) * 0.5 + 0.5) * 0.3
+            
+            // Apply envelope to create natural fade in/out
+            const envelope = Math.min(
+              1,
+              Math.min(progress * 20, (1 - progress) * 20) // Quick fade in/out at edges
+            )
+            
+            // Calculate final amplitude
+            const amplitude = Math.abs(wave1 + wave2 + wave3) * envelope * (0.7 + random)
+            const maxHeight = (trackHeight - 16) / 2
+            const barHeight = Math.max(1, amplitude * maxHeight)
+            
+            // Only render bars that fit within the clip width
+            if (x + 2 > clipWidth) return null
             
             return (
               <Group key={i}>
-                {/* Top bar (positive amplitude) */}
+                {/* Main waveform bar - symmetrical */}
                 <Rect
                   x={x}
                   y={-barHeight}
-                  width={1.5}
-                  height={barHeight}
-                  fill={colors.success || '#10b981'}
-                  opacity={0.6 + random * 0.4}
+                  width={2}
+                  height={barHeight * 2}
+                  fill={colors.foreground}
+                  opacity={0.25 + amplitude * 0.15}
+                  cornerRadius={1}
                 />
-                {/* Bottom bar (negative amplitude - mirror) */}
-                <Rect
-                  x={x}
-                  y={0}
-                  width={1.5}
-                  height={barHeight}
-                  fill={colors.success || '#10b981'}
-                  opacity={0.6 + random * 0.4}
-                />
+                {/* Highlight on peaks for depth */}
+                {amplitude > 0.6 && (
+                  <Rect
+                    x={x}
+                    y={-barHeight * 0.8}
+                    width={2}
+                    height={barHeight * 1.6}
+                    fill={colors.foreground}
+                    opacity={0.1}
+                    cornerRadius={1}
+                  />
+                )}
               </Group>
             )
-          })}
-          {/* Center line */}
+          }).filter(Boolean)}
+          
+          {/* Subtle center line */}
           <Rect
-            x={5}
+            x={0}
             y={-0.5}
-            width={Math.min(150, clipWidth - 10)}
+            width={clipWidth}
             height={1}
-            fill={colors.success || '#10b981'}
-            opacity={0.3}
+            fill={colors.foreground}
+            opacity={0.1}
           />
         </Group>
       )}
