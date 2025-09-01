@@ -31,9 +31,9 @@ export class ZoomPanCalculator {
     const viewportWidth = 1 / zoomScale;
     const viewportHeight = 1 / zoomScale;
     
-    // Current viewport position (center point)
-    const currentViewportCenterX = 0.5 + currentPanX;
-    const currentViewportCenterY = 0.5 + currentPanY;
+    // Current viewport center (pan MOVES the content, so subtract to get viewport position)
+    const currentViewportCenterX = 0.5 - currentPanX;
+    const currentViewportCenterY = 0.5 - currentPanY;
     
     // Current viewport edges
     const viewportLeft = currentViewportCenterX - viewportWidth / 2;
@@ -51,23 +51,27 @@ export class ZoomPanCalculator {
     
     // Check if mouse is outside the safe zone and adjust
     if (mouseNormX < viewportLeft + bufferX) {
-      // Mouse too far left - pan left
-      const targetViewportLeft = mouseNormX - bufferX;
-      targetPanX = targetViewportLeft + viewportWidth / 2 - 0.5;
+      // Mouse too far left - move viewport left (positive pan)
+      const desiredViewportLeft = mouseNormX - bufferX;
+      const desiredViewportCenterX = desiredViewportLeft + viewportWidth / 2;
+      targetPanX = -(desiredViewportCenterX - 0.5);
     } else if (mouseNormX > viewportRight - bufferX) {
-      // Mouse too far right - pan right  
-      const targetViewportRight = mouseNormX + bufferX;
-      targetPanX = targetViewportRight - viewportWidth / 2 - 0.5;
+      // Mouse too far right - move viewport right (negative pan)
+      const desiredViewportRight = mouseNormX + bufferX;
+      const desiredViewportCenterX = desiredViewportRight - viewportWidth / 2;
+      targetPanX = -(desiredViewportCenterX - 0.5);
     }
     
     if (mouseNormY < viewportTop + bufferY) {
-      // Mouse too far up - pan up
-      const targetViewportTop = mouseNormY - bufferY;
-      targetPanY = targetViewportTop + viewportHeight / 2 - 0.5;
+      // Mouse too far up - move viewport up (positive pan)
+      const desiredViewportTop = mouseNormY - bufferY;
+      const desiredViewportCenterY = desiredViewportTop + viewportHeight / 2;
+      targetPanY = -(desiredViewportCenterY - 0.5);
     } else if (mouseNormY > viewportBottom - bufferY) {
-      // Mouse too far down - pan down
-      const targetViewportBottom = mouseNormY + bufferY;
-      targetPanY = targetViewportBottom - viewportHeight / 2 - 0.5;
+      // Mouse too far down - move viewport down (negative pan)
+      const desiredViewportBottom = mouseNormY + bufferY;
+      const desiredViewportCenterY = desiredViewportBottom - viewportHeight / 2;
+      targetPanY = -(desiredViewportCenterY - 0.5);
     }
     
     // Allow panning beyond video bounds since we have padding

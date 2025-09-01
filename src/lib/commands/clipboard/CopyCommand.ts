@@ -59,7 +59,12 @@ export class CopyCommand extends Command<CopyResult> {
       if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id) {
         const zoomEffect = effects.find((e: any) => e.id === selectedEffectLayer.id && e.type === 'zoom')
         if (zoomEffect) {
-          store.copyEffect('zoom', { ...zoomEffect.data }, clipId)
+          // Copy the full zoom effect with timing information
+          store.copyEffect('zoom', { 
+            ...zoomEffect.data,
+            startTime: zoomEffect.startTime,
+            endTime: zoomEffect.endTime
+          }, clipId)
           return {
             success: true,
             data: {

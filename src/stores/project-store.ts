@@ -147,39 +147,18 @@ const updatePlayheadState = (state: any) => {
   state.playheadEffects = []
   
   if (state.currentProject && state.currentTime !== undefined) {
-    console.log('updatePlayheadState: currentTime =', state.currentTime)
-    
     // Find clip at current time
     for (const track of state.currentProject.timeline.tracks) {
-      // Log all clips for debugging
-      console.log('Checking track clips:', track.clips.map((c: Clip) => ({
-        id: c.id,
-        startTime: c.startTime,
-        endTime: c.startTime + c.duration,
-        duration: c.duration
-      })))
-      
       const clip = track.clips.find((c: Clip) =>
         state.currentTime >= c.startTime && state.currentTime < c.startTime + c.duration
       )
-      
       if (clip) {
-        console.log('Found clip at currentTime:', {
-          clipId: clip.id,
-          clipStart: clip.startTime,
-          clipEnd: clip.startTime + clip.duration,
-          currentTime: state.currentTime
-        })
         state.playheadClip = clip
         state.playheadRecording = state.currentProject.recordings.find(
           (r: Recording) => r.id === clip.recordingId
         ) || null
         break
       }
-    }
-    
-    if (!state.playheadClip) {
-      console.log('No clip found at currentTime:', state.currentTime, '- should show black screen')
     }
     
     // Find effects active at current time (timeline-based, not clip-based)
