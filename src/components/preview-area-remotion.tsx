@@ -32,8 +32,14 @@ export function PreviewAreaRemotion({
   const previewClip = playheadClip
   const previewRecording = playheadRecording
 
-  // Load video URL when recording changes
+  // Load video URL when recording changes - clear immediately when no clip
   useEffect(() => {
+    // Clear video URL immediately when there's no clip at playhead
+    if (!playheadClip || !playheadRecording) {
+      setVideoUrl(null)
+      return
+    }
+    
     if (!previewRecording) {
       setVideoUrl(null)
       return
@@ -58,18 +64,27 @@ export function PreviewAreaRemotion({
         console.error('Error loading video:', error)
       })
     }
-  }, [previewRecording?.id]);
+  }, [playheadClip, playheadRecording, previewRecording?.id]);
 
-  // Sync playback state
+  // Sync playback state - only play when there's actually a clip
   useEffect(() => {
     if (!playerRef.current) return;
+
+    // Only control playback if we have a valid clip to play
+    if (!playheadClip || !playheadRecording) {
+      // No clip at playhead - ensure player is paused
+      if (playerRef.current) {
+        playerRef.current.pause();
+      }
+      return;
+    }
 
     if (isPlaying) {
       playerRef.current.play();
     } else {
       playerRef.current.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, playheadClip, playheadRecording]);
 
   // Sync current time when scrubbing (not playing)
   useEffect(() => {

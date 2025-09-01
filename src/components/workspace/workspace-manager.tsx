@@ -137,7 +137,7 @@ async function loadProjectRecording(
   const hasGlobalBackground = project.timeline.effects.some((e: any) => e.type === 'background')
   const hasGlobalCursor = project.timeline.effects.some((e: any) => e.type === 'cursor')
   
-  // Log existing background effect
+  // Log existing background effect and update with wallpaper if needed
   const existingBg = project.timeline.effects.find((e: any) => e.type === 'background')
   if (existingBg) {
     console.log('Loading project - existing background effect:', {
@@ -146,6 +146,19 @@ async function loadProjectRecording(
       wallpaperLength: existingBg.data?.wallpaper?.length || 0,
       gradient: existingBg.data?.gradient
     })
+    
+    // If the background effect doesn't have a wallpaper, add it
+    if (existingBg.data?.type === 'wallpaper' && !existingBg.data?.wallpaper) {
+      const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
+      const defaultWallpaper = getDefaultWallpaper()
+      
+      if (defaultWallpaper) {
+        console.log('Updating existing background effect with wallpaper:', defaultWallpaper.length, 'chars')
+        existingBg.data.wallpaper = defaultWallpaper
+      } else {
+        console.log('No wallpaper available to update existing effect')
+      }
+    }
   }
   
   if (!hasGlobalBackground) {
