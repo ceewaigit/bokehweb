@@ -136,36 +136,20 @@ async function loadProjectRecording(
   // Ensure global background and cursor effects exist
   const hasGlobalBackground = project.timeline.effects.some((e: any) => e.type === 'background')
   const hasGlobalCursor = project.timeline.effects.some((e: any) => e.type === 'cursor')
-  
-  // Log existing background effect and update with wallpaper if needed
+
+  // Update existing background effect with wallpaper if needed
   const existingBg = project.timeline.effects.find((e: any) => e.type === 'background')
-  if (existingBg) {
-    console.log('Loading project - existing background effect:', {
-      type: existingBg.data?.type,
-      hasWallpaper: !!existingBg.data?.wallpaper,
-      wallpaperLength: existingBg.data?.wallpaper?.length || 0,
-      gradient: existingBg.data?.gradient
-    })
-    
-    // If the background effect doesn't have a wallpaper, add it
-    if (existingBg.data?.type === 'wallpaper' && !existingBg.data?.wallpaper) {
-      const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
-      const defaultWallpaper = getDefaultWallpaper()
-      
-      if (defaultWallpaper) {
-        console.log('Updating existing background effect with wallpaper:', defaultWallpaper.length, 'chars')
-        existingBg.data.wallpaper = defaultWallpaper
-      } else {
-        console.log('No wallpaper available to update existing effect')
-      }
+  if (existingBg && existingBg.data?.type === 'wallpaper' && !existingBg.data?.wallpaper) {
+    const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
+    const defaultWallpaper = getDefaultWallpaper()
+    if (defaultWallpaper) {
+      existingBg.data.wallpaper = defaultWallpaper
     }
   }
-  
+
   if (!hasGlobalBackground) {
     const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
     const defaultWallpaper = getDefaultWallpaper()
-    
-    console.log('Creating new background effect with wallpaper:', defaultWallpaper ? `${defaultWallpaper.length} chars` : 'none')
 
     project.timeline.effects.push({
       id: 'background-global',
@@ -186,7 +170,7 @@ async function loadProjectRecording(
       enabled: true
     })
   }
-  
+
   if (!hasGlobalCursor) {
     project.timeline.effects.push({
       id: 'cursor-global',
@@ -206,14 +190,6 @@ async function loadProjectRecording(
     })
   }
 
-  // Log the project effects before setting
-  console.log('loadProjectRecording - Setting project with effects:', {
-    totalEffects: project.timeline.effects?.length || 0,
-    zoomEffects: project.timeline.effects?.filter((e: any) => e.type === 'zoom').length || 0,
-    backgroundEffects: project.timeline.effects?.filter((e: any) => e.type === 'background').length || 0,
-    effectTypes: project.timeline.effects?.map((e: any) => e.type) || []
-  })
-  
   // Set the project ONCE after all recordings are processed
   useProjectStore.getState().setProject(project)
 
@@ -344,45 +320,28 @@ export function WorkspaceManager() {
 
   // Consolidated save function
   const handleSaveProject = useCallback(async () => {
-    console.log('handleSaveProject - Starting save:', {
-      hasLocalEffects: !!localEffects,
-      localEffectsCount: localEffects?.length || 0,
-      projectEffectsCount: currentProject?.timeline?.effects?.length || 0,
-      zoomEffectsInProject: currentProject?.timeline?.effects?.filter(e => e.type === 'zoom').length || 0
-    })
-    
     // If there are local unsaved effect changes, merge them into the project store
     if (localEffects) {
-      console.log('handleSaveProject - Merging local effects into project store')
-      
       // Get current project effects
       const projectEffects = currentProject?.timeline?.effects || []
-      
+
       // For each local effect, update or add it to the project store
       localEffects.forEach(localEffect => {
         const existingInProject = projectEffects.find(e => e.id === localEffect.id)
-        
+
         if (existingInProject) {
           // Update existing effect in the store
-          console.log('Updating effect in store:', localEffect.id, localEffect.type)
           updateEffect(localEffect.id, localEffect)
         } else {
           // Add new effect to the store
-          console.log('Adding new effect to store:', localEffect.id, localEffect.type)
           addEffect(localEffect)
         }
       })
-      
+
       // Clear local effects after merging
       setLocalEffects(null)
     }
 
-    // Save the entire current project to disk (including ALL effects)
-    console.log('handleSaveProject - Saving project with all effects:', {
-      totalEffects: currentProject?.timeline?.effects?.length || 0,
-      effectTypes: currentProject?.timeline?.effects?.map(e => ({ id: e.id, type: e.type, enabled: e.enabled })) || []
-    })
-    
     await saveCurrentProject()
 
     // Use the project's modifiedAt timestamp after saving
@@ -458,13 +417,6 @@ export function WorkspaceManager() {
   const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
     // Work with local effects or fall back to saved effects
     const currentEffects = localEffects || playheadEffects || []
-    
-    console.log('handleEffectChange called:', {
-      type,
-      currentEffectsCount: currentEffects.length,
-      zoomEffectsCount: currentEffects.filter(e => e.type === 'zoom').length,
-      backgroundEffectsCount: currentEffects.filter(e => e.type === 'background').length
-    })
 
     let newEffects: Effect[]
 
@@ -487,7 +439,7 @@ export function WorkspaceManager() {
     } else if (type === 'zoom') {
       // Special handling for zoom operations without a specific block selected
       // This handles zoom toggle and regenerate operations
-      
+
       if (data.enabled !== undefined) {
         // Toggle all zoom effects enabled state
         newEffects = currentEffects.map(effect => {
@@ -497,9 +449,7 @@ export function WorkspaceManager() {
           return effect
         })
       } else if (data.regenerate) {
-        // Trigger zoom regeneration - this should be handled by the store/command
-        // For now, just preserve existing effects
-        console.log('Zoom regeneration requested')
+        // Trigger zoom regeneration - preserve existing effects for now
         newEffects = [...currentEffects]
       } else {
         // Unknown zoom operation, preserve existing effects
@@ -545,12 +495,6 @@ export function WorkspaceManager() {
       }
     }
 
-    // Update local state
-    console.log('handleEffectChange - Setting new effects:', {
-      newEffectsCount: newEffects.length,
-      newZoomEffectsCount: newEffects.filter(e => e.type === 'zoom').length,
-      newBackgroundEffectsCount: newEffects.filter(e => e.type === 'background').length
-    })
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
   }, [playheadEffects, localEffects, selectedEffectLayer])
@@ -749,7 +693,6 @@ export function WorkspaceManager() {
               onSeek={handleSeek}
               onClipSelect={handleClipSelect}
               onZoomChange={setZoom}
-              localEffects={localEffects}
               onZoomBlockUpdate={handleZoomBlockUpdate}
             />
           </div>

@@ -49,24 +49,6 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const keystrokeEffect = activeEffects.find(e => e.type === 'keystroke');
   const zoomEffects = activeEffects.filter(e => e.type === 'zoom');
 
-  // Debug logging for effects
-  if (frame === 0) {
-    if (backgroundEffect) {
-      const bgData = backgroundEffect.data as BackgroundEffectData;
-      console.log('MainComposition - Background effect at frame 0:', {
-        hasEffect: !!backgroundEffect,
-        type: bgData?.type,
-        hasWallpaper: !!bgData?.wallpaper,
-        wallpaperLength: bgData?.wallpaper?.length || 0
-      });
-    }
-    console.log('MainComposition - Zoom effects at frame 0:', {
-      totalEffects: effects?.length || 0,
-      activeEffects: activeEffects.length,
-      zoomEffectsCount: zoomEffects.length,
-      zoomEffectIds: zoomEffects.map(e => e.id)
-    });
-  }
 
   // Extract background padding
   const padding = backgroundEffect ? (backgroundEffect.data as BackgroundEffectData).padding : 0;

@@ -70,14 +70,6 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               if (result?.success && result.data) {
                 const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
                 recording.project = JSON.parse(projectData)
-                
-                // Log what's in the loaded project
-                console.log('RecordingsLibrary - Loaded project:', {
-                  name: file.name,
-                  totalEffects: recording.project?.timeline?.effects?.length || 0,
-                  zoomEffects: recording.project?.timeline?.effects?.filter((e: any) => e.type === 'zoom').length || 0,
-                  effectTypes: recording.project?.timeline?.effects?.map((e: any) => e.type) || []
-                })
 
                 if (recording.project?.name) {
                   recording.name = recording.project.name

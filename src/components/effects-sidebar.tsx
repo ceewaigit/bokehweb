@@ -57,16 +57,6 @@ export function EffectsSidebar({
   const zoomEffects = effects?.filter(e => e.type === 'zoom' && e.enabled) || []
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
-  
-  // Debug logging
-  React.useEffect(() => {
-    console.log('EffectsSidebar - Effects prop changed:', {
-      totalEffects: effects?.length || 0,
-      zoomEffectsCount: zoomEffects.length,
-      backgroundEffect: !!backgroundEffect,
-      backgroundType: (backgroundEffect?.data as BackgroundEffectData)?.type
-    })
-  }, [effects])
 
   // Update active tab when effect layer is selected
   React.useEffect(() => {

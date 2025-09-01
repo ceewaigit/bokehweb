@@ -168,23 +168,6 @@ const updatePlayheadState = (state: any) => {
         (e: Effect) => state.currentTime >= e.startTime && state.currentTime <= e.endTime && e.enabled
       )
       
-      // Debug logging for effect filtering
-      const zoomEffects = allEffects.filter((e: Effect) => e.type === 'zoom')
-      if (zoomEffects.length > 0) {
-        console.log('PlayheadEffects filtering:', {
-          currentTime: state.currentTime,
-          allEffectsCount: allEffects.length,
-          filteredCount: filteredEffects.length,
-          zoomEffects: zoomEffects.map((e: Effect) => ({
-            id: e.id,
-            enabled: e.enabled,
-            startTime: e.startTime,
-            endTime: e.endTime,
-            inRange: state.currentTime >= e.startTime && state.currentTime <= e.endTime
-          }))
-        })
-      }
-      
       state.playheadEffects = filteredEffects
     }
   }

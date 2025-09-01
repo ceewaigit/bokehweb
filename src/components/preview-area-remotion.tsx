@@ -34,15 +34,8 @@ export function PreviewAreaRemotion({
 
   // Load video URL when recording changes - clear immediately when no clip
   useEffect(() => {
-    console.log('Video URL effect:', {
-      hasPreviewRecording: !!previewRecording,
-      previewRecordingId: previewRecording?.id,
-      hasPlayheadRecording: !!playheadRecording,
-      playheadRecordingId: playheadRecording?.id
-    })
     
     if (!previewRecording) {
-      console.log('Clearing video URL - no preview recording')
       setVideoUrl(null)
       return
     }

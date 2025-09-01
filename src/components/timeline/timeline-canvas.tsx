@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { cn, formatTime } from '@/lib/utils'
-import type { Project, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
+import type { Project, ZoomBlock, ZoomEffectData } from '@/types/project'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -44,7 +44,6 @@ interface TimelineCanvasProps {
   onSeek: (time: number) => void
   onClipSelect: (clipId: string) => void
   onZoomChange: (zoom: number) => void
-  localEffects?: Effect[] | null
   onZoomBlockUpdate?: (clipId: string, blockId: string, updates: Partial<ZoomBlock>) => void
 }
 
@@ -59,7 +58,6 @@ export function TimelineCanvas({
   onSeek,
   onClipSelect,
   onZoomChange,
-  localEffects,
   onZoomBlockUpdate
 }: TimelineCanvasProps) {
   const {
@@ -446,17 +444,8 @@ export function TimelineCanvas({
               const selectedZoomBlocks: React.ReactElement[] = []
 
               // Get zoom effects from timeline.effects
-              // Use localEffects if available, otherwise fall back to project effects
-              const effectsSource = localEffects || currentProject.timeline.effects || []
+              const effectsSource = currentProject.timeline.effects || []
               const zoomEffects = effectsSource.filter(e => e.type === 'zoom' && e.enabled)
-              
-              // Debug log for timeline zoom rendering
-              console.log('TimelineCanvas - Zoom effects check:', {
-                source: localEffects ? 'localEffects' : 'project.timeline.effects',
-                totalEffectsInSource: effectsSource.length,
-                zoomEffectsFound: zoomEffects.length,
-                allEffectTypes: effectsSource.map(e => ({ id: e.id, type: e.type, enabled: e.enabled }))
-              })
 
               videoTrack.clips.forEach(clip => {
                 const isSelectedClip = selectedClips.includes(clip.id)
