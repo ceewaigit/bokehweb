@@ -77,7 +77,7 @@ export function PreviewAreaRemotion({
   // Sync current time when scrubbing (not playing)
   useEffect(() => {
     if (!playerRef.current || isPlaying) return;
-    
+
     // Only seek if we have a valid clip and video
     if (!previewClip || !videoUrl) {
       // No clip or video - ensure player is at frame 0
@@ -115,11 +115,11 @@ export function PreviewAreaRemotion({
   // Get video dimensions
   const videoWidth = previewRecording?.width || 1920;
   const videoHeight = previewRecording?.height || 1080;
-  
+
   // Get effects from timeline.effects active at current time (timeline-based)
   const currentProjectRef = useProjectStore(state => state.currentProject)
   const currentTimeRef = useProjectStore(state => state.currentTime)
-  const clipEffects = currentProjectRef?.timeline?.effects?.filter((e: any) => 
+  const clipEffects = currentProjectRef?.timeline?.effects?.filter((e: any) =>
     currentTimeRef >= e.startTime && currentTimeRef <= e.endTime && e.enabled
   ) || []
 
@@ -170,7 +170,7 @@ export function PreviewAreaRemotion({
       {showBlackScreen && (
         <div className="absolute inset-0 bg-black z-10" />
       )}
-      
+
       {/* Always render player container to maintain playerRef */}
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div
@@ -178,37 +178,37 @@ export function PreviewAreaRemotion({
         >
           <Player
             ref={playerRef}
-              component={MainComposition as any}
-              inputProps={compositionProps}
-              durationInFrames={durationInFrames || 900}
-              compositionWidth={compositionWidth}
-              compositionHeight={compositionHeight}
-              fps={30}
-              style={{
-                width: '100%',
-                height: '100%',
-                maxWidth: '100%',
-                maxHeight: '100%',
-                objectFit: 'contain',
-                opacity: showBlackScreen ? 0 : 1
-              }}
-              controls={false}
-              loop={false}
-              clickToPlay={false}
-              doubleClickToFullscreen={false}
-              spaceKeyToPlayOrPause={false}
-              errorFallback={({ error }) => {
-                console.error('Remotion Player error:', error)
-                return (
-                  <div className="flex items-center justify-center h-full bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
-                    <div className="text-center">
-                      <p className="text-red-600 dark:text-red-400 font-medium">Video playback error</p>
-                      <p className="text-sm text-muted-foreground mt-1">Please try reloading the video</p>
-                    </div>
+            component={MainComposition as any}
+            inputProps={compositionProps}
+            durationInFrames={durationInFrames || 900}
+            compositionWidth={compositionWidth}
+            compositionHeight={compositionHeight}
+            fps={30}
+            style={{
+              width: '100%',
+              height: '100%',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              opacity: showBlackScreen ? 0 : 1
+            }}
+            controls={false}
+            loop={false}
+            clickToPlay={false}
+            doubleClickToFullscreen={false}
+            spaceKeyToPlayOrPause={false}
+            errorFallback={({ error }) => {
+              console.error('Remotion Player error:', error)
+              return (
+                <div className="flex items-center justify-center h-full bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                  <div className="text-center">
+                    <p className="text-red-600 dark:text-red-400 font-medium">Video playback error</p>
+                    <p className="text-sm text-muted-foreground mt-1">Please try reloading the video</p>
                   </div>
-                )
-              }}
-              moveToBeginningWhenEnded={false}
+                </div>
+              )
+            }}
+            moveToBeginningWhenEnded={false}
           />
         </div>
       </div>
