@@ -784,6 +784,13 @@ export const useProjectStore = create<ProjectStore>()(
         
         // Update playhead state using helper
         updatePlayheadState(state)
+        
+        // Log if we're in a gap
+        if (!state.playheadClip) {
+          console.log('🔴 In gap at time:', (clampedTime/1000).toFixed(2), 's')
+        } else {
+          console.log('🎬 On clip', state.playheadClip.id.slice(-4), 'at time:', (clampedTime/1000).toFixed(2), 's')
+        }
       })
     },
 
