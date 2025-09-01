@@ -129,127 +129,42 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           outroMs
         );
 
-        // Calculate phase-based panning for cinematic effect
-        let panX = 0;
-        let panY = 0;
+        // Dynamically center on the CURRENT mouse position each frame
+        const captureWidth = cursorEvents[0]?.captureWidth || videoWidth;
+        const captureHeight = cursorEvents[0]?.captureHeight || videoHeight;
 
-        if (elapsed < introMs) {
-          // Intro phase: gradual panning introduction for smooth transition
-          const introProgress = elapsed / introMs;
+        let targetCenterX = blockZoomState.centerX;
+        let targetCenterY = blockZoomState.centerY;
 
-          // Start at 20% strength and ease to 80% for cinematic intro
-          if (cursorEvents.length > 0 && blockZoomState) {
-            const mousePos = zoomPanCalculator.interpolateMousePosition(
-              cursorEvents,
-              currentTimeMs
-            );
-
-            if (mousePos) {
-              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
-              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-
-              const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
-                mousePos.x,
-                mousePos.y,
-                captureWidth,
-                captureHeight,
-                scale,
-                blockZoomState.panX,
-                blockZoomState.panY
-              );
-
-              // Smooth exponential curve for pan strength (20% to 80%)
-              const panStrength = 0.2 + (0.6 * Math.pow(introProgress, 2));
-              blockZoomState.panX = cinematicPan.x * panStrength;
-              blockZoomState.panY = cinematicPan.y * panStrength;
-            }
-          }
-
-          panX = blockZoomState.panX;
-          panY = blockZoomState.panY;
-
-        } else if (elapsed > blockDuration - outroMs) {
-          // Outro phase: maintain pan longer, then smoothly return to center
-          const outroProgress = (elapsed - (blockDuration - outroMs)) / outroMs;
-
-          if (blockZoomState) {
-            // Keep following mouse for first 70% of outro for more natural feel
-            if (outroProgress < 0.7 && cursorEvents.length > 0) {
-              const mousePos = zoomPanCalculator.interpolateMousePosition(
-                cursorEvents,
-                currentTimeMs
-              );
-
-              if (mousePos) {
-                const captureWidth = cursorEvents[0].captureWidth || videoWidth;
-                const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-
-                const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
-                  mousePos.x,
-                  mousePos.y,
-                  captureWidth,
-                  captureHeight,
-                  scale,
-                  blockZoomState.panX,
-                  blockZoomState.panY
-                );
-
-                // Maintain 80% strength during outro follow phase
-                blockZoomState.panX = cinematicPan.x * 0.8;
-                blockZoomState.panY = cinematicPan.y * 0.8;
-              }
-            }
-
-            // Smooth fade out in last 30% of outro with ease curve
-            const fadeFactor = outroProgress < 0.7 ? 1 : Math.pow(1 - ((outroProgress - 0.7) / 0.3), 2);
-            panX = blockZoomState.panX * fadeFactor;
-            panY = blockZoomState.panY * fadeFactor;
-          }
-
-        } else {
-          // Hold phase: full cinematic panning to follow mouse
-          if (cursorEvents.length > 0 && blockZoomState) {
-            const mousePos = zoomPanCalculator.interpolateMousePosition(
-              cursorEvents,
-              currentTimeMs
-            );
-
-            if (mousePos) {
-              const captureWidth = cursorEvents[0].captureWidth || videoWidth;
-              const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-
-              // Calculate smooth cinematic pan
-              const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
-                mousePos.x,
-                mousePos.y,
-                captureWidth,
-                captureHeight,
-                scale,
-                blockZoomState.panX,
-                blockZoomState.panY
-              );
-
-              // Update pan state
-              blockZoomState.panX = cinematicPan.x;
-              blockZoomState.panY = cinematicPan.y;
-
-              panX = blockZoomState.panX;
-              panY = blockZoomState.panY;
-            }
-          } else if (blockZoomState) {
-            // Use existing pan if no mouse events
-            panX = blockZoomState.panX;
-            panY = blockZoomState.panY;
+        if (cursorEvents.length > 0) {
+          const mousePos = zoomPanCalculator.interpolateMousePosition(
+            cursorEvents,
+            currentTimeMs
+          );
+          if (mousePos) {
+            targetCenterX = mousePos.x / captureWidth;
+            targetCenterY = mousePos.y / captureHeight;
           }
         }
 
-        // Use the fixed zoom center with cinematic pan
+        // Smooth the center a bit for cinematic feel
+        const centerSmoothing = 0.25; // lower = smoother
+        blockZoomState.centerX = blockZoomState.centerX + (targetCenterX - blockZoomState.centerX) * centerSmoothing;
+        blockZoomState.centerY = blockZoomState.centerY + (targetCenterY - blockZoomState.centerY) * centerSmoothing;
+
+        // No clamping: allow center to go beyond content to show the sides
+
+        // No additional pan needed when centering on mouse directly
+        const panX = 0;
+        const panY = 0;
+
+        // Use the dynamic zoom center without extra pan
         zoomState = {
           scale,
           x: blockZoomState.centerX,
           y: blockZoomState.centerY,
-          panX,  // Cinematic pan based on phase
-          panY   // Cinematic pan based on phase
+          panX,
+          panY
         };
       } else {
         // No active zoom block - clear any cached states for memory efficiency
@@ -292,8 +207,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             videoWidth={videoWidth}
             videoHeight={videoHeight}
             captureArea={captureArea}
-            zoomCenter={completeZoomState.scale > 1 ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
-            cinematicPan={completeZoomState.scale > 1 ? { x: completeZoomState.panX, y: completeZoomState.panY } : undefined}
+            zoomCenter={zoomEnabled ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
+            cinematicPan={zoomEnabled ? { x: 0, y: 0 } : undefined}
           />
         </Sequence>
       )}

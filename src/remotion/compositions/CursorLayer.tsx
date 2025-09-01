@@ -234,9 +234,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const captureHeight = firstEvent?.captureHeight || videoHeight;
 
   // Normalize cursor position (0-1 range within the capture area)
-  // Clamp to ensure cursor stays within bounds
-  const normalizedX = cursorPosition ? Math.max(0, Math.min(1, cursorPosition.x / captureWidth)) : 0;
-  const normalizedY = cursorPosition ? Math.max(0, Math.min(1, cursorPosition.y / captureHeight)) : 0;
+  // Do not clamp; allow positions outside the capture area to show sides
+  const normalizedX = cursorPosition ? (cursorPosition.x / captureWidth) : 0;
+  const normalizedY = cursorPosition ? (cursorPosition.y / captureHeight) : 0;
 
   // Calculate the cursor position within the video content area (before zoom)
   // Simply map the normalized position to the video display area

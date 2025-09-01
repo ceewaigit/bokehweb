@@ -7,10 +7,6 @@ import type { MouseEvent } from '@/types/project'
 import { interpolateMousePosition } from './mouse-interpolation'
 
 export class ZoomPanCalculator {
-  // Cinematic zoom settings
-  private readonly ZOOM_PAN_SMOOTHING = 0.1  // Smooth cinematic feel
-  private readonly EDGE_BUFFER = 0.2  // Keep mouse 20% from viewport edges
-
   /**
    * Calculate cinematic pan for zoom - follows mouse directly
    * Centers viewport on mouse position with smooth interpolation

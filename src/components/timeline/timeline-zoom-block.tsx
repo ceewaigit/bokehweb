@@ -47,7 +47,7 @@ export const TimelineZoomBlock = React.memo(({
   const [isDragging, setIsDragging] = useState(false)
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
-  
+
   // No local position state - use props directly
   // This makes the component fully controlled and eliminates sync issues
 
@@ -60,18 +60,18 @@ export const TimelineZoomBlock = React.memo(({
           try {
             // Ensure the group node is properly set
             const groupNode = groupRef.current
-            
+
             // Reset any existing transformations
             groupNode.scaleX(1)
             groupNode.scaleY(1)
-            
+
             // Attach transformer to the group
             trRef.current.nodes([groupNode])
             trRef.current.forceUpdate()
-            
+
             // Move to top for better interaction
             groupNode.moveToTop()
-            
+
             // Force a redraw
             const layer = groupNode.getLayer()
             if (layer) {
@@ -164,7 +164,7 @@ export const TimelineZoomBlock = React.memo(({
     if (isResizingLeft) {
       // Store the original right edge position using current props
       const rightEdge = x + width
-      
+
       // Check for collisions when resizing left
       for (const block of blocks) {
         // If we're moving left edge past another block's right edge (collision)
@@ -178,7 +178,7 @@ export const TimelineZoomBlock = React.memo(({
       for (const block of blocks) {
         const distToBlockStart = Math.abs(finalX - block.x)
         const distToBlockEnd = Math.abs(finalX - block.endX)
-        
+
         // Only snap if we're not creating an overlap
         if (distToBlockEnd < snapThreshold && finalX >= block.endX) {
           finalX = block.endX
@@ -205,7 +205,7 @@ export const TimelineZoomBlock = React.memo(({
       // Resizing from right
       const leftEdge = finalX
       let rightEdge = finalX + finalWidth
-      
+
       // Check for collisions when resizing right
       for (const block of blocks) {
         // If we're moving right edge past another block's left edge (collision)
@@ -215,13 +215,13 @@ export const TimelineZoomBlock = React.memo(({
           finalWidth = rightEdge - finalX
         }
       }
-      
+
       // Apply snapping after collision check
       for (const block of blocks) {
         const currentRightEdge = finalX + finalWidth
         const distToBlockStart = Math.abs(currentRightEdge - block.x)
         const distToBlockEnd = Math.abs(currentRightEdge - block.endX)
-        
+
         // Only snap if we're not creating an overlap
         if (distToBlockStart < snapThreshold && currentRightEdge <= block.x) {
           finalWidth = block.x - finalX
@@ -229,7 +229,7 @@ export const TimelineZoomBlock = React.memo(({
           finalWidth = block.endX - finalX
         }
       }
-      
+
       finalWidth = Math.max(minWidth, finalWidth)
     }
 
@@ -322,7 +322,7 @@ export const TimelineZoomBlock = React.memo(({
           const newStartTime = TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
           const duration = endTime - startTime
           const newEndTime = newStartTime + duration
-          
+
           // Check if this would cause an overlap
           const wouldOverlap = allBlocks
             .filter(b => b.id !== blockId)
@@ -338,13 +338,13 @@ export const TimelineZoomBlock = React.memo(({
             // Maintain selection after reset
             onSelect()
           } else {
-            
+
             // Update position
             onUpdate({
               startTime: Math.max(0, newStartTime),
               endTime: Math.max(0, newEndTime)
             })
-            
+
             onDragEnd(snappedX)
           }
         }}
@@ -429,10 +429,10 @@ export const TimelineZoomBlock = React.memo(({
           boundBoxFunc={(oldBox, newBox) => {
             // Ensure minimum width (config-driven)
             const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
-            
+
             // Determine which side is being resized
             const resizingLeft = Math.abs(newBox.x - oldBox.x) > 0.1
-            
+
             // Constrain width
             if (newBox.width < minWidthPx) {
               if (resizingLeft) {
@@ -444,7 +444,7 @@ export const TimelineZoomBlock = React.memo(({
                 newBox.width = minWidthPx
               }
             }
-            
+
             // Prevent x from going before timeline start
             if (newBox.x < TimelineConfig.TRACK_LABEL_WIDTH) {
               const adjustment = TimelineConfig.TRACK_LABEL_WIDTH - newBox.x
@@ -454,7 +454,7 @@ export const TimelineZoomBlock = React.memo(({
                 newBox.width = oldBox.x + oldBox.width - TimelineConfig.TRACK_LABEL_WIDTH
               }
             }
-            
+
             // Maintain height
             newBox.height = oldBox.height
             newBox.y = oldBox.y
@@ -470,28 +470,67 @@ export const TimelineZoomBlock = React.memo(({
           anchorCornerRadius={2}
           keepRatio={false}
           ignoreStroke={true}
+          onTransform={(e) => {
+            const node = groupRef.current
+            const tr = trRef.current
+            if (!node || !tr) return
+
+            const activeAnchor = tr.getActiveAnchor?.() as string | undefined
+            const resizingLeft = activeAnchor === 'middle-left'
+
+            // Convert scaleX into width incrementally to avoid stretching children
+            const scaleX = node.scaleX()
+            let newWidth = Math.max(1, width * scaleX)
+
+            // Enforce minimum duration
+            const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
+            if (newWidth < minWidthPx) newWidth = minWidthPx
+
+            // Derive new x based on which edge is being resized
+            let newX = x
+            if (resizingLeft) {
+              const rightEdge = x + width
+              newX = rightEdge - newWidth
+              // Prevent going before start
+              newX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, newX)
+            }
+
+            // Reset scale to prevent visual stretching
+            node.scaleX(1)
+            node.scaleY(1)
+
+            // Compute new times and update continuously
+            const newStartTime = Math.max(0, TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs))
+            const newEndTime = newStartTime + Math.max(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, TimeConverter.pixelsToMs(newWidth, pixelsPerMs))
+
+            onUpdate({ startTime: newStartTime, endTime: newEndTime })
+
+            // Force transformer to update to new bbox
+            tr.forceUpdate()
+            node.getLayer()?.batchDraw()
+          }}
           onTransformEnd={(e) => {
             // Get the transformed node (the Group)
             const node = e.target
-            
+
             // Important: For Groups, we need to look at the scale and position
             // The Group itself doesn't have width/height - it's determined by children
             const scaleX = node.scaleX()
             const nodeX = node.x()
-            
+
             // Calculate the new width based on the original width and scale
             // 'width' prop is the original width passed to this component
             const newWidth = width * scaleX
-            
+
             // Reset the scale (important!)
             node.scaleX(1)
             node.scaleY(1)
-            
+
             // Calculate new times based on position and new width
             const adjustedX = nodeX - TimelineConfig.TRACK_LABEL_WIDTH
             const newStartTime = Math.max(0, TimeConverter.pixelsToMs(adjustedX, pixelsPerMs))
             const duration = TimeConverter.pixelsToMs(newWidth, pixelsPerMs)
-            
+
             // Ensure minimum duration from config
             const minDuration = TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS
             const finalDuration = Math.max(minDuration, duration)
