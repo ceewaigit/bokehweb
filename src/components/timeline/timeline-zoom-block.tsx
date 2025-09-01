@@ -92,7 +92,7 @@ export const TimelineZoomBlock = React.memo(({
 
   // Get valid position for dragging with improved edge snapping
   const getValidDragPosition = (proposedX: number, currentWidth: number): number => {
-    const snapThreshold = 10
+    const snapThreshold = Number(TimelineConfig.SNAP_THRESHOLD_PX)
     const blocks = allBlocks
       .filter(b => b.id !== blockId)
       .map(b => ({
@@ -144,8 +144,8 @@ export const TimelineZoomBlock = React.memo(({
 
   // Resize validation with collision detection and edge snapping
   const getValidResizeWidth = (proposedWidth: number, proposedX: number, isResizingLeft: boolean): { width: number; x: number } => {
-    const minWidth = TimeConverter.msToPixels(100, pixelsPerMs)
-    const snapThreshold = 10
+    const minWidth = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
+    const snapThreshold = Number(TimelineConfig.SNAP_THRESHOLD_PX)
 
     let finalWidth = Math.max(minWidth, proposedWidth)
     let finalX = proposedX
@@ -427,8 +427,8 @@ export const TimelineZoomBlock = React.memo(({
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
           boundBoxFunc={(oldBox, newBox) => {
-            // Ensure minimum width (100ms in pixels)
-            const minWidthPx = TimeConverter.msToPixels(100, pixelsPerMs)
+            // Ensure minimum width (config-driven)
+            const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
             
             // Determine which side is being resized
             const resizingLeft = Math.abs(newBox.x - oldBox.x) > 0.1
@@ -492,22 +492,10 @@ export const TimelineZoomBlock = React.memo(({
             const newStartTime = Math.max(0, TimeConverter.pixelsToMs(adjustedX, pixelsPerMs))
             const duration = TimeConverter.pixelsToMs(newWidth, pixelsPerMs)
             
-            // Ensure minimum duration of 100ms
-            const minDuration = 100
+            // Ensure minimum duration from config
+            const minDuration = TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS
             const finalDuration = Math.max(minDuration, duration)
             const newEndTime = newStartTime + finalDuration
-
-            console.log('Zoom block resize:', {
-              nodeX,
-              originalWidth: width,
-              scaleX,
-              newWidth,
-              adjustedX,
-              newStartTime,
-              newEndTime,
-              duration: finalDuration,
-              pixelsPerMs
-            })
 
             // Update through parent callback with validated times
             onUpdate({

@@ -8,74 +8,11 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util'
 import type { Project, Clip } from '@/types/project'
 import type { ExportSettings } from '@/types'
 import type { ExportProgress } from './export-engine'
+import { interpolateMousePositionNormalized } from '@/lib/effects/utils/mouse-interpolation'
 
 export class FFmpegExportEngine {
   private ffmpeg: FFmpeg | null = null
   private loaded = false
-
-  /**
-   * Interpolate mouse position at a specific timestamp
-   */
-  private interpolateMousePosition(
-    mouseEvents: Array<{ timestamp: number; mouseX: number; mouseY: number; captureWidth?: number; captureHeight?: number }>,
-    targetTime: number
-  ): { x: number; y: number } | null {
-    if (!mouseEvents || mouseEvents.length === 0) return null
-
-    // Find the two events that surround the target time
-    let before = null
-    let after = null
-
-    for (let i = 0; i < mouseEvents.length; i++) {
-      const event = mouseEvents[i]
-      if (event.timestamp <= targetTime) {
-        before = event
-      } else if (!after) {
-        after = event
-        break
-      }
-    }
-
-    // If we only have events after the target time, use the first one
-    if (!before && after) {
-      const captureWidth = after.captureWidth || 1920
-      const captureHeight = after.captureHeight || 1080
-      return {
-        x: after.mouseX / captureWidth,
-        y: after.mouseY / captureHeight
-      }
-    }
-
-    // If we only have events before the target time, use the last one
-    if (before && !after) {
-      const captureWidth = before.captureWidth || 1920
-      const captureHeight = before.captureHeight || 1080
-      return {
-        x: before.mouseX / captureWidth,
-        y: before.mouseY / captureHeight
-      }
-    }
-
-    // If we have both, interpolate between them
-    if (before && after) {
-      const timeDiff = after.timestamp - before.timestamp
-      const targetDiff = targetTime - before.timestamp
-      const t = timeDiff > 0 ? targetDiff / timeDiff : 0
-
-      const captureWidth = before.captureWidth || after.captureWidth || 1920
-      const captureHeight = before.captureHeight || after.captureHeight || 1080
-
-      const x = before.mouseX + (after.mouseX - before.mouseX) * t
-      const y = before.mouseY + (after.mouseY - before.mouseY) * t
-
-      return {
-        x: x / captureWidth,
-        y: y / captureHeight
-      }
-    }
-
-    return null
-  }
 
   async loadFFmpeg(): Promise<void> {
     if (this.loaded) return
@@ -130,65 +67,65 @@ export class FFmpegExportEngine {
 
       // Apply cropping if we have a capture area (for window or area recording)
       if (captureArea && captureArea.width > 0 && captureArea.height > 0) {
-        // Crop to the captured area
-        // Note: x and y are relative to the full screen recording
         filters.push(`crop=${captureArea.width}:${captureArea.height}:${captureArea.x}:${captureArea.y}`)
       }
 
       // Apply zoom effect if enabled
-      // Get zoom effects from project context (passed in settings)
       const zoomEffects = (settings as any).zoomEffects || []
       if (zoomEffects.length > 0) {
-        // For simplicity, apply a static zoom to the first target
         const firstBlock = zoomEffects[0]
         if (firstBlock) {
           const scale = firstBlock.scale || 2
 
-          // Get mouse position at block start time for zoom center
-          let x = 0.5  // Default to center
-          let y = 0.5
-
-          // Use interpolated mouse position for smooth zoom targeting
-          const mousePos = this.interpolateMousePosition(mouseEvents || [], firstBlock.startTime)
-          if (mousePos) {
-            x = Math.max(0, Math.min(1, mousePos.x))
-            y = Math.max(0, Math.min(1, mousePos.y))
+          // Use shared interpolation for normalized mouse position at block start
+          let nx = 0.5
+          let ny = 0.5
+          if (mouseEvents && mouseEvents.length > 0) {
+            const normalized = interpolateMousePositionNormalized(
+              mouseEvents.map(e => ({
+                timestamp: e.timestamp,
+                x: e.mouseX,
+                y: e.mouseY,
+                screenWidth: e.captureWidth || 1920,
+                screenHeight: e.captureHeight || 1080,
+                captureWidth: e.captureWidth,
+                captureHeight: e.captureHeight
+              })) as any,
+              firstBlock.startTime
+            )
+            if (normalized) {
+              nx = normalized.x
+              ny = normalized.y
+            }
           }
 
-          // Zoom filter: scale and crop
+          // Zoom filter: scale and crop centered at normalized mouse position
           filters.push(`scale=${scale}*iw:${scale}*ih`)
-          filters.push(`crop=iw/${scale}:ih/${scale}:${x}*iw:${y}*ih`)
+          filters.push(`crop=iw/${scale}:ih/${scale}:${nx}*iw:${ny}*ih`)
         }
       }
 
-      // Apply corner radius effect
-      // Check for corner radius setting (passed in settings)
+      // Corner radius and padding (if provided)
       const cornerRadius = (settings as any).cornerRadius
       if (cornerRadius) {
-        // FFmpeg doesn't have direct corner radius, but we can simulate with a mask
-        // For now, skip this as it's complex
+        // TODO: Implement via mask if needed in future
       }
 
-      // Check for padding setting (passed in settings)
       const padding = (settings as any).padding
       if (padding) {
         filters.push(`pad=iw+${padding * 2}:ih+${padding * 2}:${padding}:${padding}:color=black`)
       }
 
-      // Build filter complex string
       const filterComplex = filters.length > 0 ? `-vf "${filters.join(',')}"` : ''
 
-      // Determine output format and codec
       const outputName = `output.${settings.format}`
       let codecOptions = ''
 
       switch (settings.format) {
         case 'mp4':
-          // Copy audio stream if present, otherwise use AAC
           codecOptions = '-c:v libx264 -preset fast -crf 22 -c:a aac -b:a 128k'
           break
         case 'webm':
-          // Copy audio stream if present, otherwise use Opus
           codecOptions = '-c:v libvpx-vp9 -crf 30 -b:v 0 -c:a libopus -b:a 128k'
           break
         case 'gif':
@@ -203,7 +140,6 @@ export class FFmpegExportEngine {
         message: 'Encoding video...'
       })
 
-      // Run FFmpeg command
       await this.ffmpeg.exec([
         '-i', inputName,
         ...filterComplex.split(' '),
@@ -217,10 +153,7 @@ export class FFmpegExportEngine {
         message: 'Finalizing export...'
       })
 
-      // Read output file
       const data = await this.ffmpeg.readFile(outputName)
-
-      // Convert to Blob - handle different possible return types
       const outputBlob = new Blob([data as BlobPart], {
         type: `video/${settings.format === 'gif' ? 'gif' : settings.format}`
       })

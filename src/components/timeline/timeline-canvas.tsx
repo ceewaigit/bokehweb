@@ -81,7 +81,7 @@ export function TimelineCanvas({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const colors = useTimelineColors()
-
+  
   // Force re-render when theme changes by using colors as part of key
   const themeKey = React.useMemo(() => {
     // Create a simple hash from primary color to detect theme changes
@@ -275,21 +275,6 @@ export function TimelineCanvas({
         const time = TimeConverter.pixelsToMs(x, pixelsPerMs)
         const maxTime = currentProject?.timeline?.duration || 0
         const targetTime = Math.max(0, Math.min(maxTime, time))
-
-        // Debug: Log click position and resulting time
-        console.log('Timeline click:', {
-          offsetX: e.evt.offsetX,
-          adjustedX: x,
-          pixelsPerMs,
-          calculatedTime: time,
-          targetTime,
-          clips: currentProject?.timeline.tracks[0]?.clips.map(c => ({
-            id: c.id,
-            start: c.startTime,
-            end: c.startTime + c.duration
-          }))
-        })
-
         onSeek(targetTime)
       }
     }
@@ -498,46 +483,29 @@ export function TimelineCanvas({
                       const otherZooms = zoomEffects.filter(e => e.id !== effect.id)
                       let finalStartTime = Math.max(0, newStartTime)
 
-                      for (const other of otherZooms) {
-                        if (finalStartTime < other.endTime && (finalStartTime + duration) > other.startTime) {
-                          // Overlap detected, move to after this effect
-                          finalStartTime = other.endTime + 100
+                      // Prevent overlaps
+                      const overlap = otherZooms.some(z => finalStartTime < z.endTime && finalStartTime + duration > z.startTime)
+                      if (overlap) {
+                        const sorted = [...otherZooms].sort((a, b) => a.startTime - b.startTime)
+                        for (const z of sorted) {
+                          if (finalStartTime < z.endTime && finalStartTime + duration > z.startTime) {
+                            finalStartTime = z.endTime
+                          }
                         }
                       }
 
-                      // Update the effect with new position
+                      // Update the zoom block via store update
                       updateEffect(effect.id, {
                         startTime: finalStartTime,
                         endTime: finalStartTime + duration
                       })
                     }}
                     onUpdate={(updates) => {
-                      // Check if this is a timing update (has startTime or endTime)
-                      if ('startTime' in updates || 'endTime' in updates) {
-                        // Update timing directly
-                        updateEffect(effect.id, {
-                          startTime: updates.startTime ?? effect.startTime,
-                          endTime: updates.endTime ?? effect.endTime
-                        })
-
-                      } else {
-                        // Update zoom data (scale, introMs, outroMs, etc.)
-                        const currentData = effect.data as ZoomEffectData
-                        updateEffect(effect.id, {
-                          data: { ...currentData, ...updates }
-                        })
-
-
-                        // Call onZoomBlockUpdate if provided for preview updates
-                        if (onZoomBlockUpdate) {
-                          onZoomBlockUpdate('', effect.id, updates)
-                        }
-                      }
+                      updateEffect(effect.id, updates)
                     }}
                   />
                 )
 
-                // Add to appropriate array
                 if (isBlockSelected) {
                   selectedZoomBlocks.push(blockElement)
                 } else {
@@ -545,8 +513,12 @@ export function TimelineCanvas({
                 }
               })
 
-              // Render non-selected blocks first, then selected ones on top
-              return [...zoomBlocks, ...selectedZoomBlocks]
+              return (
+                <>
+                  {zoomBlocks}
+                  {selectedZoomBlocks}
+                </>
+              )
             })()}
 
             {/* Audio clips */}
@@ -584,93 +556,76 @@ export function TimelineCanvas({
             />
           </Layer>
         </Stage>
-      </div>
 
-      {/* Timeline Info - Compact */}
-      <div className="flex items-center justify-between px-3 py-1 bg-background">
-        <span className="text-[10px] font-medium text-muted-foreground">
-          {selectedClips.length > 0 ? `${selectedClips.length} SELECTED` : ''}
-        </span>
-        <span className="text-[10px] font-mono text-muted-foreground">
-          {formatTime(currentTime)} / {formatTime(currentProject.timeline.duration)}
-        </span>
-      </div>
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <TimelineContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          clipId={contextMenu.clipId}
-          onSplit={async (id) => {
-            console.log('Context menu split clicked for clip:', id, 'at time:', currentTime)
-            if (commandManagerRef.current && commandContextRef.current) {
-              const command = new SplitClipCommand(
-                commandContextRef.current,
-                id,
-                currentTime
-              )
-              const result = await commandManagerRef.current.execute(command)
-              console.log('Split command result:', result)
-              if (!result.success) {
-                console.error('Split failed:', result.error)
+        {/* Context Menu */}
+        {contextMenu && (
+          <TimelineContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            clipId={contextMenu.clipId}
+            onSplit={async (id) => {
+              if (commandManagerRef.current && commandContextRef.current) {
+                const command = new SplitClipCommand(
+                  commandContextRef.current,
+                  id,
+                  currentTime
+                )
+                await commandManagerRef.current.execute(command)
               }
-            } else {
-              console.error('Command manager or context not available')
-            }
-          }}
-          onTrimStart={async (id) => {
-            if (commandManagerRef.current && commandContextRef.current) {
-              const command = new TrimCommand(
-                commandContextRef.current,
-                id,
-                currentTime,
-                'start'
-              )
-              await commandManagerRef.current.execute(command)
-            }
-          }}
-          onTrimEnd={async (id) => {
-            if (commandManagerRef.current && commandContextRef.current) {
-              const command = new TrimCommand(
-                commandContextRef.current,
-                id,
-                currentTime,
-                'end'
-              )
-              await commandManagerRef.current.execute(command)
-            }
-          }}
-          onDuplicate={async (id) => {
-            if (commandManagerRef.current && commandContextRef.current) {
-              const command = new DuplicateClipCommand(
-                commandContextRef.current,
-                id
-              )
-              await commandManagerRef.current.execute(command)
-            }
-          }}
-          onCopy={async (id) => {
-            if (commandManagerRef.current && commandContextRef.current) {
-              const command = new CopyCommand(
-                commandContextRef.current,
-                id
-              )
-              await commandManagerRef.current.execute(command)
-            }
-          }}
-          onDelete={async (id) => {
-            if (commandManagerRef.current && commandContextRef.current) {
-              const command = new RemoveClipCommand(
-                commandContextRef.current,
-                id
-              )
-              await commandManagerRef.current.execute(command)
-            }
-          }}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+            }}
+            onTrimStart={async (id) => {
+              if (commandManagerRef.current && commandContextRef.current) {
+                const command = new TrimCommand(
+                  commandContextRef.current,
+                  id,
+                  currentTime,
+                  'start'
+                )
+                await commandManagerRef.current.execute(command)
+              }
+            }}
+            onTrimEnd={async (id) => {
+              if (commandManagerRef.current && commandContextRef.current) {
+                const command = new TrimCommand(
+                  commandContextRef.current,
+                  id,
+                  currentTime,
+                  'end'
+                )
+                await commandManagerRef.current.execute(command)
+              }
+            }}
+            onDuplicate={async (id) => {
+              if (commandManagerRef.current && commandContextRef.current) {
+                const command = new DuplicateClipCommand(
+                  commandContextRef.current,
+                  id
+                )
+                await commandManagerRef.current.execute(command)
+              }
+            }}
+            onCopy={async (id) => {
+              if (commandManagerRef.current && commandContextRef.current) {
+                const command = new CopyCommand(
+                  commandContextRef.current,
+                  id
+                )
+                await commandManagerRef.current.execute(command)
+              }
+            }}
+            onDelete={async (id) => {
+              if (commandManagerRef.current && commandContextRef.current) {
+                const command = new RemoveClipCommand(
+                  commandContextRef.current,
+                  id
+                )
+                await commandManagerRef.current.execute(command)
+              }
+            }}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+      </div>
     </div>
   )
 }

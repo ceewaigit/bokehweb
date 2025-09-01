@@ -75,7 +75,6 @@ export function EffectsSidebar({
     }
   }, [backgroundEffect])
 
-
   // Load macOS wallpapers when wallpaper tab is selected
   React.useEffect(() => {
     if (backgroundType === 'wallpaper' && macOSWallpapers.wallpapers.length === 0 && !loadingWallpapers) {
@@ -106,17 +105,10 @@ export function EffectsSidebar({
     }
   }, [backgroundType])
 
-  if (!selectedClip || !effects) {
-    return (
-      <div className={cn("bg-background/30 backdrop-blur-md border-l border-border/50 p-4", className)}>
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">No clip selected</p>
-      </div>
-    )
-  }
+  // Allow global effects editing even when no clip is selected
+  // If effects are undefined, show an empty panel rather than "No clip selected"
 
   const updateEffect = (category: 'background' | 'cursor' | 'zoom' | 'keystroke', updates: any) => {
-    if (!selectedClip) return
-
     // For cursor effects, preserve all existing data
     if (category === 'cursor' && cursorEffect) {
       const currentData = cursorEffect.data as CursorEffectData
@@ -131,8 +123,6 @@ export function EffectsSidebar({
 
   // Update background while preserving existing properties
   const updateBackgroundEffect = (updates: any) => {
-    if (!selectedClip) return
-
     // If no background effect exists, create it with sensible defaults
     if (!backgroundEffect) {
       onEffectChange('background', {
@@ -794,8 +784,8 @@ export function EffectsSidebar({
                   </div>
                   <div className=" pt-3" />
                 </div>
-              )
-            })()}
+              )}
+            )()}
 
             <div className="p-3 bg-background/30 rounded-lg ">
               <label className="text-xs font-medium flex items-center justify-between">

@@ -44,21 +44,12 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Copy handler
     const handleCopy = async () => {
-      console.log('[Keyboard] Copy key pressed')
-      
-      // Get fresh store state
       const currentStore = useProjectStore.getState()
-      console.log('[Keyboard] Copy state:', {
-        selectedClips: currentStore.selectedClips,
-        selectedEffectLayer: currentStore.selectedEffectLayer
-      })
-      
       const freshContext = new DefaultCommandContext(currentStore)
       
       try {
         const command = new CopyCommand(freshContext)
         const result = await manager.execute(command)
-        console.log('[Keyboard] Copy result:', result)
         
         if (result.success) {
           if (result.data?.type === 'effect') {
@@ -91,22 +82,12 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Paste handler
     const handlePaste = async () => {
-      console.log('[Keyboard] Paste key pressed')
-      
-      // Get fresh store state
       const currentStore = useProjectStore.getState()
-      console.log('[Keyboard] Paste state:', {
-        selectedClips: currentStore.selectedClips,
-        selectedEffectLayer: currentStore.selectedEffectLayer,
-        clipboard: currentStore.clipboard
-      })
-      
       const freshContext = new DefaultCommandContext(currentStore)
       
       try {
         const command = new PasteCommand(freshContext)
         const result = await manager.execute(command)
-        console.log('[Keyboard] Paste result:', result)
         
         if (result.success) {
           if (result.data?.type === 'effect') {
@@ -115,7 +96,6 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
             toast('Clip pasted')
           }
         } else {
-          console.error('[Keyboard] Paste error:', result.error)
           toast.error(result.error as string)
         }
       } catch (err) {
@@ -126,14 +106,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Delete handler
     const handleDelete = async () => {
-      console.log('[Keyboard] Delete key pressed')
-      
-      // Get absolutely fresh store state
       const currentStore = useProjectStore.getState()
-      console.log('[Keyboard] Current state:', {
-        selectedClips: currentStore.selectedClips,
-        selectedEffectLayer: currentStore.selectedEffectLayer
-      })
       
       // Create new context with fresh state
       const freshContext = new DefaultCommandContext(currentStore)
@@ -141,17 +114,13 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       // Check if an effect layer is selected (e.g., zoom block)
       const effectLayer = currentStore.selectedEffectLayer
       if (effectLayer && effectLayer.type === 'zoom' && effectLayer.id) {
-        console.log('[Keyboard] Zoom block selected for deletion:', effectLayer.id)
-        // Zoom effects are timeline-global, no clip needed
         const command = new RemoveZoomBlockCommand(
           freshContext,
           effectLayer.id
         )
         
         try {
-          console.log('[Keyboard] Executing RemoveZoomBlockCommand...')
           const result = await manager.execute(command)
-          console.log('[Keyboard] Command result:', result)
           if (result.success) {
             // Clear selection after successful deletion
             useProjectStore.getState().clearEffectSelection()

@@ -24,7 +24,7 @@ export interface SnapPoint {
  * Unified service for clip positioning, overlap detection, and snapping
  */
 export class ClipPositioning {
-  private static SNAP_THRESHOLD_MS = 100
+  private static SNAP_THRESHOLD_MS = TimelineConfig.SNAP_INTERVAL_MS
   private static MIN_GAP_MS = 0 // No forced gaps by default
 
   /**

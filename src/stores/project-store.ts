@@ -298,11 +298,6 @@ export const useProjectStore = create<ProjectStore>()(
           const { getDefaultWallpaper } = require('@/lib/constants/default-effects')
           const defaultWallpaper = getDefaultWallpaper()
 
-          console.log('Creating background effect in project store:', {
-            hasWallpaper: !!defaultWallpaper,
-            wallpaperLength: defaultWallpaper?.length || 0
-          })
-
           const backgroundEffect: Effect = {
             id: `background-global`,
             type: 'background',
@@ -323,13 +318,6 @@ export const useProjectStore = create<ProjectStore>()(
             enabled: true
           }
           state.currentProject.timeline.effects.push(backgroundEffect)
-        } else {
-          const bgData = existingBackground.data as BackgroundEffectData;
-          console.log('Background effect already exists:', {
-            type: bgData?.type,
-            hasWallpaper: !!bgData?.wallpaper,
-            wallpaperLength: bgData?.wallpaper?.length || 0
-          })
         }
 
         // Check if global cursor effect exists, if not create one
@@ -475,8 +463,6 @@ export const useProjectStore = create<ProjectStore>()(
           
           // Force the clip to this position (no gaps allowed)
           updates.startTime = leftmostEnd
-          
-          console.log(`Clip ${clipId} snapped to position ${updates.startTime} (no gaps allowed)`)
         }
 
         Object.assign(clip, updates)
