@@ -11,14 +11,6 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
     return null;
   }
 
-  // Debug logging - properly type-check backgroundData
-  console.log('BackgroundLayer rendering:', {
-    type: backgroundData.type,
-    hasWallpaper: !!(backgroundData as any).wallpaper,
-    wallpaperLength: (backgroundData as any).wallpaper?.length || 0,
-    gradientColors: (backgroundData as any).gradient?.colors
-  });
-
   let backgroundStyle: React.CSSProperties = {};
 
   switch (backgroundData.type) {

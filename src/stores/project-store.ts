@@ -409,7 +409,7 @@ export const useProjectStore = create<ProjectStore>()(
             undefined,
             { enforceLeftmostConstraint: true, findAlternativeIfInvalid: true }
           )
-          
+
           if (!validationResult.isValid && validationResult.suggestedPosition !== undefined) {
             clip.startTime = validationResult.suggestedPosition
             console.log(`Clip repositioned to ${clip.startTime} to avoid overlap`)
@@ -474,7 +474,7 @@ export const useProjectStore = create<ProjectStore>()(
         // Check for overlaps and leftmost constraint when position changes
         if (updates.startTime !== undefined) {
           const duration = updates.duration || clip.duration
-          
+
           // Use centralized ClipPositioning service for validation
           const validationResult = ClipPositioning.validatePosition(
             updates.startTime,
@@ -483,7 +483,7 @@ export const useProjectStore = create<ProjectStore>()(
             clipId,
             { enforceLeftmostConstraint: true }
           )
-          
+
           if (!validationResult.isValid) {
             console.warn(`Cannot move clip ${clipId} to position ${updates.startTime} - ${validationResult.reason}`)
             if (validationResult.suggestedPosition !== undefined) {
@@ -693,7 +693,7 @@ export const useProjectStore = create<ProjectStore>()(
 
       if (wouldOverlap) {
         // Find the end of the timeline for the duplicate
-        const sortedClips = [...track.clips].sort((a, b) => 
+        const sortedClips = [...track.clips].sort((a, b) =>
           (a.startTime + a.duration) - (b.startTime + b.duration)
         )
         const lastClip = sortedClips[sortedClips.length - 1]

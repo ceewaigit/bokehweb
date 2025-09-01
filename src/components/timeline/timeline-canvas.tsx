@@ -275,7 +275,7 @@ export function TimelineCanvas({
         const time = TimeConverter.pixelsToMs(x, pixelsPerMs)
         const maxTime = currentProject?.timeline?.duration || 0
         const targetTime = Math.max(0, Math.min(maxTime, time))
-        
+
         // Debug: Log click position and resulting time
         console.log('Timeline click:', {
           offsetX: e.evt.offsetX,
@@ -289,7 +289,7 @@ export function TimelineCanvas({
             end: c.startTime + c.duration
           }))
         })
-        
+
         onSeek(targetTime)
       }
     }
@@ -422,8 +422,8 @@ export function TimelineCanvas({
               return videoClips.map(clip => {
                 const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
                 // Get effects that overlap with this clip's time range
-                const clipEffects = currentProject.timeline.effects?.filter(e => 
-                  e.startTime < clip.startTime + clip.duration && 
+                const clipEffects = currentProject.timeline.effects?.filter(e =>
+                  e.startTime < clip.startTime + clip.duration &&
                   e.endTime > clip.startTime
                 ) || []
                 return (
@@ -459,90 +459,90 @@ export function TimelineCanvas({
               // Get ALL zoom effects from timeline.effects (timeline-global)
               const effectsSource = currentProject.timeline.effects || []
               const zoomEffects = effectsSource.filter(e => e.type === 'zoom' && e.enabled)
-              
+
 
               // Render each zoom effect as a block on the timeline
               zoomEffects.forEach((effect) => {
                 const isBlockSelected = selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === effect.id
-                  const zoomData = effect.data as ZoomEffectData
+                const zoomData = effect.data as ZoomEffectData
 
-                  const blockElement = (
-                    <TimelineZoomBlock
-                      key={effect.id}
-                      blockId={effect.id}
-                      x={TimeConverter.msToPixels(effect.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
-                      y={rulerHeight + videoTrackHeight + TimelineConfig.TRACK_PADDING}
-                      width={TimeConverter.msToPixels(effect.endTime - effect.startTime, pixelsPerMs)}
-                      height={zoomTrackHeight - TimelineConfig.TRACK_PADDING * 2}
-                      startTime={effect.startTime}
-                      endTime={effect.endTime}
-                      scale={zoomData.scale}
-                      introMs={zoomData.introMs}
-                      outroMs={zoomData.outroMs}
-                      isSelected={isBlockSelected}
-                      allBlocks={zoomEffects as any}
-                      pixelsPerMs={pixelsPerMs}
-                      onSelect={() => {
-                        // Just select the zoom effect, no clip association needed
-                        selectEffectLayer('zoom', effect.id)
-                        // Force focus to container for keyboard events
-                        setTimeout(() => {
-                          containerRef.current?.focus()
-                        }, 0)
-                      }}
-                      onDragEnd={(newX) => {
-                        const newStartTime = TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
-                        const duration = effect.endTime - effect.startTime
-                        
-                        // Check for overlaps with other zoom effects (mutual exclusivity)
-                        const otherZooms = zoomEffects.filter(e => e.id !== effect.id)
-                        let finalStartTime = Math.max(0, newStartTime)
-                        
-                        for (const other of otherZooms) {
-                          if (finalStartTime < other.endTime && (finalStartTime + duration) > other.startTime) {
-                            // Overlap detected, move to after this effect
-                            finalStartTime = other.endTime + 100
-                          }
+                const blockElement = (
+                  <TimelineZoomBlock
+                    key={effect.id}
+                    blockId={effect.id}
+                    x={TimeConverter.msToPixels(effect.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
+                    y={rulerHeight + videoTrackHeight + TimelineConfig.TRACK_PADDING}
+                    width={TimeConverter.msToPixels(effect.endTime - effect.startTime, pixelsPerMs)}
+                    height={zoomTrackHeight - TimelineConfig.TRACK_PADDING * 2}
+                    startTime={effect.startTime}
+                    endTime={effect.endTime}
+                    scale={zoomData.scale}
+                    introMs={zoomData.introMs}
+                    outroMs={zoomData.outroMs}
+                    isSelected={isBlockSelected}
+                    allBlocks={zoomEffects as any}
+                    pixelsPerMs={pixelsPerMs}
+                    onSelect={() => {
+                      // Just select the zoom effect, no clip association needed
+                      selectEffectLayer('zoom', effect.id)
+                      // Force focus to container for keyboard events
+                      setTimeout(() => {
+                        containerRef.current?.focus()
+                      }, 0)
+                    }}
+                    onDragEnd={(newX) => {
+                      const newStartTime = TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+                      const duration = effect.endTime - effect.startTime
+
+                      // Check for overlaps with other zoom effects (mutual exclusivity)
+                      const otherZooms = zoomEffects.filter(e => e.id !== effect.id)
+                      let finalStartTime = Math.max(0, newStartTime)
+
+                      for (const other of otherZooms) {
+                        if (finalStartTime < other.endTime && (finalStartTime + duration) > other.startTime) {
+                          // Overlap detected, move to after this effect
+                          finalStartTime = other.endTime + 100
                         }
-                        
-                        // Update the effect with new position
-                        updateEffect(effect.id, {
-                          startTime: finalStartTime,
-                          endTime: finalStartTime + duration
-                        })
-                      }}
-                      onUpdate={(updates) => {
-                        // Check if this is a timing update (has startTime or endTime)
-                        if ('startTime' in updates || 'endTime' in updates) {
-                          // Update timing directly
-                          updateEffect(effect.id, {
-                            startTime: updates.startTime ?? effect.startTime,
-                            endTime: updates.endTime ?? effect.endTime
-                          })
-
-                        } else {
-                          // Update zoom data (scale, introMs, outroMs, etc.)
-                          const currentData = effect.data as ZoomEffectData
-                          updateEffect(effect.id, {
-                            data: { ...currentData, ...updates }
-                          })
-
-                      
-                      // Call onZoomBlockUpdate if provided for preview updates
-                      if (onZoomBlockUpdate) {
-                        onZoomBlockUpdate('', effect.id, updates)
                       }
-                        }
-                      }}
-                    />
-                  )
 
-                  // Add to appropriate array
-                  if (isBlockSelected) {
-                    selectedZoomBlocks.push(blockElement)
-                  } else {
-                    zoomBlocks.push(blockElement)
-                  }
+                      // Update the effect with new position
+                      updateEffect(effect.id, {
+                        startTime: finalStartTime,
+                        endTime: finalStartTime + duration
+                      })
+                    }}
+                    onUpdate={(updates) => {
+                      // Check if this is a timing update (has startTime or endTime)
+                      if ('startTime' in updates || 'endTime' in updates) {
+                        // Update timing directly
+                        updateEffect(effect.id, {
+                          startTime: updates.startTime ?? effect.startTime,
+                          endTime: updates.endTime ?? effect.endTime
+                        })
+
+                      } else {
+                        // Update zoom data (scale, introMs, outroMs, etc.)
+                        const currentData = effect.data as ZoomEffectData
+                        updateEffect(effect.id, {
+                          data: { ...currentData, ...updates }
+                        })
+
+
+                        // Call onZoomBlockUpdate if provided for preview updates
+                        if (onZoomBlockUpdate) {
+                          onZoomBlockUpdate('', effect.id, updates)
+                        }
+                      }
+                    }}
+                  />
+                )
+
+                // Add to appropriate array
+                if (isBlockSelected) {
+                  selectedZoomBlocks.push(blockElement)
+                } else {
+                  zoomBlocks.push(blockElement)
+                }
               })
 
               // Render non-selected blocks first, then selected ones on top

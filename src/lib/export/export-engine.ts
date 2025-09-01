@@ -96,9 +96,9 @@ export class ExportEngine {
 
       // Check if there are any effects active during this clip's time range
       const clipEffects = project.timeline.effects?.filter(
-        e => e.startTime < firstClip.startTime + firstClip.duration && 
-             e.endTime > firstClip.startTime && 
-             e.enabled
+        e => e.startTime < firstClip.startTime + firstClip.duration &&
+          e.endTime > firstClip.startTime &&
+          e.enabled
       ) || []
       const hasEffects = clipEffects.length > 0
 

@@ -141,7 +141,6 @@ export const TimelineClip = React.memo(({
 
   // Calculate minimum allowed position (right of leftmost clip)
   const minAllowedTime = ClipPositioning.getLeftmostClipEnd(otherClipsInTrack, clip.id)
-  const minAllowedX = TimeConverter.msToPixels(minAllowedTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 
   return (
     <Group
@@ -149,44 +148,42 @@ export const TimelineClip = React.memo(({
       y={trackY + TimelineConfig.TRACK_PADDING}
       draggable
       dragBoundFunc={(pos) => {
-        // Constrain to right of leftmost clip
-        const constrainedX = Math.max(minAllowedX, pos.x)
-        
-        // Check if position is valid and apply magnetic snap
+        // First convert position to time
         const proposedTime = TimeConverter.pixelsToMs(
-          constrainedX - TimelineConfig.TRACK_LABEL_WIDTH,
+          pos.x - TimelineConfig.TRACK_LABEL_WIDTH,
           pixelsPerMs
         )
         
-        // Use ClipPositioning service for validation and snapping
+        // Enforce minimum time constraint (after leftmost clip)
+        const constrainedTime = Math.max(minAllowedTime, proposedTime)
+        
+        // Apply magnetic snapping to the constrained time
         const snapResult = ClipPositioning.applyMagneticSnap(
-          proposedTime,
+          constrainedTime,
           clip.duration,
           otherClipsInTrack,
           clip.id
         )
-        const snappedTime = snapResult.time
         
-        const validationResult = ClipPositioning.validatePosition(
-          snappedTime,
+        // Ensure snapped position still respects leftmost constraint
+        const finalTime = Math.max(minAllowedTime, snapResult.time)
+        
+        // Check for overlaps at final position
+        const overlapCheck = ClipPositioning.checkOverlap(
+          finalTime,
           clip.duration,
           otherClipsInTrack,
-          clip.id,
-          { enforceLeftmostConstraint: true }
+          clip.id
         )
         
         // Update validity state for visual feedback
-        setIsValidPosition(validationResult.isValid)
+        setIsValidPosition(!overlapCheck.hasOverlap)
         
-        // Use the validated position
-        const finalX = TimeConverter.msToPixels(validationResult.finalPosition, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+        // Convert back to pixels for final position
+        const finalX = TimeConverter.msToPixels(finalTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+        
         return {
           x: finalX,
-          y: trackY + TimelineConfig.TRACK_PADDING
-        }
-        
-        return {
-          x: constrainedX,
           y: trackY + TimelineConfig.TRACK_PADDING
         }
       }}
@@ -207,16 +204,26 @@ export const TimelineClip = React.memo(({
         // Ensure the proposed time is after the leftmost clip
         const constrainedTime = Math.max(minAllowedTime, proposedTime)
         
-        // Check final position validity
-        const validationResult = ClipPositioning.validatePosition(
+        // Apply snapping to get final position
+        const snapResult = ClipPositioning.applyMagneticSnap(
           constrainedTime,
           clip.duration,
           otherClipsInTrack,
-          clip.id,
-          { enforceLeftmostConstraint: true }
+          clip.id
         )
         
-        if (!validationResult.isValid) {
+        // Ensure snapped position still respects leftmost constraint
+        const finalTime = Math.max(minAllowedTime, snapResult.time)
+        
+        // Check for overlaps at final position
+        const overlapCheck = ClipPositioning.checkOverlap(
+          finalTime,
+          clip.duration,
+          otherClipsInTrack,
+          clip.id
+        )
+        
+        if (overlapCheck.hasOverlap) {
           // Invalid position - animate back to original
           const originalX = TimeConverter.msToPixels(originalPosition, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
           e.target.to({
@@ -228,8 +235,8 @@ export const TimelineClip = React.memo(({
           return
         }
         
-        // Valid position - use the validated position
-        onDragEnd(clip.id, validationResult.finalPosition)
+        // Valid position - use the final time
+        onDragEnd(clip.id, finalTime)
       }}
       onClick={() => onSelect(clip.id)}
       onContextMenu={(e) => {

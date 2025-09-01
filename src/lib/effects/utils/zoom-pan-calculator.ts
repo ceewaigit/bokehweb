@@ -29,21 +29,21 @@ export class ZoomPanCalculator {
 
     // Simple approach: viewport should follow the mouse
     // The viewport center should move towards the mouse position
-    
+
     // Target viewport center = mouse position (for full following)
     // But we'll soften it a bit for cinematic effect
     const followStrength = 0.7; // How much the viewport follows (0=none, 1=perfect center)
-    
+
     // Blend between center (0.5) and mouse position
     const targetViewportCenterX = 0.5 + (mouseNormX - 0.5) * followStrength;
     const targetViewportCenterY = 0.5 + (mouseNormY - 0.5) * followStrength;
-    
+
     // Convert viewport center to pan values
     // Pan moves content in opposite direction to viewport
     // If viewport goes right (positive), content pans left (negative)
     const targetPanX = -(targetViewportCenterX - 0.5);
     const targetPanY = -(targetViewportCenterY - 0.5);
-    
+
     // Smooth interpolation for cinematic movement
     const smoothing = 0.08; // Lower = smoother, higher = more responsive
     const newPanX = currentPanX + (targetPanX - currentPanX) * smoothing;
