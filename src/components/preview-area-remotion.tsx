@@ -31,6 +31,14 @@ export function PreviewAreaRemotion({
   // Only use playhead clip/recording for preview - no fallback to maintain separation of concerns
   const previewClip = playheadClip
   const previewRecording = playheadRecording
+  
+  console.log('PreviewAreaRemotion state:', {
+    playheadClip: !!playheadClip,
+    playheadRecording: !!playheadRecording,
+    previewClip: !!previewClip,
+    previewRecording: !!previewRecording,
+    currentTime
+  })
 
   // Load video URL when recording changes - clear immediately when no clip
   useEffect(() => {

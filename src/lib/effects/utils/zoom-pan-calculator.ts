@@ -70,12 +70,9 @@ export class ZoomPanCalculator {
       targetPanY = targetViewportBottom - viewportHeight / 2 - 0.5;
     }
     
-    // Clamp pan to valid bounds (don't show outside video)
-    const maxPanX = Math.max(0, (1 - viewportWidth) / 2);
-    const maxPanY = Math.max(0, (1 - viewportHeight) / 2);
-    
-    targetPanX = Math.max(-maxPanX, Math.min(maxPanX, targetPanX));
-    targetPanY = Math.max(-maxPanY, Math.min(maxPanY, targetPanY));
+    // Allow panning beyond video bounds since we have padding
+    // This lets the camera follow the mouse anywhere
+    // No clamping needed - let it show the background/padding area
     
     // Calculate urgency based on how close mouse is to leaving viewport
     const mouseDistFromEdgeX = Math.min(
