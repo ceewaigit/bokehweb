@@ -239,7 +239,8 @@ export class RecordingStorage {
     metadata: any[],
     projectName?: string,
     captureArea?: CaptureArea,
-    hasAudio?: boolean
+    hasAudio?: boolean,
+    durationOverrideMs?: number
   ): Promise<{ project: Project; videoPath: string; projectPath: string } | null> {
     if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
       return null
@@ -252,18 +253,31 @@ export class RecordingStorage {
       const recordingId = `recording-${Date.now()}`
 
       // Save video file
-      const videoFileName = `${baseName}.webm`
+      const isQuickTime = !!videoBlob.type && (videoBlob.type.includes('quicktime') || videoBlob.type.includes('mov'))
+      const videoFileName = `${baseName}.${isQuickTime ? 'mov' : 'webm'}`
       const videoFilePath = `${recordingsDir}/${videoFileName}`
       const buffer = await videoBlob.arrayBuffer()
       await window.electronAPI.saveRecording(videoFilePath, buffer)
 
-      // Get video metadata
+      // Get video metadata with robust fallback (Chromium may not load .mov)
+      let duration = 0
+      let width = 0
+      let height = 0
+
       const videoUrl = URL.createObjectURL(videoBlob)
       const video = document.createElement('video')
       video.src = videoUrl
 
-      await new Promise<void>((resolve) => {
-        video.onloadedmetadata = () => {
+      const loaded = await new Promise<boolean>((resolve) => {
+        let settled = false
+        const done = (ok: boolean) => { if (!settled) { settled = true; resolve(ok) } }
+        video.onloadedmetadata = () => done(true)
+        video.onerror = () => done(false)
+        setTimeout(() => done(false), 3000)
+      })
+
+      if (loaded) {
+        await new Promise<void>((resolve) => {
           if (!isFinite(video.duration)) {
             video.currentTime = Number.MAX_SAFE_INTEGER
             video.onseeked = () => {
@@ -274,18 +288,27 @@ export class RecordingStorage {
           } else {
             resolve()
           }
-        }
-      })
+        })
 
-      if (!isFinite(video.duration) || video.duration <= 0) {
-        throw new Error(`Cannot determine video duration: ${video.duration}`)
+        if (isFinite(video.duration) && video.duration > 0) {
+          duration = video.duration * 1000
+          width = video.videoWidth
+          height = video.videoHeight
+        }
       }
 
-      const duration = video.duration * 1000
-      const width = video.videoWidth
-      const height = video.videoHeight
-
       URL.revokeObjectURL(videoUrl)
+
+      // Fallbacks if metadata could not be read (e.g., QuickTime in Chromium)
+      if (duration <= 0) {
+        const lastTs = (metadata && metadata.length > 0) ? (metadata[metadata.length - 1].timestamp || 0) : 0
+        duration = durationOverrideMs || lastTs || 0
+      }
+      if (!width || !height) {
+        const scale = captureArea?.scaleFactor || 1
+        width = (captureArea?.fullBounds?.width ? Math.round(captureArea.fullBounds.width * scale) : width) || width || 1920
+        height = (captureArea?.fullBounds?.height ? Math.round(captureArea.fullBounds.height * scale) : height) || height || 1080
+      }
 
       // Create project with recording
       const project = this.createProject(baseName)

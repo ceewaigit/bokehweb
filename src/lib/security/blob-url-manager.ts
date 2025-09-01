@@ -30,7 +30,12 @@ export class BlobURLManager {
 
   create(blob: Blob, description?: string, type: BlobEntry['type'] = 'other', priority = 5): string {
     if (this.disposed) {
-      throw new MemoryError('BlobURLManager has been disposed')
+      // Revive manager if it was previously disposed (e.g., after navigation)
+      this.disposed = false
+      this.entries = new Map<string, BlobEntry>()
+      this.totalSize = 0
+      this.thumbnailSize = 0
+      this.videoSize = 0
     }
 
     // Smart memory management based on type
@@ -362,8 +367,12 @@ export class BlobURLManager {
         return null
       }
 
+      // Detect MIME type from extension
+      const lower = fullPath.toLowerCase()
+      const mime = lower.endsWith('.mov') ? 'video/quicktime' : lower.endsWith('.mp4') ? 'video/mp4' : 'video/webm'
+
       // Create blob and URL
-      const blob = new Blob([result.data], { type: 'video/webm' })
+      const blob = new Blob([result.data], { type: mime })
       const blobUrl = this.create(blob, `recording-${recordingId}`, 'video', 10) // High priority for active videos
 
       // Cache for future use

@@ -107,16 +107,34 @@ export class ElectronRecorder {
       if (window.electronAPI?.getSourceBounds) {
         const bounds = await window.electronAPI.getSourceBounds(primarySource.id)
         if (bounds) {
+          // Default to 1x if we cannot resolve the display scale factor
+          let scaleFactor = 1
+
+          // For screen sources, fetch actual display scale factor for pixel dimensions
+          if (primarySource.id.startsWith('screen:') && window.electronAPI?.getScreens) {
+            try {
+              const screens = await window.electronAPI.getScreens()
+              const partsForScale = primarySource.id.split(':')
+              const parsedDisplayId = parseInt(partsForScale[1])
+              const displayInfo = screens?.find((d: any) => d.id === parsedDisplayId)
+              if (displayInfo && typeof displayInfo.scaleFactor === 'number' && displayInfo.scaleFactor > 0) {
+                scaleFactor = displayInfo.scaleFactor
+              }
+            } catch (_) {
+              // Ignore and keep scaleFactor = 1
+            }
+          }
+
           this.captureArea = {
             fullBounds: bounds,
             workArea: bounds,
-            scaleFactor: 1,
+            scaleFactor,
             sourceType: primarySource.id.startsWith('screen:') ? 'screen' : 'window',
             sourceId: primarySource.id
           }
-          // Store capture dimensions for consistent use throughout recording
-          this.captureWidth = bounds.width
-          this.captureHeight = bounds.height
+          // Store capture dimensions in PHYSICAL PIXELS for consistency
+          this.captureWidth = Math.round(bounds.width * (this.captureArea.scaleFactor || 1))
+          this.captureHeight = Math.round(bounds.height * (this.captureArea.scaleFactor || 1))
         }
       }
 
@@ -136,6 +154,7 @@ export class ElectronRecorder {
           this.nativeRecorderPath = result.outputPath
           this.isRecording = true
           this.startTime = Date.now()
+          this.hasAudio = true
 
           // Start metadata tracking (mouse events for custom cursor overlay if enabled)
           await this.startMouseTracking(primarySource.id)
@@ -162,7 +181,7 @@ export class ElectronRecorder {
         // Fallback to manual constraints if IPC not available
         logger.warn('IPC getDesktopStream not available, using manual constraints')
         constraints = {
-          audio: false,
+          audio: this.hasAudio ? { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: primarySource.id } } : false,
           video: {
             mandatory: {
               chromeMediaSource: 'desktop',

@@ -10,7 +10,7 @@ interface DesktopSourceOptions {
 }
 
 interface MediaConstraints {
-  audio: boolean
+  audio: boolean | { mandatory: { chromeMediaSource: string; chromeMediaSourceId?: string } }
   video: {
     mandatory: {
       chromeMediaSource: string
@@ -25,10 +25,18 @@ export function registerSourceHandlers(): void {
   ipcMain.handle('get-desktop-stream', async (event: IpcMainInvokeEvent, sourceId: string, hasAudio: boolean = false): Promise<MediaConstraints> => {
     try {
 
-      // For desktop audio capture, use boolean true (not an object)
-      // Desktop audio is automatically captured when video source is 'desktop'
+      // For desktop audio capture, explicitly request 'desktop' as chromeMediaSource
+      const audioConstraints = hasAudio
+        ? {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId
+            }
+          }
+        : false
+
       const constraints: MediaConstraints = {
-        audio: hasAudio ? true : false,
+        audio: audioConstraints,
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',

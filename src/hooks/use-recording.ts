@@ -182,7 +182,7 @@ export function useRecording() {
         const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
 
         // Save recording with project using consolidated function
-        const saved = await RecordingStorage.saveRecordingWithProject(result.video, result.metadata, projectName, result.captureArea, result.hasAudio)
+        const saved = await RecordingStorage.saveRecordingWithProject(result.video, result.metadata, projectName, result.captureArea, result.hasAudio, result.duration)
 
         if (saved) {
           logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
@@ -199,9 +199,10 @@ export function useRecording() {
 
           // Store video blob for preview with proper description
           const recordingId = saved.project.recordings[0].id
-          const videoUrl = globalBlobManager.create(result.video, `recording-${recordingId}`)
+          const videoUrl = globalBlobManager.create(result.video, `recording-${recordingId}`, 'video', 10)
           RecordingStorage.setBlobUrl(recordingId, videoUrl)
         }
+
       }
 
       return result
@@ -210,7 +211,7 @@ export function useRecording() {
 
       // Reset state on error - ensure complete cleanup
       timer.stop()
-      setDuration(0) // Reset duration on error
+      setDuration(0)
       setRecording(false)
       setPaused(false)
       setStatus('idle')
@@ -219,10 +220,9 @@ export function useRecording() {
         (window as any).__screenRecorderActive = false
       }
 
-
       return null
     }
-  }, [setRecording, setPaused, setStatus, timer])
+  }, [setRecording, setPaused, setStatus, timer, setDuration])
 
   const pauseRecording = useCallback(() => {
     if (recorderRef.current && isRecording && !isPaused) {
@@ -244,11 +244,8 @@ export function useRecording() {
       try {
         recorderRef.current.resumeRecording()
         setPaused(false)
-
-        // Resume duration timer from current duration
-        const currentDurationMs = useRecordingStore.getState().duration
         timer.resume()
-        logger.info(`Recording resumed from ${currentDurationMs}ms`)
+        logger.info('Recording resumed')
       } catch (error) {
         logger.error('Failed to resume recording:', error)
         // On resume failure, try to maintain consistent state

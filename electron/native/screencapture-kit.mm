@@ -2,6 +2,7 @@
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #import <AVFoundation/AVFoundation.h>
 #import <napi.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 // This actually WORKS to hide the cursor using native macOS APIs
 // Available on macOS 12.3+ with ScreenCaptureKit
@@ -17,6 +18,7 @@
 @property (nonatomic, assign) CMTime startTime;
 @property (nonatomic, assign) BOOL hasStartedSession;
 @property (nonatomic, assign) BOOL hasAudio;
+@property (nonatomic, assign) BOOL receivedFirstAudio;
 
 - (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path completion:(void (^)(NSError *))completion;
 - (void)stopRecording:(void (^)(NSString *, NSError *))completion;
@@ -28,6 +30,7 @@
     if (@available(macOS 12.3, *)) {
         self.outputPath = path;
         self.hasStartedSession = NO;
+        self.receivedFirstAudio = NO;
         
         // Get shareable content
         [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
@@ -68,8 +71,25 @@
             
             // Create stream configuration
             SCStreamConfiguration *config = [[SCStreamConfiguration alloc] init];
-            config.width = targetDisplay.width;
-            config.height = targetDisplay.height;
+            
+            // Set full pixel resolution for the target display
+            size_t pixelWidth = 0;
+            size_t pixelHeight = 0;
+            CGDisplayModeRef mode = CGDisplayCopyDisplayMode(displayID);
+            if (mode) {
+                pixelWidth = CGDisplayModeGetPixelWidth(mode);
+                pixelHeight = CGDisplayModeGetPixelHeight(mode);
+                CFRelease(mode);
+            }
+            
+            if (pixelWidth == 0 || pixelHeight == 0) {
+                // Fallback to reported width/height
+                pixelWidth = (size_t)targetDisplay.width;
+                pixelHeight = (size_t)targetDisplay.height;
+            }
+            
+            config.width = pixelWidth;
+            config.height = pixelHeight;
             config.minimumFrameInterval = CMTimeMake(1, 60); // 60 fps
             config.pixelFormat = kCVPixelFormatType_32BGRA;
             config.showsCursor = NO;  // THIS IS THE KEY - Hide cursor!
@@ -77,13 +97,13 @@
             config.scalesToFit = NO;
             config.queueDepth = 5;
             
-            // Configure audio capture - only if screen recording permission includes audio
-            // Note: On macOS, screen recording permission is required for system audio capture
-            config.capturesAudio = YES;  // Always try to capture if permission allows
+            // Configure audio capture
+            // Note: On macOS, audio capture is subject to system permission and SDK behavior.
+            config.capturesAudio = YES;
             config.sampleRate = 48000;
             config.channelCount = 2;
             
-            NSLog(@"Screen recording configured with audio capture enabled");
+            NSLog(@"Screen recording configured: %zux%zu with audio capture enabled", pixelWidth, pixelHeight);
             
             // Setup asset writer
             NSError *writerError = nil;
@@ -195,6 +215,10 @@
         }
     } else if (type == SCStreamOutputTypeAudio && self.hasAudio && self.audioInput.isReadyForMoreMediaData) {
         // Handle audio samples
+        if (!self.receivedFirstAudio) {
+            self.receivedFirstAudio = YES;
+            NSLog(@"Received first audio sample");
+        }
         CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
         
         if (!self.hasStartedSession) {
@@ -205,7 +229,7 @@
         
         // Append audio sample buffer
         if (![self.audioInput appendSampleBuffer:sampleBuffer]) {
-            NSLog(@\"Failed to append audio sample buffer\");
+            NSLog(@"Failed to append audio sample buffer");
         }
         
         return;
@@ -239,9 +263,18 @@
         [self.stream stopCaptureWithCompletionHandler:^(NSError *error) {
             if (self.stream) {
                 [self.stream removeStreamOutput:self type:SCStreamOutputTypeScreen error:nil];
+                if (self.hasAudio) {
+                    [self.stream removeStreamOutput:self type:SCStreamOutputTypeAudio error:nil];
+                }
             }
             
-            [self.videoInput markAsFinished];
+            // Mark inputs finished
+            if (self.audioInput) {
+                [self.audioInput markAsFinished];
+            }
+            if (self.videoInput) {
+                [self.videoInput markAsFinished];
+            }
             
             [self.assetWriter finishWritingWithCompletionHandler:^{
                 self.isRecording = NO;
@@ -380,9 +413,14 @@ private:
     Napi::Value IsAvailable(const Napi::CallbackInfo& info) {
         Napi::Env env = info.Env();
         
-        // Always return true on macOS 12.3+ since we know ScreenCaptureKit is available
-        // The @available check might not work correctly in Node modules
-        return Napi::Boolean::New(env, true);
+        // Report availability only on macOS 13.0+ where SC audio output is supported
+        BOOL available = NO;
+        if (@available(macOS 13.0, *)) {
+            available = YES;
+        } else {
+            available = NO;
+        }
+        return Napi::Boolean::New(env, available);
     }
 };
 
