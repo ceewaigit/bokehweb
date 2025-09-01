@@ -34,7 +34,15 @@ export function PreviewAreaRemotion({
 
   // Load video URL when recording changes - clear immediately when no clip
   useEffect(() => {
+    console.log('Video URL effect:', {
+      hasPreviewRecording: !!previewRecording,
+      previewRecordingId: previewRecording?.id,
+      hasPlayheadRecording: !!playheadRecording,
+      playheadRecordingId: playheadRecording?.id
+    })
+    
     if (!previewRecording) {
+      console.log('Clearing video URL - no preview recording')
       setVideoUrl(null)
       return
     }
@@ -132,6 +140,16 @@ export function PreviewAreaRemotion({
 
   // Determine if we should show video or black screen
   const showBlackScreen = !playheadClip || !playheadRecording || !videoUrl;
+  
+  console.log('Preview state:', {
+    hasPlayheadClip: !!playheadClip,
+    hasPlayheadRecording: !!playheadRecording,
+    hasVideoUrl: !!videoUrl,
+    videoUrl: videoUrl,
+    showBlackScreen,
+    currentTime,
+    isPlaying
+  })
 
   // Calculate composition props - use empty video when no clip
   const compositionProps = {
@@ -177,6 +195,7 @@ export function PreviewAreaRemotion({
           className="relative w-full h-full flex items-center justify-center"
         >
           <Player
+            key={showBlackScreen ? 'black' : `video-${playheadRecording?.id || 'none'}`}
             ref={playerRef}
             component={MainComposition as any}
             inputProps={compositionProps}

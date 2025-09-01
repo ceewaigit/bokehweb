@@ -6,14 +6,13 @@
 import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
-  // Cinematic zoom settings
-  private readonly ZOOM_EDGE_THRESHOLD = 0.15  // Trigger panning when mouse is within 15% of edge
-  private readonly ZOOM_PAN_SMOOTHING = 0.15  // Much smoother for cinematic feel
-  private readonly DEAD_ZONE = 0.35  // Center 35% has no panning
+  // Cinematic zoom settings - simplified for direct mouse following
+  private readonly ZOOM_PAN_SMOOTHING = 0.08  // Smooth cinematic feel
+  private readonly EDGE_MARGIN = 0.25  // Keep mouse within 25% of viewport edge
 
   /**
-   * Calculate cinematic pan for zoom - smooth and restricted
-   * Only pans when mouse is near edges, with dead zone in center
+   * Calculate cinematic pan for zoom - follows mouse smoothly
+   * Keeps mouse relatively centered in the zoomed viewport
    */
   calculateCinematicZoomPan(
     mouseX: number,
@@ -25,82 +24,55 @@ export class ZoomPanCalculator {
     currentPanY: number = 0
   ): { x: number; y: number } {
     // Normalize mouse position to 0-1
-    const normalizedX = mouseX / videoWidth;
-    const normalizedY = mouseY / videoHeight;
+    const normalizedMouseX = mouseX / videoWidth;
+    const normalizedMouseY = mouseY / videoHeight;
 
-    // Calculate viewport bounds in normalized space
+    // Calculate viewport size in normalized space
     const viewportWidth = 1 / zoomScale;
     const viewportHeight = 1 / zoomScale;
 
-    // Calculate what portion of the video is visible
-    const viewportLeft = 0.5 - viewportWidth / 2 - currentPanX;
-    const viewportRight = 0.5 + viewportWidth / 2 - currentPanX;
-    const viewportTop = 0.5 - viewportHeight / 2 - currentPanY;
-    const viewportBottom = 0.5 + viewportHeight / 2 - currentPanY;
+    // The ideal pan would center the mouse in the viewport
+    // Pan represents how much to offset the viewport from center (0.5, 0.5)
+    // Positive pan moves the viewport (and thus the content) in that direction
+    
+    // Calculate where we want the viewport center to be
+    // We want the mouse to be near the center of our viewport
+    let idealViewportCenterX = normalizedMouseX;
+    let idealViewportCenterY = normalizedMouseY;
 
-    // Calculate dead zone in center (no panning needed)
-    const deadZoneLeft = 0.5 - this.DEAD_ZONE / 2;
-    const deadZoneRight = 0.5 + this.DEAD_ZONE / 2;
-    const deadZoneTop = 0.5 - this.DEAD_ZONE / 2;
-    const deadZoneBottom = 0.5 + this.DEAD_ZONE / 2;
+    // Apply edge margin to keep mouse away from viewport edges
+    // This creates a "look ahead" effect
+    const mouseOffsetFromCenterX = normalizedMouseX - 0.5;
+    const mouseOffsetFromCenterY = normalizedMouseY - 0.5;
+    
+    // Reduce the offset to keep mouse closer to center (cinematic look-ahead)
+    idealViewportCenterX = 0.5 + mouseOffsetFromCenterX * 0.7;
+    idealViewportCenterY = 0.5 + mouseOffsetFromCenterY * 0.7;
 
-    // Calculate safe zone (where mouse should ideally be)
-    const safeMargin = this.ZOOM_EDGE_THRESHOLD;
-    const safeLeft = viewportLeft + safeMargin * viewportWidth;
-    const safeRight = viewportRight - safeMargin * viewportWidth;
-    const safeTop = viewportTop + safeMargin * viewportHeight;
-    const safeBottom = viewportBottom - safeMargin * viewportHeight;
+    // Calculate target pan (offset from center)
+    // Pan moves the content, not the viewport
+    // To move viewport right (follow mouse going right), we pan content left (negative)
+    let targetPanX = -(idealViewportCenterX - 0.5);
+    let targetPanY = -(idealViewportCenterY - 0.5);
 
-    let targetPanX = currentPanX;
-    let targetPanY = currentPanY;
+    // Clamp pan to keep viewport within video bounds
+    // Maximum pan is limited by how much we can move while keeping viewport in bounds
+    const maxPanX = Math.max(0, (1 - viewportWidth) / 2);
+    const maxPanY = Math.max(0, (1 - viewportHeight) / 2);
+    
+    targetPanX = Math.max(-maxPanX, Math.min(maxPanX, targetPanX));
+    targetPanY = Math.max(-maxPanY, Math.min(maxPanY, targetPanY));
 
-    // Check if mouse is in dead zone first
-    const inDeadZoneX = normalizedX >= deadZoneLeft && normalizedX <= deadZoneRight;
-    const inDeadZoneY = normalizedY >= deadZoneTop && normalizedY <= deadZoneBottom;
-
-    // Pan to keep mouse within safe zone (with correct direction)
-    if (!inDeadZoneX) {
-      if (normalizedX < safeLeft) {
-        // Mouse is too far left, pan left (negative direction)
-        const offset = safeLeft - normalizedX;
-        targetPanX = currentPanX - offset * 0.25; // Move 25% of the distance
-      } else if (normalizedX > safeRight) {
-        // Mouse is too far right, pan right (positive direction)
-        const offset = normalizedX - safeRight;
-        targetPanX = currentPanX + offset * 0.25;
-      }
-    }
-
-    if (!inDeadZoneY) {
-      if (normalizedY < safeTop) {
-        // Mouse is too far up, pan up (negative direction)
-        const offset = safeTop - normalizedY;
-        targetPanY = currentPanY - offset * 0.25;
-      } else if (normalizedY > safeBottom) {
-        // Mouse is too far down, pan down (positive direction)
-        const offset = normalizedY - safeBottom;
-        targetPanY = currentPanY + offset * 0.25;
-      }
-    }
-
-    // Clamp to maximum pan bounds (allowing some overflow for padding)
-    const maxPan = (1 - viewportWidth) / 2 + 0.1; // Allow 10% extra for padding
-    targetPanX = Math.max(-maxPan, Math.min(maxPan, targetPanX));
-    targetPanY = Math.max(-maxPan, Math.min(maxPan, targetPanY));
-
-    // Apply smooth interpolation with urgency based on distance from edge
-    const distFromEdgeX = Math.min(
-      Math.abs(normalizedX - viewportLeft) / viewportWidth,
-      Math.abs(viewportRight - normalizedX) / viewportWidth
-    );
-    const distFromEdgeY = Math.min(
-      Math.abs(normalizedY - viewportTop) / viewportHeight,
-      Math.abs(viewportBottom - normalizedY) / viewportHeight
-    );
-
-    // More urgent smoothing when closer to edge (to prevent escape)
-    const urgencyX = distFromEdgeX < 0.1 ? 0.25 : this.ZOOM_PAN_SMOOTHING;
-    const urgencyY = distFromEdgeY < 0.1 ? 0.25 : this.ZOOM_PAN_SMOOTHING;
+    // Check if mouse is getting close to viewport edge for urgency
+    const currentViewportCenterX = 0.5 - currentPanX;
+    const currentViewportCenterY = 0.5 - currentPanY;
+    
+    const distFromCenterX = Math.abs(normalizedMouseX - currentViewportCenterX);
+    const distFromCenterY = Math.abs(normalizedMouseY - currentViewportCenterY);
+    
+    // More urgent smoothing when mouse is far from viewport center
+    const urgencyX = distFromCenterX > viewportWidth * 0.35 ? 0.15 : this.ZOOM_PAN_SMOOTHING;
+    const urgencyY = distFromCenterY > viewportHeight * 0.35 ? 0.15 : this.ZOOM_PAN_SMOOTHING;
 
     const newPanX = currentPanX + (targetPanX - currentPanX) * urgencyX;
     const newPanY = currentPanY + (targetPanY - currentPanY) * urgencyY;
