@@ -471,26 +471,26 @@ export const TimelineZoomBlock = React.memo(({
           keepRatio={false}
           ignoreStroke={true}
           onTransformEnd={(e) => {
-            // Get the transformed node
+            // Get the transformed node (the Group)
             const node = e.target
             
-            // Get the actual bounding box after transformation
+            // Important: For Groups, we need to look at the scale and position
+            // The Group itself doesn't have width/height - it's determined by children
             const scaleX = node.scaleX()
-            const scaleY = node.scaleY()
-            const transformedWidth = node.width() * scaleX
-            const transformedHeight = node.height() * scaleY
-            const transformedX = node.x()
+            const nodeX = node.x()
             
-            // Reset both scales to 1 and set the actual dimensions
+            // Calculate the new width based on the original width and scale
+            // 'width' prop is the original width passed to this component
+            const newWidth = width * scaleX
+            
+            // Reset the scale (important!)
             node.scaleX(1)
             node.scaleY(1)
-            node.width(transformedWidth)
-            node.height(transformedHeight)
             
-            // Calculate new times based on transformed position and width
-            const adjustedX = transformedX - TimelineConfig.TRACK_LABEL_WIDTH
+            // Calculate new times based on position and new width
+            const adjustedX = nodeX - TimelineConfig.TRACK_LABEL_WIDTH
             const newStartTime = Math.max(0, TimeConverter.pixelsToMs(adjustedX, pixelsPerMs))
-            const duration = TimeConverter.pixelsToMs(transformedWidth, pixelsPerMs)
+            const duration = TimeConverter.pixelsToMs(newWidth, pixelsPerMs)
             
             // Ensure minimum duration of 100ms
             const minDuration = 100
@@ -498,10 +498,11 @@ export const TimelineZoomBlock = React.memo(({
             const newEndTime = newStartTime + finalDuration
 
             console.log('Zoom block resize:', {
-              transformedX,
-              transformedWidth,
-              adjustedX,
+              nodeX,
+              originalWidth: width,
               scaleX,
+              newWidth,
+              adjustedX,
               newStartTime,
               newEndTime,
               duration: finalDuration,
