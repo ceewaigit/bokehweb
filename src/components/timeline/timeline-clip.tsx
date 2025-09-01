@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
+import Konva from 'konva'
 import type { Clip, Recording } from '@/types/project'
-import { TIMELINE_LAYOUT, TimelineUtils, createClipDragBoundFunc, checkClipOverlap } from '@/lib/timeline'
+import { TIMELINE_LAYOUT, TimelineUtils } from '@/lib/timeline'
+import { getMagneticSnap } from '@/lib/timeline/magnetic-snap'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -41,6 +43,8 @@ export const TimelineClip = React.memo(({
 }: TimelineClipProps) => {
   const [thumbnails, setThumbnails] = useState<HTMLCanvasElement[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [isValidPosition, setIsValidPosition] = useState(true)
+  const [originalPosition, setOriginalPosition] = useState<number>(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const colors = useTimelineColors()
   
@@ -134,10 +138,8 @@ export const TimelineClip = React.memo(({
     }
   }, [recording?.id, recording?.filePath, clip.duration, clipWidth, trackHeight, trackType])
 
-  // Prepare other clips data for collision detection
-  const otherClipsData = otherClipsInTrack
-    .filter(c => c.id !== clip.id)
-    .map(c => ({ startTime: c.startTime, duration: c.duration }))
+  // Get magnetic snap utility
+  const magneticSnap = getMagneticSnap(pixelsPerMs)
 
   return (
     <Group
@@ -146,14 +148,44 @@ export const TimelineClip = React.memo(({
       draggable
       dragBoundFunc={(pos) => {
         // Allow free movement during drag, only constrain to timeline boundaries
-        // Don't snap to other clips during drag - let user position freely
         const constrainedX = Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pos.x)
+        
+        // Check if position is valid and apply magnetic snap
+        const proposedTime = TimelineUtils.pixelToTime(
+          constrainedX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH,
+          pixelsPerMs
+        )
+        
+        const dropResult = magneticSnap.findValidDropPosition(
+          proposedTime,
+          clip.duration,
+          otherClipsInTrack,
+          clip.id,
+          pixelsPerMs
+        )
+        
+        // Update validity state for visual feedback
+        setIsValidPosition(dropResult.isValid)
+        
+        // Apply magnetic snap if near a snap point
+        if (dropResult.snappedTo) {
+          const snappedX = TimelineUtils.timeToPixel(dropResult.position, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+          return {
+            x: snappedX,
+            y: trackY + TIMELINE_LAYOUT.TRACK_PADDING
+          }
+        }
+        
         return {
           x: constrainedX,
           y: trackY + TIMELINE_LAYOUT.TRACK_PADDING
         }
       }}
-      onDragStart={() => setIsDragging(true)}
+      onDragStart={() => {
+        setIsDragging(true)
+        setOriginalPosition(clip.startTime)
+        setIsValidPosition(true)
+      }}
       onDragEnd={(e) => {
         setIsDragging(false)
         
@@ -163,19 +195,30 @@ export const TimelineClip = React.memo(({
           pixelsPerMs
         )
         
-        // Check for overlaps
-        const overlapCheck = checkClipOverlap(proposedTime, clip.duration, otherClipsData)
+        // Check final position validity with magnetic snap
+        const dropResult = magneticSnap.findValidDropPosition(
+          proposedTime,
+          clip.duration,
+          otherClipsInTrack,
+          clip.id,
+          pixelsPerMs
+        )
         
-        // If there's an overlap, don't update the position at all
-        // The clip will snap back to its original position on next render
-        if (overlapCheck.hasOverlap) {
-          // Don't update the position - just return without calling onDragEnd
-          // The clip will automatically snap back to its stored position
+        if (!dropResult.isValid) {
+          // Invalid position - animate back to original
+          const originalX = TimelineUtils.timeToPixel(originalPosition, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+          e.target.to({
+            x: originalX,
+            duration: 0.2,
+            easing: Konva.Easings.EaseOut
+          })
+          setIsValidPosition(true)
           return
         }
         
-        // No overlap, update to the new position
-        onDragEnd(clip.id, Math.max(0, proposedTime))
+        // Valid position - update with snapped position if available
+        const finalTime = dropResult.position
+        onDragEnd(clip.id, Math.max(0, finalTime))
       }}
       onClick={() => onSelect(clip.id)}
       onContextMenu={(e) => {
@@ -184,7 +227,7 @@ export const TimelineClip = React.memo(({
           onContextMenu(e, clip.id)
         }
       }}
-      opacity={isDragging ? 0.6 : 1}
+      opacity={isDragging ? (isValidPosition ? 0.8 : 0.5) : 1}
     >
       {/* Clip background with rounded corners */}
       <Rect
@@ -197,13 +240,19 @@ export const TimelineClip = React.memo(({
               ? colors.info
               : colors.success
         }
-        stroke={isSelected ? colors.foreground : 'transparent'}
-        strokeWidth={isSelected ? 2 : 1}
+        stroke={
+          isDragging && !isValidPosition 
+            ? '#ef4444' // red-500 for invalid
+            : isSelected 
+              ? colors.foreground 
+              : 'transparent'
+        }
+        strokeWidth={isDragging && !isValidPosition ? 3 : isSelected ? 2 : 1}
         cornerRadius={6}
         opacity={0.95}
-        shadowColor="black"
-        shadowBlur={isSelected ? 10 : 4}
-        shadowOpacity={0.3}
+        shadowColor={isDragging && !isValidPosition ? '#ef4444' : "black"}
+        shadowBlur={isDragging && !isValidPosition ? 15 : isSelected ? 10 : 4}
+        shadowOpacity={isDragging && !isValidPosition ? 0.5 : 0.3}
         shadowOffsetY={2}
       />
 

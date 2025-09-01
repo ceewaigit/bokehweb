@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useMemo } from 'react'
 import { Player, PlayerRef } from '@remotion/player'
 import { MainComposition } from '@/remotion/compositions/MainComposition'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
@@ -117,12 +117,23 @@ export function PreviewAreaRemotion({
   const videoWidth = previewRecording?.width || 1920;
   const videoHeight = previewRecording?.height || 1080;
 
-  // Get effects from timeline.effects active at current time (timeline-based)
-  const currentProjectRef = useProjectStore(state => state.currentProject)
-  const currentTimeRef = useProjectStore(state => state.currentTime)
-  const clipEffects = currentProjectRef?.timeline?.effects?.filter((e: any) =>
-    currentTimeRef >= e.startTime && currentTimeRef <= e.endTime && e.enabled
-  ) || []
+  // Get effects from store's playheadEffects (already filtered for current time)
+  const playheadEffects = useProjectStore(state => state.playheadEffects)
+
+  // Convert effects to clip-relative times for Remotion
+  const clipRelativeEffects = useMemo(() => {
+    if (!previewClip || (!localEffects && !playheadEffects)) return null
+    
+    const effectsToConvert = localEffects || playheadEffects || []
+    const clipStart = previewClip.startTime
+    
+    // Convert absolute timeline times to clip-relative times
+    return effectsToConvert.map(effect => ({
+      ...effect,
+      startTime: effect.startTime - clipStart,
+      endTime: effect.endTime - clipStart
+    }))
+  }, [previewClip, localEffects, playheadEffects])
 
   // Calculate composition size based on video aspect ratio
   // Don't add padding to composition size - padding is handled internally in the composition
@@ -138,7 +149,7 @@ export function PreviewAreaRemotion({
   const compositionProps = {
     videoUrl: showBlackScreen ? '' : (videoUrl || ''),
     clip: previewClip,
-    effects: localEffects || clipEffects || null,
+    effects: clipRelativeEffects,
     cursorEvents: previewRecording?.metadata?.mouseEvents || [],
     clickEvents: previewRecording?.metadata?.clickEvents || [],
     keystrokeEvents: (previewRecording?.metadata as any)?.keyboardEvents || [],

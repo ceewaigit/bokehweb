@@ -44,36 +44,11 @@ export const TimelineZoomBlock = React.memo(({
 }: TimelineZoomBlockProps) => {
   const colors = useTimelineColors()
   const [isDragging, setIsDragging] = useState(false)
-  const [dragX, setDragX] = useState(x)
-  const [resizeWidth, setResizeWidth] = useState(width)
-  const [resizeX, setResizeX] = useState(x)
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
   
-  // Update local state when props change
-  useEffect(() => {
-    if (!isDragging) {
-      setDragX(x)
-      setResizeX(x)
-      setResizeWidth(width)
-      // Force group position update
-      if (groupRef.current && groupRef.current.x() !== x) {
-        groupRef.current.x(x)
-        groupRef.current.getLayer()?.batchDraw()
-      }
-    }
-  }, [x, width, isDragging])
-
-  // Sync dragX with resizeX after resize operations
-  useEffect(() => {
-    if (resizeX !== dragX && !isDragging) {
-      setDragX(resizeX)
-      if (groupRef.current) {
-        groupRef.current.x(resizeX)
-        groupRef.current.getLayer()?.batchDraw()
-      }
-    }
-  }, [resizeX, dragX, isDragging])
+  // No local position state - use props directly
+  // This makes the component fully controlled and eliminates sync issues
 
   // Setup transformer when selected
   useEffect(() => {
@@ -102,7 +77,7 @@ export const TimelineZoomBlock = React.memo(({
   }, [isSelected])
 
   // Get valid position for dragging with improved edge snapping
-  const getValidDragPosition = (proposedX: number): number => {
+  const getValidDragPosition = (proposedX: number, currentWidth: number): number => {
     const snapThreshold = 10
     const blocks = allBlocks
       .filter(b => b.id !== blockId)
@@ -112,8 +87,8 @@ export const TimelineZoomBlock = React.memo(({
       }))
       .sort((a, b) => a.x - b.x) // Sort blocks by position for predictable snapping
 
-    // Use the current resize width for consistent snapping
-    const blockWidth = resizeWidth
+    // Use the provided width for consistent snapping
+    const blockWidth = currentWidth
 
     // Try to find the best snap position
     let bestSnapX = proposedX
@@ -250,7 +225,7 @@ export const TimelineZoomBlock = React.memo(({
   // Generate zoom curve visualization
   const generateZoomCurve = () => {
     const points: number[] = []
-    const w = resizeWidth // Use current resize width
+    const w = width // Use prop width directly
 
     // Ensure we have valid dimensions
     if (!w || !height || isNaN(w) || isNaN(height)) {
@@ -307,13 +282,12 @@ export const TimelineZoomBlock = React.memo(({
     <>
       <Group
         ref={groupRef}
-        x={dragX}
+        x={x}
         y={y}
         draggable
         dragBoundFunc={(pos) => {
-          // Allow dragging but track position
+          // Allow dragging but constrain to timeline boundaries
           const constrainedX = Math.max(TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pos.x)
-          setDragX(constrainedX)
           return {
             x: constrainedX,
             y: y
@@ -328,7 +302,7 @@ export const TimelineZoomBlock = React.memo(({
           const draggedX = e.target.x()
 
           // Apply snapping
-          const snappedX = getValidDragPosition(draggedX)
+          const snappedX = getValidDragPosition(draggedX, width)
 
           // Check for collision at the snapped position
           const newStartTime = TimelineUtils.pixelToTime(snappedX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pixelsPerMs)
@@ -342,8 +316,6 @@ export const TimelineZoomBlock = React.memo(({
 
           if (wouldOverlap) {
             // Reset to original position
-            setDragX(x)
-            setResizeX(x)
             if (groupRef.current) {
               groupRef.current.x(x)
               // Force re-render to ensure the group position is updated
@@ -352,8 +324,6 @@ export const TimelineZoomBlock = React.memo(({
             // Maintain selection after reset
             onSelect()
           } else {
-            // Accept the new position
-            setDragX(snappedX)
             
             // Update position
             onUpdate({
@@ -381,7 +351,7 @@ export const TimelineZoomBlock = React.memo(({
         <Rect
           x={0}
           y={0}
-          width={resizeWidth}
+          width={width}
           height={height}
           fill={colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
           cornerRadius={4}
@@ -410,7 +380,7 @@ export const TimelineZoomBlock = React.memo(({
             <Line
               points={[
                 ...curvePoints,
-                resizeWidth, height / 2,
+                width, height / 2,
                 0, height / 2
               ]}
               fill="rgba(255, 255, 255, 0.15)"
@@ -449,13 +419,9 @@ export const TimelineZoomBlock = React.memo(({
             // Get valid resize dimensions
             const valid = getValidResizeWidth(
               newBox.width,
-              resizingLeft ? newBox.x : resizeX,
+              resizingLeft ? newBox.x : x,
               resizingLeft
             )
-
-            // Update state for real-time preview
-            setResizeWidth(valid.width)
-            setResizeX(valid.x)
 
             newBox.width = valid.width
             newBox.x = valid.x
@@ -472,25 +438,22 @@ export const TimelineZoomBlock = React.memo(({
           anchorCornerRadius={2}
           keepRatio={false}
           ignoreStroke={true}
-          onTransformEnd={() => {
-            // Use the resize state for final values
-            const finalWidth = resizeWidth
-            const finalX = resizeX
-
-            // Sync the drag position with the resize position
-            setDragX(finalX)
+          onTransformEnd={(e) => {
+            // Get the transformed node
+            const node = e.target
+            const transformedWidth = node.width() * node.scaleX()
+            const transformedX = node.x()
             
-            // Update the group position to match the resized position
-            if (groupRef.current) {
-              groupRef.current.x(finalX)
-              groupRef.current.getLayer()?.batchDraw()
-            }
-
-            // Calculate new times - ensure we use TRACK_LABEL_WIDTH offset correctly
-            const adjustedX = finalX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+            // Reset scale to 1 (important for next transformation)
+            node.scaleX(1)
+            node.width(transformedWidth)
+            
+            // Calculate new times based on transformed position
+            const adjustedX = transformedX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
             const newStartTime = TimelineUtils.pixelToTime(adjustedX, pixelsPerMs)
-            const newEndTime = newStartTime + TimelineUtils.pixelToTime(finalWidth, pixelsPerMs)
+            const newEndTime = newStartTime + TimelineUtils.pixelToTime(transformedWidth, pixelsPerMs)
 
+            // Update through parent callback
             onUpdate({
               startTime: Math.max(0, newStartTime),
               endTime: newEndTime

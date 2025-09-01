@@ -435,7 +435,7 @@ export const useProjectStore = create<ProjectStore>()(
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
-          // Only prevent adding if there's an actual overlap
+          // Check for overlap and auto-position if needed
           const wouldOverlap = videoTrack.clips.some(otherClip => {
             const otherEnd = otherClip.startTime + otherClip.duration
             const newEnd = clip.startTime + clip.duration
@@ -450,6 +450,7 @@ export const useProjectStore = create<ProjectStore>()(
             const lastClip = sortedClips[sortedClips.length - 1]
             if (lastClip) {
               clip.startTime = lastClip.startTime + lastClip.duration
+              console.log(`Clip repositioned to ${clip.startTime} to avoid overlap`)
             }
           }
 
@@ -507,8 +508,7 @@ export const useProjectStore = create<ProjectStore>()(
 
         const { clip, track } = result
 
-        // Don't auto-adjust positions - let users place clips where they want
-        // Only warn or prevent if there would be an actual overlap
+        // Check for overlaps when position changes
         if (updates.startTime !== undefined) {
           const duration = updates.duration || clip.duration
           const newStartTime = updates.startTime
@@ -522,8 +522,8 @@ export const useProjectStore = create<ProjectStore>()(
           })
 
           if (wouldOverlap) {
-            // Don't move the clip - just prevent the update
-            console.warn('Cannot move clip - would overlap with another clip')
+            // Reject the update - don't allow overlaps
+            console.warn(`Cannot move clip ${clipId} to position ${newStartTime} - would overlap with another clip`)
             return // Exit without updating
           }
         }

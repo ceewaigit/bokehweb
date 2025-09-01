@@ -33,10 +33,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     initialized: boolean
   }>>(new Map());
 
-  // Calculate current time in milliseconds
+  // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
 
   // Extract active effects from the array
+  // Effects are already converted to clip-relative times
   const activeEffects = effects?.filter(e =>
     e.enabled &&
     currentTimeMs >= e.startTime &&
@@ -76,9 +77,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     let zoomState = { scale: 1, x: 0.5, y: 0.5, panX: 0, panY: 0 };
 
     if (zoomEnabled && clip) {
-      const clipRelativeTime = currentTimeMs;
+      // Find active zoom block using clip-relative time
       const activeZoomBlock = zoomBlocks.find(
-        block => clipRelativeTime >= block.startTime && clipRelativeTime <= block.endTime
+        block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
       );
 
       if (activeZoomBlock) {
@@ -115,7 +116,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
 
         // Calculate zoom interpolation
         const blockDuration = activeZoomBlock.endTime - activeZoomBlock.startTime;
-        const elapsed = clipRelativeTime - activeZoomBlock.startTime;
+        const elapsed = currentTimeMs - activeZoomBlock.startTime;
         const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
