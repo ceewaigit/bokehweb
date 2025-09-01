@@ -7,8 +7,9 @@ import type { MouseEvent } from '@/types/project'
 
 export class ZoomPanCalculator {
   // Cinematic zoom settings
-  private readonly ZOOM_EDGE_THRESHOLD = 0.20  // Trigger panning when mouse is within 20% of edge
-  private readonly ZOOM_PAN_SMOOTHING = 0.03  // Smoother but more responsive
+  private readonly ZOOM_EDGE_THRESHOLD = 0.15  // Trigger panning when mouse is within 15% of edge
+  private readonly ZOOM_PAN_SMOOTHING = 0.15  // Much smoother for cinematic feel
+  private readonly DEAD_ZONE = 0.35  // Center 35% has no panning
 
   /**
    * Calculate cinematic pan for zoom - smooth and restricted
@@ -37,6 +38,12 @@ export class ZoomPanCalculator {
     const viewportTop = 0.5 - viewportHeight / 2 - currentPanY;
     const viewportBottom = 0.5 + viewportHeight / 2 - currentPanY;
 
+    // Calculate dead zone in center (no panning needed)
+    const deadZoneLeft = 0.5 - this.DEAD_ZONE / 2;
+    const deadZoneRight = 0.5 + this.DEAD_ZONE / 2;
+    const deadZoneTop = 0.5 - this.DEAD_ZONE / 2;
+    const deadZoneBottom = 0.5 + this.DEAD_ZONE / 2;
+
     // Calculate safe zone (where mouse should ideally be)
     const safeMargin = this.ZOOM_EDGE_THRESHOLD;
     const safeLeft = viewportLeft + safeMargin * viewportWidth;
@@ -47,29 +54,37 @@ export class ZoomPanCalculator {
     let targetPanX = currentPanX;
     let targetPanY = currentPanY;
 
-    // Pan to keep mouse within safe zone
-    if (normalizedX < safeLeft) {
-      // Mouse is too far left, pan left to bring it back
-      const offset = safeLeft - normalizedX;
-      targetPanX = currentPanX + offset * 0.5; // Move 50% of the distance
-    } else if (normalizedX > safeRight) {
-      // Mouse is too far right, pan right
-      const offset = normalizedX - safeRight;
-      targetPanX = currentPanX - offset * 0.5;
+    // Check if mouse is in dead zone first
+    const inDeadZoneX = normalizedX >= deadZoneLeft && normalizedX <= deadZoneRight;
+    const inDeadZoneY = normalizedY >= deadZoneTop && normalizedY <= deadZoneBottom;
+
+    // Pan to keep mouse within safe zone (with correct direction)
+    if (!inDeadZoneX) {
+      if (normalizedX < safeLeft) {
+        // Mouse is too far left, pan left (negative direction)
+        const offset = safeLeft - normalizedX;
+        targetPanX = currentPanX - offset * 0.25; // Move 25% of the distance
+      } else if (normalizedX > safeRight) {
+        // Mouse is too far right, pan right (positive direction)
+        const offset = normalizedX - safeRight;
+        targetPanX = currentPanX + offset * 0.25;
+      }
     }
 
-    if (normalizedY < safeTop) {
-      // Mouse is too far up, pan up
-      const offset = safeTop - normalizedY;
-      targetPanY = currentPanY + offset * 0.5;
-    } else if (normalizedY > safeBottom) {
-      // Mouse is too far down, pan down
-      const offset = normalizedY - safeBottom;
-      targetPanY = currentPanY - offset * 0.5;
+    if (!inDeadZoneY) {
+      if (normalizedY < safeTop) {
+        // Mouse is too far up, pan up (negative direction)
+        const offset = safeTop - normalizedY;
+        targetPanY = currentPanY - offset * 0.25;
+      } else if (normalizedY > safeBottom) {
+        // Mouse is too far down, pan down (positive direction)
+        const offset = normalizedY - safeBottom;
+        targetPanY = currentPanY + offset * 0.25;
+      }
     }
 
-    // Clamp to maximum pan bounds (can't show outside video)
-    const maxPan = (1 - viewportWidth) / 2;
+    // Clamp to maximum pan bounds (allowing some overflow for padding)
+    const maxPan = (1 - viewportWidth) / 2 + 0.1; // Allow 10% extra for padding
     targetPanX = Math.max(-maxPan, Math.min(maxPan, targetPanX));
     targetPanY = Math.max(-maxPan, Math.min(maxPan, targetPanY));
 
@@ -84,8 +99,8 @@ export class ZoomPanCalculator {
     );
 
     // More urgent smoothing when closer to edge (to prevent escape)
-    const urgencyX = distFromEdgeX < 0.1 ? 0.15 : this.ZOOM_PAN_SMOOTHING;
-    const urgencyY = distFromEdgeY < 0.1 ? 0.15 : this.ZOOM_PAN_SMOOTHING;
+    const urgencyX = distFromEdgeX < 0.1 ? 0.25 : this.ZOOM_PAN_SMOOTHING;
+    const urgencyY = distFromEdgeY < 0.1 ? 0.25 : this.ZOOM_PAN_SMOOTHING;
 
     const newPanX = currentPanX + (targetPanX - currentPanX) * urgencyX;
     const newPanY = currentPanY + (targetPanY - currentPanY) * urgencyY;

@@ -48,15 +48,23 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const cursorEffect = activeEffects.find(e => e.type === 'cursor');
   const keystrokeEffect = activeEffects.find(e => e.type === 'keystroke');
   const zoomEffects = activeEffects.filter(e => e.type === 'zoom');
-  
-  // Debug logging for background effect
-  if (frame === 0 && backgroundEffect) {
-    const bgData = backgroundEffect.data as BackgroundEffectData;
-    console.log('MainComposition - Background effect at frame 0:', {
-      hasEffect: !!backgroundEffect,
-      type: bgData?.type,
-      hasWallpaper: !!bgData?.wallpaper,
-      wallpaperLength: bgData?.wallpaper?.length || 0
+
+  // Debug logging for effects
+  if (frame === 0) {
+    if (backgroundEffect) {
+      const bgData = backgroundEffect.data as BackgroundEffectData;
+      console.log('MainComposition - Background effect at frame 0:', {
+        hasEffect: !!backgroundEffect,
+        type: bgData?.type,
+        hasWallpaper: !!bgData?.wallpaper,
+        wallpaperLength: bgData?.wallpaper?.length || 0
+      });
+    }
+    console.log('MainComposition - Zoom effects at frame 0:', {
+      totalEffects: effects?.length || 0,
+      activeEffects: activeEffects.length,
+      zoomEffectsCount: zoomEffects.length,
+      zoomEffectIds: zoomEffects.map(e => e.id)
     });
   }
 
@@ -141,23 +149,22 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         // Calculate phase-based panning for cinematic effect
         let panX = 0;
         let panY = 0;
-        
+
         if (elapsed < introMs) {
-          // Intro phase: minimal panning, focus on zoom
-          // Start from 0 and slowly introduce any necessary pan
+          // Intro phase: gradual panning introduction for smooth transition
           const introProgress = elapsed / introMs;
-          
-          // Only apply 20% of pan during intro for stability
+
+          // Start at 20% strength and ease to 80% for cinematic intro
           if (cursorEvents.length > 0 && blockZoomState) {
             const mousePos = zoomPanCalculator.interpolateMousePosition(
               cursorEvents,
               currentTimeMs
             );
-            
+
             if (mousePos) {
               const captureWidth = cursorEvents[0].captureWidth || videoWidth;
               const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-              
+
               const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
                 mousePos.x,
                 mousePos.y,
@@ -167,33 +174,33 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
                 blockZoomState.panX,
                 blockZoomState.panY
               );
-              
-              // Apply gradual pan during intro (start at 30%, increase to 100%)
-              const panStrength = 0.3 + (0.7 * introProgress);
+
+              // Smooth exponential curve for pan strength (20% to 80%)
+              const panStrength = 0.2 + (0.6 * Math.pow(introProgress, 2));
               blockZoomState.panX = cinematicPan.x * panStrength;
               blockZoomState.panY = cinematicPan.y * panStrength;
             }
           }
-          
+
           panX = blockZoomState.panX;
           panY = blockZoomState.panY;
-          
+
         } else if (elapsed > blockDuration - outroMs) {
           // Outro phase: maintain pan longer, then smoothly return to center
           const outroProgress = (elapsed - (blockDuration - outroMs)) / outroMs;
-          
+
           if (blockZoomState) {
-            // Keep following mouse for first 50% of outro, then fade
-            if (outroProgress < 0.5 && cursorEvents.length > 0) {
+            // Keep following mouse for first 70% of outro for more natural feel
+            if (outroProgress < 0.7 && cursorEvents.length > 0) {
               const mousePos = zoomPanCalculator.interpolateMousePosition(
                 cursorEvents,
                 currentTimeMs
               );
-              
+
               if (mousePos) {
                 const captureWidth = cursorEvents[0].captureWidth || videoWidth;
                 const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-                
+
                 const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
                   mousePos.x,
                   mousePos.y,
@@ -203,18 +210,19 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
                   blockZoomState.panX,
                   blockZoomState.panY
                 );
-                
-                blockZoomState.panX = cinematicPan.x;
-                blockZoomState.panY = cinematicPan.y;
+
+                // Maintain 80% strength during outro follow phase
+                blockZoomState.panX = cinematicPan.x * 0.8;
+                blockZoomState.panY = cinematicPan.y * 0.8;
               }
             }
-            
-            // Fade out pan in last 50% of outro
-            const fadeFactor = outroProgress < 0.5 ? 1 : (1 - ((outroProgress - 0.5) * 2));
+
+            // Smooth fade out in last 30% of outro with ease curve
+            const fadeFactor = outroProgress < 0.7 ? 1 : Math.pow(1 - ((outroProgress - 0.7) / 0.3), 2);
             panX = blockZoomState.panX * fadeFactor;
             panY = blockZoomState.panY * fadeFactor;
           }
-          
+
         } else {
           // Hold phase: full cinematic panning to follow mouse
           if (cursorEvents.length > 0 && blockZoomState) {
@@ -222,11 +230,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
               cursorEvents,
               currentTimeMs
             );
-            
+
             if (mousePos) {
               const captureWidth = cursorEvents[0].captureWidth || videoWidth;
               const captureHeight = cursorEvents[0].captureHeight || videoHeight;
-              
+
               // Calculate smooth cinematic pan
               const cinematicPan = zoomPanCalculator.calculateCinematicZoomPan(
                 mousePos.x,
@@ -237,11 +245,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
                 blockZoomState.panX,
                 blockZoomState.panY
               );
-              
+
               // Update pan state
               blockZoomState.panX = cinematicPan.x;
               blockZoomState.panY = cinematicPan.y;
-              
+
               panX = blockZoomState.panX;
               panY = blockZoomState.panY;
             }

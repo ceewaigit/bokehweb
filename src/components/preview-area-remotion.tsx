@@ -34,12 +34,6 @@ export function PreviewAreaRemotion({
 
   // Load video URL when recording changes - clear immediately when no clip
   useEffect(() => {
-    // Clear video URL immediately when there's no clip at playhead
-    if (!playheadClip || !playheadRecording) {
-      setVideoUrl(null)
-      return
-    }
-    
     if (!previewRecording) {
       setVideoUrl(null)
       return
@@ -64,31 +58,32 @@ export function PreviewAreaRemotion({
         console.error('Error loading video:', error)
       })
     }
-  }, [playheadClip, playheadRecording, previewRecording?.id]);
+  }, [previewRecording?.id]);
 
-  // Sync playback state - only play when there's actually a clip
+  // Sync playback state with timeline
   useEffect(() => {
     if (!playerRef.current) return;
 
-    // Only control playback if we have a valid clip to play
-    if (!playheadClip || !playheadRecording) {
-      // No clip at playhead - ensure player is paused
-      if (playerRef.current) {
-        playerRef.current.pause();
-      }
-      return;
-    }
-
-    if (isPlaying) {
+    // Control video player based on timeline state AND clip availability
+    if (isPlaying && playheadClip && playheadRecording) {
+      // Timeline is playing AND there's a clip - play video
       playerRef.current.play();
     } else {
+      // Timeline stopped OR no clip - pause video
       playerRef.current.pause();
     }
   }, [isPlaying, playheadClip, playheadRecording]);
 
   // Sync current time when scrubbing (not playing)
   useEffect(() => {
-    if (!playerRef.current || !previewClip || isPlaying) return;
+    if (!playerRef.current || isPlaying) return;
+    
+    // Only seek if we have a valid clip and video
+    if (!previewClip || !videoUrl) {
+      // No clip or video - ensure player is at frame 0
+      playerRef.current.seekTo(0);
+      return;
+    }
 
     // Convert timeline time to clip-relative frame
     const clipStart = previewClip.startTime;
@@ -97,7 +92,7 @@ export function PreviewAreaRemotion({
     const targetFrame = Math.floor((clipProgress / 1000) * frameRate);
 
     playerRef.current.seekTo(targetFrame);
-  }, [currentTime, previewClip, isPlaying]);
+  }, [currentTime, previewClip, isPlaying, videoUrl]);
 
   // Handle time updates from player during playback
   useEffect(() => {
@@ -135,7 +130,7 @@ export function PreviewAreaRemotion({
   const compositionWidth = videoAspectRatio > 1 ? baseSize : Math.round(baseSize * videoAspectRatio);
   const compositionHeight = videoAspectRatio > 1 ? Math.round(baseSize / videoAspectRatio) : baseSize;
 
-  // Calculate composition props
+  // Calculate composition props - use empty video when no clip
   const compositionProps = {
     videoUrl: videoUrl || '',
     clip: previewClip,
@@ -150,17 +145,13 @@ export function PreviewAreaRemotion({
 
   const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
 
-  // Check if there's no clip at the current playhead position - show black screen
-  if (!playheadClip || !playheadRecording) {
-    return (
-      <div className="relative w-full h-full overflow-hidden bg-black">
-        {/* Pure black screen for gaps between clips - matches professional video editors */}
-        <div className="absolute inset-0 bg-black" />
-      </div>
-    );
-  }
+  // Determine if we should show video or black screen
+  const showBlackScreen = !playheadClip || !playheadRecording || !videoUrl;
+  const hasNoProject = !previewRecording && !playheadClip;
 
-  if (!previewRecording) {
+
+  // Show message when no project/recording at all
+  if (hasNoProject) {
     return (
       <div className="relative w-full h-full overflow-hidden">
         <div className="absolute inset-0 flex items-center justify-center p-8">
@@ -173,19 +164,23 @@ export function PreviewAreaRemotion({
     );
   }
 
-
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
+      {/* Black screen overlay when in gaps or no video */}
+      {showBlackScreen && (
+        <div className="absolute inset-0 bg-black z-10" />
+      )}
+      
+      {/* Always render player container to maintain playerRef */}
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div
           className="relative w-full h-full flex items-center justify-center"
         >
-          {videoUrl ? (
-            <Player
-              ref={playerRef}
+          <Player
+            ref={playerRef}
               component={MainComposition as any}
               inputProps={compositionProps}
-              durationInFrames={durationInFrames}
+              durationInFrames={durationInFrames || 900}
               compositionWidth={compositionWidth}
               compositionHeight={compositionHeight}
               fps={30}
@@ -194,7 +189,8 @@ export function PreviewAreaRemotion({
                 height: '100%',
                 maxWidth: '100%',
                 maxHeight: '100%',
-                objectFit: 'contain'
+                objectFit: 'contain',
+                opacity: showBlackScreen ? 0 : 1
               }}
               controls={false}
               loop={false}
@@ -213,14 +209,7 @@ export function PreviewAreaRemotion({
                 )
               }}
               moveToBeginningWhenEnded={false}
-            />
-          ) : (
-            <div className="flex items-center justify-center w-full h-full">
-              <div className="text-center text-muted-foreground">
-                <p className="text-sm">No video selected</p>
-              </div>
-            </div>
-          )}
+          />
         </div>
       </div>
     </div>

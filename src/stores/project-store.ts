@@ -728,12 +728,7 @@ export const useProjectStore = create<ProjectStore>()(
         state.seek(0)
       }
 
-      // Check if there's a clip at the current position before playing
-      if (!state.playheadClip) {
-        // No clip at current position - don't start playback
-        return
-      }
-
+      // Timeline should always play regardless of clip availability
       set({ isPlaying: true })
 
       // Start the unified playback loop
@@ -760,17 +755,8 @@ export const useProjectStore = create<ProjectStore>()(
           state.pause()
           state.seek(state.currentProject.timeline.duration)
         } else {
-          // Update time
+          // Update time - timeline continues regardless of clips
           state.seek(newTime)
-          
-          // Check if we're in a gap between clips - pause if so
-          const currentState = get()
-          if (!currentState.playheadClip) {
-            // No clip at current position - pause playback
-            state.pause()
-            return
-          }
-          
           animationFrameId = requestAnimationFrame(animate)
         }
       }

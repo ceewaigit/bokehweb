@@ -433,6 +433,13 @@ export function WorkspaceManager() {
   const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
     // Work with local effects or fall back to saved effects
     const currentEffects = localEffects || playheadEffects || []
+    
+    console.log('handleEffectChange called:', {
+      type,
+      currentEffectsCount: currentEffects.length,
+      zoomEffectsCount: currentEffects.filter(e => e.type === 'zoom').length,
+      backgroundEffectsCount: currentEffects.filter(e => e.type === 'background').length
+    })
 
     let newEffects: Effect[]
 
@@ -452,8 +459,29 @@ export function WorkspaceManager() {
         // Shouldn't happen, but handle gracefully
         return
       }
+    } else if (type === 'zoom') {
+      // Special handling for zoom operations without a specific block selected
+      // This handles zoom toggle and regenerate operations
+      
+      if (data.enabled !== undefined) {
+        // Toggle all zoom effects enabled state
+        newEffects = currentEffects.map(effect => {
+          if (effect.type === 'zoom') {
+            return { ...effect, enabled: data.enabled }
+          }
+          return effect
+        })
+      } else if (data.regenerate) {
+        // Trigger zoom regeneration - this should be handled by the store/command
+        // For now, just preserve existing effects
+        console.log('Zoom regeneration requested')
+        newEffects = [...currentEffects]
+      } else {
+        // Unknown zoom operation, preserve existing effects
+        newEffects = [...currentEffects]
+      }
     } else {
-      // For background and cursor, update the global effect
+      // For background, cursor, and keystroke - update the global effect
       const existingEffectIndex = currentEffects.findIndex(e => e.type === type)
 
       if (existingEffectIndex >= 0) {
@@ -493,6 +521,11 @@ export function WorkspaceManager() {
     }
 
     // Update local state
+    console.log('handleEffectChange - Setting new effects:', {
+      newEffectsCount: newEffects.length,
+      newZoomEffectsCount: newEffects.filter(e => e.type === 'zoom').length,
+      newBackgroundEffectsCount: newEffects.filter(e => e.type === 'background').length
+    })
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
   }, [playheadEffects, localEffects, selectedEffectLayer])

@@ -57,6 +57,16 @@ export function EffectsSidebar({
   const zoomEffects = effects?.filter(e => e.type === 'zoom' && e.enabled) || []
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
+  
+  // Debug logging
+  React.useEffect(() => {
+    console.log('EffectsSidebar - Effects prop changed:', {
+      totalEffects: effects?.length || 0,
+      zoomEffectsCount: zoomEffects.length,
+      backgroundEffect: !!backgroundEffect,
+      backgroundType: (backgroundEffect?.data as BackgroundEffectData)?.type
+    })
+  }, [effects])
 
   // Update active tab when effect layer is selected
   React.useEffect(() => {
@@ -131,7 +141,24 @@ export function EffectsSidebar({
 
   // Update background while preserving existing properties
   const updateBackgroundEffect = (updates: any) => {
-    if (!selectedClip || !backgroundEffect) return
+    if (!selectedClip) return
+
+    // If no background effect exists, create it with sensible defaults
+    if (!backgroundEffect) {
+      onEffectChange('background', {
+        type: updates.type || 'gradient',
+        gradient: {
+          type: 'linear',
+          colors: ['#2D3748', '#1A202C'],
+          angle: 135
+        },
+        padding: 80,
+        cornerRadius: 25,
+        shadowIntensity: 85,
+        ...updates
+      })
+      return
+    }
 
     const currentBg = backgroundEffect.data as BackgroundEffectData
 
