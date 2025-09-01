@@ -60,11 +60,11 @@ export class PasteCommand extends Command<PasteResult> {
         const zoomBlock = clipboard.effect.data as ZoomBlock
         const blockDuration = zoomBlock.endTime - zoomBlock.startTime
         const currentTime = this.pasteTime ?? this.context.getCurrentTime()
-        let pasteStartTime = Math.max(0, currentTime - targetClip.startTime)
+        let pasteStartTime = Math.max(0, currentTime) // Use absolute timeline position
         
-        // Find non-overlapping position
-        const store = this.context.getStore()
-        const existingZoomEffects = store.getEffectsForClip(targetClipId)
+        // Find non-overlapping position - check ALL zoom effects globally
+        const project = this.context.getProject()
+        const existingZoomEffects = (project?.timeline.effects || [])
           .filter(e => e.type === 'zoom')
           .sort((a, b) => a.startTime - b.startTime)
         

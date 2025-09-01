@@ -91,16 +91,6 @@ export function TimelineCanvas({
   const duration = currentProject?.timeline?.duration || 10000
   const pixelsPerMs = TimelineUtils.calculatePixelsPerMs(stageSize.width, zoom)
   const timelineWidth = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
-  
-  // Debug timeline scaling
-  console.log('Timeline scaling:', {
-    duration,
-    stageWidth: stageSize.width,
-    zoom,
-    pixelsPerMs,
-    timelineWidth,
-    trackLabelWidth: TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-  })
   // Show zoom track if ANY zoom effects exist
   const hasZoomTrack = currentProject?.timeline.effects?.some(e => e.type === 'zoom' && e.enabled) ?? false
   // Show keystroke track if ANY keystroke effects exist
@@ -459,16 +449,13 @@ export function TimelineCanvas({
               })
             })()}
 
-            {/* Zoom blocks - show for ALL video clips with zoom enabled */}
+            {/* Zoom blocks - timeline-global, not tied to clips */}
             {hasZoomTrack && (() => {
-              const videoTrack = currentProject.timeline.tracks.find(t => t.type === 'video')
-              if (!videoTrack) return null
-
               // Collect and sort zoom blocks to render selected ones on top
               const zoomBlocks: React.ReactElement[] = []
               const selectedZoomBlocks: React.ReactElement[] = []
 
-              // Get zoom effects from timeline.effects
+              // Get ALL zoom effects from timeline.effects (timeline-global)
               const effectsSource = currentProject.timeline.effects || []
               const zoomEffects = effectsSource.filter(e => e.type === 'zoom' && e.enabled)
               
@@ -479,20 +466,9 @@ export function TimelineCanvas({
                 allEffectIds: effectsSource.map(e => ({ id: e.id, type: e.type }))
               })
 
-              videoTrack.clips.forEach(clip => {
-                const isSelectedClip = selectedClips.includes(clip.id)
-                const clipX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-
-                // Get zoom effects that overlap with this clip's time range
-                const clipZoomEffects = zoomEffects.filter(e => 
-                  // Check if effect overlaps with clip time range
-                  e.startTime < clip.startTime + clip.duration && 
-                  e.endTime > clip.startTime
-                )
-                if (clipZoomEffects.length === 0) return
-
-                clipZoomEffects.forEach((effect) => {
-                  const isBlockSelected = isSelectedClip && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === effect.id
+              // Render each zoom effect as a block on the timeline
+              zoomEffects.forEach((effect) => {
+                const isBlockSelected = selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === effect.id
                   const zoomData = effect.data as ZoomEffectData
 
                   const blockElement = (
@@ -509,12 +485,11 @@ export function TimelineCanvas({
                       introMs={zoomData.introMs}
                       outroMs={zoomData.outroMs}
                       isSelected={isBlockSelected}
-                      allBlocks={clipZoomEffects as any}
-                      clipX={clipX}
+                      allBlocks={zoomEffects as any}
+                      clipX={0}
                       pixelsPerMs={pixelsPerMs}
                       onSelect={() => {
-                        // Ensure selection is properly set
-                        selectClip(clip.id)
+                        // Just select the zoom effect, no clip association needed
                         selectEffectLayer('zoom', effect.id)
                         // Force focus to container for keyboard events
                         setTimeout(() => {
@@ -524,10 +499,22 @@ export function TimelineCanvas({
                       onDragEnd={(newX) => {
                         const newStartTime = TimelineUtils.pixelToTime(newX - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH, pixelsPerMs)
                         const duration = effect.endTime - effect.startTime
-                        // Update the effect directly in timeline.effects with absolute positions
+                        
+                        // Check for overlaps with other zoom effects (mutual exclusivity)
+                        const otherZooms = zoomEffects.filter(e => e.id !== effect.id)
+                        let finalStartTime = Math.max(0, newStartTime)
+                        
+                        for (const other of otherZooms) {
+                          if (finalStartTime < other.endTime && (finalStartTime + duration) > other.startTime) {
+                            // Overlap detected, move to after this effect
+                            finalStartTime = other.endTime + 100
+                          }
+                        }
+                        
+                        // Update the effect with new position
                         updateEffect(effect.id, {
-                          startTime: Math.max(0, newStartTime),
-                          endTime: Math.max(duration, newStartTime + duration)
+                          startTime: finalStartTime,
+                          endTime: finalStartTime + duration
                         })
                       }}
                       onUpdate={(updates) => {
@@ -539,10 +526,6 @@ export function TimelineCanvas({
                             endTime: updates.endTime ?? effect.endTime
                           })
 
-                          // Also update via onZoomBlockUpdate for local effects
-                          if (onZoomBlockUpdate) {
-                            onZoomBlockUpdate(clip.id, effect.id, updates)
-                          }
                         } else {
                           // Update zoom data (scale, introMs, outroMs, etc.)
                           const currentData = effect.data as ZoomEffectData
@@ -550,11 +533,11 @@ export function TimelineCanvas({
                             data: { ...currentData, ...updates }
                           })
 
-                          // IMPORTANT: Also update via onZoomBlockUpdate for local effects
-                          // This ensures the preview updates immediately without needing to save
-                          if (onZoomBlockUpdate) {
-                            onZoomBlockUpdate(clip.id, effect.id, updates)
-                          }
+                      
+                      // Call onZoomBlockUpdate if provided for preview updates
+                      if (onZoomBlockUpdate) {
+                        onZoomBlockUpdate('', effect.id, updates)
+                      }
                         }
                       }}
                     />
@@ -566,7 +549,6 @@ export function TimelineCanvas({
                   } else {
                     zoomBlocks.push(blockElement)
                   }
-                })
               })
 
               // Render non-selected blocks first, then selected ones on top
