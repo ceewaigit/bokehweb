@@ -443,8 +443,14 @@ export const useProjectStore = create<ProjectStore>()(
           })
 
           if (wouldOverlap) {
-            console.warn('Cannot add clip - would overlap with existing clip')
-            return // Don't add the clip if it would overlap
+            // Find a valid position at the end of the timeline
+            const sortedClips = [...videoTrack.clips].sort((a, b) => 
+              (a.startTime + a.duration) - (b.startTime + b.duration)
+            )
+            const lastClip = sortedClips[sortedClips.length - 1]
+            if (lastClip) {
+              clip.startTime = lastClip.startTime + lastClip.duration
+            }
           }
 
           videoTrack.clips.push(clip)
@@ -716,9 +722,10 @@ export const useProjectStore = create<ProjectStore>()(
 
       if (wouldOverlap) {
         // Find the end of the timeline for the duplicate
-        const lastClip = track.clips.sort((a, b) => 
+        const sortedClips = [...track.clips].sort((a, b) => 
           (a.startTime + a.duration) - (b.startTime + b.duration)
-        )[track.clips.length - 1]
+        )
+        const lastClip = sortedClips[sortedClips.length - 1]
         if (lastClip) {
           desiredStartTime = lastClip.startTime + lastClip.duration
         }

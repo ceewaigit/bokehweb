@@ -165,8 +165,8 @@ export const TimelineClip = React.memo(({
         // Check for overlaps but don't auto-reposition
         const overlapCheck = checkClipOverlap(proposedTime, clip.duration, otherClipsData)
         
-        // If there's an overlap, snap back to original position
-        // Otherwise, use the proposed position
+        // Only prevent if there's an actual overlap
+        // Allow the drag if no overlap
         let finalTime = proposedTime
         if (overlapCheck.hasOverlap) {
           // Snap back to original position if there's an overlap
