@@ -28,7 +28,7 @@ interface ProjectStore {
   addEffect: (effect: import('@/types/project').Effect) => void
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<import('@/types/project').Effect>) => void
-  getEffectsForClip: (clipId: string) => import('@/types/project').Effect[]
+  getEffectsAtTimeRange: (clipId: string) => import('@/types/project').Effect[]
 }
 
 export interface CommandContext {

@@ -26,20 +26,15 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
-    console.log('[RemoveZoomBlockCommand] Executing - blockId:', this.blockId)
-    
     const project = this.context.getProject()
     const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
     
     if (!effect) {
-      console.error('[RemoveZoomBlockCommand] Zoom effect not found:', this.blockId)
       return {
         success: false,
         error: `Zoom effect ${this.blockId} not found`
       }
     }
-
-    console.log('[RemoveZoomBlockCommand] Found zoom effect, removing...')
     
     // Store effect for undo
     this.effect = JSON.parse(JSON.stringify(effect))
@@ -47,7 +42,6 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
     // Remove effect using store method
     const store = this.context.getStore()
     store.removeEffect(this.blockId)
-    console.log('[RemoveZoomBlockCommand] Effect removed successfully')
 
     return {
       success: true,

@@ -106,7 +106,7 @@ export class PasteCommand extends Command<PasteResult> {
         const store = this.context.getStore()
         
         // Find existing effect of this type and update it
-        const existingEffects = store.getEffectsForClip(targetClipId)
+        const existingEffects = store.getEffectsAtTimeRange(targetClipId)
         const existingEffect = existingEffects.find(e => e.type === effectType)
         
         if (existingEffect) {

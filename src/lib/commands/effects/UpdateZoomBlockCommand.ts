@@ -4,37 +4,34 @@ import type { ZoomBlock } from '@/types/project'
 
 export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
   private originalBlock?: ZoomBlock
-  private clipId: string
   private blockId: string
   private updates: Partial<ZoomBlock>
 
   constructor(
     private context: CommandContext,
-    clipId: string,
     blockId: string,
     updates: Partial<ZoomBlock>
   ) {
     super({
       name: 'UpdateZoomBlock',
-      description: `Update zoom block ${blockId} in clip ${clipId}`,
+      description: `Update zoom block ${blockId}`,
       category: 'effects'
     })
-    this.clipId = clipId
     this.blockId = blockId
     this.updates = updates
   }
 
   canExecute(): boolean {
-    const store = this.context.getStore()
-    const effects = store.getEffectsForClip(this.clipId)
-    const effect = effects.find((e: any) => e.id === this.blockId && e.type === 'zoom')
+    // Zoom effects are timeline-global
+    const project = this.context.getProject()
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
     return effect !== undefined
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
-    const effects = store.getEffectsForClip(this.clipId)
-    const effect = effects.find((e: any) => e.id === this.blockId && e.type === 'zoom')
+    const project = this.context.getProject()
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
 
     if (!effect) {
       return {
@@ -115,10 +112,10 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
 
   doRedo(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
+    const project = this.context.getProject()
 
     // Re-apply updates  
-    const effects = store.getEffectsForClip(this.clipId)
-    const effect = effects.find((e: any) => e.id === this.blockId && e.type === 'zoom')
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
 
     if (effect) {
       const zoomData = effect.data as any

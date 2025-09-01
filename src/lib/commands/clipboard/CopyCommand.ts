@@ -88,7 +88,7 @@ export class CopyCommand extends Command<CopyResult> {
 
     // Copy other effect types that might still be clip-based
     if (selectedEffectLayer && selectedEffectLayer.type !== 'zoom') {
-      const effects = store.getEffectsForClip(clipId)
+      const effects = store.getEffectsAtTimeRange(clipId)
       
       // Copy cursor or background settings
       const effect = effects.find((e: any) => e.type === selectedEffectLayer.type)

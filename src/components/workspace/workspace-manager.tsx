@@ -300,7 +300,7 @@ export function WorkspaceManager() {
       const store = useProjectStore.getState()
       const context = new DefaultCommandContext(store)
       const commandManager = CommandManager.getInstance(context)
-      const command = new UpdateZoomBlockCommand(context, clipId, blockId, updates)
+      const command = new UpdateZoomBlockCommand(context, blockId, updates)
       commandManager.execute(command)
     }
   }, [playheadEffects, localEffects])

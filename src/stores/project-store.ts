@@ -137,7 +137,7 @@ interface ProjectStore {
   addEffect: (effect: Effect) => void
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<Effect>) => void
-  getEffectsForClip: (clipId: string) => Effect[]
+  getEffectsAtTimeRange: (clipId: string) => Effect[]  // Gets effects overlapping with clip's time range
 }
 
 // Helper to update playhead state based on current time
@@ -876,12 +876,8 @@ export const useProjectStore = create<ProjectStore>()(
 
     // New: Independent Effects Management
     addEffect: (effect) => {
-      console.log('[Store] addEffect called with:', effect)
       set((state) => {
-        if (!state.currentProject) {
-          console.log('[Store] addEffect: No current project')
-          return
-        }
+        if (!state.currentProject) return
 
         // Initialize effects array if it doesn't exist
         if (!state.currentProject.timeline.effects) {
@@ -889,7 +885,6 @@ export const useProjectStore = create<ProjectStore>()(
         }
 
         state.currentProject.timeline.effects.push(effect)
-        console.log('[Store] Effect added. Total effects:', state.currentProject.timeline.effects.length)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
     },
@@ -918,8 +913,9 @@ export const useProjectStore = create<ProjectStore>()(
       })
     },
 
-    getEffectsForClip: (clipId) => {
-      // No longer filtering by clipId - effects are timeline-global
+    // Gets all effects that overlap with a clip's time range
+    // Note: Effects are timeline-global, not clip-owned
+    getEffectsAtTimeRange: (clipId) => {
       const { currentProject } = get()
       if (!currentProject?.timeline.effects) return []
 

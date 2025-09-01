@@ -459,12 +459,6 @@ export function TimelineCanvas({
               const effectsSource = currentProject.timeline.effects || []
               const zoomEffects = effectsSource.filter(e => e.type === 'zoom' && e.enabled)
               
-              // Debug logging
-              console.log('TimelineCanvas - Zoom effects check:', {
-                totalEffects: effectsSource.length,
-                zoomEffectsFound: zoomEffects.length,
-                allEffectIds: effectsSource.map(e => ({ id: e.id, type: e.type }))
-              })
 
               // Render each zoom effect as a block on the timeline
               zoomEffects.forEach((effect) => {
@@ -486,7 +480,6 @@ export function TimelineCanvas({
                       outroMs={zoomData.outroMs}
                       isSelected={isBlockSelected}
                       allBlocks={zoomEffects as any}
-                      clipX={0}
                       pixelsPerMs={pixelsPerMs}
                       onSelect={() => {
                         // Just select the zoom effect, no clip association needed
