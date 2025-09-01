@@ -99,9 +99,12 @@
             
             // Configure audio capture
             // Note: On macOS, audio capture is subject to system permission and SDK behavior.
-            config.capturesAudio = YES;
-            config.sampleRate = 48000;
-            config.channelCount = 2;
+            // Audio capture APIs are only available on macOS 13.0+
+            if (@available(macOS 13.0, *)) {
+                config.capturesAudio = YES;
+                config.sampleRate = 48000;
+                config.channelCount = 2;
+            }
             
             NSLog(@"Screen recording configured: %zux%zu with audio capture enabled", pixelWidth, pixelHeight);
             
@@ -178,11 +181,17 @@
             [self.stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&addOutputError];
             
             if (!addOutputError && self.hasAudio) {
-                NSError *audioOutputError = nil;
-                [self.stream addStreamOutput:self type:SCStreamOutputTypeAudio sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&audioOutputError];
-                
-                if (audioOutputError) {
-                    NSLog(@"Warning: Failed to add audio output: %@", audioOutputError);
+                // SCStreamOutputTypeAudio is only available on macOS 13.0+
+                if (@available(macOS 13.0, *)) {
+                    NSError *audioOutputError = nil;
+                    [self.stream addStreamOutput:self type:SCStreamOutputTypeAudio sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&audioOutputError];
+                    
+                    if (audioOutputError) {
+                        NSLog(@"Warning: Failed to add audio output: %@", audioOutputError);
+                        self.hasAudio = NO;
+                    }
+                } else {
+                    NSLog(@"Warning: Audio capture requires macOS 13.0 or later");
                     self.hasAudio = NO;
                 }
             }
@@ -213,26 +222,29 @@
         if (!pixelBuffer) {
             return;
         }
-    } else if (type == SCStreamOutputTypeAudio && self.hasAudio && self.audioInput.isReadyForMoreMediaData) {
-        // Handle audio samples
-        if (!self.receivedFirstAudio) {
-            self.receivedFirstAudio = YES;
-            NSLog(@"Received first audio sample");
+    } else if (@available(macOS 13.0, *)) {
+        // SCStreamOutputTypeAudio is only available on macOS 13.0+
+        if (type == SCStreamOutputTypeAudio && self.hasAudio && self.audioInput.isReadyForMoreMediaData) {
+            // Handle audio samples
+            if (!self.receivedFirstAudio) {
+                self.receivedFirstAudio = YES;
+                NSLog(@"Received first audio sample");
+            }
+            CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+            
+            if (!self.hasStartedSession) {
+                [self.assetWriter startSessionAtSourceTime:presentationTime];
+                self.startTime = presentationTime;
+                self.hasStartedSession = YES;
+            }
+            
+            // Append audio sample buffer
+            if (![self.audioInput appendSampleBuffer:sampleBuffer]) {
+                NSLog(@"Failed to append audio sample buffer");
+            }
+            
+            return;
         }
-        CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
-        
-        if (!self.hasStartedSession) {
-            [self.assetWriter startSessionAtSourceTime:presentationTime];
-            self.startTime = presentationTime;
-            self.hasStartedSession = YES;
-        }
-        
-        // Append audio sample buffer
-        if (![self.audioInput appendSampleBuffer:sampleBuffer]) {
-            NSLog(@"Failed to append audio sample buffer");
-        }
-        
-        return;
     } else {
         return;
     }
@@ -264,7 +276,10 @@
             if (self.stream) {
                 [self.stream removeStreamOutput:self type:SCStreamOutputTypeScreen error:nil];
                 if (self.hasAudio) {
-                    [self.stream removeStreamOutput:self type:SCStreamOutputTypeAudio error:nil];
+                    // SCStreamOutputTypeAudio is only available on macOS 13.0+
+                    if (@available(macOS 13.0, *)) {
+                        [self.stream removeStreamOutput:self type:SCStreamOutputTypeAudio error:nil];
+                    }
                 }
             }
             
