@@ -444,13 +444,7 @@ export const useProjectStore = create<ProjectStore>()(
 
           if (wouldOverlap) {
             console.warn('Cannot add clip - would overlap with existing clip')
-            // For new clips, find a valid position at the end
-            const lastClip = videoTrack.clips.sort((a, b) => 
-              (a.startTime + a.duration) - (b.startTime + b.duration)
-            )[videoTrack.clips.length - 1]
-            if (lastClip) {
-              clip.startTime = lastClip.startTime + lastClip.duration + 100 // Small gap for new clips
-            }
+            return // Don't add the clip if it would overlap
           }
 
           videoTrack.clips.push(clip)
@@ -710,8 +704,8 @@ export const useProjectStore = create<ProjectStore>()(
 
       const { clip, track } = result
 
-      // Start with position right after the original clip with a small gap
-      let desiredStartTime = clip.startTime + clip.duration + 100 // 100ms gap
+      // Start with position right after the original clip
+      let desiredStartTime = clip.startTime + clip.duration
 
       // Only check for actual overlaps, don't force repositioning
       const wouldOverlap = track.clips.some(otherClip => {
@@ -726,7 +720,7 @@ export const useProjectStore = create<ProjectStore>()(
           (a.startTime + a.duration) - (b.startTime + b.duration)
         )[track.clips.length - 1]
         if (lastClip) {
-          desiredStartTime = lastClip.startTime + lastClip.duration + 100
+          desiredStartTime = lastClip.startTime + lastClip.duration
         }
       }
 

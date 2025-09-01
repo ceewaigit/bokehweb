@@ -101,25 +101,19 @@ export function checkClipOverlap(
   proposedStartTime: number,
   duration: number,
   otherClips: Array<{ startTime: number; duration: number }>,
-  minGap: number = 50
+  minGap: number = 0  // Changed default to 0 - no forced gaps
 ): { hasOverlap: boolean; nearestValidPosition?: number } {
   for (const clip of otherClips) {
     const clipEnd = clip.startTime + clip.duration
     const proposedEnd = proposedStartTime + duration
 
-    // Check for overlap with gap
-    if (proposedStartTime < clipEnd + minGap && proposedEnd > clip.startTime - minGap) {
-      // Calculate nearest valid position
-      const afterClip = clipEnd + minGap
-      const beforeClip = Math.max(0, clip.startTime - duration - minGap)
-
-      // Choose the closest valid position
-      const distanceAfter = Math.abs(proposedStartTime - afterClip)
-      const distanceBefore = Math.abs(proposedStartTime - beforeClip)
-
+    // Only check for actual overlap, not gaps
+    if (proposedStartTime < clipEnd && proposedEnd > clip.startTime) {
+      // Don't automatically reposition - just report the overlap
+      // Let the user decide where to place the clip
       return {
         hasOverlap: true,
-        nearestValidPosition: distanceAfter < distanceBefore ? afterClip : beforeClip
+        nearestValidPosition: undefined  // Don't suggest a position
       }
     }
   }

@@ -162,16 +162,17 @@ export const TimelineClip = React.memo(({
           pixelsPerMs
         )
         
-        // Check for overlaps and snap to valid position on drag end
+        // Check for overlaps but don't auto-reposition
         const overlapCheck = checkClipOverlap(proposedTime, clip.duration, otherClipsData)
-        const finalTime = overlapCheck.hasOverlap && overlapCheck.nearestValidPosition !== undefined
-          ? overlapCheck.nearestValidPosition
-          : proposedTime
         
-        // Snap the visual position if needed
-        if (overlapCheck.hasOverlap && overlapCheck.nearestValidPosition !== undefined) {
-          const snappedX = TimelineUtils.timeToPixel(finalTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-          e.target.x(snappedX)
+        // If there's an overlap, snap back to original position
+        // Otherwise, use the proposed position
+        let finalTime = proposedTime
+        if (overlapCheck.hasOverlap) {
+          // Snap back to original position if there's an overlap
+          finalTime = clip.startTime
+          const originalX = TimelineUtils.timeToPixel(clip.startTime, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+          e.target.x(originalX)
         }
         
         onDragEnd(clip.id, Math.max(0, finalTime))
