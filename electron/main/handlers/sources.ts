@@ -10,7 +10,7 @@ interface DesktopSourceOptions {
 }
 
 interface MediaConstraints {
-  audio: boolean | { mandatory: { chromeMediaSource: string } }
+  audio: boolean
   video: {
     mandatory: {
       chromeMediaSource: string
@@ -25,13 +25,10 @@ export function registerSourceHandlers(): void {
   ipcMain.handle('get-desktop-stream', async (event: IpcMainInvokeEvent, sourceId: string, hasAudio: boolean = false): Promise<MediaConstraints> => {
     try {
 
-      // This format works universally across Electron versions
+      // For desktop audio capture, use boolean true (not an object)
+      // Desktop audio is automatically captured when video source is 'desktop'
       const constraints: MediaConstraints = {
-        audio: hasAudio ? {
-          mandatory: {
-            chromeMediaSource: 'desktop'
-          }
-        } : false,
+        audio: hasAudio ? true : false,
         video: {
           mandatory: {
             chromeMediaSource: 'desktop',
@@ -40,6 +37,7 @@ export function registerSourceHandlers(): void {
         }
       }
 
+      console.log(`✅ Desktop stream constraints created - Audio: ${hasAudio}, Source: ${sourceId}`)
       return constraints
     } catch (error) {
       console.error('❌ Failed to create stream constraints:', error)

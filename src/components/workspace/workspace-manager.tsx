@@ -137,9 +137,22 @@ async function loadProjectRecording(
   const hasGlobalBackground = project.timeline.effects.some((e: any) => e.type === 'background')
   const hasGlobalCursor = project.timeline.effects.some((e: any) => e.type === 'cursor')
   
+  // Log existing background effect
+  const existingBg = project.timeline.effects.find((e: any) => e.type === 'background')
+  if (existingBg) {
+    console.log('Loading project - existing background effect:', {
+      type: existingBg.data?.type,
+      hasWallpaper: !!existingBg.data?.wallpaper,
+      wallpaperLength: existingBg.data?.wallpaper?.length || 0,
+      gradient: existingBg.data?.gradient
+    })
+  }
+  
   if (!hasGlobalBackground) {
     const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
     const defaultWallpaper = getDefaultWallpaper()
+    
+    console.log('Creating new background effect with wallpaper:', defaultWallpaper ? `${defaultWallpaper.length} chars` : 'none')
 
     project.timeline.effects.push({
       id: 'background-global',
@@ -417,7 +430,10 @@ export function WorkspaceManager() {
         newEffects = [...currentEffects]
         newEffects[existingEffectIndex] = {
           ...newEffects[existingEffectIndex],
-          data
+          data: {
+            ...newEffects[existingEffectIndex].data,  // Preserve existing zoom data
+            ...data  // Merge with new zoom data
+          }
         }
       } else {
         // Shouldn't happen, but handle gracefully
@@ -439,7 +455,10 @@ export function WorkspaceManager() {
 
         newEffects[existingEffectIndex] = {
           ...newEffects[existingEffectIndex],
-          data: effectData,
+          data: {
+            ...newEffects[existingEffectIndex].data,  // Preserve existing data
+            ...effectData  // Merge with new data
+          },
           enabled
         }
       } else {

@@ -48,6 +48,17 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const cursorEffect = activeEffects.find(e => e.type === 'cursor');
   const keystrokeEffect = activeEffects.find(e => e.type === 'keystroke');
   const zoomEffects = activeEffects.filter(e => e.type === 'zoom');
+  
+  // Debug logging for background effect
+  if (frame === 0 && backgroundEffect) {
+    const bgData = backgroundEffect.data as BackgroundEffectData;
+    console.log('MainComposition - Background effect at frame 0:', {
+      hasEffect: !!backgroundEffect,
+      type: bgData?.type,
+      hasWallpaper: !!bgData?.wallpaper,
+      wallpaperLength: bgData?.wallpaper?.length || 0
+    });
+  }
 
   // Extract background padding
   const padding = backgroundEffect ? (backgroundEffect.data as BackgroundEffectData).padding : 0;

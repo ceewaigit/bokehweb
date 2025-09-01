@@ -328,6 +328,11 @@ export const useProjectStore = create<ProjectStore>()(
         if (!existingBackground) {
           const { getDefaultWallpaper } = require('@/lib/constants/default-effects')
           const defaultWallpaper = getDefaultWallpaper()
+          
+          console.log('Creating background effect in project store:', {
+            hasWallpaper: !!defaultWallpaper,
+            wallpaperLength: defaultWallpaper?.length || 0
+          })
 
           const backgroundEffect: Effect = {
             id: `background-global`,
@@ -349,6 +354,13 @@ export const useProjectStore = create<ProjectStore>()(
             enabled: true
           }
           state.currentProject.timeline.effects.push(backgroundEffect)
+        } else {
+          const bgData = existingBackground.data as BackgroundEffectData;
+          console.log('Background effect already exists:', {
+            type: bgData?.type,
+            hasWallpaper: !!bgData?.wallpaper,
+            wallpaperLength: bgData?.wallpaper?.length || 0
+          })
         }
 
         // Check if global cursor effect exists, if not create one
