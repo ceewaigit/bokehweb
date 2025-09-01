@@ -416,7 +416,10 @@ export function WorkspaceManager() {
 
   const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
     // Work with local effects or fall back to saved effects
-    const currentEffects = localEffects || playheadEffects || []
+    const currentEffects =
+      (type === 'zoom' && selectedEffectLayer?.type === 'zoom')
+        ? (localEffects || currentProject?.timeline.effects || [])
+        : (localEffects || playheadEffects || [])
 
     let newEffects: Effect[]
 
@@ -497,7 +500,7 @@ export function WorkspaceManager() {
 
     setLocalEffects(newEffects)
     setHasUnsavedChanges(true)
-  }, [playheadEffects, localEffects, selectedEffectLayer])
+  }, [playheadEffects, localEffects, selectedEffectLayer, currentProject])
 
 
 
@@ -672,7 +675,9 @@ export function WorkspaceManager() {
                 <EffectsSidebar
                   className="h-full w-full"
                   selectedClip={selectedClip}
-                  effects={localEffects || playheadEffects || []}
+                  effects={(selectedEffectLayer?.type === 'zoom')
+                    ? (localEffects || currentProject?.timeline.effects || [])
+                    : (localEffects || playheadEffects || [])}
                   selectedEffectLayer={selectedEffectLayer}
                   onEffectChange={handleEffectChange}
                 />
