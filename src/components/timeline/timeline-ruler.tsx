@@ -23,11 +23,6 @@ export const TimelineRuler = React.memo(({ duration, stageWidth, zoom, pixelsPer
   for (let time = 0; time <= maxTime; time += minor) {
     const isMajor = time % major === 0
     const x = TimelineUtils.timeToPixel(time, pixelsPerMs) + TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
-    
-    // Debug ruler positions
-    if (isMajor && time <= 35000) {
-      console.log(`Ruler mark at ${(time/1000).toFixed(0)}s => pixel ${x.toFixed(0)}`)
-    }
 
     // Only render marks that are within the stage width
     if (x > stageWidth) break

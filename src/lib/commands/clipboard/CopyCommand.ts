@@ -22,7 +22,14 @@ export class CopyCommand extends Command<CopyResult> {
   }
 
   canExecute(): boolean {
-    // Use provided clipId or get from selection
+    const selectedEffectLayer = this.context.getSelectedEffectLayer()
+    
+    // If a zoom effect is selected (timeline-global), we can copy it without a clip
+    if (selectedEffectLayer?.type === 'zoom' && selectedEffectLayer.id) {
+      return true
+    }
+    
+    // Otherwise, check for clip selection
     const clipId = this.clipId || this.context.getSelectedClips()[0]
     if (!clipId) return false
     
@@ -32,12 +39,40 @@ export class CopyCommand extends Command<CopyResult> {
 
   doExecute(): CommandResult<CopyResult> {
     const store = this.context.getStore()
+    const selectedEffectLayer = this.context.getSelectedEffectLayer()
+    
+    // Handle zoom effect copy (timeline-global, no clip needed)
+    if (selectedEffectLayer?.type === 'zoom' && selectedEffectLayer.id) {
+      const project = this.context.getProject()
+      const zoomEffect = project?.timeline.effects?.find(e => e.id === selectedEffectLayer.id && e.type === 'zoom')
+      
+      if (zoomEffect) {
+        // Copy the full zoom effect with timing information
+        store.copyEffect('zoom', { 
+          ...zoomEffect.data,
+          startTime: zoomEffect.startTime,
+          endTime: zoomEffect.endTime
+        }, '') // Empty clipId since zoom is timeline-global
+        
+        return {
+          success: true,
+          data: {
+            type: 'effect',
+            effectType: 'zoom',
+            blockId: selectedEffectLayer.id,
+            clipId: ''
+          }
+        }
+      }
+    }
+    
+    // Handle clip-based copying
     const clipId = this.clipId || this.context.getSelectedClips()[0]
     
     if (!clipId) {
       return {
         success: false,
-        error: 'No clip selected'
+        error: 'No clip or effect selected'
       }
     }
 
@@ -50,16 +85,15 @@ export class CopyCommand extends Command<CopyResult> {
     }
 
     const { clip } = result
-    const selectedEffectLayer = this.context.getSelectedEffectLayer()
 
-    // Copy effect if one is selected
-    if (selectedEffectLayer) {
+    // Copy other effect types that might still be clip-based
+    if (selectedEffectLayer && selectedEffectLayer.type !== 'zoom') {
       const effects = store.getEffectsForClip(clipId)
       
       if (selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id) {
+        // This shouldn't happen now, but keeping for safety
         const zoomEffect = effects.find((e: any) => e.id === selectedEffectLayer.id && e.type === 'zoom')
         if (zoomEffect) {
-          // Copy the full zoom effect with timing information
           store.copyEffect('zoom', { 
             ...zoomEffect.data,
             startTime: zoomEffect.startTime,

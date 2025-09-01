@@ -35,27 +35,9 @@ export class PasteCommand extends Command<PasteResult> {
     const clipboard = this.context.getClipboard()
     const store = this.context.getStore()
 
-    // Paste effect if we have one and a target clip
+    // Paste effect if we have one
     if (clipboard.effect) {
-      const targetClipId = this.targetClipId || this.context.getSelectedClips()[0]
-      
-      if (!targetClipId) {
-        return {
-          success: false,
-          error: 'Select a clip to paste the effect'
-        }
-      }
-
-      const targetResult = this.context.findClip(targetClipId)
-      if (!targetResult) {
-        return {
-          success: false,
-          error: `Target clip ${targetClipId} not found`
-        }
-      }
-
-      const { clip: targetClip } = targetResult
-
+      // Zoom effects are timeline-global, don't need a clip
       if (clipboard.effect.type === 'zoom') {
         const zoomBlock = clipboard.effect.data as ZoomBlock
         const blockDuration = zoomBlock.endTime - zoomBlock.startTime
@@ -81,7 +63,8 @@ export class PasteCommand extends Command<PasteResult> {
           endTime: pasteStartTime + blockDuration
         }
         
-        this.pastedCommand = new AddZoomBlockCommand(this.context, targetClipId, newBlock)
+        // Pass empty string for clipId since zoom is timeline-global
+        this.pastedCommand = new AddZoomBlockCommand(this.context, '', newBlock)
         const result = await this.pastedCommand.execute()
         
         if (result.success) {
@@ -91,12 +74,32 @@ export class PasteCommand extends Command<PasteResult> {
               type: 'effect',
               effectType: 'zoom',
               blockId: newBlock.id,
-              clipId: targetClipId
+              clipId: '' // Empty since zoom is timeline-global
             }
           }
         }
         return result as CommandResult<PasteResult>
       } else {
+        // For other effect types (cursor/background), we may still need a clip context
+        const targetClipId = this.targetClipId || this.context.getSelectedClips()[0]
+        
+        if (!targetClipId) {
+          return {
+            success: false,
+            error: 'Select a clip to paste the effect'
+          }
+        }
+
+        const targetResult = this.context.findClip(targetClipId)
+        if (!targetResult) {
+          return {
+            success: false,
+            error: `Target clip ${targetClipId} not found`
+          }
+        }
+
+        const { clip: targetClip } = targetResult
+        
         // Paste cursor/background settings
         const effectType = clipboard.effect.type
         const effectData = clipboard.effect.data

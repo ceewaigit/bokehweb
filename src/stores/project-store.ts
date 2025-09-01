@@ -81,12 +81,12 @@ interface ProjectStore {
   isPlaying: boolean
   zoom: number
   zoomManuallyAdjusted: boolean
-  
+
   // Playhead State (reactive - auto-updates with currentTime)
   playheadClip: Clip | null
   playheadRecording: Recording | null
   playheadEffects: Effect[]
-  
+
   // Selection State
   selectedClipId: string | null
   selectedClips: string[]
@@ -145,7 +145,7 @@ const updatePlayheadState = (state: any) => {
   state.playheadClip = null
   state.playheadRecording = null
   state.playheadEffects = []
-  
+
   if (state.currentProject && state.currentTime !== undefined) {
     // Find clip at current time
     for (const track of state.currentProject.timeline.tracks) {
@@ -160,14 +160,14 @@ const updatePlayheadState = (state: any) => {
         break
       }
     }
-    
+
     // Find effects active at current time (timeline-based, not clip-based)
     if (state.currentProject.timeline.effects) {
       const allEffects = state.currentProject.timeline.effects
       const filteredEffects = allEffects.filter(
         (e: Effect) => state.currentTime >= e.startTime && state.currentTime <= e.endTime && e.enabled
       )
-      
+
       state.playheadEffects = filteredEffects
     }
   }
@@ -180,12 +180,12 @@ export const useProjectStore = create<ProjectStore>()(
     isPlaying: false,
     zoom: 0.5,
     zoomManuallyAdjusted: false,
-    
+
     // Playhead State
     playheadClip: null,
     playheadRecording: null,
     playheadEffects: [],
-    
+
     // Selection State
     selectedClipId: null,
     selectedClips: [],
@@ -331,7 +331,7 @@ export const useProjectStore = create<ProjectStore>()(
         if (!existingBackground) {
           const { getDefaultWallpaper } = require('@/lib/constants/default-effects')
           const defaultWallpaper = getDefaultWallpaper()
-          
+
           console.log('Creating background effect in project store:', {
             hasWallpaper: !!defaultWallpaper,
             wallpaperLength: defaultWallpaper?.length || 0
@@ -435,8 +435,14 @@ export const useProjectStore = create<ProjectStore>()(
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
-          // Check for overlaps and find valid position if needed
-          if (hasClipOverlap(videoTrack, '', clip.startTime, clip.duration)) {
+          // Only adjust position if there's an actual overlap
+          const wouldOverlap = videoTrack.clips.some(otherClip => {
+            const otherEnd = otherClip.startTime + otherClip.duration
+            const newEnd = clip.startTime + clip.duration
+            return (clip.startTime < otherEnd && newEnd > otherClip.startTime)
+          })
+
+          if (wouldOverlap) {
             clip.startTime = findNextValidPosition(videoTrack, '', clip.startTime, clip.duration)
           }
 
@@ -450,7 +456,7 @@ export const useProjectStore = create<ProjectStore>()(
         state.currentProject.modifiedAt = new Date().toISOString()
         state.selectedClipId = clip.id
         state.selectedClips = [clip.id]
-        
+
         // Update playhead state in case the new clip is at current time
         updatePlayheadState(state)
       })
@@ -479,7 +485,7 @@ export const useProjectStore = create<ProjectStore>()(
           state.selectedClipId = null
         }
         state.selectedClips = state.selectedClips.filter(id => id !== clipId)
-        
+
         // Update playhead state in case removed clip was at current time
         updatePlayheadState(state)
       })
@@ -494,18 +500,30 @@ export const useProjectStore = create<ProjectStore>()(
 
         const { clip, track } = result
 
-        // Check for overlaps if position is changing
+        // Only prevent actual overlaps, allow gaps
         if (updates.startTime !== undefined) {
           const duration = updates.duration || clip.duration
-          if (hasClipOverlap(track, clipId, updates.startTime, duration)) {
-            updates.startTime = findNextValidPosition(track, clipId, updates.startTime, duration)
+          const newStartTime = updates.startTime
+          // Check if this would actually overlap (not just be close to) another clip
+          const wouldOverlap = track.clips.some(otherClip => {
+            if (otherClip.id === clipId) return false
+            const otherEnd = otherClip.startTime + otherClip.duration
+            const newEnd = newStartTime + duration
+            // Only prevent if there's actual overlap, not just proximity
+            return (newStartTime < otherEnd && newEnd > otherClip.startTime)
+          })
+
+          if (wouldOverlap) {
+            // Find the nearest position that doesn't overlap
+            console.log('Preventing overlap, finding next valid position')
+            updates.startTime = findNextValidPosition(track, clipId, newStartTime, duration)
           }
         }
 
         Object.assign(clip, updates)
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
-        
+
         // Update playhead state in case the updated clip affects current time
         updatePlayheadState(state)
       })
@@ -616,7 +634,7 @@ export const useProjectStore = create<ProjectStore>()(
         // This ensures the preview shows the end of the left clip (at the split point)
         state.selectedClipId = firstClip.id
         state.selectedClips = [firstClip.id]
-        
+
         // Update playhead state in case split affects current time
         updatePlayheadState(state)
       })
@@ -643,7 +661,7 @@ export const useProjectStore = create<ProjectStore>()(
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
-        
+
         // Update playhead state in case trim affects current time
         updatePlayheadState(state)
       })
@@ -669,7 +687,7 @@ export const useProjectStore = create<ProjectStore>()(
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
-        
+
         // Update playhead state in case trim affects current time
         updatePlayheadState(state)
       })
@@ -699,9 +717,9 @@ export const useProjectStore = create<ProjectStore>()(
       }
 
       state.addClip(newClip)
-      
+
       // Don't duplicate effects - they're timeline-global now
-      
+
       return newClip.id
     },
 
@@ -781,16 +799,9 @@ export const useProjectStore = create<ProjectStore>()(
         const maxTime = state.currentProject?.timeline?.duration || 0
         const clampedTime = Math.max(0, Math.min(maxTime, time))
         state.currentTime = clampedTime
-        
+
         // Update playhead state using helper
         updatePlayheadState(state)
-        
-        // Log if we're in a gap
-        if (!state.playheadClip) {
-          console.log('🔴 In gap at time:', (clampedTime/1000).toFixed(2), 's')
-        } else {
-          console.log('🎬 On clip', state.playheadClip.id.slice(-4), 'at time:', (clampedTime/1000).toFixed(2), 's')
-        }
       })
     },
 
@@ -890,19 +901,19 @@ export const useProjectStore = create<ProjectStore>()(
       // No longer filtering by clipId - effects are timeline-global
       const { currentProject } = get()
       if (!currentProject?.timeline.effects) return []
-      
+
       // Find the clip to get its time range
       let clip = null
       for (const track of currentProject.timeline.tracks) {
         clip = track.clips.find(c => c.id === clipId)
         if (clip) break
       }
-      
+
       if (!clip) return []
-      
+
       // Return effects that overlap with this clip's time range
-      return currentProject.timeline.effects.filter(e => 
-        e.startTime < clip.startTime + clip.duration && 
+      return currentProject.timeline.effects.filter(e =>
+        e.startTime < clip.startTime + clip.duration &&
         e.endTime > clip.startTime
       )
     }

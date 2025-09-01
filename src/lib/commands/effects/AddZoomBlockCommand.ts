@@ -21,20 +21,12 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   }
 
   canExecute(): boolean {
-    const result = this.context.findClip(this.clipId)
-    return result !== null
+    // Zoom effects are timeline-global, don't require a clip
+    return true
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
-    const result = this.context.findClip(this.clipId)
-    
-    if (!result) {
-      return {
-        success: false,
-        error: `Clip ${this.clipId} not found`
-      }
-    }
 
     // Ensure block has an ID
     if (!this.block.id) {
