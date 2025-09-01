@@ -65,6 +65,16 @@ export function EffectsSidebar({
     }
   }, [selectedEffectLayer])
 
+  // Sync backgroundType with actual background effect type
+  React.useEffect(() => {
+    if (backgroundEffect?.data) {
+      const bgData = backgroundEffect.data as BackgroundEffectData
+      if (bgData.type) {
+        setBackgroundType(bgData.type as any)
+      }
+    }
+  }, [backgroundEffect])
+
 
   // Load macOS wallpapers when wallpaper tab is selected
   React.useEffect(() => {
