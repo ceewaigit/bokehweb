@@ -858,8 +858,12 @@ export const useProjectStore = create<ProjectStore>()(
 
     // New: Independent Effects Management
     addEffect: (effect) => {
+      console.log('[Store] addEffect called with:', effect)
       set((state) => {
-        if (!state.currentProject) return
+        if (!state.currentProject) {
+          console.log('[Store] addEffect: No current project')
+          return
+        }
 
         // Initialize effects array if it doesn't exist
         if (!state.currentProject.timeline.effects) {
@@ -867,6 +871,7 @@ export const useProjectStore = create<ProjectStore>()(
         }
 
         state.currentProject.timeline.effects.push(effect)
+        console.log('[Store] Effect added. Total effects:', state.currentProject.timeline.effects.length)
         state.currentProject.modifiedAt = new Date().toISOString()
       })
     },

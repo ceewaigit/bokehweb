@@ -59,7 +59,9 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
     }
 
     // Add zoom effect using store method
+    console.log('[AddZoomBlockCommand] Adding effect:', zoomEffect)
     store.addEffect(zoomEffect)
+    console.log('[AddZoomBlockCommand] Effect added successfully')
 
     return {
       success: true,
