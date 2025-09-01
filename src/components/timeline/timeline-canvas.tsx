@@ -274,6 +274,21 @@ export function TimelineCanvas({
         const time = TimelineUtils.pixelToTime(x, pixelsPerMs)
         const maxTime = currentProject?.timeline?.duration || 0
         const targetTime = Math.max(0, Math.min(maxTime, time))
+        
+        // Debug: Log click position and resulting time
+        console.log('Timeline click:', {
+          offsetX: e.evt.offsetX,
+          adjustedX: x,
+          pixelsPerMs,
+          calculatedTime: time,
+          targetTime,
+          clips: currentProject?.timeline.tracks[0]?.clips.map(c => ({
+            id: c.id,
+            start: c.startTime,
+            end: c.startTime + c.duration
+          }))
+        })
+        
         onSeek(targetTime)
       }
     }

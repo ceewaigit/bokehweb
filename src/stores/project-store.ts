@@ -780,10 +780,29 @@ export const useProjectStore = create<ProjectStore>()(
       set((state) => {
         const maxTime = state.currentProject?.timeline?.duration || 0
         const clampedTime = Math.max(0, Math.min(maxTime, time))
+        
+        // Debug seek
+        console.log('Seek called:', {
+          requestedTime: time,
+          clampedTime,
+          clips: state.currentProject?.timeline?.tracks[0]?.clips.map((c: Clip) => ({
+            id: c.id,
+            start: c.startTime,
+            end: c.startTime + c.duration
+          }))
+        })
+        
         state.currentTime = clampedTime
         
         // Update playhead state using helper
         updatePlayheadState(state)
+        
+        // Log result
+        console.log('After seek:', {
+          currentTime: state.currentTime,
+          hasPlayheadClip: !!state.playheadClip,
+          clipId: state.playheadClip?.id
+        })
       })
     },
 
