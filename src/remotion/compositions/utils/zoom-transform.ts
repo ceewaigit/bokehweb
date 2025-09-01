@@ -10,32 +10,27 @@ import type { ZoomBlock } from '@/types/project';
  * These are deterministic and frame-perfect
  */
 
-// Smooth exponential ease out for zoom in
-export const easeOutExpo = (t: number): number => {
-  return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+// Smooth ease-in-out-cubic for consistent speed
+export const easeInOutCubic = (t: number): number => {
+  return t < 0.5 
+    ? 4 * t * t * t 
+    : 1 - Math.pow(-2 * t + 2, 3) / 2;
 };
 
-// Very smooth cubic bezier curve
+// Very smooth cubic bezier curve (smoothstep)
 const smoothCubic = (t: number): number => {
   return t * t * (3 - 2 * t);
 };
 
-// Professional zoom easing - deterministic and smooth
+// Professional zoom easing - smooth and consistent
 const professionalZoomIn = (progress: number): number => {
-  // Use a combination of curves for the smoothest result
-  // Start with exponential, blend with cubic for polish
-  const expo = easeOutExpo(progress);
-  const cubic = smoothCubic(progress);
-  // Weighted blend favoring exponential
-  return expo * 0.8 + cubic * 0.2;
+  // Use smooth cubic for consistent, cinematic zoom
+  return easeInOutCubic(progress);
 };
 
 const professionalZoomOut = (progress: number): number => {
   // Mirror of zoom in for symmetry
-  const t = 1 - progress;
-  const expo = easeOutExpo(t);
-  const cubic = smoothCubic(t);
-  return 1 - (expo * 0.8 + cubic * 0.2);
+  return easeInOutCubic(progress);
 };
 
 interface ZoomState {

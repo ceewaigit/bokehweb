@@ -38,6 +38,14 @@ export const TimelinePlayhead = React.memo(({
       onDragMove={(e) => {
         const newX = e.target.x() - TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
         const time = TimelineUtils.pixelToTime(newX, pixelsPerMs)
+        
+        console.log('Playhead drag:', {
+          targetX: e.target.x(),
+          adjustedX: newX,
+          pixelsPerMs,
+          calculatedTime: time
+        })
+        
         onSeek(Math.max(0, Math.min(maxTime, time)))
       }}
     >

@@ -91,6 +91,16 @@ export function TimelineCanvas({
   const duration = currentProject?.timeline?.duration || 10000
   const pixelsPerMs = TimelineUtils.calculatePixelsPerMs(stageSize.width, zoom)
   const timelineWidth = TimelineUtils.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
+  
+  // Debug timeline scaling
+  console.log('Timeline scaling:', {
+    duration,
+    stageWidth: stageSize.width,
+    zoom,
+    pixelsPerMs,
+    timelineWidth,
+    trackLabelWidth: TIMELINE_LAYOUT.TRACK_LABEL_WIDTH
+  })
   // Show zoom track if ANY zoom effects exist
   const hasZoomTrack = currentProject?.timeline.effects?.some(e => e.type === 'zoom' && e.enabled) ?? false
   // Show keystroke track if ANY keystroke effects exist
