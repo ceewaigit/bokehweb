@@ -58,24 +58,37 @@ export const TimelineZoomBlock = React.memo(({
       const timer = setTimeout(() => {
         if (trRef.current && groupRef.current) {
           try {
-            trRef.current.nodes([groupRef.current])
+            // Ensure the group node is properly set
+            const groupNode = groupRef.current
+            
+            // Reset any existing transformations
+            groupNode.scaleX(1)
+            groupNode.scaleY(1)
+            
+            // Attach transformer to the group
+            trRef.current.nodes([groupNode])
             trRef.current.forceUpdate()
-            groupRef.current.moveToTop()
-            const layer = trRef.current.getLayer()
+            
+            // Move to top for better interaction
+            groupNode.moveToTop()
+            
+            // Force a redraw
+            const layer = groupNode.getLayer()
             if (layer) {
               layer.batchDraw()
             }
           } catch (e) {
-            // Silently handle transformer update failures
+            console.error('Failed to setup transformer:', e)
           }
         }
-      }, 10)
+      }, 50) // Increased delay for better reliability
       return () => clearTimeout(timer)
     } else if (trRef.current) {
       // Detach transformer when not selected
       trRef.current.nodes([])
+      trRef.current.forceUpdate()
     }
-  }, [isSelected])
+  }, [isSelected, x, width]) // Added x and width as dependencies to re-attach when position changes
 
   // Get valid position for dragging with improved edge snapping
   const getValidDragPosition = (proposedX: number, currentWidth: number): number => {
@@ -414,19 +427,37 @@ export const TimelineZoomBlock = React.memo(({
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
           boundBoxFunc={(oldBox, newBox) => {
+            // Ensure minimum width (100ms in pixels)
+            const minWidthPx = TimeConverter.msToPixels(100, pixelsPerMs)
+            
             // Determine which side is being resized
-            const resizingLeft = newBox.x !== oldBox.x
-
-            // Get valid resize dimensions
-            const valid = getValidResizeWidth(
-              newBox.width,
-              resizingLeft ? newBox.x : x,
-              resizingLeft
-            )
-
-            newBox.width = valid.width
-            newBox.x = valid.x
+            const resizingLeft = Math.abs(newBox.x - oldBox.x) > 0.1
+            
+            // Constrain width
+            if (newBox.width < minWidthPx) {
+              if (resizingLeft) {
+                // When resizing from left, maintain right edge
+                newBox.x = oldBox.x + oldBox.width - minWidthPx
+                newBox.width = minWidthPx
+              } else {
+                // When resizing from right, maintain left edge
+                newBox.width = minWidthPx
+              }
+            }
+            
+            // Prevent x from going before timeline start
+            if (newBox.x < TimelineConfig.TRACK_LABEL_WIDTH) {
+              const adjustment = TimelineConfig.TRACK_LABEL_WIDTH - newBox.x
+              newBox.x = TimelineConfig.TRACK_LABEL_WIDTH
+              // When dragging left edge, adjust width to maintain right edge
+              if (resizingLeft) {
+                newBox.width = oldBox.x + oldBox.width - TimelineConfig.TRACK_LABEL_WIDTH
+              }
+            }
+            
+            // Maintain height
             newBox.height = oldBox.height
+            newBox.y = oldBox.y
 
             return newBox
           }}
@@ -442,21 +473,44 @@ export const TimelineZoomBlock = React.memo(({
           onTransformEnd={(e) => {
             // Get the transformed node
             const node = e.target
-            const transformedWidth = node.width() * node.scaleX()
+            
+            // Get the actual bounding box after transformation
+            const scaleX = node.scaleX()
+            const scaleY = node.scaleY()
+            const transformedWidth = node.width() * scaleX
+            const transformedHeight = node.height() * scaleY
             const transformedX = node.x()
             
-            // Reset scale to 1 (important for next transformation)
+            // Reset both scales to 1 and set the actual dimensions
             node.scaleX(1)
+            node.scaleY(1)
             node.width(transformedWidth)
+            node.height(transformedHeight)
             
-            // Calculate new times based on transformed position
+            // Calculate new times based on transformed position and width
             const adjustedX = transformedX - TimelineConfig.TRACK_LABEL_WIDTH
-            const newStartTime = TimeConverter.pixelsToMs(adjustedX, pixelsPerMs)
-            const newEndTime = newStartTime + TimeConverter.pixelsToMs(transformedWidth, pixelsPerMs)
+            const newStartTime = Math.max(0, TimeConverter.pixelsToMs(adjustedX, pixelsPerMs))
+            const duration = TimeConverter.pixelsToMs(transformedWidth, pixelsPerMs)
+            
+            // Ensure minimum duration of 100ms
+            const minDuration = 100
+            const finalDuration = Math.max(minDuration, duration)
+            const newEndTime = newStartTime + finalDuration
 
-            // Update through parent callback
+            console.log('Zoom block resize:', {
+              transformedX,
+              transformedWidth,
+              adjustedX,
+              scaleX,
+              newStartTime,
+              newEndTime,
+              duration: finalDuration,
+              pixelsPerMs
+            })
+
+            // Update through parent callback with validated times
             onUpdate({
-              startTime: Math.max(0, newStartTime),
+              startTime: newStartTime,
               endTime: newEndTime
             })
           }}
