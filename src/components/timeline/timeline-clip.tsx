@@ -49,6 +49,15 @@ export const TimelineClip = React.memo(({
     TIMELINE_LAYOUT.MIN_CLIP_WIDTH,
     TimelineUtils.timeToPixel(clip.duration, pixelsPerMs)
   )
+  
+  // Log clip rendering position once
+  if (!window._clipLogged || window._clipLogged !== clip.id) {
+    console.log(`Clip ${clip.id.slice(-4)}:`, {
+      timeRange: `${(clip.startTime/1000).toFixed(2)}s - ${((clip.startTime + clip.duration)/1000).toFixed(2)}s`,
+      pixels: `${clipX.toFixed(0)}px - ${(clipX + clipWidth).toFixed(0)}px`
+    })
+    window._clipLogged = clip.id
+  }
 
   // Track height is now passed as a prop
 
