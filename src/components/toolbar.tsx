@@ -30,9 +30,9 @@ interface ToolbarProps {
   project: Project | null
   onToggleProperties: () => void
   onExport: () => void
-  onNewProject: () => void | Promise<void>
+  onNewProject?: () => void | Promise<void>
   onSaveProject: () => Promise<void>
-  onOpenProject: (path: string) => Promise<void>
+  onOpenProject?: (path: string) => Promise<void>
   onBackToLibrary: () => void
   hasUnsavedChanges?: boolean
 }

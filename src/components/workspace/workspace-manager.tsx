@@ -586,39 +586,7 @@ export function WorkspaceManager() {
             project={currentProject}
             onToggleProperties={toggleProperties}
             onExport={() => setExportOpen(true)}
-            onNewProject={async () => {
-              // Ensure wallpaper is loaded
-              await initializeDefaultWallpaper()
-
-              // Clean up current project resources
-              globalBlobManager.cleanupByType('video')
-              globalBlobManager.cleanupByType('export')
-
-              newProject('New Project')
-              setLocalEffects(null)
-
-              // Get the new project's modifiedAt timestamp
-              const newProj = useProjectStore.getState().currentProject
-              if (newProj?.modifiedAt) {
-                setLastSavedAt(newProj.modifiedAt)
-              }
-              setHasUnsavedChanges(false)
-            }}
             onSaveProject={handleSaveProject}
-            onOpenProject={async (path: string) => {
-              await openProject(path)
-              setLocalEffects(null)
-              setHasUnsavedChanges(false)
-              setLastSavedAt(useProjectStore.getState().currentProject?.modifiedAt || null)
-
-              // Calculate and set optimal zoom for the opened project
-              const project = useProjectStore.getState().currentProject
-              if (project) {
-                const viewportWidth = window.innerWidth
-                const optimalZoom = TimeConverter.calculateOptimalZoom(project.timeline.duration, viewportWidth)
-                useProjectStore.getState().setAutoZoom(optimalZoom)
-              }
-            }}
             onBackToLibrary={() => {
               // Clean up resources and navigate back to library
               const cleanupAndReturn = () => {

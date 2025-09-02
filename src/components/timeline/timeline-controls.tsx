@@ -188,7 +188,7 @@ export const TimelineControls = React.memo(({
           value={[zoom]}
           onValueChange={([value]) => onZoomChange(value)}
           min={0.05}
-          max={10}
+          max={5}
           step={0.05}
           className="w-24"
           title={`Zoom: ${(zoom * 100).toFixed(0)}%`}
@@ -197,7 +197,7 @@ export const TimelineControls = React.memo(({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => onZoomChange(Math.min(10, zoom + 0.1))}
+          onClick={() => onZoomChange(Math.min(5, zoom + 0.1))}
           className="h-7 w-7 p-0"
           title="Zoom In"
         >

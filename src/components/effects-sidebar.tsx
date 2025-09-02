@@ -189,67 +189,67 @@ export function EffectsSidebar({
         </div>
       )}
 
-      {/* Section Tabs */}
-      <div className="flex gap-0.5 p-2">
+      {/* Section Tabs - Vertical Layout */}
+      <div className="flex flex-col gap-1 p-2">
         <button
           onClick={() => setActiveTab('background')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
             activeTab === 'background'
-              ? "bg-primary/10 text-primary shadow-sm"
+              ? "bg-primary/10 text-primary"
               : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
-          <Palette className="w-3 h-3" />
-          <span className="hidden sm:inline">BG</span>
+          <Palette className="w-3.5 h-3.5" />
+          <span>Background</span>
         </button>
         <button
           onClick={() => setActiveTab('cursor')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
             activeTab === 'cursor'
-              ? "bg-primary/10 text-primary shadow-sm"
+              ? "bg-primary/10 text-primary"
               : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
-          <MousePointer className="w-3 h-3" />
-          <span className="hidden sm:inline">Cursor</span>
+          <MousePointer className="w-3.5 h-3.5" />
+          <span>Cursor</span>
         </button>
         <button
           onClick={() => setActiveTab('keystroke')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
             activeTab === 'keystroke'
-              ? "bg-primary/10 text-primary shadow-sm"
+              ? "bg-primary/10 text-primary"
               : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
-          <Keyboard className="w-3 h-3" />
-          <span className="hidden sm:inline">Keys</span>
+          <Keyboard className="w-3.5 h-3.5" />
+          <span>Keystroke</span>
         </button>
         <button
           onClick={() => setActiveTab('zoom')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
             activeTab === 'zoom'
-              ? "bg-primary/10 text-primary shadow-sm"
+              ? "bg-primary/10 text-primary"
               : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
-          <Camera className="w-3 h-3" />
-          <span className="hidden sm:inline">Zoom</span>
+          <Camera className="w-3.5 h-3.5" />
+          <span>Zoom</span>
         </button>
         <button
           onClick={() => setActiveTab('shape')}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
             activeTab === 'shape'
-              ? "bg-primary/10 text-primary shadow-sm"
+              ? "bg-primary/10 text-primary"
               : "text-muted-foreground hover:text-foreground hover:bg-background/50"
           )}
         >
-          <Square className="w-3 h-3" />
-          <span className="hidden sm:inline">Shape</span>
+          <Square className="w-3.5 h-3.5" />
+          <span>Shape</span>
         </button>
       </div>
 
