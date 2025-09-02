@@ -234,6 +234,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const captureHeight = firstEvent?.captureHeight || videoHeight;
 
   // Normalize cursor position (0-1 range within the capture area)
+  // Both cursorPosition.x/y and captureWidth/captureHeight are in physical pixels for consistency
   // Do not clamp; allow positions outside the capture area to show sides
   const normalizedX = cursorPosition ? (cursorPosition.x / captureWidth) : 0;
   const normalizedY = cursorPosition ? (cursorPosition.y / captureHeight) : 0;

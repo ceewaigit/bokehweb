@@ -4,20 +4,23 @@
 
 export interface ElectronMetadata {
   timestamp: number
-  mouseX?: number  // Optional for keyboard events
-  mouseY?: number  // Optional for keyboard events
+  mouseX?: number  // Optional for keyboard events, in physical pixels
+  mouseY?: number  // Optional for keyboard events, in physical pixels
   eventType: 'mouse' | 'click' | 'keypress' | 'scroll'
   key?: string
   modifiers?: string[]
   keyEventType?: 'keydown' | 'keyup'
   velocity?: { x: number; y: number }
   scrollDelta?: { x: number; y: number }
-  captureWidth?: number
-  captureHeight?: number
+  captureWidth?: number  // Physical pixels
+  captureHeight?: number // Physical pixels
   scaleFactor?: number
   cursorType?: string
   sourceBounds?: { x: number; y: number; width: number; height: number }
   sourceType?: 'screen' | 'window' | 'area'
+  // Debugging fields - logical coordinates before scaling
+  logicalX?: number
+  logicalY?: number
 }
 
 export interface ElectronRecordingResult {

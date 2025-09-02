@@ -428,15 +428,18 @@ export class ElectronRecorder {
       const timestamp = Date.now() - this.startTime
       this.metadata.push({
         timestamp,
-        mouseX: data.x,
+        mouseX: data.x, // Now in physical pixels to match captureWidth/captureHeight
         mouseY: data.y,
         eventType: 'mouse',
         velocity: data.velocity,
         cursorType: data.cursorType,
         scaleFactor: data.scaleFactor,
-        // Always include capture dimensions with mouse events
+        // Always include capture dimensions with mouse events (in physical pixels)
         captureWidth: this.captureWidth,
-        captureHeight: this.captureHeight
+        captureHeight: this.captureHeight,
+        // Store logical coordinates for debugging if available
+        logicalX: data.logicalX,
+        logicalY: data.logicalY
       })
     }
 
@@ -444,11 +447,15 @@ export class ElectronRecorder {
       const timestamp = Date.now() - this.startTime
       this.metadata.push({
         timestamp,
-        mouseX: data.x,
+        mouseX: data.x, // Now in physical pixels to match captureWidth/captureHeight
         mouseY: data.y,
         eventType: 'click',
         key: data.button,
-        cursorType: data.cursorType
+        cursorType: data.cursorType,
+        scaleFactor: data.scaleFactor,
+        // Store logical coordinates for debugging if available
+        logicalX: data.logicalX,
+        logicalY: data.logicalY
       })
     }
 

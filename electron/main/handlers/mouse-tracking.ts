@@ -171,15 +171,21 @@ export function registerMouseTrackingHandlers(): void {
               velocity.y = lastVelocity.y * 0.3 + velocity.y * 0.7
             }
 
-            // Send position in LOGICAL pixels with scale factor
-            // The recording side will decide how to transform based on video resolution
+            // Send position in PHYSICAL pixels to match capture dimensions
+            // Scale logical coordinates by scaleFactor for consistency with captureWidth/captureHeight
+            const physicalX = currentPosition.x * scaleFactor
+            const physicalY = currentPosition.y * scaleFactor
+            
             const positionData = {
-              x: Math.round(currentPosition.x * 100) / 100, // Sub-pixel precision
-              y: Math.round(currentPosition.y * 100) / 100,
+              x: Math.round(physicalX * 100) / 100, // Sub-pixel precision in physical pixels
+              y: Math.round(physicalY * 100) / 100,
               time: now,
               // Include display info for proper coordinate transformation
               displayBounds: currentDisplay.bounds,
-              scaleFactor: scaleFactor
+              scaleFactor: scaleFactor,
+              // Store logical coordinates for debugging
+              logicalX: currentPosition.x,
+              logicalY: currentPosition.y
             }
 
             // Update mouse history for velocity analysis
@@ -208,11 +214,11 @@ export function registerMouseTrackingHandlers(): void {
             let usedCursorType = cursorType
             if (isMouseDown) {
               const dragDistance = Math.sqrt(
-                Math.pow(currentPosition.x - lastClickPosition.x, 2) +
-                Math.pow(currentPosition.y - lastClickPosition.y, 2)
+                Math.pow(physicalX - lastClickPosition.x, 2) +
+                Math.pow(physicalY - lastClickPosition.y, 2)
               )
 
-              if (dragDistance > 5) {
+              if (dragDistance > 5 * scaleFactor) { // Scale threshold with display scaling
                 usedCursorType = 'grabbing'
               }
             }
@@ -370,13 +376,17 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
     const handleMouseDown = (event: any) => {
       if (!isMouseTracking || !mouseEventSender) return
 
-      // Track mouse down state for cursor detection
-      isMouseDown = true
-      lastClickPosition = { x: event.x, y: event.y }
-
       // Get current display info for coordinate transformation
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
+
+      // Send click event with coordinates in physical pixels to match capture dimensions
+      const physicalClickX = event.x * scaleFactor
+      const physicalClickY = event.y * scaleFactor
+
+      // Track mouse down state for cursor detection
+      isMouseDown = true
+      lastClickPosition = { x: physicalClickX, y: physicalClickY }
 
       // Get cursor type at click position
       let clickCursorType = 'pointer' // Default for clicks
@@ -387,18 +397,20 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
           // Keep pointer as default
         }
       }
-
-      // Send click event with proper coordinates
+      
       mouseEventSender.send('mouse-click', {
-        x: event.x,
-        y: event.y,
+        x: physicalClickX,
+        y: physicalClickY,
         timestamp: Date.now(),
         button: event.button === 1 ? 'left' : event.button === 2 ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,
         scaleFactor: scaleFactor,
         cursorType: clickCursorType,  // Use detected cursor type
         sourceType: sourceType || 'screen',
-        sourceId: sourceId
+        sourceId: sourceId,
+        // Store logical coordinates for debugging
+        logicalX: event.x,
+        logicalY: event.y
       })
 
       logger.debug(`Mouse down at (${event.x}, ${event.y})`)
