@@ -272,9 +272,12 @@ export function WorkspaceManager() {
   // Effects now come directly from store's reactive playheadEffects
   // No need to calculate - store maintains this state
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
-    // Use command system only for proper undo/redo support
-    if (commandManagerRef.current && commandContextRef.current) {
-      const command = new UpdateZoomBlockCommand(commandContextRef.current, blockId, updates)
+    // Use command system for proper undo/redo support
+    if (commandManagerRef.current) {
+      // Create fresh context with current store state
+      const currentStore = useProjectStore.getState()
+      const freshContext = new DefaultCommandContext(currentStore)
+      const command = new UpdateZoomBlockCommand(freshContext, blockId, updates)
       commandManagerRef.current.execute(command)
     }
   }, [])

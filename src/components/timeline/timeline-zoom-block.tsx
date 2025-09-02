@@ -49,6 +49,7 @@ export const TimelineZoomBlock = React.memo(({
   const [isDragging, setIsDragging] = useState(false)
   const [isTransforming, setIsTransforming] = useState(false)
   const groupRef = useRef<Konva.Group>(null)
+  const rectRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
 
   // No local position state - use props directly
@@ -56,42 +57,25 @@ export const TimelineZoomBlock = React.memo(({
 
   // Setup transformer when selected
   useEffect(() => {
-    if (isSelected) {
-      // Small delay to ensure DOM is ready
-      const timer = setTimeout(() => {
-        if (trRef.current && groupRef.current) {
-          try {
-            // Ensure the group node is properly set
-            const groupNode = groupRef.current
-
-            // Reset any existing transformations
-            groupNode.scaleX(1)
-            groupNode.scaleY(1)
-
-            // Attach transformer to the group
-            trRef.current.nodes([groupNode])
-            trRef.current.forceUpdate()
-
-            // Move to top for better interaction
-            groupNode.moveToTop()
-
-            // Force a redraw
-            const layer = groupNode.getLayer()
-            if (layer) {
-              layer.batchDraw()
-            }
-          } catch (e) {
-            console.error('Failed to setup transformer:', e)
-          }
+    if (isSelected && rectRef.current && trRef.current) {
+      // Attach transformer to the rect (not the group)
+      trRef.current.nodes([rectRef.current])
+      trRef.current.forceUpdate()
+      
+      // Move group to top for better interaction
+      if (groupRef.current) {
+        groupRef.current.moveToTop()
+        const layer = groupRef.current.getLayer()
+        if (layer) {
+          layer.batchDraw()
         }
-      }, 50) // Increased delay for better reliability
-      return () => clearTimeout(timer)
+      }
     } else if (trRef.current) {
       // Detach transformer when not selected
       trRef.current.nodes([])
       trRef.current.forceUpdate()
     }
-  }, [isSelected, x, width]) // Added x and width as dependencies to re-attach when position changes
+  }, [isSelected])
 
   // Get valid position for dragging with improved edge snapping
   const getValidDragPosition = (proposedX: number, currentWidth: number): number => {
@@ -272,6 +256,7 @@ export const TimelineZoomBlock = React.memo(({
         listening={true}
       >
         <Rect
+          ref={rectRef}
           x={0}
           y={0}
           width={width}
@@ -336,37 +321,27 @@ export const TimelineZoomBlock = React.memo(({
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
           boundBoxFunc={(oldBox, newBox) => {
-            // Ensure minimum width (config-driven)
+            // Ensure minimum width
             const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
-
-            // Determine which side is being resized
-            const resizingLeft = Math.abs(newBox.x - oldBox.x) > 0.1
-
+            
             // Constrain width
             if (newBox.width < minWidthPx) {
-              if (resizingLeft) {
-                // When resizing from left, maintain right edge
-                newBox.x = oldBox.x + oldBox.width - minWidthPx
-                newBox.width = minWidthPx
-              } else {
-                // When resizing from right, maintain left edge
-                newBox.width = minWidthPx
-              }
+              newBox.width = minWidthPx
             }
-
-            // Prevent x from going before timeline start
-            if (newBox.x < TimelineConfig.TRACK_LABEL_WIDTH) {
-              newBox.x = TimelineConfig.TRACK_LABEL_WIDTH
-              // When dragging left edge, adjust width to maintain right edge
-              if (resizingLeft) {
-                newBox.width = oldBox.x + oldBox.width - TimelineConfig.TRACK_LABEL_WIDTH
-              }
+            
+            // Calculate absolute position of the rect
+            const groupX = groupRef.current ? groupRef.current.x() : x
+            const absoluteX = groupX + newBox.x
+            
+            // Prevent going before timeline start
+            if (absoluteX < TimelineConfig.TRACK_LABEL_WIDTH) {
+              newBox.x = TimelineConfig.TRACK_LABEL_WIDTH - groupX
             }
-
-            // Maintain height
+            
+            // Maintain height (no vertical resizing)
             newBox.height = oldBox.height
             newBox.y = oldBox.y
-
+            
             return newBox
           }}
           borderStroke={colors.primary || '#6366f1'}
@@ -382,65 +357,65 @@ export const TimelineZoomBlock = React.memo(({
             setIsTransforming(true)
           }}
           onTransform={() => {
-            const node = groupRef.current
-            if (!node) return
-
-            // During transform, allow visual feedback
-            // The transformer will handle the visual scaling
-            // We'll apply the actual dimension changes in onTransformEnd
+            // Keep rect scale at 1 to prevent content stretching
+            if (rectRef.current) {
+              const rect = rectRef.current
+              const scaleX = rect.scaleX()
+              const scaleY = rect.scaleY()
+              
+              // Apply scale to width/height instead of scaling
+              rect.width(rect.width() * scaleX)
+              rect.height(rect.height() * scaleY)
+              rect.scaleX(1)
+              rect.scaleY(1)
+            }
           }}
-          onTransformEnd={(e) => {
+          onTransformEnd={() => {
             setIsTransforming(false)
 
-            // Get the transformed node (the Group)
-            const node = e.target
-            if (!node) return
+            if (!rectRef.current || !groupRef.current || !trRef.current) return
 
-            // Get the actual transformed dimensions
-            const scaleX = node.scaleX()
-            const nodeX = node.x()
-            const nodeWidth = node.width() * scaleX
-
-            // Calculate new width and position
-            const newWidth = Math.max(
-              TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs),
-              nodeWidth
-            )
-
-            let finalX = nodeX
+            const rect = rectRef.current
+            const group = groupRef.current
+            
+            // Get the current rect dimensions after transform
+            const newWidth = rect.width()
+            const rectX = rect.x()
+            
+            // Calculate the new group position if rect was moved
+            const newGroupX = group.x() + rectX
+            
+            // Reset rect position (keep it at 0,0 within group)
+            rect.x(0)
+            rect.y(0)
+            
+            // Ensure minimum width
+            const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
+            const finalWidth = Math.max(minWidthPx, newWidth)
             
             // Constrain position
-            if (finalX < TimelineConfig.TRACK_LABEL_WIDTH) {
-              finalX = TimelineConfig.TRACK_LABEL_WIDTH
-            }
-
-            // Reset the node's transform but keep the new position
-            node.scaleX(1)
-            node.scaleY(1)
-            node.x(finalX)
-            node.width(newWidth)
-
-            // Calculate new times based on final position and width
+            const finalX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, newGroupX)
+            
+            // Calculate new times
             const adjustedX = finalX - TimelineConfig.TRACK_LABEL_WIDTH
             const newStartTime = Math.max(0, TimeConverter.pixelsToMs(adjustedX, pixelsPerMs))
-            const duration = TimeConverter.pixelsToMs(newWidth, pixelsPerMs)
+            const duration = TimeConverter.pixelsToMs(finalWidth, pixelsPerMs)
             const newEndTime = newStartTime + duration
-
-            // Check for overlaps with other zoom blocks using the allBlocks prop
+            
+            // Check for overlaps
             const wouldOverlap = allBlocks
               .filter(b => b.id !== blockId)
               .some(block => 
                 (newStartTime < block.endTime && newEndTime > block.startTime)
               )
-
+            
             if (wouldOverlap) {
-              // Reset to original dimensions if overlap detected
-              node.x(x)
-              node.width(width)
-              // Force re-render
-              node.getLayer()?.batchDraw()
+              // Reset dimensions
+              rect.width(width)
+              rect.height(height)
+              group.getLayer()?.batchDraw()
             } else {
-              // Update through parent callback with validated times
+              // Update through parent callback
               onUpdate({
                 startTime: newStartTime,
                 endTime: newEndTime
