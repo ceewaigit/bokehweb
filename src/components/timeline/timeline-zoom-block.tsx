@@ -385,62 +385,67 @@ export const TimelineZoomBlock = React.memo(({
             const node = groupRef.current
             if (!node) return
 
-            // During transform, only handle visual feedback
-            // DO NOT update the store - this causes jitter
-            // The actual update will happen in onTransformEnd
-
-            // Prevent visual stretching by resetting scale
-            node.scaleX(1)
-            node.scaleY(1)
+            // During transform, allow visual feedback
+            // The transformer will handle the visual scaling
+            // We'll apply the actual dimension changes in onTransformEnd
           }}
           onTransformEnd={(e) => {
             setIsTransforming(false)
 
-            // Get the transformed node (the Group) and transformer
+            // Get the transformed node (the Group)
             const node = e.target
-            const tr = trRef.current
-            if (!tr) return
+            if (!node) return
 
-            // Detect which handle was being dragged
-            const activeAnchor = tr.getActiveAnchor?.() as string | undefined
-            const resizingLeft = activeAnchor === 'middle-left'
+            // Get the actual transformed dimensions
+            const scaleX = node.scaleX()
+            const nodeX = node.x()
+            const nodeWidth = node.width() * scaleX
 
-            // Get the bounding box from the transformer
-            const box = tr.getClientRect()
+            // Calculate new width and position
+            const newWidth = Math.max(
+              TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs),
+              nodeWidth
+            )
 
-            // Calculate new dimensions
-            const newWidth = box.width
-            let newX = box.x
-
-            // Ensure minimum width
-            const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
-            const finalWidth = Math.max(minWidthPx, newWidth)
-
-            // Adjust x position if resizing from left and we hit minimum width
-            if (resizingLeft && newWidth < minWidthPx) {
-              const rightEdge = box.x + box.width
-              newX = rightEdge - minWidthPx
+            let finalX = nodeX
+            
+            // Constrain position
+            if (finalX < TimelineConfig.TRACK_LABEL_WIDTH) {
+              finalX = TimelineConfig.TRACK_LABEL_WIDTH
             }
 
-            // Ensure we don't go before timeline start
-            newX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, newX)
-
-            // Reset the node scale to 1 (important!)
+            // Reset the node's transform but keep the new position
             node.scaleX(1)
             node.scaleY(1)
-            node.x(newX)
+            node.x(finalX)
+            node.width(newWidth)
 
             // Calculate new times based on final position and width
-            const adjustedX = newX - TimelineConfig.TRACK_LABEL_WIDTH
+            const adjustedX = finalX - TimelineConfig.TRACK_LABEL_WIDTH
             const newStartTime = Math.max(0, TimeConverter.pixelsToMs(adjustedX, pixelsPerMs))
-            const duration = TimeConverter.pixelsToMs(finalWidth, pixelsPerMs)
+            const duration = TimeConverter.pixelsToMs(newWidth, pixelsPerMs)
             const newEndTime = newStartTime + duration
 
-            // Update through parent callback with validated times
-            onUpdate({
-              startTime: newStartTime,
-              endTime: newEndTime
-            })
+            // Check for overlaps with other zoom blocks using the allBlocks prop
+            const wouldOverlap = allBlocks
+              .filter(b => b.id !== blockId)
+              .some(block => 
+                (newStartTime < block.endTime && newEndTime > block.startTime)
+              )
+
+            if (wouldOverlap) {
+              // Reset to original dimensions if overlap detected
+              node.x(x)
+              node.width(width)
+              // Force re-render
+              node.getLayer()?.batchDraw()
+            } else {
+              // Update through parent callback with validated times
+              onUpdate({
+                startTime: newStartTime,
+                endTime: newEndTime
+              })
+            }
           }}
         />
       )}
