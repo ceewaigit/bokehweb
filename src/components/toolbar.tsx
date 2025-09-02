@@ -93,44 +93,48 @@ export function Toolbar({
         )}
 
         {/* Project Actions - Compact */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onNewProject}
-          className="h-7 px-2 text-[11px] font-medium hover:bg-background/50"
-        >
-          <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
-          <span className="whitespace-nowrap">New</span>
-        </Button>
+        {onNewProject && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onNewProject}
+            className="h-7 px-2 text-[11px] font-medium hover:bg-background/50"
+          >
+            <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
+            <span className="whitespace-nowrap">New</span>
+          </Button>
+        )}
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={async () => {
-            if (window.electronAPI?.showOpenDialog) {
-              try {
-                const result = await window.electronAPI.showOpenDialog({
-                  properties: ['openFile'],
-                  filters: [
-                    { name: 'Screen Studio Projects', extensions: ['ssproj'] },
-                    { name: 'All Files', extensions: ['*'] }
-                  ]
-                })
+        {onOpenProject && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              if (window.electronAPI?.showOpenDialog) {
+                try {
+                  const result = await window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [
+                      { name: 'Screen Studio Projects', extensions: ['ssproj'] },
+                      { name: 'All Files', extensions: ['*'] }
+                    ]
+                  })
 
-                if (!result.canceled && result.filePaths?.length > 0) {
-                  const projectPath = result.filePaths[0]
-                  await onOpenProject(projectPath)
+                  if (!result.canceled && result.filePaths?.length > 0) {
+                    const projectPath = result.filePaths[0]
+                    await onOpenProject(projectPath)
+                  }
+                } catch (error) {
+                  console.error('Failed to open project:', error)
                 }
-              } catch (error) {
-                console.error('Failed to open project:', error)
               }
-            }
-          }}
-          className="h-7 px-2 text-[11px] font-medium hover:bg-background/50"
-        >
-          <FolderOpen className="w-3 h-3 mr-1 flex-shrink-0" />
-          <span className="whitespace-nowrap">Open</span>
-        </Button>
+            }}
+            className="h-7 px-2 text-[11px] font-medium hover:bg-background/50"
+          >
+            <FolderOpen className="w-3 h-3 mr-1 flex-shrink-0" />
+            <span className="whitespace-nowrap">Open</span>
+          </Button>
+        )}
 
         <Button
           variant={hasUnsavedChanges ? "default" : "ghost"}
