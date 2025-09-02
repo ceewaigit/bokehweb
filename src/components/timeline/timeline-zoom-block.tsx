@@ -385,10 +385,6 @@ export const TimelineZoomBlock = React.memo(({
             // Calculate the new group position if rect was moved
             const newGroupX = group.x() + rectX
             
-            // Reset rect position (keep it at 0,0 within group)
-            rect.x(0)
-            rect.y(0)
-            
             // Ensure minimum width
             const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
             const finalWidth = Math.max(minWidthPx, newWidth)
@@ -410,12 +406,23 @@ export const TimelineZoomBlock = React.memo(({
               )
             
             if (wouldOverlap) {
-              // Reset dimensions
+              // Reset to original dimensions only on overlap
+              rect.x(0)
+              rect.y(0)
               rect.width(width)
               rect.height(height)
+              group.x(x)
               group.getLayer()?.batchDraw()
             } else {
-              // Update through parent callback
+              // Keep the visual state and update store
+              // The component will re-render with new props that match these dimensions
+              rect.x(0)
+              rect.y(0)
+              // Keep the new dimensions
+              rect.width(finalWidth)
+              group.x(finalX)
+              
+              // Update store which will trigger re-render with matching props
               onUpdate({
                 startTime: newStartTime,
                 endTime: newEndTime
