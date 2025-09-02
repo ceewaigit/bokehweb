@@ -177,95 +177,99 @@ export function EffectsSidebar({
   }, [])
 
   return (
-    <div className={cn("flex flex-col bg-background/95 border-l border-border/50", className)}>
-      {/* Selection Indicator */}
-      {selectedEffectLayer && (
-        <div className="px-3 py-1.5 bg-primary/5">
-          <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-medium">
-            {selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id ?
-              `Zoom Block` :
-              selectedEffectLayer.type} Layer
-          </span>
+    <div className={cn("flex bg-background/95 border-l border-border/50", className)}>
+      {/* Left sidebar with section tabs */}
+      <div className="w-14 flex flex-col items-center py-3 border-r border-border/30">
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setActiveTab('background')}
+            className={cn(
+              "p-2 rounded-md transition-all",
+              activeTab === 'background'
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            )}
+            title="Background"
+          >
+            <Palette className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setActiveTab('cursor')}
+            className={cn(
+              "p-2 rounded-md transition-all",
+              activeTab === 'cursor'
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            )}
+            title="Cursor"
+          >
+            <MousePointer className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setActiveTab('keystroke')}
+            className={cn(
+              "p-2 rounded-md transition-all",
+              activeTab === 'keystroke'
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            )}
+            title="Keystroke"
+          >
+            <Keyboard className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setActiveTab('zoom')}
+            className={cn(
+              "p-2 rounded-md transition-all",
+              activeTab === 'zoom'
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            )}
+            title="Zoom"
+          >
+            <Camera className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setActiveTab('shape')}
+            className={cn(
+              "p-2 rounded-md transition-all",
+              activeTab === 'shape'
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            )}
+            title="Shape"
+          >
+            <Square className="w-5 h-5" />
+          </button>
         </div>
-      )}
-
-      {/* Section Tabs - Vertical Layout */}
-      <div className="flex flex-col gap-1 p-2">
-        <button
-          onClick={() => setActiveTab('background')}
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
-            activeTab === 'background'
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-          )}
-        >
-          <Palette className="w-3.5 h-3.5" />
-          <span>Background</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('cursor')}
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
-            activeTab === 'cursor'
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-          )}
-        >
-          <MousePointer className="w-3.5 h-3.5" />
-          <span>Cursor</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('keystroke')}
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
-            activeTab === 'keystroke'
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-          )}
-        >
-          <Keyboard className="w-3.5 h-3.5" />
-          <span>Keystroke</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('zoom')}
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
-            activeTab === 'zoom'
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-          )}
-        >
-          <Camera className="w-3.5 h-3.5" />
-          <span>Zoom</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('shape')}
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all",
-            activeTab === 'shape'
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-          )}
-        >
-          <Square className="w-3.5 h-3.5" />
-          <span>Shape</span>
-        </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      {/* Right content area */}
+      <div className="flex-1 flex flex-col">
+        {/* Selection Indicator */}
+        {selectedEffectLayer && (
+          <div className="px-3 py-1.5 bg-primary/5">
+            <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-medium">
+              {selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id ?
+                `Zoom Block` :
+                selectedEffectLayer.type} Layer
+            </span>
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {activeTab === 'background' && (
           <div className="space-y-3">
             {/* Background Section Header */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-medium flex items-center gap-2">
-                <Palette className="w-3.5 h-3.5" />
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Palette className="w-4 h-4" />
                 <span>Background</span>
               </h3>
 
-              {/* Vertical Background Type Tabs */}
-              <div className="flex flex-col gap-1">
+              {/* Horizontal Background Type Tabs */}
+              <div className="flex gap-1 p-0.5 bg-background/50 rounded-md">
                 {(['wallpaper', 'gradient', 'color', 'image'] as const).map(type => (
                   <button
                     key={type}
@@ -275,13 +279,13 @@ export function EffectsSidebar({
                       // This prevents the background from disappearing when switching tabs
                     }}
                     className={cn(
-                      "flex items-center justify-start px-3 py-2 rounded-md text-xs font-medium transition-all",
+                      "flex-1 py-1.5 px-2 rounded-sm text-xs font-medium transition-all capitalize",
                       backgroundType === type
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    <span className="capitalize">{type}</span>
+                    {type}
                   </button>
                 ))}
               </div>
@@ -1004,6 +1008,7 @@ export function EffectsSidebar({
 
           </div>
         )}
+        </div>
       </div>
     </div>
   )
