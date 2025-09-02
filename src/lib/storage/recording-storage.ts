@@ -345,7 +345,7 @@ export class RecordingStorage {
 
       // Filter out standalone modifier keys (CapsLock, Shift, etc.) but keep them when combined with other keys
       const modifierKeys = ['CapsLock', 'Shift', 'Control', 'Alt', 'Meta', 'Command', 'Option', 'Fn']
-      
+
       const keyboardEvents = metadata
         .filter(m => m.eventType === 'keypress' && m.keyEventType === 'keydown')
         .filter(m => !modifierKeys.includes(m.key))  // Filter out standalone modifier keys
@@ -354,7 +354,7 @@ export class RecordingStorage {
           key: m.key || '',
           modifiers: m.modifiers || []
         }))
-      
+
       logger.info(`📊 Saving recording with ${keyboardEvents.length} keyboard events`)
 
       const reconstructedCaptureArea = sourceBounds ? {
@@ -444,19 +444,19 @@ export class RecordingStorage {
           type: 'background',
           startTime: 0,
           endTime: Number.MAX_SAFE_INTEGER,
-        data: {
-          type: 'wallpaper',
-          gradient: {
-            colors: ['#2D3748', '#1A202C'],
-            angle: 135
+          data: {
+            type: 'wallpaper',
+            gradient: {
+              colors: ['#2D3748', '#1A202C'],
+              angle: 135
+            },
+            wallpaper: undefined,
+            padding: 40,
+            cornerRadius: 15,
+            shadowIntensity: 85
           },
-          wallpaper: undefined,
-          padding: 80,
-          cornerRadius: 25,
-          shadowIntensity: 85
-        },
-        enabled: true
-      })
+          enabled: true
+        })
       }
 
       // Add global cursor effect if it doesn't exist
@@ -467,17 +467,17 @@ export class RecordingStorage {
           type: 'cursor',
           startTime: 0,
           endTime: Number.MAX_SAFE_INTEGER,
-        data: {
-          style: 'macOS',
-          size: 4.0,
-          color: '#ffffff',
-          clickEffects: true,
-          motionBlur: true,
-          hideOnIdle: true,
-          idleTimeout: 3000
-        },
-        enabled: true
-      })
+          data: {
+            style: 'macOS',
+            size: 4.0,
+            color: '#ffffff',
+            clickEffects: true,
+            motionBlur: true,
+            hideOnIdle: true,
+            idleTimeout: 3000
+          },
+          enabled: true
+        })
       }
 
       // Add global keystroke effect if keyboard events exist and not already present

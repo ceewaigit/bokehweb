@@ -71,7 +71,7 @@ export const TimelineControls = React.memo(({
         >
           <SkipBack className="w-3.5 h-3.5" />
         </Button>
-        
+
         <Button
           size="sm"
           variant="ghost"
@@ -80,7 +80,7 @@ export const TimelineControls = React.memo(({
         >
           {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
         </Button>
-        
+
         <Button
           size="sm"
           variant="ghost"
@@ -103,7 +103,7 @@ export const TimelineControls = React.memo(({
         >
           <Scissors className="w-3.5 h-3.5" />
         </Button>
-        
+
         <Button
           size="sm"
           variant="ghost"
@@ -114,7 +114,7 @@ export const TimelineControls = React.memo(({
         >
           <ChevronsLeft className="w-3.5 h-3.5" />
         </Button>
-        
+
         <Button
           size="sm"
           variant="ghost"
@@ -125,7 +125,7 @@ export const TimelineControls = React.memo(({
         >
           <ChevronsRight className="w-3.5 h-3.5" />
         </Button>
-        
+
         <Button
           size="sm"
           variant="ghost"
@@ -135,7 +135,7 @@ export const TimelineControls = React.memo(({
         >
           <Trash2 className="w-3.5 h-3.5" />
         </Button>
-        
+
         {onCopy && (
           <Button
             size="sm"
@@ -147,7 +147,7 @@ export const TimelineControls = React.memo(({
             <Copy className="w-3.5 h-3.5" />
           </Button>
         )}
-        
+
         {onPaste && (
           <Button
             size="sm"
@@ -159,7 +159,7 @@ export const TimelineControls = React.memo(({
             <Clipboard className="w-3.5 h-3.5" />
           </Button>
         )}
-        
+
         <Button
           size="sm"
           variant="ghost"
@@ -177,27 +177,27 @@ export const TimelineControls = React.memo(({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => onZoomChange(Math.max(0.1, zoom - 0.1))}
+          onClick={() => onZoomChange(Math.max(0.05, zoom - 0.1))}
           className="h-7 w-7 p-0"
           title="Zoom Out"
         >
           <ZoomOut className="w-3.5 h-3.5" />
         </Button>
-        
+
         <Slider
           value={[zoom]}
           onValueChange={([value]) => onZoomChange(value)}
-          min={0.1}
-          max={3}
+          min={0.05}
+          max={10}
           step={0.05}
           className="w-24"
           title={`Zoom: ${(zoom * 100).toFixed(0)}%`}
         />
-        
+
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => onZoomChange(Math.min(3, zoom + 0.1))}
+          onClick={() => onZoomChange(Math.min(10, zoom + 0.1))}
           className="h-7 w-7 p-0"
           title="Zoom In"
         >

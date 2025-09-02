@@ -8,7 +8,7 @@ export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
     angle: 135
   },
   wallpaper: undefined,
-  padding: 80
+  padding: 40
 }
 
 // Screen Studio style background effect data
@@ -19,7 +19,7 @@ export const SCREEN_STUDIO_BACKGROUND_DATA: BackgroundEffectData = {
     angle: 135
   },
   wallpaper: undefined,
-  padding: 80
+  padding: 40
 }
 
 // Default cursor effect data

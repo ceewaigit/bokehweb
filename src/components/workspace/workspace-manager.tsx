@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef, startTransition } from 'react'
 import { Toolbar } from '../toolbar'
 import { PreviewAreaRemotion } from '../preview-area-remotion'
 import dynamic from 'next/dynamic'
@@ -163,8 +163,8 @@ async function loadProjectRecording(
           angle: 135
         },
         wallpaper: defaultWallpaper,
-        padding: 80,
-        cornerRadius: 25,
+        padding: 40,
+        cornerRadius: 15,
         shadowIntensity: 85
       },
       enabled: true
@@ -498,8 +498,10 @@ export function WorkspaceManager() {
       }
     }
 
-    setLocalEffects(newEffects)
-    setHasUnsavedChanges(true)
+    startTransition(() => {
+      setLocalEffects(newEffects)
+      setHasUnsavedChanges(true)
+    })
   }, [playheadEffects, localEffects, selectedEffectLayer, currentProject])
 
 

@@ -311,8 +311,8 @@ export const useProjectStore = create<ProjectStore>()(
                 angle: 135
               },
               wallpaper: defaultWallpaper,
-              padding: 80,
-              cornerRadius: 25,
+              padding: 40,
+              cornerRadius: 15,
               shadowIntensity: 85
             } as BackgroundEffectData,
             enabled: true
@@ -392,7 +392,7 @@ export const useProjectStore = create<ProjectStore>()(
           // Force new clips to be positioned right after the last clip (no gaps)
           if (videoTrack.clips.length > 0) {
             // Find the end of the last clip in the timeline
-            const sortedClips = [...videoTrack.clips].sort((a, b) => 
+            const sortedClips = [...videoTrack.clips].sort((a, b) =>
               (a.startTime + a.duration) - (b.startTime + b.duration)
             )
             const lastClip = sortedClips[sortedClips.length - 1]
@@ -460,7 +460,7 @@ export const useProjectStore = create<ProjectStore>()(
         if (updates.startTime !== undefined) {
           // Get the leftmost clip end position (excluding current clip)
           const leftmostEnd = ClipPositioning.getLeftmostClipEnd(track.clips, clipId)
-          
+
           // Force the clip to this position (no gaps allowed)
           updates.startTime = leftmostEnd
         }
