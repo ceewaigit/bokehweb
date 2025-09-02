@@ -253,6 +253,17 @@ export function WorkspaceManager() {
   const [localEffects, setLocalEffects] = useState<Effect[] | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
+  // Command manager for undo/redo support
+  const commandManagerRef = useRef<CommandManager | null>(null)
+  const commandContextRef = useRef<DefaultCommandContext | null>(null)
+
+  // Initialize command manager
+  useEffect(() => {
+    const store = useProjectStore.getState()
+    commandContextRef.current = new DefaultCommandContext(store)
+    commandManagerRef.current = CommandManager.getInstance(commandContextRef.current)
+  }, [])
+
   // Get selected clip (only needed for timeline editing operations)
   const selectedClip = currentProject?.timeline.tracks
     .flatMap(t => t.clips)
@@ -261,49 +272,12 @@ export function WorkspaceManager() {
   // Effects now come directly from store's reactive playheadEffects
   // No need to calculate - store maintains this state
   const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
-    // Work with local effects or fall back to saved effects from store
-    const currentEffects = localEffects || playheadEffects || []
-    const zoomEffect = currentEffects.find(e => e.type === 'zoom' && e.id === blockId)
-
-    if (zoomEffect) {
-      // Update the effect in local state
-      let updatedEffect: Effect
-
-      // Check if this is a timing update or data update
-      if ('startTime' in updates || 'endTime' in updates) {
-        // Timing update - update the effect times directly
-        updatedEffect = {
-          ...zoomEffect,
-          startTime: updates.startTime ?? zoomEffect.startTime,
-          endTime: updates.endTime ?? zoomEffect.endTime
-        }
-      } else {
-        // Data update - update the zoom data
-        updatedEffect = {
-          ...zoomEffect,
-          data: {
-            ...(zoomEffect.data as ZoomEffectData),
-            ...updates
-          }
-        }
-      }
-
-      // Update local effects array
-      const newEffects = currentEffects.map(e =>
-        e.id === blockId ? updatedEffect : e
-      )
-
-      setLocalEffects(newEffects)
-      setHasUnsavedChanges(true)
-
-      // Also update via command for undo/redo support
-      const store = useProjectStore.getState()
-      const context = new DefaultCommandContext(store)
-      const commandManager = CommandManager.getInstance(context)
-      const command = new UpdateZoomBlockCommand(context, blockId, updates)
-      commandManager.execute(command)
+    // Use command system only for proper undo/redo support
+    if (commandManagerRef.current && commandContextRef.current) {
+      const command = new UpdateZoomBlockCommand(commandContextRef.current, blockId, updates)
+      commandManagerRef.current.execute(command)
     }
-  }, [playheadEffects, localEffects])
+  }, [])
 
   // Playback control ref
   const playbackIntervalRef = useRef<NodeJS.Timeout>()
@@ -415,86 +389,73 @@ export function WorkspaceManager() {
   }, [selectClip])
 
   const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
-    // Work with local effects or fall back to saved effects
-    const currentEffects =
-      (type === 'zoom' && selectedEffectLayer?.type === 'zoom')
-        ? (localEffects || currentProject?.timeline.effects || [])
-        : (localEffects || playheadEffects || [])
+    // Always operate on the full effect list for correctness
+    const baseEffects = localEffects || currentProject?.timeline.effects || []
 
     let newEffects: Effect[]
 
-    // For zoom effects with a selected effect layer, update the specific zoom effect
-    if (type === 'zoom' && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id) {
-      const existingEffectIndex = currentEffects.findIndex(e => e.id === selectedEffectLayer.id)
+    // Zoom-specific handling
+    if (type === 'zoom' && (data.enabled !== undefined || data.regenerate)) {
+      // Global zoom operations regardless of selection
+      if (data.enabled !== undefined) {
+        newEffects = baseEffects.map(effect => (
+          effect.type === 'zoom' ? { ...effect, enabled: data.enabled } : effect
+        ))
+
+        // Also update store so timeline reflects the state immediately
+        baseEffects.forEach(effect => {
+          if (effect.type === 'zoom') {
+            updateEffect(effect.id, { enabled: data.enabled })
+          }
+        })
+      } else {
+        newEffects = [...baseEffects]
+      }
+    } else if (type === 'zoom' && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id) {
+      // Update a specific zoom block
+      const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {
-        newEffects = [...currentEffects]
+        newEffects = [...baseEffects]
         newEffects[existingEffectIndex] = {
           ...newEffects[existingEffectIndex],
           data: {
-            ...newEffects[existingEffectIndex].data,  // Preserve existing zoom data
-            ...data  // Merge with new zoom data
+            ...newEffects[existingEffectIndex].data,
+            ...data
           }
         }
       } else {
-        // Shouldn't happen, but handle gracefully
         return
       }
     } else if (type === 'zoom') {
-      // Special handling for zoom operations without a specific block selected
-      // This handles zoom toggle and regenerate operations
-
-      if (data.enabled !== undefined) {
-        // Toggle all zoom effects enabled state
-        newEffects = currentEffects.map(effect => {
-          if (effect.type === 'zoom') {
-            return { ...effect, enabled: data.enabled }
-          }
-          return effect
-        })
-      } else if (data.regenerate) {
-        // Trigger zoom regeneration - preserve existing effects for now
-        newEffects = [...currentEffects]
-      } else {
-        // Unknown zoom operation, preserve existing effects
-        newEffects = [...currentEffects]
-      }
+      newEffects = [...baseEffects]
     } else {
-      // For background, cursor, and keystroke - update the global effect
-      const existingEffectIndex = currentEffects.findIndex(e => e.type === type)
+      // Background, cursor, and keystroke are global effects
+      const existingEffectIndex = baseEffects.findIndex(e => e.type === type)
 
       if (existingEffectIndex >= 0) {
-        // Update existing effect in local state
-        newEffects = [...currentEffects]
+        const enabled = data.enabled !== undefined ? data.enabled : baseEffects[existingEffectIndex].enabled
+        const { enabled: _dataEnabled, ...effectData } = data
 
-        // Handle enabled property if present in data
-        const enabled = data.enabled !== undefined ? data.enabled : newEffects[existingEffectIndex].enabled
-
-        // Remove enabled from data to avoid duplication
-        const { enabled: dataEnabled, ...effectData } = data
-
+        newEffects = [...baseEffects]
         newEffects[existingEffectIndex] = {
           ...newEffects[existingEffectIndex],
           data: {
-            ...newEffects[existingEffectIndex].data,  // Preserve existing data
-            ...effectData  // Merge with new data
+            ...newEffects[existingEffectIndex].data,
+            ...effectData
           },
           enabled
         }
       } else {
-        // Add new global effect
-        // Extract enabled from data if present
         const { enabled: dataEnabled, ...effectData } = data
-
         const newEffect: Effect = {
           id: `${type}-global-${Date.now()}`,
           type,
-          // Global effects cover entire timeline
           startTime: 0,
           endTime: Number.MAX_SAFE_INTEGER,
           data: effectData,
           enabled: dataEnabled !== undefined ? dataEnabled : true
         }
-        newEffects = [...currentEffects, newEffect]
+        newEffects = [...baseEffects, newEffect]
       }
     }
 
@@ -502,7 +463,7 @@ export function WorkspaceManager() {
       setLocalEffects(newEffects)
       setHasUnsavedChanges(true)
     })
-  }, [playheadEffects, localEffects, selectedEffectLayer, currentProject])
+  }, [localEffects, currentProject, selectedEffectLayer])
 
 
 
@@ -645,9 +606,7 @@ export function WorkspaceManager() {
                 <EffectsSidebar
                   className="h-full w-full"
                   selectedClip={selectedClip}
-                  effects={(selectedEffectLayer?.type === 'zoom')
-                    ? (localEffects || currentProject?.timeline.effects || [])
-                    : (localEffects || playheadEffects || [])}
+                  effects={localEffects || currentProject?.timeline.effects || []}
                   selectedEffectLayer={selectedEffectLayer}
                   onEffectChange={handleEffectChange}
                 />

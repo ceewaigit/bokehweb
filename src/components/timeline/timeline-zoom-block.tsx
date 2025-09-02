@@ -17,6 +17,7 @@ interface TimelineZoomBlockProps {
   introMs?: number
   outroMs?: number
   isSelected: boolean
+  isEnabled?: boolean
   allBlocks: ZoomBlock[]
   blockId: string
   pixelsPerMs: number
@@ -36,6 +37,7 @@ export const TimelineZoomBlock = React.memo(({
   introMs = 500,
   outroMs = 500,
   isSelected,
+  isEnabled = true,
   allBlocks,
   blockId,
   pixelsPerMs,
@@ -276,7 +278,7 @@ export const TimelineZoomBlock = React.memo(({
           height={height}
           fill={colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
           cornerRadius={4}
-          opacity={isDragging ? 0.7 : (isSelected ? 0.95 : 0.85)}
+          opacity={!isEnabled ? 0.3 : (isDragging ? 0.7 : (isSelected ? 0.95 : 0.85))}
           stroke={isSelected ? colors.primary : undefined}
           strokeWidth={isSelected ? 1.5 : 0}
           shadowColor="black"
@@ -291,7 +293,7 @@ export const TimelineZoomBlock = React.memo(({
           <>
             <Line
               points={curvePoints}
-              stroke="rgba(255, 255, 255, 0.6)"
+              stroke={!isEnabled ? "rgba(255, 255, 255, 0.2)" : "rgba(255, 255, 255, 0.6)"}
               strokeWidth={2}
               lineCap="round"
               lineJoin="round"
@@ -304,7 +306,7 @@ export const TimelineZoomBlock = React.memo(({
                 width, height / 2,
                 0, height / 2
               ]}
-              fill="rgba(255, 255, 255, 0.15)"
+              fill={!isEnabled ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.15)"}
               closed={true}
               listening={false}
             />
@@ -316,7 +318,7 @@ export const TimelineZoomBlock = React.memo(({
           y={6}
           text={`${scale.toFixed(1)}×`}
           fontSize={11}
-          fill="white"
+          fill={!isEnabled ? "rgba(255, 255, 255, 0.4)" : "white"}
           fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display'"
           fontStyle={isSelected ? "500" : "normal"}
           shadowColor="black"

@@ -8,9 +8,10 @@ interface TimelineTrackProps {
   y: number
   width: number
   height: number
+  muted?: boolean
 }
 
-export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTrackProps) => {
+export const TimelineTrack = React.memo(({ type, y, width, height, muted = false }: TimelineTrackProps) => {
   const colors = useTimelineColors()
   
   const getTrackStyle = () => {
@@ -57,7 +58,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         width={width}
         height={height}
         fill={style.bgFill}
-        opacity={style.bgOpacity}
+        opacity={muted ? Math.min(1, (style.bgOpacity || 0) + 0.2) : style.bgOpacity}
         stroke={colors.muted}
         strokeWidth={4}
       />
@@ -68,8 +69,8 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         y={y}
         width={TimelineConfig.TRACK_LABEL_WIDTH}
         height={height}
-        fill={colors.background}
-        opacity={0.95}
+        fill={muted ? colors.muted : colors.background}
+        opacity={muted ? 0.35 : 0.95}
       />
       
       {/* Track label border */}
@@ -80,8 +81,8 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         height={height}
         stroke={colors.border}
         strokeWidth={1}
-        fill="transparent"
-        opacity={0.6}
+        fill={"transparent"}
+        opacity={muted ? 0.3 : 0.6}
       />
       
       {/* Track label text */}
@@ -90,7 +91,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height }: TimelineTra
         y={y + height / 2}
         text={style.labelText}
         fontSize={11}
-        fill={style.labelColor}
+        fill={muted ? colors.mutedForeground : style.labelColor}
         fontFamily="system-ui"
         fontStyle="bold"
         align="center"

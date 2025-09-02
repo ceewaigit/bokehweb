@@ -260,7 +260,7 @@ export function EffectsSidebar({
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        <div className="flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-3 space-y-3">
           {activeTab === 'background' && (
             <div className="space-y-3">
               {/* Background Section Header */}
@@ -767,7 +767,7 @@ export function EffectsSidebar({
             </div>
           )}
 
-          {activeTab === 'zoom' && zoomEffects.length > 0 && (
+          {activeTab === 'zoom' && (
             <div className="space-y-3">
               {/* Show specific zoom block controls if one is selected */}
               {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && (() => {

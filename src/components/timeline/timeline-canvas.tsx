@@ -92,8 +92,10 @@ export function TimelineCanvas({
   const duration = currentProject?.timeline?.duration || 10000
   const pixelsPerMs = TimeConverter.calculatePixelsPerMs(stageSize.width, zoom)
   const timelineWidth = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
-  // Show zoom track if ANY zoom effects exist
-  const hasZoomTrack = currentProject?.timeline.effects?.some(e => e.type === 'zoom' && e.enabled) ?? false
+  // Show zoom track if ANY zoom effects exist (enabled or disabled)
+  const zoomTrackExists = currentProject?.timeline.effects?.some(e => e.type === 'zoom') ?? false
+  // Determine if any zoom block is enabled
+  const isZoomEnabled = currentProject?.timeline.effects?.some(e => e.type === 'zoom' && e.enabled) ?? false
   // Show keystroke track if ANY keystroke effects exist
   const hasKeystrokeTrack = currentProject?.timeline.effects?.some(e => e.type === 'keystroke' && e.enabled) ?? false
 
@@ -101,7 +103,7 @@ export function TimelineCanvas({
   const calculateTrackHeights = () => {
     const rulerHeight = TimelineConfig.RULER_HEIGHT
     const remainingHeight = stageSize.height - rulerHeight
-    const totalTracks = 2 + (hasZoomTrack ? 1 : 0) + (hasKeystrokeTrack ? 1 : 0)
+    const totalTracks = 2 + (zoomTrackExists ? 1 : 0) + (hasKeystrokeTrack ? 1 : 0)
 
     // Define height ratios for different track configurations
     const heightRatios: Record<number, { video: number; audio: number; zoom?: number; keystroke?: number }> = {
@@ -116,7 +118,7 @@ export function TimelineCanvas({
       ruler: rulerHeight,
       video: Math.floor(remainingHeight * ratios.video),
       audio: Math.floor(remainingHeight * ratios.audio),
-      zoom: hasZoomTrack ? Math.floor(remainingHeight * (ratios.zoom || 0)) : 0,
+      zoom: zoomTrackExists ? Math.floor(remainingHeight * (ratios.zoom || 0)) : 0,
       keystroke: hasKeystrokeTrack ? Math.floor(remainingHeight * (ratios.keystroke || 0)) : 0
     }
   }
@@ -361,12 +363,13 @@ export function TimelineCanvas({
               height={videoTrackHeight}
             />
 
-            {hasZoomTrack && (
+            {zoomTrackExists && (
               <TimelineTrack
                 type="zoom"
                 y={rulerHeight + videoTrackHeight}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={zoomTrackHeight}
+                muted={!isZoomEnabled}
               />
             )}
 
@@ -436,14 +439,14 @@ export function TimelineCanvas({
             })()}
 
             {/* Zoom blocks - timeline-global, not tied to clips */}
-            {hasZoomTrack && (() => {
+            {zoomTrackExists && (() => {
               // Collect and sort zoom blocks to render selected ones on top
               const zoomBlocks: React.ReactElement[] = []
               const selectedZoomBlocks: React.ReactElement[] = []
 
               // Get ALL zoom effects from timeline.effects (timeline-global)
               const effectsSource = currentProject.timeline.effects || []
-              const zoomEffects = effectsSource.filter(e => e.type === 'zoom' && e.enabled)
+              const zoomEffects = effectsSource.filter(e => e.type === 'zoom')
 
 
               // Render each zoom effect as a block on the timeline
@@ -465,6 +468,7 @@ export function TimelineCanvas({
                     introMs={zoomData.introMs}
                     outroMs={zoomData.outroMs}
                     isSelected={isBlockSelected}
+                    isEnabled={effect.enabled}
                     allBlocks={zoomEffects as any}
                     pixelsPerMs={pixelsPerMs}
                     onSelect={() => {
@@ -494,14 +498,14 @@ export function TimelineCanvas({
                         }
                       }
 
-                      // Update the zoom block via store update
-                      updateEffect(effect.id, {
+                      // Update via callback which uses command system
+                      onZoomBlockUpdate?.(effect.id, effect.id, {
                         startTime: finalStartTime,
                         endTime: finalStartTime + duration
                       })
                     }}
                     onUpdate={(updates) => {
-                      updateEffect(effect.id, updates)
+                      onZoomBlockUpdate?.(effect.id, effect.id, updates)
                     }}
                   />
                 )
