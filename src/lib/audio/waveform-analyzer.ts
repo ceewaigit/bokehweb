@@ -125,7 +125,9 @@ export class WaveformAnalyzer {
   static clearCache(clipId?: string) {
     if (clipId) {
       // Remove all cache entries for this clip
-      for (const key of this.cache.keys()) {
+      const keys = Array.from(this.cache.keys())
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]
         if (key.startsWith(clipId)) {
           this.cache.delete(key)
         }

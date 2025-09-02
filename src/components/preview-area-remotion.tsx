@@ -39,7 +39,8 @@ export function PreviewAreaRemotion({
   const containerRef = useRef<HTMLDivElement>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [containerSize, setContainerSize] = useState({ width: 1280, height: 720 })
-  const [previewQuality, setPreviewQuality] = useState<PreviewQuality>('medium')
+  // Resolution selection removed; default to 'auto' preset internally
+  const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
 
   // Only use playhead clip/recording for preview - no fallback to maintain separation of concerns
   const previewClip = playheadClip
@@ -181,46 +182,28 @@ export function PreviewAreaRemotion({
 
   // Calculate optimal composition size based on container and quality settings
   const calculateOptimalCompositionSize = useCallback(() => {
-    const preset = QUALITY_PRESETS[previewQuality]
+    const preset = QUALITY_PRESETS[DEFAULT_PREVIEW_QUALITY]
     const videoAspectRatio = videoWidth / videoHeight
-    
-    // Start with container size
-    let targetWidth = containerSize.width
-    let targetHeight = containerSize.height
-    
-    // Apply device pixel ratio (capped at 1.5 for performance)
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
-    targetWidth = Math.floor(targetWidth * dpr)
-    targetHeight = Math.floor(targetHeight * dpr)
-    
-    // Cap to quality preset maximums
-    targetWidth = Math.min(targetWidth, preset.maxWidth)
-    targetHeight = Math.min(targetHeight, preset.maxHeight)
-    
-    // Maintain aspect ratio while fitting within target dimensions
-    let compositionWidth: number
-    let compositionHeight: number
-    
-    if (targetWidth / targetHeight > videoAspectRatio) {
-      // Container is wider than video - fit by height
-      compositionHeight = targetHeight
-      compositionWidth = Math.round(targetHeight * videoAspectRatio)
-    } else {
-      // Container is taller than video - fit by width
-      compositionWidth = targetWidth
-      compositionHeight = Math.round(targetWidth / videoAspectRatio)
+
+    // Determine a scale based on preset limits relative to the source video
+    const scaleByWidth = preset.maxWidth / videoWidth
+    const scaleByHeight = preset.maxHeight / videoHeight
+    const scale = Math.min(scaleByWidth, scaleByHeight)
+
+    let compositionWidth = Math.max(320, Math.round(videoWidth * scale))
+    let compositionHeight = Math.max(180, Math.round(videoHeight * scale))
+
+    // Keep aspect ratio exact
+    if (Math.abs(compositionWidth / compositionHeight - videoAspectRatio) > 0.001) {
+      compositionHeight = Math.round(compositionWidth / videoAspectRatio)
     }
-    
-    // Ensure minimum size for stability
-    compositionWidth = Math.max(compositionWidth, 320)
-    compositionHeight = Math.max(compositionHeight, 180)
-    
+
     // Round to even numbers for better codec compatibility
     compositionWidth = Math.floor(compositionWidth / 2) * 2
     compositionHeight = Math.floor(compositionHeight / 2) * 2
-    
+
     return { compositionWidth, compositionHeight }
-  }, [containerSize, previewQuality, videoWidth, videoHeight])
+  }, [videoWidth, videoHeight])
   
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
@@ -252,20 +235,7 @@ export function PreviewAreaRemotion({
         <div className="absolute inset-0 bg-black z-10" />
       )}
 
-      {/* Quality selector overlay */}
-      <div className="absolute top-2 right-2 z-20">
-        <select
-          value={previewQuality}
-          onChange={(e) => setPreviewQuality(e.target.value as PreviewQuality)}
-          className="px-2 py-1 text-xs bg-background/80 backdrop-blur-sm border rounded"
-        >
-          {Object.entries(QUALITY_PRESETS).map(([key, preset]) => (
-            <option key={key} value={key}>
-              {preset.label} ({preset.maxWidth}×{preset.maxHeight})
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Quality selector removed */}
 
       {/* Always render player container to maintain playerRef */}
       <div className="absolute inset-0 flex items-center justify-center p-4">
@@ -273,7 +243,7 @@ export function PreviewAreaRemotion({
           className="relative w-full h-full flex items-center justify-center"
         >
           <Player
-            key={`${playheadRecording?.id || 'none'}`}
+            key={`${playheadRecording?.id || 'none'}-${compositionWidth}x${compositionHeight}`}
             ref={playerRef}
             component={MainComposition as any}
             inputProps={compositionProps}

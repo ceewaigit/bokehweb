@@ -121,21 +121,6 @@ export function EffectsSidebar({
     }
   }
 
-  // Debounced update for shape properties to prevent lag
-  const debouncedUpdateRef = useRef<NodeJS.Timeout>()
-  
-  const debouncedUpdateBackground = useCallback((updates: any) => {
-    // Clear any pending update
-    if (debouncedUpdateRef.current) {
-      clearTimeout(debouncedUpdateRef.current)
-    }
-    
-    // Schedule new update with 50ms delay
-    debouncedUpdateRef.current = setTimeout(() => {
-      updateBackgroundEffect(updates)
-    }, 50)
-  }, [])
-
   // Update background while preserving existing properties
   const updateBackgroundEffect = (updates: any) => {
     // If no background effect exists, create it with sensible defaults
@@ -163,11 +148,30 @@ export function EffectsSidebar({
     })
   }
 
+  // Frame-synced background updates to avoid lag
+  const bgRafIdRef = useRef<number | null>(null)
+  const pendingBgUpdateRef = useRef<any | null>(null)
+
+  const scheduleBackgroundUpdate = useCallback((updates: any) => {
+    // Merge with any pending updates in the same frame
+    pendingBgUpdateRef.current = { ...(pendingBgUpdateRef.current || {}), ...updates }
+
+    if (bgRafIdRef.current !== null) return
+
+    bgRafIdRef.current = requestAnimationFrame(() => {
+      bgRafIdRef.current = null
+      const pending = pendingBgUpdateRef.current
+      pendingBgUpdateRef.current = null
+      if (pending) updateBackgroundEffect(pending)
+    })
+  }, [])
+
   // Clean up debounce timer on unmount
   useEffect(() => {
     return () => {
-      if (debouncedUpdateRef.current) {
-        clearTimeout(debouncedUpdateRef.current)
+      if (bgRafIdRef.current !== null) {
+        cancelAnimationFrame(bgRafIdRef.current)
+        bgRafIdRef.current = null
       }
     }
   }, [])
@@ -519,6 +523,7 @@ export function EffectsSidebar({
                           return bgData?.blur || 10
                         })()]}
                         onValueChange={([value]) => updateBackgroundEffect({ blur: value })}
+                        onValueCommit={([value]) => updateBackgroundEffect({ blur: value })}
                         min={1}
                         max={50}
                         step={1}
@@ -574,6 +579,7 @@ export function EffectsSidebar({
                   <Slider
                     value={[(cursorEffect?.data as CursorEffectData).size ?? 3.0]}
                     onValueChange={([value]) => updateEffect('cursor', { size: value })}
+                    onValueCommit={([value]) => updateEffect('cursor', { size: value })}
                     min={0.5}
                     max={8}
                     step={0.1}
@@ -624,6 +630,7 @@ export function EffectsSidebar({
                     <Slider
                       value={[((cursorEffect?.data as CursorEffectData).idleTimeout ?? 3000) / 1000]}
                       onValueChange={([value]) => updateEffect('cursor', { idleTimeout: value * 1000 })}
+                      onValueCommit={([value]) => updateEffect('cursor', { idleTimeout: value * 1000 })}
                       min={1}
                       max={10}
                       step={0.5}
@@ -698,6 +705,7 @@ export function EffectsSidebar({
                   <Slider
                     value={[(keystrokeEffect?.data as KeystrokeEffectData)?.fontSize ?? 16]}
                     onValueChange={([value]) => updateEffect('keystroke', { fontSize: value })}
+                    onValueCommit={([value]) => updateEffect('keystroke', { fontSize: value })}
                     min={12}
                     max={24}
                     step={1}
@@ -711,6 +719,7 @@ export function EffectsSidebar({
                   <Slider
                     value={[((keystrokeEffect?.data as KeystrokeEffectData)?.fadeOutDuration ?? 300) / 100]}
                     onValueChange={([value]) => updateEffect('keystroke', { fadeOutDuration: value * 100 })}
+                    onValueCommit={([value]) => updateEffect('keystroke', { fadeOutDuration: value * 100 })}
                     min={1}
                     max={10}
                     step={0.5}
@@ -752,6 +761,15 @@ export function EffectsSidebar({
                             })
                           }
                         }}
+                        onValueCommit={([value]) => {
+                          const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
+                          if (zoomEffect) {
+                            updateEffect('zoom', {
+                              ...zoomEffect.data,
+                              scale: value
+                            })
+                          }
+                        }}
                         min={1}
                         max={4}
                         step={0.1}
@@ -775,6 +793,15 @@ export function EffectsSidebar({
                             })
                           }
                         }}
+                        onValueCommit={([value]) => {
+                          const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
+                          if (zoomEffect) {
+                            updateEffect('zoom', {
+                              ...zoomEffect.data,
+                              introMs: value
+                            })
+                          }
+                        }}
                         min={0}
                         max={1000}
                         step={50}
@@ -790,6 +817,15 @@ export function EffectsSidebar({
                         value={[zoomData.outroMs || 500]}
                         onValueChange={([value]) => {
                           // Find the specific zoom effect and update its data
+                          const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
+                          if (zoomEffect) {
+                            updateEffect('zoom', {
+                              ...zoomEffect.data,
+                              outroMs: value
+                            })
+                          }
+                        }}
+                        onValueCommit={([value]) => {
                           const zoomEffect = zoomEffects.find(e => e.id === selectedEffectLayer.id)
                           if (zoomEffect) {
                             updateEffect('zoom', {
@@ -850,7 +886,10 @@ export function EffectsSidebar({
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Padding</label>
               <Slider
                 value={[(backgroundEffect?.data as BackgroundEffectData).padding || 0]}
-                onValueChange={([value]) => debouncedUpdateBackground({
+                onValueChange={([value]) => scheduleBackgroundUpdate({
+                  padding: value
+                })}
+                onValueCommit={([value]) => updateBackgroundEffect({
                   padding: value
                 })}
                 min={0}
@@ -877,7 +916,10 @@ export function EffectsSidebar({
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corner Radius</label>
               <Slider
                 value={[(backgroundEffect?.data as BackgroundEffectData).cornerRadius ?? 25]}
-                onValueChange={([value]) => debouncedUpdateBackground({
+                onValueChange={([value]) => scheduleBackgroundUpdate({
+                  cornerRadius: value
+                })}
+                onValueCommit={([value]) => updateBackgroundEffect({
                   cornerRadius: value
                 })}
                 min={0}
@@ -904,7 +946,10 @@ export function EffectsSidebar({
               <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Shadow Intensity</label>
               <Slider
                 value={[(backgroundEffect?.data as BackgroundEffectData).shadowIntensity ?? 85]}
-                onValueChange={([value]) => debouncedUpdateBackground({
+                onValueChange={([value]) => scheduleBackgroundUpdate({
+                  shadowIntensity: value
+                })}
+                onValueCommit={([value]) => updateBackgroundEffect({
                   shadowIntensity: value
                 })}
                 min={0}

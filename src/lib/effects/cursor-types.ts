@@ -108,8 +108,8 @@ export const CURSOR_HOTSPOTS: Record<CursorType, CursorHotspot> = {
   [CursorType.ARROW]: { x: 0.15, y: 0.12 }, // Arrow tip position fine-tuned
   [CursorType.IBEAM]: { x: 0.5, y: 0.5 }, // Center of I-beam
   [CursorType.POINTING_HAND]: { x: 0.64, y: 0.18 }, // Finger tip position
-  [CursorType.CLOSED_HAND]: { x: 0.5, y: 0.5 }, // Center of fist
-  [CursorType.OPEN_HAND]: { x: 0.5, y: 0.5 }, // Center of palm
+  [CursorType.CLOSED_HAND]: { x: 0.5, y: 0.34 }, // Click point sits above center
+  [CursorType.OPEN_HAND]: { x: 0.5, y: 0.34 }, // Click point sits above center
   [CursorType.CROSSHAIR]: { x: 0.5, y: 0.5 }, // Center intersection
   [CursorType.RESIZE_LEFT]: { x: 0.5, y: 0.5 }, // Center
   [CursorType.RESIZE_RIGHT]: { x: 0.5, y: 0.5 }, // Center
