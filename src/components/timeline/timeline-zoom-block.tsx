@@ -45,6 +45,7 @@ export const TimelineZoomBlock = React.memo(({
 }: TimelineZoomBlockProps) => {
   const colors = useTimelineColors()
   const [isDragging, setIsDragging] = useState(false)
+  const [isTransforming, setIsTransforming] = useState(false)
   const groupRef = useRef<Konva.Group>(null)
   const trRef = useRef<Konva.Transformer>(null)
 
@@ -142,100 +143,6 @@ export const TimelineZoomBlock = React.memo(({
     return Math.max(TimelineConfig.TRACK_LABEL_WIDTH, bestSnapX)
   }
 
-  // Resize validation with collision detection and edge snapping
-  const getValidResizeWidth = (proposedWidth: number, proposedX: number, isResizingLeft: boolean): { width: number; x: number } => {
-    const minWidth = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
-    const snapThreshold = Number(TimelineConfig.SNAP_THRESHOLD_PX)
-
-    let finalWidth = Math.max(minWidth, proposedWidth)
-    let finalX = proposedX
-
-    const blocks = allBlocks
-      .filter(b => b.id !== blockId)
-      .map(b => ({
-        x: TimeConverter.msToPixels(b.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH,
-        endX: TimeConverter.msToPixels(b.endTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH,
-        startTime: b.startTime,
-        endTime: b.endTime
-      }))
-      .sort((a, b) => a.x - b.x)
-
-    // Handle collision detection and snapping based on resize direction
-    if (isResizingLeft) {
-      // Store the original right edge position using current props
-      const rightEdge = x + width
-
-      // Check for collisions when resizing left
-      for (const block of blocks) {
-        // If we're moving left edge past another block's right edge (collision)
-        if (finalX < block.endX && rightEdge > block.endX) {
-          // Prevent overlap by limiting how far left we can go
-          finalX = Math.max(finalX, block.endX + 1)
-        }
-      }
-
-      // Apply snapping after collision check
-      for (const block of blocks) {
-        const distToBlockStart = Math.abs(finalX - block.x)
-        const distToBlockEnd = Math.abs(finalX - block.endX)
-
-        // Only snap if we're not creating an overlap
-        if (distToBlockEnd < snapThreshold && finalX >= block.endX) {
-          finalX = block.endX
-        } else if (distToBlockStart < snapThreshold && finalX >= block.endX) {
-          finalX = block.x
-        }
-      }
-
-      // Ensure we don't go past the timeline start
-      finalX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, finalX)
-
-      // Recalculate width to maintain the right edge position
-      finalWidth = rightEdge - finalX
-
-      // Ensure minimum width
-      if (finalWidth < minWidth) {
-        finalWidth = minWidth
-        finalX = rightEdge - minWidth
-      }
-
-      // Final boundary check
-      finalX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, finalX)
-    } else {
-      // Resizing from right
-      const leftEdge = finalX
-      let rightEdge = finalX + finalWidth
-
-      // Check for collisions when resizing right
-      for (const block of blocks) {
-        // If we're moving right edge past another block's left edge (collision)
-        if (rightEdge > block.x && leftEdge < block.x) {
-          // Prevent overlap by limiting how far right we can go
-          rightEdge = Math.min(rightEdge, block.x - 1)
-          finalWidth = rightEdge - finalX
-        }
-      }
-
-      // Apply snapping after collision check
-      for (const block of blocks) {
-        const currentRightEdge = finalX + finalWidth
-        const distToBlockStart = Math.abs(currentRightEdge - block.x)
-        const distToBlockEnd = Math.abs(currentRightEdge - block.endX)
-
-        // Only snap if we're not creating an overlap
-        if (distToBlockStart < snapThreshold && currentRightEdge <= block.x) {
-          finalWidth = block.x - finalX
-        } else if (distToBlockEnd < snapThreshold && currentRightEdge <= block.x) {
-          finalWidth = block.endX - finalX
-        }
-      }
-
-      finalWidth = Math.max(minWidth, finalWidth)
-    }
-
-    return { width: finalWidth, x: finalX }
-  }
-
   // Generate zoom curve visualization
   const generateZoomCurve = () => {
     const points: number[] = []
@@ -298,7 +205,7 @@ export const TimelineZoomBlock = React.memo(({
         ref={groupRef}
         x={x}
         y={y}
-        draggable
+        draggable={!isTransforming}
         dragBoundFunc={(pos) => {
           // Allow dragging but constrain to timeline boundaries
           const constrainedX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, pos.x)
@@ -447,7 +354,6 @@ export const TimelineZoomBlock = React.memo(({
 
             // Prevent x from going before timeline start
             if (newBox.x < TimelineConfig.TRACK_LABEL_WIDTH) {
-              const adjustment = TimelineConfig.TRACK_LABEL_WIDTH - newBox.x
               newBox.x = TimelineConfig.TRACK_LABEL_WIDTH
               // When dragging left edge, adjust width to maintain right edge
               if (resizingLeft) {
@@ -470,71 +376,63 @@ export const TimelineZoomBlock = React.memo(({
           anchorCornerRadius={2}
           keepRatio={false}
           ignoreStroke={true}
-          onTransform={(e) => {
+          onTransformStart={() => {
+            setIsTransforming(true)
+          }}
+          onTransform={() => {
             const node = groupRef.current
-            const tr = trRef.current
-            if (!node || !tr) return
+            if (!node) return
 
+            // During transform, only handle visual feedback
+            // DO NOT update the store - this causes jitter
+            // The actual update will happen in onTransformEnd
+
+            // Prevent visual stretching by resetting scale
+            node.scaleX(1)
+            node.scaleY(1)
+          }}
+          onTransformEnd={(e) => {
+            setIsTransforming(false)
+
+            // Get the transformed node (the Group) and transformer
+            const node = e.target
+            const tr = trRef.current
+            if (!tr) return
+
+            // Detect which handle was being dragged
             const activeAnchor = tr.getActiveAnchor?.() as string | undefined
             const resizingLeft = activeAnchor === 'middle-left'
 
-            // Convert scaleX into width incrementally to avoid stretching children
-            const scaleX = node.scaleX()
-            let newWidth = Math.max(1, width * scaleX)
+            // Get the bounding box from the transformer
+            const box = tr.getClientRect()
 
-            // Enforce minimum duration
+            // Calculate new dimensions
+            const newWidth = box.width
+            let newX = box.x
+
+            // Ensure minimum width
             const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
-            if (newWidth < minWidthPx) newWidth = minWidthPx
+            const finalWidth = Math.max(minWidthPx, newWidth)
 
-            // Derive new x based on which edge is being resized
-            let newX = x
-            if (resizingLeft) {
-              const rightEdge = x + width
-              newX = rightEdge - newWidth
-              // Prevent going before start
-              newX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, newX)
+            // Adjust x position if resizing from left and we hit minimum width
+            if (resizingLeft && newWidth < minWidthPx) {
+              const rightEdge = box.x + box.width
+              newX = rightEdge - minWidthPx
             }
 
-            // Reset scale to prevent visual stretching
+            // Ensure we don't go before timeline start
+            newX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, newX)
+
+            // Reset the node scale to 1 (important!)
             node.scaleX(1)
             node.scaleY(1)
+            node.x(newX)
 
-            // Compute new times and update continuously
-            const newStartTime = Math.max(0, TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs))
-            const newEndTime = newStartTime + Math.max(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, TimeConverter.pixelsToMs(newWidth, pixelsPerMs))
-
-            onUpdate({ startTime: newStartTime, endTime: newEndTime })
-
-            // Force transformer to update to new bbox
-            tr.forceUpdate()
-            node.getLayer()?.batchDraw()
-          }}
-          onTransformEnd={(e) => {
-            // Get the transformed node (the Group)
-            const node = e.target
-
-            // Important: For Groups, we need to look at the scale and position
-            // The Group itself doesn't have width/height - it's determined by children
-            const scaleX = node.scaleX()
-            const nodeX = node.x()
-
-            // Calculate the new width based on the original width and scale
-            // 'width' prop is the original width passed to this component
-            const newWidth = width * scaleX
-
-            // Reset the scale (important!)
-            node.scaleX(1)
-            node.scaleY(1)
-
-            // Calculate new times based on position and new width
-            const adjustedX = nodeX - TimelineConfig.TRACK_LABEL_WIDTH
+            // Calculate new times based on final position and width
+            const adjustedX = newX - TimelineConfig.TRACK_LABEL_WIDTH
             const newStartTime = Math.max(0, TimeConverter.pixelsToMs(adjustedX, pixelsPerMs))
-            const duration = TimeConverter.pixelsToMs(newWidth, pixelsPerMs)
-
-            // Ensure minimum duration from config
-            const minDuration = TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS
-            const finalDuration = Math.max(minDuration, duration)
-            const newEndTime = newStartTime + finalDuration
+            const duration = TimeConverter.pixelsToMs(finalWidth, pixelsPerMs)
+            const newEndTime = newStartTime + duration
 
             // Update through parent callback with validated times
             onUpdate({
