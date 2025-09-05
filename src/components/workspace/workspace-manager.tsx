@@ -219,7 +219,7 @@ export function WorkspaceManager() {
     isPlaying,
     playheadClip,        // NEW: reactive from store
     playheadRecording,   // NEW: reactive from store
-    playheadEffects,     // NEW: reactive from store
+    // playheadEffects removed from preview; effects are derived per-clip in PreviewAreaRemotion
     play: storePlay,
     pause: storePause,
     seek: storeSeek,
@@ -327,7 +327,7 @@ export function WorkspaceManager() {
       setLastSavedAt(savedProject.modifiedAt)
     }
     setHasUnsavedChanges(false)
-  }, [localEffects, playheadClip, playheadEffects, updateEffect, addEffect, saveCurrentProject])
+  }, [localEffects, playheadClip, updateEffect, addEffect, saveCurrentProject])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -595,8 +595,7 @@ export function WorkspaceManager() {
                 playheadRecording={playheadRecording}
                 currentTime={currentTime}
                 isPlaying={isPlaying}
-                localEffects={localEffects || playheadEffects}
-                onTimeUpdate={(time) => storeSeek(time)}
+                localEffects={localEffects}
               />
             </div>
 

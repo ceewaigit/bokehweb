@@ -9,12 +9,6 @@ export interface MainCompositionProps {
   keystrokeEvents: any[];
   videoWidth: number;
   videoHeight: number;
-  captureArea?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
 }
 
 export interface VideoLayerProps {
@@ -23,12 +17,6 @@ export interface VideoLayerProps {
   zoomBlocks?: ZoomBlock[];
   videoWidth: number;
   videoHeight: number;
-  captureArea?: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
   zoomCenter?: { x: number; y: number };
   cinematicPan?: { x: number; y: number };
 }

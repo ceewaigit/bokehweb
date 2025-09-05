@@ -14,7 +14,6 @@ interface PreviewAreaRemotionProps {
   currentTime: number
   isPlaying: boolean
   localEffects?: Effect[] | null
-  onTimeUpdate?: (time: number) => void
 }
 
 // Preview quality presets
@@ -32,13 +31,10 @@ export function PreviewAreaRemotion({
   playheadRecording,
   currentTime,
   isPlaying,
-  localEffects,
-  onTimeUpdate
+  localEffects
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const [containerSize, setContainerSize] = useState({ width: 1280, height: 720 })
   // Resolution selection removed; default to 'auto' preset internally
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
 
@@ -73,7 +69,7 @@ export function PreviewAreaRemotion({
         console.error('Error loading video:', error)
       })
     }
-  }, [previewRecording?.id, playheadRecording]);
+  }, [previewRecording?.id, previewRecording?.filePath]);
 
   // Sync playback state with timeline
   useEffect(() => {
@@ -109,60 +105,36 @@ export function PreviewAreaRemotion({
     playerRef.current.seekTo(targetFrame);
   }, [currentTime, previewClip, isPlaying, videoUrl]);
 
-  // Handle time updates from player during playback
-  useEffect(() => {
-    if (!playerRef.current || !previewClip || !onTimeUpdate || !isPlaying) return;
 
-    const updateInterval = setInterval(() => {
-      if (!playerRef.current) return;
 
-      const currentFrame = playerRef.current.getCurrentFrame();
-      const frameRate = 30;
-      const clipProgress = (currentFrame / frameRate) * 1000;
-      const timelineTime = previewClip.startTime + clipProgress;
-
-      onTimeUpdate(timelineTime);
-    }, 1000 / 30); // Update at 30fps
-
-    return () => clearInterval(updateInterval);
-  }, [previewClip, onTimeUpdate, isPlaying]);
-
-  // Track container size with ResizeObserver
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect
-        setContainerSize({ width: Math.floor(width), height: Math.floor(height) })
-      }
-    })
-
-    resizeObserver.observe(containerRef.current)
-    return () => resizeObserver.disconnect()
-  }, [])
 
   // Get video dimensions
   const videoWidth = previewRecording?.width || 1920;
   const videoHeight = previewRecording?.height || 1080;
 
-  // Get effects from store's playheadEffects (already filtered for current time)
-  const playheadEffects = useProjectStore(state => state.playheadEffects)
+  // Get timeline effects (timeline-global)
+  const timelineEffects = useProjectStore(state => state.currentProject?.timeline.effects)
 
   // Convert effects to clip-relative times for Remotion
   const clipRelativeEffects = useMemo(() => {
-    if (!previewClip || (!localEffects && !playheadEffects)) return null
-    
-    const effectsToConvert = localEffects || playheadEffects || []
+    if (!previewClip) return null
+
     const clipStart = previewClip.startTime
-    
-    // Convert absolute timeline times to clip-relative times
+    const clipEnd = previewClip.startTime + previewClip.duration
+
+    const effectsToConvert = localEffects ?? (
+      (timelineEffects || []).filter(effect =>
+        // Overlaps clip range
+        effect.startTime < clipEnd && effect.endTime > clipStart && effect.enabled
+      )
+    )
+
     return effectsToConvert.map(effect => ({
       ...effect,
       startTime: effect.startTime - clipStart,
       endTime: effect.endTime - clipStart
     }))
-  }, [previewClip, localEffects, playheadEffects])
+  }, [previewClip, localEffects, timelineEffects])
 
   // Memoize composition props to prevent unnecessary re-renders
   const compositionProps = useMemo(() => {
@@ -175,8 +147,7 @@ export function PreviewAreaRemotion({
       clickEvents: previewRecording?.metadata?.clickEvents || [],
       keystrokeEvents: (previewRecording?.metadata as any)?.keyboardEvents || [],
       videoWidth,
-      videoHeight,
-      captureArea: undefined
+      videoHeight
     }
   }, [playheadClip, playheadRecording, videoUrl, previewClip, clipRelativeEffects, previewRecording, videoWidth, videoHeight])
 
@@ -229,7 +200,7 @@ export function PreviewAreaRemotion({
   }
 
   return (
-    <div ref={containerRef} className="relative w-full h-full overflow-hidden bg-background">
+    <div className="relative w-full h-full overflow-hidden bg-background">
       {/* Black screen overlay when in gaps or no video */}
       {showBlackScreen && (
         <div className="absolute inset-0 bg-black z-10" />

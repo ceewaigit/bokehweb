@@ -533,18 +533,20 @@ export function EffectsSidebar({
                       <h3 className="text-xs font-medium">Background blur</h3>
                     </div>
                     <div className="p-3 bg-background/30 rounded-lg">
-                      <label className="text-xs font-medium flex items-center justify-between">
-                        <span className="uppercase tracking-wider text-[10px]">Enable Blur</span>
-                        <Switch
-                          checked={(() => {
-                            const bgData = backgroundEffect?.data as BackgroundEffectData
-                            return bgData?.blur ? bgData.blur > 0 : false
-                          })()}
-                          onCheckedChange={(checked) =>
-                            updateBackgroundEffect({ blur: checked ? 10 : undefined })
-                          }
-                        />
-                      </label>
+                      <div className='pb-4'>
+                        <label className="text-xs font-medium flex items-center justify-between">
+                          <span className="uppercase tracking-wider text-[10px]">Enable Blur</span>
+                          <Switch
+                            checked={(() => {
+                              const bgData = backgroundEffect?.data as BackgroundEffectData
+                              return bgData?.blur ? bgData.blur > 0 : false
+                            })()}
+                            onCheckedChange={(checked) =>
+                              updateBackgroundEffect({ blur: checked ? 10 : undefined })
+                            }
+                          />
+                        </label>
+                      </div>
                       {(() => {
                         const bgData = backgroundEffect?.data as BackgroundEffectData
                         return bgData?.blur && bgData.blur > 0

@@ -10,7 +10,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   zoomBlocks,
   videoWidth,
   videoHeight,
-  captureArea,
   zoomCenter,
   cinematicPan
 }) => {
@@ -125,7 +124,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             // Don't throw - let Remotion handle gracefully
           }}
           // Performance optimization
-          acceptableTimeShiftInSeconds={0.1}
+
         />
       </div>
     </AbsoluteFill>
