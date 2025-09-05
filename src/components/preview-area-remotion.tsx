@@ -122,11 +122,41 @@ export function PreviewAreaRemotion({
     const clipStart = previewClip.startTime
     const clipEnd = previewClip.startTime + previewClip.duration
 
-    const effectsToConvert = localEffects ?? (
-      (timelineEffects || []).filter(effect =>
-        // Overlaps clip range
-        effect.startTime < clipEnd && effect.endTime > clipStart && effect.enabled
-      )
+    // Merge store effects with local (unsaved) effects.
+    // - Keep store timing (start/end) authoritative to reflect timeline edits immediately
+    // - Apply local data/enabled overrides when present
+    const baseEffects: Effect[] = (timelineEffects || []) as Effect[]
+
+    let mergedEffects: Effect[] = baseEffects
+
+    if (localEffects) {
+      const byId = new Map<string, Effect>(baseEffects.map(e => [e.id, e]))
+
+      for (const le of localEffects) {
+        const existing = byId.get(le.id)
+        if (existing) {
+          byId.set(le.id, {
+            ...existing,
+            // Preserve store timing so duration/position changes from timeline are reflected
+            startTime: existing.startTime,
+            endTime: existing.endTime,
+            // Override effect data and enabled flag from local changes
+            data: { ...(existing as any).data, ...(le as any).data } as any,
+            enabled: le.enabled ?? existing.enabled
+          } as Effect)
+        } else {
+          // Local-only effect (e.g., newly created but not yet saved)
+          byId.set(le.id, le)
+        }
+      }
+
+      mergedEffects = Array.from(byId.values())
+    }
+
+    const effectsToConvert = mergedEffects.filter(effect =>
+      effect.enabled &&
+      effect.startTime < clipEnd &&
+      effect.endTime > clipStart
     )
 
     return effectsToConvert.map(effect => ({

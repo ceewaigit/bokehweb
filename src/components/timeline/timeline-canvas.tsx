@@ -45,7 +45,7 @@ interface TimelineCanvasProps {
   onSeek: (time: number) => void
   onClipSelect: (clipId: string) => void
   onZoomChange: (zoom: number) => void
-  onZoomBlockUpdate?: (clipId: string, blockId: string, updates: Partial<ZoomBlock>) => void
+  onZoomBlockUpdate?: (blockId: string, updates: Partial<ZoomBlock>) => void
 }
 
 export function TimelineCanvas({
@@ -499,13 +499,13 @@ export function TimelineCanvas({
                       }
 
                       // Update via callback which uses command system
-                      onZoomBlockUpdate?.(effect.id, effect.id, {
+                      onZoomBlockUpdate?.(effect.id, {
                         startTime: finalStartTime,
                         endTime: finalStartTime + duration
                       })
                     }}
                     onUpdate={(updates) => {
-                      onZoomBlockUpdate?.(effect.id, effect.id, updates)
+                      onZoomBlockUpdate?.(effect.id, updates)
                     }}
                   />
                 )

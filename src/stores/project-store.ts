@@ -51,7 +51,6 @@ interface ProjectStore {
   // Playhead State (reactive - auto-updates with currentTime)
   playheadClip: Clip | null
   playheadRecording: Recording | null
-  playheadEffects: Effect[]
 
   // Selection State
   selectedClipId: string | null
@@ -110,7 +109,6 @@ interface ProjectStore {
 const updatePlayheadState = (state: any) => {
   state.playheadClip = null
   state.playheadRecording = null
-  state.playheadEffects = []
 
   if (state.currentProject && state.currentTime !== undefined) {
     // Find clip at current time
@@ -129,12 +127,9 @@ const updatePlayheadState = (state: any) => {
 
     // Find effects active at current time (timeline-based, not clip-based)
     if (state.currentProject.timeline.effects) {
-      const allEffects = state.currentProject.timeline.effects
-      const filteredEffects = allEffects.filter(
-        (e: Effect) => state.currentTime >= e.startTime && state.currentTime <= e.endTime && e.enabled
-      )
-
-      state.playheadEffects = filteredEffects
+      // No-op: preview derives effects per-clip in components
+      const _allEffects = state.currentProject.timeline.effects
+      void _allEffects
     }
   }
 }
@@ -150,7 +145,6 @@ export const useProjectStore = create<ProjectStore>()(
     // Playhead State
     playheadClip: null,
     playheadRecording: null,
-    playheadEffects: [],
 
     // Selection State
     selectedClipId: null,
@@ -807,7 +801,6 @@ export const useProjectStore = create<ProjectStore>()(
         // Clear playhead state
         state.playheadClip = null
         state.playheadRecording = null
-        state.playheadEffects = []
       })
     },
 

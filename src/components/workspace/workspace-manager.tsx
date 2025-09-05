@@ -217,9 +217,8 @@ export function WorkspaceManager() {
     selectedEffectLayer,
     currentTime,
     isPlaying,
-    playheadClip,        // NEW: reactive from store
-    playheadRecording,   // NEW: reactive from store
-    // playheadEffects removed from preview; effects are derived per-clip in PreviewAreaRemotion
+    playheadClip,        // Reactive from store
+    playheadRecording,   // Reactive from store
     play: storePlay,
     pause: storePause,
     seek: storeSeek,
@@ -269,12 +268,9 @@ export function WorkspaceManager() {
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId) || null
 
-  // Effects now come directly from store's reactive playheadEffects
-  // No need to calculate - store maintains this state
-  const handleZoomBlockUpdate = useCallback((clipId: string, blockId: string, updates: Partial<ZoomBlock>) => {
-    // Use command system for proper undo/redo support
+  // Effects for preview are derived per-clip inside PreviewAreaRemotion
+  const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
     if (commandManagerRef.current) {
-      // Create fresh context with current store state
       const currentStore = useProjectStore.getState()
       const freshContext = new DefaultCommandContext(currentStore)
       const command = new UpdateZoomBlockCommand(freshContext, blockId, updates)
