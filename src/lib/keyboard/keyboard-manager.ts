@@ -281,6 +281,7 @@ class KeyboardManager extends EventEmitter {
       context: ['timeline'],
     })
 
+    
     this.register({
       id: 'split-cmd',
       key: 'k',

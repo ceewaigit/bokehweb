@@ -133,12 +133,11 @@ export function TimelineCanvas({
 
   // Initialize command manager
   const commandManagerRef = useRef<CommandManager | null>(null)
-  const commandContextRef = useRef<DefaultCommandContext | null>(null)
 
   useEffect(() => {
     const store = useProjectStore.getState()
-    commandContextRef.current = new DefaultCommandContext(store)
-    commandManagerRef.current = CommandManager.getInstance(commandContextRef.current)
+    const ctx = new DefaultCommandContext(store)
+    commandManagerRef.current = CommandManager.getInstance(ctx)
   }, [])
 
   // Use command-based keyboard shortcuts for editing operations (copy, cut, paste, delete, etc.)
@@ -191,79 +190,91 @@ export function TimelineCanvas({
 
   // Handle clip drag using command pattern
   const handleClipDragEnd = useCallback(async (clipId: string, newStartTime: number) => {
-    if (!commandManagerRef.current || !commandContextRef.current) return
+    const manager = commandManagerRef.current
+    if (!manager) return
 
+    const freshContext = new DefaultCommandContext(useProjectStore.getState())
     const command = new UpdateClipCommand(
-      commandContextRef.current,
+      freshContext,
       clipId,
       { startTime: newStartTime }
     )
-    await commandManagerRef.current.execute(command)
+    await manager.execute(command)
   }, [])
 
   // Handle control actions using command pattern
   const handleSplit = useCallback(async () => {
-    if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
+    const manager = commandManagerRef.current
+    if (selectedClips.length === 1 && manager) {
+      const freshContext = new DefaultCommandContext(useProjectStore.getState())
       const command = new SplitClipCommand(
-        commandContextRef.current,
+        freshContext,
         selectedClips[0],
         currentTime
       )
-      await commandManagerRef.current.execute(command)
+      await manager.execute(command)
     }
   }, [selectedClips, currentTime])
 
   const handleTrimStart = useCallback(async () => {
-    if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
+    const manager = commandManagerRef.current
+    if (selectedClips.length === 1 && manager) {
+      const freshContext = new DefaultCommandContext(useProjectStore.getState())
       const command = new TrimCommand(
-        commandContextRef.current,
+        freshContext,
         selectedClips[0],
         currentTime,
         'start'
       )
-      await commandManagerRef.current.execute(command)
+      await manager.execute(command)
     }
   }, [selectedClips, currentTime])
 
   const handleTrimEnd = useCallback(async () => {
-    if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
+    const manager = commandManagerRef.current
+    if (selectedClips.length === 1 && manager) {
+      const freshContext = new DefaultCommandContext(useProjectStore.getState())
       const command = new TrimCommand(
-        commandContextRef.current,
+        freshContext,
         selectedClips[0],
         currentTime,
         'end'
       )
-      await commandManagerRef.current.execute(command)
+      await manager.execute(command)
     }
   }, [selectedClips, currentTime])
 
   const handleDelete = useCallback(async () => {
-    if (!commandManagerRef.current || !commandContextRef.current) return
+    const manager = commandManagerRef.current
+    if (!manager) return
 
     // Begin group for multiple deletions
     if (selectedClips.length > 1) {
-      commandManagerRef.current.beginGroup(`delete-${Date.now()}`)
+      manager.beginGroup(`delete-${Date.now()}`)
     }
 
     for (const clipId of selectedClips) {
-      const command = new RemoveClipCommand(commandContextRef.current, clipId)
-      await commandManagerRef.current.execute(command)
+      const freshContext = new DefaultCommandContext(useProjectStore.getState())
+      const command = new RemoveClipCommand(freshContext, clipId)
+      await manager.execute(command)
     }
 
     if (selectedClips.length > 1) {
-      await commandManagerRef.current.endGroup()
+      await manager.endGroup()
     }
 
     clearSelection()
   }, [selectedClips, clearSelection])
 
   const handleDuplicate = useCallback(async () => {
-    if (selectedClips.length === 1 && commandManagerRef.current && commandContextRef.current) {
+    const manager = commandManagerRef.current
+    if (selectedClips.length === 1 && manager) {
+      const freshContext = new DefaultCommandContext(useProjectStore.getState())
       const command = new DuplicateClipCommand(
-        commandContextRef.current,
+        freshContext,
         selectedClips[0]
       )
-      await commandManagerRef.current.execute(command)
+      await manager.execute(command)
     }
   }, [selectedClips])
 
@@ -568,62 +579,74 @@ export function TimelineCanvas({
             y={contextMenu.y}
             clipId={contextMenu.clipId}
             onSplit={async (id) => {
-              if (commandManagerRef.current && commandContextRef.current) {
+              const manager = commandManagerRef.current
+              if (manager) {
+                const freshContext = new DefaultCommandContext(useProjectStore.getState())
                 const command = new SplitClipCommand(
-                  commandContextRef.current,
+                  freshContext,
                   id,
                   currentTime
                 )
-                await commandManagerRef.current.execute(command)
+                await manager.execute(command)
               }
             }}
             onTrimStart={async (id) => {
-              if (commandManagerRef.current && commandContextRef.current) {
+              const manager = commandManagerRef.current
+              if (manager) {
+                const freshContext = new DefaultCommandContext(useProjectStore.getState())
                 const command = new TrimCommand(
-                  commandContextRef.current,
+                  freshContext,
                   id,
                   currentTime,
                   'start'
                 )
-                await commandManagerRef.current.execute(command)
+                await manager.execute(command)
               }
             }}
             onTrimEnd={async (id) => {
-              if (commandManagerRef.current && commandContextRef.current) {
+              const manager = commandManagerRef.current
+              if (manager) {
+                const freshContext = new DefaultCommandContext(useProjectStore.getState())
                 const command = new TrimCommand(
-                  commandContextRef.current,
+                  freshContext,
                   id,
                   currentTime,
                   'end'
                 )
-                await commandManagerRef.current.execute(command)
+                await manager.execute(command)
               }
             }}
             onDuplicate={async (id) => {
-              if (commandManagerRef.current && commandContextRef.current) {
+              const manager = commandManagerRef.current
+              if (manager) {
+                const freshContext = new DefaultCommandContext(useProjectStore.getState())
                 const command = new DuplicateClipCommand(
-                  commandContextRef.current,
+                  freshContext,
                   id
                 )
-                await commandManagerRef.current.execute(command)
+                await manager.execute(command)
               }
             }}
             onCopy={async (id) => {
-              if (commandManagerRef.current && commandContextRef.current) {
+              const manager = commandManagerRef.current
+              if (manager) {
+                const freshContext = new DefaultCommandContext(useProjectStore.getState())
                 const command = new CopyCommand(
-                  commandContextRef.current,
+                  freshContext,
                   id
                 )
-                await commandManagerRef.current.execute(command)
+                await manager.execute(command)
               }
             }}
             onDelete={async (id) => {
-              if (commandManagerRef.current && commandContextRef.current) {
+              const manager = commandManagerRef.current
+              if (manager) {
+                const freshContext = new DefaultCommandContext(useProjectStore.getState())
                 const command = new RemoveClipCommand(
-                  commandContextRef.current,
+                  freshContext,
                   id
                 )
-                await commandManagerRef.current.execute(command)
+                await manager.execute(command)
               }
             }}
             onClose={() => setContextMenu(null)}

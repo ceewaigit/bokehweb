@@ -14,7 +14,9 @@ interface ProjectStore {
   // Store methods used by commands
   addClip: (clip: Clip | string, startTime?: number) => void
   removeClip: (clipId: string) => void
-  updateClip: (clipId: string, updates: Partial<Clip>) => void
+  updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean }) => void
+  // New restore API to reinsert a clip at a specific track/index
+  restoreClip: (trackId: string, clip: Clip, index: number) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
   splitClip: (clipId: string, splitTime: number) => void
   trimClipStart: (clipId: string, newStartTime: number) => void

@@ -73,7 +73,9 @@ interface ProjectStore {
   // Clip Management
   addClip: (clip: Clip | string, startTime?: number) => void
   removeClip: (clipId: string) => void
-  updateClip: (clipId: string, updates: Partial<Clip>) => void
+  updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean }) => void
+  // New: Restore a removed clip back into a specific track and index
+  restoreClip: (trackId: string, clip: Clip, index: number) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
   selectEffectLayer: (type: 'zoom' | 'cursor' | 'background', id?: string) => void
   clearEffectSelection: () => void
@@ -441,7 +443,7 @@ export const useProjectStore = create<ProjectStore>()(
       })
     },
 
-    updateClip: (clipId, updates) => {
+    updateClip: (clipId, updates, options) => {
       set((state) => {
         if (!state.currentProject) return
 
@@ -450,8 +452,8 @@ export const useProjectStore = create<ProjectStore>()(
 
         const { clip, track } = result
 
-        // When position changes, force clip to snap to leftmost available position
-        if (updates.startTime !== undefined) {
+        // Unless exact mode is requested, when position changes, snap to leftmost available position
+        if (!options?.exact && updates.startTime !== undefined) {
           // Get the leftmost clip end position (excluding current clip)
           const leftmostEnd = ClipPositioning.getLeftmostClipEnd(track.clips, clipId)
 
@@ -470,6 +472,26 @@ export const useProjectStore = create<ProjectStore>()(
       // Removed auto-save - now requires explicit save action
     },
 
+    // New: Restore a removed clip at a specific index within a track
+    restoreClip: (trackId, clip, index) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        const track = state.currentProject.timeline.tracks.find(t => t.id === trackId)
+        if (!track) return
+
+        // Clamp index within bounds
+        const insertIndex = Math.max(0, Math.min(index, track.clips.length))
+        track.clips.splice(insertIndex, 0, clip)
+
+        // Update timeline duration and modified timestamp
+        state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+        state.currentProject.modifiedAt = new Date().toISOString()
+
+        // Update playhead state
+        updatePlayheadState(state)
+      })
+    },
 
     selectClip: (clipId, multi = false) => {
       set((state) => {

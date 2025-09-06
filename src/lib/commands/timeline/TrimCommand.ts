@@ -95,13 +95,13 @@ export class TrimCommand extends Command<{ clipId: string }> {
 
     const store = this.context.getStore()
     
-    // Restore original clip properties
+    // Restore original clip properties exactly as they were
     store.updateClip(this.clipId, {
       startTime: this.originalClip.startTime,
       duration: this.originalClip.duration,
       sourceIn: this.originalClip.sourceIn,
       sourceOut: this.originalClip.sourceOut
-    })
+    }, { exact: true })
 
     return {
       success: true,

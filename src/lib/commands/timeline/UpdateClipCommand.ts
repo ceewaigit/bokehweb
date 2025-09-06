@@ -1,5 +1,5 @@
 import { Command, CommandResult } from '../base/Command'
-import { CommandContext, calculateTimelineDuration } from '../base/CommandContext'
+import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 
 export class UpdateClipCommand extends Command<{ clipId: string }> {
@@ -63,17 +63,9 @@ export class UpdateClipCommand extends Command<{ clipId: string }> {
     }
 
     const store = this.context.getStore()
-    const project = this.context.getProject()
     
-    if (!project) {
-      return {
-        success: false,
-        error: 'No active project'
-      }
-    }
-
-    // Restore all original properties
-    store.updateClip(this.clipId, this.originalClip)
+    // Restore all original properties exactly as they were
+    store.updateClip(this.clipId, this.originalClip, { exact: true })
 
     return {
       success: true,

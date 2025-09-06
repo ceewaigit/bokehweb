@@ -1,12 +1,12 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { Clip, Track } from '@/types/project'
+import type { Clip } from '@/types/project'
 
 export class RemoveClipCommand extends Command<{ clipId: string }> {
   private clip?: Clip
-  private track?: Track
   private clipIndex?: number
   private wasSelected: boolean = false
+  private trackId?: string
 
   constructor(
     private context: CommandContext,
@@ -37,7 +37,7 @@ export class RemoveClipCommand extends Command<{ clipId: string }> {
 
     // Store clip data for undo
     this.clip = { ...result.clip }
-    this.track = result.track
+    this.trackId = result.track.id
     this.clipIndex = result.track.clips.indexOf(result.clip)
     this.wasSelected = this.context.getSelectedClips().includes(this.clipId)
 
@@ -51,7 +51,7 @@ export class RemoveClipCommand extends Command<{ clipId: string }> {
   }
 
   doUndo(): CommandResult<{ clipId: string }> {
-    if (!this.clip || !this.track || this.clipIndex === undefined) {
+    if (!this.clip || !this.trackId || this.clipIndex === undefined) {
       return {
         success: false,
         error: 'Cannot undo: missing clip data'
@@ -59,41 +59,14 @@ export class RemoveClipCommand extends Command<{ clipId: string }> {
     }
 
     const store = this.context.getStore()
-    const project = this.context.getProject()
-    
-    if (!project) {
-      return {
-        success: false,
-        error: 'No active project'
-      }
-    }
 
-    // Find the track in current project
-    const currentTrack = project.timeline.tracks.find(t => t.id === this.track!.id)
-    if (!currentTrack) {
-      return {
-        success: false,
-        error: 'Track no longer exists'
-      }
-    }
-
-    // Re-insert clip at original position
-    currentTrack.clips.splice(this.clipIndex, 0, this.clip)
-
-    // Update timeline duration
-    const maxEndTime = Math.max(
-      project.timeline.duration,
-      this.clip.startTime + this.clip.duration
-    )
-    project.timeline.duration = maxEndTime
+    // Delegate restoration to the store to keep state consistent
+    store.restoreClip(this.trackId, this.clip, this.clipIndex)
 
     // Restore selection if it was selected
     if (this.wasSelected) {
       store.selectClip(this.clipId)
     }
-
-    // Mark project as modified
-    project.modifiedAt = new Date().toISOString()
 
     return {
       success: true,

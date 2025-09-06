@@ -13,6 +13,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
   private leftClip?: Clip
   private rightClip?: Clip
   private trackId?: string
+  private originalIndex?: number
 
   constructor(
     private context: CommandContext,
@@ -50,6 +51,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
 
     const { clip, track } = result
     this.trackId = track.id
+    this.originalIndex = track.clips.findIndex(c => c.id === this.clipId)
     
     // Store original clip
     this.originalClip = JSON.parse(JSON.stringify(clip))
@@ -135,29 +137,23 @@ export class SplitClipCommand extends Command<SplitClipResult> {
       }
     }
 
-    // Remove split clips
+    // Determine the insertion index based on current left split clip position
+    let insertIndex = this.originalIndex ?? 0
     if (this.leftClip) {
       const leftIndex = track.clips.findIndex(c => c.id === this.leftClip!.id)
-      if (leftIndex !== -1) {
-        track.clips.splice(leftIndex, 1)
-      }
+      if (leftIndex !== -1) insertIndex = leftIndex
     }
 
+    // Remove split clips via store to ensure state updates
+    if (this.leftClip) {
+      store.removeClip(this.leftClip.id)
+    }
     if (this.rightClip) {
-      const rightIndex = track.clips.findIndex(c => c.id === this.rightClip!.id)
-      if (rightIndex !== -1) {
-        track.clips.splice(rightIndex, 1)
-      }
+      store.removeClip(this.rightClip.id)
     }
 
-    // Restore original clip
-    track.clips.push(this.originalClip)
-    
-    // Sort clips by start time
-    track.clips.sort((a, b) => a.startTime - b.startTime)
-
-    // Update project
-    project.modifiedAt = new Date().toISOString()
+    // Restore original clip at the original index via store API
+    store.restoreClip(this.trackId, this.originalClip, insertIndex)
 
     // Restore selection
     store.selectClip(this.originalClip.id)
@@ -196,23 +192,20 @@ export class SplitClipCommand extends Command<SplitClipResult> {
       }
     }
 
-    // Remove original clip
+    const store = this.context.getStore()
+
+    // Find where the original clip currently is and remove it
     const originalIndex = track.clips.findIndex(c => c.id === this.clipId)
     if (originalIndex !== -1) {
-      track.clips.splice(originalIndex, 1)
+      store.removeClip(this.clipId)
     }
 
-    // Add split clips
-    track.clips.push(this.leftClip, this.rightClip)
-    
-    // Sort clips by start time
-    track.clips.sort((a, b) => a.startTime - b.startTime)
-
-    // Update project
-    project.modifiedAt = new Date().toISOString()
+    // Re-insert split clips at the original position via store API
+    const insertIndex = originalIndex === -1 ? (this.originalIndex ?? 0) : originalIndex
+    store.restoreClip(this.trackId, this.leftClip, insertIndex)
+    store.restoreClip(this.trackId, this.rightClip, insertIndex + 1)
 
     // Select the left clip
-    const store = this.context.getStore()
     store.selectClip(this.leftClip.id)
 
     return {
