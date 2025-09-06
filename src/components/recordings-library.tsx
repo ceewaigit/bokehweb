@@ -1,17 +1,17 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Play, Trash2, Clock, HardDrive, Layers, Download, RefreshCw, Loader2, Video, Sparkles } from 'lucide-react'
+import { Film, Play, Trash2, Layers, Download, RefreshCw, Loader2, Video, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { cn, formatTime } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { getVideoDuration } from '@/lib/utils/video-metadata'
-import { type Project } from '@/types/project'
+import { type Project, type Recording as ProjectRecording } from '@/types'
 
-interface Recording {
+interface LibraryRecording {
   name: string
   path: string
   timestamp: Date
@@ -21,18 +21,19 @@ interface Recording {
 }
 
 interface RecordingsLibraryProps {
-  onSelectRecording: (recording: Recording) => void | Promise<void>
+  onSelectRecording: (recording: LibraryRecording) => void | Promise<void>
 }
 
 export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps) {
-  const [recordings, setRecordings] = useState<Recording[]>([])
+  const [allRecordings, setAllRecordings] = useState<LibraryRecording[]>([])
+  const [recordings, setRecordings] = useState<LibraryRecording[]>([])
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
-  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 })
-  const containerRef = useRef<HTMLDivElement>(null)
-  const scrollDebounceRef = useRef<NodeJS.Timeout>()
+  const [isPageHydrating, setIsPageHydrating] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 24
 
-  const generateThumbnail = useCallback(async (recording: Recording, videoPath: string) => {
+  const generateThumbnail = useCallback(async (recording: LibraryRecording, videoPath: string) => {
     return await ThumbnailGenerator.generateThumbnail(
       videoPath,
       recording.path,
@@ -45,150 +46,164 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     )
   }, [])
 
+  const loadPage = useCallback(async (page: number, sourceList?: LibraryRecording[]) => {
+    const list = sourceList ?? allRecordings
+    const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE))
+    const normalizedPage = Math.min(Math.max(page, 1), totalPages)
+
+    setCurrentPage(normalizedPage)
+
+    const start = (normalizedPage - 1) * PAGE_SIZE
+    const end = Math.min(list.length, start + PAGE_SIZE)
+
+    const pageItems = list.slice(start, end).map(item => ({
+      ...item,
+      project: undefined,
+      thumbnailUrl: undefined
+    }))
+
+    setRecordings(pageItems)
+    setIsPageHydrating(true)
+
+    // Helper to update a single item by path
+    const updateItemByPath = (path: string, updated: Partial<LibraryRecording>) => {
+      setRecordings(prev => {
+        const idx = prev.findIndex(r => r.path === path)
+        if (idx === -1) return prev
+        const next = [...prev]
+        next[idx] = { ...next[idx], ...updated }
+        return next
+      })
+    }
+
+    const processItem = async (item: LibraryRecording) => {
+      try {
+        if (window.electronAPI?.readLocalFile) {
+          const result = await window.electronAPI.readLocalFile(item.path)
+          if (result?.success && result.data) {
+            const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
+            const project: Project = JSON.parse(projectData)
+
+            // Update name from project if present
+            updateItemByPath(item.path, { project, name: project?.name || item.name })
+
+            // Enrich with actual video file size and duration (first recording only)
+            if (project?.recordings && project.recordings.length > 0) {
+              const projectDir = item.path.substring(0, item.path.lastIndexOf('/'))
+              let videoPath = project.recordings[0].filePath
+
+              if (!videoPath.startsWith('/')) {
+                videoPath = `${projectDir}/${videoPath}`
+              }
+
+              // File size
+              if (window.electronAPI?.getFileSize) {
+                try {
+                  const sizeRes = await window.electronAPI.getFileSize(videoPath)
+                  if (sizeRes?.success && sizeRes.data?.size && sizeRes.data.size > 0) {
+                    updateItemByPath(item.path, { size: sizeRes.data.size })
+                  }
+                } catch (e) {
+                  console.log('Could not get video file size:', e)
+                }
+              }
+
+              // Duration from the video file
+              if (window.electronAPI?.getVideoUrl) {
+                try {
+                  const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
+                  if (videoUrl) {
+                    const videoDuration = await getVideoDuration(videoUrl)
+                    if (videoDuration > 0) {
+                      // Update project duration values
+                      setRecordings(prev => {
+                        const idx = prev.findIndex(r => r.path === item.path)
+                        if (idx === -1) return prev
+                        const cloned = [...prev]
+                        const updated = { ...cloned[idx] }
+                        if (updated.project) {
+                          updated.project = { ...updated.project }
+                          updated.project.recordings = [...updated.project.recordings]
+                          updated.project.recordings[0] = { ...updated.project.recordings[0] as ProjectRecording, duration: videoDuration }
+                          if (!updated.project.timeline) {
+                            updated.project.timeline = { tracks: [], duration: videoDuration, effects: [] }
+                          } else {
+                            updated.project.timeline = { ...updated.project.timeline, duration: videoDuration }
+                          }
+                        }
+                        cloned[idx] = updated
+                        return cloned
+                      })
+                    }
+                  }
+                } catch (e) {
+                  console.log('Could not get video duration:', e)
+                }
+              }
+
+              // Thumbnail generation
+              try {
+                const thumbnailUrl = await generateThumbnail(item, videoPath)
+                if (thumbnailUrl) {
+                  updateItemByPath(item.path, { thumbnailUrl })
+                }
+              } catch (error) {
+                console.error('Failed to generate thumbnail for', item.name, error)
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to hydrate project data:', e)
+      }
+    }
+
+    // Process in small chunks to limit concurrency
+    const chunkSize = 4
+    for (let i = 0; i < pageItems.length; i += chunkSize) {
+      const chunk = pageItems.slice(i, i + chunkSize)
+      await Promise.all(chunk.map(processItem))
+    }
+
+    setIsPageHydrating(false)
+  }, [allRecordings, generateThumbnail])
+
   const loadRecordings = async () => {
     try {
       setLoading(true)
       if (window.electronAPI?.loadRecordings) {
         const files = await window.electronAPI.loadRecordings()
-        const recordingsList: Recording[] = []
+        const recordingsList: LibraryRecording[] = []
 
         for (const file of files) {
-          if (!file.path.endsWith('.ssproj')) {
-            continue
-          }
+          if (!file.path.endsWith('.ssproj')) continue
 
-          const recording: Recording = {
+          const recording: LibraryRecording = {
             name: file.name,
             path: file.path,
             timestamp: new Date(file.timestamp),
             size: file.size
           }
 
-          try {
-            if (window.electronAPI?.readLocalFile) {
-              const result = await window.electronAPI.readLocalFile(file.path)
-              if (result?.success && result.data) {
-                const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
-                recording.project = JSON.parse(projectData)
-
-                if (recording.project?.name) {
-                  recording.name = recording.project.name
-                }
-
-                // Get actual video file size and duration
-                if (recording.project?.recordings && recording.project.recordings.length > 0) {
-                  const projectDir = file.path.substring(0, file.path.lastIndexOf('/'))
-                  let videoPath = recording.project.recordings[0].filePath
-
-                  // Make path absolute if relative
-                  if (!videoPath.startsWith('/')) {
-                    videoPath = `${projectDir}/${videoPath}`
-                  }
-
-                  // Get actual video file size
-                  if (window.electronAPI?.getFileSize) {
-                    try {
-                      const result = await window.electronAPI.getFileSize(videoPath)
-                      if (result?.success && result.data?.size && result.data.size > 0) {
-                        recording.size = result.data.size
-                      }
-                    } catch (e) {
-                      console.log('Could not get video file size:', e)
-                    }
-                  }
-
-                  // Get actual video duration from the video file
-                  if (window.electronAPI?.getVideoUrl) {
-                    try {
-                      const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
-                      if (videoUrl) {
-                        const videoDuration = await getVideoDuration(videoUrl)
-                        if (videoDuration > 0) {
-                          // Update the recording duration with actual video duration
-                          recording.project.recordings[0].duration = videoDuration
-
-                          // Ensure timeline exists and has the correct duration
-                          if (!recording.project.timeline) {
-                            recording.project.timeline = {
-                              tracks: [],
-                              duration: videoDuration,
-                              effects: []
-                            }
-                          } else {
-                            recording.project.timeline.duration = videoDuration
-                          }
-                        }
-                      }
-                    } catch (e) {
-                      console.log('Could not get video duration:', e)
-                    }
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            console.error('Failed to load project data:', e)
-            continue
-          }
-
           recordingsList.push(recording)
         }
 
-        // Remove duplicates - keep latest by timestamp
-        const uniqueMap = new Map<string, Recording>()
-        recordingsList.forEach(recording => {
-          const key = recording.project?.recordings?.[0]?.filePath || recording.path
+        // Remove duplicates by path - keep latest by timestamp
+        const uniqueMap = new Map<string, LibraryRecording>()
+        recordingsList.forEach(rec => {
+          const key = rec.path
           const existing = uniqueMap.get(key)
-          if (!existing || recording.timestamp > existing.timestamp) {
-            uniqueMap.set(key, recording)
+          if (!existing || rec.timestamp > existing.timestamp) {
+            uniqueMap.set(key, rec)
           }
         })
         const uniqueRecordings = Array.from(uniqueMap.values())
 
         uniqueRecordings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-        setRecordings(uniqueRecordings)
+        setAllRecordings(uniqueRecordings)
 
-        // Generate thumbnails for initially visible items in batches
-        const initialBatch = uniqueRecordings.slice(0, 12)
-        const thumbnailPromises = initialBatch.map(async (recording) => {
-          if (recording.project?.recordings?.[0]?.filePath && !recording.thumbnailUrl) {
-            try {
-              const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
-              let videoPath = recording.project.recordings[0].filePath
-
-              if (!videoPath.startsWith('/')) {
-                videoPath = `${projectDir}/${videoPath}`
-              }
-
-              const thumbnailUrl = await generateThumbnail(recording, videoPath)
-              if (thumbnailUrl) {
-                return { recording, thumbnailUrl }
-              }
-            } catch (error) {
-              console.error('Failed to generate thumbnail for', recording.name, error)
-            }
-          }
-          return null
-        })
-
-        // Process thumbnails and update state once
-        const results = await Promise.all(thumbnailPromises)
-        const validResults = results.filter(r => r !== null)
-
-        if (validResults.length > 0) {
-          setRecordings(prev => {
-            const updated = [...prev]
-            validResults.forEach(result => {
-              if (result) {
-                const index = updated.findIndex(r => r.path === result.recording.path)
-                if (index !== -1) {
-                  updated[index] = { ...updated[index], thumbnailUrl: result.thumbnailUrl }
-                }
-              }
-            })
-            return updated
-          })
-        }
+        // Load first page and hydrate only that page
+        await loadPage(1, uniqueRecordings)
       }
     } catch (error) {
       console.error('Failed to load recordings:', error)
@@ -212,84 +227,44 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
       ThumbnailGenerator.clearCache()
       // Clean up any thumbnail blobs
       globalBlobManager.cleanupByType('thumbnail')
-
-      if (scrollDebounceRef.current) {
-        clearTimeout(scrollDebounceRef.current)
-      }
     }
   }, [])
 
-  // Virtualization scroll handler with debouncing
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!containerRef.current) return
+  const totalPages = Math.max(1, Math.ceil(allRecordings.length / PAGE_SIZE))
+  const canPrev = currentPage > 1
+  const canNext = currentPage < totalPages
 
-      const container = containerRef.current
-      const scrollTop = container.scrollTop
-      const containerHeight = container.clientHeight
-      const itemHeight = 180
-      const cols = Math.floor(container.clientWidth / 150) || 6
-      const rowsVisible = Math.ceil(containerHeight / itemHeight) + 2
+  const handlePrevPage = () => {
+    if (canPrev) {
+      loadPage(currentPage - 1)
+    }
+  }
 
-      const startRow = Math.floor(scrollTop / itemHeight)
-      const newStart = Math.max(0, startRow * cols - cols)
-      const newEnd = Math.min(recordings.length, (startRow + rowsVisible) * cols + cols)
+  const handleNextPage = () => {
+    if (canNext) {
+      loadPage(currentPage + 1)
+    }
+  }
 
-      setVisibleRange({ start: newStart, end: newEnd })
-
-      // Debounce thumbnail loading
-      if (scrollDebounceRef.current) {
-        clearTimeout(scrollDebounceRef.current)
-      }
-
-      scrollDebounceRef.current = setTimeout(() => {
-        // Load thumbnails for newly visible items (debounced)
-        const visibleRecordings = recordings.slice(newStart, newEnd)
-          .filter(r => r.project?.recordings?.[0]?.filePath && !r.thumbnailUrl)
-          .slice(0, 3) // Limit concurrent thumbnail generation
-
-        if (visibleRecordings.length > 0) {
-          Promise.all(visibleRecordings.map(async (recording) => {
-            const projectDir = recording.path.substring(0, recording.path.lastIndexOf('/'))
-            let videoPath = recording.project!.recordings[0].filePath
-            if (!videoPath.startsWith('/')) {
-              videoPath = `${projectDir}/${videoPath}`
-            }
-            const thumbnailUrl = await generateThumbnail(recording, videoPath)
-            return thumbnailUrl ? { recording, thumbnailUrl } : null
-          })).then(results => {
-            const validResults = results.filter(r => r !== null)
-            if (validResults.length > 0) {
-              setRecordings(prev => {
-                const updated = [...prev]
-                validResults.forEach(result => {
-                  if (result) {
-                    const index = updated.findIndex(r => r.path === result.recording.path)
-                    if (index !== -1) {
-                      updated[index] = { ...updated[index], thumbnailUrl: result.thumbnailUrl }
-                    }
-                  }
-                })
-                return updated
-              })
-            }
-          })
+  const handleSelect = async (rec: LibraryRecording) => {
+    // Ensure project is loaded before selecting
+    if (!rec.project) {
+      try {
+        if (window.electronAPI?.readLocalFile) {
+          const result = await window.electronAPI.readLocalFile(rec.path)
+          if (result?.success && result.data) {
+            const projectData = new TextDecoder().decode(result.data as ArrayBuffer)
+            const project: Project = JSON.parse(projectData)
+            rec = { ...rec, project, name: project?.name || rec.name }
+          }
         }
-      }, 200) // 200ms debounce
+      } catch (e) {
+        console.error('Failed to load project before selection:', e)
+      }
     }
 
-    const container = containerRef.current
-    if (container) {
-      container.addEventListener('scroll', handleScroll)
-      handleScroll()
-      return () => container.removeEventListener('scroll', handleScroll)
-    }
-  }, [recordings, generateThumbnail])
-
-  const visibleRecordings = useMemo(() =>
-    recordings.slice(visibleRange.start, visibleRange.end),
-    [recordings, visibleRange]
-  )
+    onSelectRecording(rec)
+  }
 
   if (loading) {
     return (
@@ -370,7 +345,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     )
   }
 
-  if (recordings.length === 0) {
+  if (allRecordings.length === 0) {
     return (
       <div className="flex-1 overflow-hidden">
         {/* Header */}
@@ -468,7 +443,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   return (
     <div className="flex-1 overflow-hidden bg-background">
-      <div ref={containerRef} className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
+      <div className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
         {/* Enhanced header */}
         <div className="sticky top-0 z-30 bg-background/95 border-b border-border">
           <div className="px-6 py-2.5 ml-20">
@@ -477,10 +452,36 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 <h1 className="text-sm font-semibold text-foreground">Library</h1>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/20 px-2 py-0.5 rounded-full">
                   <Layers className="w-3 h-3" />
-                  <span className="font-mono">{recordings.length}</span>
+                  <span className="font-mono">{allRecordings.length}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* Pagination controls */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0"
+                    onClick={handlePrevPage}
+                    disabled={!canPrev}
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </Button>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {currentPage}/{totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0"
+                    onClick={handleNextPage}
+                    disabled={!canNext}
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
                 <Button
                   size="sm"
                   variant="outline"
@@ -509,13 +510,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         {/* Enhanced grid with better spacing */}
         <div className="p-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
-            {/* Spacer for virtualization */}
-            <div style={{ gridColumn: '1 / -1', height: `${Math.floor(visibleRange.start / 6) * 180}px` }} />
-
             <AnimatePresence mode="popLayout">
-              {visibleRecordings.map((recording, index) => {
-                const actualIndex = visibleRange.start + index
-                const isHovered = hoveredIndex === actualIndex
+              {recordings.map((recording, index) => {
+                const isHovered = hoveredIndex === index
 
                 return (
                   <motion.div
@@ -529,7 +526,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                       layout: { type: "spring", stiffness: 500, damping: 40 }
                     }}
                     className="group relative"
-                    onMouseEnter={() => setHoveredIndex(actualIndex)}
+                    onMouseEnter={() => setHoveredIndex(index)}
                     onMouseLeave={() => setHoveredIndex(null)}
                   >
                     <motion.div
@@ -542,7 +539,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                           ? "shadow-2xl ring-1 ring-primary/10"
                           : "shadow-sm hover:shadow-xl"
                       )}
-                      onClick={() => onSelectRecording(recording)}
+                      onClick={() => handleSelect(recording)}
                     >
                       {/* Enhanced thumbnail with loading state */}
                       <div className="aspect-video relative bg-gradient-to-br from-muted/5 to-transparent overflow-hidden">
@@ -661,10 +658,16 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 )
               })}
             </AnimatePresence>
-
-            {/* Spacer for virtualization */}
-            <div style={{ gridColumn: '1 / -1', height: `${Math.max(0, Math.floor((recordings.length - visibleRange.end) / 6) * 180)}px` }} />
           </div>
+
+          {isPageHydrating && (
+            <div className="mt-4 flex justify-center">
+              <div className="bg-background/80 backdrop-blur-xl rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
+                <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
+                <span className="text-[10px] font-medium text-muted-foreground">Loading page…</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
