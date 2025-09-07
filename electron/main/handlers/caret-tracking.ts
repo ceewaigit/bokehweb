@@ -43,12 +43,13 @@ function getNativeCaretPosition(): { x: number; y: number; width: number; height
     console.log('[CARET-RAW] Native rect:', rect)
     const disp = screen.getDisplayNearestPoint({ x: Math.round(rect.x), y: Math.round(rect.y) })
     const scale = (rect.scale || disp?.scaleFactor || 1)
-    // Convert to physical pixels based on backing scale
+    // The native module returns logical coordinates, we need to convert to physical
+    // But only if scale > 1 (retina displays)
     return {
-      x: (rect.x || 0) * scale,
-      y: (rect.y || 0) * scale,
-      width: Math.max(1, (rect.width || 1) * scale),
-      height: Math.max(1, (rect.height || 12) * scale),
+      x: rect.x || 0,  // Keep in logical for now
+      y: rect.y || 0,  // Keep in logical for now
+      width: Math.max(1, rect.width || 1),
+      height: Math.max(1, rect.height || 12),
       scale
     }
   } catch (e) {
@@ -63,11 +64,12 @@ export function emitNativeCaretIfAvailable(reason: string): boolean {
     const now = Date.now()
     const nativeCaret = getNativeCaretPosition()
     if (caretEventSender && nativeCaret) {
-      // Already in physical pixels; just use them
-      const pxX = Math.round(nativeCaret.x)
-      const pxY = Math.round(nativeCaret.y)
-      const pxW = Math.max(1, Math.round(nativeCaret.width))
-      const pxH = Math.max(1, Math.round(nativeCaret.height))
+      // Convert logical coordinates to physical pixels for consistency with mouse events
+      const scale = nativeCaret.scale || 1
+      const pxX = Math.round(nativeCaret.x * scale)
+      const pxY = Math.round(nativeCaret.y * scale)
+      const pxW = Math.max(1, Math.round(nativeCaret.width * scale))
+      const pxH = Math.max(1, Math.round(nativeCaret.height * scale))
 
       lastCaretAt = now
       lastCaretPos = { x: pxX, y: pxY, width: pxW, height: pxH, scale: nativeCaret.scale }

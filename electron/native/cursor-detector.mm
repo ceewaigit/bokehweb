@@ -201,6 +201,9 @@ Napi::Value GetInsertionPointScreenRect(const Napi::CallbackInfo& info) {
             return env.Null();
         }
         
+        // Debug: Log the selected range to see if it's changing
+        NSLog(@"[CARET-NATIVE] Selected range: location=%ld, length=%ld", (long)selectedRange.location, (long)selectedRange.length);
+        
         // Caret is at the end of selection (or same index if length == 0)
         CFRange caretRange = CFRangeMake(selectedRange.location + selectedRange.length, 0);
         AXValueRef caretRangeValue = AXValueCreate((AXValueType)kAXValueCFRangeType, &caretRange);
@@ -220,6 +223,10 @@ Napi::Value GetInsertionPointScreenRect(const Napi::CallbackInfo& info) {
         CGRect rect;
         AXValueGetValue(rectValue, (AXValueType)kAXValueCGRectType, &rect);
         CFRelease(rectValue);
+        
+        // Debug: Log the bounds returned by the API
+        NSLog(@"[CARET-NATIVE] Bounds for caret at position %ld: x=%.1f, y=%.1f, w=%.1f, h=%.1f", 
+              (long)(selectedRange.location + selectedRange.length), rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
 
         // If the bounds are element-relative, offset by the element's position to get screen DIP
         AXValueRef elementPosValue = NULL;
