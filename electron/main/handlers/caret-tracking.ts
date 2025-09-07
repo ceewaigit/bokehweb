@@ -39,15 +39,17 @@ function getNativeCaretPosition(): { x: number; y: number; width: number; height
       console.log('[CARET] Invalid rect from getInsertionPointScreenRect:', rect)
       return null
     }
+    // Log the raw rect from native to debug position updates
+    console.log('[CARET-RAW] Native rect:', rect)
     const disp = screen.getDisplayNearestPoint({ x: Math.round(rect.x), y: Math.round(rect.y) })
     const scale = (rect.scale || disp?.scaleFactor || 1)
     // Convert to physical pixels based on backing scale
-    return { 
-      x: (rect.x || 0) * scale, 
-      y: (rect.y || 0) * scale, 
-      width: Math.max(1, (rect.width || 1) * scale), 
-      height: Math.max(1, (rect.height || 12) * scale), 
-      scale 
+    return {
+      x: (rect.x || 0) * scale,
+      y: (rect.y || 0) * scale,
+      width: Math.max(1, (rect.width || 1) * scale),
+      height: Math.max(1, (rect.height || 12) * scale),
+      scale
     }
   } catch (e) {
     logger.debug('getNativeCaretPosition failed', e)
@@ -69,16 +71,24 @@ export function emitNativeCaretIfAvailable(reason: string): boolean {
 
       lastCaretAt = now
       lastCaretPos = { x: pxX, y: pxY, width: pxW, height: pxH, scale: nativeCaret.scale }
-      caretEventSender.send('caret-event', {
+      const eventData = {
         timestamp: now,
         x: pxX,
         y: pxY,
         bounds: { x: pxX, y: pxY, width: pxW, height: pxH }
+      }
+      caretEventSender.send('caret-event', eventData)
+      console.log(`[CaretEmit] source=native:${reason}`, {
+        x: pxX,
+        y: pxY,
+        width: pxW,
+        height: pxH,
+        scale: nativeCaret.scale,
+        timestamp: now - (global as any).recordingStartTime || 0
       })
-      console.log(`[CaretEmit] source=native:${reason}`, { x: pxX, y: pxY, width: pxW, height: pxH, scale: nativeCaret.scale })
       return true
     }
-  } catch {}
+  } catch { }
   return false
 }
 
@@ -89,9 +99,9 @@ export function ensureCaretPolling(durationMs: number): void {
   caretPollInterval = setInterval(() => {
     const t = Date.now()
     if (t > caretPollUntil) {
-      if (caretPollInterval) { 
+      if (caretPollInterval) {
         clearInterval(caretPollInterval)
-        caretPollInterval = null 
+        caretPollInterval = null
       }
       return
     }
@@ -137,6 +147,9 @@ export function handleKeyboardCaretUpdate(type: 'keydown' | 'keyup'): void {
 export function registerCaretTrackingHandlers(): void {
   ipcMain.handle('start-caret-tracking', async (event: IpcMainInvokeEvent) => {
     try {
+      // Store recording start time for timestamp calculation
+      (global as any).recordingStartTime = Date.now()
+
       // Check accessibility permissions when starting caret tracking
       if (cursorDetector && !cursorDetector.hasAccessibilityPermissions()) {
         logger.warn('⚠️ No accessibility permissions for caret detection')
@@ -177,18 +190,18 @@ export function registerCaretTrackingHandlers(): void {
       caretEventSender = null
 
       // Clear any pending caret sampling timers
-      if (caretSampleTimerShort) { 
+      if (caretSampleTimerShort) {
         clearTimeout(caretSampleTimerShort)
-        caretSampleTimerShort = null 
+        caretSampleTimerShort = null
       }
-      if (caretSampleTimerLong) { 
+      if (caretSampleTimerLong) {
         clearTimeout(caretSampleTimerLong)
-        caretSampleTimerLong = null 
+        caretSampleTimerLong = null
       }
-      if (caretPollInterval) { 
+      if (caretPollInterval) {
         clearInterval(caretPollInterval)
         caretPollInterval = null
-        caretPollUntil = 0 
+        caretPollUntil = 0
       }
 
       // Reset state

@@ -418,8 +418,8 @@ export class ElectronRecorder {
       if (window.electronAPI?.stopKeyboardTracking) {
         await window.electronAPI.stopKeyboardTracking()
       }
-      if ((window.electronAPI as any)?.stopCaretTracking) {
-        await (window.electronAPI as any).stopCaretTracking()
+      if (window.electronAPI?.stopCaretTracking) {
+        await window.electronAPI.stopCaretTracking()
       }
 
       try {
@@ -541,14 +541,31 @@ export class ElectronRecorder {
         // The native module already returns screen-relative coordinates
         // if (!inside) return
         
+        // The bounds from native are in physical pixels from the native module
+        // The bounds x,y are absolute screen coordinates, width/height are the caret dimensions
+        // We only need width/height for the bounds, x/y should be rx/ry (relative to capture)
+        const caretBounds = (data?.bounds && typeof data.bounds.width === 'number' && typeof data.bounds.height === 'number')
+          ? { 
+              x: Math.max(0, rx), 
+              y: Math.max(0, ry), 
+              width: Math.max(1, Number(data.bounds.width)), // Keep original width in physical pixels
+              height: Math.max(1, Number(data.bounds.height)) // Keep original height in physical pixels
+            }
+          : undefined
+        
+        console.log('[CARET] Processing bounds:', {
+          originalBounds: data?.bounds,
+          relativePos: { rx, ry },
+          caretBounds,
+          scaleFactor: this.captureArea?.scaleFactor
+        })
+        
         this.metadata.push({
           timestamp,
           eventType: 'caret',
           caretX: Math.max(0, rx),
           caretY: Math.max(0, ry),
-          caretBounds: (data?.bounds && typeof data.bounds.width === 'number' && typeof data.bounds.height === 'number')
-            ? { x: Math.max(0, rx), y: Math.max(0, ry), width: Math.max(1, Number(data.bounds.width) / (this.captureArea?.scaleFactor || 1)), height: Math.max(1, Number(data.bounds.height) / (this.captureArea?.scaleFactor || 1)) }
-            : undefined,
+          caretBounds,
           captureWidth: this.captureWidth,
           captureHeight: this.captureHeight
         })
@@ -574,8 +591,8 @@ export class ElectronRecorder {
     }
 
     // Register caret listener
-    if ((window.electronAPI as any)?.onCaret) {
-      ;(window.electronAPI as any).onCaret(handleCaret)
+    if (window.electronAPI?.onCaret) {
+      window.electronAPI.onCaret(handleCaret)
     }
 
     // Start keyboard tracking
@@ -585,9 +602,9 @@ export class ElectronRecorder {
     }
 
     // Start caret tracking (separate from keyboard)
-    if ((window.electronAPI as any)?.startCaretTracking) {
+    if (window.electronAPI?.startCaretTracking) {
       logger.info('Starting caret tracking...')
-      await (window.electronAPI as any).startCaretTracking()
+      await window.electronAPI.startCaretTracking()
     }
 
     // Start tracking in main process

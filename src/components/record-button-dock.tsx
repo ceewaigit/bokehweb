@@ -199,6 +199,20 @@ export function RecordButtonDock() {
     setShowSourcePicker(true)
   }
 
+  // Handle screen selection with immediate overlay display
+  const handleScreenSelection = (source: Source) => {
+    // Hide any existing overlay
+    window.electronAPI?.hideMonitorOverlay?.()
+
+    // Set the selected source
+    setSelectedSourceId(source.id)
+
+    // Show overlay on the selected monitor immediately for screens
+    if (source.type === 'screen' && source.displayInfo?.id !== undefined) {
+      window.electronAPI?.showMonitorOverlay?.(source.displayInfo.id)
+    }
+  }
+
   const handleSourceSelect = async () => {
     if (!selectedSourceId) return
 
@@ -206,14 +220,8 @@ export function RecordButtonDock() {
     const selectedSource = sources.find(s => s.id === selectedSourceId)
     const displayId = selectedSource?.displayInfo?.id
 
-    // Show overlay on the selected monitor if it's a screen
-    if (selectedSource?.type === 'screen' && displayId !== undefined) {
-      window.electronAPI?.showMonitorOverlay?.(displayId)
-      // Hide overlay automatically after 2 seconds
-      setTimeout(() => {
-        window.electronAPI?.hideMonitorOverlay?.()
-      }, 2000)
-    }
+    // Hide the overlay as we're about to start recording
+    window.electronAPI?.hideMonitorOverlay?.()
 
     // Ensure wallpaper is loaded before starting recording
     await initializeDefaultWallpaper()
@@ -484,7 +492,10 @@ export function RecordButtonDock() {
                   {areaOption && (
                     <button
                       style={{ WebkitAppRegion: 'no-drag' } as any}
-                      onClick={() => setSelectedSourceId(areaOption.id)}
+                      onClick={() => {
+                        window.electronAPI?.hideMonitorOverlay?.()
+                        setSelectedSourceId(areaOption.id)
+                      }}
                       className={cn(
                         "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
                         selectedSourceId === areaOption.id
@@ -502,7 +513,7 @@ export function RecordButtonDock() {
                     <button
                       key={screen.id}
                       style={{ WebkitAppRegion: 'no-drag' } as any}
-                      onClick={() => setSelectedSourceId(screen.id)}
+                      onClick={() => handleScreenSelection(screen)}
                       className={cn(
                         "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
                         selectedSourceId === screen.id
@@ -527,20 +538,23 @@ export function RecordButtonDock() {
                       <div className="flex-1 h-px bg-border/30" />
                     </div>
                     <div className="grid grid-cols-4 gap-0.5 max-h-24 overflow-y-auto">
-                      {windows.slice(0, 8).map((window) => (
+                      {windows.slice(0, 8).map((source) => (
                         <button
                           style={{ WebkitAppRegion: 'no-drag' } as any}
-                          key={window.id}
-                          onClick={() => setSelectedSourceId(window.id)}
+                          key={source.id}
+                          onClick={() => {
+                            window.electronAPI?.hideMonitorOverlay?.()
+                            setSelectedSourceId(source.id)
+                          }}
                           className={cn(
                             "p-1 rounded border text-[9px] truncate transition-colors",
-                            selectedSourceId === window.id
+                            selectedSourceId === source.id
                               ? "border-primary bg-primary/10"
                               : "border-border/30 hover:border-primary/50 hover:bg-accent/50"
                           )}
-                          title={window.name}
+                          title={source.name}
                         >
-                          {window.name.split(' - ')[0]}
+                          {source.name.split(' - ')[0]}
                         </button>
                       ))}
                     </div>
@@ -552,6 +566,7 @@ export function RecordButtonDock() {
                   <button
                     style={{ WebkitAppRegion: 'no-drag' } as any}
                     onClick={() => {
+                      window.electronAPI?.hideMonitorOverlay?.()
                       setShowSourcePicker(false)
                       setSelectedSourceId(null)
                     }}

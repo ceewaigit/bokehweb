@@ -118,6 +118,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     const { state, layers } = cinematicScrollState;
     cinematicTransform = createCinematicTransform(state);
     cinematicBlur = createBlurFilter(state.blur);
+    
+    // Log when transform is applied
+    if (cinematicTransform) {
+      console.log('[CinematicScroll] Applying transform to video:', {
+        transform: cinematicTransform,
+        blur: cinematicBlur || 'none'
+      });
+    }
   }
   
   const combinedTransform = `${transform}${extra3DTransform}`.trim();

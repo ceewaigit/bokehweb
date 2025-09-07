@@ -396,14 +396,14 @@ export class BlobURLManager {
   async loadVideos(recordings: { id: string; filePath?: string; metadata?: any } | Array<{ id: string; filePath?: string; metadata?: any }>): Promise<string | null | void> {
     const recordingArray = Array.isArray(recordings) ? recordings : [recordings]
     const isSingle = !Array.isArray(recordings)
-    
+
     const results = await Promise.all(
       recordingArray.map(async rec => {
         // Store metadata if provided
         if (rec.metadata) {
           RecordingStorage.setMetadata(rec.id, rec.metadata)
         }
-        
+
         // Load video
         if (rec.filePath) {
           try {
@@ -416,11 +416,11 @@ export class BlobURLManager {
         return null
       })
     )
-    
+
     // For single recording, return the URL directly
     return isSingle ? results[0] : undefined
   }
-  
+
   // Alias for backward compatibility
   async ensureVideoLoaded(recordingId: string, filePath?: string): Promise<string | null> {
     return this.loadVideos({ id: recordingId, filePath }) as Promise<string | null>
