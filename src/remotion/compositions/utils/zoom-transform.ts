@@ -17,10 +17,6 @@ export const easeInOutCubic = (t: number): number => {
     : 1 - Math.pow(-2 * t + 2, 3) / 2;
 };
 
-// Very smooth cubic bezier curve (smoothstep)
-const smoothCubic = (t: number): number => {
-  return t * t * (3 - 2 * t);
-};
 
 // Professional zoom easing - smooth and consistent
 const professionalZoomIn = (progress: number): number => {
@@ -82,7 +78,6 @@ export function calculateZoomTransform(
   videoWidth: number,
   videoHeight: number,
   zoomCenter: { x: number; y: number }, // Fixed zoom center (normalized 0-1)
-  cinematicPan?: { x: number; y: number }, // Optional cinematic pan (normalized)
   overrideScale?: number
 ): ZoomState {
   if (!activeBlock) {
@@ -129,9 +124,9 @@ export function calculateZoomTransform(
   const scaleCompensationX = -offsetFromCenterX * (scale - 1);
   const scaleCompensationY = -offsetFromCenterY * (scale - 1);
 
-  // Apply cinematic pan if provided (already smoothed in MainComposition)
-  const panX = (cinematicPan?.x || 0) * videoWidth;
-  const panY = (cinematicPan?.y || 0) * videoHeight;
+  // Pan is now handled by cinematic scroll, not here
+  const panX = 0;
+  const panY = 0;
 
   return {
     scale,
@@ -195,4 +190,3 @@ export function getZoomTransformString(zoomTransform: ZoomState): string {
   // Use transform3d for GPU acceleration and smoother animation
   return `translate3d(${translateX}px, ${translateY}px, 0) scale3d(${scale}, ${scale}, 1)`;
 }
-

@@ -34,7 +34,7 @@ const defaultWorkspaceState = {
   isExportOpen: false,
   showProjectManager: false,
   showWelcomeScreen: false,
-  propertiesPanelWidth: 320,
+  propertiesPanelWidth: 400,
   timelineHeight: 200,
 }
 
@@ -62,7 +62,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   setPropertiesPanelWidth: (width: number) => {
-    set({ propertiesPanelWidth: Math.max(200, Math.min(600, width)) })
+    set({ propertiesPanelWidth: Math.max(300, Math.min(600, width)) })
   },
 
   setTimelineHeight: (height: number) => {
@@ -75,7 +75,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         set({
           isPropertiesOpen: false,
           isTimelineOpen: true,
-          propertiesPanelWidth: 280,
+          propertiesPanelWidth: 360,
           timelineHeight: 150,
         })
         break
@@ -83,7 +83,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
         set({
           isPropertiesOpen: true,
           isTimelineOpen: true,
-          propertiesPanelWidth: 320,
+          propertiesPanelWidth: 400,
           timelineHeight: 200,
         })
         break

@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow, IpcMainInvokeEvent, IpcMainEvent, app } from 'e
 import { createMainWindow } from '../windows/main-window'
 import { getAppURL } from '../config'
 import { createCountdownWindow, showCountdown } from '../windows/countdown-window'
+import { showMonitorOverlay, hideMonitorOverlay } from '../windows/monitor-overlay'
 
 let countdownWindow: BrowserWindow | null = null
 
@@ -102,12 +103,15 @@ export function registerWindowControlHandlers(): void {
     return { success: false }
   })
 
-  ipcMain.handle('show-countdown', async (event: IpcMainInvokeEvent, number: number) => {
+  ipcMain.handle('show-countdown', async (event: IpcMainInvokeEvent, number: number, displayId?: number) => {
+    // Hide any overlay when countdown starts
+    hideMonitorOverlay()
+    
     if (countdownWindow) {
       countdownWindow.close()
       countdownWindow = null
     }
-    countdownWindow = createCountdownWindow()
+    countdownWindow = createCountdownWindow(displayId)
     showCountdown(countdownWindow, number)
     return { success: true }
   })
@@ -119,5 +123,26 @@ export function registerWindowControlHandlers(): void {
       countdownWindow = null
     }
     return { success: true }
+  })
+
+  // Monitor overlay handlers
+  ipcMain.handle('show-monitor-overlay', async (event: IpcMainInvokeEvent, displayId?: number) => {
+    try {
+      showMonitorOverlay(displayId)
+      return { success: true }
+    } catch (error) {
+      console.error('[WindowControls] Failed to show monitor overlay:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('hide-monitor-overlay', async () => {
+    try {
+      hideMonitorOverlay()
+      return { success: true }
+    } catch (error) {
+      console.error('[WindowControls] Failed to hide monitor overlay:', error)
+      return { success: false, error: (error as Error).message }
+    }
   })
 }

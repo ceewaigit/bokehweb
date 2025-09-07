@@ -6,6 +6,7 @@ interface RecordingStore extends RecordingState {
   settings: RecordingSettings
   processingProgress: number | null
   countdownActive: boolean
+  selectedDisplayId?: number
 
   // Core state setters
   setRecording: (isRecording: boolean) => void
@@ -18,10 +19,10 @@ interface RecordingStore extends RecordingState {
   updateSettings: (settings: Partial<RecordingSettings>) => void
 
   // Countdown management
-  startCountdown: (onComplete: () => void) => void
+  startCountdown: (onComplete: () => void, displayId?: number) => void
 
   // Recording workflow
-  prepareRecording: (sourceId: string) => void
+  prepareRecording: (sourceId: string, displayId?: number) => void
 
   // Reset
   reset: () => void
@@ -44,6 +45,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   settings: defaultSettings,
   processingProgress: null,
   countdownActive: false,
+  selectedDisplayId: undefined,
 
   setRecording: (isRecording) =>
     set((state) => ({
@@ -69,13 +71,14 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     })),
 
 
-  startCountdown: (onComplete) => {
+  startCountdown: (onComplete, displayId) => {
     set({ countdownActive: true })
     let count = 3
 
     // Hide the dock during countdown for cleaner experience
     window.electronAPI?.minimizeRecordButton?.()
-    window.electronAPI?.showCountdown?.(count)
+    // Pass displayId to show countdown on the correct monitor
+    window.electronAPI?.showCountdown?.(count, displayId)
 
     const countdownInterval = setInterval(() => {
       count--
@@ -91,14 +94,17 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
         // Execute callback
         onComplete()
       } else {
-        // Update countdown display
-        window.electronAPI?.showCountdown?.(count)
+        // Update countdown display on the correct monitor
+        window.electronAPI?.showCountdown?.(count, displayId)
       }
     }, 1000)
   },
 
-  prepareRecording: (sourceId) => {
+  prepareRecording: (sourceId, displayId) => {
     const { updateSettings } = get()
+
+    // Store the selected display ID
+    set({ selectedDisplayId: displayId })
 
     // Determine recording area based on source ID
     if (sourceId.startsWith('area:')) {
@@ -109,7 +115,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       updateSettings({ area: 'window', sourceId })
     }
 
-    logger.debug('Recording prepared with source:', sourceId)
+    logger.debug('Recording prepared with source:', sourceId, 'displayId:', displayId)
   },
 
   reset: () => set({
@@ -119,6 +125,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     status: 'idle',
     settings: defaultSettings,
     processingProgress: null,
-    countdownActive: false
+    countdownActive: false,
+    selectedDisplayId: undefined
   })
 }))

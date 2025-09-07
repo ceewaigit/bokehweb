@@ -411,9 +411,15 @@ export class ElectronRecorder {
       // Mark as not recording before stopping
       this.isRecording = false
 
-      // Stop mouse tracking first
+      // Stop all tracking first
       if (window.electronAPI?.stopMouseTracking) {
         await window.electronAPI.stopMouseTracking()
+      }
+      if (window.electronAPI?.stopKeyboardTracking) {
+        await window.electronAPI.stopKeyboardTracking()
+      }
+      if ((window.electronAPI as any)?.stopCaretTracking) {
+        await (window.electronAPI as any).stopCaretTracking()
       }
 
       try {
@@ -511,19 +517,43 @@ export class ElectronRecorder {
     const handleCaret = (_event: unknown, data: any) => {
       const timestamp = Date.now() - this.startTime
       if (typeof data?.x === 'number' && typeof data?.y === 'number') {
+        // Debug logging
+        console.log('[CARET] Received caret event:', {
+          rawX: data.x,
+          rawY: data.y,
+          bounds: data.bounds,
+          captureArea: this.captureArea,
+          captureWidth: this.captureWidth,
+          captureHeight: this.captureHeight
+        })
+        
         const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
-        if (!inside) return
+        
+        console.log('[CARET] After toCaptureRelative:', {
+          rx,
+          ry,
+          inside,
+          captureAreaBounds: this.captureArea?.fullBounds,
+          scaleFactor: this.captureArea?.scaleFactor
+        })
+        
+        // Don't filter out caret events - they should always be captured if visible
+        // The native module already returns screen-relative coordinates
+        // if (!inside) return
+        
         this.metadata.push({
           timestamp,
           eventType: 'caret',
-          caretX: rx,
-          caretY: ry,
+          caretX: Math.max(0, rx),
+          caretY: Math.max(0, ry),
           caretBounds: (data?.bounds && typeof data.bounds.width === 'number' && typeof data.bounds.height === 'number')
             ? { x: Math.max(0, rx), y: Math.max(0, ry), width: Math.max(1, Number(data.bounds.width) / (this.captureArea?.scaleFactor || 1)), height: Math.max(1, Number(data.bounds.height) / (this.captureArea?.scaleFactor || 1)) }
             : undefined,
           captureWidth: this.captureWidth,
           captureHeight: this.captureHeight
         })
+        
+        console.log('[CARET] Stored caret event in metadata, total events:', this.metadata.filter(m => m.eventType === 'caret').length)
       }
     }
 
@@ -552,6 +582,12 @@ export class ElectronRecorder {
     if (window.electronAPI?.startKeyboardTracking) {
       logger.info('Starting keyboard tracking...')
       await window.electronAPI.startKeyboardTracking()
+    }
+
+    // Start caret tracking (separate from keyboard)
+    if ((window.electronAPI as any)?.startCaretTracking) {
+      logger.info('Starting caret tracking...')
+      await (window.electronAPI as any).startCaretTracking()
     }
 
     // Start tracking in main process

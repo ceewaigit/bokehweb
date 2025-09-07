@@ -3,6 +3,7 @@ import { Video, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
+import { createCinematicTransform, createBlurFilter } from '@/lib/effects/cinematic-scroll';
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
@@ -11,17 +12,15 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoWidth,
   videoHeight,
   zoomCenter,
-  cinematicPan,
-  extraTranslate,
+  cinematicScrollState,
   computedScale,
   debugCaret
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // Use fixed zoom center and optional pan from MainComposition
+  // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
-  const smoothPan = cinematicPan || { x: 0, y: 0 };
 
   // Calculate current time in milliseconds
   const currentTimeMs = (frame / fps) * 1000;
@@ -57,14 +56,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
     );
 
-    // Calculate zoom transformation with fixed center and cinematic pan
+    // Calculate zoom transformation with fixed center
     const zoomTransform = calculateZoomTransform(
       activeBlock,
       currentTimeMs,
       drawWidth,
       drawHeight,
       fixedZoomCenter,  // Fixed zoom center for stable zoom
-      smoothPan, 
       computedScale
     );
 
@@ -112,8 +110,18 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     extra3DTransform = ` perspective(${(perspective ?? 900)}px) rotateX(${tiltX ?? -4}deg) rotateY(${tiltY ?? 6}deg) scale(${scaleComp})${centerAdjust}`
   }
 
-  const combinedTransform = `${transform}${extra3DTransform}`.trim()
-  const finalTransform = extraTranslate ? `${combinedTransform} translate3d(${extraTranslate.x}px, ${extraTranslate.y}px, 0)` : combinedTransform
+  // Apply cinematic scroll transforms if available
+  let cinematicTransform = '';
+  let cinematicBlur: string | undefined;
+  
+  if (cinematicScrollState) {
+    const { state, layers } = cinematicScrollState;
+    cinematicTransform = createCinematicTransform(state);
+    cinematicBlur = createBlurFilter(state.blur);
+  }
+  
+  const combinedTransform = `${transform}${extra3DTransform}`.trim();
+  const finalTransform = cinematicTransform ? `${combinedTransform} ${cinematicTransform}` : combinedTransform;
 
   // Simple video style - always show full video with contain
   const videoStyle: React.CSSProperties = {
@@ -159,7 +167,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           overflow: 'hidden',
           transform: finalTransform,
           transformOrigin: '50% 50%',
-          willChange: 'transform' // GPU acceleration hint
+          filter: cinematicBlur,
+          willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
         <Video

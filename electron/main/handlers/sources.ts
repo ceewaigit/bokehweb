@@ -100,14 +100,47 @@ export function registerSourceHandlers(): void {
         // Import window bounds helper dynamically
         const { getWindowBoundsForSource } = await import('../native/window-bounds')
 
+        // Get all displays for enhanced information
+        const displays = screen.getAllDisplays()
+        const primaryDisplay = screen.getPrimaryDisplay()
+        
         // Map the sources to our format with bounds information
         const mappedSources = await Promise.all(sources.map(async source => {
           // Get window bounds for window sources
           let bounds = undefined
-          if (!source.id.startsWith('screen:')) {
-            bounds = await getWindowBoundsForSource(source.name)
-            if (bounds) {
+          let displayInfo = undefined
+          
+          if (source.id.startsWith('screen:')) {
+            // For screen sources, get display information
+            const screenIdMatch = source.id.match(/screen:(\d+):/)
+            if (screenIdMatch) {
+              const screenId = parseInt(screenIdMatch[1])
+              const display = displays.find(d => d.id === screenId)
+              if (display) {
+                bounds = display.bounds
+                displayInfo = {
+                  id: display.id,
+                  isPrimary: display.id === primaryDisplay.id,
+                  isInternal: display.internal,
+                  bounds: display.bounds,
+                  workArea: display.workArea,
+                  scaleFactor: display.scaleFactor
+                }
+                
+                // Create better display names
+                if (display.id === primaryDisplay.id) {
+                  source.name = 'Primary Display'
+                } else if (display.internal) {
+                  source.name = 'Built-in Display'
+                } else {
+                  const index = displays.findIndex(d => d.id === display.id)
+                  source.name = `Display ${index + 1}`
+                }
+              }
             }
+          } else {
+            // For window sources
+            bounds = await getWindowBoundsForSource(source.name)
           }
 
           return {
@@ -115,7 +148,8 @@ export function registerSourceHandlers(): void {
             name: source.name,
             display_id: source.display_id,
             thumbnail: source.thumbnail?.toDataURL() || undefined,
-            bounds // Include window bounds if available
+            bounds,
+            displayInfo
           }
         }))
 

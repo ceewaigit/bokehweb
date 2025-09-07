@@ -3,8 +3,13 @@ import * as path from 'path'
 
 // Webpack entry points are set as environment variables by electron-forge
 
-export function createCountdownWindow(): BrowserWindow {
-  const display = screen.getPrimaryDisplay()
+export function createCountdownWindow(displayId?: number): BrowserWindow {
+  // Get the target display - use provided displayId or fall back to primary
+  const displays = screen.getAllDisplays()
+  const display = displayId 
+    ? displays.find(d => d.id === displayId) || screen.getPrimaryDisplay()
+    : screen.getPrimaryDisplay()
+  
   const countdownWindow = new BrowserWindow({
     width: display.bounds.width,
     height: display.bounds.height,

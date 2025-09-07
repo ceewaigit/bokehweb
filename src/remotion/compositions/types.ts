@@ -20,8 +20,7 @@ export interface VideoLayerProps {
   videoWidth: number;
   videoHeight: number;
   zoomCenter?: { x: number; y: number };
-  cinematicPan?: { x: number; y: number };
-  extraTranslate?: { x: number; y: number };
+  cinematicScrollState?: any; // Cinematic scroll state from calculator
   computedScale?: number;
   debugCaret?: { x: number; y: number; bounds?: { x: number; y: number; width: number; height: number } };
 }

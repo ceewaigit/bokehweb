@@ -29,8 +29,15 @@ import {
 interface Source {
   id: string
   name: string
-  thumbnail?: string
   type: 'screen' | 'window' | 'area'
+  displayInfo?: {
+    id: number
+    isPrimary: boolean
+    isInternal: boolean
+    bounds: { x: number; y: number; width: number; height: number }
+    workArea: { x: number; y: number; width: number; height: number }
+    scaleFactor: number
+  }
 }
 
 export function RecordButtonDock() {
@@ -117,8 +124,8 @@ export function RecordButtonDock() {
       const mappedSources: Source[] = desktopSources.map(source => ({
         id: source.id,
         name: source.name,
-        thumbnail: source.thumbnail,
-        type: source.id.startsWith('screen:') ? 'screen' : 'window'
+        type: source.id.startsWith('screen:') ? 'screen' : 'window',
+        displayInfo: source.displayInfo
       }))
 
       // Filter out system windows
@@ -195,6 +202,19 @@ export function RecordButtonDock() {
   const handleSourceSelect = async () => {
     if (!selectedSourceId) return
 
+    // Find the selected source to get display info
+    const selectedSource = sources.find(s => s.id === selectedSourceId)
+    const displayId = selectedSource?.displayInfo?.id
+
+    // Show overlay on the selected monitor if it's a screen
+    if (selectedSource?.type === 'screen' && displayId !== undefined) {
+      window.electronAPI?.showMonitorOverlay?.(displayId)
+      // Hide overlay automatically after 2 seconds
+      setTimeout(() => {
+        window.electronAPI?.hideMonitorOverlay?.()
+      }, 2000)
+    }
+
     // Ensure wallpaper is loaded before starting recording
     await initializeDefaultWallpaper()
 
@@ -211,16 +231,16 @@ export function RecordButtonDock() {
           const result = await window.electronAPI.selectScreenArea()
           if (result?.success && result.area) {
             const areaSourceId = `area:${result.area.x},${result.area.y},${result.area.width},${result.area.height}`
-            prepareRecording(areaSourceId)
-            setTimeout(() => startCountdown(startRecording), 100)
+            prepareRecording(areaSourceId, displayId)
+            setTimeout(() => startCountdown(startRecording, displayId), 100)
           }
         } catch (error) {
           logger.error('Failed to select screen area:', error)
         }
       }
     } else {
-      prepareRecording(selectedSourceId)
-      setTimeout(() => startCountdown(startRecording), 100)
+      prepareRecording(selectedSourceId, displayId)
+      setTimeout(() => startCountdown(startRecording, displayId), 100)
     }
   }
 
@@ -492,7 +512,7 @@ export function RecordButtonDock() {
                     >
                       <Monitor className="w-5 h-5 text-primary" />
                       <span className="text-xs font-medium truncate w-full">
-                        {screen.name.replace('Entire screen', 'Full Screen')}
+                        {screen.name}
                       </span>
                     </button>
                   ))}

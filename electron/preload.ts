@@ -155,6 +155,10 @@ const electronAPI = {
     return () => ipcRenderer.removeListener('keyboard-event', wrappedCallback)
   },
 
+  // Caret tracking (separate from keyboard)
+  startCaretTracking: () => ipcRenderer.invoke('start-caret-tracking'),
+  stopCaretTracking: () => ipcRenderer.invoke('stop-caret-tracking'),
+
   // Scroll events
   onScroll: (callback: (event: IpcRendererEvent, data: { timestamp: number; deltaX: number; deltaY: number }) => void) => {
     const wrapped = (event: IpcRendererEvent, data: any) => {
@@ -246,11 +250,18 @@ const electronAPI = {
     ipcRenderer.send(channel, ...args),
 
   // Countdown window
-  showCountdown: (number: number) =>
-    ipcRenderer.invoke('show-countdown', number),
+  showCountdown: (number: number, displayId?: number) =>
+    ipcRenderer.invoke('show-countdown', number, displayId),
 
   hideCountdown: () =>
     ipcRenderer.invoke('hide-countdown'),
+
+  // Monitor overlay
+  showMonitorOverlay: (displayId?: number) =>
+    ipcRenderer.invoke('show-monitor-overlay', displayId),
+
+  hideMonitorOverlay: () =>
+    ipcRenderer.invoke('hide-monitor-overlay'),
 
   // File operations
   saveFile: (data: Buffer | ArrayBuffer, filepath: string) =>

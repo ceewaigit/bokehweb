@@ -7,6 +7,8 @@ import { registerRecordingHandlers } from './handlers/recording'
 import { registerSourceHandlers } from './handlers/sources'
 import { registerPermissionHandlers } from './handlers/permissions'
 import { registerMouseTrackingHandlers, cleanupMouseTracking } from './handlers/mouse-tracking'
+import { registerKeyboardTrackingHandlers, cleanupKeyboardTracking } from './handlers/keyboard-tracking'
+import { registerCaretTrackingHandlers, cleanupCaretTracking } from './handlers/caret-tracking'
 import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
@@ -59,6 +61,8 @@ function registerAllHandlers(): void {
   registerSourceHandlers()
   registerPermissionHandlers()
   registerMouseTrackingHandlers()
+  registerKeyboardTrackingHandlers()
+  registerCaretTrackingHandlers()
   registerFileOperationHandlers()
   registerDialogHandlers()
   registerWindowControlHandlers()
@@ -106,6 +110,8 @@ if (isDev) {
 
 app.on('window-all-closed', () => {
   cleanupMouseTracking()
+  cleanupKeyboardTracking()
+  cleanupCaretTracking()
   if (process.platform !== 'darwin') {
     app.quit()
   }

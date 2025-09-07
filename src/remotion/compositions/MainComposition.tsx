@@ -9,6 +9,7 @@ import type { ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeE
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 import { calculateZoomScale, calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
+import { CinematicScrollCalculator, createCinematicTransform, createBlurFilter } from '@/lib/effects/cinematic-scroll';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -309,20 +310,35 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     return zoomState;
   }, [zoomEnabled, clip, zoomBlocks, currentTimeMs, cursorEvents, caretEvents, videoWidth, videoHeight]);
 
-  // Compute optional cinematic scroll pan when enabled via annotation effect
-  const scrollCinematic = useMemo(() => {
+  // Initialize cinematic scroll calculator
+  const scrollCalculatorRef = useRef<{ calculator: CinematicScrollCalculator; preset: string } | null>(null);
+  
+  // Compute cinematic scroll effects when enabled
+  const cinematicScrollState = useMemo(() => {
     const anno = (effects || []).find(e => e.type === 'annotation' && (e as any).data?.kind === 'scrollCinematic' && e.enabled)
-    if (!anno || !scrollEvents || scrollEvents.length === 0) return { x: 0, y: 0 }
+    if (!anno || !scrollEvents || scrollEvents.length === 0) {
+      scrollCalculatorRef.current = null;
+      return null;
+    }
 
-    let sumY = 0
-    for (const ev of scrollEvents) {
-      if (ev.timestamp <= currentTimeMs) sumY += ev.deltaY || 0
+    // Get preset from annotation data or use 'medium' as default
+    const preset = (anno.data as any)?.preset || 'medium';
+    
+    // Create or update calculator when preset changes
+    if (!scrollCalculatorRef.current || scrollCalculatorRef.current.preset !== preset) {
+      scrollCalculatorRef.current = {
+        calculator: new CinematicScrollCalculator({ preset }),
+        preset
+      };
     }
-    const normY = Math.max(-0.1, Math.min(0.1, sumY * 0.0005))
-    if (Math.abs(normY) > 0.0001) {
-      console.log('[CinematicScroll] active', { time: currentTimeMs, normY, sumY })
-    }
-    return { x: 0, y: normY }
+    
+    // Update and get current state
+    const state = scrollCalculatorRef.current.calculator.update(scrollEvents, currentTimeMs);
+    
+    // Get parallax layers for multi-depth effect
+    const layers = scrollCalculatorRef.current.calculator.getParallaxLayers(state);
+    
+    return { state, layers };
   }, [effects, scrollEvents, currentTimeMs])
 
   const debugCaretOverlayEnabled = useMemo(() => {
@@ -363,8 +379,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             videoWidth={videoWidth}
             videoHeight={videoHeight}
             zoomCenter={zoomEnabled ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
-            cinematicPan={zoomEnabled ? { x: 0, y: 0 } : undefined}
-            extraTranslate={{ x: 0, y: scrollCinematic.y * (calculateVideoPosition(width, height, videoWidth, videoHeight, padding).drawHeight) }}
+            cinematicScrollState={cinematicScrollState}
             computedScale={zoomEnabled ? completeZoomState.scale : undefined}
             debugCaret={debugCaretOverlayEnabled ? lastCaretForDebug : undefined}
           />

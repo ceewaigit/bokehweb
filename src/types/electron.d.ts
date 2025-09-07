@@ -1,6 +1,19 @@
 export interface ElectronAPI {
   // Desktop capture
-  getDesktopSources: (options: any) => Promise<any[]>
+  getDesktopSources: (options: any) => Promise<Array<{
+    id: string
+    name: string
+    display_id?: number
+    thumbnail?: string
+    displayInfo?: {
+      id: number
+      isPrimary: boolean
+      isInternal: boolean
+      bounds: { x: number; y: number; width: number; height: number }
+      workArea: { x: number; y: number; width: number; height: number }
+      scaleFactor: number
+    }
+  }>>
   getDesktopStream?: (sourceId: string, hasAudio?: boolean) => Promise<any>
   getScreens?: () => Promise<Array<{
     id: number
@@ -88,8 +101,12 @@ export interface ElectronAPI {
   setWindowContentSize?: (dimensions: { width: number; height: number }) => Promise<{ success: boolean }>
 
   // Countdown window methods
-  showCountdown?: (number: number) => Promise<{ success: boolean }>
+  showCountdown?: (number: number, displayId?: number) => Promise<{ success: boolean }>
   hideCountdown?: () => Promise<{ success: boolean }>
+
+  // Monitor overlay methods
+  showMonitorOverlay?: (displayId?: number) => Promise<{ success: boolean }>
+  hideMonitorOverlay?: () => Promise<{ success: boolean }>
 
   // Recording events
   onRecordingStarted: (callback: () => void) => () => void
