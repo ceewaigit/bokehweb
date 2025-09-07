@@ -125,6 +125,11 @@ export class ElectronRecorder {
             }
           }
 
+          // For window sources, getSourceBounds returns pixel coordinates already; use scaleFactor 1
+          if (!primarySource.id.startsWith('screen:')) {
+            scaleFactor = 1
+          }
+
           this.captureArea = {
             fullBounds: bounds,
             workArea: bounds,
@@ -423,17 +428,36 @@ export class ElectronRecorder {
   private async startMouseTracking(sourceId: string): Promise<void> {
     logger.info('Starting mouse tracking via IPC')
 
+    // Helper to convert absolute (physical) screen coords to capture-relative coords
+    const toCaptureRelative = (x: number, y: number): { rx: number; ry: number; inside: boolean } => {
+      const scale = this.captureArea?.scaleFactor || 1
+      const bounds = this.captureArea?.fullBounds
+      if (!bounds) {
+        return { rx: x, ry: y, inside: true }
+      }
+      const originX = Math.round(bounds.x * scale)
+      const originY = Math.round(bounds.y * scale)
+      const rx = x - originX
+      const ry = y - originY
+      const w = this.captureWidth || Math.round(bounds.width * scale)
+      const h = this.captureHeight || Math.round(bounds.height * scale)
+      const inside = rx >= 0 && ry >= 0 && rx < w && ry < h
+      return { rx, ry, inside }
+    }
+
     // Set up event listeners for mouse data from main process
     const handleMouseMove = (_event: unknown, data: any) => {
       const timestamp = Date.now() - this.startTime
+      const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
+      if (!inside) return
       this.metadata.push({
         timestamp,
-        mouseX: data.x, // Now in physical pixels to match captureWidth/captureHeight
-        mouseY: data.y,
+        mouseX: rx, // relative to capture origin, in physical pixels
+        mouseY: ry,
         eventType: 'mouse',
         velocity: data.velocity,
         cursorType: data.cursorType,
-        scaleFactor: data.scaleFactor,
+        scaleFactor: this.captureArea?.scaleFactor,
         // Always include capture dimensions with mouse events (in physical pixels)
         captureWidth: this.captureWidth,
         captureHeight: this.captureHeight,
@@ -445,14 +469,16 @@ export class ElectronRecorder {
 
     const handleMouseClick = (_event: unknown, data: any) => {
       const timestamp = Date.now() - this.startTime
+      const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
+      if (!inside) return
       this.metadata.push({
         timestamp,
-        mouseX: data.x, // Now in physical pixels to match captureWidth/captureHeight
-        mouseY: data.y,
+        mouseX: rx, // relative to capture origin, in physical pixels
+        mouseY: ry,
         eventType: 'click',
         key: data.button,
         cursorType: data.cursorType,
-        scaleFactor: data.scaleFactor,
+        scaleFactor: this.captureArea?.scaleFactor,
         // Store logical coordinates for debugging if available
         logicalX: data.logicalX,
         logicalY: data.logicalY
@@ -471,6 +497,36 @@ export class ElectronRecorder {
       logger.info(`🎹 Keyboard event captured: ${data.type} ${data.key} at ${timestamp}ms`)
     }
 
+    const handleScroll = (_event: unknown, data: any) => {
+      const timestamp = Date.now() - this.startTime
+      this.metadata.push({
+        timestamp,
+        eventType: 'scroll',
+        scrollDelta: { x: data.deltaX || 0, y: data.deltaY || 0 },
+        captureWidth: this.captureWidth,
+        captureHeight: this.captureHeight
+      })
+    }
+
+    const handleCaret = (_event: unknown, data: any) => {
+      const timestamp = Date.now() - this.startTime
+      if (typeof data?.x === 'number' && typeof data?.y === 'number') {
+        const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
+        if (!inside) return
+        this.metadata.push({
+          timestamp,
+          eventType: 'caret',
+          caretX: rx,
+          caretY: ry,
+          caretBounds: (data?.bounds && typeof data.bounds.width === 'number' && typeof data.bounds.height === 'number')
+            ? { x: Math.max(0, rx), y: Math.max(0, ry), width: Math.max(1, Number(data.bounds.width) / (this.captureArea?.scaleFactor || 1)), height: Math.max(1, Number(data.bounds.height) / (this.captureArea?.scaleFactor || 1)) }
+            : undefined,
+          captureWidth: this.captureWidth,
+          captureHeight: this.captureHeight
+        })
+      }
+    }
+
     // Register listeners if available
     if (window.electronAPI?.onMouseMove && window.electronAPI?.onMouseClick) {
       window.electronAPI.onMouseMove(handleMouseMove)
@@ -480,6 +536,16 @@ export class ElectronRecorder {
     // Register keyboard listener
     if (window.electronAPI?.onKeyboardEvent) {
       window.electronAPI.onKeyboardEvent(handleKeyboardEvent)
+    }
+
+    // Register scroll listener
+    if (window.electronAPI?.onScroll) {
+      window.electronAPI.onScroll(handleScroll)
+    }
+
+    // Register caret listener
+    if ((window.electronAPI as any)?.onCaret) {
+      ;(window.electronAPI as any).onCaret(handleCaret)
     }
 
     // Start keyboard tracking

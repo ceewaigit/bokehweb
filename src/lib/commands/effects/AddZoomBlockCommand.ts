@@ -45,7 +45,8 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
         targetY: this.block.targetY,
         introMs: this.block.introMs || 300,
         outroMs: this.block.outroMs || 300,
-        smoothing: 0.1
+        smoothing: 0.1,
+        followStrategy: 'auto_mouse_first'
       } as ZoomEffectData,
       enabled: true
     }
@@ -86,7 +87,8 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
         targetY: this.block.targetY,
         introMs: this.block.introMs || 300,
         outroMs: this.block.outroMs || 300,
-        smoothing: 0.1
+        smoothing: 0.1,
+        followStrategy: 'auto_mouse_first'
       } as ZoomEffectData,
       enabled: true
     }

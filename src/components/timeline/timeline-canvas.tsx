@@ -3,7 +3,7 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
-import { cn, formatTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import type { Project, ZoomBlock, ZoomEffectData } from '@/types/project'
 
 // Sub-components
@@ -13,7 +13,8 @@ import { TimelineTrack } from './timeline-track'
 import { TimelinePlayhead } from './timeline-playhead'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
-import { TimelineZoomBlock } from './timeline-zoom-block'
+import { TimelineEffectBlock } from './timeline-effect-block'
+import { EffectLayerType } from '@/types/effects'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
@@ -435,7 +436,7 @@ export function TimelineCanvas({
                     trackHeight={videoTrackHeight}
                     pixelsPerMs={pixelsPerMs}
                     isSelected={selectedClips.includes(clip.id)}
-                    selectedEffectType={selectedClips.includes(clip.id) ? selectedEffectLayer?.type : null}
+                    selectedEffectType={selectedClips.includes(clip.id) ? (selectedEffectLayer?.type === 'screen' ? null : selectedEffectLayer?.type) : null}
                     otherClipsInTrack={videoClips}
                     clipEffects={clipEffects}
                     onSelect={handleClipSelect}
@@ -466,7 +467,7 @@ export function TimelineCanvas({
                 const zoomData = effect.data as ZoomEffectData
 
                 const blockElement = (
-                  <TimelineZoomBlock
+                  <TimelineEffectBlock
                     key={effect.id}
                     blockId={effect.id}
                     x={TimeConverter.msToPixels(effect.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
@@ -475,6 +476,8 @@ export function TimelineCanvas({
                     height={zoomTrackHeight - TimelineConfig.TRACK_PADDING * 2}
                     startTime={effect.startTime}
                     endTime={effect.endTime}
+                    label={`${zoomData.scale.toFixed(1)}×`}
+                    fillColor={colors.zoomBlock}
                     scale={zoomData.scale}
                     introMs={zoomData.introMs}
                     outroMs={zoomData.outroMs}
@@ -484,13 +487,13 @@ export function TimelineCanvas({
                     pixelsPerMs={pixelsPerMs}
                     onSelect={() => {
                       // Just select the zoom effect, no clip association needed
-                      selectEffectLayer('zoom', effect.id)
+                      selectEffectLayer(EffectLayerType.Zoom, effect.id)
                       // Force focus to container for keyboard events
                       setTimeout(() => {
                         containerRef.current?.focus()
                       }, 0)
                     }}
-                    onDragEnd={(newX) => {
+                    onDragEnd={(newX: number) => {
                       const newStartTime = TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
                       const duration = effect.endTime - effect.startTime
 
@@ -515,7 +518,7 @@ export function TimelineCanvas({
                         endTime: finalStartTime + duration
                       })
                     }}
-                    onUpdate={(updates) => {
+                    onUpdate={(updates: Partial<ZoomBlock>) => {
                       onZoomBlockUpdate?.(effect.id, updates)
                     }}
                   />
@@ -534,6 +537,41 @@ export function TimelineCanvas({
                   {selectedZoomBlocks}
                 </>
               )
+            })()}
+
+            {/* Screen Effects blocks - timeline-global */}
+            {(() => {
+              const effectsSource = currentProject.timeline.effects || []
+              const screenEffects = effectsSource.filter(e => e.type === 'screen')
+              if (screenEffects.length === 0) return null
+
+              const yBase = rulerHeight + videoTrackHeight + (zoomTrackHeight || 0) + TimelineConfig.TRACK_PADDING
+
+              return screenEffects.map((effect) => (
+                <TimelineEffectBlock
+                  key={effect.id}
+                  blockId={effect.id}
+                  x={TimeConverter.msToPixels(effect.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
+                  y={yBase}
+                  width={TimeConverter.msToPixels(effect.endTime - effect.startTime, pixelsPerMs)}
+                  height={(zoomTrackHeight || 28) - TimelineConfig.TRACK_PADDING * 2}
+                  startTime={effect.startTime}
+                  endTime={effect.endTime}
+                  label={'3D'}
+                  fillColor={colors.screenBlock}
+                  isSelected={selectedEffectLayer?.type === 'screen' && selectedEffectLayer?.id === effect.id}
+                  isEnabled={effect.enabled}
+                  allBlocks={screenEffects as any}
+                  pixelsPerMs={pixelsPerMs}
+                  onSelect={() => selectEffectLayer(EffectLayerType.Screen, effect.id)}
+                  onDragEnd={(newX: number) => {
+                    const newStartTime = TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+                    const duration = effect.endTime - effect.startTime
+                    updateEffect(effect.id, { startTime: newStartTime, endTime: newStartTime + duration })
+                  }}
+                  onUpdate={(updates: Partial<ZoomBlock>) => updateEffect(effect.id, updates)}
+                />
+              ))
             })()}
 
             {/* Audio clips */}

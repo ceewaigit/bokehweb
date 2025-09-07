@@ -63,7 +63,8 @@ export const getTimelineColors = () => {
     // Timeline-specific colors
     playhead: getCSSVar('--destructive') || 'hsl(0, 84%, 60%)',
     zoomBlock: 'hsl(258, 100%, 65%)',
-    zoomBlockHover: 'hsl(258, 100%, 55%)',
+    // zoomBlockHover removed (unused)
+    screenBlock: getCSSVar('--accent') || 'hsl(199, 89%, 48%)',
   }
 }
 
@@ -89,7 +90,8 @@ const getDefaultColors = () => ({
   info: 'hsl(217, 91%, 60%)',
   playhead: 'hsl(0, 84%, 60%)',
   zoomBlock: 'hsl(258, 100%, 65%)',
-  zoomBlockHover: 'hsl(258, 100%, 55%)',
+  // zoomBlockHover removed (unused)
+  screenBlock: 'hsl(199, 89%, 48%)',
 })
 
 // Hook for React components that updates when theme changes

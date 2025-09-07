@@ -1,11 +1,12 @@
 import type { Project, Clip, Track, Recording } from '@/types/project'
+import type { SelectedEffectLayer } from '@/types/effects'
 
 // Define ProjectStore interface locally to avoid circular dependency
 interface ProjectStore {
   currentProject: Project | null
   currentTime: number
   selectedClips: string[]
-  selectedEffectLayer: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
+  selectedEffectLayer: SelectedEffectLayer
   clipboard: {
     clip?: Clip
     effect?: { type: 'zoom' | 'cursor' | 'background'; data: any; sourceClipId: string }
@@ -37,7 +38,7 @@ export interface CommandContext {
   getProject(): Project | null
   getCurrentTime(): number
   getSelectedClips(): string[]
-  getSelectedEffectLayer(): { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
+  getSelectedEffectLayer(): SelectedEffectLayer
   getClipboard(): {
     clip?: Clip
     effect?: { type: 'zoom' | 'cursor' | 'background'; data: any; sourceClipId: string }
@@ -118,27 +119,18 @@ export function findNextValidPosition(
   const otherClips = track.clips
     .filter(c => c.id !== clipId)
     .sort((a, b) => a.startTime - b.startTime)
-
-  let currentPosition = desiredStart
-  let foundOverlap = true
   
-  // Keep checking until we find a position with no overlaps
-  while (foundOverlap) {
-    foundOverlap = false
-    
-    for (const clip of otherClips) {
-      const clipEnd = clip.startTime + clip.duration
-      // Check if current position would overlap with this clip
-      if (currentPosition < clipEnd && (currentPosition + duration) > clip.startTime) {
-        // Move to after this clip with a gap
-        currentPosition = clipEnd + GAP_BETWEEN_CLIPS
-        foundOverlap = true
-        break // Start checking from beginning with new position
-      }
+  let proposedStart = desiredStart
+  for (const other of otherClips) {
+    const otherEnd = other.startTime + other.duration
+    // If overlap, move proposed start to after the other clip with a small gap
+    if (proposedStart < otherEnd && (proposedStart + duration) > other.startTime) {
+      proposedStart = otherEnd + GAP_BETWEEN_CLIPS
     }
   }
-  
-  return currentPosition
+
+  // Ensure start is not negative
+  return Math.max(0, proposedStart)
 }
 
 export function calculateTimelineDuration(project: Project): number {

@@ -6,33 +6,41 @@ import { TimeConverter } from '@/lib/timeline/time-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import Konva from 'konva'
 
-interface TimelineZoomBlockProps {
+interface TimelineEffectBlockProps {
   x: number
   y: number
   width: number
   height: number
   startTime: number
   endTime: number
-  scale: number
+  // Visuals
+  label?: string
+  fillColor?: string
+  // Zoom visuals (optional)
+  scale?: number
   introMs?: number
   outroMs?: number
+  // State
   isSelected: boolean
   isEnabled?: boolean
   allBlocks: ZoomBlock[]
   blockId: string
   pixelsPerMs: number
+  // Events
   onSelect: () => void
   onDragEnd: (newX: number) => void
   onUpdate: (updates: Partial<ZoomBlock>) => void
 }
 
-export const TimelineZoomBlock = React.memo(({
+export const TimelineEffectBlock = React.memo(({
   x,
   y,
   width,
   height,
   startTime,
   endTime,
+  label,
+  fillColor,
   scale,
   introMs = 500,
   outroMs = 500,
@@ -44,7 +52,7 @@ export const TimelineZoomBlock = React.memo(({
   onSelect,
   onDragEnd,
   onUpdate
-}: TimelineZoomBlockProps) => {
+}: TimelineEffectBlockProps) => {
   const colors = useTimelineColors()
   const [isDragging, setIsDragging] = useState(false)
   const [isTransforming, setIsTransforming] = useState(false)
@@ -52,32 +60,20 @@ export const TimelineZoomBlock = React.memo(({
   const rectRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
 
-  // No local position state - use props directly
-  // This makes the component fully controlled and eliminates sync issues
-
-  // Setup transformer when selected
   useEffect(() => {
     if (isSelected && rectRef.current && trRef.current) {
-      // Attach transformer to the rect (not the group)
       trRef.current.nodes([rectRef.current])
       trRef.current.forceUpdate()
-      
-      // Move group to top for better interaction
       if (groupRef.current) {
         groupRef.current.moveToTop()
-        const layer = groupRef.current.getLayer()
-        if (layer) {
-          layer.batchDraw()
-        }
+        groupRef.current.getLayer()?.batchDraw()
       }
     } else if (trRef.current) {
-      // Detach transformer when not selected
       trRef.current.nodes([])
       trRef.current.forceUpdate()
     }
   }, [isSelected])
 
-  // Get valid position for dragging with improved edge snapping
   const getValidDragPosition = (proposedX: number, currentWidth: number): number => {
     const snapThreshold = Number(TimelineConfig.SNAP_THRESHOLD_PX)
     const blocks = allBlocks
@@ -86,38 +82,32 @@ export const TimelineZoomBlock = React.memo(({
         x: TimeConverter.msToPixels(b.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH,
         endX: TimeConverter.msToPixels(b.endTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
       }))
-      .sort((a, b) => a.x - b.x) // Sort blocks by position for predictable snapping
+      .sort((a, b) => a.x - b.x)
 
-    // Use the provided width for consistent snapping
     const blockWidth = currentWidth
 
-    // Try to find the best snap position
     let bestSnapX = proposedX
     let minSnapDistance = snapThreshold
 
     for (const block of blocks) {
-      // Snap left edge to other block's left edge
       const leftToLeftDistance = Math.abs(proposedX - block.x)
       if (leftToLeftDistance < minSnapDistance) {
         minSnapDistance = leftToLeftDistance
         bestSnapX = block.x
       }
 
-      // Snap left edge to other block's right edge
       const leftToRightDistance = Math.abs(proposedX - block.endX)
       if (leftToRightDistance < minSnapDistance) {
         minSnapDistance = leftToRightDistance
         bestSnapX = block.endX
       }
 
-      // Snap right edge to other block's left edge
       const rightToLeftDistance = Math.abs((proposedX + blockWidth) - block.x)
       if (rightToLeftDistance < minSnapDistance) {
         minSnapDistance = rightToLeftDistance
         bestSnapX = block.x - blockWidth
       }
 
-      // Snap right edge to other block's right edge
       const rightToRightDistance = Math.abs((proposedX + blockWidth) - block.endX)
       if (rightToRightDistance < minSnapDistance) {
         minSnapDistance = rightToRightDistance
@@ -125,16 +115,15 @@ export const TimelineZoomBlock = React.memo(({
       }
     }
 
-    // Ensure we don't go past the timeline start (after track label)
     return Math.max(TimelineConfig.TRACK_LABEL_WIDTH, bestSnapX)
   }
 
-  // Generate zoom curve visualization
   const generateZoomCurve = () => {
-    const points: number[] = []
-    const w = width // Use prop width directly
+    if (!scale) return [] as number[]
 
-    // Ensure we have valid dimensions
+    const points: number[] = []
+    const w = width
+
     if (!w || !height || isNaN(w) || isNaN(height)) {
       return points
     }
@@ -142,12 +131,10 @@ export const TimelineZoomBlock = React.memo(({
     const curveHeight = height - 20
     const curveY = height / 2
 
-    // Calculate phase widths
     const introWidth = Math.min(TimeConverter.msToPixels(introMs, pixelsPerMs), w * 0.4)
     const outroWidth = Math.min(TimeConverter.msToPixels(outroMs, pixelsPerMs), w * 0.4)
     const plateauWidth = Math.max(0, w - introWidth - outroWidth)
 
-    // Ensure valid widths
     if (isNaN(introWidth) || isNaN(outroWidth) || isNaN(plateauWidth)) {
       return points
     }
@@ -155,7 +142,6 @@ export const TimelineZoomBlock = React.memo(({
     const scaleHeight = Math.min((scale - 1) * 0.3, 0.8)
     const steps = 20
 
-    // Intro
     for (let i = 0; i <= steps * 0.3; i++) {
       const t = i / (steps * 0.3)
       const easeT = t * t * (3 - 2 * t)
@@ -163,7 +149,6 @@ export const TimelineZoomBlock = React.memo(({
       points.push(curveY - (curveHeight / 2) * easeT * scaleHeight)
     }
 
-    // Plateau
     if (plateauWidth > 0) {
       for (let i = 0; i <= steps * 0.4; i++) {
         const t = i / (steps * 0.4)
@@ -172,7 +157,6 @@ export const TimelineZoomBlock = React.memo(({
       }
     }
 
-    // Outro
     for (let i = 0; i <= steps * 0.3; i++) {
       const t = i / (steps * 0.3)
       const easeT = 1 - (1 - t) * (1 - t) * (3 - 2 * (1 - t))
@@ -193,7 +177,6 @@ export const TimelineZoomBlock = React.memo(({
         y={y}
         draggable={!isTransforming}
         dragBoundFunc={(pos) => {
-          // Allow dragging but constrain to timeline boundaries
           const constrainedX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, pos.x)
           return {
             x: constrainedX,
@@ -208,31 +191,23 @@ export const TimelineZoomBlock = React.memo(({
           setIsDragging(false)
           const draggedX = e.target.x()
 
-          // Apply snapping
           const snappedX = getValidDragPosition(draggedX, width)
 
-          // Check for collision at the snapped position
           const newStartTime = TimeConverter.pixelsToMs(snappedX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
           const duration = endTime - startTime
           const newEndTime = newStartTime + duration
 
-          // Check if this would cause an overlap
           const wouldOverlap = allBlocks
             .filter(b => b.id !== blockId)
             .some(block => (newStartTime < block.endTime && newEndTime > block.startTime))
 
           if (wouldOverlap) {
-            // Reset to original position
             if (groupRef.current) {
               groupRef.current.x(x)
-              // Force re-render to ensure the group position is updated
               groupRef.current.getLayer()?.batchDraw()
             }
-            // Maintain selection after reset
             onSelect()
           } else {
-
-            // Update position
             onUpdate({
               startTime: Math.max(0, newStartTime),
               endTime: Math.max(0, newEndTime)
@@ -243,14 +218,12 @@ export const TimelineZoomBlock = React.memo(({
         }}
         onClick={(e) => {
           e.cancelBubble = true
-          // Always ensure selection on click
           if (!isDragging) {
             onSelect()
           }
         }}
         onMouseDown={(e) => {
           e.cancelBubble = true
-          // Select immediately on mousedown for better responsiveness
           onSelect()
         }}
         listening={true}
@@ -261,7 +234,7 @@ export const TimelineZoomBlock = React.memo(({
           y={0}
           width={width}
           height={height}
-          fill={colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
+          fill={fillColor || colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
           cornerRadius={4}
           opacity={!isEnabled ? 0.3 : (isDragging ? 0.7 : (isSelected ? 0.95 : 0.85))}
           stroke={isSelected ? colors.primary : undefined}
@@ -273,7 +246,6 @@ export const TimelineZoomBlock = React.memo(({
           listening={true}
         />
 
-        {/* Zoom curve visualization */}
         {curvePoints.length > 0 && (
           <>
             <Line
@@ -298,22 +270,23 @@ export const TimelineZoomBlock = React.memo(({
           </>
         )}
 
-        <Text
-          x={8}
-          y={6}
-          text={`${scale.toFixed(1)}×`}
-          fontSize={11}
-          fill={!isEnabled ? "rgba(255, 255, 255, 0.4)" : "white"}
-          fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display'"
-          fontStyle={isSelected ? "500" : "normal"}
-          shadowColor="black"
-          shadowBlur={2}
-          shadowOpacity={0.3}
-          listening={false}
-        />
+        {label && (
+          <Text
+            x={8}
+            y={6}
+            text={label}
+            fontSize={11}
+            fill={!isEnabled ? "rgba(255, 255, 255, 0.4)" : "white"}
+            fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display'"
+            fontStyle={isSelected ? "500" : "normal"}
+            shadowColor="black"
+            shadowBlur={2}
+            shadowOpacity={0.3}
+            listening={false}
+          />
+        )}
       </Group>
 
-      {/* Transformer outside of group to avoid parent-child error */}
       {isSelected && (
         <Transformer
           key={`transformer-${blockId}`}
@@ -321,27 +294,17 @@ export const TimelineZoomBlock = React.memo(({
           rotateEnabled={false}
           enabledAnchors={['middle-left', 'middle-right']}
           boundBoxFunc={(oldBox, newBox) => {
-            // Ensure minimum width
             const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
-            
-            // Constrain width
             if (newBox.width < minWidthPx) {
               newBox.width = minWidthPx
             }
-            
-            // Calculate absolute position of the rect
             const groupX = groupRef.current ? groupRef.current.x() : x
             const absoluteX = groupX + newBox.x
-            
-            // Prevent going before timeline start
             if (absoluteX < TimelineConfig.TRACK_LABEL_WIDTH) {
               newBox.x = TimelineConfig.TRACK_LABEL_WIDTH - groupX
             }
-            
-            // Maintain height (no vertical resizing)
             newBox.height = oldBox.height
             newBox.y = oldBox.y
-            
             return newBox
           }}
           borderStroke={colors.primary || '#6366f1'}
@@ -357,13 +320,10 @@ export const TimelineZoomBlock = React.memo(({
             setIsTransforming(true)
           }}
           onTransform={() => {
-            // Keep rect scale at 1 to prevent content stretching
             if (rectRef.current) {
               const rect = rectRef.current
               const scaleX = rect.scaleX()
               const scaleY = rect.scaleY()
-              
-              // Apply scale to width/height instead of scaling
               rect.width(rect.width() * scaleX)
               rect.height(rect.height() * scaleY)
               rect.scaleX(1)
@@ -377,36 +337,22 @@ export const TimelineZoomBlock = React.memo(({
 
             const rect = rectRef.current
             const group = groupRef.current
-            
-            // Get the current rect dimensions after transform
             const newWidth = rect.width()
             const rectX = rect.x()
-            
-            // Calculate the new group position if rect was moved
             const newGroupX = group.x() + rectX
-            
-            // Ensure minimum width
             const minWidthPx = TimeConverter.msToPixels(TimelineConfig.ZOOM_EFFECT_MIN_DURATION_MS, pixelsPerMs)
             const finalWidth = Math.max(minWidthPx, newWidth)
-            
-            // Constrain position
             const finalX = Math.max(TimelineConfig.TRACK_LABEL_WIDTH, newGroupX)
-            
-            // Calculate new times
             const adjustedX = finalX - TimelineConfig.TRACK_LABEL_WIDTH
             const newStartTime = Math.max(0, TimeConverter.pixelsToMs(adjustedX, pixelsPerMs))
             const duration = TimeConverter.pixelsToMs(finalWidth, pixelsPerMs)
             const newEndTime = newStartTime + duration
-            
-            // Check for overlaps
             const wouldOverlap = allBlocks
               .filter(b => b.id !== blockId)
               .some(block => 
                 (newStartTime < block.endTime && newEndTime > block.startTime)
               )
-            
             if (wouldOverlap) {
-              // Reset to original dimensions only on overlap
               rect.x(0)
               rect.y(0)
               rect.width(width)
@@ -414,15 +360,10 @@ export const TimelineZoomBlock = React.memo(({
               group.x(x)
               group.getLayer()?.batchDraw()
             } else {
-              // Keep the visual state and update store
-              // The component will re-render with new props that match these dimensions
               rect.x(0)
               rect.y(0)
-              // Keep the new dimensions
               rect.width(finalWidth)
               group.x(finalX)
-              
-              // Update store which will trigger re-render with matching props
               onUpdate({
                 startTime: newStartTime,
                 endTime: newEndTime
@@ -433,6 +374,4 @@ export const TimelineZoomBlock = React.memo(({
       )}
     </>
   )
-})
-
-TimelineZoomBlock.displayName = 'TimelineZoomBlock'
+}) 

@@ -9,6 +9,7 @@ import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { WaveformAnalyzer, type WaveformData } from '@/lib/audio/waveform-analyzer'
+import { EffectLayerType } from '@/types/effects'
 
 interface TimelineClipProps {
   clip: Clip
@@ -22,7 +23,7 @@ interface TimelineClipProps {
   otherClipsInTrack?: Clip[]
   clipEffects?: any[]  // Effects for this clip from timeline.effects
   onSelect: (clipId: string) => void
-  onSelectEffect?: (type: 'zoom' | 'cursor' | 'background') => void
+  onSelectEffect?: (type: EffectLayerType) => void
   onDragEnd: (clipId: string, newStartTime: number) => void
   onContextMenu?: (e: any, clipId: string) => void
 }
@@ -407,7 +408,7 @@ export const TimelineClip = React.memo(({
         const badges = []
         let xOffset = 0
         
-        const handleBadgeClick = (e: any, type: 'zoom' | 'cursor' | 'background') => {
+        const handleBadgeClick = (e: any, type: EffectLayerType) => {
           e.cancelBubble = true
           onSelect(clip.id)
           onSelectEffect?.(type)
@@ -420,8 +421,8 @@ export const TimelineClip = React.memo(({
               key="zoom"
               x={xOffset} 
               y={0}
-              onClick={(e) => handleBadgeClick(e, 'zoom')}
-              onTap={(e) => handleBadgeClick(e, 'zoom')}
+              onClick={(e) => handleBadgeClick(e, EffectLayerType.Zoom)}
+              onTap={(e) => handleBadgeClick(e, EffectLayerType.Zoom)}
             >
               <Rect 
                 width={32} 
@@ -444,8 +445,8 @@ export const TimelineClip = React.memo(({
               key="cursor"
               x={xOffset} 
               y={0}
-              onClick={(e) => handleBadgeClick(e, 'cursor')}
-              onTap={(e) => handleBadgeClick(e, 'cursor')}
+              onClick={(e) => handleBadgeClick(e, EffectLayerType.Cursor)}
+              onTap={(e) => handleBadgeClick(e, EffectLayerType.Cursor)}
             >
               <Rect 
                 width={32} 
@@ -467,8 +468,8 @@ export const TimelineClip = React.memo(({
               key="bg"
               x={xOffset} 
               y={0}
-              onClick={(e) => handleBadgeClick(e, 'background')}
-              onTap={(e) => handleBadgeClick(e, 'background')}
+              onClick={(e) => handleBadgeClick(e, EffectLayerType.Background)}
+              onTap={(e) => handleBadgeClick(e, EffectLayerType.Background)}
             >
               <Rect 
                 width={32} 

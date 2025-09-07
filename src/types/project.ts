@@ -77,6 +77,12 @@ export interface RecordingMetadata {
   // Click events for ripples
   clickEvents: ClickEvent[]
 
+  // Scroll events for cinematic scroll effects
+  scrollEvents?: ScrollEvent[]
+
+  // Caret (text insertion point) events for text editing tracking
+  caretEvents?: CaretEvent[]
+
   // Screen dimensions changes
   screenEvents: ScreenEvent[]
 
@@ -93,6 +99,20 @@ export interface MouseEvent {
   cursorType?: string  // Optional cursor type for rendering
   captureWidth?: number  // Width of the capture area for coordinate mapping
   captureHeight?: number  // Height of the capture area for coordinate mapping
+}
+
+export interface ScrollEvent {
+  timestamp: number
+  deltaX: number
+  deltaY: number
+}
+
+export interface CaretEvent {
+  timestamp: number
+  x: number
+  y: number
+  bounds?: { x: number; y: number; width: number; height: number }
+  line?: number
 }
 
 export interface KeyboardEvent {
@@ -150,14 +170,14 @@ export interface Clip {
 // New: Independent effect entity (timeline-global, not per-clip)
 export interface Effect {
   id: string
-  type: 'zoom' | 'cursor' | 'keystroke' | 'background' | 'annotation'
+  type: 'zoom' | 'cursor' | 'keystroke' | 'background' | 'annotation' | 'screen'
   
   // Timing on timeline (absolute, not relative to any clip)
   startTime: number  // Start time on timeline (absolute)
   endTime: number    // End time on timeline (absolute)
 
   // Effect-specific data
-  data: ZoomEffectData | CursorEffectData | KeystrokeEffectData | BackgroundEffectData | AnnotationData
+  data: ZoomEffectData | CursorEffectData | KeystrokeEffectData | BackgroundEffectData | AnnotationData | ScreenEffectData
 
   // Common properties
   enabled: boolean
@@ -186,6 +206,12 @@ export interface ZoomEffectData {
   introMs: number
   outroMs: number
   smoothing: number
+  // Follow strategy: mouse first (default), mouse only, or caret only
+  followStrategy?: 'auto_mouse_first' | 'mouse' | 'caret'
+  // Mouse idle threshold in pixels (physical) to consider idle within the velocity window
+  mouseIdlePx?: number
+  // Caret recent window in ms to accept caret as active typing
+  caretWindowMs?: number
 }
 
 export interface CursorEffectData {
@@ -227,10 +253,14 @@ export interface BackgroundEffectData {
 }
 
 export interface AnnotationData {
-  type: 'text' | 'arrow' | 'highlight' | 'keyboard'
-  position: { x: number; y: number }
+  type?: 'text' | 'arrow' | 'highlight' | 'keyboard'
+  position?: { x: number; y: number }
   content?: string
   style?: any
+  // Optional discriminator for advanced behaviors (e.g., 'screen3d', 'scrollCinematic')
+  kind?: string
+  // Generic payload to support custom annotation kinds
+  [key: string]: any
 }
 
 export interface Annotation {
@@ -272,3 +302,12 @@ export interface ExportPreset {
 }
 
 export type ExportStatus = 'idle' | 'preparing' | 'exporting' | 'complete' | 'error'
+
+export interface ScreenEffectData {
+  // Simple preset selector; actual parameters derived by renderer
+  preset: 'subtle' | 'medium' | 'dramatic' | 'window' | 'cinematic' | 'hero' | 'isometric' | 'flat' | 'tilt-left' | 'tilt-right'
+  // Optional fine-tune overrides
+  tiltX?: number
+  tiltY?: number
+  perspective?: number
+}

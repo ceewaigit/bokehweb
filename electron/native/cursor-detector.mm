@@ -4,6 +4,10 @@
 #include <napi.h>
 #import <string>
 
+// Forward declarations for caret observer exports
+Napi::Value StartCaretObserver(const Napi::CallbackInfo& info);
+Napi::Value StopCaretObserver(const Napi::CallbackInfo& info);
+
 // Convert NSCursor to our cursor type string
 std::string NSCursorToString(NSCursor* cursor) {
     if (!cursor) return "default";
@@ -163,6 +167,111 @@ Napi::Boolean RequestAccessibilityPermissionsAPI(const Napi::CallbackInfo& info)
     return Napi::Boolean::New(env, RequestAccessibilityPermissions());
 }
 
+// N-API function to return the insertion caret screen rect using AX APIs
+Napi::Value GetInsertionPointScreenRect(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    @autoreleasepool {
+        if (!HasAccessibilityPermissions()) {
+            return env.Null();
+        }
+        
+        AXUIElementRef systemWide = AXUIElementCreateSystemWide();
+        AXUIElementRef focusedElement = NULL;
+        AXError err = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute, (CFTypeRef*)&focusedElement);
+        if (err != kAXErrorSuccess || !focusedElement) {
+            if (systemWide) CFRelease(systemWide);
+            return env.Null();
+        }
+        
+        // Get the selected text range on the focused element
+        AXValueRef selectedRangeValue = NULL;
+        err = AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, (CFTypeRef*)&selectedRangeValue);
+        if (err != kAXErrorSuccess || !selectedRangeValue) {
+            if (selectedRangeValue) CFRelease(selectedRangeValue);
+            CFRelease(focusedElement);
+            CFRelease(systemWide);
+            return env.Null();
+        }
+        
+        CFRange selectedRange;
+        if (AXValueGetType(selectedRangeValue) != kAXValueCFRangeType || !AXValueGetValue(selectedRangeValue, (AXValueType)kAXValueCFRangeType, &selectedRange)) {
+            CFRelease(selectedRangeValue);
+            CFRelease(focusedElement);
+            CFRelease(systemWide);
+            return env.Null();
+        }
+        
+        // Caret is at the end of selection (or same index if length == 0)
+        CFRange caretRange = CFRangeMake(selectedRange.location + selectedRange.length, 0);
+        AXValueRef caretRangeValue = AXValueCreate((AXValueType)kAXValueCFRangeType, &caretRange);
+        
+        AXValueRef rectValue = NULL;
+        err = AXUIElementCopyParameterizedAttributeValue(focusedElement, kAXBoundsForRangeParameterizedAttribute, caretRangeValue, (CFTypeRef*)&rectValue);
+        if (caretRangeValue) CFRelease(caretRangeValue);
+        CFRelease(selectedRangeValue);
+        
+        if (err != kAXErrorSuccess || !rectValue || AXValueGetType(rectValue) != kAXValueCGRectType) {
+            if (rectValue) CFRelease(rectValue);
+            CFRelease(focusedElement);
+            CFRelease(systemWide);
+            return env.Null();
+        }
+        
+        CGRect rect;
+        AXValueGetValue(rectValue, (AXValueType)kAXValueCGRectType, &rect);
+        CFRelease(rectValue);
+
+        // If the bounds are element-relative, offset by the element's position to get screen DIP
+        AXValueRef elementPosValue = NULL;
+        if (AXUIElementCopyAttributeValue(focusedElement, kAXPositionAttribute, (CFTypeRef*)&elementPosValue) == kAXErrorSuccess && elementPosValue && AXValueGetType(elementPosValue) == kAXValueCGPointType) {
+            CGPoint pos;
+            AXValueGetValue(elementPosValue, (AXValueType)kAXValueCGPointType, &pos);
+            rect.origin.x += pos.x;
+            rect.origin.y += pos.y;
+        }
+        if (elementPosValue) CFRelease(elementPosValue);
+
+        // Convert Cocoa bottom-left global coordinates to top-left global, then to physical pixels
+        // Find containing screen and global top-most Y across all screens
+        NSScreen* containing = nil;
+        CGFloat globalMaxTopY = -CGFLOAT_MAX;
+        for (NSScreen* screen in [NSScreen screens]) {
+            NSRect f = [screen frame];
+            if (NSMaxY(f) > globalMaxTopY) {
+                globalMaxTopY = NSMaxY(f);
+            }
+            if (NSPointInRect(NSMakePoint(rect.origin.x, rect.origin.y), f)) {
+                containing = screen;
+            }
+        }
+        if (containing == nil) {
+            containing = [NSScreen mainScreen];
+        }
+
+        // Compute top-left Y in DIP
+        CGFloat tlY_DIP = globalMaxTopY - (rect.origin.y + rect.size.height);
+        CGFloat tlX_DIP = rect.origin.x;
+
+        // Exact physical pixels using the containing screen's scale
+        CGFloat scale = [containing backingScaleFactor];
+        NSInteger pxX = llround(tlX_DIP * scale);
+        NSInteger pxY = llround(tlY_DIP * scale);
+        NSInteger pxW = llround(MAX((CGFloat)1.0, rect.size.width * scale));
+        NSInteger pxH = llround(MAX((CGFloat)1.0, rect.size.height * scale));
+        
+        Napi::Object out = Napi::Object::New(env);
+        out.Set("x", Napi::Number::New(env, (double)pxX));
+        out.Set("y", Napi::Number::New(env, (double)pxY));
+        out.Set("width", Napi::Number::New(env, (double)pxW));
+        out.Set("height", Napi::Number::New(env, (double)pxH));
+        out.Set("scale", Napi::Number::New(env, scale));
+        
+        CFRelease(focusedElement);
+        CFRelease(systemWide);
+        return out;
+    }
+}
+
 // Initialize the module
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "getCurrentCursorType"),
@@ -173,7 +282,204 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, CheckAccessibilityPermissions));
     exports.Set(Napi::String::New(env, "requestAccessibilityPermissions"),
                 Napi::Function::New(env, RequestAccessibilityPermissionsAPI));
+    exports.Set(Napi::String::New(env, "getInsertionPointScreenRect"),
+                Napi::Function::New(env, GetInsertionPointScreenRect));
+
+    // Add caret observer exports here instead of a second module
+    exports.Set(Napi::String::New(env, "startCaretObserver"), Napi::Function::New(env, StartCaretObserver));
+    exports.Set(Napi::String::New(env, "stopCaretObserver"), Napi::Function::New(env, StopCaretObserver));
     return exports;
 }
 
 NODE_API_MODULE(cursor_detector, Init)
+
+// ===================== Caret Observer (AXObserver) =====================
+
+static AXObserverRef gCaretObserver = NULL;
+static AXUIElementRef gObservedApp = NULL;
+static Napi::ThreadSafeFunction gCaretTSFN;
+
+static void SendCaretRectToJS(CGRect rect, CGFloat scale) {
+    if (gCaretTSFN) {
+        // Convert bottom-left to top-left in physical pixels
+        // Compute global top-most Y
+        CGFloat globalMaxTopY = -CGFLOAT_MAX;
+        for (NSScreen* screen in [NSScreen screens]) {
+            NSRect f = [screen frame];
+            if (NSMaxY(f) > globalMaxTopY) {
+                globalMaxTopY = NSMaxY(f);
+            }
+        }
+        CGFloat tlY_DIP = globalMaxTopY - (rect.origin.y + rect.size.height);
+        CGFloat tlX_DIP = rect.origin.x;
+        NSInteger pxX = llround(tlX_DIP * scale);
+        NSInteger pxY = llround(tlY_DIP * scale);
+        NSInteger pxW = llround(MAX((CGFloat)1.0, rect.size.width * scale));
+        NSInteger pxH = llround(MAX((CGFloat)1.0, rect.size.height * scale));
+
+        gCaretTSFN.BlockingCall([=](Napi::Env env, Napi::Function jsCallback) {
+            Napi::Object out = Napi::Object::New(env);
+            out.Set("x", Napi::Number::New(env, (double)pxX));
+            out.Set("y", Napi::Number::New(env, (double)pxY));
+            out.Set("width", Napi::Number::New(env, (double)pxW));
+            out.Set("height", Napi::Number::New(env, (double)pxH));
+            out.Set("scale", Napi::Number::New(env, scale));
+            jsCallback.Call({ out });
+        });
+    }
+}
+
+static bool ComputeCaretRect(CGRect* outRect, CGFloat* outScale) {
+    if (!HasAccessibilityPermissions()) return false;
+    AXUIElementRef systemWide = AXUIElementCreateSystemWide();
+    AXUIElementRef focusedElement = NULL;
+    AXError err = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute, (CFTypeRef*)&focusedElement);
+    if (err != kAXErrorSuccess || !focusedElement) {
+        if (systemWide) CFRelease(systemWide);
+        return false;
+    }
+
+    AXValueRef selectedRangeValue = NULL;
+    err = AXUIElementCopyAttributeValue(focusedElement, kAXSelectedTextRangeAttribute, (CFTypeRef*)&selectedRangeValue);
+    if (err != kAXErrorSuccess || !selectedRangeValue) {
+        if (selectedRangeValue) CFRelease(selectedRangeValue);
+        CFRelease(focusedElement);
+        CFRelease(systemWide);
+        return false;
+    }
+    CFRange selectedRange;
+    if (AXValueGetType(selectedRangeValue) != kAXValueCFRangeType || !AXValueGetValue(selectedRangeValue, (AXValueType)kAXValueCFRangeType, &selectedRange)) {
+        CFRelease(selectedRangeValue);
+        CFRelease(focusedElement);
+        CFRelease(systemWide);
+        return false;
+    }
+
+    CFRange caretRange = CFRangeMake(selectedRange.location + selectedRange.length, 0);
+    AXValueRef caretRangeValue = AXValueCreate((AXValueType)kAXValueCFRangeType, &caretRange);
+
+    AXValueRef rectValue = NULL;
+    err = AXUIElementCopyParameterizedAttributeValue(focusedElement, kAXBoundsForRangeParameterizedAttribute, caretRangeValue, (CFTypeRef*)&rectValue);
+    if (caretRangeValue) CFRelease(caretRangeValue);
+    CFRelease(selectedRangeValue);
+
+    if (err != kAXErrorSuccess || !rectValue || AXValueGetType(rectValue) != kAXValueCGRectType) {
+        if (rectValue) CFRelease(rectValue);
+        CFRelease(focusedElement);
+        CFRelease(systemWide);
+        return false;
+    }
+
+    CGRect rect;
+    AXValueGetValue(rectValue, (AXValueType)kAXValueCGRectType, &rect);
+    CFRelease(rectValue);
+
+    // Offset by element position if provided
+    AXValueRef elementPosValue = NULL;
+    if (AXUIElementCopyAttributeValue(focusedElement, kAXPositionAttribute, (CFTypeRef*)&elementPosValue) == kAXErrorSuccess && elementPosValue && AXValueGetType(elementPosValue) == kAXValueCGPointType) {
+        CGPoint pos;
+        AXValueGetValue(elementPosValue, (AXValueType)kAXValueCGPointType, &pos);
+        rect.origin.x += pos.x;
+        rect.origin.y += pos.y;
+    }
+    if (elementPosValue) CFRelease(elementPosValue);
+
+    // Determine scale for the screen containing the rect
+    CGFloat scale = 1.0;
+    for (NSScreen* screen in [NSScreen screens]) {
+        NSRect f = [screen frame];
+        NSPoint p = NSMakePoint(rect.origin.x, rect.origin.y);
+        if (NSPointInRect(p, f)) {
+            scale = [screen backingScaleFactor];
+            break;
+        }
+    }
+
+    if (outRect) *outRect = rect;
+    if (outScale) *outScale = scale;
+
+    CFRelease(focusedElement);
+    CFRelease(systemWide);
+    return true;
+}
+
+static void CaretObserverCallback(AXObserverRef observer, AXUIElementRef element, CFStringRef notification, void* refcon) {
+    CGRect rect;
+    CGFloat scale = 1.0;
+    if (ComputeCaretRect(&rect, &scale)) {
+        SendCaretRectToJS(rect, scale);
+    }
+}
+
+Napi::Value StartCaretObserver(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsFunction()) {
+        Napi::TypeError::New(env, "Expected callback function").ThrowAsJavaScriptException();
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (!HasAccessibilityPermissions()) {
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (gCaretObserver) {
+        // Already running
+        return Napi::Boolean::New(env, true);
+    }
+
+    Napi::Function cb = info[0].As<Napi::Function>();
+    gCaretTSFN = Napi::ThreadSafeFunction::New(env, cb, "CaretObserverCB", 0, 1);
+
+    AXUIElementRef systemWide = AXUIElementCreateSystemWide();
+    AXUIElementRef appRef = NULL;
+    if (AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute, (CFTypeRef*)&appRef) != kAXErrorSuccess || !appRef) {
+        if (systemWide) CFRelease(systemWide);
+        return Napi::Boolean::New(env, false);
+    }
+
+    pid_t pid = 0;
+    AXUIElementGetPid(appRef, &pid);
+    AXObserverRef observer = NULL;
+    if (AXObserverCreate(pid, CaretObserverCallback, &observer) != kAXErrorSuccess || !observer) {
+        CFRelease(appRef);
+        CFRelease(systemWide);
+        return Napi::Boolean::New(env, false);
+    }
+
+    AXObserverAddNotification(observer, appRef, kAXSelectedTextChangedNotification, NULL);
+    AXObserverAddNotification(observer, appRef, kAXFocusedUIElementChangedNotification, NULL);
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), kCFRunLoopDefaultMode);
+
+    // Save globals
+    gCaretObserver = observer;
+    gObservedApp = appRef;
+    CFRelease(systemWide);
+
+    // Emit an initial caret rect if available
+    CGRect rect; CGFloat scale = 1.0;
+    if (ComputeCaretRect(&rect, &scale)) {
+        SendCaretRectToJS(rect, scale);
+    }
+
+    return Napi::Boolean::New(env, true);
+}
+
+Napi::Value StopCaretObserver(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (gCaretObserver) {
+        CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(gCaretObserver), kCFRunLoopDefaultMode);
+        if (gObservedApp) {
+            AXObserverRemoveNotification(gCaretObserver, gObservedApp, kAXSelectedTextChangedNotification);
+            AXObserverRemoveNotification(gCaretObserver, gObservedApp, kAXFocusedUIElementChangedNotification);
+            CFRelease(gObservedApp);
+            gObservedApp = NULL;
+        }
+        CFRelease(gCaretObserver);
+        gCaretObserver = NULL;
+    }
+    if (gCaretTSFN) {
+        gCaretTSFN.Release();
+        gCaretTSFN = nullptr;
+    }
+    return Napi::Boolean::New(env, true);
+}

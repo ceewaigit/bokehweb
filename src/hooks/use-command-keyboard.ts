@@ -14,6 +14,7 @@ import {
   PasteCommand
 } from '@/lib/commands'
 import { toast } from 'sonner'
+import { EffectLayerType } from '@/types/effects'
 
 interface UseCommandKeyboardProps {
   enabled?: boolean
@@ -91,6 +92,10 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
         
         if (result.success) {
           if (result.data?.type === 'effect') {
+            // Auto-select pasted effect in sidebar
+            if (result.data.effectType === 'zoom' && result.data.blockId) {
+              useProjectStore.getState().selectEffectLayer(EffectLayerType.Zoom, result.data.blockId)
+            }
             toast(`${result.data.effectType} block pasted`)
           } else {
             toast('Clip pasted')
@@ -111,7 +116,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       // Create new context with fresh state
       const freshContext = new DefaultCommandContext(currentStore)
       
-      // Check if an effect layer is selected (e.g., zoom block)
+      // Check if an effect layer is selected (e.g., zoom block or screen block)
       const effectLayer = currentStore.selectedEffectLayer
       if (effectLayer && effectLayer.type === 'zoom' && effectLayer.id) {
         const command = new RemoveZoomBlockCommand(
@@ -130,33 +135,38 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
             toast.error(result.error as string)
           }
         } catch (err) {
-          console.error('[Keyboard] Delete zoom block failed:', err)
-          toast.error('Failed to delete zoom block')
+          console.error('[Keyboard] Delete failed:', err)
+          toast.error('Failed to delete')
         }
         return
       }
 
-      // Default behavior: delete clips
+      // Remove selected screen block via store
+      if (effectLayer && effectLayer.type === 'screen' && effectLayer.id) {
+        try {
+          useProjectStore.getState().removeEffect(effectLayer.id)
+          useProjectStore.getState().clearEffectSelection()
+          toast('Screen block deleted')
+        } catch (err) {
+          console.error('[Keyboard] Delete screen block failed:', err)
+          toast.error('Failed to delete screen block')
+        }
+        return
+      }
+
+      // Fallback: delete selected clip(s)
       const selectedClips = currentStore.selectedClips
-      if (selectedClips.length === 0) return
-
-      // Begin group for multiple deletions
-      if (selectedClips.length > 1) {
-        manager.beginGroup(`delete-${Date.now()}`)
-      }
-
-      for (const clipId of selectedClips) {
-        // Update context with fresh store state for each deletion
-        contextRef.current = new DefaultCommandContext(useProjectStore.getState())
-        const command = new RemoveClipCommand(contextRef.current, clipId)
-        await manager.execute(command)
-      }
-
-      if (selectedClips.length > 1) {
-        await manager.endGroup()
-        toast(`${selectedClips.length} clips deleted`)
-      } else {
-        toast('Clip deleted')
+      if (selectedClips && selectedClips.length > 0) {
+        try {
+          for (const clipId of selectedClips) {
+            const cmd = new RemoveClipCommand(freshContext, clipId)
+            await manager.execute(cmd)
+          }
+          toast('Clip(s) deleted')
+        } catch (err) {
+          console.error('[Keyboard] Delete clip failed:', err)
+          toast.error('Failed to delete')
+        }
       }
     }
 

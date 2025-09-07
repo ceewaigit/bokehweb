@@ -1,19 +1,12 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import {
-  type Project,
-  type Clip,
-  type Recording,
-  type Track,
-  type ZoomBlock,
-  type Effect,
-  type ZoomEffectData,
-  type BackgroundEffectData,
-  type CursorEffectData
-} from '@/types/project'
+import type { Clip, Effect, Project, Recording, Track, ZoomEffectData, BackgroundEffectData, CursorEffectData } from '@/types/project'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { nanoid } from 'nanoid'
+import { toast } from 'sonner'
+import type { SelectedEffectLayer, EffectLayerType } from '@/types/effects'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
 
 // Helper functions moved to top for better organization
@@ -55,7 +48,7 @@ interface ProjectStore {
   // Selection State
   selectedClipId: string | null
   selectedClips: string[]
-  selectedEffectLayer: { type: 'zoom' | 'cursor' | 'background'; id?: string } | null
+  selectedEffectLayer: SelectedEffectLayer
   clipboard: {
     clip?: Clip
     effect?: { type: 'zoom' | 'cursor' | 'background'; data: any; sourceClipId: string }
@@ -77,7 +70,7 @@ interface ProjectStore {
   // New: Restore a removed clip back into a specific track and index
   restoreClip: (trackId: string, clip: Clip, index: number) => void
   selectClip: (clipId: string | null, multi?: boolean) => void
-  selectEffectLayer: (type: 'zoom' | 'cursor' | 'background', id?: string) => void
+  selectEffectLayer: (type: EffectLayerType, id?: string) => void
   clearEffectSelection: () => void
   clearSelection: () => void
   splitClip: (clipId: string, splitTime: number) => void
@@ -137,7 +130,7 @@ const updatePlayheadState = (state: any) => {
 }
 
 export const useProjectStore = create<ProjectStore>()(
-  immer((set, get) => ({
+  immer<ProjectStore>((set, get) => ({
     currentProject: null,
     currentTime: 0,
     isPlaying: false,
@@ -262,17 +255,51 @@ export const useProjectStore = create<ProjectStore>()(
           completeRecording.duration
         )
 
+        // Build caret-based fixed zoom blocks if caret typing detected
+        const caretEvents = (completeRecording.metadata?.caretEvents || []) as any[]
+        type CaretBlock = { startTime: number; endTime: number; x: number; y: number }
+        const caretBlocks: CaretBlock[] = []
+        if (caretEvents && caretEvents.length > 0) {
+          const windowMs = 250 // gap threshold between keystrokes to split blocks
+          let current: CaretBlock | null = null
+          for (let i = 0; i < caretEvents.length; i++) {
+            const ce = caretEvents[i]
+            if (!current) {
+              current = { startTime: ce.timestamp, endTime: ce.timestamp + 1, x: ce.x, y: ce.y }
+              continue
+            }
+            const gap = ce.timestamp - (caretEvents[i - 1]?.timestamp ?? ce.timestamp)
+            if (gap <= windowMs) {
+              current.endTime = ce.timestamp + 1
+              // Update center towards latest caret to keep block center near the caret cluster
+              current.x = ce.x
+              current.y = ce.y
+            } else {
+              caretBlocks.push(current)
+              current = { startTime: ce.timestamp, endTime: ce.timestamp + 1, x: ce.x, y: ce.y }
+            }
+          }
+          if (current) caretBlocks.push(current)
+
+          // Enforce a minimal duration and add a small outro for readability
+          const MIN_BLOCK_MS = 600
+          for (const b of caretBlocks) {
+            if (b.endTime - b.startTime < MIN_BLOCK_MS) {
+              b.endTime = b.startTime + MIN_BLOCK_MS
+            }
+          }
+        }
+
         // Initialize effects array if needed
         if (!state.currentProject.timeline.effects) {
           state.currentProject.timeline.effects = []
         }
 
-        // Add zoom effects with absolute timeline positions
+        // Add mouse-derived zoom blocks first
         zoomBlocks.forEach((block, index) => {
           const zoomEffect: Effect = {
             id: `zoom-${clipId}-${index}`,
             type: 'zoom',
-            // Use absolute timeline positions
             startTime: clip.startTime + block.startTime,
             endTime: clip.startTime + block.endTime,
             data: {
@@ -286,6 +313,36 @@ export const useProjectStore = create<ProjectStore>()(
             enabled: true
           }
           state.currentProject!.timeline.effects.push(zoomEffect)
+        })
+
+        // Then add caret-fixed zoom blocks; if overlapping with mouse zooms, prefer caret by pushing after (later in array used equally) and stronger scale
+        caretBlocks.forEach((b, cIndex) => {
+          const absoluteStart = clip.startTime + b.startTime
+          const absoluteEnd = clip.startTime + b.endTime
+
+          const caretScale = 3.0 // deeper zoom for readability
+          const effectId = `zoom-caret-${clipId}-${cIndex}`
+          const caretEffect: Effect = {
+            id: effectId,
+            type: 'zoom',
+            startTime: absoluteStart,
+            endTime: absoluteEnd,
+            data: {
+              scale: caretScale,
+              targetX: b.x,
+              targetY: b.y,
+              introMs: 200,
+              outroMs: 200,
+              smoothing: 0.2,
+              followStrategy: 'caret',
+              mouseIdlePx: 3,
+              caretWindowMs: 350
+            } as ZoomEffectData,
+            enabled: true
+          }
+
+          // If overlapping, we still add caret block; timeline rendering will pick the active block by time
+          state.currentProject!.timeline.effects.push(caretEffect)
         })
 
         // Check if global background effect exists, if not create one

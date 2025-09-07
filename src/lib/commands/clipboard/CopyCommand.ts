@@ -93,12 +93,12 @@ export class CopyCommand extends Command<CopyResult> {
       // Copy cursor or background settings
       const effect = effects.find((e: any) => e.type === selectedEffectLayer.type)
       if (effect) {
-        store.copyEffect(selectedEffectLayer.type, { ...effect.data }, clipId)
+        store.copyEffect(selectedEffectLayer.type as unknown as 'cursor' | 'background' | 'zoom', { ...effect.data }, clipId)
         return {
           success: true,
           data: {
             type: 'effect',
-            effectType: selectedEffectLayer.type,
+            effectType: (selectedEffectLayer.type as unknown as 'cursor' | 'background' | 'zoom'),
             clipId
           }
         }

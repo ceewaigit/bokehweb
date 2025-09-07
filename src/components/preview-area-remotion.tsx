@@ -114,6 +114,93 @@ export function PreviewAreaRemotion({
 
   // Get timeline effects (timeline-global)
   const timelineEffects = useProjectStore(state => state.currentProject?.timeline.effects)
+  const currentProject = useProjectStore(state => state.currentProject)
+
+  // Debug: dump caret events from ssproj metadata and their mapping to timeline
+  useEffect(() => {
+    if (!currentProject) return
+    if (typeof window === 'undefined') return
+
+    try {
+      const allRecordings = currentProject.recordings || []
+      const tracks = currentProject.timeline?.tracks || []
+
+      for (const rec of allRecordings) {
+        const carets: any[] = (rec as any)?.metadata?.caretEvents || []
+        const times = carets.map(c => c.timestamp).sort((a, b) => a - b)
+        console.log('[CaretDump] Recording', rec.id, {
+          count: times.length,
+          timestamps: times
+        })
+
+        // Map to absolute timeline times per clip (respects trim via sourceIn/sourceOut)
+        for (const track of tracks) {
+          for (const clip of track.clips) {
+            if (clip.recordingId !== rec.id) continue
+            const sourceIn = clip.sourceIn || 0
+            const sourceOut = clip.sourceOut || (clip.sourceIn + clip.duration)
+            const inClip = carets.filter(c => c.timestamp >= sourceIn && c.timestamp <= sourceOut)
+            const absoluteTimes = inClip.map(c => clip.startTime + (c.timestamp - sourceIn))
+            console.log('[CaretDump] Clip', clip.id, 'from recording', rec.id, {
+              clipStartAbs: clip.startTime,
+              clipDuration: clip.duration,
+              sourceIn,
+              sourceOut,
+              caretCountInClip: absoluteTimes.length,
+              caretTimesAbs: absoluteTimes.sort((a, b) => a - b)
+            })
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[CaretDump] failed to dump caret metadata', e)
+    }
+  }, [currentProject?.id, currentProject?.modifiedAt])
+
+  // Build clip-relative event streams so previews respect trim/split
+  const adjustedEvents = useMemo(() => {
+    const recordingMeta: any = previewRecording?.metadata || {}
+    const clip = previewClip
+    if (!clip) {
+      return {
+        mouseEvents: recordingMeta.mouseEvents || [],
+        clickEvents: recordingMeta.clickEvents || [],
+        scrollEvents: recordingMeta.scrollEvents || [],
+        caretEvents: recordingMeta.caretEvents || [],
+        keyboardEvents: recordingMeta.keyboardEvents || []
+      }
+    }
+
+    const sourceIn = clip.sourceIn || 0
+    const sourceOut = clip.sourceOut || (clip.sourceIn + clip.duration)
+
+    const mapWindow = (ts: number) => ts - sourceIn
+
+    const within = (ts: number) => ts >= sourceIn && ts <= sourceOut
+
+    const mouseEvents = (recordingMeta.mouseEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
+      ...e,
+      timestamp: mapWindow(e.timestamp)
+    }))
+    const clickEvents = (recordingMeta.clickEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
+      ...e,
+      timestamp: mapWindow(e.timestamp)
+    }))
+    const scrollEvents = (recordingMeta.scrollEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
+      ...e,
+      timestamp: mapWindow(e.timestamp)
+    }))
+    const caretEvents = (recordingMeta.caretEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
+      ...e,
+      timestamp: mapWindow(e.timestamp)
+    }))
+    const keyboardEvents = (recordingMeta.keyboardEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
+      ...e,
+      timestamp: mapWindow(e.timestamp)
+    }))
+
+    return { mouseEvents, clickEvents, scrollEvents, caretEvents, keyboardEvents }
+  }, [previewClip, previewRecording?.metadata])
 
   // Convert effects to clip-relative times for Remotion
   const clipRelativeEffects = useMemo(() => {
@@ -173,13 +260,15 @@ export function PreviewAreaRemotion({
       videoUrl: showBlackScreen ? '' : (videoUrl || ''),
       clip: previewClip,
       effects: clipRelativeEffects,
-      cursorEvents: previewRecording?.metadata?.mouseEvents || [],
-      clickEvents: previewRecording?.metadata?.clickEvents || [],
-      keystrokeEvents: (previewRecording?.metadata as any)?.keyboardEvents || [],
+      cursorEvents: adjustedEvents.mouseEvents,
+      clickEvents: adjustedEvents.clickEvents,
+      keystrokeEvents: adjustedEvents.keyboardEvents,
+      scrollEvents: adjustedEvents.scrollEvents,
+      caretEvents: adjustedEvents.caretEvents,
       videoWidth,
       videoHeight
     }
-  }, [playheadClip, playheadRecording, videoUrl, previewClip, clipRelativeEffects, previewRecording, videoWidth, videoHeight])
+  }, [playheadClip, playheadRecording, videoUrl, previewClip, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight])
 
   // Calculate optimal composition size based on container and quality settings
   const calculateOptimalCompositionSize = useCallback(() => {

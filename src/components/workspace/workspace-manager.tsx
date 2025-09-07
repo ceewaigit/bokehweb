@@ -303,8 +303,8 @@ export function WorkspaceManager() {
         const existingInProject = projectEffects.find(e => e.id === localEffect.id)
 
         if (existingInProject) {
-          // Update existing effect in the store
-          updateEffect(localEffect.id, localEffect)
+          // Update existing effect in the store (only mutable fields to avoid clobbering timing)
+          updateEffect(localEffect.id, { data: (localEffect as any).data, enabled: localEffect.enabled })
         } else {
           // Add new effect to the store
           addEffect(localEffect)
@@ -315,6 +315,21 @@ export function WorkspaceManager() {
       setLocalEffects(null)
     }
 
+    // Extra safety: ensure any selected new screen block changes are flushed
+    if (selectedEffectLayer?.type === 'screen' && selectedEffectLayer?.id) {
+      const baseEffects = currentProject?.timeline?.effects || []
+      const local = (localEffects || [])
+        .find(e => e.id === selectedEffectLayer.id)
+      if (local) {
+        const exists = baseEffects.find(e => e.id === local.id)
+        if (exists) {
+          updateEffect(local.id, { data: (local as any).data, enabled: local.enabled })
+        } else {
+          addEffect(local)
+        }
+      }
+    }
+
     await saveCurrentProject()
 
     // Use the project's modifiedAt timestamp after saving
@@ -323,7 +338,7 @@ export function WorkspaceManager() {
       setLastSavedAt(savedProject.modifiedAt)
     }
     setHasUnsavedChanges(false)
-  }, [localEffects, playheadClip, updateEffect, addEffect, saveCurrentProject])
+  }, [localEffects, playheadClip, updateEffect, addEffect, saveCurrentProject, selectedEffectLayer, currentProject])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -387,7 +402,7 @@ export function WorkspaceManager() {
     selectClip(clipId)
   }, [selectClip])
 
-  const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke', data: any) => {
+  const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke' | 'annotation' | 'screen', data: any) => {
     // Always operate on the full effect list for correctness
     const baseEffects = localEffects || currentProject?.timeline.effects || []
 
@@ -427,6 +442,48 @@ export function WorkspaceManager() {
       }
     } else if (type === 'zoom') {
       newEffects = [...baseEffects]
+    } else if (type === 'screen' && selectedEffectLayer?.type === 'screen' && selectedEffectLayer?.id) {
+      // Update a specific screen block
+      const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
+      if (existingEffectIndex >= 0) {
+        newEffects = [...baseEffects]
+        newEffects[existingEffectIndex] = {
+          ...newEffects[existingEffectIndex],
+          data: {
+            ...newEffects[existingEffectIndex].data,
+            ...data
+          }
+        }
+      } else {
+        return
+      }
+    } else if (type === 'annotation') {
+      // Screen effects and cinematic scroll as annotations
+      const kind = data?.kind
+      if (!kind) return
+      const existsIndex = baseEffects.findIndex(e => e.type === 'annotation' && (e as any).data?.kind === kind)
+      let newEffectsArr = [...baseEffects]
+      if (existsIndex >= 0) {
+        const prev = newEffectsArr[existsIndex]
+        const enabled = data.enabled !== undefined ? data.enabled : prev.enabled
+        const mergedData = { ...(prev as any).data, ...(data.data || {}), kind }
+        newEffectsArr[existsIndex] = { ...prev, enabled, data: mergedData }
+      } else {
+        // Create new annotation spanning current clip or entire timeline fallback
+        const clip = selectedClip
+        const startTime = clip ? clip.startTime : 0
+        const endTime = clip ? clip.startTime + clip.duration : (currentProject?.timeline.duration || Number.MAX_SAFE_INTEGER)
+        const newEffect: Effect = {
+          id: `anno-${kind}-${Date.now()}`,
+          type: 'annotation',
+          startTime,
+          endTime,
+          enabled: data.enabled !== undefined ? data.enabled : true,
+          data: { kind, ...(data.data || {}) }
+        }
+        newEffectsArr.push(newEffect)
+      }
+      newEffects = newEffectsArr
     } else {
       // Background, cursor, and keystroke are global effects
       const existingEffectIndex = baseEffects.findIndex(e => e.type === type)

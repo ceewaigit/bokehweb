@@ -11,7 +11,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoWidth,
   videoHeight,
   zoomCenter,
-  cinematicPan
+  cinematicPan,
+  extraTranslate,
+  computedScale,
+  debugCaret
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -46,6 +49,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 
   // Apply zoom if enabled
   let transform = '';
+  let extra3DTransform = '';
 
   if (zoomBlocks && zoomBlocks.length > 0) {
     // Find active zoom block
@@ -60,12 +64,56 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       drawWidth,
       drawHeight,
       fixedZoomCenter,  // Fixed zoom center for stable zoom
-      smoothPan  // Cinematic pan for edge following
+      smoothPan, 
+      computedScale
     );
 
     // Generate transform string
     transform = getZoomTransformString(zoomTransform);
   }
+
+  // Optional 3D screen effect: prefer screen blocks
+  const screenBlock = effects?.find(e => e.type === 'screen' && e.enabled && currentTimeMs >= e.startTime && currentTimeMs <= e.endTime)
+  const screenData: any = screenBlock?.data
+  if (screenData) {
+    const preset = screenData.preset as ('subtle' | 'medium' | 'dramatic' | 'window' | 'cinematic' | 'hero' | 'isometric' | 'flat' | 'tilt-left' | 'tilt-right') | undefined
+    let tiltX = screenData.tiltX
+    let tiltY = screenData.tiltY
+    let perspective = screenData.perspective
+
+    // Defaults per preset
+    // Centering presets optionally add a slight y-tilt balance to keep horizon centered
+    if (preset === 'subtle') { tiltX ??= -2; tiltY ??= 4; perspective ??= 1000 }
+    if (preset === 'medium') { tiltX ??= -4; tiltY ??= 8; perspective ??= 900 }
+    if (preset === 'dramatic') { tiltX ??= -8; tiltY ??= 14; perspective ??= 800 }
+    if (preset === 'window') { tiltX ??= -3; tiltY ??= 12; perspective ??= 700 }
+
+    // New presets
+    if (preset === 'cinematic') { tiltX ??= -5; tiltY ??= 10; perspective ??= 850 }
+    if (preset === 'hero') { tiltX ??= -10; tiltY ??= 16; perspective ??= 760 }
+    if (preset === 'isometric') { tiltX ??= -25; tiltY ??= 25; perspective ??= 950 }
+    if (preset === 'flat') { tiltX ??= 0; tiltY ??= 0; perspective ??= 1200 }
+    if (preset === 'tilt-left') { tiltX ??= -6; tiltY ??= -10; perspective ??= 900 }
+    if (preset === 'tilt-right') { tiltX ??= -6; tiltY ??= 10; perspective ??= 900 }
+
+    // Slight scale to keep edges visible while tilting
+    const scaleComp = 1.03
+
+    // Certain presets should be visually centered more aggressively
+    // Use a compensating translate3d to keep content centered in frame
+    let centerAdjust = ''
+    if (preset === 'cinematic' || preset === 'hero' || preset === 'isometric' || preset === 'flat') {
+      // Compute a small centering nudge based on tilt
+      const tx = 0 // horizontal centering minimal to avoid cropping
+      const ty = (Math.abs(tiltY ?? 0) > 0 ? -4 : 0) // nudge up a few pixels
+      centerAdjust = ` translate3d(${tx}px, ${ty}px, 0)`
+    }
+
+    extra3DTransform = ` perspective(${(perspective ?? 900)}px) rotateX(${tiltX ?? -4}deg) rotateY(${tiltY ?? 6}deg) scale(${scaleComp})${centerAdjust}`
+  }
+
+  const combinedTransform = `${transform}${extra3DTransform}`.trim()
+  const finalTransform = extraTranslate ? `${combinedTransform} translate3d(${extraTranslate.x}px, ${extraTranslate.y}px, 0)` : combinedTransform
 
   // Simple video style - always show full video with contain
   const videoStyle: React.CSSProperties = {
@@ -92,7 +140,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             height: drawHeight,
             borderRadius: `${cornerRadius}px`,
             boxShadow: `0 ${shadowBlur}px ${shadowBlur * 2}px ${shadowSpread}px rgba(0, 0, 0, ${shadowOpacity}), 0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px ${shadowSpread * 0.66}px rgba(0, 0, 0, ${shadowOpacity * 0.8})`,
-            transform,
+            transform: finalTransform,
             transformOrigin: '50% 50%',
             pointerEvents: 'none',
             willChange: 'transform' // GPU acceleration hint
@@ -109,7 +157,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           height: drawHeight,
           borderRadius: `${cornerRadius}px`,
           overflow: 'hidden',
-          transform,
+          transform: finalTransform,
           transformOrigin: '50% 50%',
           willChange: 'transform' // GPU acceleration hint
         }}
@@ -124,8 +172,47 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             // Don't throw - let Remotion handle gracefully
           }}
           // Performance optimization
-
         />
+
+        {/* Debug caret overlay inside the transformed container */}
+        {debugCaret && (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none'
+            }}
+          >
+            {/* Crosshair at caret center */}
+            {(() => {
+              const cx = (debugCaret.bounds ? debugCaret.x + (debugCaret.bounds.width || 0) * 0.5 : debugCaret.x) * (drawWidth / videoWidth)
+              const cy = (debugCaret.bounds ? debugCaret.y + (debugCaret.bounds.height || 0) * 0.5 : debugCaret.y) * (drawHeight / videoHeight)
+              const size = 12
+              return (
+                <>
+                  <div style={{ position: 'absolute', left: cx - size, top: cy, width: size * 2, height: 1, background: 'rgba(0,255,0,0.9)' }} />
+                  <div style={{ position: 'absolute', left: cx, top: cy - size, width: 1, height: size * 2, background: 'rgba(0,255,0,0.9)' }} />
+                </>
+              )
+            })()}
+            {/* Bounds box if available */}
+            {debugCaret?.bounds && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: (debugCaret.bounds.x) * (drawWidth / videoWidth),
+                  top: (debugCaret.bounds.y) * (drawHeight / videoHeight),
+                  width: (debugCaret.bounds.width) * (drawWidth / videoWidth),
+                  height: (debugCaret.bounds.height) * (drawHeight / videoHeight),
+                  border: '1px solid rgba(0,255,0,0.9)'
+                }}
+              />
+            )}
+          </div>
+        )}
       </div>
     </AbsoluteFill>
   );

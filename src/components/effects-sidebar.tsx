@@ -36,8 +36,8 @@ interface EffectsSidebarProps {
   className?: string
   selectedClip: Clip | null
   effects: Effect[] | undefined
-  selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'keystroke' | 'background'; id?: string } | null
-  onEffectChange: (type: 'zoom' | 'cursor' | 'keystroke' | 'background', data: any) => void
+  selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'background' | 'screen'; id?: string } | null
+  onEffectChange: (type: 'zoom' | 'cursor' | 'keystroke' | 'background' | 'screen' | 'annotation', data: any) => void
 }
 
 export function EffectsSidebar({
@@ -48,7 +48,10 @@ export function EffectsSidebar({
   onEffectChange
 }: EffectsSidebarProps) {
   const { updateEffect: updateStoreEffect } = useProjectStore()
-  const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'keystroke' | 'zoom' | 'shape'>('background')
+  const playheadRecording = useProjectStore(s => s.playheadRecording)
+  const projectRecordings = useProjectStore(s => s.currentProject?.recordings)
+  const project = useProjectStore(s => s.currentProject)
+  const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'keystroke' | 'zoom' | 'shape' | 'screen'>('background')
   const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
 
@@ -242,6 +245,18 @@ export function EffectsSidebar({
             title="Shape"
           >
             <Square className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setActiveTab('screen')}
+            className={cn(
+              "p-2 rounded-md transition-all",
+              activeTab === 'screen'
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            )}
+            title="Screen Effects"
+          >
+            <Camera className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -778,69 +793,88 @@ export function EffectsSidebar({
                 const zoomData = selectedBlock.data as ZoomEffectData
                 if (!zoomData) return null
 
+                // Determine if caret events exist within this block
+                const blockStartAbs = selectedBlock.startTime
+                const blockEndAbs = selectedBlock.endTime
+
+                // Resolve the recording via the clip that owns this effect time range
+                let owningClip: Clip | null = null
+                let resolvedRecording: any = null
+                if (project) {
+                  outer: for (const track of project.timeline.tracks) {
+                    for (const c of track.clips) {
+                      if (blockStartAbs >= c.startTime && blockStartAbs <= c.startTime + c.duration) {
+                        owningClip = c
+                        resolvedRecording = (project.recordings || []).find(r => r.id === c.recordingId)
+                        break outer
+                      }
+                    }
+                  }
+                }
+                const recording = resolvedRecording || playheadRecording || (projectRecordings || [])[0]
+                const caretEvents = (recording as any)?.metadata?.caretEvents as { timestamp: number; x: number; y: number }[] | undefined
+                const clipStartAbs = owningClip?.startTime ?? selectedClip?.startTime ?? 0
+                const tolerance = 500
+                let hasCaretInBlock = false
+                let nearestCaretAbs: number | null = null
+                if (Array.isArray(caretEvents)) {
+                  for (const ev of caretEvents) {
+                    const evAbs = clipStartAbs + ev.timestamp
+                    if (evAbs >= blockStartAbs - tolerance && evAbs <= blockEndAbs + tolerance) {
+                      hasCaretInBlock = true
+                      nearestCaretAbs = evAbs
+                      break
+                    }
+                    if (nearestCaretAbs === null || Math.abs(evAbs - blockStartAbs) < Math.abs(nearestCaretAbs - blockStartAbs)) {
+                      nearestCaretAbs = evAbs
+                    }
+                  }
+                }
+                const enableCaret = hasCaretInBlock
+
+                // Debug log removed
+
                 return (
                   <div key={`zoom-block-${selectedEffectLayer.id}`}>
-                    <div className="p-3 bg-primary/5 rounded-lg border ring-2 ring-primary/20 space-y-3">
+                    <div className="p-3 bg-primary/5 rounded-lg border ring-2 ring-primary/20 space-y-1">
                       <h4 className="text-xs font-medium uppercase tracking-wider text-primary/80">Block Settings</h4>
 
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Scale</label>
                         <Slider
                           key={`scale-${selectedEffectLayer.id}`}
                           value={[zoomData.scale ?? 2.0]}
                           onValueChange={([value]) => {
-                            // Update the specific zoom effect block directly in the store
                             if (selectedEffectLayer.id) {
-                              updateStoreEffect(selectedEffectLayer.id, {
-                                data: {
-                                  ...zoomData,
-                                  scale: value
-                                }
-                              })
+                              updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), scale: value } })
                             }
                           }}
                           onValueCommit={([value]) => {
                             if (selectedEffectLayer.id) {
-                              updateStoreEffect(selectedEffectLayer.id, {
-                                data: {
-                                  ...zoomData,
-                                  scale: value
-                                }
-                              })
+                              updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), scale: value } })
                             }
                           }}
                           min={1}
-                          max={4}
+                          max={7}
                           step={0.1}
                           className="w-full"
                         />
                         <span className="text-[10px] text-muted-foreground/70 font-mono">{(zoomData.scale ?? 2.0).toFixed(1)}x</span>
                       </div>
 
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Intro</label>
                         <Slider
                           key={`intro-${selectedEffectLayer.id}`}
                           value={[zoomData.introMs || 500]}
                           onValueChange={([value]) => {
-                            // Update the specific zoom effect block directly in the store
                             if (selectedEffectLayer.id) {
-                              updateStoreEffect(selectedEffectLayer.id, {
-                                data: {
-                                  ...zoomData,
-                                  introMs: value
-                                }
-                              })
+                              updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), introMs: value } })
                             }
                           }}
                           onValueCommit={([value]) => {
                             if (selectedEffectLayer.id) {
-                              updateStoreEffect(selectedEffectLayer.id, {
-                                data: {
-                                  ...zoomData,
-                                  introMs: value
-                                }
-                              })
+                              updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), introMs: value } })
                             }
                           }}
                           min={0}
@@ -851,30 +885,19 @@ export function EffectsSidebar({
                         {(zoomData.introMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{zoomData.introMs}ms</span>}
                       </div>
 
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Outro</label>
                         <Slider
                           key={`outro-${selectedEffectLayer.id}`}
                           value={[zoomData.outroMs || 500]}
                           onValueChange={([value]) => {
-                            // Update the specific zoom effect block directly in the store
                             if (selectedEffectLayer.id) {
-                              updateStoreEffect(selectedEffectLayer.id, {
-                                data: {
-                                  ...zoomData,
-                                  outroMs: value
-                                }
-                              })
+                              updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), outroMs: value } })
                             }
                           }}
                           onValueCommit={([value]) => {
                             if (selectedEffectLayer.id) {
-                              updateStoreEffect(selectedEffectLayer.id, {
-                                data: {
-                                  ...zoomData,
-                                  outroMs: value
-                                }
-                              })
+                              updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), outroMs: value } })
                             }
                           }}
                           min={0}
@@ -884,6 +907,74 @@ export function EffectsSidebar({
                         />
                         {(zoomData.outroMs || 0) > 0 && <span className="text-[10px] text-muted-foreground/70 font-mono">{zoomData.outroMs}ms</span>}
                       </div>
+
+                      {/* Follow Strategy */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Follow</label>
+                        <div className="flex gap-1 mt-2">
+                          {([
+                            { k: 'auto_mouse_first', label: 'Auto' },
+                            { k: 'mouse', label: 'Mouse' },
+                            { k: 'caret', label: 'Caret' }
+                          ] as const).map(opt => (
+                            <button
+                              key={opt.k}
+                              onClick={() => {
+                                if (!selectedEffectLayer?.id) return
+                                if (opt.k === 'caret' && !enableCaret) {
+                                  console.warn('[EffectsSidebar] Attempted to set caret follow without caret events in block', { blockId: selectedEffectLayer.id })
+                                  return
+                                }
+
+                                // Update via store so MainComposition sees latest value immediately
+                                updateStoreEffect(selectedEffectLayer.id, {
+                                  data: { ...(zoomData || {}), followStrategy: opt.k }
+                                })
+                              }}
+                              disabled={opt.k === 'caret' && !enableCaret}
+                              className={cn(
+                                "px-2 py-1 text-[10px] rounded transition-all",
+                                (zoomData.followStrategy || 'auto_mouse_first') === opt.k
+                                  ? "bg-primary/20 text-primary"
+                                  : cn("bg-background/50 text-muted-foreground hover:bg-background/70", (opt.k === 'caret' && !enableCaret) && "opacity-50 cursor-not-allowed")
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Heuristic thresholds */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Mouse Idle (px)</label>
+                          <Slider
+                            key={`mouseidle-${selectedEffectLayer.id}`}
+                            value={[zoomData.mouseIdlePx ?? 3]}
+                            onValueChange={([value]) => selectedEffectLayer.id && updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), mouseIdlePx: value } })}
+                            onValueCommit={([value]) => selectedEffectLayer.id && updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), mouseIdlePx: value } })}
+                            min={1}
+                            max={20}
+                            step={1}
+                            className="w-full"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Caret Window (ms)</label>
+                          <Slider
+                            key={`caretwindow-${selectedEffectLayer.id}`}
+                            value={[(zoomData.caretWindowMs ?? 300)]}
+                            onValueChange={([value]) => selectedEffectLayer.id && updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), caretWindowMs: value } })}
+                            onValueCommit={([value]) => selectedEffectLayer.id && updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), caretWindowMs: value } })}
+                            min={100}
+                            max={1000}
+                            step={50}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+
                     </div>
                     <div className=" pt-3" />
                   </div>
@@ -921,103 +1012,137 @@ export function EffectsSidebar({
                 </p>
               </div>
 
+              {/* Cinematic Scroll toggle only (remove old 3D Screen UI) */}
+              <div className="pt-2 space-y-2">
+                <div className="p-3 bg-background/30 rounded-lg flex items-center justify-between">
+                  <span className="uppercase tracking-wider text-[10px]">Cinematic Scroll</span>
+                  <Switch
+                    checked={!!effects?.some(e => e.type === 'annotation' && (e as any).data?.kind === 'scrollCinematic' && e.enabled)}
+                    onCheckedChange={(checked) => {
+                      onEffectChange('annotation', { kind: 'scrollCinematic', enabled: checked })
+                    }}
+                  />
+                </div>
+
+                {/* Debug caret overlay toggle */}
+
+                <div className="p-3 bg-background/30 rounded-lg flex items-center justify-between">
+                  <span className="uppercase tracking-wider text-[10px]">Debug Caret Overlay</span>
+                  <Switch
+                    checked={!!effects?.some(e => e.type === 'annotation' && (e as any).data?.kind === 'debugCaret' && e.enabled)}
+                    onCheckedChange={(checked) => {
+                      onEffectChange('annotation', { kind: 'debugCaret', enabled: checked })
+                    }}
+                  />
+                </div>
+
+              </div>
             </div>
           )}
 
           {activeTab === 'shape' && (
             <div className="space-y-3">
+              <div className="p-3 bg-background/30 rounded-lg ">
+                <h3 className="text-sm font-medium">Shape</h3>
+                <p className="text-[10px] text-muted-foreground/70 mt-0.5">Controls the frame padding, corner radius, and shadow.</p>
+              </div>
+
               <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
                 <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Padding</label>
                 <Slider
-                  value={[(backgroundEffect?.data as BackgroundEffectData).padding || 0]}
-                  onValueChange={([value]) => scheduleBackgroundUpdate({
-                    padding: value
-                  })}
-                  onValueCommit={([value]) => updateBackgroundEffect({
-                    padding: value
-                  })}
+                  value={[((backgroundEffect?.data as BackgroundEffectData)?.padding ?? 40)]}
+                  onValueChange={([value]) => updateBackgroundEffect({ padding: value })}
+                  onValueCommit={([value]) => updateBackgroundEffect({ padding: value })}
                   min={0}
                   max={200}
-                  step={5}
+                  step={2}
                   className="w-full"
                 />
-                {((backgroundEffect?.data as BackgroundEffectData).padding || 0) > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).padding}px</span>
-                    <button
-                      onClick={() => updateBackgroundEffect({
-                        padding: 40
-                      })}
-                      className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                )}
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{((backgroundEffect?.data as BackgroundEffectData)?.padding ?? 40)}px</span>
               </div>
 
               <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
                 <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Corner Radius</label>
                 <Slider
-                  value={[(backgroundEffect?.data as BackgroundEffectData).cornerRadius ?? 15]}
-                  onValueChange={([value]) => scheduleBackgroundUpdate({
-                    cornerRadius: value
-                  })}
-                  onValueCommit={([value]) => updateBackgroundEffect({
-                    cornerRadius: value
-                  })}
+                  value={[((backgroundEffect?.data as BackgroundEffectData)?.cornerRadius ?? 15)]}
+                  onValueChange={([value]) => updateBackgroundEffect({ cornerRadius: value })}
+                  onValueCommit={([value]) => updateBackgroundEffect({ cornerRadius: value })}
                   min={0}
-                  max={50}
+                  max={48}
                   step={1}
                   className="w-full"
                 />
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).cornerRadius ?? 15}px</span>
-                  {(backgroundEffect?.data as BackgroundEffectData).cornerRadius !== 15 && (
-                    <button
-                      onClick={() => updateBackgroundEffect({
-                        cornerRadius: 15
-                      })}
-                      className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{((backgroundEffect?.data as BackgroundEffectData)?.cornerRadius ?? 15)}px</span>
               </div>
 
               <div className="space-y-2 p-3 bg-background/30 rounded-lg ">
-                <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Shadow Intensity</label>
+                <label className="text-xs font-medium uppercase tracking-wider text-[10px]">Shadow</label>
                 <Slider
-                  value={[(backgroundEffect?.data as BackgroundEffectData).shadowIntensity ?? 85]}
-                  onValueChange={([value]) => scheduleBackgroundUpdate({
-                    shadowIntensity: value
-                  })}
-                  onValueCommit={([value]) => updateBackgroundEffect({
-                    shadowIntensity: value
-                  })}
+                  value={[((backgroundEffect?.data as BackgroundEffectData)?.shadowIntensity ?? 85)]}
+                  onValueChange={([value]) => updateBackgroundEffect({ shadowIntensity: value })}
+                  onValueCommit={([value]) => updateBackgroundEffect({ shadowIntensity: value })}
                   min={0}
                   max={100}
-                  step={5}
+                  step={1}
                   className="w-full"
                 />
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-muted-foreground/70 font-mono">{(backgroundEffect?.data as BackgroundEffectData).shadowIntensity ?? 85}%</span>
-                  {(backgroundEffect?.data as BackgroundEffectData).shadowIntensity !== 85 && (
-                    <button
-                      onClick={() => updateBackgroundEffect({
-                        shadowIntensity: 85
-                      })}
-                      className="text-[9px] text-primary/70 hover:text-primary uppercase tracking-wider"
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
+                <span className="text-[10px] text-muted-foreground/70 font-mono">{((backgroundEffect?.data as BackgroundEffectData)?.shadowIntensity ?? 85)}%</span>
               </div>
-
             </div>
           )}
+
+          {/* Screen tab */}
+          {activeTab === 'screen' && (
+            <div className="space-y-3">
+              {/* Add Screen Block */}
+              <div className="p-3 bg-background/30 rounded-lg ">
+                <button
+                  className="w-full px-2 py-1.5 text-[10px] uppercase tracking-wider font-medium bg-background/50 hover:bg-background/70 rounded-md transition-all"
+                  onClick={() => {
+                    if (!selectedClip) return
+                    const newEffect: Effect = {
+                      id: `screen-${Date.now()}`,
+                      type: 'screen',
+                      startTime: selectedClip.startTime,
+                      endTime: selectedClip.startTime + selectedClip.duration,
+                      enabled: true,
+                      data: { preset: 'subtle' }
+                    }
+                    useProjectStore.getState().addEffect(newEffect)
+                  }}
+                >
+                  Add 3D Screen Block
+                </button>
+                <p className="text-[9px] text-muted-foreground/60 mt-1.5 italic">Creates a block you can resize on the timeline.</p>
+              </div>
+
+              {/* Show presets only when a screen block is selected */}
+              {selectedEffectLayer?.type === 'screen' && selectedEffectLayer?.id ? (
+                <div className="p-3 bg-background/30 rounded-lg ">
+                  <label className="text-xs font-medium uppercase tracking-wider text-[10px]">3D Screen Preset</label>
+                  <div className="grid grid-cols-4 gap-1 mt-2">
+                    {(['subtle', 'medium', 'dramatic', 'window', 'cinematic', 'hero', 'isometric', 'flat', 'tilt-left', 'tilt-right'] as const).map(preset => (
+                      <button
+                        key={preset}
+                        className={cn(
+                          'px-2 py-1 text-[10px] rounded transition-all',
+                          'bg-background/50 text-muted-foreground hover:bg-background/70'
+                        )}
+                        onClick={() => onEffectChange('screen', { preset })}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-background/30 rounded-lg ">
+                  <p className="text-[10px] text-muted-foreground">Select a 3D Screen block to edit its preset.</p>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
     </div>

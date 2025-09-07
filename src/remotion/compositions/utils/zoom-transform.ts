@@ -12,8 +12,8 @@ import type { ZoomBlock } from '@/types/project';
 
 // Smooth ease-in-out-cubic for consistent speed
 export const easeInOutCubic = (t: number): number => {
-  return t < 0.5 
-    ? 4 * t * t * t 
+  return t < 0.5
+    ? 4 * t * t * t
     : 1 - Math.pow(-2 * t + 2, 3) / 2;
 };
 
@@ -54,7 +54,7 @@ export function calculateZoomScale(
 ): number {
   // Clamp elapsed time to valid range
   const clampedElapsed = Math.max(0, Math.min(blockDuration, elapsed));
-  
+
   if (clampedElapsed < introMs) {
     // Intro phase - zoom in smoothly
     const progress = Math.min(1, Math.max(0, clampedElapsed / introMs));
@@ -82,7 +82,8 @@ export function calculateZoomTransform(
   videoWidth: number,
   videoHeight: number,
   zoomCenter: { x: number; y: number }, // Fixed zoom center (normalized 0-1)
-  cinematicPan?: { x: number; y: number } // Optional cinematic pan (normalized)
+  cinematicPan?: { x: number; y: number }, // Optional cinematic pan (normalized)
+  overrideScale?: number
 ): ZoomState {
   if (!activeBlock) {
     return {
@@ -98,13 +99,15 @@ export function calculateZoomTransform(
   const elapsed = currentTimeMs - activeBlock.startTime;
 
   // Calculate zoom scale - completely deterministic
-  const scale = calculateZoomScale(
-    elapsed,
-    blockDuration,
-    activeBlock.scale || 2,
-    activeBlock.introMs,
-    activeBlock.outroMs
-  );
+  const scale = (overrideScale != null)
+    ? overrideScale
+    : calculateZoomScale(
+      elapsed,
+      blockDuration,
+      activeBlock.scale || 2,
+      activeBlock.introMs,
+      activeBlock.outroMs
+    );
 
   // Use fixed zoom center for stable, cinematic zoom
   const zoomCenterX = zoomCenter.x;
