@@ -615,9 +615,6 @@ export function WorkspaceManager() {
                 useProjectStore.getState().cleanupProject()
                 useWorkspaceStore.getState().resetWorkspace()
 
-                // Clean up thumbnail generator cache
-                ThumbnailGenerator.clearCache()
-
                 // Hide record button when returning to library (main window visible)
                 if (window.electronAPI?.minimizeRecordButton) {
                   window.electronAPI.minimizeRecordButton()

@@ -196,7 +196,7 @@ export interface ZoomEffectData {
   outroMs: number
   smoothing: number
   // Follow strategy: mouse only
-  followStrategy?: 'auto_mouse_first' | 'mouse'
+  followStrategy?: 'mouse'
   // Mouse idle threshold in pixels (physical) to consider idle within the velocity window
   mouseIdlePx?: number
 }

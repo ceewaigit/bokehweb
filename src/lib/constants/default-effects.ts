@@ -25,21 +25,10 @@ export const SCREEN_STUDIO_BACKGROUND_DATA: BackgroundEffectData = {
 // Default cursor effect data
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   style: 'default',
-  size: 4.0,
+  size: 3.0,
   color: '#ffffff',
   clickEffects: false,
   motionBlur: false,
-  hideOnIdle: true,
-  idleTimeout: 3000
-}
-
-// Screen Studio style cursor effect data
-export const SCREEN_STUDIO_CURSOR_DATA: CursorEffectData = {
-  style: 'macOS',
-  size: 4.0,
-  color: '#ffffff',
-  clickEffects: true,
-  motionBlur: true,
   hideOnIdle: true,
   idleTimeout: 3000
 }

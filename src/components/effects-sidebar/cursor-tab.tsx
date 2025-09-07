@@ -51,7 +51,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
       {/* Only show cursor settings when enabled */}
       {cursorEffect?.enabled && (
         <div className="space-y-3">
-          <div className="p-3 bg-background/30 rounded-lg space-y-2">
+          <div className="p-1 bg-background/30 rounded-lg space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Size</label>
             <Slider
               value={[cursorData?.size ?? 3.0]}
@@ -65,7 +65,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.size ?? 3.0).toFixed(1)}x</span>
           </div>
 
-          <div className="p-3 bg-background/30 rounded-lg">
+          <div className="p-1 bg-background/30 rounded-lg">
             <label className="flex items-center justify-between">
               <span className="text-xs">Click Animation</span>
               <Switch
@@ -77,7 +77,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </label>
           </div>
 
-          <div className="p-3 bg-background/30 rounded-lg">
+          <div className="p-1 bg-background/30 rounded-lg">
             <label className="flex items-center justify-between">
               <span className="text-xs">Motion Blur</span>
               <Switch
@@ -89,7 +89,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </label>
           </div>
 
-          <div className="p-3 bg-background/30 rounded-lg">
+          <div className="p-1 bg-background/30 rounded-lg">
             <label className="flex items-center justify-between">
               <span className="text-xs">Hide When Idle</span>
               <Switch
@@ -102,7 +102,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           </div>
 
           {cursorData?.hideOnIdle && (
-            <div className="p-3 bg-background/30 rounded-lg space-y-2">
+            <div className="p-1 bg-background/30 rounded-lg space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Idle Timeout</label>
               <Slider
                 value={[(cursorData?.idleTimeout ?? 3000) / 1000]}

@@ -88,7 +88,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       scale: data.scale || 2,
       introMs: data.introMs || 300,
       outroMs: data.outroMs || 300,
-      followStrategy: data.followStrategy || 'auto_mouse_first',
+      followStrategy: data.followStrategy || 'mouse',
       mouseIdlePx: data.mouseIdlePx ?? 3
     }
   }, [zoomEffects, currentTimeMs])

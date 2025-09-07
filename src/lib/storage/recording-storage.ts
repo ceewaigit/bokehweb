@@ -213,7 +213,6 @@ export class RecordingStorage {
           new TextEncoder().encode(projectData).buffer
         )
 
-        this.setProject(projectCopy.id, projectData)
         this.setProjectPath(projectCopy.id, projectFilePath)
 
         logger.info(`Project saved to: ${projectFilePath}`)

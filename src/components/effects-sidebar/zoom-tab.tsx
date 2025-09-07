@@ -107,36 +107,6 @@ export function ZoomTab({
               </div>
             </div>
 
-            {/* Follow Strategy */}
-            <div className="space-y-1">
-              <label className="text-[10px] text-muted-foreground">Follow Target</label>
-              <div className="flex gap-1">
-                {([
-                  { k: 'auto_mouse_first', label: 'Auto' },
-                  { k: 'mouse', label: 'Mouse' }
-                ] as const).map(opt => (
-                  <button
-                    key={opt.k}
-                    onClick={() => {
-                      if (!selectedEffectLayer?.id) return
-                      
-                      updateStoreEffect(selectedEffectLayer.id, {
-                        data: { ...(zoomData || {}), followStrategy: opt.k }
-                      })
-                    }}
-                    className={cn(
-                      "flex-1 px-2 py-1 text-[10px] rounded transition-all",
-                      (zoomData.followStrategy || 'auto_mouse_first') === opt.k
-                        ? "bg-primary/20 text-primary"
-                        : "bg-background/50 text-muted-foreground hover:bg-background/70"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Advanced Settings (collapsed by default) */}
             <details className="group">
               <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">

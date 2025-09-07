@@ -108,8 +108,8 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 }
               }
 
-              // Duration from the video file
-              if (window.electronAPI?.getVideoUrl) {
+              // Duration from the video file (only if missing)
+              if ((!project?.timeline?.duration || project.timeline.duration <= 0) && window.electronAPI?.getVideoUrl) {
                 try {
                   const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
                   if (videoUrl) {
@@ -221,14 +221,13 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   }, [])
 
   // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Clear thumbnail cache when component unmounts
-      ThumbnailGenerator.clearCache()
-      // Clean up any thumbnail blobs
-      globalBlobManager.cleanupByType('thumbnail')
-    }
-  }, [])
+  // Removed to keep thumbnail cache across navigation and reduce reloads
+  // useEffect(() => {
+  //   return () => {
+  //     ThumbnailGenerator.clearCache()
+  //     globalBlobManager.cleanupByType('thumbnail')
+  //   }
+  // }, [])
 
   const totalPages = Math.max(1, Math.ceil(allRecordings.length / PAGE_SIZE))
   const canPrev = currentPage > 1
@@ -588,7 +587,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
                           <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md">
                             <span className="text-[10px] font-mono text-white">
-                              {formatTime(recording.project.timeline.duration / 1000)}
+                              {formatTime(recording.project.timeline.duration)}
                             </span>
                           </div>
                         )}
