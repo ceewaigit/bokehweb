@@ -132,12 +132,12 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   // Apply cinematic scroll transforms if available
   let cinematicTransform = '';
   let cinematicBlur: string | undefined;
-  
+
   if (cinematicScrollState) {
     const { state, layers } = cinematicScrollState;
     cinematicTransform = createCinematicTransform(state);
     cinematicBlur = createBlurFilter(state.blur);
-    
+
     // Log when transform is applied
     if (cinematicTransform) {
       console.log('[CinematicScroll] Applying transform to video:', {
@@ -146,7 +146,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       });
     }
   }
-  
+
   const combinedTransform = `${transform}${extra3DTransform}`.trim();
   const finalTransform = cinematicTransform ? `${combinedTransform} ${cinematicTransform}` : combinedTransform;
 
@@ -207,7 +207,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             console.error('Video playback error in VideoLayer:', e)
             // Don't throw - let Remotion handle gracefully
           }}
-          // Performance optimization
+        // Performance optimization
         />
 
       </div>
