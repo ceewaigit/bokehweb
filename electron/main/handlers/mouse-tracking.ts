@@ -1,5 +1,5 @@
 import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
-import { initializeCursorDetector, getCursorDetector } from '../utils/cursor-detector'
+import { initializeCursorDetector } from '../utils/cursor-detector'
 // Simple logger for production
 const logger = {
   debug: (msg: string, ...args: any[]) => process.env.NODE_ENV === 'development' && console.log(msg, ...args),
@@ -53,7 +53,7 @@ export function registerMouseTrackingHandlers(): void {
     try {
       // Check accessibility permissions when starting mouse tracking
       if (cursorDetector && !cursorDetector.hasAccessibilityPermissions()) {
-        console.log('⚠️ No accessibility permissions for cursor detection')
+        logger.warn('⚠️ No accessibility permissions for cursor detection')
         // Request permissions
         const { dialog, shell, BrowserWindow } = require('electron')
         const win = BrowserWindow.getFocusedWindow()
@@ -170,13 +170,13 @@ export function registerMouseTrackingHandlers(): void {
 
           // Only log on stable changes
           if ((global as any).lastLoggedCursor !== finalCursorType) {
-            console.log(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${finalCursorType}`)
+            logger.debug(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${finalCursorType}`)
             ; (global as any).lastLoggedCursor = finalCursorType
           }
 
           // Only log in development mode
           if (process.env.NODE_ENV === 'development' && mouseHistory.length % 500 === 0) {
-            console.log('Mouse tracking active')
+            logger.debug('Mouse tracking active')
           }
 
           // Send enhanced mouse data with velocity for smooth interpolation

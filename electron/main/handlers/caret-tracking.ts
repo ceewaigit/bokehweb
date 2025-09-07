@@ -1,5 +1,5 @@
 import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
-import { initializeCursorDetector, getCursorDetector } from '../utils/cursor-detector'
+import { initializeCursorDetector } from '../utils/cursor-detector'
 
 // Initialize cursor detector for caret tracking
 const cursorDetector = initializeCursorDetector('caret tracking')
@@ -139,7 +139,7 @@ export function registerCaretTrackingHandlers(): void {
     try {
       // Check accessibility permissions when starting caret tracking
       if (cursorDetector && !cursorDetector.hasAccessibilityPermissions()) {
-        console.log('⚠️ No accessibility permissions for caret detection')
+        logger.warn('⚠️ No accessibility permissions for caret detection')
         // Request permissions
         const { dialog, shell, BrowserWindow } = require('electron')
         const win = BrowserWindow.getFocusedWindow()

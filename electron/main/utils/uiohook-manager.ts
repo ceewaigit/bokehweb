@@ -91,34 +91,3 @@ export function stopUIohook(moduleName: string): void {
   }
 }
 
-/**
- * Check if uiohook is currently running
- * @returns true if uiohook is started and active
- */
-export function isUIohookRunning(): boolean {
-  return referenceCount > 0
-}
-
-/**
- * Get list of modules currently using uiohook
- * @returns Array of module names
- */
-export function getActiveModules(): string[] {
-  return Array.from(activeModules)
-}
-
-/**
- * Force cleanup - use only in emergency/shutdown scenarios
- */
-export function forceCleanup(): void {
-  if (uIOhook && referenceCount > 0) {
-    try {
-      logger.warn('Force stopping uiohook-napi')
-      uIOhook.stop()
-    } catch (error) {
-      logger.error('Error in force cleanup:', error)
-    }
-  }
-  referenceCount = 0
-  activeModules.clear()
-}

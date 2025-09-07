@@ -14,9 +14,9 @@ let uIOhook: any = null
 try {
   const uiohookModule = require('uiohook-napi')
   uIOhook = uiohookModule.uIOhook
-  console.log('uiohook-napi loaded successfully for keyboard tracking')
+  logger.info('uiohook-napi loaded successfully for keyboard tracking')
 } catch (error) {
-  console.error('Failed to load uiohook-napi for keyboard tracking:', error)
+  logger.error('Failed to load uiohook-napi for keyboard tracking:', error)
 }
 
 

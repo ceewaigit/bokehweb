@@ -26,7 +26,7 @@ export function initializeCursorDetector(purpose: string = 'cursor detection'): 
   try {
     // Webpack's node-loader will handle this static require and package the addon correctly
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    cursorDetector = require('../../../../build/Release/cursor_detector.node')
+    cursorDetector = require('../../../build/Release/cursor_detector.node')
     console.log(`✅ Native cursor detector loaded successfully for ${purpose}`)
     isInitialized = true
 
@@ -60,18 +60,3 @@ export function checkAccessibilityPermissions(purpose: string = 'cursor detectio
   }
 }
 
-/**
- * Get the cursor detector instance
- * @returns The cursor detector instance or null if not initialized
- */
-export function getCursorDetector(): any {
-  return cursorDetector
-}
-
-/**
- * Check if cursor detector is available and initialized
- * @returns true if cursor detector is ready to use
- */
-export function isCursorDetectorAvailable(): boolean {
-  return isInitialized && cursorDetector !== null
-}

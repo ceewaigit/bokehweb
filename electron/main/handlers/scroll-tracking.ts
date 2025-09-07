@@ -55,8 +55,8 @@ export function startScrollDetection(sender: WebContents): void {
 
       scrollEventSender.send('scroll-event', {
         timestamp: Date.now(),
-        deltaX: Number(deltaX) || 0,
-        deltaY: Number(deltaY) || 0
+        deltaX,
+        deltaY
       })
     }
 
@@ -101,17 +101,3 @@ export function stopScrollDetection(): void {
   }
 }
 
-/**
- * Check if scroll detection is currently active
- * @returns true if scroll detection is running
- */
-export function isScrollDetectionActive(): boolean {
-  return isScrollTracking
-}
-
-/**
- * Cleanup function for app shutdown
- */
-export function cleanupScrollTracking(): void {
-  stopScrollDetection()
-}
