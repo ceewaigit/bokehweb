@@ -177,4 +177,3 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
 }
 
 NODE_API_MODULE(cursor_detector, Init)
-}
