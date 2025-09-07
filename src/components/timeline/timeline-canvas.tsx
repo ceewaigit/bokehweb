@@ -14,7 +14,7 @@ import { TimelinePlayhead } from './timeline-playhead'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
 import { TimelineEffectBlock } from './timeline-effect-block'
-import { EffectLayerType } from '@/types/effects'
+import { EffectLayerType, type SelectedEffectLayer } from '@/types/effects'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
@@ -436,7 +436,7 @@ export function TimelineCanvas({
                     trackHeight={videoTrackHeight}
                     pixelsPerMs={pixelsPerMs}
                     isSelected={selectedClips.includes(clip.id)}
-                    selectedEffectType={selectedClips.includes(clip.id) ? (selectedEffectLayer?.type === 'screen' ? null : selectedEffectLayer?.type) : null}
+                    selectedEffectType={selectedClips.includes(clip.id) ? (selectedEffectLayer?.type === EffectLayerType.Screen ? null : selectedEffectLayer?.type) : null}
                     otherClipsInTrack={videoClips}
                     clipEffects={clipEffects}
                     onSelect={handleClipSelect}
@@ -463,7 +463,7 @@ export function TimelineCanvas({
 
               // Render each zoom effect as a block on the timeline
               zoomEffects.forEach((effect) => {
-                const isBlockSelected = selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id === effect.id
+                const isBlockSelected = selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id === effect.id
                 const zoomData = effect.data as ZoomEffectData
 
                 const blockElement = (
@@ -559,7 +559,7 @@ export function TimelineCanvas({
                   endTime={effect.endTime}
                   label={'3D'}
                   fillColor={colors.screenBlock}
-                  isSelected={selectedEffectLayer?.type === 'screen' && selectedEffectLayer?.id === effect.id}
+                  isSelected={selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id === effect.id}
                   isEnabled={effect.enabled}
                   allBlocks={screenEffects as any}
                   pixelsPerMs={pixelsPerMs}

@@ -118,7 +118,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       
       // Check if an effect layer is selected (e.g., zoom block or screen block)
       const effectLayer = currentStore.selectedEffectLayer
-      if (effectLayer && effectLayer.type === 'zoom' && effectLayer.id) {
+      if (effectLayer && effectLayer.type === EffectLayerType.Zoom && effectLayer.id) {
         const command = new RemoveZoomBlockCommand(
           freshContext,
           effectLayer.id
@@ -142,7 +142,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       }
 
       // Remove selected screen block via store
-      if (effectLayer && effectLayer.type === 'screen' && effectLayer.id) {
+      if (effectLayer && effectLayer.type === EffectLayerType.Screen && effectLayer.id) {
         try {
           useProjectStore.getState().removeEffect(effectLayer.id)
           useProjectStore.getState().clearEffectSelection()

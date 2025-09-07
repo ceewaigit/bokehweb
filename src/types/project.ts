@@ -297,4 +297,7 @@ export interface ScreenEffectData {
   tiltX?: number
   tiltY?: number
   perspective?: number
+  // Optional easing durations for tilt intro/outro (ms)
+  introMs?: number
+  outroMs?: number
 }

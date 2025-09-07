@@ -1,6 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
+import { EffectLayerType } from '@/types/effects'
 
 export interface CopyResult {
   type: 'clip' | 'effect'
@@ -25,7 +26,7 @@ export class CopyCommand extends Command<CopyResult> {
     const selectedEffectLayer = this.context.getSelectedEffectLayer()
     
     // If a zoom effect is selected (timeline-global), we can copy it without a clip
-    if (selectedEffectLayer?.type === 'zoom' && selectedEffectLayer.id) {
+    if (selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer.id) {
       return true
     }
     
@@ -42,7 +43,7 @@ export class CopyCommand extends Command<CopyResult> {
     const selectedEffectLayer = this.context.getSelectedEffectLayer()
     
     // Handle zoom effect copy (timeline-global, no clip needed)
-    if (selectedEffectLayer?.type === 'zoom' && selectedEffectLayer.id) {
+    if (selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer.id) {
       const project = this.context.getProject()
       const zoomEffect = project?.timeline.effects?.find(e => e.id === selectedEffectLayer.id && e.type === 'zoom')
       
@@ -87,7 +88,7 @@ export class CopyCommand extends Command<CopyResult> {
     const { clip } = result
 
     // Copy other effect types that might still be clip-based
-    if (selectedEffectLayer && selectedEffectLayer.type !== 'zoom') {
+    if (selectedEffectLayer && selectedEffectLayer.type !== EffectLayerType.Zoom) {
       const effects = store.getEffectsAtTimeRange(clipId)
       
       // Copy cursor or background settings

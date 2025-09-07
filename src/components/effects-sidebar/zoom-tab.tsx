@@ -7,10 +7,12 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect, ZoomEffectData } from '@/types/project'
+import type { SelectedEffectLayer } from '@/types/effects'
+import { EffectLayerType } from '@/types/effects'
 
 interface ZoomTabProps {
   effects: Effect[] | undefined
-  selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'background' | 'screen'; id?: string } | null
+  selectedEffectLayer?: SelectedEffectLayer
   selectedClip: Clip | null
   onUpdateZoom: (updates: any) => void
   onEffectChange: (type: 'zoom' | 'annotation', data: any) => void
@@ -37,7 +39,7 @@ export function ZoomTab({
       </h3>
 
       {/* Show specific zoom block controls if one is selected */}
-      {selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id && (() => {
+      {selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id && (() => {
         const selectedBlock = zoomEffects.find(e => e.id === selectedEffectLayer.id)
         if (!selectedBlock) return null
         const zoomData = selectedBlock.data as ZoomEffectData

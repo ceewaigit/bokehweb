@@ -19,7 +19,7 @@ interface TimelineClipProps {
   trackHeight: number
   pixelsPerMs: number
   isSelected: boolean
-  selectedEffectType?: 'zoom' | 'cursor' | 'background' | null
+  selectedEffectType?: EffectLayerType.Zoom | EffectLayerType.Cursor | EffectLayerType.Background | null
   otherClipsInTrack?: Clip[]
   clipEffects?: any[]  // Effects for this clip from timeline.effects
   onSelect: (clipId: string) => void
@@ -427,9 +427,9 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'zoom' ? colors.info : colors.muted} 
+                fill={selectedEffectType === EffectLayerType.Zoom ? colors.info : colors.muted} 
                 cornerRadius={2}
-                opacity={selectedEffectType === 'zoom' ? 1 : 0.7}
+                opacity={selectedEffectType === EffectLayerType.Zoom ? 1 : 0.7}
               />
               <Text x={5} y={3} text="Z" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
             </Group>
@@ -451,9 +451,9 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'cursor' ? colors.success : colors.muted} 
+                fill={selectedEffectType === EffectLayerType.Cursor ? colors.success : colors.muted} 
                 cornerRadius={2}
-                opacity={selectedEffectType === 'cursor' ? 1 : 0.7}
+                opacity={selectedEffectType === EffectLayerType.Cursor ? 1 : 0.7}
               />
               <Text x={5} y={3} text="C" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
             </Group>
@@ -474,9 +474,9 @@ export const TimelineClip = React.memo(({
               <Rect 
                 width={32} 
                 height={14} 
-                fill={selectedEffectType === 'background' ? colors.zoomBlock : colors.muted} 
+                fill={selectedEffectType === EffectLayerType.Background ? colors.zoomBlock : colors.muted} 
                 cornerRadius={2}
-                opacity={selectedEffectType === 'background' ? 1 : 0.7}
+                opacity={selectedEffectType === EffectLayerType.Background ? 1 : 0.7}
               />
               <Text x={5} y={3} text="B" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
             </Group>

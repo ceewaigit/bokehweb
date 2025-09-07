@@ -93,6 +93,26 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     if (preset === 'tilt-left') { tiltX ??= -6; tiltY ??= -10; perspective ??= 900 }
     if (preset === 'tilt-right') { tiltX ??= -6; tiltY ??= 10; perspective ??= 900 }
 
+    // Easing for tilt intro/outro
+    const introMs = typeof screenData.introMs === 'number' ? screenData.introMs : 400
+    const outroMs = typeof screenData.outroMs === 'number' ? screenData.outroMs : 400
+    const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+
+    const blockStart = screenBlock!.startTime
+    const blockEnd = screenBlock!.endTime
+
+    let easeFactor = 1
+    if (currentTimeMs < blockStart + introMs) {
+      const t = Math.max(0, currentTimeMs - blockStart) / Math.max(1, introMs)
+      easeFactor = easeInOutCubic(Math.min(1, t))
+    } else if (currentTimeMs > blockEnd - outroMs) {
+      const t = Math.max(0, blockEnd - currentTimeMs) / Math.max(1, outroMs)
+      easeFactor = easeInOutCubic(Math.min(1, t))
+    }
+
+    const easedTiltX = (tiltX ?? -4) * easeFactor
+    const easedTiltY = (tiltY ?? 6) * easeFactor
+
     // Slight scale to keep edges visible while tilting
     const scaleComp = 1.03
 
@@ -102,11 +122,11 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     if (preset === 'cinematic' || preset === 'hero' || preset === 'isometric' || preset === 'flat') {
       // Compute a small centering nudge based on tilt
       const tx = 0 // horizontal centering minimal to avoid cropping
-      const ty = (Math.abs(tiltY ?? 0) > 0 ? -4 : 0) // nudge up a few pixels
+      const ty = (Math.abs(easedTiltY ?? 0) > 0 ? -4 : 0) // nudge up a few pixels
       centerAdjust = ` translate3d(${tx}px, ${ty}px, 0)`
     }
 
-    extra3DTransform = ` perspective(${(perspective ?? 900)}px) rotateX(${tiltX ?? -4}deg) rotateY(${tiltY ?? 6}deg) scale(${scaleComp})${centerAdjust}`
+    extra3DTransform = ` perspective(${(perspective ?? 900)}px) rotateX(${easedTiltX}deg) rotateY(${easedTiltY}deg) scale(${scaleComp})${centerAdjust}`
   }
 
   // Apply cinematic scroll transforms if available

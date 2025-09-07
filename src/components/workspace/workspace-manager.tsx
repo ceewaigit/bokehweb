@@ -20,6 +20,7 @@ import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
 import { TimeConverter } from '@/lib/timeline/time-converter'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
+import { EffectLayerType } from '@/types/effects'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -316,7 +317,7 @@ export function WorkspaceManager() {
     }
 
     // Extra safety: ensure any selected new screen block changes are flushed
-    if (selectedEffectLayer?.type === 'screen' && selectedEffectLayer?.id) {
+    if (selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id) {
       const baseEffects = currentProject?.timeline?.effects || []
       const local = (localEffects || [])
         .find(e => e.id === selectedEffectLayer.id)
@@ -425,7 +426,7 @@ export function WorkspaceManager() {
       } else {
         newEffects = [...baseEffects]
       }
-    } else if (type === 'zoom' && selectedEffectLayer?.type === 'zoom' && selectedEffectLayer?.id) {
+    } else if (type === 'zoom' && selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id) {
       // Update a specific zoom block
       const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {
@@ -442,7 +443,7 @@ export function WorkspaceManager() {
       }
     } else if (type === 'zoom') {
       newEffects = [...baseEffects]
-    } else if (type === 'screen' && selectedEffectLayer?.type === 'screen' && selectedEffectLayer?.id) {
+    } else if (type === 'screen' && selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id) {
       // Update a specific screen block
       const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {

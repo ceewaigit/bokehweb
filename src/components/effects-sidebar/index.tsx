@@ -7,9 +7,12 @@ import {
   MousePointer,
   Square,
   Keyboard,
+  Monitor,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEffectData } from '@/types/project'
+import type { SelectedEffectLayer } from '@/types/effects'
+import { EffectLayerType } from '@/types/effects'
 
 import { BackgroundTab } from './background-tab'
 import { CursorTab } from './cursor-tab'
@@ -22,7 +25,7 @@ interface EffectsSidebarProps {
   className?: string
   selectedClip: Clip | null
   effects: Effect[] | undefined
-  selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'background' | 'screen'; id?: string } | null
+  selectedEffectLayer?: SelectedEffectLayer
   onEffectChange: (type: 'zoom' | 'cursor' | 'keystroke' | 'background' | 'screen' | 'annotation', data: any) => void
 }
 
@@ -162,7 +165,7 @@ export function EffectsSidebar({
             )}
             title="Screen Effects"
           >
-            <Camera className="w-5 h-5" />
+            <Monitor className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -173,9 +176,12 @@ export function EffectsSidebar({
         {selectedEffectLayer && (
           <div className="px-4 py-2 bg-primary/5 border-b border-primary/10">
             <span className="text-xs text-primary/70 font-medium">
-              {selectedEffectLayer.type === 'zoom' && selectedEffectLayer.id ?
+              {selectedEffectLayer.type === EffectLayerType.Zoom && selectedEffectLayer.id ?
                 `Editing: Zoom Block` :
-                `Editing: ${selectedEffectLayer.type.charAt(0).toUpperCase() + selectedEffectLayer.type.slice(1)} Layer`}
+                (() => {
+                  const t = String(selectedEffectLayer.type)
+                  return `Editing: ${t.charAt(0).toUpperCase() + t.slice(1)} Layer`
+                })()}
             </span>
           </div>
         )}

@@ -34,25 +34,49 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const smoothingBufferRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
   const filteredPositionRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
   const lastRawPositionRef = useRef<{ x: number, y: number } | null>(null);
+  // Stabilize cursor type to avoid flicker (e.g., brief I-beam hovers)
+  const stableCursorTypeRef = useRef<CursorType>(CursorType.ARROW);
+  const pendingCursorTypeRef = useRef<{ type: CursorType; since: number } | null>(null);
 
   // Determine current cursor type from events
   const cursorType = useMemo(() => {
-    if (!cursorEvents || cursorEvents.length === 0) return CursorType.ARROW;
+    if (!cursorEvents || cursorEvents.length === 0) return stableCursorTypeRef.current;
 
-    // Find the event closest to current time
-    let closestEvent = cursorEvents[0];
-    let minDiff = Math.abs(closestEvent.timestamp - currentTimeMs);
-
-    for (const event of cursorEvents) {
-      const diff = Math.abs(event.timestamp - currentTimeMs);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestEvent = event;
+    // Find the most recent event at or before the current time
+    let selectedEvent = cursorEvents[0];
+    for (let i = 0; i < cursorEvents.length; i++) {
+      const evt = cursorEvents[i];
+      if (evt.timestamp <= currentTimeMs) {
+        selectedEvent = evt;
+      } else {
+        break;
       }
     }
 
-    const electronType = closestEvent?.cursorType || 'default';
-    return electronToCustomCursor(electronType);
+    const desiredType = electronToCustomCursor(selectedEvent?.cursorType || 'default');
+
+    // Hysteresis/debounce: only commit a type change if it persists for a small window
+    const now = currentTimeMs;
+    const COMMIT_DELAY_MS = 150; // prevents split-second I-beam flashes
+
+    if (desiredType === stableCursorTypeRef.current) {
+      // Same as current; clear any pending change
+      pendingCursorTypeRef.current = null;
+      return stableCursorTypeRef.current;
+    }
+
+    // If a different type is pending and matches, check if it's old enough to commit
+    if (pendingCursorTypeRef.current && pendingCursorTypeRef.current.type === desiredType) {
+      if (now - pendingCursorTypeRef.current.since >= COMMIT_DELAY_MS) {
+        stableCursorTypeRef.current = desiredType;
+        pendingCursorTypeRef.current = null;
+      }
+      return stableCursorTypeRef.current;
+    }
+
+    // Start pending window for the new desired type
+    pendingCursorTypeRef.current = { type: desiredType, since: now };
+    return stableCursorTypeRef.current;
   }, [cursorEvents, currentTimeMs]);
 
   // Check if cursor is idle
@@ -340,14 +364,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const motionBlurFilter = useMemo(() => {
     const baseFilter = 'drop-shadow(0 1px 2px rgba(0,0,0,0.25)) drop-shadow(0 1px 3px rgba(0,0,0,0.15))';
 
-    if (motionVelocity.speed < 2) {
-      return baseFilter;
-    }
-
-    // Add directional blur based on motion
-    const blurAmount = Math.min(motionVelocity.speed, 8);
-    return `${baseFilter} blur(${blurAmount * 0.15}px)`;
-  }, [motionVelocity]);
+    // Keep main cursor sharp at all times; rely on motion trails for perceived blur
+    return baseFilter;
+  }, []);
 
   // Generate motion trail for smooth gliding effect (optimized for performance)
   const motionTrail = useMemo(() => {

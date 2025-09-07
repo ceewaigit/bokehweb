@@ -1,14 +1,16 @@
 'use client'
 
 import React from 'react'
-import { Camera } from 'lucide-react'
+import { Camera, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect } from '@/types/project'
+import type { SelectedEffectLayer } from '@/types/effects'
+import { EffectLayerType } from '@/types/effects'
 
 interface ScreenTabProps {
   selectedClip: Clip | null
-  selectedEffectLayer?: { type: 'zoom' | 'cursor' | 'background' | 'screen'; id?: string } | null
+  selectedEffectLayer?: SelectedEffectLayer
   onEffectChange: (type: 'screen', data: any) => void
 }
 
@@ -16,7 +18,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-medium flex items-center gap-2">
-        <Camera className="w-4 h-4" />
+        <Monitor className="w-4 h-4" />
         <span>3D Screen Effects</span>
       </h3>
 
@@ -45,8 +47,8 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
       </div>
 
       {/* Show presets only when a screen block is selected */}
-      {selectedEffectLayer?.type === 'screen' && selectedEffectLayer?.id ? (
-        <div className="p-3 bg-background/30 rounded-lg">
+      {selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id ? (
+        <div className="p-3 bg-background/30 rounded-lg space-y-3">
           <label className="text-xs font-medium text-muted-foreground mb-2 block">3D Preset</label>
           <div className="grid grid-cols-2 gap-1">
             {([
@@ -65,6 +67,31 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                 {preset}
               </button>
             ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/30">
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Tilt Ease In (ms)</label>
+              <input
+                type="range"
+                min={0}
+                max={1000}
+                step={50}
+                onChange={(e) => onEffectChange('screen', { introMs: Number(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">Tilt Ease Out (ms)</label>
+              <input
+                type="range"
+                min={0}
+                max={1000}
+                step={50}
+                onChange={(e) => onEffectChange('screen', { outroMs: Number(e.target.value) })}
+                className="w-full"
+              />
+            </div>
           </div>
         </div>
       ) : (
