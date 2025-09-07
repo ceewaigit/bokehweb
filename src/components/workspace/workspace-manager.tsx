@@ -559,9 +559,7 @@ export function WorkspaceManager() {
               setLoadingMessage('Loading recording...')
 
               try {
-                // Clean up library resources before loading project
-                ThumbnailGenerator.clearCache()
-                globalBlobManager.cleanupByType('thumbnail')
+                // No cache clearing here to keep library fast and quiet
 
                 const success = await loadProjectRecording(
                   recording,

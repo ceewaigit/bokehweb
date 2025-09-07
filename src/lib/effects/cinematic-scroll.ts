@@ -163,18 +163,7 @@ export class CinematicScrollCalculator {
     const targetBlur = (speed / this.config.maxVelocity) * this.config.blurIntensity
     this.state.blur = this.lerp(this.state.blur, targetBlur, 0.2)
 
-    // Log when there's significant movement
-    if (Math.abs(this.state.position.y) > 0.01 || Math.abs(this.state.velocity.y) > 0.5) {
-      console.log('[CinematicScroll] Active state:', {
-        time: currentTimeMs,
-        position: { x: this.state.position.x.toFixed(3), y: this.state.position.y.toFixed(3) },
-        velocity: { x: this.state.velocity.x.toFixed(2), y: this.state.velocity.y.toFixed(2) },
-        tilt: { x: this.state.tilt.x.toFixed(2), y: this.state.tilt.y.toFixed(2) },
-        scale: this.state.scale.toFixed(3),
-        blur: this.state.blur.toFixed(3),
-        preset: this.config.preset
-      })
-    }
+    // Removed verbose per-frame logging
 
     return { ...this.state }
   }

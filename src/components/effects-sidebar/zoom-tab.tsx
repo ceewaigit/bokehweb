@@ -166,7 +166,7 @@ export function ZoomTab({
             <Switch
               checked={!!effects?.some(e => e.type === 'annotation' && (e as any).data?.kind === 'scrollCinematic' && e.enabled)}
               onCheckedChange={(checked) => {
-                onEffectChange('annotation', { kind: 'scrollCinematic', enabled: checked, preset: 'medium' })
+                onEffectChange('annotation', { kind: 'scrollCinematic', enabled: checked, data: { preset: 'medium' } })
               }}
             />
           </div>
@@ -187,7 +187,7 @@ export function ZoomTab({
                         : "bg-background/50 hover:bg-background/70"
                     )}
                     onClick={() => {
-                      onEffectChange('annotation', { kind: 'scrollCinematic', enabled: true, preset })
+                      onEffectChange('annotation', { kind: 'scrollCinematic', enabled: true, data: { preset } })
                     }}
                   >
                     {preset}

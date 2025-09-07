@@ -92,10 +92,19 @@ export class BlobURLManager {
     return url
   }
 
-  revoke(url: string): void {
+  revoke(url: string, options?: { soft?: boolean }): void {
     const entry = this.entries.get(url)
     if (entry) {
       try {
+        if (options?.soft) {
+          // Mark as stale but keep URL alive briefly to avoid 404s during rapid UI teardown
+          entry.lastAccessed = Date.now()
+          // Schedule a real revoke shortly
+          setTimeout(() => {
+            this.revoke(url)
+          }, 300)
+          return
+        }
         URL.revokeObjectURL(url)
         this.totalSize -= entry.size
 
@@ -187,6 +196,17 @@ export class BlobURLManager {
     if (cleaned > 0) {
       logger.info(`Cleaned ${cleaned} ${type} blobs, freed ${Math.round(freedSize / 1024 / 1024)}MB`)
     }
+  }
+
+  /**
+   * Soft cleanup: mark blobs for revocation and revoke after a short delay
+   */
+  softCleanupByType(type: BlobEntry['type']): void {
+    this.entries.forEach((entry, url) => {
+      if (entry.type === type) {
+        this.revoke(url, { soft: true })
+      }
+    })
   }
 
   cleanup(): void {

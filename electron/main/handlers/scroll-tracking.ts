@@ -45,13 +45,13 @@ export function startScrollDetection(sender: WebContents): void {
       if (!isScrollTracking || !scrollEventSender) return
       
       // Normalize platform-specific wheel event data to deltaX/deltaY
-      const deltaX = event.rotation 
-        ? (event.rotationX || 0) 
-        : (event.deltaX || 0)
-      
-      const deltaY = event.rotation 
-        ? (event.rotationY || 0) 
-        : (event.deltaY || (event.amount || 0) * (event.direction === SCROLL_DIRECTION.UP ? -1 : 1))
+      const sign = event.direction === SCROLL_DIRECTION.UP ? -1 : 1
+      const deltaX = typeof event.deltaX === 'number' ? event.deltaX : 0
+      const deltaY = typeof event.deltaY === 'number'
+        ? event.deltaY
+        : (typeof event.amount === 'number'
+            ? event.amount * sign
+            : (typeof event.rotation === 'number' ? event.rotation * sign : 0))
 
       scrollEventSender.send('scroll-event', {
         timestamp: Date.now(),

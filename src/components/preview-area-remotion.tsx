@@ -44,7 +44,6 @@ export function PreviewAreaRemotion({
 
   // Load video URL when recording changes - clear immediately when no clip
   useEffect(() => {
-    
     if (!previewRecording) {
       setVideoUrl(null)
       return
@@ -52,6 +51,8 @@ export function PreviewAreaRemotion({
 
     // Get cached blob URL first - should already be loaded by workspace-manager
     const cachedUrl = RecordingStorage.getBlobUrl(previewRecording.id)
+
+    let cancelled = false
 
     if (cachedUrl) {
       // Video is already loaded, use it immediately
@@ -62,12 +63,18 @@ export function PreviewAreaRemotion({
         previewRecording.id,
         previewRecording.filePath
       ).then(url => {
-        if (url) {
+        if (url && !cancelled) {
           setVideoUrl(url)
         }
       }).catch(error => {
         console.error('Error loading video:', error)
       })
+    }
+
+    return () => {
+      cancelled = true
+      // Clear video URL so the player doesn't try to fetch a revoked blob
+      setVideoUrl(null)
     }
   }, [previewRecording?.id, previewRecording?.filePath]);
 
@@ -105,22 +112,30 @@ export function PreviewAreaRemotion({
     playerRef.current.seekTo(targetFrame);
   }, [currentTime, previewClip, isPlaying, videoUrl]);
 
-
-
+  useEffect(() => {
+    return () => {
+      try {
+        if (playerRef.current) {
+          playerRef.current.pause()
+          playerRef.current.seekTo(0)
+        }
+      } catch {}
+    }
+  }, [])
 
   // Get video dimensions
-  const videoWidth = previewRecording?.width || 1920;
-  const videoHeight = previewRecording?.height || 1080;
+  const videoWidth = previewRecording?.width || 1920
+  const videoHeight = previewRecording?.height || 1080
 
   // Get timeline effects (timeline-global)
   const timelineEffects = useProjectStore(state => state.currentProject?.timeline.effects)
-  const currentProject = useProjectStore(state => state.currentProject)
-
 
   // Build clip-relative event streams so previews respect trim/split
   const adjustedEvents = useMemo(() => {
     const recordingMeta: any = previewRecording?.metadata || {}
-    console.log('[PreviewArea] Total scroll events in recording:', recordingMeta.scrollEvents?.length || 0, 'First few:', recordingMeta.scrollEvents?.slice(0, 3))
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[PreviewArea] Total scroll events in recording:', recordingMeta.scrollEvents?.length || 0, 'First few:', recordingMeta.scrollEvents?.slice(0, 3))
+    }
     const clip = previewClip
     if (!clip) {
       return {
@@ -150,8 +165,8 @@ export function PreviewAreaRemotion({
       ...e,
       timestamp: mapWindow(e.timestamp)
     }))
-    
-    if (scrollEvents.length > 0) {
+
+    if (process.env.NODE_ENV !== 'production' && scrollEvents.length > 0) {
       console.log('[PreviewArea] Scroll events for clip:', scrollEvents.length, 'First few:', scrollEvents.slice(0, 3))
     }
     const keyboardEvents = (recordingMeta.keyboardEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
@@ -323,7 +338,7 @@ export function PreviewAreaRemotion({
             showPosterWhenPaused={false}
             showPosterWhenUnplayed={false}
             showPosterWhenEnded={false}
-            errorFallback={({ error }) => {
+            errorFallback={({ error }: { error: Error }) => {
               console.error('Remotion Player error:', error)
               return (
                 <div className="flex items-center justify-center h-full bg-red-50 dark:bg-red-900/20 rounded-lg p-4">

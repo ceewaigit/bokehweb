@@ -216,7 +216,6 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     
     // Create or update calculator when preset changes
     if (!scrollCalculatorRef.current || scrollCalculatorRef.current.preset !== preset) {
-      console.log('[CinematicScroll] Initializing with preset:', preset, 'Total scroll events:', scrollEvents.length);
       scrollCalculatorRef.current = {
         calculator: new CinematicScrollCalculator({ preset }),
         preset

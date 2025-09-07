@@ -799,12 +799,7 @@ export const useProjectStore = create<ProjectStore>()(
       }
       lastTimestamp = null
 
-      // Clean up blob resources
-      globalBlobManager.cleanupByType('video')
-      globalBlobManager.cleanupByType('export')
-      globalBlobManager.cleanupByType('thumbnail')
-
-      // Reset store state
+      // Reset store state first so components unmount before we revoke blob URLs
       set((state) => {
         state.currentProject = null
         state.currentTime = 0
@@ -816,6 +811,19 @@ export const useProjectStore = create<ProjectStore>()(
         state.playheadClip = null
         state.playheadRecording = null
       })
+
+      // Clean up blob resources on next tick (after unmount)
+      setTimeout(() => {
+        if (typeof (globalBlobManager as any).softCleanupByType === 'function') {
+          ;(globalBlobManager as any).softCleanupByType('video')
+          ;(globalBlobManager as any).softCleanupByType('export')
+          ;(globalBlobManager as any).softCleanupByType('thumbnail')
+        } else {
+          globalBlobManager.cleanupByType('video')
+          globalBlobManager.cleanupByType('export')
+          globalBlobManager.cleanupByType('thumbnail')
+        }
+      }, 0)
     },
 
     // New: Independent Effects Management
