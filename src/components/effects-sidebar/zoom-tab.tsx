@@ -43,11 +43,6 @@ export function ZoomTab({
         const zoomData = selectedBlock.data as ZoomEffectData
         if (!zoomData) return null
 
-        // Check if caret tracking is available
-        const recording = playheadRecording || (projectRecordings || [])[0]
-        const hasCaretEvents = !!(recording as any)?.metadata?.caretEvents?.length
-        const enableCaret = hasCaretEvents
-
         return (
           <div key={`zoom-block-${selectedEffectLayer.id}`} className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
             <h4 className="text-xs font-semibold text-primary/80">Zoom Block Settings</h4>
@@ -118,26 +113,22 @@ export function ZoomTab({
               <div className="flex gap-1">
                 {([
                   { k: 'auto_mouse_first', label: 'Auto' },
-                  { k: 'mouse', label: 'Mouse' },
-                  { k: 'caret', label: 'Caret' }
+                  { k: 'mouse', label: 'Mouse' }
                 ] as const).map(opt => (
                   <button
                     key={opt.k}
                     onClick={() => {
                       if (!selectedEffectLayer?.id) return
-                      if (opt.k === 'caret' && !enableCaret) return
                       
                       updateStoreEffect(selectedEffectLayer.id, {
                         data: { ...(zoomData || {}), followStrategy: opt.k }
                       })
                     }}
-                    disabled={opt.k === 'caret' && !enableCaret}
                     className={cn(
                       "flex-1 px-2 py-1 text-[10px] rounded transition-all",
                       (zoomData.followStrategy || 'auto_mouse_first') === opt.k
                         ? "bg-primary/20 text-primary"
-                        : cn("bg-background/50 text-muted-foreground hover:bg-background/70", 
-                          (opt.k === 'caret' && !enableCaret) && "opacity-50 cursor-not-allowed")
+                        : "bg-background/50 text-muted-foreground hover:bg-background/70"
                     )}
                   >
                     {opt.label}
@@ -161,18 +152,6 @@ export function ZoomTab({
                     min={1}
                     max={20}
                     step={1}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] text-muted-foreground">Caret Window (ms)</label>
-                  <Slider
-                    key={`caretwindow-${selectedEffectLayer.id}`}
-                    value={[(zoomData.caretWindowMs ?? 300)]}
-                    onValueChange={([value]) => selectedEffectLayer.id && updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), caretWindowMs: value } })}
-                    min={100}
-                    max={1000}
-                    step={50}
                     className="w-full"
                   />
                 </div>
@@ -249,16 +228,6 @@ export function ZoomTab({
           )}
         </div>
 
-        {/* Debug caret overlay toggle */}
-        <div className="p-3 bg-background/30 rounded-lg flex items-center justify-between">
-          <span className="text-xs">Debug Caret Overlay</span>
-          <Switch
-            checked={!!effects?.some(e => e.type === 'annotation' && (e as any).data?.kind === 'debugCaret' && e.enabled)}
-            onCheckedChange={(checked) => {
-              onEffectChange('annotation', { kind: 'debugCaret', enabled: checked })
-            }}
-          />
-        </div>
       </div>
     </div>
   )

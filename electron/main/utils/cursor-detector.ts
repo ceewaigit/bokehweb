@@ -1,6 +1,6 @@
 /**
  * Shared cursor detector module for handling native cursor detection
- * Used by both mouse-tracking.ts and caret-tracking.ts
+ * Used by mouse-tracking.ts
  */
 
 let cursorDetector: any = null

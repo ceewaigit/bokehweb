@@ -418,9 +418,6 @@ export class ElectronRecorder {
       if (window.electronAPI?.stopKeyboardTracking) {
         await window.electronAPI.stopKeyboardTracking()
       }
-      if (window.electronAPI?.stopCaretTracking) {
-        await window.electronAPI.stopCaretTracking()
-      }
 
       try {
         this.mediaRecorder!.stop()
@@ -505,6 +502,11 @@ export class ElectronRecorder {
 
     const handleScroll = (_event: unknown, data: any) => {
       const timestamp = Date.now() - this.startTime
+      console.log('[ElectronRecorder] Scroll event received:', {
+        timestamp,
+        deltaX: data.deltaX || 0,
+        deltaY: data.deltaY || 0
+      })
       this.metadata.push({
         timestamp,
         eventType: 'scroll',
@@ -512,66 +514,6 @@ export class ElectronRecorder {
         captureWidth: this.captureWidth,
         captureHeight: this.captureHeight
       })
-    }
-
-    const handleCaret = (_event: unknown, data: any) => {
-      const timestamp = Date.now() - this.startTime
-      if (typeof data?.x === 'number' && typeof data?.y === 'number') {
-        // Debug logging
-        console.log('[CARET] Received caret event:', {
-          rawX: data.x,
-          rawY: data.y,
-          bounds: data.bounds,
-          captureArea: this.captureArea,
-          captureWidth: this.captureWidth,
-          captureHeight: this.captureHeight
-        })
-        
-        const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
-        
-        console.log('[CARET] After toCaptureRelative:', {
-          rx,
-          ry,
-          inside,
-          captureAreaBounds: this.captureArea?.fullBounds,
-          scaleFactor: this.captureArea?.scaleFactor
-        })
-        
-        // Don't filter out caret events - they should always be captured if visible
-        // The native module already returns screen-relative coordinates
-        // if (!inside) return
-        
-        // The bounds from native are in physical pixels from the native module
-        // The bounds x,y are absolute screen coordinates, width/height are the caret dimensions
-        // We only need width/height for the bounds, x/y should be rx/ry (relative to capture)
-        const caretBounds = (data?.bounds && typeof data.bounds.width === 'number' && typeof data.bounds.height === 'number')
-          ? { 
-              x: Math.max(0, rx), 
-              y: Math.max(0, ry), 
-              width: Math.max(1, Number(data.bounds.width)), // Keep original width in physical pixels
-              height: Math.max(1, Number(data.bounds.height)) // Keep original height in physical pixels
-            }
-          : undefined
-        
-        console.log('[CARET] Processing bounds:', {
-          originalBounds: data?.bounds,
-          relativePos: { rx, ry },
-          caretBounds,
-          scaleFactor: this.captureArea?.scaleFactor
-        })
-        
-        this.metadata.push({
-          timestamp,
-          eventType: 'caret',
-          caretX: Math.max(0, rx),
-          caretY: Math.max(0, ry),
-          caretBounds,
-          captureWidth: this.captureWidth,
-          captureHeight: this.captureHeight
-        })
-        
-        console.log('[CARET] Stored caret event in metadata, total events:', this.metadata.filter(m => m.eventType === 'caret').length)
-      }
     }
 
     // Register listeners if available
@@ -587,24 +529,16 @@ export class ElectronRecorder {
 
     // Register scroll listener
     if (window.electronAPI?.onScroll) {
+      console.log('[ElectronRecorder] Registering scroll listener')
       window.electronAPI.onScroll(handleScroll)
-    }
-
-    // Register caret listener
-    if (window.electronAPI?.onCaret) {
-      window.electronAPI.onCaret(handleCaret)
+    } else {
+      console.warn('[ElectronRecorder] No scroll listener available in electronAPI')
     }
 
     // Start keyboard tracking
     if (window.electronAPI?.startKeyboardTracking) {
       logger.info('Starting keyboard tracking...')
       await window.electronAPI.startKeyboardTracking()
-    }
-
-    // Start caret tracking (separate from keyboard)
-    if (window.electronAPI?.startCaretTracking) {
-      logger.info('Starting caret tracking...')
-      await window.electronAPI.startCaretTracking()
     }
 
     // Start tracking in main process

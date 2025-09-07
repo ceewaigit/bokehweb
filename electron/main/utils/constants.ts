@@ -11,13 +11,6 @@ export const TIMING = {
   MOUSE_HISTORY_SIZE: 5,
   CURSOR_STABILIZE_MS: 30,
   
-  // Caret tracking
-  CARET_SAMPLE_SHORT_DELAY: 20,
-  CARET_SAMPLE_LONG_DELAY: 80,
-  CARET_POLL_INTERVAL: 16,
-  CARET_POLL_DURATION_KEYDOWN: 120,
-  CARET_POLL_DURATION_KEYUP: 80,
-  
   // Monitor overlay
   MONITOR_OVERLAY_DURATION: 2000,
   
@@ -29,9 +22,6 @@ export const TIMING = {
 // Display constants
 export const DISPLAY = {
   DEFAULT_SCALE_FACTOR: 1,
-  MIN_CARET_WIDTH: 1,
-  MIN_CARET_HEIGHT: 1,
-  DEFAULT_CARET_HEIGHT: 12,
 } as const
 
 // Key codes for keyboard tracking

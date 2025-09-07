@@ -350,16 +350,8 @@ export class RecordingStorage {
           deltaX: m.scrollDelta!.x || 0,
           deltaY: m.scrollDelta!.y || 0
         }))
-
-      const caretEvents = metadata
-        .filter(m => m.eventType === 'caret' && (m.caretX !== undefined && m.caretY !== undefined))
-        .map(m => ({
-          timestamp: m.timestamp,
-          x: m.caretX!,
-          y: m.caretY!,
-          bounds: m.caretBounds,
-          line: m.caretLine
-        }))
+      
+      console.log('[Recording Storage] Scroll events found:', scrollEvents.length, scrollEvents.slice(0, 5))
 
       // Filter out standalone modifier keys (CapsLock, Shift, etc.) but keep them when combined with other keys
       const modifierKeys = ['CapsLock', 'Shift', 'Control', 'Alt', 'Meta', 'Command', 'Option', 'Fn']
@@ -398,7 +390,6 @@ export class RecordingStorage {
           keyboardEvents,
           clickEvents,
           scrollEvents,
-          caretEvents,
           screenEvents: [],
           captureArea: reconstructedCaptureArea
         }

@@ -1,4 +1,4 @@
-import type { Clip, MouseEvent, ClickEvent, Effect, BackgroundEffectData, ZoomBlock, CursorEffectData, ScrollEvent, CaretEvent } from '@/types/project';
+import type { Clip, MouseEvent, ClickEvent, Effect, BackgroundEffectData, ZoomBlock, CursorEffectData, ScrollEvent } from '@/types/project';
 
 export interface MainCompositionProps {
   videoUrl: string;
@@ -8,7 +8,6 @@ export interface MainCompositionProps {
   clickEvents: ClickEvent[];
   keystrokeEvents: any[];
   scrollEvents?: ScrollEvent[];
-  caretEvents?: CaretEvent[];
   videoWidth: number;
   videoHeight: number;
 }
@@ -22,7 +21,6 @@ export interface VideoLayerProps {
   zoomCenter?: { x: number; y: number };
   cinematicScrollState?: any; // Cinematic scroll state from calculator
   computedScale?: number;
-  debugCaret?: { x: number; y: number; bounds?: { x: number; y: number; width: number; height: number } };
 }
 
 export interface BackgroundLayerProps {

@@ -116,57 +116,17 @@ export function PreviewAreaRemotion({
   const timelineEffects = useProjectStore(state => state.currentProject?.timeline.effects)
   const currentProject = useProjectStore(state => state.currentProject)
 
-  // Debug: dump caret events from ssproj metadata and their mapping to timeline
-  useEffect(() => {
-    if (!currentProject) return
-    if (typeof window === 'undefined') return
-
-    try {
-      const allRecordings = currentProject.recordings || []
-      const tracks = currentProject.timeline?.tracks || []
-
-      for (const rec of allRecordings) {
-        const carets: any[] = (rec as any)?.metadata?.caretEvents || []
-        const times = carets.map(c => c.timestamp).sort((a, b) => a - b)
-        console.log('[CaretDump] Recording', rec.id, {
-          count: times.length,
-          timestamps: times
-        })
-
-        // Map to absolute timeline times per clip (respects trim via sourceIn/sourceOut)
-        for (const track of tracks) {
-          for (const clip of track.clips) {
-            if (clip.recordingId !== rec.id) continue
-            const sourceIn = clip.sourceIn || 0
-            const sourceOut = clip.sourceOut || (clip.sourceIn + clip.duration)
-            const inClip = carets.filter(c => c.timestamp >= sourceIn && c.timestamp <= sourceOut)
-            const absoluteTimes = inClip.map(c => clip.startTime + (c.timestamp - sourceIn))
-            console.log('[CaretDump] Clip', clip.id, 'from recording', rec.id, {
-              clipStartAbs: clip.startTime,
-              clipDuration: clip.duration,
-              sourceIn,
-              sourceOut,
-              caretCountInClip: absoluteTimes.length,
-              caretTimesAbs: absoluteTimes.sort((a, b) => a - b)
-            })
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[CaretDump] failed to dump caret metadata', e)
-    }
-  }, [currentProject?.id, currentProject?.modifiedAt])
 
   // Build clip-relative event streams so previews respect trim/split
   const adjustedEvents = useMemo(() => {
     const recordingMeta: any = previewRecording?.metadata || {}
+    console.log('[PreviewArea] Total scroll events in recording:', recordingMeta.scrollEvents?.length || 0, 'First few:', recordingMeta.scrollEvents?.slice(0, 3))
     const clip = previewClip
     if (!clip) {
       return {
         mouseEvents: recordingMeta.mouseEvents || [],
         clickEvents: recordingMeta.clickEvents || [],
         scrollEvents: recordingMeta.scrollEvents || [],
-        caretEvents: recordingMeta.caretEvents || [],
         keyboardEvents: recordingMeta.keyboardEvents || []
       }
     }
@@ -190,16 +150,16 @@ export function PreviewAreaRemotion({
       ...e,
       timestamp: mapWindow(e.timestamp)
     }))
-    const caretEvents = (recordingMeta.caretEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
-      ...e,
-      timestamp: mapWindow(e.timestamp)
-    }))
+    
+    if (scrollEvents.length > 0) {
+      console.log('[PreviewArea] Scroll events for clip:', scrollEvents.length, 'First few:', scrollEvents.slice(0, 3))
+    }
     const keyboardEvents = (recordingMeta.keyboardEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
       ...e,
       timestamp: mapWindow(e.timestamp)
     }))
 
-    return { mouseEvents, clickEvents, scrollEvents, caretEvents, keyboardEvents }
+    return { mouseEvents, clickEvents, scrollEvents, keyboardEvents }
   }, [previewClip, previewRecording?.metadata])
 
   // Convert effects to clip-relative times for Remotion
@@ -264,7 +224,6 @@ export function PreviewAreaRemotion({
       clickEvents: adjustedEvents.clickEvents,
       keystrokeEvents: adjustedEvents.keyboardEvents,
       scrollEvents: adjustedEvents.scrollEvents,
-      caretEvents: adjustedEvents.caretEvents,
       videoWidth,
       videoHeight
     }

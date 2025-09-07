@@ -155,10 +155,6 @@ const electronAPI = {
     return () => ipcRenderer.removeListener('keyboard-event', wrappedCallback)
   },
 
-  // Caret tracking (separate from keyboard)
-  startCaretTracking: () => ipcRenderer.invoke('start-caret-tracking'),
-  stopCaretTracking: () => ipcRenderer.invoke('stop-caret-tracking'),
-
   // Scroll events
   onScroll: (callback: (event: IpcRendererEvent, data: { timestamp: number; deltaX: number; deltaY: number }) => void) => {
     const wrapped = (event: IpcRendererEvent, data: any) => {
@@ -168,17 +164,6 @@ const electronAPI = {
     }
     ipcRenderer.on('scroll-event', wrapped)
     return () => ipcRenderer.removeListener('scroll-event', wrapped)
-  },
-
-  // Caret events (best-effort)
-  onCaret: (callback: (event: IpcRendererEvent, data: { timestamp: number; x: number; y: number }) => void) => {
-    const wrapped = (event: IpcRendererEvent, data: any) => {
-      if (data && typeof data.timestamp === 'number' && typeof data.x === 'number' && typeof data.y === 'number') {
-        callback(event, data)
-      }
-    }
-    ipcRenderer.on('caret-event', wrapped)
-    return () => ipcRenderer.removeListener('caret-event', wrapped)
   },
 
   removeMouseListener: (event: string, callback: (...args: any[]) => void) => {

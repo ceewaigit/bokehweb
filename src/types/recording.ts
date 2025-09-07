@@ -6,17 +6,12 @@ export interface ElectronMetadata {
   timestamp: number
   mouseX?: number  // Optional for keyboard events, in physical pixels
   mouseY?: number  // Optional for keyboard events, in physical pixels
-  eventType: 'mouse' | 'click' | 'keypress' | 'scroll' | 'caret'
+  eventType: 'mouse' | 'click' | 'keypress' | 'scroll'
   key?: string
   modifiers?: string[]
   keyEventType?: 'keydown' | 'keyup'
   velocity?: { x: number; y: number }
   scrollDelta?: { x: number; y: number }
-  // Caret (text insertion point) information when available
-  caretX?: number
-  caretY?: number
-  caretBounds?: { x: number; y: number; width: number; height: number }
-  caretLine?: number
   captureWidth?: number  // Physical pixels
   captureHeight?: number // Physical pixels
   scaleFactor?: number

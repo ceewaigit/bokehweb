@@ -1,5 +1,4 @@
 import { ipcMain, IpcMainInvokeEvent, WebContents } from 'electron'
-import { handleKeyboardCaretUpdate } from './caret-tracking'
 // Simple logger for production
 const logger = {
   debug: (msg: string, ...args: any[]) => process.env.NODE_ENV === 'development' && console.log(msg, ...args),
@@ -78,9 +77,6 @@ export function startKeyboardTracking(sender: WebContents): void {
         timestamp: Date.now(),
         rawKeycode: event.keycode
       })
-
-      // Trigger caret update on keydown
-      handleKeyboardCaretUpdate('keydown')
     }
     
     const handleKeyUp = (event: any) => {
@@ -94,9 +90,6 @@ export function startKeyboardTracking(sender: WebContents): void {
         timestamp: Date.now(),
         rawKeycode: event.keycode
       })
-
-      // Trigger caret update on keyup
-      handleKeyboardCaretUpdate('keyup')
     }
     
     // Register the handlers

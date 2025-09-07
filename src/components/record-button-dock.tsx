@@ -127,6 +127,12 @@ export function RecordButtonDock() {
         type: source.id.startsWith('screen:') ? 'screen' : 'window',
         displayInfo: source.displayInfo
       }))
+      
+      logger.info('Mapped sources:', mappedSources.filter(s => s.type === 'screen').map(s => ({
+        id: s.id,
+        name: s.name,
+        displayInfo: s.displayInfo
+      })))
 
       // Filter out system windows
       const filteredSources = mappedSources.filter(source => {
@@ -201,6 +207,12 @@ export function RecordButtonDock() {
 
   // Handle screen selection with immediate overlay display
   const handleScreenSelection = (source: Source) => {
+    logger.info('Screen selection:', { 
+      id: source.id, 
+      type: source.type, 
+      displayInfo: source.displayInfo 
+    })
+    
     // Hide any existing overlay
     window.electronAPI?.hideMonitorOverlay?.()
 
@@ -209,7 +221,14 @@ export function RecordButtonDock() {
 
     // Show overlay on the selected monitor immediately for screens
     if (source.type === 'screen' && source.displayInfo?.id !== undefined) {
+      logger.info('Showing overlay on display:', source.displayInfo.id)
       window.electronAPI?.showMonitorOverlay?.(source.displayInfo.id)
+    } else {
+      logger.warn('Not showing overlay:', { 
+        isScreen: source.type === 'screen', 
+        hasDisplayInfo: !!source.displayInfo,
+        displayId: source.displayInfo?.id 
+      })
     }
   }
 

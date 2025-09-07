@@ -80,9 +80,6 @@ export interface RecordingMetadata {
   // Scroll events for cinematic scroll effects
   scrollEvents?: ScrollEvent[]
 
-  // Caret (text insertion point) events for text editing tracking
-  caretEvents?: CaretEvent[]
-
   // Screen dimensions changes
   screenEvents: ScreenEvent[]
 
@@ -105,14 +102,6 @@ export interface ScrollEvent {
   timestamp: number
   deltaX: number
   deltaY: number
-}
-
-export interface CaretEvent {
-  timestamp: number
-  x: number
-  y: number
-  bounds?: { x: number; y: number; width: number; height: number }
-  line?: number
 }
 
 export interface KeyboardEvent {
@@ -206,12 +195,10 @@ export interface ZoomEffectData {
   introMs: number
   outroMs: number
   smoothing: number
-  // Follow strategy: mouse first (default), mouse only, or caret only
-  followStrategy?: 'auto_mouse_first' | 'mouse' | 'caret'
+  // Follow strategy: mouse only
+  followStrategy?: 'auto_mouse_first' | 'mouse'
   // Mouse idle threshold in pixels (physical) to consider idle within the velocity window
   mouseIdlePx?: number
-  // Caret recent window in ms to accept caret as active typing
-  caretWindowMs?: number
 }
 
 export interface CursorEffectData {

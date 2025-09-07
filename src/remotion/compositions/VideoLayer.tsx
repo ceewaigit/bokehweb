@@ -13,8 +13,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoHeight,
   zoomCenter,
   cinematicScrollState,
-  computedScale,
-  debugCaret
+  computedScale
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -191,45 +190,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           // Performance optimization
         />
 
-        {/* Debug caret overlay inside the transformed container */}
-        {debugCaret && (
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none'
-            }}
-          >
-            {/* Crosshair at caret center */}
-            {(() => {
-              const cx = (debugCaret.bounds ? debugCaret.x + (debugCaret.bounds.width || 0) * 0.5 : debugCaret.x) * (drawWidth / videoWidth)
-              const cy = (debugCaret.bounds ? debugCaret.y + (debugCaret.bounds.height || 0) * 0.5 : debugCaret.y) * (drawHeight / videoHeight)
-              const size = 12
-              return (
-                <>
-                  <div style={{ position: 'absolute', left: cx - size, top: cy, width: size * 2, height: 1, background: 'rgba(0,255,0,0.9)' }} />
-                  <div style={{ position: 'absolute', left: cx, top: cy - size, width: 1, height: size * 2, background: 'rgba(0,255,0,0.9)' }} />
-                </>
-              )
-            })()}
-            {/* Bounds box if available */}
-            {debugCaret?.bounds && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: (debugCaret.bounds.x) * (drawWidth / videoWidth),
-                  top: (debugCaret.bounds.y) * (drawHeight / videoHeight),
-                  width: (debugCaret.bounds.width) * (drawWidth / videoWidth),
-                  height: (debugCaret.bounds.height) * (drawHeight / videoHeight),
-                  border: '1px solid rgba(0,255,0,0.9)'
-                }}
-              />
-            )}
-          </div>
-        )}
       </div>
     </AbsoluteFill>
   );

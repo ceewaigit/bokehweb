@@ -46,11 +46,6 @@ export interface ElectronAPI {
   stopKeyboardTracking?: () => Promise<any>
   onKeyboardEvent?: (callback: any) => () => void
 
-  // Caret tracking
-  startCaretTracking: () => Promise<any>
-  stopCaretTracking: () => Promise<any>
-  onCaret: (callback: (event: any, data: { timestamp: number; x: number; y: number; bounds?: { x: number; y: number; width: number; height: number } }) => void) => () => void
-
   // Recording and workspace control
   openWorkspace?: () => Promise<void>
   startRecording?: () => Promise<any>
