@@ -107,6 +107,7 @@ export interface ElectronAPI {
   // Monitor overlay methods
   showMonitorOverlay?: (displayId?: number) => Promise<{ success: boolean }>
   hideMonitorOverlay?: () => Promise<{ success: boolean }>
+  showWindowOverlay?: (windowId: string) => Promise<{ success: boolean }>
 
   // Recording events
   onRecordingStarted: (callback: () => void) => () => void

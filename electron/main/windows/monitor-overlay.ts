@@ -20,12 +20,15 @@ export function createMonitorOverlay(displayId?: number): BrowserWindow {
     overlayWindow = null
   }
 
-  // Create overlay window covering the entire display
+  // Use workArea instead of bounds to account for macOS menu bar and dock
+  const workArea = targetDisplay.workArea
+  
+  // Create overlay window covering the available work area
   overlayWindow = new BrowserWindow({
-    x: targetDisplay.bounds.x,
-    y: targetDisplay.bounds.y,
-    width: targetDisplay.bounds.width,
-    height: targetDisplay.bounds.height,
+    x: workArea.x,
+    y: workArea.y,
+    width: workArea.width,
+    height: workArea.height,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -52,7 +55,7 @@ export function createMonitorOverlay(displayId?: number): BrowserWindow {
   return overlayWindow
 }
 
-export function showMonitorOverlay(displayId?: number): void {
+export function showMonitorOverlay(displayId?: number, customLabel?: string): void {
   const overlay = createMonitorOverlay(displayId)
   
   // Get display info for the overlay
@@ -61,7 +64,8 @@ export function showMonitorOverlay(displayId?: number): void {
     ? displays.find(d => d.id === displayId) 
     : screen.getPrimaryDisplay()
   
-  const displayName = getDisplayName(targetDisplay)
+  const displayName = customLabel || getDisplayName(targetDisplay)
+  const statusText = customLabel ? 'Ready to Record' : 'Ready to Record'
   
   // Glassmorphic overlay HTML with beautiful design
   const html = `
@@ -85,146 +89,138 @@ export function showMonitorOverlay(displayId?: number): void {
           position: relative;
         }
         
-        /* Glassmorphic border */
+        /* Minimal glassmorphic border */
         .border-overlay {
           position: absolute;
           inset: 0;
           pointer-events: none;
-          animation: fadeIn 0.3s ease-out;
+          animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
-        /* Create border using pseudo elements for better performance */
+        /* Clean, minimal border design */
         .border-overlay::before {
           content: '';
           position: absolute;
-          inset: 20px;
-          border: 3px solid rgba(255, 255, 255, 0.5);
-          border-radius: 24px;
+          inset: 8px;
+          border: 1.5px solid rgba(255, 255, 255, 0.25);
+          border-radius: 12px;
           background: linear-gradient(135deg, 
-            rgba(255, 255, 255, 0.1) 0%,
-            rgba(255, 255, 255, 0.05) 100%);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
+            rgba(255, 255, 255, 0.08) 0%,
+            rgba(255, 255, 255, 0.03) 100%);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
           box-shadow: 
-            0 0 0 1px rgba(255, 255, 255, 0.2) inset,
-            0 20px 40px rgba(0, 0, 0, 0.3),
-            0 0 80px rgba(59, 130, 246, 0.3),
-            0 0 120px rgba(59, 130, 246, 0.2);
+            0 0 0 1px rgba(255, 255, 255, 0.15) inset,
+            0 8px 32px rgba(0, 0, 0, 0.25),
+            0 4px 16px rgba(0, 0, 0, 0.1);
         }
         
-        /* Corner accents */
+        /* Subtle corner indicators */
         .corner {
           position: absolute;
-          width: 40px;
-          height: 40px;
-          border: 3px solid rgba(59, 130, 246, 0.8);
+          width: 20px;
+          height: 20px;
+          border: 2px solid rgba(99, 102, 241, 0.8);
+          background: rgba(99, 102, 241, 0.15);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
         }
         
         .corner.top-left {
-          top: 15px;
-          left: 15px;
+          top: 6px;
+          left: 6px;
           border-right: none;
           border-bottom: none;
-          border-top-left-radius: 24px;
+          border-top-left-radius: 8px;
         }
         
         .corner.top-right {
-          top: 15px;
-          right: 15px;
+          top: 6px;
+          right: 6px;
           border-left: none;
           border-bottom: none;
-          border-top-right-radius: 24px;
+          border-top-right-radius: 8px;
         }
         
         .corner.bottom-left {
-          bottom: 15px;
-          left: 15px;
+          bottom: 6px;
+          left: 6px;
           border-right: none;
           border-top: none;
-          border-bottom-left-radius: 24px;
+          border-bottom-left-radius: 8px;
         }
         
         .corner.bottom-right {
-          bottom: 15px;
-          right: 15px;
+          bottom: 6px;
+          right: 6px;
           border-left: none;
           border-top: none;
-          border-bottom-right-radius: 24px;
+          border-bottom-right-radius: 8px;
         }
         
-        /* Center label */
+        /* Clean status indicator - positioned in top-left */
+        .status-indicator {
+          position: absolute;
+          top: 16px;
+          left: 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(0, 0, 0, 0.8);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          padding: 8px 16px;
+          border-radius: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+          animation: slideDown 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .status-dot {
+          width: 6px;
+          height: 6px;
+          background: #10b981;
+          border-radius: 50%;
+          animation: pulse 2s ease-in-out infinite;
+          box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+        }
+        
+        .status-text {
+          color: rgba(255, 255, 255, 0.95);
+          font-size: 13px;
+          font-weight: 500;
+          letter-spacing: 0.2px;
+        }
+        
+        /* Minimal center label */
         .label-container {
           position: absolute;
           top: 50%;
           left: 50%;
           transform: translate(-50%, -50%);
           z-index: 10;
-          animation: slideUp 0.5s ease-out;
+          animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .label {
-          background: linear-gradient(135deg,
-            rgba(59, 130, 246, 0.95) 0%,
-            rgba(147, 51, 234, 0.95) 100%);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          padding: 20px 40px;
-          border-radius: 100px;
-          box-shadow: 
-            0 10px 40px rgba(0, 0, 0, 0.3),
-            0 0 60px rgba(59, 130, 246, 0.4),
-            inset 0 1px rgba(255, 255, 255, 0.3),
-            inset 0 -1px rgba(0, 0, 0, 0.2);
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          padding: 12px 24px;
+          border-radius: 24px;
           border: 1px solid rgba(255, 255, 255, 0.2);
+          box-shadow: 
+            0 4px 24px rgba(0, 0, 0, 0.3),
+            0 0 0 0.5px rgba(255, 255, 255, 0.1) inset;
         }
         
         .label-text {
-          color: white;
-          font-size: 18px;
-          font-weight: 600;
-          letter-spacing: 0.5px;
-          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-        
-        .label-subtitle {
-          color: rgba(255, 255, 255, 0.9);
+          color: rgba(255, 255, 255, 0.95);
           font-size: 14px;
           font-weight: 500;
-          margin-top: 4px;
+          letter-spacing: 0.3px;
           text-align: center;
-        }
-        
-        /* Recording indicator */
-        .recording-indicator {
-          position: absolute;
-          top: 40px;
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          background: rgba(0, 0, 0, 0.8);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          padding: 12px 24px;
-          border-radius: 100px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .recording-dot {
-          width: 12px;
-          height: 12px;
-          background: #ef4444;
-          border-radius: 50%;
-          animation: pulse 2s infinite;
-          box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
-        }
-        
-        .recording-text {
-          color: white;
-          font-size: 14px;
-          font-weight: 600;
-          letter-spacing: 0.5px;
         }
         
         @keyframes fadeIn {
@@ -232,10 +228,21 @@ export function showMonitorOverlay(displayId?: number): void {
           to { opacity: 1; }
         }
         
-        @keyframes slideUp {
+        @keyframes slideDown {
           from { 
             opacity: 0;
-            transform: translate(-50%, -40%);
+            transform: translateY(-8px);
+          }
+          to { 
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes fadeInUp {
+          from { 
+            opacity: 0;
+            transform: translate(-50%, -45%);
           }
           to { 
             opacity: 1;
@@ -249,30 +256,29 @@ export function showMonitorOverlay(displayId?: number): void {
             transform: scale(1);
           }
           50% { 
-            opacity: 0.7;
-            transform: scale(1.1);
+            opacity: 0.6;
+            transform: scale(1.2);
           }
         }
       </style>
     </head>
     <body>
       <div class="border-overlay">
-        <!-- Corner accents -->
+        <!-- Minimal corner indicators -->
         <div class="corner top-left"></div>
         <div class="corner top-right"></div>
         <div class="corner bottom-left"></div>
         <div class="corner bottom-right"></div>
       </div>
       
-      <div class="recording-indicator">
-        <div class="recording-dot"></div>
-        <div class="recording-text">Ready to Record</div>
+      <div class="status-indicator">
+        <div class="status-dot"></div>
+        <div class="status-text">${statusText}</div>
       </div>
       
       <div class="label-container">
         <div class="label">
-          <div class="label-text">Recording ${displayName}</div>
-          <div class="label-subtitle">Click "Start Recording" to begin</div>
+          <div class="label-text">${displayName}</div>
         </div>
       </div>
     </body>
@@ -291,26 +297,20 @@ export function hideMonitorOverlay(): void {
 }
 
 function getDisplayName(display: Display | undefined): string {
-  if (!display) return 'Display'
+  if (!display) return 'Unknown Display'
   
-  // Check if it's the primary display
-  const primary = screen.getPrimaryDisplay()
-  if (display.id === primary.id) {
+  // Check if this is the primary display
+  if (display.id === screen.getPrimaryDisplay().id) {
     return 'Primary Display'
   }
   
-  // Check if it's internal (laptop screen)
-  if (display.internal) {
-    return 'Built-in Display'
+  // For other displays, use a more descriptive name
+  const allDisplays = screen.getAllDisplays()
+  const displayIndex = allDisplays.findIndex(d => d.id === display.id)
+  
+  if (displayIndex >= 0) {
+    return `Display ${displayIndex + 1}`
   }
   
-  // Get all displays and find index
-  const displays = screen.getAllDisplays()
-  const index = displays.findIndex(d => d.id === display.id)
-  
-  if (index !== -1) {
-    return `Display ${index + 1}`
-  }
-  
-  return 'External Display'
+  return display.label || `Display ${display.id}`
 }

@@ -113,7 +113,6 @@ export function RecordButtonDock() {
     }
 
     try {
-      const sourcesStartTime = performance.now()
 
       const desktopSources = await window.electronAPI.getDesktopSources({
         types: ['screen', 'window'],
@@ -127,7 +126,7 @@ export function RecordButtonDock() {
         type: source.id.startsWith('screen:') ? 'screen' : 'window',
         displayInfo: source.displayInfo
       }))
-      
+
       logger.info('Mapped sources:', mappedSources.filter(s => s.type === 'screen').map(s => ({
         id: s.id,
         name: s.name,
@@ -155,10 +154,17 @@ export function RecordButtonDock() {
 
       setSources(allSources)
 
-      // Pre-select the first screen
-      const firstScreen = allSources.find(s => s.type === 'screen')
-      if (firstScreen) {
-        setSelectedSourceId(firstScreen.id)
+      // Pre-select the primary display (instead of first screen)
+      const primaryDisplay = allSources.find(s => s.type === 'screen' && s.displayInfo?.isPrimary)
+      const defaultScreen = primaryDisplay || allSources.find(s => s.type === 'screen')
+      
+      if (defaultScreen) {
+        setSelectedSourceId(defaultScreen.id)
+        // Show overlay immediately for the default selection
+        if (defaultScreen.displayInfo?.id !== undefined) {
+          logger.info('Showing overlay on default display:', defaultScreen.displayInfo.id)
+          window.electronAPI?.showMonitorOverlay?.(defaultScreen.displayInfo.id)
+        }
       }
 
     } catch (error) {
@@ -203,16 +209,25 @@ export function RecordButtonDock() {
   const handleStartRecording = () => {
     // Show the source picker inline
     setShowSourcePicker(true)
+    
+    // Show overlay for the currently selected source (which should be primary display)
+    if (selectedSourceId) {
+      const selectedSource = sources.find(s => s.id === selectedSourceId)
+      if (selectedSource?.type === 'screen' && selectedSource.displayInfo?.id !== undefined) {
+        logger.info('Showing overlay for default selection:', selectedSource.displayInfo.id)
+        window.electronAPI?.showMonitorOverlay?.(selectedSource.displayInfo.id)
+      }
+    }
   }
 
   // Handle screen selection with immediate overlay display
   const handleScreenSelection = (source: Source) => {
-    logger.info('Screen selection:', { 
-      id: source.id, 
-      type: source.type, 
-      displayInfo: source.displayInfo 
+    logger.info('Screen selection:', {
+      id: source.id,
+      type: source.type,
+      displayInfo: source.displayInfo
     })
-    
+
     // Hide any existing overlay
     window.electronAPI?.hideMonitorOverlay?.()
 
@@ -224,11 +239,32 @@ export function RecordButtonDock() {
       logger.info('Showing overlay on display:', source.displayInfo.id)
       window.electronAPI?.showMonitorOverlay?.(source.displayInfo.id)
     } else {
-      logger.warn('Not showing overlay:', { 
-        isScreen: source.type === 'screen', 
+      logger.warn('Not showing overlay:', {
+        isScreen: source.type === 'screen',
         hasDisplayInfo: !!source.displayInfo,
-        displayId: source.displayInfo?.id 
+        displayId: source.displayInfo?.id
       })
+    }
+  }
+
+  // Handle window selection with overlay for the specific application
+  const handleWindowSelection = (source: Source) => {
+    logger.info('Window selection:', {
+      id: source.id,
+      type: source.type,
+      name: source.name
+    })
+
+    // Hide any existing overlay
+    window.electronAPI?.hideMonitorOverlay?.()
+
+    // Set the selected source
+    setSelectedSourceId(source.id)
+
+    // Show overlay for the specific window
+    if (source.type === 'window') {
+      logger.info('Showing window overlay for:', source.name)
+      window.electronAPI?.showWindowOverlay?.(source.id)
     }
   }
 
@@ -506,7 +542,7 @@ export function RecordButtonDock() {
             >
               <div className="p-3 border-t border-border/30">
                 {/* Quick source selection */}
-                <div className="flex flex-row gap-2 mb-3 justify-center">
+                <div className="flex flex-wrap gap-2 mb-3 justify-center">
                   {/* Area Selection */}
                   {areaOption && (
                     <button
@@ -516,32 +552,34 @@ export function RecordButtonDock() {
                         setSelectedSourceId(areaOption.id)
                       }}
                       className={cn(
-                        "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
+                        "flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-colors min-w-[80px]",
                         selectedSourceId === areaOption.id
                           ? "border-primary bg-primary/10"
                           : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
                       )}
                     >
-                      <Maximize2 className="w-5 h-5 text-primary" />
-                      <span className="text-xs font-medium">Select Area</span>
+                      <Maximize2 className="w-4 h-4 text-primary" />
+                      <span className="text-[10px] font-medium">Select Area</span>
                     </button>
                   )}
 
-                  {/* Screens */}
-                  {screens.slice(0, 2).map((screen) => (
+                  {/* Screens - sorted alphabetically */}
+                  {screens
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map((screen) => (
                     <button
                       key={screen.id}
                       style={{ WebkitAppRegion: 'no-drag' } as any}
                       onClick={() => handleScreenSelection(screen)}
                       className={cn(
-                        "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-colors",
+                        "flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-colors min-w-[80px]",
                         selectedSourceId === screen.id
                           ? "border-primary bg-primary/10"
                           : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
                       )}
                     >
-                      <Monitor className="w-5 h-5 text-primary" />
-                      <span className="text-xs font-medium truncate w-full">
+                      <Monitor className="w-4 h-4 text-primary" />
+                      <span className="text-[10px] font-medium truncate w-full text-center">
                         {screen.name}
                       </span>
                     </button>
@@ -561,10 +599,7 @@ export function RecordButtonDock() {
                         <button
                           style={{ WebkitAppRegion: 'no-drag' } as any}
                           key={source.id}
-                          onClick={() => {
-                            window.electronAPI?.hideMonitorOverlay?.()
-                            setSelectedSourceId(source.id)
-                          }}
+                          onClick={() => handleWindowSelection(source)}
                           className={cn(
                             "p-1 rounded border text-[9px] truncate transition-colors",
                             selectedSourceId === source.id

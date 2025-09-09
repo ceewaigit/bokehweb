@@ -245,6 +245,9 @@ const electronAPI = {
   showMonitorOverlay: (displayId?: number) =>
     ipcRenderer.invoke('show-monitor-overlay', displayId),
 
+  showWindowOverlay: (windowId: string) =>
+    ipcRenderer.invoke('show-window-overlay', windowId),
+
   hideMonitorOverlay: () =>
     ipcRenderer.invoke('hide-monitor-overlay'),
 

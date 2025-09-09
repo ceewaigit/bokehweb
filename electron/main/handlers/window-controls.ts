@@ -1,10 +1,33 @@
-import { ipcMain, BrowserWindow, IpcMainInvokeEvent, IpcMainEvent, app } from 'electron'
+import { ipcMain, BrowserWindow, IpcMainInvokeEvent, IpcMainEvent, app, desktopCapturer } from 'electron'
 import { createMainWindow } from '../windows/main-window'
 import { getAppURL } from '../config'
 import { createCountdownWindow, showCountdown } from '../windows/countdown-window'
 import { showMonitorOverlay, hideMonitorOverlay } from '../windows/monitor-overlay'
 
 let countdownWindow: BrowserWindow | null = null
+
+// Cache for source information
+const sourceCache = new Map<string, { name: string; type: string }>()
+
+// Helper to update source cache
+async function updateSourceCache() {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 1, height: 1 }
+    })
+    
+    sourceCache.clear()
+    sources.forEach(source => {
+      sourceCache.set(source.id, {
+        name: source.name,
+        type: source.id.startsWith('screen:') ? 'screen' : 'window'
+      })
+    })
+  } catch (error) {
+    console.error('[WindowControls] Failed to update source cache:', error)
+  }
+}
 
 export function registerWindowControlHandlers(): void {
   // Handle opening workspace - using ipcMain.on for send/receive pattern
@@ -132,6 +155,30 @@ export function registerWindowControlHandlers(): void {
       return { success: true }
     } catch (error) {
       console.error('[WindowControls] Failed to show monitor overlay:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('show-window-overlay', async (event: IpcMainInvokeEvent, windowId: string) => {
+    try {
+      // Update source cache to get latest window information
+      await updateSourceCache()
+      
+      // Get the window source information
+      const sourceInfo = sourceCache.get(windowId)
+      
+      if (sourceInfo && sourceInfo.type === 'window') {
+        // Show overlay with application name
+        const appName = sourceInfo.name.split(' - ')[0] // Get app name without window title
+        showMonitorOverlay(undefined, `Recording ${appName}`)
+      } else {
+        // Fallback to showing overlay on primary display
+        showMonitorOverlay(undefined, 'Recording Application')
+      }
+      
+      return { success: true }
+    } catch (error) {
+      console.error('[WindowControls] Failed to show window overlay:', error)
       return { success: false, error: (error as Error).message }
     }
   })
