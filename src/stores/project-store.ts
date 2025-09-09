@@ -815,9 +815,9 @@ export const useProjectStore = create<ProjectStore>()(
       // Clean up blob resources on next tick (after unmount)
       setTimeout(() => {
         if (typeof (globalBlobManager as any).softCleanupByType === 'function') {
-          ;(globalBlobManager as any).softCleanupByType('video')
-          ;(globalBlobManager as any).softCleanupByType('export')
-          ;(globalBlobManager as any).softCleanupByType('thumbnail')
+          ; (globalBlobManager as any).softCleanupByType('video')
+            ; (globalBlobManager as any).softCleanupByType('export')
+            ; (globalBlobManager as any).softCleanupByType('thumbnail')
         } else {
           globalBlobManager.cleanupByType('video')
           globalBlobManager.cleanupByType('export')

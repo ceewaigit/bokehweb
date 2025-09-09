@@ -6,10 +6,10 @@ let overlayWindow: BrowserWindow | null = null
 export function createMonitorOverlay(displayId?: number): BrowserWindow {
   // Get the target display
   const displays = screen.getAllDisplays()
-  const targetDisplay = displayId 
-    ? displays.find(d => d.id === displayId) 
+  const targetDisplay = displayId
+    ? displays.find(d => d.id === displayId)
     : screen.getPrimaryDisplay()
-  
+
   if (!targetDisplay) {
     throw new Error(`Display with ID ${displayId} not found`)
   }
@@ -22,7 +22,7 @@ export function createMonitorOverlay(displayId?: number): BrowserWindow {
 
   // Use workArea instead of bounds to account for macOS menu bar and dock
   const workArea = targetDisplay.workArea
-  
+
   // Create overlay window covering the available work area
   overlayWindow = new BrowserWindow({
     x: workArea.x,
@@ -57,16 +57,16 @@ export function createMonitorOverlay(displayId?: number): BrowserWindow {
 
 export function showMonitorOverlay(displayId?: number, customLabel?: string): void {
   const overlay = createMonitorOverlay(displayId)
-  
+
   // Get display info for the overlay
   const displays = screen.getAllDisplays()
-  const targetDisplay = displayId 
-    ? displays.find(d => d.id === displayId) 
+  const targetDisplay = displayId
+    ? displays.find(d => d.id === displayId)
     : screen.getPrimaryDisplay()
-  
+
   const displayName = customLabel || getDisplayName(targetDisplay)
   const statusText = customLabel ? 'Ready to Record' : 'Ready to Record'
-  
+
   // Glassmorphic overlay HTML with beautiful design
   const html = `
     <!DOCTYPE html>
@@ -284,7 +284,7 @@ export function showMonitorOverlay(displayId?: number, customLabel?: string): vo
     </body>
     </html>
   `
-  
+
   overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
   overlay.show()
 }
@@ -298,19 +298,19 @@ export function hideMonitorOverlay(): void {
 
 function getDisplayName(display: Display | undefined): string {
   if (!display) return 'Unknown Display'
-  
+
   // Check if this is the primary display
   if (display.id === screen.getPrimaryDisplay().id) {
     return 'Primary Display'
   }
-  
+
   // For other displays, use a more descriptive name
   const allDisplays = screen.getAllDisplays()
   const displayIndex = allDisplays.findIndex(d => d.id === display.id)
-  
+
   if (displayIndex >= 0) {
     return `Display ${displayIndex + 1}`
   }
-  
+
   return display.label || `Display ${display.id}`
 }

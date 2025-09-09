@@ -157,7 +157,7 @@ export function RecordButtonDock() {
       // Pre-select the primary display (instead of first screen)
       const primaryDisplay = allSources.find(s => s.type === 'screen' && s.displayInfo?.isPrimary)
       const defaultScreen = primaryDisplay || allSources.find(s => s.type === 'screen')
-      
+
       if (defaultScreen) {
         setSelectedSourceId(defaultScreen.id)
         // Show overlay immediately for the default selection
@@ -209,7 +209,7 @@ export function RecordButtonDock() {
   const handleStartRecording = () => {
     // Show the source picker inline
     setShowSourcePicker(true)
-    
+
     // Show overlay for the currently selected source (which should be primary display)
     if (selectedSourceId) {
       const selectedSource = sources.find(s => s.id === selectedSourceId)
@@ -567,23 +567,23 @@ export function RecordButtonDock() {
                   {screens
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map((screen) => (
-                    <button
-                      key={screen.id}
-                      style={{ WebkitAppRegion: 'no-drag' } as any}
-                      onClick={() => handleScreenSelection(screen)}
-                      className={cn(
-                        "flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-colors min-w-[80px]",
-                        selectedSourceId === screen.id
-                          ? "border-primary bg-primary/10"
-                          : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
-                      )}
-                    >
-                      <Monitor className="w-4 h-4 text-primary" />
-                      <span className="text-[10px] font-medium truncate w-full text-center">
-                        {screen.name}
-                      </span>
-                    </button>
-                  ))}
+                      <button
+                        key={screen.id}
+                        style={{ WebkitAppRegion: 'no-drag' } as any}
+                        onClick={() => handleScreenSelection(screen)}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-1 p-2 rounded-lg border transition-colors min-w-[80px]",
+                          selectedSourceId === screen.id
+                            ? "border-primary bg-primary/10"
+                            : "border-border/50 hover:border-primary/50 hover:bg-accent/50"
+                        )}
+                      >
+                        <Monitor className="w-4 h-4 text-primary" />
+                        <span className="text-[10px] font-medium truncate w-full text-center">
+                          {screen.name}
+                        </span>
+                      </button>
+                    ))}
                 </div>
 
                 {/* Windows section if there are any */}

@@ -281,7 +281,7 @@ class KeyboardManager extends EventEmitter {
       context: ['timeline'],
     })
 
-    
+
     this.register({
       id: 'split-cmd',
       key: 'k',
@@ -492,14 +492,14 @@ class KeyboardManager extends EventEmitter {
     const target = event.target as HTMLElement
     const isTextInput = target?.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text'
     const isTextarea = target?.tagName === 'TEXTAREA'
-    
+
     // Check if this is a shortcut that should work even with inputs focused
     const shortcut = this.findMatchingShortcut(event)
     const allowedWithInputs = shortcut && [
-      'copy', 'cut', 'paste', 'pasteInPlace', 
+      'copy', 'cut', 'paste', 'pasteInPlace',
       'undo', 'redo', 'save', 'delete'
     ].includes(shortcut.action)
-    
+
     // Skip keyboard handling if typing in a text field and not an allowed shortcut
     if ((isTextInput || isTextarea) && !allowedWithInputs) {
       return

@@ -123,10 +123,10 @@ export class ThumbnailGenerator {
 
       video.addEventListener('loadedmetadata', () => {
         // Simple seek to 10% of video or 0.1s
-        const seekTime = video.duration > 0 
+        const seekTime = video.duration > 0
           ? Math.min(video.duration * 0.1, video.duration - 0.001)
           : 0.1
-        
+
         video.currentTime = seekTime
       }, { once: true })
 
@@ -144,7 +144,7 @@ export class ThumbnailGenerator {
 
           ctx.drawImage(video, 0, 0, width, height)
           const dataUrl = canvas.toDataURL('image/jpeg', quality)
-          
+
           resolved = true
           cleanup()
           resolve(dataUrl)
