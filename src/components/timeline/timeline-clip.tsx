@@ -483,6 +483,35 @@ export const TimelineClip = React.memo(({
           )
           xOffset += 36
         }
+        
+        // Playback rate badge
+        if (clip.playbackRate && clip.playbackRate !== 1.0) {
+          badges.push(
+            <Group 
+              key="speed"
+              x={xOffset} 
+              y={0}
+            >
+              <Rect 
+                width={40} 
+                height={14} 
+                fill={colors.warning || '#f59e0b'} 
+                cornerRadius={2}
+                opacity={0.8}
+              />
+              <Text 
+                x={3} 
+                y={3} 
+                text={`${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`} 
+                fontSize={8} 
+                fill={colors.foreground} 
+                fontFamily="system-ui" 
+                fontStyle="bold" 
+              />
+            </Group>
+          )
+          xOffset += 44
+        }
 
         // Audio badge is now optional since we have waveform visualization
         // Only show it if the clip is very small

@@ -32,7 +32,8 @@ import {
   SplitClipCommand,
   DuplicateClipCommand,
   TrimCommand,
-  CopyCommand
+  CopyCommand,
+  ChangePlaybackRateCommand
 } from '@/lib/commands'
 
 interface TimelineCanvasProps {
@@ -683,6 +684,20 @@ export function TimelineCanvas({
                 const command = new RemoveClipCommand(
                   freshContext,
                   id
+                )
+                await manager.execute(command)
+              }
+            }}
+            onSpeedUp={async (id) => {
+              // Ensure UI selects the target clip so sidebar and preview sync
+              selectClip(id)
+              const manager = commandManagerRef.current
+              if (manager) {
+                const freshContext = new DefaultCommandContext(useProjectStore.getState())
+                const command = new ChangePlaybackRateCommand(
+                  freshContext,
+                  id,
+                  2.0 // 2x speed
                 )
                 await manager.execute(command)
               }

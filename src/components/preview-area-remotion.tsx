@@ -146,10 +146,12 @@ export function PreviewAreaRemotion({
       }
     }
 
+    const rate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
     const sourceIn = clip.sourceIn || 0
-    const sourceOut = clip.sourceOut || (clip.sourceIn + clip.duration)
+    const sourceOut = clip.sourceOut || (clip.sourceIn + (clip.duration * rate))
 
-    const mapWindow = (ts: number) => ts - sourceIn
+    // Map source timestamps into clip-relative timeline, then scale by playback rate
+    const mapWindow = (ts: number) => (ts - sourceIn) / rate
 
     const within = (ts: number) => ts >= sourceIn && ts <= sourceOut
 
@@ -277,6 +279,20 @@ export function PreviewAreaRemotion({
   const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
   const hasNoProject = !previewRecording && !playheadClip;
 
+  // Force Player remount when clip timing characteristics change
+  const playerKey = useMemo(() => {
+    const k = [
+      previewClip?.id || 'none',
+      previewClip?.startTime ?? -1,
+      previewClip?.duration ?? -1,
+      previewClip?.sourceIn ?? -1,
+      previewClip?.sourceOut ?? -1,
+      previewClip?.playbackRate ?? 1,
+      compositionWidth,
+      compositionHeight
+    ].join('-')
+    return k
+  }, [previewClip?.id, previewClip?.startTime, previewClip?.duration, previewClip?.sourceIn, previewClip?.sourceOut, previewClip?.playbackRate, compositionWidth, compositionHeight])
 
   // Show message when no project/recording at all
   if (hasNoProject) {
@@ -307,7 +323,7 @@ export function PreviewAreaRemotion({
           className="relative w-full h-full flex items-center justify-center"
         >
           <Player
-            key={`${playheadRecording?.id || 'none'}-${compositionWidth}x${compositionHeight}`}
+            key={playerKey}
             ref={playerRef}
             component={MainComposition as any}
             inputProps={compositionProps}

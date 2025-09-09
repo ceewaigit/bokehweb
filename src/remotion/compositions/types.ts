@@ -14,6 +14,7 @@ export interface MainCompositionProps {
 
 export interface VideoLayerProps {
   videoUrl: string;
+  clip?: Clip | null; // Add clip data to access playback rate
   effects?: Effect[] | null;
   zoomBlocks?: ZoomBlock[];
   videoWidth: number;

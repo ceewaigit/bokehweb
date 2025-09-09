@@ -78,7 +78,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                 max={1000}
                 step={50}
                 onChange={(e) => onEffectChange('screen', { introMs: Number(e.target.value) })}
-                className="w-full"
+                className="w-full bg-accent"
               />
             </div>
             <div className="space-y-1">
@@ -89,7 +89,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                 max={1000}
                 step={50}
                 onChange={(e) => onEffectChange('screen', { outroMs: Number(e.target.value) })}
-                className="w-full"
+                className="w-full text-accent"
               />
             </div>
           </div>

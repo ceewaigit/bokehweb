@@ -13,7 +13,8 @@ export {
   SplitClipCommand,
   DuplicateClipCommand,
   UpdateClipCommand,
-  TrimCommand
+  TrimCommand,
+  ChangePlaybackRateCommand
 } from './timeline'
 
 // Effect commands
@@ -38,6 +39,7 @@ import { SplitClipCommand } from './timeline/SplitClipCommand'
 import { DuplicateClipCommand } from './timeline/DuplicateClipCommand'
 import { UpdateClipCommand } from './timeline/UpdateClipCommand'
 import { TrimCommand } from './timeline/TrimCommand'
+import { ChangePlaybackRateCommand } from './timeline/ChangePlaybackRateCommand'
 import { AddZoomBlockCommand } from './effects/AddZoomBlockCommand'
 import { RemoveZoomBlockCommand } from './effects/RemoveZoomBlockCommand'
 import { UpdateZoomBlockCommand } from './effects/UpdateZoomBlockCommand'
@@ -53,6 +55,7 @@ export function registerAllCommands(manager: CommandManager): void {
   manager.registerCommand('DuplicateClip', DuplicateClipCommand as any)
   manager.registerCommand('UpdateClip', UpdateClipCommand as any)
   manager.registerCommand('Trim', TrimCommand as any)
+  manager.registerCommand('ChangePlaybackRate', ChangePlaybackRateCommand as any)
   
   // Effect commands
   manager.registerCommand('AddZoomBlock', AddZoomBlockCommand as any)

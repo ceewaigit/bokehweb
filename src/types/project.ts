@@ -151,6 +151,9 @@ export interface Clip {
   sourceIn: number     // Start point in source recording
   sourceOut: number    // End point in source recording
 
+  // Playback control
+  playbackRate?: number // Speed multiplier (1.0 = normal, 2.0 = 2x speed, 0.5 = half speed)
+
   // Transitions
   transitionIn?: Transition
   transitionOut?: Transition

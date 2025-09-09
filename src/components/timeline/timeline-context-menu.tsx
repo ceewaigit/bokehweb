@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2 } from 'lucide-react'
+import { Scissors, ChevronsLeft, ChevronsRight, Layers, Copy, Trash2, Zap } from 'lucide-react'
 
 interface TimelineContextMenuProps {
   x: number
@@ -14,6 +14,7 @@ interface TimelineContextMenuProps {
   onDuplicate: (clipId: string) => void
   onCopy: (clipId: string) => void
   onDelete: (clipId: string) => void
+  onSpeedUp: (clipId: string) => void
   onClose: () => void
 }
 
@@ -27,6 +28,7 @@ export const TimelineContextMenu = React.memo(({
   onDuplicate,
   onCopy,
   onDelete,
+  onSpeedUp,
   onClose
 }: TimelineContextMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -93,6 +95,13 @@ export const TimelineContextMenu = React.memo(({
       >
         <Layers className="w-4 h-4 mr-2" />
         Duplicate
+      </button>
+      <button
+        className="flex items-center w-full px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"
+        onClick={() => handleAction(() => onSpeedUp(clipId))}
+      >
+        <Zap className="w-4 h-4 mr-2" />
+        Speed Up (2x)
       </button>
       <button
         className="flex items-center w-full px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm"

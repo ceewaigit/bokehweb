@@ -28,6 +28,18 @@ const calculateTimelineDuration = (project: Project): number => {
   return maxEndTime
 }
 
+// Shift effects fully contained in a time window by a delta (ms)
+// Skip background (timeline-global) effects; keep others (zoom/cursor/keystroke/screen/annotation)
+function shiftEffectsInWindow(project: Project, windowStart: number, windowEnd: number, delta: number) {
+  if (!project.timeline.effects || delta === 0) return
+  for (const effect of project.timeline.effects) {
+    if (effect.type === 'background') continue
+    if (effect.startTime >= windowStart && effect.endTime <= windowEnd) {
+      effect.startTime += delta
+      effect.endTime += delta
+    }
+  }
+}
 
 // Store the animation frame ID outside the store to avoid serialization issues
 let animationFrameId: number | null = null
@@ -453,9 +465,47 @@ export const useProjectStore = create<ProjectStore>()(
           updates.startTime = leftmostEnd
         }
 
+        const prevEndBeforeUpdate = clip.startTime + clip.duration
+        const prevStartBeforeUpdate = clip.startTime
+        const prevDuration = clip.duration
+        const wasPlayheadInside = state.currentTime >= prevStartBeforeUpdate && state.currentTime < prevEndBeforeUpdate
+        const prevProgress = wasPlayheadInside && prevDuration > 0 ? (state.currentTime - prevStartBeforeUpdate) / prevDuration : 0
+
         Object.assign(clip, updates)
+
+        // If duration or startTime changed, reflow subsequent clips to stay contiguous
+        const endAfterUpdate = clip.startTime + clip.duration
+        const startChanged = updates.startTime !== undefined && updates.startTime !== prevStartBeforeUpdate
+        const durationChanged = updates.duration !== undefined || updates.playbackRate !== undefined
+        if (startChanged || durationChanged || endAfterUpdate !== prevEndBeforeUpdate) {
+          const clipIndex = track.clips.findIndex(c => c.id === clipId)
+          let nextStart = endAfterUpdate
+          for (let i = clipIndex + 1; i < track.clips.length; i++) {
+            const following = track.clips[i]
+            const oldStart = following.startTime
+            const oldEnd = following.startTime + following.duration
+            following.startTime = nextStart
+            const delta = following.startTime - oldStart
+            if (delta !== 0 && state.currentProject) {
+              shiftEffectsInWindow(state.currentProject, oldStart, oldEnd, delta)
+            }
+            nextStart = following.startTime + following.duration
+          }
+        }
+
+        // Maintain playhead relative position inside the edited clip
+        if (wasPlayheadInside) {
+          const newTime = clip.startTime + prevProgress * clip.duration
+          state.currentTime = Math.max(clip.startTime, Math.min(clip.startTime + clip.duration - 1, newTime))
+        }
+
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
+
+        // Clamp current time inside new timeline bounds to keep preview stable
+        if (state.currentTime >= state.currentProject.timeline.duration) {
+          state.currentTime = Math.max(0, state.currentProject.timeline.duration - 1)
+        }
 
         // Update playhead state in case the updated clip affects current time
         updatePlayheadState(state)
@@ -564,7 +614,8 @@ export const useProjectStore = create<ProjectStore>()(
           startTime: clip.startTime,
           duration: splitPoint,
           sourceIn: clip.sourceIn,
-          sourceOut: clip.sourceIn + splitPoint
+          sourceOut: clip.sourceIn + splitPoint,
+          playbackRate: clip.playbackRate
         }
 
         // Create second clip
@@ -574,7 +625,8 @@ export const useProjectStore = create<ProjectStore>()(
           startTime: splitTime,
           duration: clip.duration - splitPoint,
           sourceIn: clip.sourceIn + splitPoint,
-          sourceOut: clip.sourceOut
+          sourceOut: clip.sourceOut,
+          playbackRate: clip.playbackRate
         }
 
         const clipIndex = track.clips.findIndex(c => c.id === clipId)
@@ -600,7 +652,7 @@ export const useProjectStore = create<ProjectStore>()(
         const result = findClipById(state.currentProject, clipId)
         if (!result) return
 
-        const { clip } = result
+        const { clip, track } = result
 
         if (newStartTime >= clip.startTime + clip.duration || newStartTime < 0) return
 
@@ -610,6 +662,21 @@ export const useProjectStore = create<ProjectStore>()(
         clip.startTime = newStartTime
         clip.duration -= trimAmount
         clip.sourceIn += trimAmount
+
+        // Reflow following clips to keep contiguous layout
+        const clipIndex = track.clips.findIndex(c => c.id === clipId)
+        let nextStart = clip.startTime + clip.duration
+        for (let i = clipIndex + 1; i < track.clips.length; i++) {
+          const following = track.clips[i]
+          const oldStart = following.startTime
+          const oldEnd = following.startTime + following.duration
+          following.startTime = nextStart
+          const delta = following.startTime - oldStart
+          if (delta !== 0 && state.currentProject) {
+            shiftEffectsInWindow(state.currentProject, oldStart, oldEnd, delta)
+          }
+          nextStart = following.startTime + following.duration
+        }
 
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
@@ -627,7 +694,7 @@ export const useProjectStore = create<ProjectStore>()(
         const result = findClipById(state.currentProject, clipId)
         if (!result) return
 
-        const { clip } = result
+        const { clip, track } = result
 
         if (newEndTime <= clip.startTime || newEndTime < 0) return
 
@@ -636,6 +703,21 @@ export const useProjectStore = create<ProjectStore>()(
         // Update clip timing
         clip.duration = newDuration
         clip.sourceOut = clip.sourceIn + clip.duration
+
+        // Reflow following clips to keep contiguous layout
+        const clipIndex = track.clips.findIndex(c => c.id === clipId)
+        let nextStart = clip.startTime + clip.duration
+        for (let i = clipIndex + 1; i < track.clips.length; i++) {
+          const following = track.clips[i]
+          const oldStart = following.startTime
+          const oldEnd = following.startTime + following.duration
+          following.startTime = nextStart
+          const delta = following.startTime - oldStart
+          if (delta !== 0 && state.currentProject) {
+            shiftEffectsInWindow(state.currentProject, oldStart, oldEnd, delta)
+          }
+          nextStart = following.startTime + following.duration
+        }
 
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)

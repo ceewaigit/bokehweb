@@ -4,9 +4,11 @@ import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
 import { createCinematicTransform, createBlurFilter } from '@/lib/effects/cinematic-scroll';
+import { getSourceDuration } from '@/lib/timeline/clip-utils'
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
+  clip,
   effects,
   zoomBlocks,
   videoWidth,
@@ -17,6 +19,12 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
+
+  // Compute trim window in frames from clip source range
+  const sourceInMs = clip ? (clip.sourceIn || 0) : 0
+  const sourceDurationMs = clip ? getSourceDuration(clip) : 0
+  const trimStartFrames = clip ? Math.max(0, Math.floor((sourceInMs / 1000) * fps)) : undefined
+  const trimEndFrames = clip ? Math.max(0, Math.floor(((sourceInMs + sourceDurationMs) / 1000) * fps)) : undefined
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
@@ -203,6 +211,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           style={videoStyle}
           volume={1}
           muted={false}
+          playbackRate={clip?.playbackRate || 1}
+          trimBefore={trimStartFrames}
+          trimAfter={trimEndFrames}
           onError={(e) => {
             console.error('Video playback error in VideoLayer:', e)
             // Don't throw - let Remotion handle gracefully

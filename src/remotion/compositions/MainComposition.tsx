@@ -251,6 +251,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         <Sequence from={0}>
           <VideoLayer
             videoUrl={videoUrl}
+            clip={clip}
             effects={effects}
             zoomBlocks={zoomBlocks}
             videoWidth={videoWidth}

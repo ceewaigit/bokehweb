@@ -8,6 +8,7 @@ import {
   Square,
   Keyboard,
   Monitor,
+  Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEffectData } from '@/types/project'
@@ -20,6 +21,7 @@ import { KeystrokeTab } from './keystroke-tab'
 import { ZoomTab } from './zoom-tab'
 import { ShapeTab } from './shape-tab'
 import { ScreenTab } from './screen-tab'
+import { ClipTab } from './clip-tab'
 
 interface EffectsSidebarProps {
   className?: string
@@ -36,19 +38,41 @@ export function EffectsSidebar({
   selectedEffectLayer,
   onEffectChange
 }: EffectsSidebarProps) {
-  const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'keystroke' | 'zoom' | 'shape' | 'screen'>('background')
+  const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'keystroke' | 'zoom' | 'shape' | 'screen' | 'clip'>('background')
 
   // Extract current effects from the array
   const backgroundEffect = effects?.find(e => e.type === 'background' && e.enabled)
   const cursorEffect = effects?.find(e => e.type === 'cursor')
   const keystrokeEffect = effects?.find(e => e.type === 'keystroke')
 
-  // Update active tab when effect layer is selected
+  // Track last selected clip id and previous effect layer type to control auto-tab switching
+  const lastClipIdRef = React.useRef<string | null>(null)
+  const prevEffectTypeRef = React.useRef<EffectLayerType | undefined>(undefined)
+
+  // Update active tab based on selection changes (without overriding manual tab clicks)
   useEffect(() => {
-    if (selectedEffectLayer?.type) {
-      setActiveTab(selectedEffectLayer.type as any)
+    const currentEffectType = selectedEffectLayer?.type as any | undefined
+
+    // If an effect layer is explicitly selected, always show its tab
+    if (currentEffectType) {
+      setActiveTab(currentEffectType as any)
+    } else {
+      // If effect selection was cleared (transition from some type to none), go to clip tab once
+      if (prevEffectTypeRef.current) {
+        setActiveTab('clip')
+      }
+
+      // If a new clip was selected, go to clip tab once
+      const currentClipId = selectedClip?.id || null
+      if (currentClipId !== lastClipIdRef.current) {
+        lastClipIdRef.current = currentClipId
+        if (currentClipId) setActiveTab('clip')
+      }
     }
-  }, [selectedEffectLayer])
+
+    // Remember last effect type
+    prevEffectTypeRef.current = currentEffectType
+  }, [selectedEffectLayer, selectedClip?.id])
 
   const updateEffect = useCallback((category: 'cursor' | 'keystroke', updates: any) => {
     const effect = category === 'cursor' ? cursorEffect : keystrokeEffect
@@ -167,6 +191,18 @@ export function EffectsSidebar({
           >
             <Monitor className="w-5 h-5" />
           </button>
+          <button
+            onClick={() => setActiveTab('clip')}
+            className={cn(
+              "p-2.5 rounded-md transition-all",
+              activeTab === 'clip'
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            )}
+            title="Clip Properties"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -233,6 +269,12 @@ export function EffectsSidebar({
               selectedClip={selectedClip}
               selectedEffectLayer={selectedEffectLayer}
               onEffectChange={(type, data) => onEffectChange(type, data)}
+            />
+          )}
+
+          {activeTab === 'clip' && (
+            <ClipTab
+              selectedClip={selectedClip}
             />
           )}
         </div>
