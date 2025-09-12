@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
+import { useProjectStore } from '@/stores/project-store'
 import {
   Scissors,
   Play,
@@ -15,6 +16,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Layers,
+  Zap,
 } from 'lucide-react'
 
 interface TimelineControlsProps {
@@ -58,6 +60,7 @@ export const TimelineControls = React.memo(({
 }: TimelineControlsProps) => {
   const hasSelection = selectedClips.length > 0
   const hasSingleSelection = selectedClips.length === 1
+  const { settings, updateSettings } = useProjectStore()
 
   return (
     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 bg-background/95">
@@ -169,6 +172,17 @@ export const TimelineControls = React.memo(({
           className="h-7 w-7 p-0"
         >
           <Layers className="w-3.5 h-3.5" />
+        </Button>
+
+        {/* Typing Suggestions Toggle */}
+        <Button
+          size="sm"
+          variant={settings.showTypingSuggestions ? "default" : "ghost"}
+          onClick={() => updateSettings({ showTypingSuggestions: !settings.showTypingSuggestions })}
+          title="Toggle typing speed suggestions"
+          className="h-7 w-7 p-0"
+        >
+          <Zap className="w-3.5 h-3.5" />
         </Button>
       </div>
 

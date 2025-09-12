@@ -66,6 +66,11 @@ interface ProjectStore {
     effect?: { type: 'zoom' | 'cursor' | 'background'; data: any; sourceClipId: string }
   }
 
+  // Settings
+  settings: {
+    showTypingSuggestions: boolean
+  }
+
   // Core Actions
   newProject: (name: string) => void
   openProject: (projectPath: string) => Promise<void>
@@ -110,6 +115,9 @@ interface ProjectStore {
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<Effect>) => void
   getEffectsAtTimeRange: (clipId: string) => Effect[]  // Gets effects overlapping with clip's time range
+
+  // Settings
+  updateSettings: (updates: Partial<ProjectStore['settings']>) => void
 }
 
 // Helper to update playhead state based on current time
@@ -158,6 +166,11 @@ export const useProjectStore = create<ProjectStore>()(
     selectedClips: [],
     selectedEffectLayer: null,
     clipboard: {},
+
+    // Settings
+    settings: {
+      showTypingSuggestions: true
+    },
 
     newProject: (name) => {
       set((state) => {
@@ -967,6 +980,13 @@ export const useProjectStore = create<ProjectStore>()(
         e.startTime < clip.startTime + clip.duration &&
         e.endTime > clip.startTime
       )
+    },
+
+    // Settings
+    updateSettings: (updates) => {
+      set((state) => {
+        Object.assign(state.settings, updates)
+      })
     }
   }))
 )

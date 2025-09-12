@@ -11,10 +11,12 @@ import { TimelineRuler } from './timeline-ruler'
 import { TimelineClip } from './timeline-clip'
 import { TimelineTrack } from './timeline-track'
 import { TimelinePlayhead } from './timeline-playhead'
+import { TypingSuggestionPopover } from './typing-suggestion-popover'
 import { TimelineControls } from './timeline-controls'
 import { TimelineContextMenu } from './timeline-context-menu'
 import { TimelineEffectBlock } from './timeline-effect-block'
 import { EffectLayerType, type SelectedEffectLayer } from '@/types/effects'
+import type { TypingPeriod } from '@/lib/timeline/typing-detector'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
@@ -80,6 +82,15 @@ export function TimelineCanvas({
   const [stageSize, setStageSize] = useState({ width: 800, height: 400 })
   const [scrollLeft, setScrollLeft] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; clipId: string } | null>(null)
+  const [typingPopover, setTypingPopover] = useState<{
+    x: number
+    y: number
+    period: TypingPeriod
+    allPeriods: TypingPeriod[]
+    onApply: (p: TypingPeriod) => Promise<void>
+    onApplyAll?: (ps: TypingPeriod[]) => Promise<void>
+    onRemove?: (p: TypingPeriod) => void
+  } | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const colors = useTimelineColors()
@@ -446,6 +457,7 @@ export function TimelineCanvas({
                     }}
                     onDragEnd={handleClipDragEnd}
                     onContextMenu={handleClipContextMenu}
+                    onOpenTypingSuggestion={(opts) => setTypingPopover(opts)}
                   />
                 )
               })
@@ -703,6 +715,20 @@ export function TimelineCanvas({
               }
             }}
             onClose={() => setContextMenu(null)}
+          />
+        )}
+
+        {/* Typing suggestion popover */}
+        {typingPopover && (
+          <TypingSuggestionPopover
+            x={typingPopover.x}
+            y={typingPopover.y}
+            period={typingPopover.period}
+            allPeriods={typingPopover.allPeriods}
+            onApply={typingPopover.onApply}
+            onApplyAll={typingPopover.onApplyAll}
+            onRemove={typingPopover.onRemove}
+            onClose={() => setTypingPopover(null)}
           />
         )}
       </div>
