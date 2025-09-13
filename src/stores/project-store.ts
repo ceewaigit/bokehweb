@@ -134,9 +134,9 @@ const updatePlayheadState = (state: any) => {
   state.playheadRecording = null
 
   if (state.currentProject && state.currentTime !== undefined) {
-    // Find clip at current time - add small tolerance for boundary detection
+    // Find clip at current time - add tolerance for boundary detection
     // This prevents black flash when playhead is exactly at clip boundaries
-    const tolerance = 0.01 // 0.01ms tolerance
+    const tolerance = 1 // 1ms tolerance for better boundary handling
     
     for (const track of state.currentProject.timeline.tracks) {
       const clip = track.clips.find((c: Clip) => {
@@ -654,6 +654,11 @@ export const useProjectStore = create<ProjectStore>()(
         }
 
         const { clip, track } = result
+        
+        // Clear typing suggestions for this recording when splitting
+        // This prevents confusion with suggestions that no longer apply to the split clips
+        const { globalAppliedRecordings } = require('@/components/timeline/timeline-clip')
+        globalAppliedRecordings.add(clip.recordingId)
         
         console.log('[Store] Splitting clip:', {
           clipId,

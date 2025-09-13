@@ -23,7 +23,7 @@ import { CommandManager } from '@/lib/commands'
 const globalDismissedSuggestions = new Map<string, Set<string>>()
 
 // Track recordings where ALL suggestions have been applied
-const globalAppliedRecordings = new Set<string>()
+export const globalAppliedRecordings = new Set<string>()
 
 interface TimelineClipProps {
   clip: Clip

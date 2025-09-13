@@ -54,7 +54,7 @@ export function PreviewAreaRemotion({
   const previewClip = playheadClip || lastValidClip
   const previewRecording = playheadRecording || lastValidRecording
 
-  // Load video URL when recording changes - clear immediately when no clip
+  // Load video URL when recording changes
   useEffect(() => {
     if (!previewRecording) {
       setVideoUrl(null)
@@ -85,8 +85,8 @@ export function PreviewAreaRemotion({
 
     return () => {
       cancelled = true
-      // Clear video URL so the player doesn't try to fetch a revoked blob
-      setVideoUrl(null)
+      // Don't clear video URL here - let it persist during transitions
+      // It will be cleared when previewRecording becomes null
     }
   }, [previewRecording?.id, previewRecording?.filePath]);
 
