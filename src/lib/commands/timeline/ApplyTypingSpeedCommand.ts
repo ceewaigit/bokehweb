@@ -140,9 +140,8 @@ export class ApplyTypingSpeedCommand extends Command<{
     for (let i = 0; i < sortedSplitPoints.length; i++) {
       const splitTime = sortedSplitPoints[i]
       
-      // Get fresh state from store using getState() to ensure we have the latest
-      const freshState = store.getState()
-      const currentProject = freshState.currentProject
+      // Get fresh project state directly from store
+      const currentProject = store.currentProject
       
       if (!currentProject) {
         console.log('[ApplyTypingSpeedCommand] Project lost during splits')
@@ -190,9 +189,8 @@ export class ApplyTypingSpeedCommand extends Command<{
     // Now apply speed changes to the appropriate segments
     let appliedCount = 0
     
-    // Get fresh state after all splits using getState()
-    const finalState = store.getState()
-    const updatedProject = finalState.currentProject
+    // Get fresh state after all splits
+    const updatedProject = store.currentProject
     if (!updatedProject) {
       return { success: false, error: 'Project lost after splits' }
     }

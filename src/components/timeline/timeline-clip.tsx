@@ -277,20 +277,44 @@ export const TimelineClip = React.memo(({
     })
     
     try {
-      const store = useProjectStore.getState()
-      const context = new DefaultCommandContext(store)
-      const command = new ApplyTypingSpeedCommand(context, clip.id, periods)
+      // Apply each period sequentially with fresh context
+      let currentClipId = clip.id
+      let successCount = 0
       
-      // Execute through command manager for undo/redo support
-      const manager = CommandManager.getInstance(context)
-      const result = await manager.execute(command)
+      for (const period of periods) {
+        // Get fresh state for each operation
+        const store = useProjectStore.getState()
+        const context = new DefaultCommandContext(store)
+        
+        // Find the current clip (it may have changed ID after splits)
+        const currentClip = store.currentProject?.timeline.tracks
+          .flatMap(t => t.clips)
+          .find(c => c.id === currentClipId || 
+                     (c.recordingId === clip.recordingId && 
+                      c.startTime <= period.startTime && 
+                      c.startTime + c.duration >= period.endTime))
+        
+        if (!currentClip) {
+          console.error('[TimelineClip] Lost track of clip for period:', period)
+          continue
+        }
+        
+        const command = new ApplyTypingSpeedCommand(context, currentClip.id, [period])
+        const manager = CommandManager.getInstance(context)
+        const result = await manager.execute(command)
+        
+        if (result.success) {
+          successCount++
+          console.log(`[TimelineClip] Applied suggestion ${successCount}/${periods.length}`)
+        } else {
+          console.error('[TimelineClip] Failed to apply typing suggestion:', result.error)
+        }
+      }
       
-      if (result.success) {
-        console.log('[TimelineClip] Successfully applied all typing suggestions:', result.data)
+      if (successCount > 0) {
+        console.log(`[TimelineClip] Successfully applied ${successCount}/${periods.length} typing suggestions`)
         // Dismiss all suggestions visually after successful application
         dismissPeriods(periods)
-      } else {
-        console.error('[TimelineClip] Failed to apply all typing suggestions:', result.error)
       }
     } catch (error) {
       console.error('[TimelineClip] Exception applying all typing suggestions:', error)
