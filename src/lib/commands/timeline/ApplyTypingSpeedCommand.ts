@@ -100,16 +100,29 @@ export class ApplyTypingSpeedCommand extends Command<{
     const splitPoints = new Set<number>()
     for (const period of timelinePeriods) {
       // Check if we need to split at the start of the period
-      const clipAtStart = this.findClipContainingTime(track, period.startTime)
-      if (clipAtStart) {
-        console.log('[ApplyTypingSpeedCommand] Need split at period start', period.startTime, 'in clip', clipAtStart.id)
+      // A split is needed if the period start is inside a clip (not at boundaries)
+      const needsSplitAtStart = track.clips.some(clip => {
+        if (clip.recordingId !== this.recordingId) return false
+        const clipStart = clip.startTime
+        const clipEnd = clip.startTime + clip.duration
+        return period.startTime > clipStart && period.startTime < clipEnd
+      })
+      
+      if (needsSplitAtStart) {
+        console.log('[ApplyTypingSpeedCommand] Need split at period start', period.startTime)
         splitPoints.add(period.startTime)
       }
       
       // Check if we need to split at the end of the period
-      const clipAtEnd = this.findClipContainingTime(track, period.endTime)
-      if (clipAtEnd) {
-        console.log('[ApplyTypingSpeedCommand] Need split at period end', period.endTime, 'in clip', clipAtEnd.id)
+      const needsSplitAtEnd = track.clips.some(clip => {
+        if (clip.recordingId !== this.recordingId) return false
+        const clipStart = clip.startTime
+        const clipEnd = clip.startTime + clip.duration
+        return period.endTime > clipStart && period.endTime < clipEnd
+      })
+      
+      if (needsSplitAtEnd) {
+        console.log('[ApplyTypingSpeedCommand] Need split at period end', period.endTime)
         splitPoints.add(period.endTime)
       }
     }
@@ -137,19 +150,23 @@ export class ApplyTypingSpeedCommand extends Command<{
         continue
       }
       
+      console.log('[ApplyTypingSpeedCommand] Looking for clip at time', splitTime)
+      console.log('[ApplyTypingSpeedCommand] Available clips:', currentTrack.clips
+        .filter(c => c.recordingId === this.recordingId)
+        .map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })))
+      
       // Find the clip containing this split point - must be from same recording
       const clipToSplit = currentTrack.clips.find(clip => {
         if (clip.recordingId !== this.recordingId) return false
         const clipStart = clip.startTime
         const clipEnd = clip.startTime + clip.duration
+        // Split point must be strictly inside the clip (not at boundaries)
         return splitTime > clipStart && splitTime < clipEnd
       })
       
-      console.log('[ApplyTypingSpeedCommand] Looking for clip at time', splitTime)
-      console.log('[ApplyTypingSpeedCommand] Available clips:', currentTrack.clips
-        .filter(c => c.recordingId === this.recordingId)
-        .map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })))
-      console.log('[ApplyTypingSpeedCommand] Found clip to split:', clipToSplit?.id)
+      console.log('[ApplyTypingSpeedCommand] Found clip to split:', clipToSplit ? 
+        { id: clipToSplit.id, start: clipToSplit.startTime, end: clipToSplit.startTime + clipToSplit.duration } : 
+        'none')
       
       if (clipToSplit) {
         console.log('[ApplyTypingSpeedCommand] Splitting clip', clipToSplit.id, 'at time', splitTime)
@@ -359,12 +376,4 @@ export class ApplyTypingSpeedCommand extends Command<{
     return mapped
   }
   
-  private findClipContainingTime(track: any, time: number): Clip | null {
-    return track.clips.find((clip: Clip) => {
-      if (clip.recordingId !== this.recordingId) return false
-      const clipStart = clip.startTime
-      const clipEnd = clip.startTime + clip.duration
-      return time > clipStart && time < clipEnd
-    }) || null
-  }
 }
