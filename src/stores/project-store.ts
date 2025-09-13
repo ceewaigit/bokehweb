@@ -227,10 +227,6 @@ export const useProjectStore = create<ProjectStore>()(
           }))
         )
 
-        // Don't auto-mark any recordings as "applied" on project load
-        // Let the timeline-clip component handle showing/hiding suggestions based on
-        // whether clips are split and their source ranges
-        // This was causing issues where non-split clips weren't showing suggestions
 
         set((state) => {
           state.currentProject = project
@@ -659,11 +655,6 @@ export const useProjectStore = create<ProjectStore>()(
         }
 
         const { clip, track } = result
-        
-        // Clear typing suggestions for this recording when splitting
-        // This prevents confusion with suggestions that no longer apply to the split clips
-        const { globalAppliedRecordings } = require('@/components/timeline/timeline-clip')
-        globalAppliedRecordings.add(clip.recordingId)
         
         console.log('[Store] Splitting clip:', {
           clipId,

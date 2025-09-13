@@ -22,9 +22,6 @@ import { CommandManager } from '@/lib/commands'
 // This survives component re-creation when clips are split
 const globalDismissedSuggestions = new Map<string, Set<string>>()
 
-// Track recordings where ALL suggestions have been applied
-export const globalAppliedRecordings = new Set<string>()
-
 interface TimelineClipProps {
   clip: Clip
   recording?: Recording | null
@@ -144,19 +141,6 @@ export const TimelineClip = React.memo(({
 
   // Analyze typing patterns for speed-up suggestions
   useEffect(() => {
-    // Don't show suggestions if all have been applied for this recording
-    if (globalAppliedRecordings.has(recordingId)) {
-      setTypingSuggestions(null)
-      return
-    }
-    
-    // NEVER show suggestions on split clips - they've already been processed
-    // Split clips are identified by having "-split" in their ID
-    if (clip.id.includes('-split')) {
-      setTypingSuggestions(null)
-      return
-    }
-    
     if (!recording?.metadata?.keyboardEvents || recording.metadata.keyboardEvents.length === 0) {
       setTypingSuggestions(null)
       return
@@ -166,13 +150,29 @@ export const TimelineClip = React.memo(({
       // Analyze keyboard events for typing patterns
       const suggestions = TypingDetector.analyzeTyping(recording.metadata.keyboardEvents)
       
-      // Only show suggestions on original, non-split clips
-      setTypingSuggestions(suggestions)
+      // Only show suggestions for typing periods that fall within this clip's time range
+      const clipStart = clip.sourceIn || 0
+      const clipEnd = clip.sourceOut || (clipStart + clip.duration * (clip.playbackRate || 1))
+      
+      const relevantPeriods = suggestions.periods.filter(period => {
+        // Check if this typing period overlaps with this clip's source range
+        return period.startTime < clipEnd && period.endTime > clipStart
+      })
+      
+      // Only show suggestions if we have relevant periods for this clip
+      if (relevantPeriods.length > 0) {
+        setTypingSuggestions({
+          ...suggestions,
+          periods: relevantPeriods
+        })
+      } else {
+        setTypingSuggestions(null)
+      }
     } catch (error) {
       console.warn('Failed to analyze typing patterns:', error)
       setTypingSuggestions(null)
     }
-  }, [recording?.metadata?.keyboardEvents, recordingId, clip.id])
+  }, [recording?.metadata?.keyboardEvents, clip.id, clip.sourceIn, clip.sourceOut, clip.duration, clip.playbackRate])
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {
@@ -289,8 +289,7 @@ export const TimelineClip = React.memo(({
             !(p.startTime === period.startTime && p.endTime === period.endTime)
           )
           if (updatedPeriods.length === 0) {
-            // No more periods, mark as all applied
-            globalAppliedRecordings.add(recordingId)
+            // No more periods, clear dismissed suggestions
             globalDismissedSuggestions.delete(recordingId)
             return null
           }
@@ -342,8 +341,7 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
-        // Mark this recording as having all suggestions applied
-        globalAppliedRecordings.add(recordingId)
+        // Clear dismissed suggestions for this recording
         globalDismissedSuggestions.delete(recordingId)
         // Force re-render to hide the suggestions
         setTypingSuggestions(null)
