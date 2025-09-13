@@ -29,7 +29,6 @@ interface TimelineClipProps {
   selectedEffectType?: EffectLayerType.Zoom | EffectLayerType.Cursor | EffectLayerType.Background | null
   otherClipsInTrack?: Clip[]
   clipEffects?: any[]  // Effects for this clip from timeline.effects
-  commandManager?: any  // Command manager for undo/redo
   onSelect: (clipId: string) => void
   onSelectEffect?: (type: EffectLayerType) => void
   onDragEnd: (clipId: string, newStartTime: number) => void
@@ -56,7 +55,6 @@ export const TimelineClip = React.memo(({
   selectedEffectType,
   otherClipsInTrack = [],
   clipEffects = [],
-  commandManager,
   onSelect,
   onSelectEffect,
   onDragEnd,
@@ -244,10 +242,6 @@ export const TimelineClip = React.memo(({
       if (result.success) {
         // Dismiss the suggestion visually after successful application
         dismissPeriod(period)
-        // Store command for undo/redo
-        if (commandManager) {
-          commandManager.addToHistory(command)
-        }
       } else {
         console.error('Failed to apply typing speed suggestion:', result.error)
       }
@@ -267,10 +261,6 @@ export const TimelineClip = React.memo(({
       if (result.success) {
         // Dismiss all suggestions visually after successful application
         dismissPeriods(periods)
-        // Store command for undo/redo
-        if (commandManager) {
-          commandManager.addToHistory(command)
-        }
       } else {
         console.error('Failed to apply all typing suggestions:', result.error)
       }

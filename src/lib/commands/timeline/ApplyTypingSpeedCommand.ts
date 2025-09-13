@@ -102,7 +102,11 @@ export class ApplyTypingSpeedCommand extends Command<{
     // Perform splits
     const sortedSplitTimes = Array.from(splitTimes).sort((a, b) => a - b)
     for (const splitTime of sortedSplitTimes) {
-      const currentTrack = project.timeline.tracks.find(t => 
+      // Re-fetch project state after each split
+      const currentProject = store.currentProject
+      if (!currentProject) continue
+      
+      const currentTrack = currentProject.timeline.tracks.find(t => 
         t.clips.some(c => c.recordingId === sourceClip.recordingId)
       )
       if (!currentTrack) continue
@@ -117,8 +121,14 @@ export class ApplyTypingSpeedCommand extends Command<{
       }
     }
 
+    // Re-fetch project after all splits
+    const projectAfterSplits = store.currentProject
+    if (!projectAfterSplits) {
+      return { success: false, error: 'Project not found after splits' }
+    }
+    
     // Find all segments and determine which need speed changes
-    const updatedTrack = project.timeline.tracks.find(t => 
+    const updatedTrack = projectAfterSplits.timeline.tracks.find(t => 
       t.clips.some(c => c.recordingId === sourceClip.recordingId)
     )
     if (!updatedTrack) {

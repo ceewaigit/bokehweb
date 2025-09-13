@@ -451,7 +451,6 @@ export function TimelineCanvas({
                     selectedEffectType={selectedClips.includes(clip.id) ? (selectedEffectLayer?.type === EffectLayerType.Screen ? null : selectedEffectLayer?.type) : null}
                     otherClipsInTrack={videoClips}
                     clipEffects={clipEffects}
-                    commandManager={commandManagerRef.current}
                     onSelect={handleClipSelect}
                     onSelectEffect={(type) => {
                       selectEffectLayer(type)
