@@ -124,17 +124,32 @@ export class ApplyTypingSpeedCommand extends Command<{
     console.log('[ApplyTypingSpeedCommand] Split points to apply:', sortedSplitPoints)
     
     for (const splitTime of sortedSplitPoints) {
-      // Re-fetch track state after each split
+      // Re-fetch track state after each split to get updated clip IDs
       const currentProject = store.currentProject
-      if (!currentProject) continue
+      if (!currentProject) {
+        console.log('[ApplyTypingSpeedCommand] Project lost during splits')
+        continue
+      }
       
       const currentTrack = currentProject.timeline.tracks.find(t => t.id === this.trackId)
-      if (!currentTrack) continue
+      if (!currentTrack) {
+        console.log('[ApplyTypingSpeedCommand] Track lost during splits')
+        continue
+      }
       
-      // Find the clip containing this split point
-      const clipToSplit = this.findClipContainingTime(currentTrack, splitTime)
+      // Find the clip containing this split point - must be from same recording
+      const clipToSplit = currentTrack.clips.find(clip => {
+        if (clip.recordingId !== this.recordingId) return false
+        const clipStart = clip.startTime
+        const clipEnd = clip.startTime + clip.duration
+        return splitTime > clipStart && splitTime < clipEnd
+      })
       
-      console.log('[ApplyTypingSpeedCommand] Looking for clip at time', splitTime, 'found:', clipToSplit?.id)
+      console.log('[ApplyTypingSpeedCommand] Looking for clip at time', splitTime)
+      console.log('[ApplyTypingSpeedCommand] Available clips:', currentTrack.clips
+        .filter(c => c.recordingId === this.recordingId)
+        .map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })))
+      console.log('[ApplyTypingSpeedCommand] Found clip to split:', clipToSplit?.id)
       
       if (clipToSplit) {
         console.log('[ApplyTypingSpeedCommand] Splitting clip', clipToSplit.id, 'at time', splitTime)
@@ -147,6 +162,8 @@ export class ApplyTypingSpeedCommand extends Command<{
           originalClipId: clipToSplit.id,
           // The actual resulting clip IDs will be determined after re-fetching
         })
+      } else {
+        console.log('[ApplyTypingSpeedCommand] No clip found to split at time', splitTime)
       }
     }
     
@@ -342,26 +359,12 @@ export class ApplyTypingSpeedCommand extends Command<{
     return mapped
   }
   
-  private findClipsAtTime(track: any, time: number): Clip[] {
-    return track.clips.filter((clip: Clip) => {
-      if (clip.recordingId !== this.recordingId) return false
-      return time >= clip.startTime && time <= clip.startTime + clip.duration
-    })
-  }
-  
   private findClipContainingTime(track: any, time: number): Clip | null {
     return track.clips.find((clip: Clip) => {
       if (clip.recordingId !== this.recordingId) return false
-      return time > clip.startTime && time < clip.startTime + clip.duration
+      const clipStart = clip.startTime
+      const clipEnd = clip.startTime + clip.duration
+      return time > clipStart && time < clipEnd
     }) || null
-  }
-  
-  private isAtClipBoundary(track: any, time: number): boolean {
-    const tolerance = 0.1 // milliseconds
-    return track.clips.some((clip: Clip) => {
-      if (clip.recordingId !== this.recordingId) return false
-      return Math.abs(time - clip.startTime) < tolerance || 
-             Math.abs(time - (clip.startTime + clip.duration)) < tolerance
-    })
   }
 }
