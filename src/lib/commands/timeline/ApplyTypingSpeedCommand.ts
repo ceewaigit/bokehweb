@@ -88,21 +88,34 @@ export class ApplyTypingSpeedCommand extends Command<{
       return { success: false, error: 'No valid typing periods found within clip bounds' }
     }
 
-    // Collect all split points
-    const splitTimes = new Set<number>()
-    for (const bound of timelineBounds) {
-      if (bound.startAbs > sourceClip.startTime && bound.startAbs < sourceClip.startTime + sourceClip.duration) {
-        splitTimes.add(bound.startAbs)
-      }
-      if (bound.endAbs > sourceClip.startTime && bound.endAbs < sourceClip.startTime + sourceClip.duration) {
-        splitTimes.add(bound.endAbs)
-      }
+    // Store original clips that will be affected
+    const originalTrack = project.timeline.tracks.find(t => 
+      t.clips.some(c => c.recordingId === sourceClip.recordingId)
+    )
+    if (originalTrack) {
+      // Store all clips from this recording for undo
+      originalTrack.clips
+        .filter(c => c.recordingId === sourceClip.recordingId)
+        .forEach(c => this.storeOriginalClipState(c))
     }
 
-    // Perform splits
-    const sortedSplitTimes = Array.from(splitTimes).sort((a, b) => a - b)
+    // Collect all unique split points and sort them
+    const splitTimesSet = new Set<number>()
+    for (const bound of timelineBounds) {
+      // Only add split points that are within the original clip bounds
+      if (bound.startAbs > sourceClip.startTime && bound.startAbs < sourceClip.startTime + sourceClip.duration) {
+        splitTimesSet.add(bound.startAbs)
+      }
+      if (bound.endAbs > sourceClip.startTime && bound.endAbs < sourceClip.startTime + sourceClip.duration) {
+        splitTimesSet.add(bound.endAbs)
+      }
+    }
+    
+    const sortedSplitTimes = Array.from(splitTimesSet).sort((a, b) => a - b)
+
+    // Perform splits from left to right
     for (const splitTime of sortedSplitTimes) {
-      // Re-fetch project state after each split
+      // Re-fetch project state after each split to get updated clip IDs
       const currentProject = store.currentProject
       if (!currentProject) continue
       
@@ -111,13 +124,16 @@ export class ApplyTypingSpeedCommand extends Command<{
       )
       if (!currentTrack) continue
       
-      const clipAtTime = currentTrack.clips.find(c => 
-        splitTime > c.startTime && splitTime < c.startTime + c.duration
+      // Find the clip that contains this split time
+      const clipToSplit = currentTrack.clips.find(c => 
+        c.recordingId === sourceClip.recordingId &&
+        splitTime > c.startTime && 
+        splitTime < c.startTime + c.duration
       )
-      if (clipAtTime) {
-        // Store original state before split
-        this.storeOriginalClipState(clipAtTime)
-        store.splitClip(clipAtTime.id, splitTime)
+      
+      if (clipToSplit) {
+        // Only split if we haven't already split at this exact point
+        store.splitClip(clipToSplit.id, splitTime)
       }
     }
 
@@ -138,9 +154,17 @@ export class ApplyTypingSpeedCommand extends Command<{
     // Map segments to their target speeds
     const segmentSpeeds = new Map<string, number>()
     for (const bound of timelineBounds) {
+      // Find clips that overlap with this typing period
       const segments = updatedTrack.clips.filter(c => {
+        if (c.recordingId !== sourceClip.recordingId) return false
         const clipEnd = c.startTime + c.duration
-        return c.startTime >= bound.startAbs - 0.1 && clipEnd <= bound.endAbs + 0.1
+        // Check if clip is within or overlaps with the typing period
+        const overlaps = (
+          (c.startTime >= bound.startAbs - 1 && c.startTime < bound.endAbs + 1) ||
+          (clipEnd > bound.startAbs - 1 && clipEnd <= bound.endAbs + 1) ||
+          (c.startTime <= bound.startAbs && clipEnd >= bound.endAbs)
+        )
+        return overlaps
       })
       
       for (const segment of segments) {
@@ -162,8 +186,10 @@ export class ApplyTypingSpeedCommand extends Command<{
       const clip = updatedTrack.clips.find(c => c.id === clipId)
       if (!clip) continue
 
-      // Store original state
-      this.storeOriginalClipState(clip)
+      // Store original state only if not already stored
+      if (!this.originalClips.has(clipId)) {
+        this.storeOriginalClipState(clip)
+      }
       this.clipSpeedMap.set(clipId, speed)
 
       const oldDuration = clip.duration
