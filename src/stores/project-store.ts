@@ -128,6 +128,51 @@ interface ProjectStore {
   }>) => { affectedClips: string[]; originalClips: Clip[] }
 }
 
+// Helper to reflow clips to maintain contiguous layout (no gaps)
+const reflowClips = (track: Track, startFromIndex: number = 0, project?: Project) => {
+  if (track.clips.length === 0) return
+  
+  // Sort clips by start time first
+  track.clips.sort((a, b) => a.startTime - b.startTime)
+  
+  // If starting from beginning, ensure first clip starts at 0
+  if (startFromIndex === 0 && track.clips.length > 0) {
+    const firstClip = track.clips[0]
+    const oldStart = firstClip.startTime
+    const oldEnd = firstClip.startTime + firstClip.duration
+    
+    if (oldStart !== 0) {
+      firstClip.startTime = 0
+      // Shift effects that were aligned with this clip
+      if (project) {
+        shiftEffectsInWindow(project, oldStart, oldEnd, -oldStart)
+      }
+    }
+  }
+  
+  // Reflow all clips from the specified index
+  for (let i = Math.max(1, startFromIndex); i < track.clips.length; i++) {
+    const prevClip = track.clips[i - 1]
+    const currentClip = track.clips[i]
+    const prevEnd = prevClip.startTime + prevClip.duration
+    
+    const oldStart = currentClip.startTime
+    const oldEnd = currentClip.startTime + currentClip.duration
+    const newStart = prevEnd
+    
+    // Position current clip right after previous clip (no gap)
+    if (currentClip.startTime !== newStart) {
+      currentClip.startTime = newStart
+      const delta = newStart - oldStart
+      
+      // Shift effects that were aligned with this clip
+      if (project && delta !== 0) {
+        shiftEffectsInWindow(project, oldStart, oldEnd, delta)
+      }
+    }
+  }
+}
+
 // Helper to update playhead state based on current time
 const updatePlayheadState = (state: any) => {
   state.playheadClip = null
@@ -420,7 +465,7 @@ export const useProjectStore = create<ProjectStore>()(
           clip = {
             id: `clip-${Date.now()}`,
             recordingId: clipOrRecordingId,
-            startTime: startTime ?? state.currentProject.timeline.duration,
+            startTime: startTime ?? 0,  // Default to 0 instead of timeline duration
             duration: recording.duration,
             sourceIn: 0,
             sourceOut: recording.duration
@@ -429,22 +474,23 @@ export const useProjectStore = create<ProjectStore>()(
 
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
-          // Force new clips to be positioned right after the last clip (no gaps)
-          if (videoTrack.clips.length > 0) {
-            // Find the end of the last clip in the timeline
-            const sortedClips = [...videoTrack.clips].sort((a, b) =>
-              (a.startTime + a.duration) - (b.startTime + b.duration)
-            )
-            const lastClip = sortedClips[sortedClips.length - 1]
-            clip.startTime = lastClip.startTime + lastClip.duration
-          } else {
-            // First clip starts at 0
-            clip.startTime = 0
+          // If no specific startTime provided, add at the end of existing clips
+          if (startTime === undefined) {
+            if (videoTrack.clips.length > 0) {
+              // Sort clips to find the actual end of timeline
+              const sortedClips = [...videoTrack.clips].sort((a, b) => a.startTime - b.startTime)
+              const lastClip = sortedClips[sortedClips.length - 1]
+              clip.startTime = lastClip.startTime + lastClip.duration
+            } else {
+              // First clip starts at 0
+              clip.startTime = 0
+            }
           }
 
           videoTrack.clips.push(clip)
-          // Keep clips sorted by start time for proper rendering
-          videoTrack.clips.sort((a, b) => a.startTime - b.startTime)
+          
+          // Reflow all clips to ensure no gaps
+          reflowClips(videoTrack, 0, state.currentProject)
         }
 
         state.currentProject.timeline.duration = Math.max(
@@ -464,11 +510,14 @@ export const useProjectStore = create<ProjectStore>()(
       set((state) => {
         if (!state.currentProject) return
 
-        // Remove the clip from tracks
+        // Remove the clip from tracks and reflow remaining clips
         for (const track of state.currentProject.timeline.tracks) {
           const index = track.clips.findIndex(c => c.id === clipId)
           if (index !== -1) {
             track.clips.splice(index, 1)
+            
+            // Reflow remaining clips to fill the gap
+            reflowClips(track, 0, state.currentProject)  // Start from beginning to ensure no gaps
             break
           }
         }
@@ -761,20 +810,8 @@ export const useProjectStore = create<ProjectStore>()(
         clip.duration -= trimAmount
         clip.sourceIn += trimAmount
 
-        // Reflow following clips to keep contiguous layout
-        const clipIndex = track.clips.findIndex(c => c.id === clipId)
-        let nextStart = clip.startTime + clip.duration
-        for (let i = clipIndex + 1; i < track.clips.length; i++) {
-          const following = track.clips[i]
-          const oldStart = following.startTime
-          const oldEnd = following.startTime + following.duration
-          following.startTime = nextStart
-          const delta = following.startTime - oldStart
-          if (delta !== 0 && state.currentProject) {
-            shiftEffectsInWindow(state.currentProject, oldStart, oldEnd, delta)
-          }
-          nextStart = following.startTime + following.duration
-        }
+        // Reflow all clips to keep contiguous layout
+        reflowClips(track, 0, state.currentProject)
 
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
@@ -802,20 +839,8 @@ export const useProjectStore = create<ProjectStore>()(
         clip.duration = newDuration
         clip.sourceOut = clip.sourceIn + clip.duration
 
-        // Reflow following clips to keep contiguous layout
-        const clipIndex = track.clips.findIndex(c => c.id === clipId)
-        let nextStart = clip.startTime + clip.duration
-        for (let i = clipIndex + 1; i < track.clips.length; i++) {
-          const following = track.clips[i]
-          const oldStart = following.startTime
-          const oldEnd = following.startTime + following.duration
-          following.startTime = nextStart
-          const delta = following.startTime - oldStart
-          if (delta !== 0 && state.currentProject) {
-            shiftEffectsInWindow(state.currentProject, oldStart, oldEnd, delta)
-          }
-          nextStart = following.startTime + following.duration
-        }
+        // Reflow all clips to keep contiguous layout
+        reflowClips(track, 0, state.currentProject)
 
         // Recalculate timeline duration after trim
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
