@@ -32,6 +32,13 @@ interface ProjectStore {
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<import('@/types/project').Effect>) => void
   getEffectsAtTimeRange: (clipId: string) => import('@/types/project').Effect[]
+  
+  // Typing Speed
+  applyTypingSpeedToClip: (clipId: string, periods: Array<{
+    startTime: number
+    endTime: number
+    suggestedSpeedMultiplier: number
+  }>) => { affectedClips: string[]; originalClips: Clip[] }
 }
 
 export interface CommandContext {

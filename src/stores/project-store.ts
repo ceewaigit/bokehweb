@@ -132,6 +132,13 @@ interface ProjectStore {
 
   // Settings
   updateSettings: (updates: Partial<ProjectStore['settings']>) => void
+
+  // Typing Speed
+  applyTypingSpeedToClip: (clipId: string, periods: Array<{
+    startTime: number
+    endTime: number
+    suggestedSpeedMultiplier: number
+  }>) => { affectedClips: string[]; originalClips: Clip[] }
 }
 
 // Helper to update playhead state based on current time
@@ -1028,6 +1035,206 @@ export const useProjectStore = create<ProjectStore>()(
       set((state) => {
         Object.assign(state.settings, updates)
       })
+    },
+
+    // Typing Speed - Apply typing speed suggestions to a clip
+    applyTypingSpeedToClip: (clipId, periods) => {
+      const affectedClips: string[] = []
+      const originalClips: Clip[] = []
+      
+      set((state) => {
+        if (!state.currentProject) {
+          console.error('applyTypingSpeedToClip: No current project')
+          return
+        }
+
+        // Find the source clip and track
+        let sourceClip: Clip | null = null
+        let track: Track | null = null
+        for (const t of state.currentProject.timeline.tracks) {
+          const clip = t.clips.find(c => c.id === clipId)
+          if (clip) {
+            sourceClip = clip
+            track = t
+            break
+          }
+        }
+
+        if (!sourceClip || !track) {
+          console.error('applyTypingSpeedToClip: Clip not found:', clipId)
+          return
+        }
+
+        // Save original state of all clips from this recording
+        const recordingId = sourceClip.recordingId
+        for (const clip of track.clips) {
+          if (clip.recordingId === recordingId) {
+            originalClips.push({ ...clip })
+          }
+        }
+
+        // Process each typing period
+        for (const period of periods) {
+          console.log('[Store] Processing typing period:', {
+            source: { start: period.startTime, end: period.endTime },
+            speed: period.suggestedSpeedMultiplier
+          })
+
+          // Map period from source coordinates to timeline coordinates
+          const sourceIn = sourceClip.sourceIn || 0
+          const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration)
+          const playbackRate = sourceClip.playbackRate || 1
+
+          // Check if period overlaps with any clip's source range
+          let targetClip: Clip | null = null
+          for (const clip of track.clips) {
+            if (clip.recordingId !== recordingId) continue
+            
+            const clipSourceIn = clip.sourceIn || 0
+            const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration)
+            
+            // Check if this period overlaps with this clip's source range
+            if (period.startTime < clipSourceOut && period.endTime > clipSourceIn) {
+              targetClip = clip
+              break
+            }
+          }
+
+          if (!targetClip) {
+            console.warn('[Store] No clip found for typing period:', period)
+            continue
+          }
+
+          // Map to timeline coordinates for this specific clip
+          const clipSourceIn = targetClip.sourceIn || 0
+          const clipSourceOut = targetClip.sourceOut || (clipSourceIn + targetClip.duration)
+          const clipPlaybackRate = targetClip.playbackRate || 1
+
+          // Clip the period to this clip's source range
+          const clippedStart = Math.max(period.startTime, clipSourceIn)
+          const clippedEnd = Math.min(period.endTime, clipSourceOut)
+
+          // Convert to timeline coordinates
+          const relativeStart = (clippedStart - clipSourceIn) / clipPlaybackRate
+          const relativeEnd = (clippedEnd - clipSourceIn) / clipPlaybackRate
+          const timelineStart = targetClip.startTime + relativeStart
+          const timelineEnd = targetClip.startTime + relativeEnd
+
+          console.log('[Store] Mapped period to timeline:', {
+            clipId: targetClip.id,
+            timeline: { start: timelineStart, end: timelineEnd }
+          })
+
+          // Determine if we need to split the clip
+          const clipStart = targetClip.startTime
+          const clipEnd = targetClip.startTime + targetClip.duration
+          let currentClipId = targetClip.id
+
+          // Split at start if needed
+          if (timelineStart > clipStart + 0.1) {
+            console.log('[Store] Splitting at period start:', timelineStart)
+            
+            const splitPoint = timelineStart - clipStart
+            const timestamp = Date.now()
+            const sourceSplitPoint = splitPoint * clipPlaybackRate
+
+            // Create first clip (before typing)
+            const firstClip: Clip = {
+              id: `${currentClipId}-split1-${timestamp}`,
+              recordingId: targetClip.recordingId,
+              startTime: targetClip.startTime,
+              duration: splitPoint,
+              sourceIn: targetClip.sourceIn,
+              sourceOut: targetClip.sourceIn + sourceSplitPoint,
+              playbackRate: targetClip.playbackRate
+            }
+
+            // Create second clip (typing part and after)
+            const secondClip: Clip = {
+              id: `${currentClipId}-split2-${timestamp}`,
+              recordingId: targetClip.recordingId,
+              startTime: timelineStart,
+              duration: targetClip.duration - splitPoint,
+              sourceIn: targetClip.sourceIn + sourceSplitPoint,
+              sourceOut: targetClip.sourceOut,
+              playbackRate: targetClip.playbackRate
+            }
+
+            const clipIndex = track.clips.findIndex(c => c.id === currentClipId)
+            track.clips.splice(clipIndex, 1, firstClip, secondClip)
+            currentClipId = secondClip.id
+
+            // Update targetClip reference to the second clip
+            targetClip = secondClip
+          }
+
+          // Split at end if needed
+          if (timelineEnd < clipEnd - 0.1) {
+            console.log('[Store] Splitting at period end:', timelineEnd)
+            
+            // Find the current clip again (it may have changed)
+            const currentClip = track.clips.find(c => c.id === currentClipId)
+            if (!currentClip) {
+              console.error('[Store] Lost track of clip after first split')
+              continue
+            }
+
+            const splitPoint = timelineEnd - currentClip.startTime
+            const timestamp = Date.now()
+            const sourceSplitPoint = splitPoint * (currentClip.playbackRate || 1)
+
+            // Create first clip (typing part)
+            const firstClip: Clip = {
+              id: `${currentClipId}-split1-${timestamp}`,
+              recordingId: currentClip.recordingId,
+              startTime: currentClip.startTime,
+              duration: splitPoint,
+              sourceIn: currentClip.sourceIn,
+              sourceOut: currentClip.sourceIn + sourceSplitPoint,
+              playbackRate: currentClip.playbackRate
+            }
+
+            // Create second clip (after typing)
+            const secondClip: Clip = {
+              id: `${currentClipId}-split2-${timestamp}`,
+              recordingId: currentClip.recordingId,
+              startTime: timelineEnd,
+              duration: currentClip.duration - splitPoint,
+              sourceIn: currentClip.sourceIn + sourceSplitPoint,
+              sourceOut: currentClip.sourceOut,
+              playbackRate: currentClip.playbackRate
+            }
+
+            const clipIndex = track.clips.findIndex(c => c.id === currentClipId)
+            track.clips.splice(clipIndex, 1, firstClip, secondClip)
+            currentClipId = firstClip.id
+          }
+
+          // Apply speed to the target clip
+          const finalClip = track.clips.find(c => c.id === currentClipId)
+          if (finalClip) {
+            console.log('[Store] Applying speed to clip:', finalClip.id)
+            const sourceDuration = (finalClip.sourceOut - finalClip.sourceIn)
+            const newDuration = sourceDuration / period.suggestedSpeedMultiplier
+            
+            finalClip.playbackRate = period.suggestedSpeedMultiplier
+            finalClip.duration = newDuration
+            affectedClips.push(finalClip.id)
+
+            // Magnetically update clips after this one
+            magneticallyUpdateClipsAfter(track, finalClip.startTime + finalClip.duration, newDuration - sourceDuration)
+          }
+        }
+
+        // Update timeline duration
+        state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+        state.currentProject.modifiedAt = new Date().toISOString()
+
+        // Update playhead state
+        updatePlayheadState(state)
+      })
+
+      return { affectedClips, originalClips }
     }
   }))
 )

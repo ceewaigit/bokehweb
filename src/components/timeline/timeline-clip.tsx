@@ -295,53 +295,24 @@ export const TimelineClip = React.memo(({
     })
     
     try {
-      // Apply each period sequentially with fresh context
-      let currentClipId = clip.id
-      let successCount = 0
-      const failedPeriods: TypingPeriod[] = []
+      // Apply all periods in a single command for atomic operation
+      const store = useProjectStore.getState()
+      const context = new DefaultCommandContext(store)
+      const command = new ApplyTypingSpeedCommand(context, clip.id, periods)
       
-      for (const period of periods) {
-        // Get fresh state for each operation
-        const store = useProjectStore.getState()
-        const context = new DefaultCommandContext(store)
-        
-        // Find the current clip (it may have changed ID after splits)
-        const currentClip = store.currentProject?.timeline.tracks
-          .flatMap(t => t.clips)
-          .find(c => c.id === currentClipId || 
-                     (c.recordingId === clip.recordingId && 
-                      c.startTime <= period.startTime && 
-                      c.startTime + c.duration >= period.endTime))
-        
-        if (!currentClip) {
-          console.error('[TimelineClip] Lost track of clip for period:', period)
-          failedPeriods.push(period)
-          continue
-        }
-        
-        const command = new ApplyTypingSpeedCommand(context, currentClip.id, [period])
-        const manager = CommandManager.getInstance(context)
-        const result = await manager.execute(command)
-        
-        if (result.success) {
-          successCount++
-          console.log(`[TimelineClip] Applied suggestion ${successCount}/${periods.length}`)
-        } else {
-          console.error('[TimelineClip] Failed to apply typing suggestion:', result.error)
-          failedPeriods.push(period)
-        }
-      }
+      // Execute through command manager for undo/redo support
+      const manager = CommandManager.getInstance(context)
+      const result = await manager.execute(command)
       
-      if (successCount > 0) {
-        console.log(`[TimelineClip] Successfully applied ${successCount}/${periods.length} typing suggestions`)
-      }
-      
-      // Re-show any failed suggestions
-      if (failedPeriods.length > 0) {
-        const failedKeys = new Set(failedPeriods.map(p => `${p.startTime}-${p.endTime}`))
+      if (result.success) {
+        console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
+      } else {
+        console.error('[TimelineClip] Failed to apply typing suggestions:', result.error)
+        // Re-show all suggestions on failure
+        const keys = periods.map(p => `${p.startTime}-${p.endTime}`)
         setDismissedSuggestions(prev => {
           const newSet = new Set(prev)
-          failedKeys.forEach(key => newSet.delete(key))
+          keys.forEach(key => newSet.delete(key))
           return newSet
         })
       }
