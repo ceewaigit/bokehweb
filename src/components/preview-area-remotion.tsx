@@ -35,9 +35,8 @@ export function PreviewAreaRemotion({
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
   
-  // Dual video buffer state for seamless transitions
+  // Video state for seamless transitions
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null)
-  const [preloadVideoUrl, setPreloadVideoUrl] = useState<string | null>(null)
   const [activeClip, setActiveClip] = useState<Clip | null>(null)
   const [activeRecording, setActiveRecording] = useState<Recording | null>(null)
   
@@ -48,73 +47,61 @@ export function PreviewAreaRemotion({
   const nextClip = useProjectStore(state => state.nextClip)
   const nextRecording = useProjectStore(state => state.nextRecording)
   
-  // Handle clip transitions and buffer swapping
+  // Handle clip transitions - only update video when recording changes
   useEffect(() => {
-    // Check if we need to transition to a new clip
     if (playheadClip && playheadRecording) {
-      // Check if this is a different clip than what's currently active
-      if (!activeClip || activeClip.id !== playheadClip.id) {
-        // Check if this clip was preloaded
-        if (nextClip && nextClip.id === playheadClip.id && preloadVideoUrl) {
-          // Swap buffers - preloaded video becomes active
-          setActiveVideoUrl(preloadVideoUrl)
-          setPreloadVideoUrl(null)
-        } else {
-          // Load new video for active buffer
-          const url = RecordingStorage.getBlobUrl(playheadRecording.id)
-          if (url) {
-            setActiveVideoUrl(url)
-          }
+      // Check if we're switching to a different recording (not just a split)
+      const recordingChanged = !activeRecording || activeRecording.id !== playheadRecording.id
+      
+      if (recordingChanged) {
+        // Different recording - need to load new video
+        const url = RecordingStorage.getBlobUrl(playheadRecording.id)
+        if (url) {
+          setActiveVideoUrl(url)
+        } else if (playheadRecording.filePath) {
+          // Load if not cached
+          globalBlobManager.ensureVideoLoaded(
+            playheadRecording.id,
+            playheadRecording.filePath
+          ).then(url => {
+            if (url) setActiveVideoUrl(url)
+          })
         }
-        setActiveClip(playheadClip)
         setActiveRecording(playheadRecording)
       }
+      
+      // Always update active clip (even for splits)
+      setActiveClip(playheadClip)
     }
-  }, [playheadClip?.id, playheadRecording?.id, nextClip?.id, preloadVideoUrl, currentTime])
+  }, [playheadClip?.id, playheadRecording?.id])
   
-  // Preload next clip's video
+  // Preload next recording if different from current
   useEffect(() => {
-    if (nextClip && nextRecording) {
-      // Check if we already have this video loaded
-      const existingUrl = RecordingStorage.getBlobUrl(nextRecording.id)
-      if (existingUrl && existingUrl !== preloadVideoUrl) {
-        setPreloadVideoUrl(existingUrl)
-      } else if (!existingUrl && nextRecording.filePath) {
-        // Load the video in background
-        globalBlobManager.ensureVideoLoaded(
-          nextRecording.id,
-          nextRecording.filePath
-        ).then(url => {
-          if (url) {
-            setPreloadVideoUrl(url)
-          }
-        }).catch(() => {})
+    if (nextClip && nextRecording && activeRecording) {
+      // Only preload if it's a different recording
+      if (nextRecording.id !== activeRecording.id) {
+        const existingUrl = RecordingStorage.getBlobUrl(nextRecording.id)
+        if (!existingUrl && nextRecording.filePath) {
+          // Preload in background
+          globalBlobManager.ensureVideoLoaded(
+            nextRecording.id,
+            nextRecording.filePath
+          ).catch(() => {})
+        }
       }
     }
-  }, [nextClip?.id, nextRecording?.id, nextRecording?.filePath])
+  }, [nextClip?.id, nextRecording?.id, activeRecording?.id])
   
-  // Use active clip for preview (never null during playback)
-  const previewClip = activeClip || playheadClip
-  const previewRecording = activeRecording || playheadRecording
+  // Use playhead clip/recording directly for preview
+  // This ensures we always show the current position
+  const previewClip = playheadClip || activeClip
+  const previewRecording = playheadRecording || activeRecording
 
-  // Calculate if we're in a transition zone (near clip boundary)
-  const isNearTransition = useMemo(() => {
-    if (!nextClip || !currentTime) return false
-    const timeToNext = nextClip.startTime - currentTime
-    return timeToNext > 0 && timeToNext < 100 // Within 100ms of next clip
-  }, [nextClip?.startTime, currentTime])
-  
-  // Calculate crossfade opacity for smooth transitions
-  const crossfadeOpacity = useMemo(() => {
-    if (!isNearTransition || !nextClip) return 1.0
-    
-    const timeToNext = nextClip.startTime - currentTime
-    if (timeToNext <= 0 || timeToNext > 100) return 1.0
-    
-    // Linear fade over last 50ms before transition
-    if (timeToNext > 50) return 1.0
-    return timeToNext / 50
-  }, [isNearTransition, nextClip?.startTime, currentTime])
+  // Check if next clip is a split from same recording
+  const isNextClipSplit = useMemo(() => {
+    if (!nextClip || !nextRecording || !activeRecording) return false
+    return nextRecording.id === activeRecording.id
+  }, [nextClip, nextRecording?.id, activeRecording?.id])
 
   // Sync playback state with timeline
   useEffect(() => {
@@ -273,7 +260,6 @@ export function PreviewAreaRemotion({
   const compositionProps = useMemo(() => {
     return {
       videoUrl: activeVideoUrl || '',
-      preloadVideoUrl: preloadVideoUrl || '',
       clip: previewClip,
       effects: clipRelativeEffects,
       cursorEvents: adjustedEvents.mouseEvents,
@@ -282,10 +268,9 @@ export function PreviewAreaRemotion({
       scrollEvents: adjustedEvents.scrollEvents,
       videoWidth,
       videoHeight,
-      crossfadeOpacity,
-      isNearTransition
+      isSplitTransition: isNextClipSplit
     }
-  }, [previewClip, activeVideoUrl, preloadVideoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight, crossfadeOpacity, isNearTransition])
+  }, [previewClip, activeVideoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight, isNextClipSplit])
 
   // Calculate optimal composition size based on container and quality settings
   const calculateOptimalCompositionSize = useCallback(() => {

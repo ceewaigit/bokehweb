@@ -8,7 +8,6 @@ import { getSourceDuration } from '@/lib/timeline/clip-utils'
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
-  preloadVideoUrl,
   clip,
   effects,
   zoomBlocks,
@@ -17,8 +16,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   zoomCenter,
   cinematicScrollState,
   computedScale,
-  crossfadeOpacity = 1,
-  isNearTransition = false
+  isSplitTransition = false
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -173,7 +171,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const shadowSpread = -12 + (shadowIntensity / 100) * 6;
 
   // Don't render anything if no video URL
-  if (!videoUrl && !preloadVideoUrl) {
+  if (!videoUrl) {
     return <AbsoluteFill />
   }
 
@@ -197,73 +195,36 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           }}
         />
       )}
-      {/* Primary video container */}
-      {videoUrl && (
-        <div
-          style={{
-            position: 'absolute',
-            left: offsetX,
-            top: offsetY,
-            width: drawWidth,
-            height: drawHeight,
-            borderRadius: `${cornerRadius}px`,
-            overflow: 'hidden',
-            transform: finalTransform,
-            transformOrigin: '50% 50%',
-            filter: cinematicBlur,
-            opacity: isNearTransition ? crossfadeOpacity : 1,
-            willChange: 'transform, filter, opacity' // GPU acceleration hint
+      {/* Video container - single continuous element */}
+      <div
+        style={{
+          position: 'absolute',
+          left: offsetX,
+          top: offsetY,
+          width: drawWidth,
+          height: drawHeight,
+          borderRadius: `${cornerRadius}px`,
+          overflow: 'hidden',
+          transform: finalTransform,
+          transformOrigin: '50% 50%',
+          filter: cinematicBlur,
+          willChange: 'transform, filter' // GPU acceleration hint
+        }}
+      >
+        <Video
+          src={videoUrl}
+          style={videoStyle}
+          volume={1}
+          muted={false}
+          playbackRate={clip?.playbackRate || 1}
+          startFrom={startFromFrame}
+          // Don't use trimBefore/trimAfter to avoid re-seeking on clip changes
+          onError={(e) => {
+            console.error('Video playback error in VideoLayer:', e)
+            // Don't throw - let Remotion handle gracefully
           }}
-        >
-          <Video
-            src={videoUrl}
-            style={videoStyle}
-            volume={1}
-            muted={false}
-            playbackRate={clip?.playbackRate || 1}
-            startFrom={startFromFrame}
-            // Don't use trimBefore/trimAfter to avoid re-seeking on clip changes
-            onError={(e) => {
-              console.error('Video playback error in VideoLayer:', e)
-              // Don't throw - let Remotion handle gracefully
-            }}
-          />
-        </div>
-      )}
-      
-      {/* Preload video container for seamless transitions */}
-      {preloadVideoUrl && (
-        <div
-          style={{
-            position: 'absolute',
-            left: offsetX,
-            top: offsetY,
-            width: drawWidth,
-            height: drawHeight,
-            borderRadius: `${cornerRadius}px`,
-            overflow: 'hidden',
-            transform: finalTransform,
-            transformOrigin: '50% 50%',
-            filter: cinematicBlur,
-            opacity: 1 - crossfadeOpacity,
-            willChange: 'transform, filter, opacity' // GPU acceleration hint
-          }}
-        >
-          <Video
-            src={preloadVideoUrl}
-            style={videoStyle}
-            volume={1}
-            muted={false}
-            playbackRate={clip?.playbackRate || 1}
-            startFrom={0} // Preloaded video starts from beginning
-            // Don't use trimBefore/trimAfter to avoid re-seeking on clip changes
-            onError={(e) => {
-              console.error('Preload video error in VideoLayer:', e)
-              // Don't throw - let Remotion handle gracefully
-            }}
-          />
-        </div>
-      )}
+        />
+      </div>
     </AbsoluteFill>
   );
 };

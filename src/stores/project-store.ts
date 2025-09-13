@@ -177,22 +177,21 @@ const reflowClips = (track: Track, startFromIndex: number = 0, project?: Project
 
 // Helper to update playhead state based on current time
 const updatePlayheadState = (state: any) => {
+  // Keep previous values to prevent gaps
+  const prevClip = state.playheadClip
+  const prevRecording = state.playheadRecording
+  
   state.playheadClip = null
   state.playheadRecording = null
   state.nextClip = null
   state.nextRecording = null
 
   if (state.currentProject && state.currentTime !== undefined) {
-    // Find clip at current time - add tolerance for boundary detection
-    // This prevents black flash when playhead is exactly at clip boundaries
-    const tolerance = 10 // Increased to 10ms for smoother transitions between splits
-    
-    // Find current clip
+    // Find current clip - use exact boundaries for split clips
     for (const track of state.currentProject.timeline.tracks) {
       const clip = track.clips.find((c: Clip) => {
-        const clipStart = c.startTime - tolerance
-        const clipEnd = c.startTime + c.duration + tolerance
-        return state.currentTime >= clipStart && state.currentTime < clipEnd
+        return state.currentTime >= c.startTime && 
+               state.currentTime < c.startTime + c.duration
       })
       if (clip) {
         state.playheadClip = clip
@@ -200,6 +199,23 @@ const updatePlayheadState = (state: any) => {
           (r: Recording) => r.id === clip.recordingId
         ) || null
         break
+      }
+    }
+    
+    // If no clip found but we're within 1ms of a clip boundary, keep previous
+    if (!state.playheadClip && prevClip) {
+      for (const track of state.currentProject.timeline.tracks) {
+        const nearClip = track.clips.find((c: Clip) => {
+          const distanceToStart = Math.abs(state.currentTime - c.startTime)
+          const distanceToEnd = Math.abs(state.currentTime - (c.startTime + c.duration))
+          return distanceToStart < 1 || distanceToEnd < 1
+        })
+        if (nearClip) {
+          // We're at a boundary - keep showing previous clip momentarily
+          state.playheadClip = prevClip
+          state.playheadRecording = prevRecording
+          break
+        }
       }
     }
     
