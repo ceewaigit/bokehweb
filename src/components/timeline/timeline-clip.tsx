@@ -122,8 +122,7 @@ export const TimelineClip = React.memo(({
   // Analyze typing patterns for speed-up suggestions
   useEffect(() => {
     // Don't show suggestions if typing speed has already been applied
-    // Check both the explicit flag and playbackRate as indicators
-    if (clip.typingSpeedApplied || (clip.playbackRate && clip.playbackRate !== 1.0)) {
+    if (clip.typingSpeedApplied) {
       setTypingSuggestions(null)
       return
     }

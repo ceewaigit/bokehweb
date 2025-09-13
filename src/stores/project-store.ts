@@ -218,26 +218,13 @@ export const useProjectStore = create<ProjectStore>()(
         if (!data) throw new Error('Project not found')
         const project: Project = typeof data === 'string' ? JSON.parse(data) : data
 
-        // Migration: Clean up keyboard events for clips with typing speed applied
-        // This handles existing projects that had speed applied before the flag was added
+        // Migration: Mark clips with typing speed applied
+        // For existing projects that had speed applied before the flag was added
         for (const track of project.timeline.tracks) {
           for (const clip of track.clips) {
-            // If clip has non-default playback rate but no flag, it likely had typing speed applied
+            // If clip has non-default playback rate but no flag, it had typing speed applied
             if (clip.playbackRate && clip.playbackRate !== 1.0 && !clip.typingSpeedApplied) {
-              // Mark it as having typing speed applied
               clip.typingSpeedApplied = true
-              
-              // Clean up keyboard events in the source range from the recording
-              const recording = project.recordings.find(r => r.id === clip.recordingId)
-              if (recording?.metadata?.keyboardEvents) {
-                const clipSourceIn = clip.sourceIn || 0
-                const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration * clip.playbackRate)
-                
-                // Remove keyboard events that fall within this clip's source range
-                recording.metadata.keyboardEvents = recording.metadata.keyboardEvents.filter(event => 
-                  event.timestamp < clipSourceIn || event.timestamp > clipSourceOut
-                )
-              }
             }
           }
         }
@@ -712,7 +699,8 @@ export const useProjectStore = create<ProjectStore>()(
           duration: splitPoint,
           sourceIn: clip.sourceIn,
           sourceOut: clip.sourceIn + sourceSplitPoint,
-          playbackRate: clip.playbackRate
+          playbackRate: clip.playbackRate,
+          typingSpeedApplied: clip.typingSpeedApplied  // Preserve typing speed flag
         }
 
         // Create second clip
@@ -723,7 +711,8 @@ export const useProjectStore = create<ProjectStore>()(
           duration: clip.duration - splitPoint,
           sourceIn: clip.sourceIn + sourceSplitPoint,
           sourceOut: clip.sourceOut,
-          playbackRate: clip.playbackRate
+          playbackRate: clip.playbackRate,
+          typingSpeedApplied: clip.typingSpeedApplied  // Preserve typing speed flag
         }
 
         const clipIndex = track.clips.findIndex(c => c.id === clipId)

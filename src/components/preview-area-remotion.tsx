@@ -35,8 +35,6 @@ export function PreviewAreaRemotion({
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const [preloadedVideoUrls, setPreloadedVideoUrls] = useState<Map<string, string>>(new Map())
-  const [lastFrame, setLastFrame] = useState<string | null>(null)  // Store last frame to prevent black screen
   // Resolution selection removed; default to 'auto' preset internally
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
 
@@ -79,7 +77,7 @@ export function PreviewAreaRemotion({
   const previewClip = playheadClip || lastValidClip
   const previewRecording = playheadRecording || lastValidRecording
 
-  // Load video URL when recording changes and preload adjacent clips
+  // Load video URL when recording changes
   useEffect(() => {
     if (!previewRecording) {
       // Don't immediately clear - keep last video to prevent flash
@@ -94,8 +92,6 @@ export function PreviewAreaRemotion({
     if (cachedUrl) {
       // Video is already loaded, use it immediately
       setVideoUrl(cachedUrl)
-      // Store in preloaded cache too
-      setPreloadedVideoUrls(prev => new Map(prev).set(previewRecording.id, cachedUrl))
     } else if (previewRecording.filePath) {
       // Load the video (edge case - should rarely happen)
       globalBlobManager.ensureVideoLoaded(
@@ -104,14 +100,22 @@ export function PreviewAreaRemotion({
       ).then(url => {
         if (url && !cancelled) {
           setVideoUrl(url)
-          setPreloadedVideoUrls(prev => new Map(prev).set(previewRecording.id, url))
         }
       }).catch(error => {
         console.error('Error loading video:', error)
       })
     }
+
+    return () => {
+      cancelled = true
+      // Don't clear video URL here - let it persist during transitions
+    }
+  }, [previewRecording?.id, previewRecording?.filePath]);
+  
+  // Preload adjacent clips in a separate effect
+  useEffect(() => {
+    if (!nextClip && !prevClip) return
     
-    // Preload adjacent clips
     const store = useProjectStore.getState()
     const recordings = store.currentProject?.recordings || []
     
@@ -119,22 +123,13 @@ export function PreviewAreaRemotion({
       if (!clip) return
       
       const recording = recordings.find(r => r.id === clip.recordingId)
-      if (!recording) return
+      if (!recording || !recording.filePath) return
       
-      // Check if already preloaded
-      if (preloadedVideoUrls.has(recording.id)) return
-      
+      // Check if already loaded
       const url = RecordingStorage.getBlobUrl(recording.id)
-      if (url) {
-        setPreloadedVideoUrls(prev => new Map(prev).set(recording.id, url))
-      } else if (recording.filePath) {
-        // Load in background
+      if (!url) {
+        // Load in background for smoother transitions
         globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
-          .then(loadedUrl => {
-            if (loadedUrl && !cancelled) {
-              setPreloadedVideoUrls(prev => new Map(prev).set(recording.id, loadedUrl))
-            }
-          })
           .catch(() => {}) // Ignore preload errors
       }
     }
@@ -142,12 +137,7 @@ export function PreviewAreaRemotion({
     // Preload next and previous clips
     preloadClip(nextClip)
     preloadClip(prevClip)
-
-    return () => {
-      cancelled = true
-      // Don't clear video URL here - let it persist during transitions
-    }
-  }, [previewRecording?.id, previewRecording?.filePath, nextClip, prevClip, preloadedVideoUrls]);
+  }, [nextClip?.id, prevClip?.id]);
 
   // Sync playback state with timeline
   useEffect(() => {
@@ -346,44 +336,9 @@ export function PreviewAreaRemotion({
   
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
-  // Capture last frame before transitions to prevent black screen
-  const captureLastFrame = useCallback(() => {
-    if (!playerRef.current) return
-    
-    try {
-      // Try to capture current frame from player
-      const player = playerRef.current as any
-      if (player && player.getContainerNode) {
-        const container = player.getContainerNode()
-        const video = container?.querySelector('video')
-        if (video) {
-          const canvas = document.createElement('canvas')
-          canvas.width = video.videoWidth
-          canvas.height = video.videoHeight
-          const ctx = canvas.getContext('2d')
-          if (ctx) {
-            ctx.drawImage(video, 0, 0)
-            setLastFrame(canvas.toDataURL())
-          }
-        }
-      }
-    } catch (error) {
-      // Ignore capture errors
-    }
-  }, [])
-  
-  // Capture frame before clip changes
-  useEffect(() => {
-    const prevClipId = lastValidClip?.id
-    if (prevClipId && playheadClip?.id !== prevClipId) {
-      captureLastFrame()
-    }
-  }, [playheadClip?.id, lastValidClip?.id, captureLastFrame])
-  
   // Determine if we should show video or black screen
   // Use previewClip/Recording to avoid black screen during transitions
   const showBlackScreen = !previewClip || !previewRecording || !videoUrl;
-  const showLastFrame = showBlackScreen && lastFrame && !hasNoProject;
 
   const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
   const hasNoProject = !previewRecording && !playheadClip;
@@ -419,20 +374,8 @@ export function PreviewAreaRemotion({
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
-      {/* Show last frame or black screen when in gaps or no video */}
-      {showLastFrame && (
-        <div 
-          className="absolute inset-0 z-10" 
-          style={{
-            backgroundImage: `url(${lastFrame})`,
-            backgroundSize: 'contain',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            backgroundColor: 'black'
-          }}
-        />
-      )}
-      {showBlackScreen && !showLastFrame && (
+      {/* Black screen overlay when in gaps or no video */}
+      {showBlackScreen && (
         <div className="absolute inset-0 bg-black z-10" />
       )}
 
