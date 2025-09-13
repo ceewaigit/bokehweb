@@ -136,9 +136,14 @@ export class ApplyTypingSpeedCommand extends Command<{
     // Apply all splits one by one
     console.log('[ApplyTypingSpeedCommand] Split points to apply:', sortedSplitPoints)
     
-    for (const splitTime of sortedSplitPoints) {
-      // Re-fetch track state after each split to get updated clip IDs
-      const currentProject = store.currentProject
+    // Process splits in order, getting fresh state each time
+    for (let i = 0; i < sortedSplitPoints.length; i++) {
+      const splitTime = sortedSplitPoints[i]
+      
+      // Get fresh state from store using getState() to ensure we have the latest
+      const freshState = store.getState()
+      const currentProject = freshState.currentProject
+      
       if (!currentProject) {
         console.log('[ApplyTypingSpeedCommand] Project lost during splits')
         continue
@@ -150,7 +155,7 @@ export class ApplyTypingSpeedCommand extends Command<{
         continue
       }
       
-      console.log('[ApplyTypingSpeedCommand] Looking for clip at time', splitTime)
+      console.log(`[ApplyTypingSpeedCommand] Split ${i + 1}/${sortedSplitPoints.length} at time`, splitTime)
       console.log('[ApplyTypingSpeedCommand] Available clips:', currentTrack.clips
         .filter(c => c.recordingId === this.recordingId)
         .map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })))
@@ -164,14 +169,12 @@ export class ApplyTypingSpeedCommand extends Command<{
         return splitTime > clipStart && splitTime < clipEnd
       })
       
-      console.log('[ApplyTypingSpeedCommand] Found clip to split:', clipToSplit ? 
-        { id: clipToSplit.id, start: clipToSplit.startTime, end: clipToSplit.startTime + clipToSplit.duration } : 
-        'none')
-      
       if (clipToSplit) {
+        console.log('[ApplyTypingSpeedCommand] Found clip to split:', 
+          { id: clipToSplit.id, start: clipToSplit.startTime, end: clipToSplit.startTime + clipToSplit.duration })
         console.log('[ApplyTypingSpeedCommand] Splitting clip', clipToSplit.id, 'at time', splitTime)
         
-        // Perform the split
+        // Perform the split - this is synchronous
         store.splitClip(clipToSplit.id, splitTime)
         
         // Track the split result
@@ -187,8 +190,9 @@ export class ApplyTypingSpeedCommand extends Command<{
     // Now apply speed changes to the appropriate segments
     let appliedCount = 0
     
-    // Re-fetch the project state after all splits
-    const updatedProject = store.currentProject
+    // Get fresh state after all splits using getState()
+    const finalState = store.getState()
+    const updatedProject = finalState.currentProject
     if (!updatedProject) {
       return { success: false, error: 'Project lost after splits' }
     }
