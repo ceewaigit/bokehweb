@@ -227,23 +227,29 @@ export const useProjectStore = create<ProjectStore>()(
           }))
         )
 
-        // Check for split clips and mark their recordings as "applied"
-        // This prevents typing suggestions from showing on pre-existing split clips
+        // Check for clips that have been processed for typing speed
+        // Only mark recordings as "applied" if ALL their clips have sourceIn/sourceOut defined
+        // This indicates they've been split or processed
         const { globalAppliedRecordings } = require('@/components/timeline/timeline-clip')
-        const recordingsWithSplitClips = new Set<string>()
+        const recordingClipInfo = new Map<string, { total: number, withSource: number }>()
         
         for (const track of project.timeline.tracks) {
           for (const clip of track.clips) {
-            // Check if this is a split clip (contains "-split" in the ID)
-            if (clip.id.includes('-split')) {
-              recordingsWithSplitClips.add(clip.recordingId)
+            const info = recordingClipInfo.get(clip.recordingId) || { total: 0, withSource: 0 }
+            info.total++
+            if (clip.sourceIn !== undefined && clip.sourceOut !== undefined) {
+              info.withSource++
             }
+            recordingClipInfo.set(clip.recordingId, info)
           }
         }
         
-        // Mark all recordings with split clips as having suggestions "applied"
-        recordingsWithSplitClips.forEach(recordingId => {
-          globalAppliedRecordings.add(recordingId)
+        // Only mark recordings where ALL clips have been processed (have source ranges)
+        recordingClipInfo.forEach((info, recordingId) => {
+          if (info.total > 1 && info.withSource === info.total) {
+            // Multiple clips and all have source ranges = likely split for typing
+            globalAppliedRecordings.add(recordingId)
+          }
         })
 
         set((state) => {

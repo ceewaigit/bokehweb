@@ -165,22 +165,29 @@ export const TimelineClip = React.memo(({
       // Analyze keyboard events for typing patterns
       const suggestions = TypingDetector.analyzeTyping(recording.metadata.keyboardEvents)
       
-      // Filter suggestions to only those within this clip's source range
-      const clipSourceIn = clip.sourceIn || 0
-      const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration)
-      
-      const filteredPeriods = suggestions.periods.filter(period => {
-        // Check if the period overlaps with this clip's source range
-        return period.startTime < clipSourceOut && period.endTime > clipSourceIn
-      })
-      
-      if (filteredPeriods.length > 0) {
-        setTypingSuggestions({
-          ...suggestions,
-          periods: filteredPeriods
+      // For non-split clips (original clips), show all suggestions
+      // For split clips, filter to only those within the clip's source range
+      if (clip.sourceIn !== undefined && clip.sourceOut !== undefined) {
+        // This is a split clip or has defined source range
+        const clipSourceIn = clip.sourceIn
+        const clipSourceOut = clip.sourceOut
+        
+        const filteredPeriods = suggestions.periods.filter(period => {
+          // Check if the period overlaps with this clip's source range
+          return period.startTime < clipSourceOut && period.endTime > clipSourceIn
         })
+        
+        if (filteredPeriods.length > 0) {
+          setTypingSuggestions({
+            ...suggestions,
+            periods: filteredPeriods
+          })
+        } else {
+          setTypingSuggestions(null)
+        }
       } else {
-        setTypingSuggestions(null)
+        // Original clip without source range - show all suggestions
+        setTypingSuggestions(suggestions)
       }
     } catch (error) {
       console.warn('Failed to analyze typing patterns:', error)
