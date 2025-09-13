@@ -1080,11 +1080,6 @@ export const useProjectStore = create<ProjectStore>()(
             speed: period.suggestedSpeedMultiplier
           })
 
-          // Map period from source coordinates to timeline coordinates
-          const sourceIn = sourceClip.sourceIn || 0
-          const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration)
-          const playbackRate = sourceClip.playbackRate || 1
-
           // Check if period overlaps with any clip's source range
           let targetClip: Clip | null = null
           for (const clip of track.clips) {
@@ -1215,6 +1210,7 @@ export const useProjectStore = create<ProjectStore>()(
           if (finalClip) {
             console.log('[Store] Applying speed to clip:', finalClip.id)
             const sourceDuration = (finalClip.sourceOut - finalClip.sourceIn)
+            const oldDuration = finalClip.duration
             const newDuration = sourceDuration / period.suggestedSpeedMultiplier
             
             finalClip.playbackRate = period.suggestedSpeedMultiplier
@@ -1222,7 +1218,9 @@ export const useProjectStore = create<ProjectStore>()(
             affectedClips.push(finalClip.id)
 
             // Magnetically update clips after this one
-            magneticallyUpdateClipsAfter(track, finalClip.startTime + finalClip.duration, newDuration - sourceDuration)
+            // Use the difference between new and old timeline duration
+            const deltaTime = newDuration - oldDuration
+            magneticallyUpdateClipsAfter(track, finalClip.startTime + newDuration, deltaTime)
           }
         }
 

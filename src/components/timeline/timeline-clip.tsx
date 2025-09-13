@@ -18,6 +18,10 @@ import { ApplyTypingSpeedCommand } from '@/lib/commands'
 import { DefaultCommandContext } from '@/lib/commands'
 import { CommandManager } from '@/lib/commands'
 
+// Global map to track dismissed suggestions by recording ID
+// This survives component re-creation when clips are split
+const globalDismissedSuggestions = new Map<string, Set<string>>()
+
 interface TimelineClipProps {
   clip: Clip
   recording?: Recording | null
@@ -67,10 +71,16 @@ export const TimelineClip = React.memo(({
   const [isValidPosition, setIsValidPosition] = useState(true)
   const [originalPosition, setOriginalPosition] = useState<number>(0)
   const [typingSuggestions, setTypingSuggestions] = useState<TypingSuggestions | null>(null)
-  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set())
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const colors = useTimelineColors()
   const { settings } = useProjectStore()
+  
+  // Get or create dismissed suggestions set for this recording
+  const recordingId = recording?.id || clip.recordingId
+  if (!globalDismissedSuggestions.has(recordingId)) {
+    globalDismissedSuggestions.set(recordingId, new Set())
+  }
+  const dismissedSuggestions = globalDismissedSuggestions.get(recordingId)!
 
   const clipX = TimeConverter.msToPixels(clip.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
   const clipWidth = Math.max(
@@ -80,13 +90,17 @@ export const TimelineClip = React.memo(({
 
   const dismissPeriod = (period: TypingPeriod) => {
     const key = `${period.startTime}-${period.endTime}`
-    setDismissedSuggestions(prev => new Set([...prev, key]))
+    dismissedSuggestions.add(key)
+    // Force re-render by updating typing suggestions
+    setTypingSuggestions(current => current ? { ...current } : null)
   }
 
   const dismissPeriods = (periods: TypingPeriod[]) => {
     if (!periods?.length) return
     const keys = periods.map(p => `${p.startTime}-${p.endTime}`)
-    setDismissedSuggestions(prev => new Set([...prev, ...keys]))
+    keys.forEach(key => dismissedSuggestions.add(key))
+    // Force re-render by updating typing suggestions
+    setTypingSuggestions(current => current ? { ...current } : null)
   }
 
   // Track height is now passed as a prop
@@ -145,7 +159,7 @@ export const TimelineClip = React.memo(({
       console.warn('Failed to analyze typing patterns:', error)
       setTypingSuggestions(null)
     }
-  }, [recording?.metadata?.keyboardEvents]) // Note: dismissedSuggestions intentionally not in deps
+  }, [recording?.metadata?.keyboardEvents])
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {
@@ -256,25 +270,24 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log('[TimelineClip] Successfully applied typing suggestion:', result.data)
+        // Clear this specific suggestion from the global map as it's been applied
+        const key = `${period.startTime}-${period.endTime}`
+        dismissedSuggestions.delete(key)
       } else {
         console.error('[TimelineClip] Failed to apply typing speed suggestion:', result.error)
         // Re-show the suggestion if the command failed
         const key = `${period.startTime}-${period.endTime}`
-        setDismissedSuggestions(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(key)
-          return newSet
-        })
+        dismissedSuggestions.delete(key)
+        // Force re-render
+        setTypingSuggestions(current => current ? { ...current } : null)
       }
     } catch (error) {
       console.error('[TimelineClip] Exception applying typing speed suggestion:', error)
       // Re-show the suggestion if there was an exception
       const key = `${period.startTime}-${period.endTime}`
-      setDismissedSuggestions(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(key)
-        return newSet
-      })
+      dismissedSuggestions.delete(key)
+      // Force re-render
+      setTypingSuggestions(current => current ? { ...current } : null)
     }
   }
 
@@ -306,25 +319,23 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
+        // Clear all suggestions for this recording as they've been applied
+        dismissedSuggestions.clear()
       } else {
         console.error('[TimelineClip] Failed to apply typing suggestions:', result.error)
         // Re-show all suggestions on failure
         const keys = periods.map(p => `${p.startTime}-${p.endTime}`)
-        setDismissedSuggestions(prev => {
-          const newSet = new Set(prev)
-          keys.forEach(key => newSet.delete(key))
-          return newSet
-        })
+        keys.forEach(key => dismissedSuggestions.delete(key))
+        // Force re-render
+        setTypingSuggestions(current => current ? { ...current } : null)
       }
     } catch (error) {
       console.error('[TimelineClip] Exception applying all typing suggestions:', error)
       // Re-show all suggestions on exception
       const keys = periods.map(p => `${p.startTime}-${p.endTime}`)
-      setDismissedSuggestions(prev => {
-        const newSet = new Set(prev)
-        keys.forEach(key => newSet.delete(key))
-        return newSet
-      })
+      keys.forEach(key => dismissedSuggestions.delete(key))
+      // Force re-render
+      setTypingSuggestions(current => current ? { ...current } : null)
     }
   }
 
