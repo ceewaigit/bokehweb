@@ -189,8 +189,9 @@ export class ApplyTypingSpeedCommand extends Command<{
     // Now apply speed changes to the appropriate segments
     let appliedCount = 0
     
-    // Get fresh state after all splits
-    const updatedProject = store.currentProject
+    // Get fresh state after all splits - need to access the actual Zustand store
+    // The store.currentProject might be stale after multiple synchronous updates
+    const updatedProject = this.context.getProject()
     if (!updatedProject) {
       return { success: false, error: 'Project lost after splits' }
     }
@@ -201,74 +202,53 @@ export class ApplyTypingSpeedCommand extends Command<{
     }
     
     // Process each typing period
+    console.log('[ApplyTypingSpeedCommand] Processing periods with updated track')
+    console.log('[ApplyTypingSpeedCommand] Track has', updatedTrack.clips.length, 'clips')
+    
     for (const period of timelinePeriods) {
-      // Find all clips that overlap with this typing period
+      // After splits, we should have clips that match the period boundaries
+      // Find the clip(s) that were created for this typing period
       const clipsInPeriod = updatedTrack.clips.filter(clip => {
         if (clip.recordingId !== this.recordingId) return false
         
         const clipStart = clip.startTime
         const clipEnd = clip.startTime + clip.duration
         
-        // Check if clip overlaps with the period
-        const tolerance = 1 // 1ms tolerance for floating point
+        // A clip is "in" the period if it substantially overlaps
+        // We use a tolerance because of floating point precision
+        const tolerance = 1 // 1ms
         
-        // Check various overlap conditions
-        const startsInPeriod = clipStart >= period.startTime - tolerance && clipStart <= period.endTime + tolerance
-        const endsInPeriod = clipEnd >= period.startTime - tolerance && clipEnd <= period.endTime + tolerance
-        const containsPeriod = clipStart <= period.startTime + tolerance && clipEnd >= period.endTime - tolerance
-        const periodContainsClip = period.startTime <= clipStart + tolerance && period.endTime >= clipEnd - tolerance
+        // Calculate the overlap
+        const overlapStart = Math.max(clipStart, period.startTime - tolerance)
+        const overlapEnd = Math.min(clipEnd, period.endTime + tolerance)
+        const overlapDuration = Math.max(0, overlapEnd - overlapStart)
         
-        return startsInPeriod || endsInPeriod || containsPeriod || periodContainsClip
+        // Consider it "in period" if more than 90% overlaps
+        const clipDuration = clipEnd - clipStart
+        const overlapRatio = clipDuration > 0 ? overlapDuration / clipDuration : 0
+        
+        return overlapRatio > 0.9
       })
       
       console.log('[ApplyTypingSpeedCommand] Period:', period.startTime, '-', period.endTime)
-      console.log('[ApplyTypingSpeedCommand] Available clips:', updatedTrack.clips
-        .filter(c => c.recordingId === this.recordingId)
-        .map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })))
-      console.log('[ApplyTypingSpeedCommand] Clips found for period:', 
-        clipsInPeriod.map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })))
+      console.log('[ApplyTypingSpeedCommand] Found', clipsInPeriod.length, 'clips for this period')
       
-      // Apply speed to each clip in the period
+      // Apply speed to each clip that matches this period
       for (const clip of clipsInPeriod) {
-        const clipStart = clip.startTime
-        const clipEnd = clip.startTime + clip.duration
-        const clipDuration = clip.duration
+        // Calculate new duration based on speed multiplier
+        const sourceDuration = (clip.sourceOut - clip.sourceIn)
+        const newDuration = sourceDuration / period.suggestedSpeedMultiplier
         
-        // Calculate overlap with period
-        const overlapStart = Math.max(clipStart, period.startTime)
-        const overlapEnd = Math.min(clipEnd, period.endTime)
-        const overlapDuration = Math.max(0, overlapEnd - overlapStart)
-        const overlapPercentage = clipDuration > 0 ? overlapDuration / clipDuration : 0
+        console.log('[ApplyTypingSpeedCommand] Applying speed to clip', clip.id, 
+          'rate:', period.suggestedSpeedMultiplier, 'newDuration:', newDuration)
         
-        console.log('[ApplyTypingSpeedCommand] Clip overlap:', {
-          clipId: clip.id,
-          overlapDuration,
-          clipDuration,
-          overlapPercentage,
-          threshold: 0.5
+        // Update the clip with new playback rate and duration
+        store.updateClip(clip.id, { 
+          playbackRate: period.suggestedSpeedMultiplier,
+          duration: newDuration
         })
         
-        // Apply speed if clip substantially overlaps with the typing period
-        if (overlapPercentage > 0.5) {
-          // Calculate new duration based on speed multiplier
-          const currentRate = clip.playbackRate || 1
-          const newRate = period.suggestedSpeedMultiplier
-          const sourceDuration = (clip.sourceOut - clip.sourceIn)
-          const newDuration = sourceDuration / newRate
-          
-          console.log('[ApplyTypingSpeedCommand] Applying speed to clip', clip.id, 
-            'rate:', newRate, 'newDuration:', newDuration)
-          
-          // Update the clip with new playback rate and duration
-          store.updateClip(clip.id, { 
-            playbackRate: newRate,
-            duration: newDuration
-          })
-          
-          appliedCount++
-        } else {
-          console.log('[ApplyTypingSpeedCommand] Skipping clip', clip.id, 'insufficient overlap:', overlapPercentage)
-        }
+        appliedCount++
       }
     }
 
