@@ -268,9 +268,20 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log('[TimelineClip] Successfully applied typing suggestion:', result.data)
-        // Clear this specific suggestion from the global map as it's been applied
-        const key = `${period.startTime}-${period.endTime}`
-        dismissedSuggestions.delete(key)
+        // Remove the period from suggestions permanently since it's been applied
+        // Don't just dismiss it temporarily
+        setTypingSuggestions(current => {
+          if (!current) return null
+          const updatedPeriods = current.periods.filter(p => 
+            !(p.startTime === period.startTime && p.endTime === period.endTime)
+          )
+          if (updatedPeriods.length === 0) {
+            // No more periods, clear everything for this recording
+            globalDismissedSuggestions.delete(recordingId)
+            return null
+          }
+          return { ...current, periods: updatedPeriods }
+        })
       } else {
         console.error('[TimelineClip] Failed to apply typing speed suggestion:', result.error)
         // Re-show the suggestion if the command failed
@@ -317,8 +328,11 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
-        // Clear all suggestions for this recording as they've been applied
-        dismissedSuggestions.clear()
+        // Clear ALL suggestions for this recording since they've been successfully applied
+        // This ensures the bars disappear after successful application
+        globalDismissedSuggestions.delete(recordingId)
+        // Force re-render to hide the suggestions
+        setTypingSuggestions(null)
       } else {
         console.error('[TimelineClip] Failed to apply typing suggestions:', result.error)
         // Re-show all suggestions on failure
@@ -354,7 +368,7 @@ export const TimelineClip = React.memo(({
         )
 
         // Apply magnetic snapping to nearby clips and playhead
-        const { settings, currentTime } = useProjectStore.getState()
+        const { currentTime } = useProjectStore.getState()
         const snapResult = ClipPositioning.applyMagneticSnap(
           proposedTime,
           clip.duration,
