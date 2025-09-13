@@ -1107,31 +1107,22 @@ export const useProjectStore = create<ProjectStore>()(
         
         const allSplits: SplitInfo[] = []
         
-        // Sort periods by start time to process them in order
-        const sortedPeriods = [...periods].sort((a, b) => a.startTime - b.startTime)
-        
-        for (const period of sortedPeriods) {
-          // Find which clip contains this period - use the ORIGINAL clips before any modifications
+        for (const period of periods) {
+          // Find which clip contains this period
           let targetClip: Clip | null = null
-          for (const originalClip of originalClips) {
-            const clipSourceIn = originalClip.sourceIn || 0
-            const clipSourceOut = originalClip.sourceOut || (clipSourceIn + originalClip.duration)
+          for (const clip of track.clips) {
+            if (clip.recordingId !== recordingId) continue
+            
+            const clipSourceIn = clip.sourceIn || 0
+            const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration)
             
             if (period.startTime < clipSourceOut && period.endTime > clipSourceIn) {
-              // Find the current version of this clip in the track
-              targetClip = track.clips.find(c => 
-                c.recordingId === recordingId && 
-                c.sourceIn === originalClip.sourceIn &&
-                c.sourceOut === originalClip.sourceOut
-              ) || track.clips.find(c => c.id === originalClip.id)
+              targetClip = clip
               break
             }
           }
           
-          if (!targetClip) {
-            console.warn('[Store] No clip found for typing period:', period)
-            continue
-          }
+          if (!targetClip) continue
           
           const clipSourceIn = targetClip.sourceIn || 0
           const clipSourceOut = targetClip.sourceOut || (clipSourceIn + targetClip.duration)
@@ -1173,44 +1164,19 @@ export const useProjectStore = create<ProjectStore>()(
         }
         
         // PHASE 2: Process all splits atomically
-        // Sort splits by timeline time to process them in order
         allSplits.sort((a, b) => a.timelineTime - b.timelineTime)
-        
-        console.log('[Store] Phase 2 - Processing splits:', allSplits.map(s => ({
-          time: s.timelineTime,
-          type: s.type,
-          clipId: s.clipId
-        })))
         
         // Map to track which new clips correspond to which periods
         const periodToClips = new Map<typeof periods[0], string[]>()
         
         for (const split of allSplits) {
           const clipToSplit = track.clips.find(c => {
-            // Find the clip that contains this split point
-            // Account for clips that may have been created from previous splits
             if (c.recordingId !== recordingId) return false
             const clipEnd = c.startTime + c.duration
-            // Add small tolerance for floating point comparisons
             return c.startTime <= split.timelineTime + 0.01 && clipEnd >= split.timelineTime - 0.01
           })
           
-          if (!clipToSplit) {
-            console.warn('[Store] Could not find clip for split at:', split.timelineTime, 
-              'Available clips:', track.clips.filter(c => c.recordingId === recordingId).map(c => ({
-                id: c.id,
-                start: c.startTime,
-                end: c.startTime + c.duration
-              })))
-            continue
-          }
-          
-          console.log('[Store] Splitting clip:', {
-            clipId: clipToSplit.id,
-            at: split.timelineTime,
-            clipStart: clipToSplit.startTime,
-            clipEnd: clipToSplit.startTime + clipToSplit.duration
-          })
+          if (!clipToSplit) continue
           
           const clipIndex = track.clips.indexOf(clipToSplit)
           const splitPoint = split.timelineTime - clipToSplit.startTime
@@ -1258,20 +1224,9 @@ export const useProjectStore = create<ProjectStore>()(
         }
         
         // PHASE 3: Apply speed to the appropriate clips
-        console.log('[Store] Phase 3 - Applying speeds to clips')
-        console.log('[Store] Period to clips mapping:', Array.from(periodToClips.entries()).map(([p, ids]) => ({
-          period: { start: p.startTime, end: p.endTime, speed: p.suggestedSpeedMultiplier },
-          clipIds: ids
-        })))
-        
         for (const period of periods) {
           // If no splits were made for this period, find the clip that contains it
           if (!periodToClips.has(period)) {
-            console.log('[Store] Period has no mapped clips yet, searching...', {
-              start: period.startTime,
-              end: period.endTime
-            })
-            
             for (const clip of track.clips) {
               if (clip.recordingId !== recordingId) continue
               
@@ -1280,7 +1235,6 @@ export const useProjectStore = create<ProjectStore>()(
               
               // Check if this period is entirely within this clip
               if (period.startTime >= clipSourceIn && period.endTime <= clipSourceOut) {
-                console.log('[Store] Found clip for unmapped period:', clip.id)
                 periodToClips.set(period, [clip.id])
                 break
               }
@@ -1288,89 +1242,26 @@ export const useProjectStore = create<ProjectStore>()(
           }
           
           const clipIds = periodToClips.get(period) || []
-          console.log('[Store] Processing period:', {
-            period: { start: period.startTime, end: period.endTime },
-            targetClipIds: clipIds
-          })
           
           for (const clipId of clipIds) {
             const clip = track.clips.find(c => c.id === clipId)
-            if (!clip) {
-              console.error('[Store] Clip not found:', clipId)
-              continue
-            }
+            if (!clip) continue
             
-            const oldDuration = clip.duration
             const oldPlaybackRate = clip.playbackRate || 1
-            const sourceDuration = (clip.sourceOut || 0) - (clip.sourceIn || 0)
             
-            // IMPORTANT: The source duration represents the actual media duration
-            // The timeline duration depends on the playback rate
-            // If the clip was already at a different speed, we need to handle this correctly
+            // When a clip already has a playback rate, we need to calculate the actual source duration
+            // from the current timeline duration and playback rate
+            const actualSourceDuration = clip.duration * oldPlaybackRate
+            const newDuration = actualSourceDuration / period.suggestedSpeedMultiplier
             
-            // The new timeline duration is source duration divided by the new speed
-            const newDuration = sourceDuration / period.suggestedSpeedMultiplier
-            
-            // Sanity check: if speeding up (multiplier > 1), duration should decrease
-            const expectedToShrink = period.suggestedSpeedMultiplier > 1
-            const actuallyShrank = newDuration < oldDuration
-            
-            if (expectedToShrink !== actuallyShrank) {
-              console.error('[Store] Speed application logic error!', {
-                clipId: clip.id,
-                oldDuration,
-                newDuration,
-                oldPlaybackRate,
-                newPlaybackRate: period.suggestedSpeedMultiplier,
-                sourceDuration,
-                expectedToShrink,
-                actuallyShrank
-              })
-              
-              // There's likely an issue with the source values from a previous split
-              // Recalculate based on the old duration and playback rate
-              const correctedSourceDuration = oldDuration * oldPlaybackRate
-              const correctedNewDuration = correctedSourceDuration / period.suggestedSpeedMultiplier
-              
-              console.log('[Store] Using corrected duration:', {
-                correctedSourceDuration,
-                correctedNewDuration
-              })
-              
-              clip.duration = correctedNewDuration
-            } else {
-              clip.duration = newDuration
-            }
-            
-            console.log('[Store] Applied speed to clip:', {
-              clipId: clip.id,
-              oldDuration,
-              newDuration: clip.duration,
-              oldPlaybackRate,
-              speedMultiplier: period.suggestedSpeedMultiplier,
-              startTime: clip.startTime,
-              sourceIn: clip.sourceIn,
-              sourceOut: clip.sourceOut,
-              sourceDuration
-            })
-            
+            clip.duration = newDuration
             clip.playbackRate = period.suggestedSpeedMultiplier
             affectedClips.push(clip.id)
           }
         }
         
         // PHASE 4: Fix overlaps and gaps - ensure clips are properly positioned
-        console.log('[Store] Phase 4 - Fixing overlaps and gaps')
         track.clips.sort((a, b) => a.startTime - b.startTime)
-        
-        // Log state before adjustment
-        console.log('[Store] Clips before overlap fix:', track.clips.map(c => ({
-          id: c.id,
-          recordingId: c.recordingId,
-          startTime: c.startTime,
-          duration: c.duration,
-          endTime: c.startTime + c.duration
-        })))
         
         // Only adjust clips from the same recording that were affected by speed changes
         const recordingClips = track.clips.filter(c => c.recordingId === recordingId)
@@ -1381,28 +1272,10 @@ export const useProjectStore = create<ProjectStore>()(
           const prevEnd = prevClip.startTime + prevClip.duration
           
           // Position current clip right after previous clip (no gap, no overlap)
-          // This maintains the magnetic timeline behavior
-          const gap = currentClip.startTime - prevEnd
-          if (Math.abs(gap) > 0.01) {
-            console.log('[Store] Adjusting clip position:', {
-              clipId: currentClip.id,
-              oldStartTime: currentClip.startTime,
-              newStartTime: prevEnd,
-              gap: gap,
-              isOverlap: gap < 0
-            })
+          if (Math.abs(currentClip.startTime - prevEnd) > 0.01) {
             currentClip.startTime = prevEnd
           }
         }
-        
-        // Log state after adjustment
-        console.log('[Store] Clips after overlap fix:', track.clips.map(c => ({
-          id: c.id,
-          recordingId: c.recordingId,
-          startTime: c.startTime,
-          duration: c.duration,
-          endTime: c.startTime + c.duration
-        })))
         
         // Update timeline duration
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
