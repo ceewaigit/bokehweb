@@ -1278,6 +1278,21 @@ export const useProjectStore = create<ProjectStore>()(
           }
         }
         
+        // PHASE 5: Remove applied typing periods from the recording's metadata
+        // This is the elegant solution - the metadata becomes the single source of truth
+        const recording = state.currentProject.recordings.find(r => r.id === recordingId)
+        if (recording && recording.metadata?.keyboardEvents) {
+          // Filter out keyboard events that fall within the applied typing periods
+          recording.metadata.keyboardEvents = recording.metadata.keyboardEvents.filter(event => {
+            // Check if this keyboard event falls within any of the applied periods
+            const isInAppliedPeriod = periods.some(period => 
+              event.timestamp >= period.startTime && event.timestamp <= period.endTime
+            )
+            // Keep the event only if it's NOT in an applied period
+            return !isInAppliedPeriod
+          })
+        }
+        
         // Update timeline duration
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
