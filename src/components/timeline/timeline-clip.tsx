@@ -233,6 +233,15 @@ export const TimelineClip = React.memo(({
 
   // Handle applying typing speed suggestions
   const handleApplyTypingSuggestion = async (period: TypingPeriod) => {
+    console.log('[TimelineClip] Applying single typing suggestion:', {
+      clipId: clip.id,
+      period: {
+        start: period.startTime,
+        end: period.endTime,
+        speedMultiplier: period.suggestedSpeedMultiplier
+      }
+    })
+    
     try {
       const store = useProjectStore.getState()
       const context = new DefaultCommandContext(store)
@@ -243,18 +252,30 @@ export const TimelineClip = React.memo(({
       const result = await manager.execute(command)
       
       if (result.success) {
+        console.log('[TimelineClip] Successfully applied typing suggestion:', result.data)
         // Dismiss the suggestion visually after successful application
         dismissPeriod(period)
       } else {
-        console.error('Failed to apply typing speed suggestion:', result.error)
+        console.error('[TimelineClip] Failed to apply typing speed suggestion:', result.error)
       }
     } catch (error) {
-      console.error('Failed to apply typing speed suggestion:', error)
+      console.error('[TimelineClip] Exception applying typing speed suggestion:', error)
     }
   }
 
   const handleApplyAllTypingSuggestions = async (periods: TypingPeriod[]) => {
     if (!periods?.length) return
+    
+    console.log('[TimelineClip] Applying all typing suggestions:', {
+      clipId: clip.id,
+      periodCount: periods.length,
+      periods: periods.map(p => ({
+        start: p.startTime,
+        end: p.endTime,
+        speedMultiplier: p.suggestedSpeedMultiplier
+      }))
+    })
+    
     try {
       const store = useProjectStore.getState()
       const context = new DefaultCommandContext(store)
@@ -265,13 +286,14 @@ export const TimelineClip = React.memo(({
       const result = await manager.execute(command)
       
       if (result.success) {
+        console.log('[TimelineClip] Successfully applied all typing suggestions:', result.data)
         // Dismiss all suggestions visually after successful application
         dismissPeriods(periods)
       } else {
-        console.error('Failed to apply all typing suggestions:', result.error)
+        console.error('[TimelineClip] Failed to apply all typing suggestions:', result.error)
       }
     } catch (error) {
-      console.error('Failed to apply all typing suggestions:', error)
+      console.error('[TimelineClip] Exception applying all typing suggestions:', error)
     }
   }
 
@@ -391,6 +413,7 @@ export const TimelineClip = React.memo(({
             const thumbWidth = Math.floor(thumbHeight * aspectRatio)
 
             return (
+              // eslint-disable-next-line jsx-a11y/alt-text
               <Image
                 key={i}
                 image={canvas}

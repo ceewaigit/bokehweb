@@ -623,10 +623,21 @@ export const useProjectStore = create<ProjectStore>()(
         const result = findClipById(state.currentProject, clipId)
         if (!result) {
           console.error('splitClip: Clip not found:', clipId)
+          console.error('Available clips:', state.currentProject.timeline.tracks.flatMap(t => 
+            t.clips.map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration }))
+          ))
           return
         }
 
         const { clip, track } = result
+        
+        console.log('[Store] Splitting clip:', {
+          clipId,
+          splitTime,
+          clipStart: clip.startTime,
+          clipEnd: clip.startTime + clip.duration,
+          clipDuration: clip.duration
+        })
 
         if (splitTime <= clip.startTime || splitTime >= clip.startTime + clip.duration) {
           console.error('splitClip: Invalid split time', {
@@ -668,6 +679,12 @@ export const useProjectStore = create<ProjectStore>()(
 
         const clipIndex = track.clips.findIndex(c => c.id === clipId)
         track.clips.splice(clipIndex, 1, firstClip, secondClip)
+        
+        console.log('[Store] Split complete:', {
+          originalClipId: clipId,
+          firstClip: { id: firstClip.id, start: firstClip.startTime, end: firstClip.startTime + firstClip.duration },
+          secondClip: { id: secondClip.id, start: secondClip.startTime, end: secondClip.startTime + secondClip.duration }
+        })
 
         // Recalculate timeline duration after split
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
