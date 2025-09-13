@@ -35,6 +35,7 @@ export function PreviewAreaRemotion({
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [lastValidVideoUrl, setLastValidVideoUrl] = useState<string | null>(null)  // Keep last valid URL
   // Resolution selection removed; default to 'auto' preset internally
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
 
@@ -42,10 +43,10 @@ export function PreviewAreaRemotion({
   const [lastValidClip, setLastValidClip] = useState<Clip | null>(null)
   const [lastValidRecording, setLastValidRecording] = useState<Recording | null>(null)
   
-  // Get adjacent clips and check if they're from the same recording
-  const { nextClip, prevClip, isSameRecordingTransition } = useMemo(() => {
+  // Get adjacent clips for preloading
+  const { nextClip, prevClip } = useMemo(() => {
     const store = useProjectStore.getState()
-    if (!store.currentProject || !playheadClip) return { nextClip: null, prevClip: null, isSameRecordingTransition: false }
+    if (!store.currentProject || !playheadClip) return { nextClip: null, prevClip: null }
     
     const tracks = store.currentProject.timeline.tracks
     let next: Clip | null = null
@@ -62,12 +63,7 @@ export function PreviewAreaRemotion({
       }
     }
     
-    // Check if adjacent clips are from the same recording (likely splits)
-    const isSameRecording = 
-      (prev && prev.recordingId === playheadClip.recordingId) ||
-      (next && next.recordingId === playheadClip.recordingId)
-    
-    return { nextClip: next, prevClip: prev, isSameRecordingTransition: isSameRecording }
+    return { nextClip: next, prevClip: prev }
   }, [playheadClip])
   
   // Update last valid clip/recording when we have one
@@ -97,6 +93,7 @@ export function PreviewAreaRemotion({
     if (cachedUrl) {
       // Video is already loaded, use it immediately
       setVideoUrl(cachedUrl)
+      setLastValidVideoUrl(cachedUrl)  // Store as last valid
     } else if (previewRecording.filePath) {
       // Load the video (edge case - should rarely happen)
       globalBlobManager.ensureVideoLoaded(
@@ -105,6 +102,7 @@ export function PreviewAreaRemotion({
       ).then(url => {
         if (url && !cancelled) {
           setVideoUrl(url)
+          setLastValidVideoUrl(url)  // Store as last valid
         }
       }).catch(error => {
         console.error('Error loading video:', error)
@@ -299,10 +297,10 @@ export function PreviewAreaRemotion({
 
   // Memoize composition props to prevent unnecessary re-renders
   const compositionProps = useMemo(() => {
-    // Use previewClip/Recording instead of playheadClip/Recording to avoid black screen during transitions
-    const showBlackScreen = !previewClip || !previewRecording || !videoUrl
+    // Always use the last valid video URL to prevent black frames
+    // Never pass empty string for videoUrl during transitions
     return {
-      videoUrl: showBlackScreen ? '' : (videoUrl || ''),
+      videoUrl: videoUrl || lastValidVideoUrl || '',  // Use current or last valid URL
       clip: previewClip,
       effects: clipRelativeEffects,
       cursorEvents: adjustedEvents.mouseEvents,
@@ -312,7 +310,7 @@ export function PreviewAreaRemotion({
       videoWidth,
       videoHeight
     }
-  }, [previewClip, previewRecording, videoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight])
+  }, [previewClip, videoUrl, lastValidVideoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight])
 
   // Calculate optimal composition size based on container and quality settings
   const calculateOptimalCompositionSize = useCallback(() => {
@@ -342,22 +340,11 @@ export function PreviewAreaRemotion({
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
   // Determine if we should show video or black screen
-  // Use previewClip/Recording to avoid black screen during transitions
-  const showBlackScreen = !previewClip || !previewRecording || !videoUrl;
+  // Only show black screen when we truly have no video at all
+  const showBlackScreen = !previewClip || !previewRecording || (!videoUrl && !lastValidVideoUrl);
 
-  // Use the maximum duration from all clips of the same recording to avoid remounting
-  const durationInFrames = useMemo(() => {
-    if (!previewClip) return 900
-    
-    // If we're in a same-recording transition, use a longer duration to accommodate all splits
-    if (isSameRecordingTransition && previewRecording) {
-      // Use the full recording duration to avoid duration changes between splits
-      return Math.ceil((previewRecording.duration / 1000) * 30)
-    }
-    
-    // Otherwise use the clip's actual duration
-    return Math.ceil((previewClip.duration / 1000) * 30)
-  }, [previewClip, previewRecording, isSameRecordingTransition]);
+  // Simple duration calculation
+  const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
   const hasNoProject = !previewRecording && !playheadClip;
 
   // Smart player key - only remount when switching recordings, not between splits
