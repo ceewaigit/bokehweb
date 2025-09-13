@@ -45,10 +45,8 @@ export function PreviewAreaRemotion({
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
   
   // Get next clip/recording from store for preloading
-  const { nextClip, nextRecording } = useProjectStore(state => ({
-    nextClip: state.nextClip,
-    nextRecording: state.nextRecording
-  }))
+  const nextClip = useProjectStore(state => state.nextClip)
+  const nextRecording = useProjectStore(state => state.nextRecording)
   
   // Handle clip transitions and buffer swapping
   useEffect(() => {
