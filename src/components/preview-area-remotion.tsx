@@ -34,113 +34,89 @@ export function PreviewAreaRemotion({
   localEffects
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
-  const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const [lastValidVideoUrl, setLastValidVideoUrl] = useState<string | null>(null)  // Keep last valid URL
+  
+  // Dual video buffer state for seamless transitions
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null)
+  const [preloadVideoUrl, setPreloadVideoUrl] = useState<string | null>(null)
+  const [activeClip, setActiveClip] = useState<Clip | null>(null)
+  const [activeRecording, setActiveRecording] = useState<Recording | null>(null)
+  
   // Resolution selection removed; default to 'auto' preset internally
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
-
-  // Use playhead clip/recording for preview, or keep last valid clip when in gaps
-  const [lastValidClip, setLastValidClip] = useState<Clip | null>(null)
-  const [lastValidRecording, setLastValidRecording] = useState<Recording | null>(null)
   
-  // Get adjacent clips for preloading
-  const { nextClip, prevClip } = useMemo(() => {
-    const store = useProjectStore.getState()
-    if (!store.currentProject || !playheadClip) return { nextClip: null, prevClip: null }
-    
-    const tracks = store.currentProject.timeline.tracks
-    let next: Clip | null = null
-    let prev: Clip | null = null
-    
-    for (const track of tracks) {
-      const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime)
-      const currentIndex = sortedClips.findIndex(c => c.id === playheadClip.id)
-      
-      if (currentIndex >= 0) {
-        if (currentIndex > 0) prev = sortedClips[currentIndex - 1]
-        if (currentIndex < sortedClips.length - 1) next = sortedClips[currentIndex + 1]
-        break
-      }
-    }
-    
-    return { nextClip: next, prevClip: prev }
-  }, [playheadClip])
+  // Get next clip/recording from store for preloading
+  const { nextClip, nextRecording } = useProjectStore(state => ({
+    nextClip: state.nextClip,
+    nextRecording: state.nextRecording
+  }))
   
-  // Update last valid clip/recording when we have one
+  // Handle clip transitions and buffer swapping
   useEffect(() => {
+    // Check if we need to transition to a new clip
     if (playheadClip && playheadRecording) {
-      setLastValidClip(playheadClip)
-      setLastValidRecording(playheadRecording)
-    }
-  }, [playheadClip, playheadRecording])
-  
-  // Use current clip if available, otherwise show last valid clip (prevents black screen in gaps)
-  const previewClip = playheadClip || lastValidClip
-  const previewRecording = playheadRecording || lastValidRecording
-
-  // Load video URL when recording changes
-  useEffect(() => {
-    if (!previewRecording) {
-      // Don't immediately clear - keep last video to prevent flash
-      return
-    }
-
-    // Get cached blob URL first - should already be loaded by workspace-manager
-    const cachedUrl = RecordingStorage.getBlobUrl(previewRecording.id)
-
-    let cancelled = false
-
-    if (cachedUrl) {
-      // Video is already loaded, use it immediately
-      setVideoUrl(cachedUrl)
-      setLastValidVideoUrl(cachedUrl)  // Store as last valid
-    } else if (previewRecording.filePath) {
-      // Load the video (edge case - should rarely happen)
-      globalBlobManager.ensureVideoLoaded(
-        previewRecording.id,
-        previewRecording.filePath
-      ).then(url => {
-        if (url && !cancelled) {
-          setVideoUrl(url)
-          setLastValidVideoUrl(url)  // Store as last valid
+      // Check if this is a different clip than what's currently active
+      if (!activeClip || activeClip.id !== playheadClip.id) {
+        // Check if this clip was preloaded
+        if (nextClip && nextClip.id === playheadClip.id && preloadVideoUrl) {
+          // Swap buffers - preloaded video becomes active
+          setActiveVideoUrl(preloadVideoUrl)
+          setPreloadVideoUrl(null)
+        } else {
+          // Load new video for active buffer
+          const url = RecordingStorage.getBlobUrl(playheadRecording.id)
+          if (url) {
+            setActiveVideoUrl(url)
+          }
         }
-      }).catch(error => {
-        console.error('Error loading video:', error)
-      })
-    }
-
-    return () => {
-      cancelled = true
-      // Don't clear video URL here - let it persist during transitions
-    }
-  }, [previewRecording?.id, previewRecording?.filePath]);
-  
-  // Preload adjacent clips in a separate effect
-  useEffect(() => {
-    if (!nextClip && !prevClip) return
-    
-    const store = useProjectStore.getState()
-    const recordings = store.currentProject?.recordings || []
-    
-    const preloadClip = async (clip: Clip | null) => {
-      if (!clip) return
-      
-      const recording = recordings.find(r => r.id === clip.recordingId)
-      if (!recording || !recording.filePath) return
-      
-      // Check if already loaded
-      const url = RecordingStorage.getBlobUrl(recording.id)
-      if (!url) {
-        // Load in background for smoother transitions
-        globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
-          .catch(() => {}) // Ignore preload errors
+        setActiveClip(playheadClip)
+        setActiveRecording(playheadRecording)
       }
     }
+  }, [playheadClip?.id, playheadRecording?.id, nextClip?.id, preloadVideoUrl, currentTime])
+  
+  // Preload next clip's video
+  useEffect(() => {
+    if (nextClip && nextRecording) {
+      // Check if we already have this video loaded
+      const existingUrl = RecordingStorage.getBlobUrl(nextRecording.id)
+      if (existingUrl && existingUrl !== preloadVideoUrl) {
+        setPreloadVideoUrl(existingUrl)
+      } else if (!existingUrl && nextRecording.filePath) {
+        // Load the video in background
+        globalBlobManager.ensureVideoLoaded(
+          nextRecording.id,
+          nextRecording.filePath
+        ).then(url => {
+          if (url) {
+            setPreloadVideoUrl(url)
+          }
+        }).catch(() => {})
+      }
+    }
+  }, [nextClip?.id, nextRecording?.id, nextRecording?.filePath])
+  
+  // Use active clip for preview (never null during playback)
+  const previewClip = activeClip || playheadClip
+  const previewRecording = activeRecording || playheadRecording
+
+  // Calculate if we're in a transition zone (near clip boundary)
+  const isNearTransition = useMemo(() => {
+    if (!nextClip || !currentTime) return false
+    const timeToNext = nextClip.startTime - currentTime
+    return timeToNext > 0 && timeToNext < 100 // Within 100ms of next clip
+  }, [nextClip?.startTime, currentTime])
+  
+  // Calculate crossfade opacity for smooth transitions
+  const crossfadeOpacity = useMemo(() => {
+    if (!isNearTransition || !nextClip) return 1.0
     
-    // Preload next and previous clips
-    preloadClip(nextClip)
-    preloadClip(prevClip)
-  }, [nextClip?.id, prevClip?.id]);
+    const timeToNext = nextClip.startTime - currentTime
+    if (timeToNext <= 0 || timeToNext > 100) return 1.0
+    
+    // Linear fade over last 50ms before transition
+    if (timeToNext > 50) return 1.0
+    return timeToNext / 50
+  }, [isNearTransition, nextClip?.startTime, currentTime])
 
   // Sync playback state with timeline
   useEffect(() => {
@@ -162,7 +138,7 @@ export function PreviewAreaRemotion({
     if (!playerRef.current || isPlaying) return;
 
     // Only seek if we have a valid clip and video
-    if (!previewClip || !videoUrl) {
+    if (!previewClip || !activeVideoUrl) {
       // No clip or video - ensure player is at frame 0
       playerRef.current.seekTo(0);
       return;
@@ -175,7 +151,7 @@ export function PreviewAreaRemotion({
     const targetFrame = Math.floor((clipProgress / 1000) * frameRate);
 
     playerRef.current.seekTo(targetFrame);
-  }, [currentTime, previewClip, isPlaying, videoUrl]);
+  }, [currentTime, previewClip, isPlaying, activeVideoUrl]);
 
   useEffect(() => {
     return () => {
@@ -297,10 +273,9 @@ export function PreviewAreaRemotion({
 
   // Memoize composition props to prevent unnecessary re-renders
   const compositionProps = useMemo(() => {
-    // Always use the last valid video URL to prevent black frames
-    // Never pass empty string for videoUrl during transitions
     return {
-      videoUrl: videoUrl || lastValidVideoUrl || '',  // Use current or last valid URL
+      videoUrl: activeVideoUrl || '',
+      preloadVideoUrl: preloadVideoUrl || '',
       clip: previewClip,
       effects: clipRelativeEffects,
       cursorEvents: adjustedEvents.mouseEvents,
@@ -308,9 +283,11 @@ export function PreviewAreaRemotion({
       keystrokeEvents: adjustedEvents.keyboardEvents,
       scrollEvents: adjustedEvents.scrollEvents,
       videoWidth,
-      videoHeight
+      videoHeight,
+      crossfadeOpacity,
+      isNearTransition
     }
-  }, [previewClip, videoUrl, lastValidVideoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight])
+  }, [previewClip, activeVideoUrl, preloadVideoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight, crossfadeOpacity, isNearTransition])
 
   // Calculate optimal composition size based on container and quality settings
   const calculateOptimalCompositionSize = useCallback(() => {
@@ -339,10 +316,6 @@ export function PreviewAreaRemotion({
   
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
-  // Determine if we should show video or black screen
-  // Only show black screen when we truly have no video at all
-  const showBlackScreen = !previewClip || !previewRecording || (!videoUrl && !lastValidVideoUrl);
-
   // Use recording duration when available to prevent Player resets between splits
   const durationInFrames = useMemo(() => {
     // Use full recording duration if available to keep Player stable
@@ -355,28 +328,16 @@ export function PreviewAreaRemotion({
     }
     return 900
   }, [previewRecording?.duration, previewClip?.duration]);
-  const hasNoProject = !previewRecording && !playheadClip;
-
   // Smart player key - only remount when switching recordings, not between splits
   const playerKey = useMemo(() => {
-    // Use recording ID as primary key to avoid remounting between split clips
-    const recordingId = previewRecording?.id || previewClip?.recordingId || 'none'
-    
-    // Only include params that require a full remount
-    // Don't include clip.id, startTime, or duration as those can be handled without remounting
-    const k = [
-      recordingId,  // Primary key - only changes when switching recordings
-      previewClip?.playbackRate ?? 1,  // Playback rate requires remount
-      compositionWidth,
-      compositionHeight
-    ].join('-')
-    return k
-  }, [previewRecording?.id, previewClip?.recordingId, previewClip?.playbackRate, compositionWidth, compositionHeight])
+    const recordingId = activeRecording?.id || 'none'
+    return `${recordingId}-${previewClip?.playbackRate ?? 1}-${compositionWidth}x${compositionHeight}`
+  }, [activeRecording?.id, previewClip?.playbackRate, compositionWidth, compositionHeight])
 
-  // Show message when no project/recording at all
-  if (hasNoProject) {
+  // Show message when no content available
+  if (!previewClip || !previewRecording || !activeVideoUrl) {
     return (
-      <div className="relative w-full h-full overflow-hidden">
+      <div className="relative w-full h-full overflow-hidden bg-background">
         <div className="absolute inset-0 flex items-center justify-center p-8">
           <div className="text-gray-500 text-center">
             <p className="text-lg font-medium mb-2">No recording selected</p>
@@ -389,14 +350,6 @@ export function PreviewAreaRemotion({
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
-      {/* Black screen overlay when in gaps or no video */}
-      {showBlackScreen && (
-        <div className="absolute inset-0 bg-black z-10" />
-      )}
-
-      {/* Quality selector removed */}
-
-      {/* Always render player container to maintain playerRef */}
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div
           className="relative w-full h-full flex items-center justify-center"

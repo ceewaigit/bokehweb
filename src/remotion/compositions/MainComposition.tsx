@@ -13,6 +13,7 @@ import { CinematicScrollCalculator, createCinematicTransform, createBlurFilter }
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
+  preloadVideoUrl,
   clip,
   effects,
   cursorEvents,
@@ -20,7 +21,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   keystrokeEvents,
   scrollEvents,
   videoWidth,
-  videoHeight
+  videoHeight,
+  crossfadeOpacity,
+  isNearTransition
 }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
@@ -250,6 +253,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       <Sequence from={0}>
         <VideoLayer
           videoUrl={videoUrl || ''}
+          preloadVideoUrl={preloadVideoUrl}
           clip={clip}
           effects={effects}
           zoomBlocks={zoomBlocks}
@@ -258,6 +262,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           zoomCenter={zoomEnabled ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
           cinematicScrollState={cinematicScrollState}
           computedScale={zoomEnabled ? completeZoomState.scale : undefined}
+          crossfadeOpacity={crossfadeOpacity}
+          isNearTransition={isNearTransition}
         />
       </Sequence>
 

@@ -57,6 +57,8 @@ interface ProjectStore {
   // Playhead State (reactive - auto-updates with currentTime)
   playheadClip: Clip | null
   playheadRecording: Recording | null
+  nextClip: Clip | null
+  nextRecording: Recording | null
 
   // Selection State
   selectedClipId: string | null
@@ -177,12 +179,15 @@ const reflowClips = (track: Track, startFromIndex: number = 0, project?: Project
 const updatePlayheadState = (state: any) => {
   state.playheadClip = null
   state.playheadRecording = null
+  state.nextClip = null
+  state.nextRecording = null
 
   if (state.currentProject && state.currentTime !== undefined) {
     // Find clip at current time - add tolerance for boundary detection
     // This prevents black flash when playhead is exactly at clip boundaries
     const tolerance = 10 // Increased to 10ms for smoother transitions between splits
     
+    // Find current clip
     for (const track of state.currentProject.timeline.tracks) {
       const clip = track.clips.find((c: Clip) => {
         const clipStart = c.startTime - tolerance
@@ -193,6 +198,23 @@ const updatePlayheadState = (state: any) => {
         state.playheadClip = clip
         state.playheadRecording = state.currentProject.recordings.find(
           (r: Recording) => r.id === clip.recordingId
+        ) || null
+        break
+      }
+    }
+    
+    // Find next clip (within 200ms lookahead window)
+    const lookahead = 200
+    for (const track of state.currentProject.timeline.tracks) {
+      const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime)
+      const nextClip = sortedClips.find((c: Clip) => {
+        return c.startTime > state.currentTime && 
+               c.startTime <= state.currentTime + lookahead
+      })
+      if (nextClip) {
+        state.nextClip = nextClip
+        state.nextRecording = state.currentProject.recordings.find(
+          (r: Recording) => r.id === nextClip.recordingId
         ) || null
         break
       }
@@ -218,6 +240,8 @@ export const useProjectStore = create<ProjectStore>()(
     // Playhead State
     playheadClip: null,
     playheadRecording: null,
+    nextClip: null,
+    nextRecording: null,
 
     // Selection State
     selectedClipId: null,
