@@ -150,12 +150,6 @@ export const TimelineClip = React.memo(({
       return
     }
     
-    // Don't show suggestions for split clips
-    if (clip.id.includes('-split')) {
-      setTypingSuggestions(null)
-      return
-    }
-    
     if (!recording?.metadata?.keyboardEvents || recording.metadata.keyboardEvents.length === 0) {
       setTypingSuggestions(null)
       return
@@ -165,10 +159,11 @@ export const TimelineClip = React.memo(({
       // Analyze keyboard events for typing patterns
       const suggestions = TypingDetector.analyzeTyping(recording.metadata.keyboardEvents)
       
-      // For non-split clips (original clips), show all suggestions
-      // For split clips, filter to only those within the clip's source range
-      if (clip.sourceIn !== undefined && clip.sourceOut !== undefined) {
-        // This is a split clip or has defined source range
+      // Check if this is a split clip by looking for "-split" in the ID
+      const isSplitClip = clip.id.includes('-split')
+      
+      if (isSplitClip && clip.sourceIn !== undefined && clip.sourceOut !== undefined) {
+        // This is a split clip - filter suggestions to only those within the clip's source range
         const clipSourceIn = clip.sourceIn
         const clipSourceOut = clip.sourceOut
         
@@ -185,9 +180,12 @@ export const TimelineClip = React.memo(({
         } else {
           setTypingSuggestions(null)
         }
-      } else {
-        // Original clip without source range - show all suggestions
+      } else if (!isSplitClip) {
+        // Original clip (not split) - show all suggestions
         setTypingSuggestions(suggestions)
+      } else {
+        // Split clip without proper source range - don't show suggestions
+        setTypingSuggestions(null)
       }
     } catch (error) {
       console.warn('Failed to analyze typing patterns:', error)
