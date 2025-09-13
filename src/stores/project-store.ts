@@ -1265,23 +1265,21 @@ export const useProjectStore = create<ProjectStore>()(
           }
         }
         
-        // PHASE 4: Fix any overlaps by shifting clips forward
+        // PHASE 4: Fix overlaps and gaps - ensure clips are properly positioned
         track.clips.sort((a, b) => a.startTime - b.startTime)
         
-        for (let i = 1; i < track.clips.length; i++) {
-          const prevClip = track.clips[i - 1]
-          const currentClip = track.clips[i]
+        // Only adjust clips from the same recording that were affected by speed changes
+        const recordingClips = track.clips.filter(c => c.recordingId === recordingId)
+        
+        for (let i = 1; i < recordingClips.length; i++) {
+          const prevClip = recordingClips[i - 1]
+          const currentClip = recordingClips[i]
           const prevEnd = prevClip.startTime + prevClip.duration
           
-          if (currentClip.startTime < prevEnd) {
-            const shift = prevEnd - currentClip.startTime
-            
-            // Shift this clip and all subsequent clips from same recording
-            for (let j = i; j < track.clips.length; j++) {
-              if (track.clips[j].recordingId === recordingId) {
-                track.clips[j].startTime += shift
-              }
-            }
+          // Position current clip right after previous clip (no gap, no overlap)
+          // This maintains the magnetic timeline behavior
+          if (Math.abs(currentClip.startTime - prevEnd) > 0.01) {
+            currentClip.startTime = prevEnd
           }
         }
         
