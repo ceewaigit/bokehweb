@@ -38,9 +38,21 @@ export function PreviewAreaRemotion({
   // Resolution selection removed; default to 'auto' preset internally
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
 
-  // Only use playhead clip/recording for preview - no fallback to maintain separation of concerns
-  const previewClip = playheadClip
-  const previewRecording = playheadRecording
+  // Use playhead clip/recording for preview, or keep last valid clip when in gaps
+  const [lastValidClip, setLastValidClip] = useState<Clip | null>(null)
+  const [lastValidRecording, setLastValidRecording] = useState<Recording | null>(null)
+  
+  // Update last valid clip/recording when we have one
+  useEffect(() => {
+    if (playheadClip && playheadRecording) {
+      setLastValidClip(playheadClip)
+      setLastValidRecording(playheadRecording)
+    }
+  }, [playheadClip, playheadRecording])
+  
+  // Use current clip if available, otherwise show last valid clip (prevents black screen in gaps)
+  const previewClip = playheadClip || lastValidClip
+  const previewRecording = playheadRecording || lastValidRecording
 
   // Load video URL when recording changes - clear immediately when no clip
   useEffect(() => {

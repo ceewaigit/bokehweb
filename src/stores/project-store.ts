@@ -713,7 +713,13 @@ export const useProjectStore = create<ProjectStore>()(
         state.selectedClipId = firstClip.id
         state.selectedClips = [firstClip.id]
 
-        // Update playhead state in case split affects current time
+        // Move playhead to just before the split point to ensure we're in the first clip
+        // This prevents the "No recording selected" issue
+        if (state.currentTime >= splitTime) {
+          state.currentTime = splitTime - 1
+        }
+
+        // Update playhead state to reflect the current clip
         updatePlayheadState(state)
       })
     },

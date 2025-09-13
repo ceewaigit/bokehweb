@@ -9,8 +9,8 @@ export const TimelineConfig = {
   MIN_CLIP_WIDTH: 40,
 
   // Snapping behavior
-  SNAP_THRESHOLD_MS: 100,
-  SNAP_THRESHOLD_PX: 8,
+  SNAP_THRESHOLD_MS: 200,  // Increased for better snapping
+  SNAP_THRESHOLD_PX: 15,   // Increased for better visual snapping
   SNAP_INTERVAL_MS: 100,
 
   // Clip positioning
