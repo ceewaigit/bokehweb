@@ -150,6 +150,12 @@ export const TimelineClip = React.memo(({
       return
     }
     
+    // Don't show suggestions for split clips
+    if (clip.id.includes('-split')) {
+      setTypingSuggestions(null)
+      return
+    }
+    
     if (!recording?.metadata?.keyboardEvents || recording.metadata.keyboardEvents.length === 0) {
       setTypingSuggestions(null)
       return
@@ -158,12 +164,29 @@ export const TimelineClip = React.memo(({
     try {
       // Analyze keyboard events for typing patterns
       const suggestions = TypingDetector.analyzeTyping(recording.metadata.keyboardEvents)
-      setTypingSuggestions(suggestions)
+      
+      // Filter suggestions to only those within this clip's source range
+      const clipSourceIn = clip.sourceIn || 0
+      const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration)
+      
+      const filteredPeriods = suggestions.periods.filter(period => {
+        // Check if the period overlaps with this clip's source range
+        return period.startTime < clipSourceOut && period.endTime > clipSourceIn
+      })
+      
+      if (filteredPeriods.length > 0) {
+        setTypingSuggestions({
+          ...suggestions,
+          periods: filteredPeriods
+        })
+      } else {
+        setTypingSuggestions(null)
+      }
     } catch (error) {
       console.warn('Failed to analyze typing patterns:', error)
       setTypingSuggestions(null)
     }
-  }, [recording?.metadata?.keyboardEvents, recordingId, clip.id])
+  }, [recording?.metadata?.keyboardEvents, recordingId, clip.id, clip.sourceIn, clip.sourceOut, clip.duration])
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {

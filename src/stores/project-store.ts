@@ -227,6 +227,25 @@ export const useProjectStore = create<ProjectStore>()(
           }))
         )
 
+        // Check for split clips and mark their recordings as "applied"
+        // This prevents typing suggestions from showing on pre-existing split clips
+        const { globalAppliedRecordings } = require('@/components/timeline/timeline-clip')
+        const recordingsWithSplitClips = new Set<string>()
+        
+        for (const track of project.timeline.tracks) {
+          for (const clip of track.clips) {
+            // Check if this is a split clip (contains "-split" in the ID)
+            if (clip.id.includes('-split')) {
+              recordingsWithSplitClips.add(clip.recordingId)
+            }
+          }
+        }
+        
+        // Mark all recordings with split clips as having suggestions "applied"
+        recordingsWithSplitClips.forEach(recordingId => {
+          globalAppliedRecordings.add(recordingId)
+        })
+
         set((state) => {
           state.currentProject = project
           state.selectedClipId = null

@@ -95,14 +95,15 @@ export function PreviewAreaRemotion({
     if (!playerRef.current) return;
 
     // Control video player based on timeline state AND clip availability
-    if (isPlaying && playheadClip && playheadRecording) {
+    // Use previewClip instead of playheadClip to avoid pausing during transitions
+    if (isPlaying && previewClip && previewRecording) {
       // Timeline is playing AND there's a clip - play video
       playerRef.current.play();
     } else {
       // Timeline stopped OR no clip - pause video
       playerRef.current.pause();
     }
-  }, [isPlaying, playheadClip, playheadRecording]);
+  }, [isPlaying, previewClip, previewRecording]);
 
   // Sync current time when scrubbing (not playing)
   useEffect(() => {
@@ -244,7 +245,8 @@ export function PreviewAreaRemotion({
 
   // Memoize composition props to prevent unnecessary re-renders
   const compositionProps = useMemo(() => {
-    const showBlackScreen = !playheadClip || !playheadRecording || !videoUrl
+    // Use previewClip/Recording instead of playheadClip/Recording to avoid black screen during transitions
+    const showBlackScreen = !previewClip || !previewRecording || !videoUrl
     return {
       videoUrl: showBlackScreen ? '' : (videoUrl || ''),
       clip: previewClip,
@@ -256,7 +258,7 @@ export function PreviewAreaRemotion({
       videoWidth,
       videoHeight
     }
-  }, [playheadClip, playheadRecording, videoUrl, previewClip, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight])
+  }, [previewClip, previewRecording, videoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight])
 
   // Calculate optimal composition size based on container and quality settings
   const calculateOptimalCompositionSize = useCallback(() => {
@@ -286,7 +288,8 @@ export function PreviewAreaRemotion({
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
   // Determine if we should show video or black screen
-  const showBlackScreen = !playheadClip || !playheadRecording || !videoUrl;
+  // Use previewClip/Recording to avoid black screen during transitions
+  const showBlackScreen = !previewClip || !previewRecording || !videoUrl;
 
   const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
   const hasNoProject = !previewRecording && !playheadClip;
