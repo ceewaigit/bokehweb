@@ -343,8 +343,18 @@ export function PreviewAreaRemotion({
   // Only show black screen when we truly have no video at all
   const showBlackScreen = !previewClip || !previewRecording || (!videoUrl && !lastValidVideoUrl);
 
-  // Simple duration calculation
-  const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
+  // Use recording duration when available to prevent Player resets between splits
+  const durationInFrames = useMemo(() => {
+    // Use full recording duration if available to keep Player stable
+    if (previewRecording) {
+      return Math.ceil((previewRecording.duration / 1000) * 30)
+    }
+    // Fallback to clip duration
+    if (previewClip) {
+      return Math.ceil((previewClip.duration / 1000) * 30)
+    }
+    return 900
+  }, [previewRecording?.duration, previewClip?.duration]);
   const hasNoProject = !previewRecording && !playheadClip;
 
   // Smart player key - only remount when switching recordings, not between splits

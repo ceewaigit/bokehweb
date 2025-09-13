@@ -20,11 +20,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // Compute trim window in frames from clip source range
+  // Calculate the start frame based on clip's sourceIn
+  // We'll use startFrom instead of trimBefore/trimAfter to avoid re-seeking
   const sourceInMs = clip ? (clip.sourceIn || 0) : 0
-  const sourceDurationMs = clip ? getSourceDuration(clip) : 0
-  const trimStartFrames = clip ? Math.max(0, Math.floor((sourceInMs / 1000) * fps)) : undefined
-  const trimEndFrames = clip ? Math.max(0, Math.floor(((sourceInMs + sourceDurationMs) / 1000) * fps)) : undefined
+  const startFromFrame = Math.max(0, Math.floor((sourceInMs / 1000) * fps))
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
@@ -217,13 +216,12 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           volume={1}
           muted={false}
           playbackRate={clip?.playbackRate || 1}
-          trimBefore={trimStartFrames}
-          trimAfter={trimEndFrames}
+          startFrom={startFromFrame}
+          // Don't use trimBefore/trimAfter to avoid re-seeking on clip changes
           onError={(e) => {
             console.error('Video playback error in VideoLayer:', e)
             // Don't throw - let Remotion handle gracefully
           }}
-        // Performance optimization
         />
 
       </div>
