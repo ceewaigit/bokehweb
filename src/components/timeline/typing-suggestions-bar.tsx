@@ -16,6 +16,15 @@ interface TypingSuggestionsBarProps {
   onApplySuggestion: (period: TypingPeriod) => void
   onApplyAllSuggestions?: (periods: TypingPeriod[]) => void
   onRemoveSuggestion?: (period: TypingPeriod) => void
+  onOpenTypingSuggestion?: (opts: {
+    x: number
+    y: number
+    period: TypingPeriod
+    allPeriods: TypingPeriod[]
+    onApply: (p: TypingPeriod) => Promise<void>
+    onApplyAll: (ps: TypingPeriod[]) => Promise<void>
+    onRemove: (p: TypingPeriod) => void
+  }) => void
 }
 
 export const TypingSuggestionsBar: React.FC<TypingSuggestionsBarProps> = ({
@@ -27,7 +36,8 @@ export const TypingSuggestionsBar: React.FC<TypingSuggestionsBarProps> = ({
   clip,
   onApplySuggestion,
   onApplyAllSuggestions,
-  onRemoveSuggestion
+  onRemoveSuggestion,
+  onOpenTypingSuggestion
 }) => {
   const colors = useTimelineColors()
 
@@ -60,7 +70,31 @@ export const TypingSuggestionsBar: React.FC<TypingSuggestionsBarProps> = ({
     const speedColor = period.suggestedSpeedMultiplier >= 2.5 ? '#f59e0b' : period.suggestedSpeedMultiplier >= 2.0 ? '#eab308' : '#84cc16'
 
     children.push(
-      <Group key={`typing-${index}`} x={clampedX} listening={true}>
+      <Group 
+        key={`typing-${index}`} 
+        x={clampedX} 
+        listening={true}
+        onClick={(e: any) => {
+          // Stop propagation to prevent clip selection
+          e.cancelBubble = true
+          
+          // Open the typing suggestion popover if handler is provided
+          if (onOpenTypingSuggestion) {
+            const clientX = e.evt.clientX
+            const clientY = e.evt.clientY - 44 // raise above bar a bit
+            
+            onOpenTypingSuggestion({
+              x: clientX,
+              y: clientY,
+              period: period,
+              allPeriods: relevantPeriods,
+              onApply: async (p) => onApplySuggestion(p),
+              onApplyAll: async (ps) => onApplyAllSuggestions?.(ps),
+              onRemove: (p) => onRemoveSuggestion?.(p)
+            })
+          }
+        }}
+      >
         <Rect
           width={clampedWidth}
           height={24}
@@ -83,8 +117,6 @@ export const TypingSuggestionsBar: React.FC<TypingSuggestionsBarProps> = ({
         {clampedWidth > 90 && (
           <Text x={clampedWidth - 6} y={4} text={`-${Math.round((period.endTime - period.startTime) * (1 - 1/period.suggestedSpeedMultiplier) / 1000)}s`} fontSize={9} fill={'#0b0e11'} width={clampedWidth - 8} align={'right'} listening={false} />
         )}
-
-        {/* Popover removed; TimelineClip handles DOM popover */}
       </Group>
     )
   })

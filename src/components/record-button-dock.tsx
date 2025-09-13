@@ -160,11 +160,7 @@ export function RecordButtonDock() {
 
       if (defaultScreen) {
         setSelectedSourceId(defaultScreen.id)
-        // Show overlay immediately for the default selection
-        if (defaultScreen.displayInfo?.id !== undefined) {
-          logger.info('Showing overlay on default display:', defaultScreen.displayInfo.id)
-          window.electronAPI?.showMonitorOverlay?.(defaultScreen.displayInfo.id)
-        }
+        // Don't show overlay on app start - only when user clicks record button
       }
 
     } catch (error) {

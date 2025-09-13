@@ -35,6 +35,9 @@ export function registerWindowControlHandlers(): void {
     try {
       console.log('[WindowControls] Opening workspace...')
       
+      // Hide any overlay when opening workspace
+      hideMonitorOverlay()
+      
       if (!global.mainWindow) {
         console.log('[WindowControls] Creating new main window')
         global.mainWindow = createMainWindow()
@@ -65,6 +68,8 @@ export function registerWindowControlHandlers(): void {
         })
       } else {
         console.log('[WindowControls] Showing existing main window')
+        // Hide any overlay when showing existing main window
+        hideMonitorOverlay()
         global.mainWindow.show()
         global.mainWindow.focus()
         // Hide record button when main window is shown
@@ -78,6 +83,8 @@ export function registerWindowControlHandlers(): void {
   })
 
   ipcMain.handle('minimize-record-button', () => {
+    // Hide any overlay when minimizing record button
+    hideMonitorOverlay()
     // Hide record button and show main window
     if (global.recordButton) {
       global.recordButton.hide()

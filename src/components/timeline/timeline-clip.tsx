@@ -15,7 +15,8 @@ import { TypingSuggestionsBar } from './typing-suggestions-bar'
 
 import { useProjectStore } from '@/stores/project-store'
 import { mapRecordingToClipTime } from '@/lib/timeline/clip-utils'
-import { computeEffectiveDuration } from '@/lib/timeline/clip-utils'
+import { ApplyTypingSpeedCommand } from '@/lib/commands'
+import { DefaultCommandContext } from '@/lib/commands'
 
 interface TimelineClipProps {
   clip: Clip
@@ -28,6 +29,7 @@ interface TimelineClipProps {
   selectedEffectType?: EffectLayerType.Zoom | EffectLayerType.Cursor | EffectLayerType.Background | null
   otherClipsInTrack?: Clip[]
   clipEffects?: any[]  // Effects for this clip from timeline.effects
+  commandManager?: any  // Command manager for undo/redo
   onSelect: (clipId: string) => void
   onSelectEffect?: (type: EffectLayerType) => void
   onDragEnd: (clipId: string, newStartTime: number) => void
@@ -54,6 +56,7 @@ export const TimelineClip = React.memo(({
   selectedEffectType,
   otherClipsInTrack = [],
   clipEffects = [],
+  commandManager,
   onSelect,
   onSelectEffect,
   onDragEnd,
@@ -67,7 +70,6 @@ export const TimelineClip = React.memo(({
   const [originalPosition, setOriginalPosition] = useState<number>(0)
   const [typingSuggestions, setTypingSuggestions] = useState<TypingSuggestions | null>(null)
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set())
-  const [popover, setPopover] = useState<{ x: number; y: number; period: TypingPeriod } | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const colors = useTimelineColors()
   const { settings } = useProjectStore()
@@ -77,24 +79,6 @@ export const TimelineClip = React.memo(({
     TimelineConfig.MIN_CLIP_WIDTH,
     TimeConverter.msToPixels(clip.duration, pixelsPerMs)
   )
-
-  // Helper: map absolute recording timestamp to this clip's local timeline (ms within clip box)
-  const mapToLocalClipTime = (recordingTimestampMs: number): number => {
-    const local = mapRecordingToClipTime(clip, recordingTimestampMs)
-    return Math.max(0, Math.min(clip.duration, local))
-  }
-
-  // Helpers to work with store state deterministically
-  const getProject = () => useProjectStore.getState().currentProject
-  const findTrackForClip = () => {
-    const project = getProject()
-    if (!project) return null
-    return project.timeline.tracks.find(t => t.clips.some(c => c.id === clip.id)) || null
-  }
-  const findClipAtTimeInTrack = (track: any, timeMs: number) => {
-    if (!track) return null
-    return track.clips.find((c: Clip) => timeMs > c.startTime && timeMs < c.startTime + c.duration) || null
-  }
 
   const dismissPeriod = (period: TypingPeriod) => {
     const key = `${period.startTime}-${period.endTime}`
@@ -251,163 +235,45 @@ export const TimelineClip = React.memo(({
 
   // Handle applying typing speed suggestions
   const handleApplyTypingSuggestion = async (period: TypingPeriod) => {
-    console.log('Applying single suggestion:', period)
     try {
-      const project = getProject()
-      if (!project) return
+      const store = useProjectStore.getState()
+      const context = new DefaultCommandContext(store)
+      const command = new ApplyTypingSpeedCommand(context, clip.id, [period], false)
+      const result = await command.execute()
 
-      // Map the typing period times to timeline positions
-      // The period times are in recording space, we need to map them to timeline space
-      const rate = clip.playbackRate || 1
-      const sourceIn = clip.sourceIn || 0
-      
-      // Calculate where in the timeline these source times map to
-      const periodStartInClip = (period.startTime - sourceIn) / rate
-      const periodEndInClip = (period.endTime - sourceIn) / rate
-      
-      // Convert to absolute timeline positions
-      const absStart = clip.startTime + Math.max(0, periodStartInClip)
-      const absEnd = clip.startTime + Math.min(clip.duration, periodEndInClip)
-      
-      if (absEnd <= absStart) {
-        console.warn('Invalid period bounds after mapping:', { absStart, absEnd })
-        return
-      }
-
-      // 1) Split at start boundary if not at clip start
-      if (absStart > clip.startTime) {
-        const freshTrack = findTrackForClip()
-        const target = freshTrack ? findClipAtTimeInTrack(freshTrack, absStart) : null
-        if (target) {
-          useProjectStore.getState().splitClip(target.id, absStart)
+      if (result.success) {
+        // Dismiss the suggestion visually after successful application
+        dismissPeriod(period)
+        // Store command for undo/redo
+        if (commandManager) {
+          commandManager.addToHistory(command)
         }
+      } else {
+        console.error('Failed to apply typing speed suggestion:', result.error)
       }
-
-      // 2) Split at end boundary if not at clip end
-      if (absEnd < clip.startTime + clip.duration) {
-        const freshTrack = findTrackForClip()
-        const target = freshTrack ? findClipAtTimeInTrack(freshTrack, absEnd) : null
-        if (target) {
-          useProjectStore.getState().splitClip(target.id, absEnd)
-        }
-      }
-
-      // 3) Find the middle segment(s) that cover the typing period and apply speed
-      {
-        const fresh = useProjectStore.getState()
-        const freshTrack = fresh.currentProject?.timeline.tracks.find(t => 
-          t.clips.some(c => c.recordingId === clip.recordingId)
-        )
-        if (!freshTrack) return
-        
-        // Find clips that are within the typing period bounds
-        const targetClips = freshTrack.clips.filter((c: Clip) => {
-          const clipEnd = c.startTime + c.duration
-          return c.startTime >= absStart - 0.1 && clipEnd <= absEnd + 0.1
-        })
-        
-        // Apply speed to each target clip
-        for (const targetClip of targetClips) {
-          const newDuration = computeEffectiveDuration(targetClip as Clip, period.suggestedSpeedMultiplier)
-          fresh.updateClip(targetClip.id, { 
-            playbackRate: period.suggestedSpeedMultiplier, 
-            duration: newDuration 
-          })
-        }
-      }
-
-      // Remove the suggestion visually after applying
-      dismissPeriod(period)
     } catch (error) {
       console.error('Failed to apply typing speed suggestion:', error)
     }
   }
 
   const handleApplyAllTypingSuggestions = async (periods: TypingPeriod[]) => {
-    console.log('Applying all suggestions:', periods.length, periods)
     if (!periods?.length) return
     try {
-      // Map all typing periods to timeline positions
-      const rate = clip.playbackRate || 1
-      const sourceIn = clip.sourceIn || 0
-      
-      const timelineBounds = periods.map(p => {
-        // Calculate where in the timeline these source times map to
-        const periodStartInClip = (p.startTime - sourceIn) / rate
-        const periodEndInClip = (p.endTime - sourceIn) / rate
-        
-        // Convert to absolute timeline positions
-        const absStart = clip.startTime + Math.max(0, periodStartInClip)
-        const absEnd = clip.startTime + Math.min(clip.duration, periodEndInClip)
-        
-        return {
-          startAbs: absStart,
-          endAbs: absEnd,
-          speed: p.suggestedSpeedMultiplier,
-          period: p
+      const store = useProjectStore.getState()
+      const context = new DefaultCommandContext(store)
+      const command = new ApplyTypingSpeedCommand(context, clip.id, periods, true)
+      const result = await command.execute()
+
+      if (result.success) {
+        // Dismiss all suggestions visually after successful application
+        dismissPeriods(periods)
+        // Store command for undo/redo
+        if (commandManager) {
+          commandManager.addToHistory(command)
         }
-      }).filter(b => b.endAbs > b.startAbs)
-
-      // Build unique split times and perform all splits first
-      const splitTimesSet = new Set<number>()
-      for (const b of timelineBounds) {
-        // Only add split points that are not at clip boundaries
-        if (b.startAbs > clip.startTime) splitTimesSet.add(b.startAbs)
-        if (b.endAbs < clip.startTime + clip.duration) splitTimesSet.add(b.endAbs)
+      } else {
+        console.error('Failed to apply all typing suggestions:', result.error)
       }
-      const splitTimes = Array.from(splitTimesSet).sort((a, b) => a - b)
-
-      // Perform all splits
-      for (const splitTime of splitTimes) {
-        const track = findTrackForClip()
-        const target = track ? findClipAtTimeInTrack(track, splitTime) : null
-        if (target) {
-          useProjectStore.getState().splitClip(target.id, splitTime)
-        }
-      }
-
-      // After all splits, find and update the segments
-      const freshAfterSplits = useProjectStore.getState()
-      const freshTrack = freshAfterSplits.currentProject?.timeline.tracks.find(t => 
-        t.clips.some(c => c.recordingId === clip.recordingId)
-      )
-      if (!freshTrack) return
-
-      // Apply speed to each segment based on which typing periods it falls within
-      const speedByClipId = new Map<string, number>()
-      for (const bound of timelineBounds) {
-        // Find clips within this typing period
-        const targetClips = freshTrack.clips.filter((c: Clip) => {
-          const clipEnd = c.startTime + c.duration
-          // Check if clip is fully within the typing period (with small tolerance)
-          return c.startTime >= bound.startAbs - 0.1 && clipEnd <= bound.endAbs + 0.1
-        })
-        
-        for (const targetClip of targetClips) {
-          const currentSpeed = speedByClipId.get(targetClip.id)
-          // Use the maximum speed if multiple periods overlap
-          speedByClipId.set(targetClip.id, currentSpeed ? Math.max(currentSpeed, bound.speed) : bound.speed)
-        }
-      }
-
-      // Apply from left to right
-      const targets = freshTrack.clips
-        .filter((c: Clip) => speedByClipId.has(c.id))
-        .sort((a: Clip, b: Clip) => a.startTime - b.startTime)
-        .map((c: Clip) => ({ id: c.id, speed: speedByClipId.get(c.id)! }))
-
-      for (const t of targets) {
-        const fresh = useProjectStore.getState()
-        const curTrack = fresh.currentProject?.timeline.tracks.find(tr => tr.clips.some(c => c.id === t.id))
-        if (!curTrack) continue
-        const curClip = curTrack.clips.find((c: Clip) => c.id === t.id)
-        if (!curClip) continue
-        const newDuration = computeEffectiveDuration(curClip as Clip, t.speed)
-        fresh.updateClip(t.id, { playbackRate: t.speed, duration: newDuration })
-      }
-
-      // Remove all applied suggestions visually
-      dismissPeriods(periods)
     } catch (error) {
       console.error('Failed to apply all typing suggestions:', error)
     }
@@ -442,7 +308,6 @@ export const TimelineClip = React.memo(({
       }}
       onDragStart={() => {
         setIsDragging(true)
-        setPopover(null)
         setOriginalPosition(clip.startTime)
         setIsValidPosition(true)
       }}
@@ -475,65 +340,9 @@ export const TimelineClip = React.memo(({
         // Update clip position to be right after leftmost clip
         onDragEnd(clip.id, finalTime)
       }}
-      onClick={(e: any) => {
-        // If there are typing suggestions, detect if click landed on any suggestion pill bar and open DOM popover
-        if (trackType !== 'video' || !typingSuggestions) return onSelect(clip.id)
-        const relX = e.evt.offsetX - TimelineConfig.TRACK_LABEL_WIDTH - TimeConverter.msToPixels(clip.startTime, pixelsPerMs)
-        const relMs = TimeConverter.pixelsToMs(Math.max(0, relX), pixelsPerMs)
-        const periods = (typingSuggestions.periods || []).filter(p => !dismissedSuggestions.has(`${p.startTime}-${p.endTime}`))
-        const clipStart = 0
-        const clipEnd = clip.duration
-
-        const clicked = periods.find(p => {
-          const startMs = Math.max(clipStart, mapToLocalClipTime(p.startTime))
-          const endMs = Math.min(clipEnd, mapToLocalClipTime(p.endTime))
-          if (endMs <= startMs) return false
-          const barStart = Math.max(0, startMs)
-          const barEnd = Math.max(barStart, endMs)
-          const barWidthPx = Math.max(60, TimeConverter.msToPixels(barEnd - barStart, pixelsPerMs))
-          const barX = TimeConverter.msToPixels(barStart, pixelsPerMs)
-          const clampedX = Math.max(0, Math.min(barX, clipWidth - 60))
-          const clampedW = Math.min(barWidthPx, clipWidth - clampedX)
-          const xLocal = TimeConverter.msToPixels(relMs, pixelsPerMs)
-          return xLocal >= clampedX && xLocal <= clampedX + clampedW
-        })
-
-        // Only show popover if we actually clicked on a suggestion bar
-        if (!clicked) return onSelect(clip.id)
-
-        if (clicked && typeof onOpenTypingSuggestion === 'function') {
-          console.log('Clicked suggestion:', clicked)
-          const clientX = e.evt.clientX
-          const clientY = e.evt.clientY - 44 // raise above bar a bit
-          const visiblePeriods = periods.filter(p => {
-            const s = mapToLocalClipTime(p.startTime)
-            const e2 = mapToLocalClipTime(p.endTime)
-            return e2 > Math.max(0, s)
-          })
-          console.log('Visible periods for Apply All:', visiblePeriods.length)
-          onOpenTypingSuggestion({
-            x: clientX,
-            y: clientY,
-            period: clicked,
-            allPeriods: visiblePeriods,
-            onApply: async (p) => {
-              await handleApplyTypingSuggestion(p)
-              console.log('Single apply completed, dismissing:', p)
-            },
-            onApplyAll: async (ps) => {
-              await handleApplyAllTypingSuggestions(ps)
-              console.log('Apply all completed, dismissing:', ps.length, 'periods')
-            },
-            onRemove: handleRemoveTypingSuggestion
-          })
-          return
-        } else if (clicked) {
-          // Fallback: set local popover if parent didn't handle
-          const clientX = e.evt.clientX
-          const clientY = e.evt.clientY - 44
-          setPopover({ x: clientX, y: clientY, period: clicked })
-          return
-        }
+      onClick={() => {
+        // Simple click handler - just select the clip
+        // Suggestion bars will handle their own clicks and stop propagation
         onSelect(clip.id)
       }}
       onContextMenu={(e) => {
@@ -852,10 +661,10 @@ export const TimelineClip = React.memo(({
           onApplySuggestion={handleApplyTypingSuggestion}
           onApplyAllSuggestions={handleApplyAllTypingSuggestions}
           onRemoveSuggestion={handleRemoveTypingSuggestion}
+          onOpenTypingSuggestion={onOpenTypingSuggestion}
         />
       )}
 
-      {/* Local popover fallback not used; parent renders DOM popover */}
     </Group>
   )
 })
