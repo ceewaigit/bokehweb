@@ -136,7 +136,7 @@ const updatePlayheadState = (state: any) => {
   if (state.currentProject && state.currentTime !== undefined) {
     // Find clip at current time - add tolerance for boundary detection
     // This prevents black flash when playhead is exactly at clip boundaries
-    const tolerance = 1 // 1ms tolerance for better boundary handling
+    const tolerance = 5 // Increased to 5ms for smoother transitions
     
     for (const track of state.currentProject.timeline.tracks) {
       const clip = track.clips.find((c: Clip) => {
@@ -217,6 +217,30 @@ export const useProjectStore = create<ProjectStore>()(
         const data = RecordingStorage.getProject(projectPath)
         if (!data) throw new Error('Project not found')
         const project: Project = typeof data === 'string' ? JSON.parse(data) : data
+
+        // Migration: Clean up keyboard events for clips with typing speed applied
+        // This handles existing projects that had speed applied before the flag was added
+        for (const track of project.timeline.tracks) {
+          for (const clip of track.clips) {
+            // If clip has non-default playback rate but no flag, it likely had typing speed applied
+            if (clip.playbackRate && clip.playbackRate !== 1.0 && !clip.typingSpeedApplied) {
+              // Mark it as having typing speed applied
+              clip.typingSpeedApplied = true
+              
+              // Clean up keyboard events in the source range from the recording
+              const recording = project.recordings.find(r => r.id === clip.recordingId)
+              if (recording?.metadata?.keyboardEvents) {
+                const clipSourceIn = clip.sourceIn || 0
+                const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration * clip.playbackRate)
+                
+                // Remove keyboard events that fall within this clip's source range
+                recording.metadata.keyboardEvents = recording.metadata.keyboardEvents.filter(event => 
+                  event.timestamp < clipSourceIn || event.timestamp > clipSourceOut
+                )
+              }
+            }
+          }
+        }
 
         // Load all videos and metadata in one call
         await globalBlobManager.loadVideos(
@@ -1192,7 +1216,8 @@ export const useProjectStore = create<ProjectStore>()(
             duration: splitPoint,
             sourceIn: clipToSplit.sourceIn,
             sourceOut: (clipToSplit.sourceIn || 0) + sourceSplitPoint,
-            playbackRate: clipToSplit.playbackRate
+            playbackRate: clipToSplit.playbackRate,
+            typingSpeedApplied: clipToSplit.typingSpeedApplied  // Preserve flag
           }
           
           const secondClip: Clip = {
@@ -1202,7 +1227,8 @@ export const useProjectStore = create<ProjectStore>()(
             duration: clipToSplit.duration - splitPoint,
             sourceIn: (clipToSplit.sourceIn || 0) + sourceSplitPoint,
             sourceOut: clipToSplit.sourceOut,
-            playbackRate: clipToSplit.playbackRate
+            playbackRate: clipToSplit.playbackRate,
+            typingSpeedApplied: clipToSplit.typingSpeedApplied  // Preserve flag
           }
           
           // Replace the original clip with the two new ones
@@ -1257,6 +1283,7 @@ export const useProjectStore = create<ProjectStore>()(
             
             clip.duration = newDuration
             clip.playbackRate = period.suggestedSpeedMultiplier
+            clip.typingSpeedApplied = true  // Mark that typing speed has been applied
             affectedClips.push(clip.id)
           }
         }

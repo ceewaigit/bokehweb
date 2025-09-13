@@ -121,6 +121,13 @@ export const TimelineClip = React.memo(({
 
   // Analyze typing patterns for speed-up suggestions
   useEffect(() => {
+    // Don't show suggestions if typing speed has already been applied
+    // Check both the explicit flag and playbackRate as indicators
+    if (clip.typingSpeedApplied || (clip.playbackRate && clip.playbackRate !== 1.0)) {
+      setTypingSuggestions(null)
+      return
+    }
+
     if (!recording?.metadata?.keyboardEvents || recording.metadata.keyboardEvents.length === 0) {
       setTypingSuggestions(null)
       return
@@ -152,7 +159,7 @@ export const TimelineClip = React.memo(({
       console.warn('Failed to analyze typing patterns:', error)
       setTypingSuggestions(null)
     }
-  }, [recording?.metadata?.keyboardEvents, clip.id, clip.sourceIn, clip.sourceOut, clip.duration, clip.playbackRate])
+  }, [recording?.metadata?.keyboardEvents, clip.id, clip.sourceIn, clip.sourceOut, clip.duration, clip.playbackRate, clip.typingSpeedApplied])
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {

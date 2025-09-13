@@ -153,6 +153,7 @@ export interface Clip {
 
   // Playback control
   playbackRate?: number // Speed multiplier (1.0 = normal, 2.0 = 2x speed, 0.5 = half speed)
+  typingSpeedApplied?: boolean // Flag to indicate typing speed has been applied to this clip
 
   // Transitions
   transitionIn?: Transition

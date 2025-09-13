@@ -35,12 +35,37 @@ export function PreviewAreaRemotion({
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [preloadedVideoUrls, setPreloadedVideoUrls] = useState<Map<string, string>>(new Map())
+  const [lastFrame, setLastFrame] = useState<string | null>(null)  // Store last frame to prevent black screen
   // Resolution selection removed; default to 'auto' preset internally
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
 
   // Use playhead clip/recording for preview, or keep last valid clip when in gaps
   const [lastValidClip, setLastValidClip] = useState<Clip | null>(null)
   const [lastValidRecording, setLastValidRecording] = useState<Recording | null>(null)
+  
+  // Get adjacent clips for preloading
+  const { nextClip, prevClip } = useMemo(() => {
+    const store = useProjectStore.getState()
+    if (!store.currentProject || !playheadClip) return { nextClip: null, prevClip: null }
+    
+    const tracks = store.currentProject.timeline.tracks
+    let next: Clip | null = null
+    let prev: Clip | null = null
+    
+    for (const track of tracks) {
+      const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime)
+      const currentIndex = sortedClips.findIndex(c => c.id === playheadClip.id)
+      
+      if (currentIndex >= 0) {
+        if (currentIndex > 0) prev = sortedClips[currentIndex - 1]
+        if (currentIndex < sortedClips.length - 1) next = sortedClips[currentIndex + 1]
+        break
+      }
+    }
+    
+    return { nextClip: next, prevClip: prev }
+  }, [playheadClip])
   
   // Update last valid clip/recording when we have one
   useEffect(() => {
@@ -54,10 +79,10 @@ export function PreviewAreaRemotion({
   const previewClip = playheadClip || lastValidClip
   const previewRecording = playheadRecording || lastValidRecording
 
-  // Load video URL when recording changes
+  // Load video URL when recording changes and preload adjacent clips
   useEffect(() => {
     if (!previewRecording) {
-      setVideoUrl(null)
+      // Don't immediately clear - keep last video to prevent flash
       return
     }
 
@@ -69,6 +94,8 @@ export function PreviewAreaRemotion({
     if (cachedUrl) {
       // Video is already loaded, use it immediately
       setVideoUrl(cachedUrl)
+      // Store in preloaded cache too
+      setPreloadedVideoUrls(prev => new Map(prev).set(previewRecording.id, cachedUrl))
     } else if (previewRecording.filePath) {
       // Load the video (edge case - should rarely happen)
       globalBlobManager.ensureVideoLoaded(
@@ -77,18 +104,50 @@ export function PreviewAreaRemotion({
       ).then(url => {
         if (url && !cancelled) {
           setVideoUrl(url)
+          setPreloadedVideoUrls(prev => new Map(prev).set(previewRecording.id, url))
         }
       }).catch(error => {
         console.error('Error loading video:', error)
       })
     }
+    
+    // Preload adjacent clips
+    const store = useProjectStore.getState()
+    const recordings = store.currentProject?.recordings || []
+    
+    const preloadClip = async (clip: Clip | null) => {
+      if (!clip) return
+      
+      const recording = recordings.find(r => r.id === clip.recordingId)
+      if (!recording) return
+      
+      // Check if already preloaded
+      if (preloadedVideoUrls.has(recording.id)) return
+      
+      const url = RecordingStorage.getBlobUrl(recording.id)
+      if (url) {
+        setPreloadedVideoUrls(prev => new Map(prev).set(recording.id, url))
+      } else if (recording.filePath) {
+        // Load in background
+        globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
+          .then(loadedUrl => {
+            if (loadedUrl && !cancelled) {
+              setPreloadedVideoUrls(prev => new Map(prev).set(recording.id, loadedUrl))
+            }
+          })
+          .catch(() => {}) // Ignore preload errors
+      }
+    }
+    
+    // Preload next and previous clips
+    preloadClip(nextClip)
+    preloadClip(prevClip)
 
     return () => {
       cancelled = true
       // Don't clear video URL here - let it persist during transitions
-      // It will be cleared when previewRecording becomes null
     }
-  }, [previewRecording?.id, previewRecording?.filePath]);
+  }, [previewRecording?.id, previewRecording?.filePath, nextClip, prevClip, preloadedVideoUrls]);
 
   // Sync playback state with timeline
   useEffect(() => {
@@ -287,9 +346,44 @@ export function PreviewAreaRemotion({
   
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
+  // Capture last frame before transitions to prevent black screen
+  const captureLastFrame = useCallback(() => {
+    if (!playerRef.current) return
+    
+    try {
+      // Try to capture current frame from player
+      const player = playerRef.current as any
+      if (player && player.getContainerNode) {
+        const container = player.getContainerNode()
+        const video = container?.querySelector('video')
+        if (video) {
+          const canvas = document.createElement('canvas')
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            ctx.drawImage(video, 0, 0)
+            setLastFrame(canvas.toDataURL())
+          }
+        }
+      }
+    } catch (error) {
+      // Ignore capture errors
+    }
+  }, [])
+  
+  // Capture frame before clip changes
+  useEffect(() => {
+    const prevClipId = lastValidClip?.id
+    if (prevClipId && playheadClip?.id !== prevClipId) {
+      captureLastFrame()
+    }
+  }, [playheadClip?.id, lastValidClip?.id, captureLastFrame])
+  
   // Determine if we should show video or black screen
   // Use previewClip/Recording to avoid black screen during transitions
   const showBlackScreen = !previewClip || !previewRecording || !videoUrl;
+  const showLastFrame = showBlackScreen && lastFrame && !hasNoProject;
 
   const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
   const hasNoProject = !previewRecording && !playheadClip;
@@ -325,8 +419,20 @@ export function PreviewAreaRemotion({
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
-      {/* Black screen overlay when in gaps or no video */}
-      {showBlackScreen && (
+      {/* Show last frame or black screen when in gaps or no video */}
+      {showLastFrame && (
+        <div 
+          className="absolute inset-0 z-10" 
+          style={{
+            backgroundImage: `url(${lastFrame})`,
+            backgroundSize: 'contain',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundColor: 'black'
+          }}
+        />
+      )}
+      {showBlackScreen && !showLastFrame && (
         <div className="absolute inset-0 bg-black z-10" />
       )}
 
