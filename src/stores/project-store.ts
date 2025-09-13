@@ -18,19 +18,6 @@ const findClipById = (project: Project, clipId: string): { clip: Clip; track: Tr
   return null
 }
 
-// Magnetic timeline update - shifts clips after a position to maintain continuity
-const magneticallyUpdateClipsAfter = (track: Track, afterTime: number, deltaTime: number) => {
-  // Find all clips that start at or after the given time
-  const clipsToShift = track.clips.filter(c => c.startTime >= afterTime)
-  
-  // Sort by start time to maintain order
-  clipsToShift.sort((a, b) => a.startTime - b.startTime)
-  
-  // Shift each clip by the delta
-  for (const clip of clipsToShift) {
-    clip.startTime += deltaTime
-  }
-}
 
 const calculateTimelineDuration = (project: Project): number => {
   let maxEndTime = 0
@@ -380,6 +367,8 @@ export const useProjectStore = create<ProjectStore>()(
         const videoTrack = state.currentProject.timeline.tracks.find(t => t.type === 'video')
         if (videoTrack) {
           videoTrack.clips.push(clip)
+          // Keep clips sorted by start time for proper rendering
+          videoTrack.clips.sort((a, b) => a.startTime - b.startTime)
         }
 
         state.currentProject.timeline.duration = Math.max(
@@ -437,6 +426,8 @@ export const useProjectStore = create<ProjectStore>()(
           }
 
           videoTrack.clips.push(clip)
+          // Keep clips sorted by start time for proper rendering
+          videoTrack.clips.sort((a, b) => a.startTime - b.startTime)
         }
 
         state.currentProject.timeline.duration = Math.max(
@@ -519,29 +510,38 @@ export const useProjectStore = create<ProjectStore>()(
 
         Object.assign(clip, updates)
 
-        // If duration changed due to playback rate, use magnetic timeline update
+        // Only shift clips if the update would cause overlaps
         const endAfterUpdate = clip.startTime + clip.duration
         const durationChanged = updates.duration !== undefined || updates.playbackRate !== undefined
-        if (durationChanged && endAfterUpdate !== prevEndBeforeUpdate) {
-          const deltaTime = endAfterUpdate - prevEndBeforeUpdate
-          magneticallyUpdateClipsAfter(track, prevEndBeforeUpdate, deltaTime)
-        }
-        
-        // If duration or startTime changed, reflow subsequent clips to stay contiguous
         const startChanged = updates.startTime !== undefined && updates.startTime !== prevStartBeforeUpdate
-        if (startChanged || endAfterUpdate !== prevEndBeforeUpdate) {
+        
+        if (durationChanged || startChanged) {
+          // Check if this clip now overlaps with any following clips
           const clipIndex = track.clips.findIndex(c => c.id === clipId)
-          let nextStart = endAfterUpdate
+          
           for (let i = clipIndex + 1; i < track.clips.length; i++) {
             const following = track.clips[i]
-            const oldStart = following.startTime
-            const oldEnd = following.startTime + following.duration
-            following.startTime = nextStart
-            const delta = following.startTime - oldStart
-            if (delta !== 0 && state.currentProject) {
-              shiftEffectsInWindow(state.currentProject, oldStart, oldEnd, delta)
+            
+            // If this clip now overlaps with a following clip, shift the following clips
+            if (endAfterUpdate > following.startTime) {
+              const shiftAmount = endAfterUpdate - following.startTime
+              
+              // Shift this clip and all subsequent clips
+              for (let j = i; j < track.clips.length; j++) {
+                const clipToShift = track.clips[j]
+                const oldStart = clipToShift.startTime
+                const oldEnd = clipToShift.startTime + clipToShift.duration
+                
+                clipToShift.startTime += shiftAmount
+                
+                // Update effects that were in this clip's time range
+                if (state.currentProject) {
+                  shiftEffectsInWindow(state.currentProject, oldStart, oldEnd, shiftAmount)
+                }
+              }
+              
+              break // Only need to fix once
             }
-            nextStart = following.startTime + following.duration
           }
         }
 
@@ -1236,7 +1236,7 @@ export const useProjectStore = create<ProjectStore>()(
         // Sort clips by startTime
         track.clips.sort((a, b) => a.startTime - b.startTime)
         
-        // Fix any overlaps by shifting clips forward
+        // Fix any overlaps by shifting clips forward (only if needed)
         for (let i = 1; i < track.clips.length; i++) {
           const prevClip = track.clips[i - 1]
           const currentClip = track.clips[i]
@@ -1245,13 +1245,10 @@ export const useProjectStore = create<ProjectStore>()(
           // If current clip overlaps with previous, shift it forward
           if (currentClip.startTime < prevEnd) {
             const shift = prevEnd - currentClip.startTime
-            currentClip.startTime = prevEnd
             
-            // Shift all subsequent clips from the same recording by the same amount
-            for (let j = i + 1; j < track.clips.length; j++) {
-              if (track.clips[j].recordingId === currentClip.recordingId) {
-                track.clips[j].startTime += shift
-              }
+            // Shift this clip and all subsequent clips to maintain relative positions
+            for (let j = i; j < track.clips.length; j++) {
+              track.clips[j].startTime += shift
             }
           }
         }

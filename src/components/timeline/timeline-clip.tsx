@@ -347,15 +347,25 @@ export const TimelineClip = React.memo(({
       y={trackY + TimelineConfig.TRACK_PADDING}
       draggable
       dragBoundFunc={(pos) => {
-        // Allow free movement but check for overlaps
+        // Convert position to time
         const proposedTime = TimeConverter.pixelsToMs(
           pos.x - TimelineConfig.TRACK_LABEL_WIDTH,
           pixelsPerMs
         )
 
-        // Check if this position would cause overlap
-        const overlapCheck = ClipPositioning.checkOverlap(
+        // Apply magnetic snapping to nearby clips and playhead
+        const { settings, currentTime } = useProjectStore.getState()
+        const snapResult = ClipPositioning.applyMagneticSnap(
           proposedTime,
+          clip.duration,
+          otherClipsInTrack,
+          clip.id,
+          currentTime
+        )
+
+        // Check if the snapped position would cause overlap
+        const overlapCheck = ClipPositioning.checkOverlap(
+          snapResult.time,
           clip.duration,
           otherClipsInTrack,
           clip.id
@@ -363,9 +373,11 @@ export const TimelineClip = React.memo(({
 
         setIsValidPosition(!overlapCheck.hasOverlap)
 
-        // Allow the drag but show visual feedback if invalid
+        // Convert snapped time back to pixels
+        const snappedX = TimeConverter.msToPixels(snapResult.time, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+
         return {
-          x: pos.x,
+          x: snappedX,
           y: trackY + TimelineConfig.TRACK_PADDING
         }
       }}
@@ -379,14 +391,24 @@ export const TimelineClip = React.memo(({
 
         // Get the final position from the drag
         const finalX = e.target.x()
-        const finalTime = TimeConverter.pixelsToMs(
+        const proposedTime = TimeConverter.pixelsToMs(
           finalX - TimelineConfig.TRACK_LABEL_WIDTH,
           pixelsPerMs
         )
 
-        // Check if this position would cause overlap
+        // Apply magnetic snapping for final position
+        const { currentTime } = useProjectStore.getState()
+        const snapResult = ClipPositioning.applyMagneticSnap(
+          proposedTime,
+          clip.duration,
+          otherClipsInTrack,
+          clip.id,
+          currentTime
+        )
+
+        // Check if the snapped position would cause overlap
         const overlapCheck = ClipPositioning.checkOverlap(
-          finalTime,
+          snapResult.time,
           clip.duration,
           otherClipsInTrack,
           clip.id
@@ -404,8 +426,8 @@ export const TimelineClip = React.memo(({
           return
         }
 
-        // Update clip position to the new location
-        onDragEnd(clip.id, finalTime)
+        // Update clip position to the snapped location
+        onDragEnd(clip.id, snapResult.time)
       }}
       onClick={() => {
         // Simple click handler - just select the clip
