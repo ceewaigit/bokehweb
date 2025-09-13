@@ -1107,17 +1107,23 @@ export const useProjectStore = create<ProjectStore>()(
         
         const allSplits: SplitInfo[] = []
         
-        for (const period of periods) {
-          // Find which clip contains this period
+        // Sort periods by start time to process them in order
+        const sortedPeriods = [...periods].sort((a, b) => a.startTime - b.startTime)
+        
+        for (const period of sortedPeriods) {
+          // Find which clip contains this period - use the ORIGINAL clips before any modifications
           let targetClip: Clip | null = null
-          for (const clip of track.clips) {
-            if (clip.recordingId !== recordingId) continue
-            
-            const clipSourceIn = clip.sourceIn || 0
-            const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration)
+          for (const originalClip of originalClips) {
+            const clipSourceIn = originalClip.sourceIn || 0
+            const clipSourceOut = originalClip.sourceOut || (clipSourceIn + originalClip.duration)
             
             if (period.startTime < clipSourceOut && period.endTime > clipSourceIn) {
-              targetClip = clip
+              // Find the current version of this clip in the track
+              targetClip = track.clips.find(c => 
+                c.recordingId === recordingId && 
+                c.sourceIn === originalClip.sourceIn &&
+                c.sourceOut === originalClip.sourceOut
+              ) || track.clips.find(c => c.id === originalClip.id)
               break
             }
           }
@@ -1170,6 +1176,12 @@ export const useProjectStore = create<ProjectStore>()(
         // Sort splits by timeline time to process them in order
         allSplits.sort((a, b) => a.timelineTime - b.timelineTime)
         
+        console.log('[Store] Phase 2 - Processing splits:', allSplits.map(s => ({
+          time: s.timelineTime,
+          type: s.type,
+          clipId: s.clipId
+        })))
+        
         // Map to track which new clips correspond to which periods
         const periodToClips = new Map<typeof periods[0], string[]>()
         
@@ -1179,13 +1191,26 @@ export const useProjectStore = create<ProjectStore>()(
             // Account for clips that may have been created from previous splits
             if (c.recordingId !== recordingId) return false
             const clipEnd = c.startTime + c.duration
-            return c.startTime <= split.timelineTime && clipEnd >= split.timelineTime
+            // Add small tolerance for floating point comparisons
+            return c.startTime <= split.timelineTime + 0.01 && clipEnd >= split.timelineTime - 0.01
           })
           
           if (!clipToSplit) {
-            console.warn('[Store] Could not find clip for split at:', split.timelineTime)
+            console.warn('[Store] Could not find clip for split at:', split.timelineTime, 
+              'Available clips:', track.clips.filter(c => c.recordingId === recordingId).map(c => ({
+                id: c.id,
+                start: c.startTime,
+                end: c.startTime + c.duration
+              })))
             continue
           }
+          
+          console.log('[Store] Splitting clip:', {
+            clipId: clipToSplit.id,
+            at: split.timelineTime,
+            clipStart: clipToSplit.startTime,
+            clipEnd: clipToSplit.startTime + clipToSplit.duration
+          })
           
           const clipIndex = track.clips.indexOf(clipToSplit)
           const splitPoint = split.timelineTime - clipToSplit.startTime
@@ -1276,21 +1301,60 @@ export const useProjectStore = create<ProjectStore>()(
             }
             
             const oldDuration = clip.duration
+            const oldPlaybackRate = clip.playbackRate || 1
             const sourceDuration = (clip.sourceOut || 0) - (clip.sourceIn || 0)
+            
+            // IMPORTANT: The source duration represents the actual media duration
+            // The timeline duration depends on the playback rate
+            // If the clip was already at a different speed, we need to handle this correctly
+            
+            // The new timeline duration is source duration divided by the new speed
             const newDuration = sourceDuration / period.suggestedSpeedMultiplier
             
-            console.log('[Store] Applying speed to clip:', {
+            // Sanity check: if speeding up (multiplier > 1), duration should decrease
+            const expectedToShrink = period.suggestedSpeedMultiplier > 1
+            const actuallyShrank = newDuration < oldDuration
+            
+            if (expectedToShrink !== actuallyShrank) {
+              console.error('[Store] Speed application logic error!', {
+                clipId: clip.id,
+                oldDuration,
+                newDuration,
+                oldPlaybackRate,
+                newPlaybackRate: period.suggestedSpeedMultiplier,
+                sourceDuration,
+                expectedToShrink,
+                actuallyShrank
+              })
+              
+              // There's likely an issue with the source values from a previous split
+              // Recalculate based on the old duration and playback rate
+              const correctedSourceDuration = oldDuration * oldPlaybackRate
+              const correctedNewDuration = correctedSourceDuration / period.suggestedSpeedMultiplier
+              
+              console.log('[Store] Using corrected duration:', {
+                correctedSourceDuration,
+                correctedNewDuration
+              })
+              
+              clip.duration = correctedNewDuration
+            } else {
+              clip.duration = newDuration
+            }
+            
+            console.log('[Store] Applied speed to clip:', {
               clipId: clip.id,
               oldDuration,
-              newDuration,
+              newDuration: clip.duration,
+              oldPlaybackRate,
               speedMultiplier: period.suggestedSpeedMultiplier,
               startTime: clip.startTime,
               sourceIn: clip.sourceIn,
-              sourceOut: clip.sourceOut
+              sourceOut: clip.sourceOut,
+              sourceDuration
             })
             
             clip.playbackRate = period.suggestedSpeedMultiplier
-            clip.duration = newDuration
             affectedClips.push(clip.id)
           }
         }
