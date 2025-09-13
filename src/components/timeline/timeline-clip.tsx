@@ -22,6 +22,9 @@ import { CommandManager } from '@/lib/commands'
 // This survives component re-creation when clips are split
 const globalDismissedSuggestions = new Map<string, Set<string>>()
 
+// Track recordings where ALL suggestions have been applied
+const globalAppliedRecordings = new Set<string>()
+
 interface TimelineClipProps {
   clip: Clip
   recording?: Recording | null
@@ -141,10 +144,8 @@ export const TimelineClip = React.memo(({
 
   // Analyze typing patterns for speed-up suggestions
   useEffect(() => {
-    // Check if suggestions have been cleared for this recording (successfully applied)
-    if (globalDismissedSuggestions.has(recordingId) && 
-        globalDismissedSuggestions.get(recordingId)?.size === 0) {
-      // All suggestions were applied, don't show any
+    // Don't show suggestions if all have been applied for this recording
+    if (globalAppliedRecordings.has(recordingId)) {
       setTypingSuggestions(null)
       return
     }
@@ -157,9 +158,6 @@ export const TimelineClip = React.memo(({
     try {
       // Analyze keyboard events for typing patterns
       const suggestions = TypingDetector.analyzeTyping(recording.metadata.keyboardEvents)
-      
-      // Only set suggestions if they haven't been completely cleared
-      // This prevents duplication after successful application
       setTypingSuggestions(suggestions)
     } catch (error) {
       console.warn('Failed to analyze typing patterns:', error)
@@ -282,8 +280,9 @@ export const TimelineClip = React.memo(({
             !(p.startTime === period.startTime && p.endTime === period.endTime)
           )
           if (updatedPeriods.length === 0) {
-            // No more periods, mark as all applied with empty set
-            globalDismissedSuggestions.set(recordingId, new Set())
+            // No more periods, mark as all applied
+            globalAppliedRecordings.add(recordingId)
+            globalDismissedSuggestions.delete(recordingId)
             return null
           }
           return { ...current, periods: updatedPeriods }
@@ -335,8 +334,8 @@ export const TimelineClip = React.memo(({
       if (result.success) {
         console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
         // Mark this recording as having all suggestions applied
-        // Use an empty set to indicate successful application
-        globalDismissedSuggestions.set(recordingId, new Set())
+        globalAppliedRecordings.add(recordingId)
+        globalDismissedSuggestions.delete(recordingId)
         // Force re-render to hide the suggestions
         setTypingSuggestions(null)
       } else {
