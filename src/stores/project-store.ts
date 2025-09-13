@@ -490,13 +490,25 @@ export const useProjectStore = create<ProjectStore>()(
 
         const { clip, track } = result
 
-        // Unless exact mode is requested, when position changes, snap to leftmost available position
+        // Check for overlaps when position changes (unless exact mode is requested)
         if (!options?.exact && updates.startTime !== undefined) {
-          // Get the leftmost clip end position (excluding current clip)
-          const leftmostEnd = ClipPositioning.getLeftmostClipEnd(track.clips, clipId)
-
-          // Force the clip to this position (no gaps allowed)
-          updates.startTime = leftmostEnd
+          // Check if the new position would cause overlaps
+          const overlapCheck = ClipPositioning.checkOverlap(
+            updates.startTime,
+            updates.duration || clip.duration,
+            track.clips,
+            clipId
+          )
+          
+          // If there's an overlap, find the next valid position
+          if (overlapCheck.hasOverlap) {
+            updates.startTime = ClipPositioning.findNextValidPosition(
+              updates.startTime,
+              updates.duration || clip.duration,
+              track.clips,
+              clipId
+            )
+          }
         }
 
         const prevEndBeforeUpdate = clip.startTime + clip.duration
@@ -1210,17 +1222,37 @@ export const useProjectStore = create<ProjectStore>()(
           if (finalClip) {
             console.log('[Store] Applying speed to clip:', finalClip.id)
             const sourceDuration = (finalClip.sourceOut - finalClip.sourceIn)
-            const oldDuration = finalClip.duration
             const newDuration = sourceDuration / period.suggestedSpeedMultiplier
             
             finalClip.playbackRate = period.suggestedSpeedMultiplier
             finalClip.duration = newDuration
             affectedClips.push(finalClip.id)
 
-            // Magnetically update clips after this one
-            // Use the difference between new and old timeline duration
-            const deltaTime = newDuration - oldDuration
-            magneticallyUpdateClipsAfter(track, finalClip.startTime + newDuration, deltaTime)
+            // Don't do magnetic updates here - we'll do it once at the end
+          }
+        }
+
+        // After all periods are processed, ensure no overlaps
+        // Sort clips by startTime
+        track.clips.sort((a, b) => a.startTime - b.startTime)
+        
+        // Fix any overlaps by shifting clips forward
+        for (let i = 1; i < track.clips.length; i++) {
+          const prevClip = track.clips[i - 1]
+          const currentClip = track.clips[i]
+          const prevEnd = prevClip.startTime + prevClip.duration
+          
+          // If current clip overlaps with previous, shift it forward
+          if (currentClip.startTime < prevEnd) {
+            const shift = prevEnd - currentClip.startTime
+            currentClip.startTime = prevEnd
+            
+            // Shift all subsequent clips from the same recording by the same amount
+            for (let j = i + 1; j < track.clips.length; j++) {
+              if (track.clips[j].recordingId === currentClip.recordingId) {
+                track.clips[j].startTime += shift
+              }
+            }
           }
         }
 

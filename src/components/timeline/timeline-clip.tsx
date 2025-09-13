@@ -242,8 +242,6 @@ export const TimelineClip = React.memo(({
     }
   }, [recording?.id, recording?.filePath, clip.duration, clipWidth, trackHeight, trackType])
 
-  // Calculate minimum allowed position (right of leftmost clip)
-  const minAllowedTime = ClipPositioning.getLeftmostClipEnd(otherClipsInTrack, clip.id)
 
   // Handle applying typing speed suggestions
   const handleApplyTypingSuggestion = async (period: TypingPeriod) => {
@@ -348,21 +346,26 @@ export const TimelineClip = React.memo(({
       x={clipX}
       y={trackY + TimelineConfig.TRACK_PADDING}
       draggable
-      dragBoundFunc={() => {
-        // Force clip to snap directly to the right of the leftmost clip
-        // This ensures no gaps in the timeline
+      dragBoundFunc={(pos) => {
+        // Allow free movement but check for overlaps
+        const proposedTime = TimeConverter.pixelsToMs(
+          pos.x - TimelineConfig.TRACK_LABEL_WIDTH,
+          pixelsPerMs
+        )
 
-        // The only valid position is immediately after the leftmost clip
-        const finalTime = minAllowedTime
+        // Check if this position would cause overlap
+        const overlapCheck = ClipPositioning.checkOverlap(
+          proposedTime,
+          clip.duration,
+          otherClipsInTrack,
+          clip.id
+        )
 
-        // Convert to pixels for final position
-        const finalX = TimeConverter.msToPixels(finalTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+        setIsValidPosition(!overlapCheck.hasOverlap)
 
-        // Always valid since we're forcing to the only allowed position
-        setIsValidPosition(true)
-
+        // Allow the drag but show visual feedback if invalid
         return {
-          x: finalX,
+          x: pos.x,
           y: trackY + TimelineConfig.TRACK_PADDING
         }
       }}
@@ -374,10 +377,14 @@ export const TimelineClip = React.memo(({
       onDragEnd={(e) => {
         setIsDragging(false)
 
-        // Always snap to the position right after the leftmost clip
-        const finalTime = minAllowedTime
+        // Get the final position from the drag
+        const finalX = e.target.x()
+        const finalTime = TimeConverter.pixelsToMs(
+          finalX - TimelineConfig.TRACK_LABEL_WIDTH,
+          pixelsPerMs
+        )
 
-        // Check if this position would cause overlap (shouldn't happen but safety check)
+        // Check if this position would cause overlap
         const overlapCheck = ClipPositioning.checkOverlap(
           finalTime,
           clip.duration,
@@ -397,7 +404,7 @@ export const TimelineClip = React.memo(({
           return
         }
 
-        // Update clip position to be right after leftmost clip
+        // Update clip position to the new location
         onDragEnd(clip.id, finalTime)
       }}
       onClick={() => {
