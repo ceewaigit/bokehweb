@@ -150,6 +150,13 @@ export const TimelineClip = React.memo(({
       return
     }
     
+    // NEVER show suggestions on split clips - they've already been processed
+    // Split clips are identified by having "-split" in their ID
+    if (clip.id.includes('-split')) {
+      setTypingSuggestions(null)
+      return
+    }
+    
     if (!recording?.metadata?.keyboardEvents || recording.metadata.keyboardEvents.length === 0) {
       setTypingSuggestions(null)
       return
@@ -159,39 +166,13 @@ export const TimelineClip = React.memo(({
       // Analyze keyboard events for typing patterns
       const suggestions = TypingDetector.analyzeTyping(recording.metadata.keyboardEvents)
       
-      // Check if this is a split clip by looking for "-split" in the ID
-      const isSplitClip = clip.id.includes('-split')
-      
-      if (isSplitClip && clip.sourceIn !== undefined && clip.sourceOut !== undefined) {
-        // This is a split clip - filter suggestions to only those within the clip's source range
-        const clipSourceIn = clip.sourceIn
-        const clipSourceOut = clip.sourceOut
-        
-        const filteredPeriods = suggestions.periods.filter(period => {
-          // Check if the period overlaps with this clip's source range
-          return period.startTime < clipSourceOut && period.endTime > clipSourceIn
-        })
-        
-        if (filteredPeriods.length > 0) {
-          setTypingSuggestions({
-            ...suggestions,
-            periods: filteredPeriods
-          })
-        } else {
-          setTypingSuggestions(null)
-        }
-      } else if (!isSplitClip) {
-        // Original clip (not split) - show all suggestions
-        setTypingSuggestions(suggestions)
-      } else {
-        // Split clip without proper source range - don't show suggestions
-        setTypingSuggestions(null)
-      }
+      // Only show suggestions on original, non-split clips
+      setTypingSuggestions(suggestions)
     } catch (error) {
       console.warn('Failed to analyze typing patterns:', error)
       setTypingSuggestions(null)
     }
-  }, [recording?.metadata?.keyboardEvents, recordingId, clip.id, clip.sourceIn, clip.sourceOut, clip.duration])
+  }, [recording?.metadata?.keyboardEvents, recordingId, clip.id])
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {
