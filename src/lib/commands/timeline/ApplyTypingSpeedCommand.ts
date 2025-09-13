@@ -114,6 +114,8 @@ export class ApplyTypingSpeedCommand extends Command<{
     const sortedSplitTimes = Array.from(splitTimesSet).sort((a, b) => a - b)
 
     // Perform splits from left to right
+    const splitClipIds = new Set<string>() // Track which clips we've already split
+    
     for (const splitTime of sortedSplitTimes) {
       // Re-fetch project state after each split to get updated clip IDs
       const currentProject = store.currentProject
@@ -128,12 +130,18 @@ export class ApplyTypingSpeedCommand extends Command<{
       const clipToSplit = currentTrack.clips.find(c => 
         c.recordingId === sourceClip.recordingId &&
         splitTime > c.startTime && 
-        splitTime < c.startTime + c.duration
+        splitTime < c.startTime + c.duration &&
+        !splitClipIds.has(c.id) // Don't try to split the same clip twice
       )
       
       if (clipToSplit) {
-        // Only split if we haven't already split at this exact point
-        store.splitClip(clipToSplit.id, splitTime)
+        splitClipIds.add(clipToSplit.id)
+        try {
+          store.splitClip(clipToSplit.id, splitTime)
+        } catch (error) {
+          // If split fails, continue with other splits
+          console.warn(`Failed to split clip ${clipToSplit.id} at ${splitTime}:`, error)
+        }
       }
     }
 
@@ -298,6 +306,8 @@ export class ApplyTypingSpeedCommand extends Command<{
   private shiftEffectsAfter(project: Project, afterTime: number, delta: number, affectedIds: string[]): void {
     if (!project.timeline.effects || delta === 0) return
     
+    const store = this.context.getStore()
+    
     for (const effect of project.timeline.effects) {
       if (effect.type === 'background') continue // Skip background effects
       
@@ -311,9 +321,11 @@ export class ApplyTypingSpeedCommand extends Command<{
           })
         }
         
-        // Shift the effect
-        effect.startTime += delta
-        effect.endTime += delta
+        // Shift the effect using store's updateEffect method
+        store.updateEffect(effect.id, {
+          startTime: effect.startTime + delta,
+          endTime: effect.endTime + delta
+        })
         affectedIds.push(effect.id)
       }
     }
