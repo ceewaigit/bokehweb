@@ -246,22 +246,20 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         </Sequence>
       )}
 
-      {/* Video Layer with effects */}
-      {videoUrl && (
-        <Sequence from={0}>
-          <VideoLayer
-            videoUrl={videoUrl}
-            clip={clip}
-            effects={effects}
-            zoomBlocks={zoomBlocks}
-            videoWidth={videoWidth}
-            videoHeight={videoHeight}
-            zoomCenter={zoomEnabled ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
-            cinematicScrollState={cinematicScrollState}
-            computedScale={zoomEnabled ? completeZoomState.scale : undefined}
-          />
-        </Sequence>
-      )}
+      {/* Video Layer with effects - Always render to prevent unmounting */}
+      <Sequence from={0}>
+        <VideoLayer
+          videoUrl={videoUrl || ''}
+          clip={clip}
+          effects={effects}
+          zoomBlocks={zoomBlocks}
+          videoWidth={videoWidth}
+          videoHeight={videoHeight}
+          zoomCenter={zoomEnabled ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
+          cinematicScrollState={cinematicScrollState}
+          computedScale={zoomEnabled ? completeZoomState.scale : undefined}
+        />
+      </Sequence>
 
       {/* Keystroke Layer - Show when enabled and keystrokes exist */}
       {keystrokeEffect && keystrokeEvents && keystrokeEvents.length > 0 && (

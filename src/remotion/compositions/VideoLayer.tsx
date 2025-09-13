@@ -170,6 +170,11 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const shadowBlur = 25 + (shadowIntensity / 100) * 25;
   const shadowSpread = -12 + (shadowIntensity / 100) * 6;
 
+  // Don't render anything if no video URL
+  if (!videoUrl) {
+    return <AbsoluteFill />
+  }
+
   return (
     <AbsoluteFill>
       {/* Shadow layer - rendered separately to ensure visibility */}
