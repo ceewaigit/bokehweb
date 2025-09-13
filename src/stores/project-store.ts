@@ -18,6 +18,20 @@ const findClipById = (project: Project, clipId: string): { clip: Clip; track: Tr
   return null
 }
 
+// Magnetic timeline update - shifts clips after a position to maintain continuity
+const magneticallyUpdateClipsAfter = (track: Track, afterTime: number, deltaTime: number) => {
+  // Find all clips that start at or after the given time
+  const clipsToShift = track.clips.filter(c => c.startTime >= afterTime)
+  
+  // Sort by start time to maintain order
+  clipsToShift.sort((a, b) => a.startTime - b.startTime)
+  
+  // Shift each clip by the delta
+  for (const clip of clipsToShift) {
+    clip.startTime += deltaTime
+  }
+}
+
 const calculateTimelineDuration = (project: Project): number => {
   let maxEndTime = 0
   for (const track of project.timeline.tracks) {
@@ -486,11 +500,17 @@ export const useProjectStore = create<ProjectStore>()(
 
         Object.assign(clip, updates)
 
-        // If duration or startTime changed, reflow subsequent clips to stay contiguous
+        // If duration changed due to playback rate, use magnetic timeline update
         const endAfterUpdate = clip.startTime + clip.duration
-        const startChanged = updates.startTime !== undefined && updates.startTime !== prevStartBeforeUpdate
         const durationChanged = updates.duration !== undefined || updates.playbackRate !== undefined
-        if (startChanged || durationChanged || endAfterUpdate !== prevEndBeforeUpdate) {
+        if (durationChanged && endAfterUpdate !== prevEndBeforeUpdate) {
+          const deltaTime = endAfterUpdate - prevEndBeforeUpdate
+          magneticallyUpdateClipsAfter(track, prevEndBeforeUpdate, deltaTime)
+        }
+        
+        // If duration or startTime changed, reflow subsequent clips to stay contiguous
+        const startChanged = updates.startTime !== undefined && updates.startTime !== prevStartBeforeUpdate
+        if (startChanged || endAfterUpdate !== prevEndBeforeUpdate) {
           const clipIndex = track.clips.findIndex(c => c.id === clipId)
           let nextStart = endAfterUpdate
           for (let i = clipIndex + 1; i < track.clips.length; i++) {
@@ -619,6 +639,10 @@ export const useProjectStore = create<ProjectStore>()(
 
         const splitPoint = splitTime - clip.startTime
         const timestamp = Date.now()
+        
+        // Calculate source split point accounting for playback rate
+        const playbackRate = clip.playbackRate || 1
+        const sourceSplitPoint = splitPoint * playbackRate
 
         // Create first clip - simple and clean
         const firstClip: Clip = {
@@ -627,7 +651,7 @@ export const useProjectStore = create<ProjectStore>()(
           startTime: clip.startTime,
           duration: splitPoint,
           sourceIn: clip.sourceIn,
-          sourceOut: clip.sourceIn + splitPoint,
+          sourceOut: clip.sourceIn + sourceSplitPoint,
           playbackRate: clip.playbackRate
         }
 
@@ -637,7 +661,7 @@ export const useProjectStore = create<ProjectStore>()(
           recordingId: clip.recordingId,
           startTime: splitTime,
           duration: clip.duration - splitPoint,
-          sourceIn: clip.sourceIn + splitPoint,
+          sourceIn: clip.sourceIn + sourceSplitPoint,
           sourceOut: clip.sourceOut,
           playbackRate: clip.playbackRate
         }

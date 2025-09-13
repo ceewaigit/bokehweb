@@ -95,11 +95,6 @@ export const TimelineClip = React.memo(({
     if (!track) return null
     return track.clips.find((c: Clip) => timeMs > c.startTime && timeMs < c.startTime + c.duration) || null
   }
-  const clampToClipBounds = (startMs: number, endMs: number) => {
-    const s = Math.max(clip.startTime + 1, Math.min(clip.startTime + clip.duration - 1, Math.round(startMs)))
-    const e = Math.max(clip.startTime + 1, Math.min(clip.startTime + clip.duration - 1, Math.round(endMs)))
-    return { s, e }
-  }
 
   const dismissPeriod = (period: TypingPeriod) => {
     const key = `${period.startTime}-${period.endTime}`
@@ -261,15 +256,26 @@ export const TimelineClip = React.memo(({
       const project = getProject()
       if (!project) return
 
-      // Compute absolute boundaries from source time using the ORIGINAL clip params
-      const rate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
-      const absStartRaw = clip.startTime + Math.max(0, (period.startTime - (clip.sourceIn || 0))) / rate
-      const absEndRaw = clip.startTime + Math.max(0, (period.endTime - (clip.sourceIn || 0))) / rate
-      const { s: absStart, e: absEnd } = clampToClipBounds(absStartRaw, absEndRaw)
-      if (!(absEnd > absStart)) return
+      // Map the typing period times to timeline positions
+      // The period times are in recording space, we need to map them to timeline space
+      const rate = clip.playbackRate || 1
+      const sourceIn = clip.sourceIn || 0
+      
+      // Calculate where in the timeline these source times map to
+      const periodStartInClip = (period.startTime - sourceIn) / rate
+      const periodEndInClip = (period.endTime - sourceIn) / rate
+      
+      // Convert to absolute timeline positions
+      const absStart = clip.startTime + Math.max(0, periodStartInClip)
+      const absEnd = clip.startTime + Math.min(clip.duration, periodEndInClip)
+      
+      if (absEnd <= absStart) {
+        console.warn('Invalid period bounds after mapping:', { absStart, absEnd })
+        return
+      }
 
-      // 1) Split at start boundary
-      {
+      // 1) Split at start boundary if not at clip start
+      if (absStart > clip.startTime) {
         const freshTrack = findTrackForClip()
         const target = freshTrack ? findClipAtTimeInTrack(freshTrack, absStart) : null
         if (target) {
@@ -277,8 +283,8 @@ export const TimelineClip = React.memo(({
         }
       }
 
-      // 2) Split at end boundary (fresh state)
-      {
+      // 2) Split at end boundary if not at clip end
+      if (absEnd < clip.startTime + clip.duration) {
         const freshTrack = findTrackForClip()
         const target = freshTrack ? findClipAtTimeInTrack(freshTrack, absEnd) : null
         if (target) {
@@ -286,15 +292,28 @@ export const TimelineClip = React.memo(({
         }
       }
 
-      // 3) Find the isolated middle segment and apply rate
+      // 3) Find the middle segment(s) that cover the typing period and apply speed
       {
         const fresh = useProjectStore.getState()
-        const freshTrack = fresh.currentProject?.timeline.tracks.find(t => t.clips.some(c => c.id === clip.id))
+        const freshTrack = fresh.currentProject?.timeline.tracks.find(t => 
+          t.clips.some(c => c.recordingId === clip.recordingId)
+        )
         if (!freshTrack) return
-        const middle = freshTrack.clips.find((c: Clip) => c.startTime >= absStart && (c.startTime + c.duration) <= absEnd)
-        if (!middle) return
-        const newDuration = computeEffectiveDuration(middle as Clip, period.suggestedSpeedMultiplier)
-        fresh.updateClip(middle.id, { playbackRate: period.suggestedSpeedMultiplier, duration: newDuration })
+        
+        // Find clips that are within the typing period bounds
+        const targetClips = freshTrack.clips.filter((c: Clip) => {
+          const clipEnd = c.startTime + c.duration
+          return c.startTime >= absStart - 0.1 && clipEnd <= absEnd + 0.1
+        })
+        
+        // Apply speed to each target clip
+        for (const targetClip of targetClips) {
+          const newDuration = computeEffectiveDuration(targetClip as Clip, period.suggestedSpeedMultiplier)
+          fresh.updateClip(targetClip.id, { 
+            playbackRate: period.suggestedSpeedMultiplier, 
+            duration: newDuration 
+          })
+        }
       }
 
       // Remove the suggestion visually after applying
@@ -308,43 +327,66 @@ export const TimelineClip = React.memo(({
     console.log('Applying all suggestions:', periods.length, periods)
     if (!periods?.length) return
     try {
-      // 1) Compute absolute split boundaries from source-time using ORIGINAL clip params
-      const rate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
-      const rawBounds = periods.map(p => ({
-        startAbs: clip.startTime + Math.max(0, (p.startTime - (clip.sourceIn || 0))) / rate,
-        endAbs: clip.startTime + Math.max(0, (p.endTime - (clip.sourceIn || 0))) / rate,
-        speed: p.suggestedSpeedMultiplier
-      }))
-      const bounded = rawBounds.map(b => {
-        const { s, e } = clampToClipBounds(b.startAbs, b.endAbs)
-        return { startAbs: s, endAbs: e, speed: b.speed }
+      // Map all typing periods to timeline positions
+      const rate = clip.playbackRate || 1
+      const sourceIn = clip.sourceIn || 0
+      
+      const timelineBounds = periods.map(p => {
+        // Calculate where in the timeline these source times map to
+        const periodStartInClip = (p.startTime - sourceIn) / rate
+        const periodEndInClip = (p.endTime - sourceIn) / rate
+        
+        // Convert to absolute timeline positions
+        const absStart = clip.startTime + Math.max(0, periodStartInClip)
+        const absEnd = clip.startTime + Math.min(clip.duration, periodEndInClip)
+        
+        return {
+          startAbs: absStart,
+          endAbs: absEnd,
+          speed: p.suggestedSpeedMultiplier,
+          period: p
+        }
       }).filter(b => b.endAbs > b.startAbs)
 
-      // 2) Build unique split times and perform all splits first
+      // Build unique split times and perform all splits first
       const splitTimesSet = new Set<number>()
-      for (const b of bounded) { splitTimesSet.add(b.startAbs); splitTimesSet.add(b.endAbs) }
+      for (const b of timelineBounds) {
+        // Only add split points that are not at clip boundaries
+        if (b.startAbs > clip.startTime) splitTimesSet.add(b.startAbs)
+        if (b.endAbs < clip.startTime + clip.duration) splitTimesSet.add(b.endAbs)
+      }
       const splitTimes = Array.from(splitTimesSet).sort((a, b) => a - b)
 
-      for (const t of splitTimes) {
+      // Perform all splits
+      for (const splitTime of splitTimes) {
         const track = findTrackForClip()
-        const target = track ? findClipAtTimeInTrack(track, t) : null
+        const target = track ? findClipAtTimeInTrack(track, splitTime) : null
         if (target) {
-          useProjectStore.getState().splitClip(target.id, t)
+          useProjectStore.getState().splitClip(target.id, splitTime)
         }
       }
 
-      // 3) After all splits, resolve target segments per suggestion and apply rates
+      // After all splits, find and update the segments
       const freshAfterSplits = useProjectStore.getState()
-      const freshTrack = freshAfterSplits.currentProject?.timeline.tracks.find(t => t.clips.some(c => c.id === clip.id))
+      const freshTrack = freshAfterSplits.currentProject?.timeline.tracks.find(t => 
+        t.clips.some(c => c.recordingId === clip.recordingId)
+      )
       if (!freshTrack) return
 
-      // Collect target segments and the max speed if overlapping
+      // Apply speed to each segment based on which typing periods it falls within
       const speedByClipId = new Map<string, number>()
-      for (const b of bounded) {
-        const inside = freshTrack.clips.filter((c: Clip) => c.startTime >= b.startAbs && (c.startTime + c.duration) <= b.endAbs)
-        for (const seg of inside) {
-          const prev = speedByClipId.get(seg.id)
-          speedByClipId.set(seg.id, prev ? Math.max(prev, b.speed) : b.speed)
+      for (const bound of timelineBounds) {
+        // Find clips within this typing period
+        const targetClips = freshTrack.clips.filter((c: Clip) => {
+          const clipEnd = c.startTime + c.duration
+          // Check if clip is fully within the typing period (with small tolerance)
+          return c.startTime >= bound.startAbs - 0.1 && clipEnd <= bound.endAbs + 0.1
+        })
+        
+        for (const targetClip of targetClips) {
+          const currentSpeed = speedByClipId.get(targetClip.id)
+          // Use the maximum speed if multiple periods overlap
+          speedByClipId.set(targetClip.id, currentSpeed ? Math.max(currentSpeed, bound.speed) : bound.speed)
         }
       }
 
@@ -380,7 +422,7 @@ export const TimelineClip = React.memo(({
       x={clipX}
       y={trackY + TimelineConfig.TRACK_PADDING}
       draggable
-      dragBoundFunc={(pos) => {
+      dragBoundFunc={() => {
         // Force clip to snap directly to the right of the leftmost clip
         // This ensures no gaps in the timeline
 
