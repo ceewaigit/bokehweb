@@ -141,6 +141,14 @@ export const TimelineClip = React.memo(({
 
   // Analyze typing patterns for speed-up suggestions
   useEffect(() => {
+    // Check if suggestions have been cleared for this recording (successfully applied)
+    if (globalDismissedSuggestions.has(recordingId) && 
+        globalDismissedSuggestions.get(recordingId)?.size === 0) {
+      // All suggestions were applied, don't show any
+      setTypingSuggestions(null)
+      return
+    }
+    
     if (!recording?.metadata?.keyboardEvents || recording.metadata.keyboardEvents.length === 0) {
       setTypingSuggestions(null)
       return
@@ -149,17 +157,15 @@ export const TimelineClip = React.memo(({
     try {
       // Analyze keyboard events for typing patterns
       const suggestions = TypingDetector.analyzeTyping(recording.metadata.keyboardEvents)
-      // Preserve dismissed suggestions when re-analyzing
-      setTypingSuggestions(current => {
-        if (!current) return suggestions
-        // Keep the same dismissed set, just update the periods
-        return suggestions
-      })
+      
+      // Only set suggestions if they haven't been completely cleared
+      // This prevents duplication after successful application
+      setTypingSuggestions(suggestions)
     } catch (error) {
       console.warn('Failed to analyze typing patterns:', error)
       setTypingSuggestions(null)
     }
-  }, [recording?.metadata?.keyboardEvents])
+  }, [recording?.metadata?.keyboardEvents, recordingId, clip.id])
 
   // Load video and generate thumbnails for video clips
   useEffect(() => {
@@ -276,8 +282,8 @@ export const TimelineClip = React.memo(({
             !(p.startTime === period.startTime && p.endTime === period.endTime)
           )
           if (updatedPeriods.length === 0) {
-            // No more periods, clear everything for this recording
-            globalDismissedSuggestions.delete(recordingId)
+            // No more periods, mark as all applied with empty set
+            globalDismissedSuggestions.set(recordingId, new Set())
             return null
           }
           return { ...current, periods: updatedPeriods }
@@ -328,9 +334,9 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
-        // Clear ALL suggestions for this recording since they've been successfully applied
-        // This ensures the bars disappear after successful application
-        globalDismissedSuggestions.delete(recordingId)
+        // Mark this recording as having all suggestions applied
+        // Use an empty set to indicate successful application
+        globalDismissedSuggestions.set(recordingId, new Set())
         // Force re-render to hide the suggestions
         setTypingSuggestions(null)
       } else {
