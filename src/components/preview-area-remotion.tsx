@@ -42,10 +42,10 @@ export function PreviewAreaRemotion({
   const [lastValidClip, setLastValidClip] = useState<Clip | null>(null)
   const [lastValidRecording, setLastValidRecording] = useState<Recording | null>(null)
   
-  // Get adjacent clips for preloading
-  const { nextClip, prevClip } = useMemo(() => {
+  // Get adjacent clips and check if they're from the same recording
+  const { nextClip, prevClip, isSameRecordingTransition } = useMemo(() => {
     const store = useProjectStore.getState()
-    if (!store.currentProject || !playheadClip) return { nextClip: null, prevClip: null }
+    if (!store.currentProject || !playheadClip) return { nextClip: null, prevClip: null, isSameRecordingTransition: false }
     
     const tracks = store.currentProject.timeline.tracks
     let next: Clip | null = null
@@ -62,7 +62,12 @@ export function PreviewAreaRemotion({
       }
     }
     
-    return { nextClip: next, prevClip: prev }
+    // Check if adjacent clips are from the same recording (likely splits)
+    const isSameRecording = 
+      (prev && prev.recordingId === playheadClip.recordingId) ||
+      (next && next.recordingId === playheadClip.recordingId)
+    
+    return { nextClip: next, prevClip: prev, isSameRecordingTransition: isSameRecording }
   }, [playheadClip])
   
   // Update last valid clip/recording when we have one
@@ -340,23 +345,36 @@ export function PreviewAreaRemotion({
   // Use previewClip/Recording to avoid black screen during transitions
   const showBlackScreen = !previewClip || !previewRecording || !videoUrl;
 
-  const durationInFrames = previewClip ? Math.ceil((previewClip.duration / 1000) * 30) : 900;
+  // Use the maximum duration from all clips of the same recording to avoid remounting
+  const durationInFrames = useMemo(() => {
+    if (!previewClip) return 900
+    
+    // If we're in a same-recording transition, use a longer duration to accommodate all splits
+    if (isSameRecordingTransition && previewRecording) {
+      // Use the full recording duration to avoid duration changes between splits
+      return Math.ceil((previewRecording.duration / 1000) * 30)
+    }
+    
+    // Otherwise use the clip's actual duration
+    return Math.ceil((previewClip.duration / 1000) * 30)
+  }, [previewClip, previewRecording, isSameRecordingTransition]);
   const hasNoProject = !previewRecording && !playheadClip;
 
-  // Force Player remount when clip timing characteristics change
+  // Smart player key - only remount when switching recordings, not between splits
   const playerKey = useMemo(() => {
+    // Use recording ID as primary key to avoid remounting between split clips
+    const recordingId = previewRecording?.id || previewClip?.recordingId || 'none'
+    
+    // Only include params that require a full remount
+    // Don't include clip.id, startTime, or duration as those can be handled without remounting
     const k = [
-      previewClip?.id || 'none',
-      previewClip?.startTime ?? -1,
-      previewClip?.duration ?? -1,
-      previewClip?.sourceIn ?? -1,
-      previewClip?.sourceOut ?? -1,
-      previewClip?.playbackRate ?? 1,
+      recordingId,  // Primary key - only changes when switching recordings
+      previewClip?.playbackRate ?? 1,  // Playback rate requires remount
       compositionWidth,
       compositionHeight
     ].join('-')
     return k
-  }, [previewClip?.id, previewClip?.startTime, previewClip?.duration, previewClip?.sourceIn, previewClip?.sourceOut, previewClip?.playbackRate, compositionWidth, compositionHeight])
+  }, [previewRecording?.id, previewClip?.recordingId, previewClip?.playbackRate, compositionWidth, compositionHeight])
 
   // Show message when no project/recording at all
   if (hasNoProject) {

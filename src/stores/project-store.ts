@@ -181,7 +181,7 @@ const updatePlayheadState = (state: any) => {
   if (state.currentProject && state.currentTime !== undefined) {
     // Find clip at current time - add tolerance for boundary detection
     // This prevents black flash when playhead is exactly at clip boundaries
-    const tolerance = 5 // Increased to 5ms for smoother transitions
+    const tolerance = 10 // Increased to 10ms for smoother transitions between splits
     
     for (const track of state.currentProject.timeline.tracks) {
       const clip = track.clips.find((c: Clip) => {
