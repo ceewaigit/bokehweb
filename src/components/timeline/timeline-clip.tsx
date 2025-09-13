@@ -233,6 +233,9 @@ export const TimelineClip = React.memo(({
 
   // Handle applying typing speed suggestions
   const handleApplyTypingSuggestion = async (period: TypingPeriod) => {
+    // Dismiss immediately for better UX
+    dismissPeriod(period)
+    
     console.log('[TimelineClip] Applying single typing suggestion:', {
       clipId: clip.id,
       period: {
@@ -253,18 +256,33 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log('[TimelineClip] Successfully applied typing suggestion:', result.data)
-        // Dismiss the suggestion visually after successful application
-        dismissPeriod(period)
       } else {
         console.error('[TimelineClip] Failed to apply typing speed suggestion:', result.error)
+        // Re-show the suggestion if the command failed
+        const key = `${period.startTime}-${period.endTime}`
+        setDismissedSuggestions(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(key)
+          return newSet
+        })
       }
     } catch (error) {
       console.error('[TimelineClip] Exception applying typing speed suggestion:', error)
+      // Re-show the suggestion if there was an exception
+      const key = `${period.startTime}-${period.endTime}`
+      setDismissedSuggestions(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(key)
+        return newSet
+      })
     }
   }
 
   const handleApplyAllTypingSuggestions = async (periods: TypingPeriod[]) => {
     if (!periods?.length) return
+    
+    // Dismiss all immediately for better UX
+    dismissPeriods(periods)
     
     console.log('[TimelineClip] Applying all typing suggestions:', {
       clipId: clip.id,
@@ -280,6 +298,7 @@ export const TimelineClip = React.memo(({
       // Apply each period sequentially with fresh context
       let currentClipId = clip.id
       let successCount = 0
+      const failedPeriods: TypingPeriod[] = []
       
       for (const period of periods) {
         // Get fresh state for each operation
@@ -296,6 +315,7 @@ export const TimelineClip = React.memo(({
         
         if (!currentClip) {
           console.error('[TimelineClip] Lost track of clip for period:', period)
+          failedPeriods.push(period)
           continue
         }
         
@@ -308,16 +328,32 @@ export const TimelineClip = React.memo(({
           console.log(`[TimelineClip] Applied suggestion ${successCount}/${periods.length}`)
         } else {
           console.error('[TimelineClip] Failed to apply typing suggestion:', result.error)
+          failedPeriods.push(period)
         }
       }
       
       if (successCount > 0) {
         console.log(`[TimelineClip] Successfully applied ${successCount}/${periods.length} typing suggestions`)
-        // Dismiss all suggestions visually after successful application
-        dismissPeriods(periods)
+      }
+      
+      // Re-show any failed suggestions
+      if (failedPeriods.length > 0) {
+        const failedKeys = new Set(failedPeriods.map(p => `${p.startTime}-${p.endTime}`))
+        setDismissedSuggestions(prev => {
+          const newSet = new Set(prev)
+          failedKeys.forEach(key => newSet.delete(key))
+          return newSet
+        })
       }
     } catch (error) {
       console.error('[TimelineClip] Exception applying all typing suggestions:', error)
+      // Re-show all suggestions on exception
+      const keys = periods.map(p => `${p.startTime}-${p.endTime}`)
+      setDismissedSuggestions(prev => {
+        const newSet = new Set(prev)
+        keys.forEach(key => newSet.delete(key))
+        return newSet
+      })
     }
   }
 

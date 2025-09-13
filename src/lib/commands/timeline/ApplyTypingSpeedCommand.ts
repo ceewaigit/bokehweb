@@ -2,7 +2,6 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import type { TypingPeriod } from '@/lib/timeline/typing-detector'
-import { computeEffectiveDuration } from '@/lib/timeline/clip-utils'
 
 interface ClipSnapshot {
   id: string
@@ -14,12 +13,11 @@ interface ClipSnapshot {
   playbackRate?: number
 }
 
-interface SplitResult {
-  originalClipId: string
-  leftClip?: { id: string; startTime: number; endTime: number }
-  rightClip?: { id: string; startTime: number; endTime: number }
-}
-
+/**
+ * Command to apply typing speed suggestions to clips.
+ * This command is designed to handle a single typing period at a time.
+ * For multiple periods, execute multiple commands sequentially with fresh context.
+ */
 export class ApplyTypingSpeedCommand extends Command<{ 
   applied: number // number of clips affected
 }> {
@@ -34,7 +32,7 @@ export class ApplyTypingSpeedCommand extends Command<{
   ) {
     super({
       name: 'ApplyTypingSpeed',
-      description: `Apply ${periods.length} typing speed suggestion${periods.length > 1 ? 's' : ''}`,
+      description: `Apply typing speed suggestion`,
       category: 'timeline'
     })
   }
@@ -67,194 +65,114 @@ export class ApplyTypingSpeedCommand extends Command<{
       }
     }
     
-    // Convert typing periods from source coordinates to timeline coordinates
-    // The typing periods are in source time (from keyboard events), 
-    // we need to map them to timeline time accounting for the clip's position and rate
-    console.log('[ApplyTypingSpeedCommand] Source clip:', {
-      id: sourceClip.id,
-      startTime: sourceClip.startTime,
-      duration: sourceClip.duration,
-      sourceIn: sourceClip.sourceIn,
-      sourceOut: sourceClip.sourceOut,
-      playbackRate: sourceClip.playbackRate
+    // We only process the first period since this command is meant for single periods
+    const period = this.periods[0]
+    
+    // Convert typing period from source coordinates to timeline coordinates
+    const timelinePeriod = this.mapPeriodToTimeline(sourceClip, period)
+    
+    if (!timelinePeriod) {
+      return { success: false, error: 'Typing period is outside clip bounds' }
+    }
+    
+    console.log('[ApplyTypingSpeedCommand] Processing period:', {
+      source: { start: period.startTime, end: period.endTime },
+      timeline: { start: timelinePeriod.startTime, end: timelinePeriod.endTime },
+      speed: period.suggestedSpeedMultiplier
     })
-    console.log('[ApplyTypingSpeedCommand] Input periods (source time):', this.periods.map(p => ({
-      start: p.startTime,
-      end: p.endTime,
-      speed: p.suggestedSpeedMultiplier
-    })))
     
-    const timelinePeriods = this.mapPeriodsToTimeline(sourceClip, this.periods)
+    // Determine if we need to split the clip
+    const clipStart = sourceClip.startTime
+    const clipEnd = sourceClip.startTime + sourceClip.duration
     
-    console.log('[ApplyTypingSpeedCommand] Mapped periods (timeline time):', timelinePeriods.map(p => ({
-      start: p.startTime,
-      end: p.endTime,
-      speed: p.suggestedSpeedMultiplier
-    })))
+    const needsSplitAtStart = timelinePeriod.startTime > clipStart + 0.1
+    const needsSplitAtEnd = timelinePeriod.endTime < clipEnd - 0.1
     
-    if (timelinePeriods.length === 0) {
-      return { success: false, error: 'No valid typing periods within clip bounds' }
-    }
+    let targetClipId = sourceClip.id
     
-    // Collect all unique split points
-    const splitPoints = new Set<number>()
-    for (const period of timelinePeriods) {
-      // Check if we need to split at the start of the period
-      // A split is needed if the period start is inside a clip (not at boundaries)
-      const needsSplitAtStart = track.clips.some(clip => {
-        if (clip.recordingId !== this.recordingId) return false
-        const clipStart = clip.startTime
-        const clipEnd = clip.startTime + clip.duration
-        return period.startTime > clipStart && period.startTime < clipEnd
-      })
+    // Perform splits if needed
+    if (needsSplitAtStart) {
+      console.log('[ApplyTypingSpeedCommand] Splitting at period start:', timelinePeriod.startTime)
+      store.splitClip(targetClipId, timelinePeriod.startTime)
       
-      if (needsSplitAtStart) {
-        console.log('[ApplyTypingSpeedCommand] Need split at period start', period.startTime)
-        splitPoints.add(period.startTime)
-      }
-      
-      // Check if we need to split at the end of the period
-      const needsSplitAtEnd = track.clips.some(clip => {
-        if (clip.recordingId !== this.recordingId) return false
-        const clipStart = clip.startTime
-        const clipEnd = clip.startTime + clip.duration
-        return period.endTime > clipStart && period.endTime < clipEnd
-      })
-      
-      if (needsSplitAtEnd) {
-        console.log('[ApplyTypingSpeedCommand] Need split at period end', period.endTime)
-        splitPoints.add(period.endTime)
+      // After split, find the right-side clip (which contains our typing period)
+      const updatedTrack = project.timeline.tracks.find(t => t.id === this.trackId)
+      if (updatedTrack) {
+        const rightClip = updatedTrack.clips.find(c => 
+          c.recordingId === this.recordingId &&
+          Math.abs(c.startTime - timelinePeriod.startTime) < 1
+        )
+        if (rightClip) {
+          targetClipId = rightClip.id
+        }
       }
     }
     
-    // Sort split points from left to right
-    const sortedSplitPoints = Array.from(splitPoints).sort((a, b) => a - b)
-    
-    // Keep track of split results for mapping
-    const splitMap = new Map<number, SplitResult>()
-    
-    // Apply all splits one by one
-    console.log('[ApplyTypingSpeedCommand] Split points to apply:', sortedSplitPoints)
-    
-    // Process splits in order, getting fresh state each time
-    for (let i = 0; i < sortedSplitPoints.length; i++) {
-      const splitTime = sortedSplitPoints[i]
+    if (needsSplitAtEnd) {
+      console.log('[ApplyTypingSpeedCommand] Splitting at period end:', timelinePeriod.endTime)
+      store.splitClip(targetClipId, timelinePeriod.endTime)
       
-      // Get fresh project state directly from store
-      const currentProject = store.currentProject
-      
-      if (!currentProject) {
-        console.log('[ApplyTypingSpeedCommand] Project lost during splits')
-        continue
-      }
-      
-      const currentTrack = currentProject.timeline.tracks.find(t => t.id === this.trackId)
-      if (!currentTrack) {
-        console.log('[ApplyTypingSpeedCommand] Track lost during splits')
-        continue
-      }
-      
-      console.log(`[ApplyTypingSpeedCommand] Split ${i + 1}/${sortedSplitPoints.length} at time`, splitTime)
-      console.log('[ApplyTypingSpeedCommand] Available clips:', currentTrack.clips
-        .filter(c => c.recordingId === this.recordingId)
-        .map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })))
-      
-      // Find the clip containing this split point - must be from same recording
-      const clipToSplit = currentTrack.clips.find(clip => {
-        if (clip.recordingId !== this.recordingId) return false
-        const clipStart = clip.startTime
-        const clipEnd = clip.startTime + clip.duration
-        // Split point must be strictly inside the clip (not at boundaries)
-        return splitTime > clipStart && splitTime < clipEnd
-      })
-      
-      if (clipToSplit) {
-        console.log('[ApplyTypingSpeedCommand] Found clip to split:', 
-          { id: clipToSplit.id, start: clipToSplit.startTime, end: clipToSplit.startTime + clipToSplit.duration })
-        console.log('[ApplyTypingSpeedCommand] Splitting clip', clipToSplit.id, 'at time', splitTime)
-        
-        // Perform the split - this is synchronous
-        store.splitClip(clipToSplit.id, splitTime)
-        
-        // Track the split result
-        splitMap.set(splitTime, {
-          originalClipId: clipToSplit.id,
-          // The actual resulting clip IDs will be determined after re-fetching
-        })
-      } else {
-        console.log('[ApplyTypingSpeedCommand] No clip found to split at time', splitTime)
+      // After this split, the left-side clip is our target
+      const updatedTrack = project.timeline.tracks.find(t => t.id === this.trackId)
+      if (updatedTrack) {
+        const leftClip = updatedTrack.clips.find(c => 
+          c.recordingId === this.recordingId &&
+          c.startTime >= timelinePeriod.startTime - 1 &&
+          c.startTime + c.duration <= timelinePeriod.endTime + 1
+        )
+        if (leftClip) {
+          targetClipId = leftClip.id
+        }
       }
     }
     
-    // Now apply speed changes to the appropriate segments
-    let appliedCount = 0
-    
-    // Get fresh state after all splits - need to access the actual Zustand store
-    // The store.currentProject might be stale after multiple synchronous updates
-    const updatedProject = this.context.getProject()
-    if (!updatedProject) {
-      return { success: false, error: 'Project lost after splits' }
-    }
-    
-    const updatedTrack = updatedProject.timeline.tracks.find(t => t.id === this.trackId)
-    if (!updatedTrack) {
+    // Apply speed to the target clip
+    const finalTrack = project.timeline.tracks.find(t => t.id === this.trackId)
+    if (!finalTrack) {
       return { success: false, error: 'Track lost after splits' }
     }
     
-    // Process each typing period
-    console.log('[ApplyTypingSpeedCommand] Processing periods with updated track')
-    console.log('[ApplyTypingSpeedCommand] Track has', updatedTrack.clips.length, 'clips')
-    
-    for (const period of timelinePeriods) {
-      // After splits, we should have clips that match the period boundaries
-      // Find the clip(s) that were created for this typing period
-      const clipsInPeriod = updatedTrack.clips.filter(clip => {
-        if (clip.recordingId !== this.recordingId) return false
-        
-        const clipStart = clip.startTime
-        const clipEnd = clip.startTime + clip.duration
-        
-        // A clip is "in" the period if it substantially overlaps
-        // We use a tolerance because of floating point precision
-        const tolerance = 1 // 1ms
-        
-        // Calculate the overlap
-        const overlapStart = Math.max(clipStart, period.startTime - tolerance)
-        const overlapEnd = Math.min(clipEnd, period.endTime + tolerance)
-        const overlapDuration = Math.max(0, overlapEnd - overlapStart)
-        
-        // Consider it "in period" if more than 90% overlaps
-        const clipDuration = clipEnd - clipStart
-        const overlapRatio = clipDuration > 0 ? overlapDuration / clipDuration : 0
-        
-        return overlapRatio > 0.9
-      })
+    const targetClip = finalTrack.clips.find(c => c.id === targetClipId)
+    if (!targetClip) {
+      // Try to find by position if ID lookup fails
+      const targetClip = finalTrack.clips.find(c => 
+        c.recordingId === this.recordingId &&
+        Math.abs(c.startTime - timelinePeriod.startTime) < 1 &&
+        Math.abs(c.startTime + c.duration - timelinePeriod.endTime) < 1
+      )
       
-      console.log('[ApplyTypingSpeedCommand] Period:', period.startTime, '-', period.endTime)
-      console.log('[ApplyTypingSpeedCommand] Found', clipsInPeriod.length, 'clips for this period')
-      
-      // Apply speed to each clip that matches this period
-      for (const clip of clipsInPeriod) {
-        // Calculate new duration based on speed multiplier
-        const sourceDuration = (clip.sourceOut - clip.sourceIn)
+      if (targetClip) {
+        console.log('[ApplyTypingSpeedCommand] Found target clip by position:', targetClip.id)
+        const sourceDuration = (targetClip.sourceOut - targetClip.sourceIn)
         const newDuration = sourceDuration / period.suggestedSpeedMultiplier
         
-        console.log('[ApplyTypingSpeedCommand] Applying speed to clip', clip.id, 
-          'rate:', period.suggestedSpeedMultiplier, 'newDuration:', newDuration)
-        
-        // Update the clip with new playback rate and duration
-        store.updateClip(clip.id, { 
+        store.updateClip(targetClip.id, { 
           playbackRate: period.suggestedSpeedMultiplier,
           duration: newDuration
         })
         
-        appliedCount++
+        return {
+          success: true,
+          data: { applied: 1 }
+        }
       }
+      
+      console.error('[ApplyTypingSpeedCommand] Could not find target clip after splits')
+      return { success: false, error: 'Target clip not found after splits' }
     }
+    
+    console.log('[ApplyTypingSpeedCommand] Applying speed to clip:', targetClip.id)
+    const sourceDuration = (targetClip.sourceOut - targetClip.sourceIn)
+    const newDuration = sourceDuration / period.suggestedSpeedMultiplier
+    
+    store.updateClip(targetClip.id, { 
+      playbackRate: period.suggestedSpeedMultiplier,
+      duration: newDuration
+    })
 
     return {
       success: true,
-      data: { applied: appliedCount }
+      data: { applied: 1 }
     }
   }
 
@@ -278,7 +196,6 @@ export class ApplyTypingSpeedCommand extends Command<{
 
     // Restore original clips
     for (const snapshot of this.originalClips) {
-      // Re-add the clip with its original properties
       store.addClip({
         id: snapshot.id,
         recordingId: snapshot.recordingId,
@@ -303,7 +220,6 @@ export class ApplyTypingSpeedCommand extends Command<{
   }
 
   private saveClipState(clip: Clip): void {
-    // Only save if we haven't saved this clip already
     if (!this.originalClips.some(s => s.id === clip.id)) {
       this.originalClips.push({
         id: clip.id,
@@ -317,45 +233,40 @@ export class ApplyTypingSpeedCommand extends Command<{
     }
   }
   
-  private mapPeriodsToTimeline(sourceClip: Clip, periods: TypingPeriod[]): TypingPeriod[] {
-    const mapped: TypingPeriod[] = []
+  private mapPeriodToTimeline(sourceClip: Clip, period: TypingPeriod): TypingPeriod | null {
+    // The typing period is in source time (milliseconds from start of recording)
+    // We need to map it to timeline time
     
-    for (const period of periods) {
-      // The typing periods are in source time (milliseconds from start of recording)
-      // We need to map them to timeline time
-      
-      const sourceIn = sourceClip.sourceIn || 0
-      const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration)
-      const playbackRate = sourceClip.playbackRate || 1
-      
-      // Check if period overlaps with this clip's source range
-      if (period.endTime <= sourceIn || period.startTime >= sourceOut) {
-        continue // Period is outside this clip's source range
-      }
-      
-      // Clip the period to the source range
-      const clippedStart = Math.max(period.startTime, sourceIn)
-      const clippedEnd = Math.min(period.endTime, sourceOut)
-      
-      // Convert from source time to clip-relative time
-      const relativeStart = (clippedStart - sourceIn) / playbackRate
-      const relativeEnd = (clippedEnd - sourceIn) / playbackRate
-      
-      // Convert to absolute timeline time
-      const timelineStart = sourceClip.startTime + relativeStart
-      const timelineEnd = sourceClip.startTime + relativeEnd
-      
-      // Only include if the period has meaningful duration
-      if (timelineEnd - timelineStart > 100) { // At least 100ms
-        mapped.push({
-          ...period,
-          startTime: timelineStart,
-          endTime: timelineEnd
-        })
+    const sourceIn = sourceClip.sourceIn || 0
+    const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration)
+    const playbackRate = sourceClip.playbackRate || 1
+    
+    // Check if period overlaps with this clip's source range
+    if (period.endTime <= sourceIn || period.startTime >= sourceOut) {
+      return null // Period is outside this clip's source range
+    }
+    
+    // Clip the period to the source range
+    const clippedStart = Math.max(period.startTime, sourceIn)
+    const clippedEnd = Math.min(period.endTime, sourceOut)
+    
+    // Convert from source time to clip-relative time
+    const relativeStart = (clippedStart - sourceIn) / playbackRate
+    const relativeEnd = (clippedEnd - sourceIn) / playbackRate
+    
+    // Convert to absolute timeline time
+    const timelineStart = sourceClip.startTime + relativeStart
+    const timelineEnd = sourceClip.startTime + relativeEnd
+    
+    // Only return if the period has meaningful duration
+    if (timelineEnd - timelineStart > 100) { // At least 100ms
+      return {
+        ...period,
+        startTime: timelineStart,
+        endTime: timelineEnd
       }
     }
     
-    return mapped
+    return null
   }
-  
 }
