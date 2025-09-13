@@ -14,9 +14,9 @@ import { TypingDetector, type TypingSuggestions, type TypingPeriod } from '@/lib
 import { TypingSuggestionsBar } from './typing-suggestions-bar'
 
 import { useProjectStore } from '@/stores/project-store'
-import { mapRecordingToClipTime } from '@/lib/timeline/clip-utils'
 import { ApplyTypingSpeedCommand } from '@/lib/commands'
 import { DefaultCommandContext } from '@/lib/commands'
+import { CommandManager } from '@/lib/commands'
 
 interface TimelineClipProps {
   clip: Clip
@@ -236,9 +236,12 @@ export const TimelineClip = React.memo(({
     try {
       const store = useProjectStore.getState()
       const context = new DefaultCommandContext(store)
-      const command = new ApplyTypingSpeedCommand(context, clip.id, [period], false)
-      const result = await command.execute()
-
+      const command = new ApplyTypingSpeedCommand(context, clip.id, [period])
+      
+      // Execute through command manager for undo/redo support
+      const manager = CommandManager.getInstance(context)
+      const result = await manager.execute(command)
+      
       if (result.success) {
         // Dismiss the suggestion visually after successful application
         dismissPeriod(period)
@@ -255,9 +258,12 @@ export const TimelineClip = React.memo(({
     try {
       const store = useProjectStore.getState()
       const context = new DefaultCommandContext(store)
-      const command = new ApplyTypingSpeedCommand(context, clip.id, periods, true)
-      const result = await command.execute()
-
+      const command = new ApplyTypingSpeedCommand(context, clip.id, periods)
+      
+      // Execute through command manager for undo/redo support
+      const manager = CommandManager.getInstance(context)
+      const result = await manager.execute(command)
+      
       if (result.success) {
         // Dismiss all suggestions visually after successful application
         dismissPeriods(periods)
