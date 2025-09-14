@@ -259,8 +259,9 @@ export class WebCodecsExportEngine {
                     // Encode from canvas
                     await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
                   } else {
-                    // No effects - encode video directly
-                    await this.encoder!.encodeFrame(frame.imageData, frame.timestamp)
+                    // No effects - draw video to canvas and encode
+                    this.ctx!.drawImage(frame.imageData, 0, 0, this.canvas!.width, this.canvas!.height)
+                    await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
                   }
                 } else {
                   // For ImageBitmap, use workers
