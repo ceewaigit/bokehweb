@@ -173,26 +173,33 @@ export class ExportEngine {
       const segmentBlobs: Blob[] = []
       const totalSegments = timeline.segments.length
 
-      // Process each segment with effects
+            // Process each segment with effects
       for (let i = 0; i < timeline.segments.length; i++) {
         const segment = timeline.segments[i]
         
         if (this.abortController?.signal.aborted) break
-
+        
         onProgress?.({
           progress: 10 + (80 * i / totalSegments),
           stage: 'processing',
           message: `Processing segment ${i + 1}/${totalSegments} with effects...`
         })
-
+        
         const segmentBlob = await this.processSegmentWithEffects(
           segment,
           recordings,
           metadata,
           settings
         )
+        
+        // Skip empty segments to avoid zero-byte results
+        if (segmentBlob && segmentBlob.size > 0) {
+          segmentBlobs.push(segmentBlob)
+        }
+      }
 
-        segmentBlobs.push(segmentBlob)
+      if (segmentBlobs.length === 0) {
+        throw new Error('No segments produced during export')
       }
 
       // Concatenate segments if multiple

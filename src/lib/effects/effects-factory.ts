@@ -13,7 +13,7 @@ export class EffectsFactory {
       recording.height || 1080,
       recording.duration
     )
-    
+
     zoomBlocks.forEach((block, index) => {
       const zoomEffect: Effect = {
         id: `zoom-${clip.id}-${index}`,
@@ -81,12 +81,12 @@ export class EffectsFactory {
     const newEffects: Effect[] = []
     const zoomEffects = this.createZoomEffectsFromRecording(recording, clip)
     newEffects.push(...zoomEffects)
-    
+
     const hasBackground = existingEffects.some(e => e.type === EffectType.Background)
     if (!hasBackground) {
       newEffects.push(this.createDefaultBackgroundEffect())
     }
-    
+
     const hasCursor = existingEffects.some(e => e.type === EffectType.Cursor)
     if (!hasCursor) {
       newEffects.push(this.createDefaultCursorEffect())
@@ -125,23 +125,23 @@ export class EffectsFactory {
         effect.data
     }
   }
-  
+
   static getZoomEffects(effects: Effect[]): Effect[] {
     return effects.filter(e => e.type === EffectType.Zoom && e.enabled)
   }
-  
+
   static getScreenEffects(effects: Effect[]): Effect[] {
     return effects.filter(e => e.type === EffectType.Screen && e.enabled)
   }
-  
+
   static getCursorEffect(effects: Effect[]): Effect | undefined {
     return effects.find(e => e.type === EffectType.Cursor)
   }
-  
+
   static getKeystrokeEffect(effects: Effect[]): Effect | undefined {
     return effects.find(e => e.type === EffectType.Keystroke)
   }
-  
+
   static getBackgroundEffect(effects: Effect[]): Effect | undefined {
     return effects.find(e => e.type === EffectType.Background && e.enabled)
   }
@@ -159,28 +159,28 @@ export class EffectsFactory {
   static hasKeystrokeTrack(effects: Effect[]): boolean {
     return effects.some(e => e.type === EffectType.Keystroke && e.enabled)
   }
-  
+
   // Type-safe data getters
   static getZoomData(effect: Effect): ZoomEffectData | null {
     if (effect.type !== EffectType.Zoom) return null
     return effect.data as ZoomEffectData
   }
-  
+
   static getCursorData(effect: Effect): CursorEffectData | null {
     if (effect.type !== EffectType.Cursor) return null
     return effect.data as CursorEffectData
   }
-  
+
   static getBackgroundData(effect: Effect): BackgroundEffectData | null {
     if (effect.type !== EffectType.Background) return null
     return effect.data as BackgroundEffectData
   }
-  
+
   static getKeystrokeData(effect: Effect): KeystrokeEffectData | null {
     if (effect.type !== EffectType.Keystroke) return null
     return effect.data as KeystrokeEffectData
   }
-  
+
   static getScreenData(effect: Effect): ScreenEffectData | null {
     if (effect.type !== EffectType.Screen) return null
     return effect.data as ScreenEffectData

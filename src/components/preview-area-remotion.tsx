@@ -152,9 +152,9 @@ export function PreviewAreaRemotion({
     }
   }, [isPlaying, previewClip, previewRecording]);
 
-  // Seek when scrubbing (paused) to recording time
+  // Sync frame to store time to avoid dynamic startFrom flicker
   useEffect(() => {
-    if (!playerRef.current || isPlaying) return;
+    if (!playerRef.current) return;
     if (!previewClip || !activeVideoUrl) {
       playerRef.current.seekTo(0);
       return;
@@ -163,7 +163,7 @@ export function PreviewAreaRemotion({
     const frameRate = 30
     const targetFrame = Math.floor(recSeconds * frameRate)
     playerRef.current.seekTo(targetFrame);
-  }, [currentTime, previewClip, isPlaying, activeVideoUrl, getRecordingSeconds]);
+  }, [currentTime, previewClip, activeVideoUrl, getRecordingSeconds]);
 
   useEffect(() => {
     if (!playerRef.current) return;

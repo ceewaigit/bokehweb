@@ -2,7 +2,8 @@ import { app } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 
-export const isDev = process.env.NODE_ENV === 'development'
+// export const isDev = process.env.NODE_ENV === 'development'
+export const isDev = true
 
 export function getAppURL(route: string = ''): string {
   console.log('🔍 getAppURL called with route:', route)
@@ -11,22 +12,23 @@ export function getAppURL(route: string = ''): string {
   console.log('🔍 DEV_SERVER_URL:', process.env.DEV_SERVER_URL)
   console.log('🔍 npm_lifecycle_event:', process.env.npm_lifecycle_event)
   console.log('🔍 process.argv:', process.argv)
-  
+
   // Try to detect if we're in webpack dev mode by checking for common webpack indicators
-  const isWebpackDev = process.env.npm_lifecycle_event === 'forge:start' || 
-                       process.env.ELECTRON_IS_DEV === 'true' ||
-                       process.argv.some(arg => arg.includes('forge') || arg.includes('webpack')) ||
-                       __dirname.includes('.webpack')
-  
+  // const isWebpackDev = process.env.npm_lifecycle_event === 'forge:start' || 
+  //                      process.env.ELECTRON_IS_DEV === 'true' ||
+  //                      process.argv.some(arg => arg.includes('forge') || arg.includes('webpack')) ||
+  //                      __dirname.includes('.webpack')
+  const isWebpackDev = true
+
   console.log('🔍 isWebpackDev:', isWebpackDev)
   console.log('🔍 __dirname:', __dirname)
-  
+
   if (isWebpackDev) {
     // When running with forge:start, use the webpack dev server
     // The webpack renderer runs on port 3001 with the main_window endpoint
-    const webpackDevUrl = 'http://localhost:3001/main_window'
+    const webpackDevUrl = 'http://localhost:3000/main_window'
     console.log('🔍 Using webpack dev server:', webpackDevUrl)
-    
+
     if (route) {
       return `${webpackDevUrl}#${route}`
     }

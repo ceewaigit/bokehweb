@@ -349,7 +349,7 @@ export const TimelineEffectBlock = React.memo(({
             const newEndTime = newStartTime + duration
             const wouldOverlap = allBlocks
               .filter(b => b.id !== blockId)
-              .some(block => 
+              .some(block =>
                 (newStartTime < block.endTime && newEndTime > block.startTime)
               )
             if (wouldOverlap) {

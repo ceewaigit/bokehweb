@@ -42,10 +42,10 @@ export class TypingSpeedApplicationService {
 
     console.log('[TypingApply] Applying typing speed as time remap', {
       clipId,
-      periods: periods.map(p => ({ 
-        start: p.startTime, 
-        end: p.endTime, 
-        rate: p.suggestedSpeedMultiplier 
+      periods: periods.map(p => ({
+        start: p.startTime,
+        end: p.endTime,
+        rate: p.suggestedSpeedMultiplier
       }))
     })
 
@@ -55,44 +55,44 @@ export class TypingSpeedApplicationService {
       sourceEndTime: p.endTime,
       speedMultiplier: p.suggestedSpeedMultiplier
     }))
-    
+
     // Sort periods by start time
     timeRemapPeriods.sort((a, b) => a.sourceStartTime - b.sourceStartTime)
-    
+
     // Store the periods on the clip
     sourceClip.timeRemapPeriods = timeRemapPeriods
     sourceClip.typingSpeedApplied = true
-    
+
     // Calculate new duration based on time remapping
     const newDuration = this.calculateRemappedDuration(sourceClip, timeRemapPeriods)
     const oldDuration = sourceClip.duration
     sourceClip.duration = newDuration
-    
+
     // Reflow clips after duration change
     reflowClips(track, 0, project)
-    
+
     console.log('[TypingApply] Time remap applied', {
       clipId: sourceClip.id,
       oldDuration,
       newDuration,
       periods: sourceClip.timeRemapPeriods
     })
-    
+
     // Remove applied typing periods from the recording's metadata
     const recording = project.recordings.find(r => r.id === sourceClip.recordingId)
     if (recording && recording.metadata?.keyboardEvents) {
       recording.metadata.keyboardEvents = recording.metadata.keyboardEvents.filter(event => {
-        const isInAppliedPeriod = periods.some(period => 
+        const isInAppliedPeriod = periods.some(period =>
           event.timestamp >= period.startTime && event.timestamp <= period.endTime
         )
         return !isInAppliedPeriod
       })
     }
-    
+
     // Update timeline duration
     project.timeline.duration = calculateTimelineDuration(project)
     project.modifiedAt = new Date().toISOString()
-    
+
     return { affectedClips, originalClips }
   }
 
@@ -108,7 +108,7 @@ export class TypingSpeedApplicationService {
     const baseRate = clip.playbackRate || 1
     let totalDuration = 0
     let currentPos = sourceIn
-    
+
     for (const period of timeRemapPeriods) {
       // Handle time before this period
       if (currentPos < period.sourceStartTime) {
@@ -116,7 +116,7 @@ export class TypingSpeedApplicationService {
         totalDuration += gapDuration / baseRate
         currentPos += gapDuration
       }
-      
+
       // Handle time within this period
       if (currentPos < sourceOut && currentPos < period.sourceEndTime) {
         const periodStart = Math.max(currentPos, period.sourceStartTime)
@@ -126,12 +126,12 @@ export class TypingSpeedApplicationService {
         currentPos = periodEnd
       }
     }
-    
+
     // Handle any remaining time after all periods
     if (currentPos < sourceOut) {
       totalDuration += (sourceOut - currentPos) / baseRate
     }
-    
+
     return totalDuration
   }
 }

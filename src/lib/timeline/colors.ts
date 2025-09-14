@@ -12,54 +12,54 @@ export const getTimelineColors = () => {
   }
 
   const computedStyle = getComputedStyle(document.documentElement)
-  
+
   // Helper to get CSS variable value
   const getCSSVar = (varName: string): string => {
     const value = computedStyle.getPropertyValue(varName).trim()
     if (!value) return ''
-    
+
     // Handle HSL values
     if (value.includes(' ')) {
       return `hsl(${value})`
     }
     return value
   }
-  
+
   return {
     // Background colors
     background: getCSSVar('--background'),
     foreground: getCSSVar('--foreground'),
     card: getCSSVar('--card'),
     cardForeground: getCSSVar('--card-foreground'),
-    
+
     // Muted colors for subtle elements
     muted: getCSSVar('--muted'),
     mutedForeground: getCSSVar('--muted-foreground'),
-    
+
     // Border and separators
     border: getCSSVar('--border'),
-    
+
     // Primary for selected/active states
     primary: getCSSVar('--primary'),
     primaryForeground: getCSSVar('--primary-foreground'),
-    
+
     // Secondary for hover states
     secondary: getCSSVar('--secondary'),
     secondaryForeground: getCSSVar('--secondary-foreground'),
-    
+
     // Accent colors for special elements
     accent: getCSSVar('--accent'),
     accentForeground: getCSSVar('--accent-foreground'),
-    
+
     // Destructive for delete/remove actions
     destructive: getCSSVar('--destructive'),
     destructiveForeground: getCSSVar('--destructive-foreground'),
-    
+
     // Additional semantic colors for timeline
     success: getCSSVar('--success') || 'hsl(142, 71%, 45%)',
     warning: getCSSVar('--warning') || 'hsl(38, 92%, 50%)',
     info: getCSSVar('--info') || 'hsl(217, 91%, 60%)',
-    
+
     // Timeline-specific colors
     playhead: getCSSVar('--destructive') || 'hsl(0, 84%, 60%)',
     zoomBlock: 'hsl(258, 100%, 65%)',
@@ -97,7 +97,7 @@ const getDefaultColors = () => ({
 // Hook for React components that updates when theme changes
 export const useTimelineColors = () => {
   const [colors, setColors] = React.useState(getTimelineColors())
-  
+
   React.useEffect(() => {
     // Update colors when theme changes
     const updateColors = () => {
@@ -106,10 +106,10 @@ export const useTimelineColors = () => {
         setColors(getTimelineColors())
       }, 10)
     }
-    
+
     // Initial update
     updateColors()
-    
+
     // Listen for theme changes via class mutations on document element
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
@@ -119,12 +119,12 @@ export const useTimelineColors = () => {
         }
       })
     })
-    
+
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['class']
     })
-    
+
     // Also listen for storage events for theme changes from other tabs
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'theme') {
@@ -132,12 +132,12 @@ export const useTimelineColors = () => {
       }
     }
     window.addEventListener('storage', handleStorageChange)
-    
+
     return () => {
       observer.disconnect()
       window.removeEventListener('storage', handleStorageChange)
     }
   }, [])
-  
+
   return colors
 }

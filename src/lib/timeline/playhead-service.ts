@@ -21,7 +21,7 @@ export class PlayheadService {
       nextClip: null,
       nextRecording: null
     }
-    
+
     if (!project || currentTime === undefined) {
       return state
     }
@@ -55,7 +55,7 @@ export class PlayheadService {
         r => r.id === nextClipResult.clip.recordingId
       ) || null
     }
-    
+
     return state
   }
   static findClipAtTime(project: Project, time: number): { clip: Clip; track: Track } | null {
@@ -66,7 +66,7 @@ export class PlayheadService {
         const withinClip = time > c.startTime && time <= c.startTime + c.duration
         return atStart || withinClip
       })
-      
+
       if (clip) {
         return { clip, track }
       }
@@ -81,12 +81,12 @@ export class PlayheadService {
     let nearestClip: Clip | null = null
     let nearestTrack: Track | null = null
     let nearestStartTime = Number.MAX_SAFE_INTEGER
-    
+
     for (const track of project.timeline.tracks) {
       const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime)
       for (const clip of sortedClips) {
-        if (clip.startTime > currentTime && 
-            clip.startTime <= currentTime + lookaheadMs) {
+        if (clip.startTime > currentTime &&
+          clip.startTime <= currentTime + lookaheadMs) {
           if (clip.startTime < nearestStartTime) {
             nearestClip = clip
             nearestTrack = track
@@ -95,7 +95,7 @@ export class PlayheadService {
         }
       }
     }
-    
+
     if (nearestClip && nearestTrack) {
       return { clip: nearestClip, track: nearestTrack }
     }
@@ -128,14 +128,14 @@ export class PlayheadService {
     const prevStartTime = clip.startTime
     const prevDuration = clip.duration
     const wasPlayheadInside = currentTime >= prevStartTime && currentTime < prevStartTime + prevDuration
-    
+
     if (!wasPlayheadInside) {
       return null
     }
     const prevProgress = prevDuration > 0 ? (currentTime - prevStartTime) / prevDuration : 0
     const newTime = updatedClip.startTime + prevProgress * updatedClip.duration
     return Math.max(
-      updatedClip.startTime, 
+      updatedClip.startTime,
       Math.min(updatedClip.startTime + updatedClip.duration - 1, newTime)
     )
   }

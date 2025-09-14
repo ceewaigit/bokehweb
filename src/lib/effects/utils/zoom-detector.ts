@@ -298,13 +298,13 @@ export class ZoomDetector {
 
     const area = boundingBox.width * boundingBox.height
     const maxArea = videoWidth * videoHeight
-    
+
     // Calculate density - clusters with smaller areas have higher density
     // Penalize clusters that span too much of the screen
     const normalizedWidth = boundingBox.width / videoWidth
     const normalizedHeight = boundingBox.height / videoHeight
     const maxDimension = Math.max(normalizedWidth, normalizedHeight)
-    
+
     // If cluster spans more than 30% of screen in any dimension, it's not dense
     const density = maxDimension > 0.3 ? 0 : (1 - (area / maxArea))
 

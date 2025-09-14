@@ -16,6 +16,7 @@ import {
   Check
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface ExportDialogProps {
   isOpen: boolean
@@ -54,10 +55,15 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
 
     reset()
 
-    if (exportSettings.format === 'gif') {
-      await exportAsGIF(currentProject)
-    } else {
-      await exportProject(currentProject)
+    try {
+      if (exportSettings.format === 'gif') {
+        await exportAsGIF(currentProject)
+      } else {
+        await exportProject(currentProject)
+      }
+      toast.success('Export completed')
+    } catch (e: any) {
+      toast.error(e?.message || 'Export failed')
     }
   }
 
@@ -70,7 +76,12 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     if (lastExport) {
       const extension = exportSettings.format === 'gif' ? 'gif' : exportSettings.format
       const filename = `${currentProject?.name || 'export'}.${extension}`
-      await saveLastExport(filename)
+      try {
+        await saveLastExport(filename)
+        toast.success('File saved')
+      } catch (e: any) {
+        toast.error(e?.message || 'Failed to save file')
+      }
     }
   }
 
@@ -205,7 +216,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                 {isExporting ? (
                   <>
                     <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Exporting...
+                    {progress?.message || 'Exporting...'}
                   </>
                 ) : (
                   <>

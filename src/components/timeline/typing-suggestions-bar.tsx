@@ -14,7 +14,7 @@ interface TypingSuggestionsBarProps {
   pixelsPerMs: number
   clip?: Clip
   onApplySuggestion: (period: TypingPeriod) => void
-  onApplyAllSuggestions?: (periods: TypingPeriod[]) => void
+  onApplyAllSuggestions?: (periods: TypingPeriod[]) => Promise<void>
   onRemoveSuggestion?: (period: TypingPeriod) => void
   onOpenTypingSuggestion?: (opts: {
     x: number
@@ -22,8 +22,8 @@ interface TypingSuggestionsBarProps {
     period: TypingPeriod
     allPeriods: TypingPeriod[]
     onApply: (p: TypingPeriod) => Promise<void>
-    onApplyAll: (ps: TypingPeriod[]) => Promise<void>
-    onRemove: (p: TypingPeriod) => void
+    onApplyAll?: (ps: TypingPeriod[]) => Promise<void>
+    onRemove?: (p: TypingPeriod) => void
   }) => void
 }
 

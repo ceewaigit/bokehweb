@@ -83,7 +83,7 @@ export function findNextValidPosition(
   desiredStart: number,
   duration: number
 ): number {
-  const GAP_BETWEEN_CLIPS = 100 // 100ms gap for better visual separation
+  const GAP_BETWEEN_CLIPS = 0 // enforce contiguous layout by default
   const otherClips = track.clips
     .filter(c => c.id !== clipId)
     .sort((a, b) => a.startTime - b.startTime)
@@ -91,7 +91,7 @@ export function findNextValidPosition(
   let proposedStart = desiredStart
   for (const other of otherClips) {
     const otherEnd = other.startTime + other.duration
-    // If overlap, move proposed start to after the other clip with a small gap
+    // If overlap, move proposed start to after the other clip with no gap
     if (proposedStart < otherEnd && (proposedStart + duration) > other.startTime) {
       proposedStart = otherEnd + GAP_BETWEEN_CLIPS
     }

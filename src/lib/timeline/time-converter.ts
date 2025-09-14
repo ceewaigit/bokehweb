@@ -113,16 +113,16 @@ export class TimeConverter {
   static calculateOptimalZoom(durationMs: number, viewportWidth: number): number {
     // We want to show the full duration plus 10% padding on screen initially
     const targetDuration = durationMs * 1.1
-    
+
     // Calculate required zoom to fit target duration in viewport
     const optimalZoom = TimelineConfig.BASE_VISIBLE_DURATION_MS / targetDuration
-    
+
     // Clamp zoom to reasonable values
     const clampedZoom = Math.max(
       TimelineConfig.MIN_ZOOM,
       Math.min(2.0, optimalZoom) // Max 2.0 for initial view
     )
-    
+
     // Round to nearest 0.05 for cleaner values
     return Math.round(clampedZoom * 20) / 20
   }
@@ -135,7 +135,7 @@ export class TimeConverter {
     const minutes = Math.floor(totalSeconds / 60)
     const seconds = totalSeconds % 60
     const milliseconds = Math.floor(ms % 1000)
-    
+
     return `${minutes.toString().padStart(2, '0')}:${seconds
       .toString()
       .padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
@@ -147,12 +147,12 @@ export class TimeConverter {
   static parseTime(timeStr: string): number {
     const parts = timeStr.split(':')
     if (parts.length !== 2) return 0
-    
+
     const minutes = parseInt(parts[0], 10) || 0
     const secondsParts = parts[1].split('.')
     const seconds = parseInt(secondsParts[0], 10) || 0
     const milliseconds = parseInt(secondsParts[1], 10) || 0
-    
+
     return (minutes * 60 + seconds) * 1000 + milliseconds
   }
 
@@ -207,7 +207,7 @@ export class TimeConverter {
    * Get effects active at specific time
    */
   static getEffectsAtTime(effects: Effect[], timeMs: number): Effect[] {
-    return effects.filter(effect => 
+    return effects.filter(effect =>
       effect.enabled && this.isTimeInRange(timeMs, effect.startTime, effect.endTime)
     )
   }

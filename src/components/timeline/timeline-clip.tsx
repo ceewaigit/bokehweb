@@ -19,6 +19,7 @@ import { useProjectStore } from '@/stores/project-store'
 import { ApplyTypingSpeedCommand } from '@/lib/commands'
 import { DefaultCommandContext } from '@/lib/commands'
 import { CommandManager } from '@/lib/commands'
+import { toast } from 'sonner'
 
 // No global tracking needed - metadata is the source of truth
 
@@ -43,8 +44,8 @@ interface TimelineClipProps {
     period: TypingPeriod
     allPeriods: TypingPeriod[]
     onApply: (p: TypingPeriod) => Promise<void>
-    onApplyAll: (ps: TypingPeriod[]) => Promise<void>
-    onRemove: (p: TypingPeriod) => void
+    onApplyAll?: (ps: TypingPeriod[]) => Promise<void>
+    onRemove?: (p: TypingPeriod) => void
   }) => void
 }
 
@@ -265,13 +266,15 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log('[TimelineClip] Successfully applied typing suggestion:', result.data)
-        // The metadata has been updated - suggestions will disappear on next render
         setTypingSuggestions(null)
+        toast.success('Applied typing suggestion')
       } else {
         console.error('[TimelineClip] Failed to apply typing speed suggestion:', result.error)
+        toast.error(typeof result.error === 'string' ? result.error : 'Failed to apply typing suggestion')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[TimelineClip] Exception applying typing speed suggestion:', error)
+      toast.error(error?.message || 'Failed to apply typing suggestion')
     }
   }
 
@@ -300,13 +303,15 @@ export const TimelineClip = React.memo(({
       
       if (result.success) {
         console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
-        // The metadata has been updated - suggestions will disappear on next render
         setTypingSuggestions(null)
+        toast.success(`Applied ${result.data?.applied || periods.length} typing suggestions`)
       } else {
         console.error('[TimelineClip] Failed to apply typing suggestions:', result.error)
+        toast.error(typeof result.error === 'string' ? result.error : 'Failed to apply typing suggestions')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[TimelineClip] Exception applying all typing suggestions:', error)
+      toast.error(error?.message || 'Failed to apply typing suggestions')
     }
   }
 

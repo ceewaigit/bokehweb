@@ -155,7 +155,7 @@ export class ClipPositioning {
   }
 
   /**
-   * Apply magnetic snapping to a position
+   * Apply magnetic snapping to a position with adjacency clamping
    */
   static applyMagneticSnap(
     proposedTime: number,
@@ -164,18 +164,64 @@ export class ClipPositioning {
     excludeClipId?: string,
     currentTime?: number
   ): { time: number; snappedTo?: SnapPoint } {
+    const sorted = clips
+      .filter(c => !excludeClipId || c.id !== excludeClipId)
+      .sort((a, b) => a.startTime - b.startTime)
+
+    // Try adjacency clamping first: snap to previous end or next start if within threshold
+    let clampedTime = proposedTime
+    const threshold = this.SNAP_THRESHOLD_MS
+
+    // Find previous and next clips relative to proposedTime
+    let prev: Clip | undefined
+    let next: Clip | undefined
+    for (let i = 0; i < sorted.length; i++) {
+      const c = sorted[i]
+      if (c.startTime + c.duration <= proposedTime) prev = c
+      if (!next && c.startTime >= proposedTime) next = c
+    }
+
+    // Snap start to previous end if within threshold
+    if (prev) {
+      const prevEnd = prev.startTime + prev.duration
+      if (Math.abs(proposedTime - prevEnd) <= threshold) {
+        clampedTime = prevEnd
+      }
+    }
+
+    // Snap end to next start if within threshold
+    if (next) {
+      const nextStart = next.startTime
+      const proposedEnd = clampedTime + duration
+      if (Math.abs(proposedEnd - nextStart) <= threshold) {
+        clampedTime = nextStart - duration
+      }
+    }
+
+    // Ensure we don't create a tiny gap between prev and this clip when moving right clip
+    if (prev) {
+      const prevEnd = prev.startTime + prev.duration
+      if (clampedTime < prevEnd) clampedTime = prevEnd
+    }
+
+    // Ensure we don't overlap into next clip when moving left clip
+    if (next) {
+      const nextStart = next.startTime
+      if (clampedTime + duration > nextStart) clampedTime = Math.max(0, nextStart - duration)
+    }
+
+    if (clampedTime !== proposedTime) {
+      return { time: clampedTime }
+    }
+
+    // Fallback to existing snap points (including playhead)
     const snapPoints = this.getSnapPoints(clips, currentTime, excludeClipId)
-    
-    // Check both start and end of the clip for snapping
     const startSnap = this.findNearestSnapPoint(proposedTime, snapPoints)
     const endSnap = this.findNearestSnapPoint(proposedTime + duration, snapPoints)
-    
-    // Prefer snapping the start
+
     if (startSnap) {
       return { time: startSnap.time, snappedTo: startSnap }
     }
-    
-    // Otherwise try snapping the end
     if (endSnap) {
       return { 
         time: endSnap.time - duration, 

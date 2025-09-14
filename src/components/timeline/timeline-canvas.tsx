@@ -216,7 +216,19 @@ export function TimelineCanvas({
       { startTime: newStartTime }
     )
     await manager.execute(command)
-  }, [])
+
+    // Ensure contiguity by nudging the clip again to its snapped location
+    // This triggers store reflow logic in updateClipInTrack
+    const command2 = new UpdateClipCommand(
+      new DefaultCommandContext(useProjectStore.getState()),
+      clipId,
+      { startTime: newStartTime }
+    )
+    await manager.execute(command2)
+
+    // Keep selection on the moved clip so UI/playhead stay in sync
+    selectClip(clipId)
+  }, [selectClip])
 
   // Handle control actions using command pattern
   const handleSplit = useCallback(async () => {

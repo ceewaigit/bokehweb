@@ -133,7 +133,7 @@ export function executeSplitClip(
 
   const clipIndex = track.clips.findIndex(c => c.id === clipId)
   track.clips.splice(clipIndex, 1, splitResult.firstClip, splitResult.secondClip)
-  
+
   project.modifiedAt = new Date().toISOString()
   return splitResult
 }

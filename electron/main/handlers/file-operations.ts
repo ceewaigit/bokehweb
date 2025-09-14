@@ -20,11 +20,16 @@ export function registerFileOperationHandlers(): void {
       let buffer: Buffer
       if (Buffer.isBuffer(data)) {
         buffer = data
+      } else if (data instanceof ArrayBuffer) {
+        buffer = Buffer.from(new Uint8Array(data))
+      } else if (ArrayBuffer.isView(data)) {
+        buffer = Buffer.from(data.buffer as ArrayBuffer)
       } else if (Array.isArray(data)) {
-        buffer = Buffer.from(data)
+        buffer = Buffer.from(data as any)
       } else if (typeof data === 'string') {
         buffer = Buffer.from(data)
       } else {
+        // As a last resort, try to serialize
         buffer = Buffer.from(JSON.stringify(data))
       }
 
@@ -69,7 +74,7 @@ export function registerFileOperationHandlers(): void {
     try {
       const normalizedPath = path.resolve(filePath)
       await fs.access(normalizedPath)
-      
+
       // Return video-stream URL for our custom protocol
       return `video-stream://${encodeURIComponent(normalizedPath)}`
     } catch (error) {

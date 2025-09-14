@@ -29,7 +29,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     updateRecording,
     setHydrated
   } = useRecordingsLibraryStore()
-  
+
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [isPageHydrating, setIsPageHydrating] = useState(false)
@@ -156,7 +156,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     if (isHydrated && !forceReload && allRecordings.length > 0) {
       return
     }
-    
+
     try {
       setLoading(true)
       if (window.electronAPI?.loadRecordings) {
@@ -208,7 +208,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     } else if (allRecordings.length > 0) {
       loadPage(currentPage, allRecordings)
     }
-    
+
     // Hide record button when library is shown
     window.electronAPI?.minimizeRecordButton?.()
   }, [])

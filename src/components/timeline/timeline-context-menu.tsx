@@ -32,12 +32,12 @@ export const TimelineContextMenu = React.memo(({
   onClose
 }: TimelineContextMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null)
-  
+
   const handleAction = (action: () => void) => {
     action()
     onClose()
   }
-  
+
   // Handle click outside to close menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -45,24 +45,24 @@ export const TimelineContextMenu = React.memo(({
         onClose()
       }
     }
-    
+
     // Add listener with a small delay to avoid immediate close on right-click
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', handleClickOutside)
     }, 100)
-    
+
     return () => {
       clearTimeout(timer)
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [onClose])
-  
+
   const menuContent = (
     <div
       ref={menuRef}
       className="fixed bg-popover border border-border rounded-md shadow-lg p-1 z-[9999] min-w-[200px]"
-      style={{ 
-        left: `${x}px`, 
+      style={{
+        left: `${x}px`,
         top: `${y}px`
       }}
       onClick={(e) => e.stopPropagation()}
@@ -125,6 +125,6 @@ export const TimelineContextMenu = React.memo(({
   if (typeof document !== 'undefined') {
     return ReactDOM.createPortal(menuContent, document.body)
   }
-  
+
   return menuContent
 })

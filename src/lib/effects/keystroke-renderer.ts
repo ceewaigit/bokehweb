@@ -155,7 +155,7 @@ export class KeystrokeRenderer {
             this.buffer.text = this.buffer.text.slice(0, -1)
             this.buffer.lastKeyTime = event.timestamp
             this.buffer.keys.push(event)
-            
+
             // If buffer is now empty, clear it
             if (this.buffer.text.length === 0) {
               this.buffer = null
@@ -197,7 +197,7 @@ export class KeystrokeRenderer {
       // Calculate how many characters to show based on actual typing speed
       // Count how many keys were typed (excluding backspaces)
       const typedKeys = this.buffer.keys.filter(k => k.key !== 'Backspace' && k.key !== 'Delete')
-      
+
       // Show characters based on actual key timing
       let charsToShow = 0
       for (const key of typedKeys) {
@@ -207,14 +207,14 @@ export class KeystrokeRenderer {
           break
         }
       }
-      
+
       // Ensure we don't exceed buffer text length
       charsToShow = Math.min(charsToShow, this.buffer.text.length)
-      
+
       if (charsToShow > 0) {
         const displayText = this.buffer.text.substring(0, charsToShow)
         const bufferId = 'current-buffer'
-        
+
         // Update or create the current buffer display
         if (!this.activeKeystrokes.has(bufferId)) {
           const position = this.calculatePosition(0, videoWidth, videoHeight)
@@ -240,23 +240,23 @@ export class KeystrokeRenderer {
     // Process display queue for completed text blocks
     while (this.displayQueue.length > 0) {
       const buffered = this.displayQueue.shift()!
-      
+
       // Wait for the right time to show this text
       if (buffered.startTime > timestamp) {
         // Put it back, not time yet
         this.displayQueue.unshift(buffered)
         break
       }
-      
+
       // Remove current buffer display if exists
       if (this.activeKeystrokes.has('current-buffer')) {
         this.activeKeystrokes.delete('current-buffer')
       }
-      
+
       // Show the completed text for its display duration
       const position = this.calculatePosition(0, videoWidth, videoHeight)
       const keystrokeId = `buffer-${buffered.startTime}`
-      
+
       this.activeKeystrokes.set(keystrokeId, {
         id: keystrokeId,
         text: buffered.text,
@@ -267,7 +267,7 @@ export class KeystrokeRenderer {
         y: position.y,
         fadeIn: true
       })
-      
+
       // Since MAX_CONCURRENT is 1, we should already have removed the buffer above
     }
 

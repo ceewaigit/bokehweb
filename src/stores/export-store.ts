@@ -1,25 +1,24 @@
 import { create } from 'zustand'
-import { ExportEngine, type ExportProgress } from '@/lib/export'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { ExportFormat, QualityLevel } from '@/types/project'
+import { ExportEngine, type ExportProgress } from '@/lib/export/export-engine'
+import type { ExportSettings } from '@/types/export'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import type { ExportSettings, Project } from '@/types'
-import { ExportFormat, QualityLevel } from '@/types'
 
 interface ExportStore {
   engine: ExportEngine | null
   isExporting: boolean
   progress: ExportProgress | null
   lastExport: Blob | null
-
-  // Settings
   exportSettings: ExportSettings
 
-  // Actions
   getEngine: () => ExportEngine
-  updateSettings: (settings: Partial<ExportSettings>) => void
-  exportProject: (project: Project) => Promise<void>
-  exportAsGIF: (project: Project) => Promise<void>
-  saveLastExport: (filename: string) => Promise<void>
+
+  updateSettings: (newSettings: Partial<ExportSettings>) => void
+
+  exportProject: (project: import('@/types/project').Project) => Promise<void>
+  exportAsGIF: (project: import('@/types/project').Project) => Promise<void>
+  saveLastExport: (defaultFilename: string) => Promise<void>
+
   setPreset: (preset: string) => void
   reset: () => void
 }
@@ -80,6 +79,12 @@ export const useExportStore = create<ExportStore>((set, get) => {
           })
         )
 
+        // Sanity-check blob
+        const size = blob.size
+        if (!size || size <= 0) {
+          throw new Error('Export produced an empty file')
+        }
+
         set({
           isExporting: false,
           lastExport: blob,
@@ -127,6 +132,10 @@ export const useExportStore = create<ExportStore>((set, get) => {
           })
         )
 
+        if (!blob.size) {
+          throw new Error('GIF export produced an empty file')
+        }
+
         set({
           isExporting: false,
           lastExport: blob,
@@ -149,70 +158,60 @@ export const useExportStore = create<ExportStore>((set, get) => {
       }
     },
 
-    saveLastExport: async (filename) => {
-      const { lastExport } = get()
-      if (lastExport && window.electronAPI?.saveRecording) {
-        // Use Electron API to save file
-        const buffer = await lastExport.arrayBuffer()
-        await window.electronAPI.saveRecording(filename, buffer)
-      } else if (lastExport) {
-        // Browser download
-        const url = globalBlobManager.create(lastExport, `export-${filename}`)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = filename
-        a.click()
-        globalBlobManager.revoke(url)
+    saveLastExport: async (defaultFilename) => {
+      const { lastExport, exportSettings } = get()
+      if (!lastExport) return
+
+      // Determine extension
+      const extension = exportSettings.format === 'gif' ? 'gif' : exportSettings.format.toLowerCase()
+      const suggestedName = defaultFilename.endsWith(`.${extension}`)
+        ? defaultFilename
+        : `${defaultFilename.replace(/\.[a-zA-Z0-9]+$/, '')}.${extension}`
+
+      // Desktop (Electron): show save dialog
+      if (window.electronAPI?.showSaveDialog && window.electronAPI?.saveFile) {
+        const result = await window.electronAPI.showSaveDialog({
+          title: 'Save exported file',
+          defaultPath: suggestedName,
+          filters: [
+            { name: extension.toUpperCase(), extensions: [extension] }
+          ]
+        })
+
+        if (result && !result.canceled && result.filePath) {
+          const arrayBuffer = await lastExport.arrayBuffer()
+          await window.electronAPI.saveFile(arrayBuffer, result.filePath)
+        }
+        return
       }
+
+      // Browser fallback: trigger a download
+      const url = globalBlobManager.create(lastExport, `export-${suggestedName}`)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = suggestedName
+      a.click()
+      globalBlobManager.revoke(url)
     },
 
     setPreset: (preset) => {
       // Define preset settings
       const presets: Record<string, Partial<ExportSettings>> = {
-        'youtube-1080p': {
-          format: ExportFormat.MP4,
-          quality: QualityLevel.High,
-          resolution: { width: 1920, height: 1080 },
-          framerate: 60
-        },
-        'youtube-720p': {
-          format: ExportFormat.MP4,
-          quality: QualityLevel.Medium,
-          resolution: { width: 1280, height: 720 },
-          framerate: 60
-        },
-        'twitter': {
-          format: ExportFormat.MP4,
-          quality: QualityLevel.Medium,
-          resolution: { width: 1280, height: 720 },
-          framerate: 30
-        },
-        'instagram': {
-          format: ExportFormat.MP4,
-          quality: QualityLevel.Medium,
-          resolution: { width: 1080, height: 1080 },
-          framerate: 30
-        },
-        'gif': {
-          format: ExportFormat.GIF,
-          quality: QualityLevel.Low,
-          resolution: { width: 640, height: 360 },
-          framerate: 10
-        }
+        'youtube-1080p': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MP4 },
+        'youtube-720p': { resolution: { width: 1280, height: 720 }, framerate: 60, format: ExportFormat.MP4 },
+        'twitter': { resolution: { width: 1280, height: 720 }, framerate: 30, format: ExportFormat.MP4 },
+        'instagram': { resolution: { width: 1080, height: 1080 }, framerate: 30, format: ExportFormat.MP4 },
+        'prores-mov': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MOV },
+        'gif-small': { resolution: { width: 480, height: 360 }, framerate: 15, format: ExportFormat.GIF }
       }
 
-      const presetSettings = presets[preset]
-      if (presetSettings) {
-        get().updateSettings(presetSettings)
-      }
+      set((state) => ({
+        exportSettings: { ...state.exportSettings, ...(presets[preset] || {}) as Partial<ExportSettings> }
+      }))
     },
 
     reset: () => {
-      set({
-        isExporting: false,
-        progress: null,
-        lastExport: null
-      })
+      set({ isExporting: false, progress: null, lastExport: null })
     }
   }
 })

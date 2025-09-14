@@ -1,71 +1,12 @@
-import React, { useMemo, useEffect } from 'react';
-import { OffthreadVideo, AbsoluteFill, Series, useCurrentFrame, useVideoConfig, useBufferState } from 'remotion';
-import { TransitionSeries, linearTiming } from '@remotion/transitions';
-import { fade } from '@remotion/transitions/fade';
+import React from 'react';
+import { OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
 import { createCinematicTransform, createBlurFilter } from '@/lib/effects/cinematic-scroll';
-import type { TimeRemapPeriod } from '@/types/project';
 import { EffectType, ScreenEffectPreset } from '@/types/project';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
 
-// Calculate remapped source time based on time remap periods
-function calculateRemappedSourceTime(
-  elapsedMs: number,
-  sourceIn: number,
-  timeRemapPeriods?: TimeRemapPeriod[],
-  playbackRate: number = 1
-): number {
-  // If no time remap periods, use simple calculation
-  if (!timeRemapPeriods || timeRemapPeriods.length === 0) {
-    return sourceIn + elapsedMs * playbackRate;
-  }
-
-  // Start from sourceIn
-  let currentSourceTime = sourceIn;
-  let remainingElapsed = elapsedMs;
-  
-  // Process each period in order
-  for (const period of timeRemapPeriods) {
-    const periodDuration = period.sourceEndTime - period.sourceStartTime;
-    const periodPlaybackDuration = periodDuration / period.speedMultiplier;
-    
-    // If we're before this period starts
-    if (currentSourceTime < period.sourceStartTime) {
-      // Time before the period plays at normal rate
-      const gapDuration = period.sourceStartTime - currentSourceTime;
-      const gapPlaybackDuration = gapDuration / playbackRate;
-      
-      if (remainingElapsed <= gapPlaybackDuration) {
-        // We're in the gap before this period
-        return currentSourceTime + remainingElapsed * playbackRate;
-      }
-      
-      // Move through the gap
-      remainingElapsed -= gapPlaybackDuration;
-      currentSourceTime = period.sourceStartTime;
-    }
-    
-    // If we're within this period
-    if (currentSourceTime >= period.sourceStartTime && currentSourceTime < period.sourceEndTime) {
-      const remainingInPeriod = period.sourceEndTime - currentSourceTime;
-      const remainingPlaybackInPeriod = remainingInPeriod / period.speedMultiplier;
-      
-      if (remainingElapsed <= remainingPlaybackInPeriod) {
-        // We end within this period
-        return currentSourceTime + remainingElapsed * period.speedMultiplier;
-      }
-      
-      // Move through this period
-      remainingElapsed -= remainingPlaybackInPeriod;
-      currentSourceTime = period.sourceEndTime;
-    }
-  }
-  
-  // Any remaining time after all periods plays at normal rate
-  return currentSourceTime + remainingElapsed * playbackRate;
-}
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
@@ -81,73 +22,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
-  const buffer = useBufferState();
-
-  // Calculate the correct start frame based on clip's sourceIn (kept for reference)
-  const currentSourceInMs = clip ? (clip.sourceIn || 0) : 0;
-  const currentStartFrame = Math.round((currentSourceInMs / 1000) * fps);
-
-  // Calculate duration in frames for current clip
-  const clipDurationInFrames = clip ? Math.round((clip.duration / 1000) * fps) : 0;
-
   // Calculate next clip's start frame and duration if it's a consecutive split
   const nextSourceInMs = nextClip ? (nextClip.sourceIn || 0) : 0;
-  const nextStartFrame = Math.round((nextSourceInMs / 1000) * fps);
-  const nextDurationInFrames = nextClip ? Math.round((nextClip.duration / 1000) * fps) : 0;
-
-  // Check if next clip is consecutive (split from same recording)
-  const isConsecutiveSplit = useMemo(() => {
-    if (!clip || !nextClip) return false;
-    if (clip.recordingId !== nextClip.recordingId) return false;
-    const epsilon = 0.001;
-    const currentEndTime = (clip.startTime || 0) + clip.duration;
-    const nextStartTime = nextClip.startTime || 0;
-    return Math.abs(nextStartTime - currentEndTime) < epsilon;
-  }, [clip, nextClip]);
-
-  // Add buffer delay for smoother loading
-  useEffect(() => {
-    if (!clip) return;
-
-    // Delay playback briefly to ensure video is ready
-    const delayHandle = buffer.delayPlayback();
-
-    // Small delay to allow decoder to initialize
-    const timer = setTimeout(() => {
-      delayHandle.unblock();
-    }, 50); // 50ms delay
-
-    return () => {
-      clearTimeout(timer);
-      delayHandle.unblock();
-    };
-  }, [clip?.id, buffer]);
-
   // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
-  
-  // Calculate remapped source time for time-variable playback
-  const remappedSourceTime = useMemo(() => {
-    if (!clip) return 0;
-    
-    // If clip has time remap periods, use them
-    if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
-      return calculateRemappedSourceTime(
-        currentTimeMs,
-        clip.sourceIn || 0,
-        clip.timeRemapPeriods,
-        clip.playbackRate || 1
-      );
-    }
-    
-    // Otherwise use simple calculation with playback rate
-    const sourceIn = clip.sourceIn || 0;
-    const rate = clip.playbackRate || 1;
-    return sourceIn + currentTimeMs * rate;
-  }, [clip, currentTimeMs]);
-  
-  // Convert remapped source time to frame for startFrom
-  const startFromFrame = Math.round((remappedSourceTime / 1000) * fps);
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
@@ -340,9 +218,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           style={videoStyle}
           volume={1}
           muted={false}
-          playbackRate={1} // Always 1 since we handle speed via startFrom
-          startFrom={startFromFrame}
-          pauseWhenBuffering={true}
+          playbackRate={1}
+          startFrom={0}
+          pauseWhenBuffering={false}
           onError={(e) => {
             console.error('Video playback error:', e)
           }}

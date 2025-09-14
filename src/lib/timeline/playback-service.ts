@@ -7,7 +7,7 @@ export class PlaybackService {
   private animationFrameId: number | null = null
   private lastTimestamp: number | null = null
   private isPlaying = false
-  
+
   /**
    * Start playback from current time or beginning if at end
    */
@@ -22,29 +22,29 @@ export class PlaybackService {
       currentTime = 0
       onUpdate(0)
     }
-    
+
     this.isPlaying = true
     this.lastTimestamp = null
-    
+
     // Store current time in closure to track properly
     let playbackTime = currentTime
-    
+
     const animate = (timestamp: number) => {
       if (!this.isPlaying) {
         this.animationFrameId = null
         return
       }
-      
+
       if (this.lastTimestamp === null) {
         this.lastTimestamp = timestamp
       }
-      
+
       const deltaTime = timestamp - this.lastTimestamp
       this.lastTimestamp = timestamp
-      
+
       // Calculate new time
       playbackTime = playbackTime + deltaTime
-      
+
       // Check if we've reached the end
       if (playbackTime >= duration) {
         this.pause()
@@ -56,10 +56,10 @@ export class PlaybackService {
         this.animationFrameId = requestAnimationFrame(animate)
       }
     }
-    
+
     this.animationFrameId = requestAnimationFrame(animate)
   }
-  
+
   /**
    * Pause playback and clean up animation frame
    */
@@ -71,7 +71,7 @@ export class PlaybackService {
     }
     this.isPlaying = false
   }
-  
+
   /**
    * Seek to a specific time
    */
@@ -79,14 +79,14 @@ export class PlaybackService {
     // Clamp time to valid range
     return Math.max(0, Math.min(duration, time))
   }
-  
+
   /**
    * Check if currently playing
    */
   getIsPlaying(): boolean {
     return this.isPlaying
   }
-  
+
   /**
    * Clean up resources
    */

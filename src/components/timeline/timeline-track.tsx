@@ -14,35 +14,35 @@ interface TimelineTrackProps {
 
 export const TimelineTrack = React.memo(({ type, y, width, height, muted = false }: TimelineTrackProps) => {
   const colors = useTimelineColors()
-  
+
   const getTrackStyle = () => {
     switch (type) {
       case TimelineTrackType.Video:
-        return { 
-          bgFill: colors.background, 
-          bgOpacity: 0.5, 
-          labelText: 'V', 
+        return {
+          bgFill: colors.background,
+          bgOpacity: 0.5,
+          labelText: 'V',
           labelColor: colors.mutedForeground
         }
       case TimelineTrackType.Zoom:
-        return { 
-          bgFill: colors.muted, 
-          bgOpacity: 0.05, 
-          labelText: 'Z', 
+        return {
+          bgFill: colors.muted,
+          bgOpacity: 0.05,
+          labelText: 'Z',
           labelColor: colors.info
         }
       case TimelineTrackType.Keystroke:
-        return { 
-          bgFill: colors.muted, 
-          bgOpacity: 0.05, 
-          labelText: 'K', 
+        return {
+          bgFill: colors.muted,
+          bgOpacity: 0.05,
+          labelText: 'K',
           labelColor: colors.warning
         }
       case TimelineTrackType.Audio:
-        return { 
-          bgFill: colors.background, 
-          bgOpacity: 0.3, 
-          labelText: 'A', 
+        return {
+          bgFill: colors.background,
+          bgOpacity: 0.3,
+          labelText: 'A',
           labelColor: colors.mutedForeground
         }
     }
@@ -63,7 +63,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
         stroke={colors.muted}
         strokeWidth={4}
       />
-      
+
       {/* Track label background */}
       <Rect
         x={0}
@@ -73,7 +73,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
         fill={muted ? colors.muted : colors.background}
         opacity={muted ? 0.35 : 0.95}
       />
-      
+
       {/* Track label border */}
       <Rect
         x={0}
@@ -85,7 +85,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
         fill={"transparent"}
         opacity={muted ? 0.3 : 0.6}
       />
-      
+
       {/* Track label text */}
       <Text
         x={TimelineConfig.TRACK_LABEL_WIDTH / 2}
