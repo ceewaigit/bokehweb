@@ -311,7 +311,7 @@ export class WebCodecsExportEngine {
       logger.debug(`Processing ${isTypingSpeedClip ? 'typing-speed' : 'normal'} clip ${clip.id} from ${clipStartInSegment}ms to ${clipEndInSegment}ms`)
 
       // Use high-performance pipeline for frame processing
-      if (false && this.useWorkers && this.workerPool) { // Temporarily disabled
+      if (this.useWorkers && this.workerPool) {
         const pipeline = createOptimizedPipeline()
         
         // Don't pre-allocate all renderers - acquire as needed to avoid deadlock
@@ -479,39 +479,49 @@ export class WebCodecsExportEngine {
         }
       } else {
         // Fallback to single-threaded processing
-        await this.frameExtractor.extractClipFramesStreamed(
-          clip,
-          video,
-          clipStartInSegment,
-          clipEndInSegment,
-          async (frame) => {
-            // Apply effects to the frame
-            await this.applyEffects(
-              frame.imageData,
-              frame.timestamp,
-              segment.effects,
-              clipData.recording,
-              metadata.get(clipData.recording.id)
-            )
+        try {
+          await this.frameExtractor.extractClipFramesStreamed(
+            clip,
+            video,
+            clipStartInSegment,
+            clipEndInSegment,
+            async (frame) => {
+              try {
+                // Apply effects to the frame
+                await this.applyEffects(
+                  frame.imageData,
+                  frame.timestamp,
+                  segment.effects,
+                  clipData.recording,
+                  metadata.get(clipData.recording.id)
+                )
 
-            // Encode the frame
-            await this.encoder!.encodeFrame(this.canvas as unknown as HTMLCanvasElement, frame.timestamp)
-            processedFrames++
+                // Encode the frame
+                await this.encoder!.encodeFrame(this.canvas as unknown as HTMLCanvasElement, frame.timestamp)
+                processedFrames++
 
-            // Update progress
-            if (processedFrames % 5 === 0 && onProgress) {
-              const globalFrame = startFrame + processedFrames
-              const progress = Math.min(95, (globalFrame / totalFrames) * 95)
-              onProgress({
-                progress,
-                stage: 'encoding',
-                message: `Processing frame ${globalFrame} of ${totalFrames}...`,
-                currentFrame: globalFrame,
-                totalFrames
-              })
+                // Update progress
+                if (processedFrames % 5 === 0 && onProgress) {
+                  const globalFrame = startFrame + processedFrames
+                  const progress = Math.min(95, (globalFrame / totalFrames) * 95)
+                  onProgress({
+                    progress,
+                    stage: 'encoding',
+                    message: `Processing frame ${globalFrame} of ${totalFrames}...`,
+                    currentFrame: globalFrame,
+                    totalFrames
+                  })
+                }
+              } catch (frameError) {
+                logger.error(`Failed to process frame ${frame.timestamp}:`, frameError)
+                // Continue with next frame instead of crashing
+              }
             }
-          }
-        )
+          )
+        } catch (extractError) {
+          logger.error(`Failed to extract frames for clip ${clip.id}:`, extractError)
+          // Continue with next clip
+        }
       }
     }
 

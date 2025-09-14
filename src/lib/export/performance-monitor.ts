@@ -306,8 +306,8 @@ export class PerformanceMonitor {
       workerCount: Math.min(Math.max(2, Math.floor(cores * 0.5)), 4), // More conservative
       encoderQueueDepth: memoryGB > 4 ? 30 : 20, // Much lower to prevent stalls
       frameBatchSize: memoryGB > 4 ? 10 : 5, // Smaller batches
-      useWebGL: false, // Disable WebGL for now - it may be causing crashes
-      useWorkers: false, // Disable workers temporarily to isolate crash
+      useWebGL: false, // Keep WebGL disabled for stability
+      useWorkers: cores > 4 && memoryGB > 3, // Only enable workers on capable machines
       useGPU: hasGPU
     }
   }
