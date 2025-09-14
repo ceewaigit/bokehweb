@@ -19,6 +19,8 @@ export function registerRecordingHandlers(): void {
 
   ipcMain.handle('save-recording', async (event: IpcMainInvokeEvent, filePath: string, buffer: Buffer) => {
     try {
+      const dir = path.dirname(filePath)
+      await fs.mkdir(dir, { recursive: true })
       await fs.writeFile(filePath, Buffer.from(buffer))
       return { success: true, data: { filePath } }
     } catch (error) {
@@ -31,22 +33,25 @@ export function registerRecordingHandlers(): void {
   ipcMain.handle('load-recordings', async () => {
     try {
       const recordingsDir = getRecordingsDirectory()
-      const files = await fs.readdir(recordingsDir)
 
-      const recordings = files
-        .filter(f => f.endsWith('.ssproj'))
-        .map(f => {
-          const filePath = path.join(recordingsDir, f)
-          const stats = fsSync.statSync(filePath)
+      const results: Array<{ name: string; path: string; timestamp: Date; size: number }> = []
 
-          return {
-            name: f,
-            path: filePath,
-            timestamp: stats.mtime,
-            size: stats.size
+      async function walk(dir: string): Promise<void> {
+        const entries = await fs.readdir(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            await walk(fullPath)
+          } else if (entry.isFile() && entry.name.endsWith('.ssproj')) {
+            const stats = fsSync.statSync(fullPath)
+            results.push({ name: entry.name, path: fullPath, timestamp: stats.mtime, size: stats.size })
           }
-        })
-        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+        }
+      }
+
+      await walk(recordingsDir)
+
+      const recordings = results.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       return recordings
     } catch (error) {
       console.error('[Recording] Failed to load recordings:', error)

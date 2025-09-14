@@ -9,9 +9,147 @@ import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
 
 export class RecordingStorage {
   private static readonly BLOB_PREFIX = 'recording-blob-'
+  // Deprecated: metadata in localStorage caused quota issues; use filesystem chunks instead
   private static readonly METADATA_PREFIX = 'recording-metadata-'
   private static readonly PROJECT_PREFIX = 'project-'
   private static readonly PROJECT_PATH_PREFIX = 'project-path-'
+
+  // In-memory metadata cache to avoid localStorage quota
+  private static metadataCache = new Map<string, any>()
+
+  // Helper: join paths safely in renderer without path import
+  private static joinPath(base: string, ...parts: string[]): string {
+    const segments = [base, ...parts].join('/').replace(/\\/g, '/').split('/')
+    const filtered: string[] = []
+    for (const seg of segments) {
+      if (!seg || seg === '.') continue
+      if (seg === '..') { filtered.pop(); continue }
+      filtered.push(seg)
+    }
+    return (base.startsWith('/') ? '/' : '') + filtered.join('/')
+  }
+
+  // Compute a stable project folder name
+  private static sanitizeName(name: string): string {
+    return name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
+  }
+
+  // Public: store metadata in memory (no persistence here)
+  static setMetadata(recordingId: string, metadata: any): void {
+    try {
+      this.metadataCache.set(recordingId, metadata)
+      logger.debug(`Cached metadata for recording ${recordingId}`)
+    } catch (error) {
+      logger.error(`Failed to cache metadata for recording ${recordingId}:`, error)
+    }
+  }
+
+  // Public: get metadata from memory cache
+  static getMetadata(recordingId: string): any | null {
+    try {
+      return this.metadataCache.get(recordingId) || null
+    } catch (error) {
+      logger.error(`Failed to get cached metadata for recording ${recordingId}:`, error)
+      return null
+    }
+  }
+
+  // Filesystem: save metadata as chunked JSON files under recording folder
+  static async saveMetadataChunks(recordingFolder: string, metadata: any, chunkTargetSize = 250_000): Promise<{ manifest: Required<NonNullable<Pick<import('@/types/project').Recording, 'metadataChunks'>>['metadataChunks']> } | null> {
+    if (!window.electronAPI?.saveRecording || !window.electronAPI?.getRecordingsDirectory) {
+      logger.error('Electron API unavailable for saveMetadataChunks')
+      return null
+    }
+
+    const kinds: Array<{ key: keyof NonNullable<import('@/types/project').Recording['metadata']>, filePrefix: string }>= [
+      { key: 'mouseEvents', filePrefix: 'mouse' },
+      { key: 'keyboardEvents', filePrefix: 'keyboard' },
+      { key: 'clickEvents', filePrefix: 'click' },
+      { key: 'scrollEvents', filePrefix: 'scroll' },
+      { key: 'screenEvents', filePrefix: 'screen' },
+    ]
+
+    const manifest: any = { mouse: [], keyboard: [], click: [], scroll: [], screen: [] }
+
+    // Ensure folder exists by saving a tiny placeholder file first (mkdir helper not exposed)
+    // We'll rely on saveRecording with nested paths; Node will create intermediate dirs via main handler logic if implemented.
+    // If not, we must save at least one file to force path creation.
+
+    for (const { key, filePrefix } of kinds) {
+      const events: any[] = (metadata?.[key as any] as any[]) || []
+      if (!events || events.length === 0) continue
+
+      // Chunk events into roughly chunkTargetSize JSON byte size per file
+      let chunkIndex = 0
+      let start = 0
+      while (start < events.length) {
+        // Exponentially back off chunk size to fit target byte size
+        let end = Math.min(events.length, start + 5000) // initial guess
+        let dataStr = ''
+        let iterations = 0
+        while (true) {
+          const slice = events.slice(start, end)
+          dataStr = JSON.stringify({ [key]: slice })
+          if (dataStr.length <= chunkTargetSize || end - start <= 50 || iterations > 10) break
+          end = Math.floor((start + end) / 2)
+          iterations++
+        }
+
+        const fileName = `${filePrefix}-${chunkIndex}.json`
+        const filePath = this.joinPath(recordingFolder, fileName)
+        await window.electronAPI.saveRecording(filePath, new TextEncoder().encode(dataStr).buffer)
+        manifest[filePrefix].push(fileName)
+
+        start = end
+        chunkIndex++
+      }
+    }
+
+    return { manifest }
+  }
+
+  // Filesystem: load metadata chunks back into a single object
+  static async loadMetadataChunks(recordingFolder: string, metadataChunks: NonNullable<Pick<import('@/types/project').Recording, 'metadataChunks'>['metadataChunks']>): Promise<any> {
+    if (!window.electronAPI?.readLocalFile) {
+      logger.error('Electron API unavailable for loadMetadataChunks')
+      return {}
+    }
+
+    const api = window.electronAPI!
+
+    const combine = async (files?: string[]) => {
+      const list = files || []
+      const all: any[] = []
+      for (const name of list) {
+        const filePath = this.joinPath(recordingFolder, name)
+        const res = await api.readLocalFile!(filePath)
+        if (res?.success && res.data) {
+          try {
+            const json = JSON.parse(new TextDecoder().decode(res.data))
+            const arr = (json && Object.values(json)[0]) as any[]
+            if (Array.isArray(arr)) all.push(...arr)
+          } catch (e) {
+            logger.error('Failed parsing metadata chunk', name, e)
+          }
+        }
+      }
+      return all
+    }
+
+    const mouseEvents = await combine(metadataChunks.mouse)
+    const keyboardEvents = await combine(metadataChunks.keyboard)
+    const clickEvents = await combine(metadataChunks.click)
+    const scrollEvents = await combine(metadataChunks.scroll)
+    const screenEvents = await combine(metadataChunks.screen)
+
+    return {
+      mouseEvents,
+      keyboardEvents,
+      clickEvents,
+      scrollEvents,
+      screenEvents,
+    }
+  }
 
   /**
    * Store a recording blob URL
@@ -40,34 +178,7 @@ export class RecordingStorage {
     logger.debug(`Cleared blob URL for recording ${recordingId}`)
   }
 
-  /**
-   * Store recording metadata
-   */
-  static setMetadata(recordingId: string, metadata: any): void {
-    try {
-      const metadataStr = typeof metadata === 'string'
-        ? metadata
-        : JSON.stringify(metadata)
-      localStorage.setItem(`${this.METADATA_PREFIX}${recordingId}`, metadataStr)
-      logger.debug(`Stored metadata for recording ${recordingId}`)
-    } catch (error) {
-      logger.error(`Failed to store metadata for recording ${recordingId}:`, error)
-    }
-  }
-
-  /**
-   * Get recording metadata
-   */
-  static getMetadata(recordingId: string): any | null {
-    try {
-      const metadataStr = localStorage.getItem(`${this.METADATA_PREFIX}${recordingId}`)
-      if (!metadataStr) return null
-      return JSON.parse(metadataStr)
-    } catch (error) {
-      logger.error(`Failed to parse metadata for recording ${recordingId}:`, error)
-      return null
-    }
-  }
+  // setMetadata/getMetadata replaced above with in-memory cache
 
   /**
    * Store project data
@@ -191,27 +302,51 @@ export class RecordingStorage {
    * Save project to file system
    */
   static async saveProject(project: Project, customPath?: string): Promise<string | null> {
-    const projectCopy = { ...project }
+    // Deep clone and remove heavy metadata before serialization
+    const projectCopy: Project = {
+      ...project,
+      recordings: project.recordings.map(r => {
+        const clone: any = { ...r }
+        if ('metadata' in clone) delete clone.metadata
+        return clone
+      })
+    }
 
     if (typeof window !== 'undefined' && window.electronAPI?.saveRecording && window.electronAPI?.getRecordingsDirectory) {
       try {
         const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-
-        let projectFilePath: string
-        if (projectCopy.filePath && !customPath) {
-          projectFilePath = projectCopy.filePath
+        // Use folder-based project layout: <recordingsDir>/<projectName>/<projectId>.ssproj
+        const baseName = this.sanitizeName(projectCopy.name || projectCopy.id)
+        let projectFolder: string
+        if (customPath && customPath.endsWith('.ssproj')) {
+          const idx = customPath.lastIndexOf('/')
+          projectFolder = idx > 0 ? customPath.slice(0, idx) : recordingsDir
+        } else if (customPath && !customPath.endsWith('.ssproj')) {
+          projectFolder = customPath
         } else {
-          const projectFileName = customPath || `${projectCopy.id}.ssproj`
-          projectFilePath = projectFileName.startsWith('/') ? projectFileName : `${recordingsDir}/${projectFileName}`
+          projectFolder = `${recordingsDir}/${baseName}`
         }
 
+        // Persist metadata chunks for each recording if in-memory metadata is present
+        for (let i = 0; i < project.recordings.length; i++) {
+          const r = project.recordings[i] as any
+          if (r?.folderPath && r?.metadata) {
+            try {
+              const result = await this.saveMetadataChunks(r.folderPath, r.metadata)
+              if (result?.manifest) {
+                (projectCopy.recordings[i] as any).metadataChunks = result.manifest
+              }
+            } catch (e) {
+              logger.error('Failed to save metadata chunks for', r.id, e)
+            }
+          }
+        }
+
+        const projectFilePath = `${projectFolder}/${projectCopy.id}.ssproj`
         projectCopy.filePath = projectFilePath
         const projectData = JSON.stringify(projectCopy, null, 2)
 
-        await window.electronAPI.saveRecording(
-          projectFilePath,
-          new TextEncoder().encode(projectData).buffer
-        )
+        await window.electronAPI.saveRecording(projectFilePath, new TextEncoder().encode(projectData).buffer)
 
         this.setProjectPath(projectCopy.id, projectFilePath)
 
@@ -250,11 +385,12 @@ export class RecordingStorage {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
       const baseName = projectName || `Recording_${timestamp}`
       const recordingId = `recording-${Date.now()}`
+      const projectFolder = `${recordingsDir}/${this.sanitizeName(baseName)}`
 
-      // Save video file
+      // Save video file under project folder
       const isQuickTime = !!videoBlob.type && (videoBlob.type.includes('quicktime') || videoBlob.type.includes('mov'))
-      const videoFileName = `${baseName}.${isQuickTime ? 'mov' : 'webm'}`
-      const videoFilePath = `${recordingsDir}/${videoFileName}`
+      const videoFileName = `${recordingId}.${isQuickTime ? 'mov' : 'webm'}`
+      const videoFilePath = `${projectFolder}/${videoFileName}`
       const buffer = await videoBlob.arrayBuffer()
       await window.electronAPI.saveRecording(videoFilePath, buffer)
 
@@ -311,6 +447,7 @@ export class RecordingStorage {
 
       // Create project with recording
       const project = this.createProject(baseName)
+      project.filePath = `${projectFolder}/${project.id}.ssproj`
 
       // Get capture dimensions from first mouse event (they all have it now)
       const firstMouseEvent = metadata.find(m => m.eventType === 'mouse' && m.captureWidth && m.captureHeight)
@@ -384,6 +521,9 @@ export class RecordingStorage {
         frameRate: 30,
         hasAudio: hasAudio || false,
         captureArea: reconstructedCaptureArea,
+        // For folder-based metadata storage
+        folderPath: `${projectFolder}/${recordingId}`,
+        // Keep metadata in memory for immediate use; will be omitted from saved project
         metadata: {
           mouseEvents,
           keyboardEvents,
@@ -516,8 +656,25 @@ export class RecordingStorage {
         logger.info('⚠️ No keyboard events detected - skipping keystroke effect')
       }
 
-      // Save project file
-      const projectPath = await this.saveProject(project, `${baseName}.ssproj`)
+      // Save metadata chunks under recording folder
+      const manifest = await this.saveMetadataChunks(recording.folderPath!, {
+        mouseEvents,
+        keyboardEvents,
+        clickEvents,
+        scrollEvents,
+        screenEvents: [],
+      })
+
+      // Attach manifest to recording
+      if (manifest) {
+        recording.metadataChunks = manifest.manifest
+      }
+
+      // Cache metadata in memory for quick access
+      this.setMetadata(recording.id, recording.metadata)
+
+      // Save project file to folder
+      const projectPath = await this.saveProject(project, project.filePath)
 
       return {
         project,

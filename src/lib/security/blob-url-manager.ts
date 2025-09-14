@@ -328,7 +328,7 @@ export class BlobURLManager {
    * Load a video file and return a blob URL
    * Handles caching, loading, and error handling automatically
    */
-  async loadVideo(recordingId: string, filePath?: string): Promise<string | null> {
+  async loadVideo(recordingId: string, filePath?: string, folderPath?: string): Promise<string | null> {
     // Check cache first
     const cached = RecordingStorage.getBlobUrl(recordingId)
     if (cached && this.entries.has(cached)) {
@@ -348,7 +348,7 @@ export class BlobURLManager {
     }
 
     // Start loading
-    const loadPromise = this._loadVideoInternal(recordingId, filePath)
+    const loadPromise = this._loadVideoInternal(recordingId, filePath, folderPath)
     this.loadingPromises.set(recordingId, loadPromise)
 
     try {
@@ -360,7 +360,7 @@ export class BlobURLManager {
   }
 
 
-  private async _loadVideoInternal(recordingId: string, filePath?: string): Promise<string | null> {
+  private async _loadVideoInternal(recordingId: string, filePath?: string, folderPath?: string): Promise<string | null> {
     if (!filePath) {
       logger.error(`No file path for ${recordingId}`)
       return null
@@ -372,11 +372,19 @@ export class BlobURLManager {
     }
 
     try {
-      // If path is not absolute, construct full path using recordings directory
+      // If path is not absolute, construct full path using recordings directory or provided folder
       let fullPath = filePath
-      if (!filePath.startsWith('/') && !filePath.startsWith('C:\\')) {
-        const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-        fullPath = `${recordingsDir}/${filePath}`
+      const isAbsolute = filePath.startsWith('/') || filePath.startsWith('C:\\')
+      if (!isAbsolute) {
+        if (folderPath && (folderPath.startsWith('/') || folderPath.startsWith('C:\\'))) {
+          // folderPath points to recording folder; video is in its parent
+          const idx = folderPath.lastIndexOf('/')
+          const projectFolder = idx > 0 ? folderPath.slice(0, idx) : folderPath
+          fullPath = `${projectFolder}/${filePath}`
+        } else {
+          const recordingsDir = await window.electronAPI.getRecordingsDirectory()
+          fullPath = `${recordingsDir}/${filePath}`
+        }
       }
 
       logger.debug(`Loading video: ${recordingId} from ${fullPath}`)
@@ -413,7 +421,7 @@ export class BlobURLManager {
    * Unified video loading - handles single or multiple videos
    * @param recordings - Single recording or array of recordings
    */
-  async loadVideos(recordings: { id: string; filePath?: string; metadata?: any } | Array<{ id: string; filePath?: string; metadata?: any }>): Promise<string | null | void> {
+  async loadVideos(recordings: { id: string; filePath?: string; folderPath?: string; metadata?: any; metadataChunks?: any } | Array<{ id: string; filePath?: string; folderPath?: string; metadata?: any; metadataChunks?: any }>): Promise<string | null | void> {
     const recordingArray = Array.isArray(recordings) ? recordings : [recordings]
     const isSingle = !Array.isArray(recordings)
 
@@ -427,7 +435,7 @@ export class BlobURLManager {
         // Load video
         if (rec.filePath) {
           try {
-            return await this.loadVideo(rec.id, rec.filePath)
+            return await this.loadVideo(rec.id, rec.filePath, rec.folderPath)
           } catch (err) {
             logger.error(`Failed to load ${rec.id}:`, err)
             return null

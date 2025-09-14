@@ -307,10 +307,27 @@ export const useProjectStore = create<ProjectStore>()(
 
     openProject: async (projectPath) => {
       try {
-        // Load project from storage
-        const data = RecordingStorage.getProject(projectPath)
-        if (!data) throw new Error('Project not found')
-        const project: Project = typeof data === 'string' ? JSON.parse(data) : data
+        // Load project from filesystem if an absolute/relative path is provided
+        let project: Project
+        if (projectPath && (projectPath.endsWith('.ssproj') || projectPath.includes('/'))) {
+          if (window.electronAPI?.readLocalFile) {
+            const res = await window.electronAPI.readLocalFile(projectPath)
+            if (res?.success && res.data) {
+              const json = new TextDecoder().decode(res.data)
+              project = JSON.parse(json)
+            } else {
+              throw new Error('Failed to read project file')
+            }
+          } else {
+            const data = RecordingStorage.getProject(projectPath)
+            if (!data) throw new Error('Project not found')
+            project = typeof data === 'string' ? JSON.parse(data) : data
+          }
+        } else {
+          const data = RecordingStorage.getProject(projectPath)
+          if (!data) throw new Error('Project not found')
+          project = typeof data === 'string' ? JSON.parse(data) : data
+        }
 
         // Migration: Mark clips with typing speed applied
         // For existing projects that had speed applied before the flag was added

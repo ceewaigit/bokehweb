@@ -41,7 +41,19 @@ export interface Recording {
   captureArea?: CaptureArea
 
   // Captured metadata during recording
-  metadata: RecordingMetadata
+  metadata?: RecordingMetadata
+
+  // Folder-based storage for this recording (absolute or project-relative)
+  folderPath?: string
+
+  // Manifest of metadata chunk files stored on disk under folderPath
+  metadataChunks?: {
+    mouse?: string[]
+    keyboard?: string[]
+    click?: string[]
+    scroll?: string[]
+    screen?: string[]
+  }
 }
 
 export interface CaptureArea {
