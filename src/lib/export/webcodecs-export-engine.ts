@@ -10,7 +10,6 @@ import type {
   RecordingMetadata,
   Effect
 } from '@/types'
-import { EffectType } from '@/types'
 import { WebCodecsEncoder } from './webcodecs-encoder'
 import { VideoFrameExtractor, type ExtractedFrame } from './video-frame-extractor'
 import { logger } from '@/lib/utils/logger'
@@ -366,7 +365,7 @@ export class WebCodecsExportEngine {
                   
                   processedFrames++
                   this.monitor.frameEnd(frameId)
-                  continue // Skip to next frame
+                  return // Skip to next frame
                 } catch (workerError) {
                   logger.warn('Worker processing failed for video frame, falling back:', workerError)
                   // Continue with non-worker path below
