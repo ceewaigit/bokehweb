@@ -21,7 +21,7 @@ export class FramePipeline {
   private maxConcurrent: number
   private completed = 0
   private dropped = 0
-  private batchSize = 5 // Process frames in small batches
+  private batchSize = 3 // Smaller batches to reduce memory spikes
 
   constructor(maxQueueSize = 100, maxConcurrent = 20) {
     this.maxQueueSize = maxQueueSize
@@ -197,9 +197,9 @@ export function createOptimizedPipeline(): FramePipeline {
   )
   
   // Concurrency should not exceed encoder capacity to avoid deadlock
-  // Be more conservative - use 1.5x cores, not 2x
-  const baseConcurrency = Math.floor(cores * 1.5)
-  const memoryCap = memoryGB > 4 ? 20 : 15 // Reduced to prevent encoder overload
+  // Be very conservative to prevent crashes
+  const baseConcurrency = Math.min(cores, 8) // Cap at 8 max
+  const memoryCap = memoryGB > 4 ? 10 : 6 // Much lower to prevent overload
   const maxConcurrent = Math.min(baseConcurrency, memoryCap)
   
   logger.info(`Creating frame pipeline: queue=${maxQueueSize}, concurrent=${maxConcurrent} (${cores} cores, ${memoryGB.toFixed(1)}GB RAM)`)

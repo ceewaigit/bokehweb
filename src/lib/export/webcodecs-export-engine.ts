@@ -102,10 +102,15 @@ export class WebCodecsExportEngine {
       }
 
       // Initialize OffscreenRenderer for better performance
-      this.renderer = new OffscreenRenderer(
-        settings.resolution.width,
-        settings.resolution.height
-      )
+      try {
+        this.renderer = new OffscreenRenderer(
+          settings.resolution.width,
+          settings.resolution.height
+        )
+      } catch (error) {
+        logger.warn('Failed to create OffscreenRenderer:', error)
+        // Continue without offscreen renderer
+      }
       
       // Dynamic renderer pool sizing based on system capabilities
       const systemSettings = PerformanceMonitor.getOptimizedSettings()
@@ -113,21 +118,29 @@ export class WebCodecsExportEngine {
       const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
       const memoryGB = memory / 1024 / 1024 / 1024
       
-      // Match renderer count to expected concurrency to avoid deadlock
-      // Need enough renderers for pipeline concurrency but not too many to exhaust memory
-      const pipelineConcurrency = Math.min(Math.floor(cores * 1.5), memoryGB > 4 ? 20 : 15)
+      // Be even more conservative to prevent crashes
+      const pipelineConcurrency = Math.min(Math.floor(cores), memoryGB > 4 ? 10 : 8)
       const rendererCount = Math.min(
-        Math.max(4, Math.ceil(pipelineConcurrency / 3)), // Conservative: 1/3 of pipeline concurrency
-        memoryGB > 4 ? 10 : 6 // Reduced memory-based cap
+        Math.max(2, Math.ceil(pipelineConcurrency / 4)), // Very conservative: 1/4 of pipeline
+        memoryGB > 4 ? 4 : 2 // Much lower cap
       )
       
-      this.rendererPool = new RendererPool(
-        settings.resolution.width,
-        settings.resolution.height,
-        rendererCount
-      )
-      
-      logger.info(`Renderer pool: ${rendererCount} renderers for ${pipelineConcurrency} pipeline concurrency`)
+      try {
+        this.rendererPool = new RendererPool(
+          settings.resolution.width,
+          settings.resolution.height,
+          rendererCount
+        )
+        logger.info(`Renderer pool: ${rendererCount} renderers for ${pipelineConcurrency} pipeline concurrency`)
+      } catch (error) {
+        logger.error('Failed to create renderer pool:', error)
+        // Create minimal pool as fallback
+        this.rendererPool = new RendererPool(
+          settings.resolution.width,
+          settings.resolution.height,
+          1
+        )
+      }
       
       // Initialize WebGL renderer if enabled
       if (this.useWebGL) {

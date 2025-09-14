@@ -303,11 +303,11 @@ export class PerformanceMonitor {
     const hasGPU = typeof VideoEncoder !== 'undefined' && cores > 2
     
     return {
-      workerCount: Math.min(Math.max(2, Math.floor(cores * 0.75)), 8),
-      encoderQueueDepth: memoryGB > 4 ? 60 : 40,
-      frameBatchSize: memoryGB > 4 ? 30 : 15,
-      useWebGL: hasWebGL2,
-      useWorkers: cores > 2,
+      workerCount: Math.min(Math.max(2, Math.floor(cores * 0.5)), 4), // More conservative
+      encoderQueueDepth: memoryGB > 4 ? 30 : 20, // Much lower to prevent stalls
+      frameBatchSize: memoryGB > 4 ? 10 : 5, // Smaller batches
+      useWebGL: false, // Disable WebGL for now - it may be causing crashes
+      useWorkers: cores > 2 && memoryGB > 2, // Only use workers with enough resources
       useGPU: hasGPU
     }
   }

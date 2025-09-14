@@ -250,11 +250,17 @@ export function createOptimizedWorkerPool(
   height: number
 ): WorkerPool {
   const cores = navigator.hardwareConcurrency || 4
+  const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
+  const memoryGB = memory / 1024 / 1024 / 1024
   
-  // Use more cores for workers when available
-  const optimalPoolSize = Math.max(2, Math.min(8, Math.floor(cores * 0.75)))
+  // Be very conservative with workers to prevent crashes
+  // High core counts can cause memory pressure
+  const optimalPoolSize = Math.min(
+    Math.max(2, Math.floor(cores * 0.4)), // Use only 40% of cores
+    memoryGB > 8 ? 5 : memoryGB > 4 ? 3 : 2 // Memory-based cap
+  )
   
-  logger.info(`Creating worker pool: ${optimalPoolSize} workers for ${cores} cores`)
+  logger.info(`Creating worker pool: ${optimalPoolSize} workers for ${cores} cores (${memoryGB.toFixed(1)}GB RAM)`)
   
   return new WorkerPool(width, height, optimalPoolSize)
 }
