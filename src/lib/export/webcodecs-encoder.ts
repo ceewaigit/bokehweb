@@ -61,6 +61,17 @@ export class WebCodecsEncoder {
       'avc1.64001E'   // High
     ]
     
+    const h265Codecs = [
+      'hvc1.1.6.L93.B0',  // Main profile
+      'hev1.1.6.L93.B0',  // Alternative HEVC
+    ]
+    
+    const av1Codecs = [
+      'av01.0.00M.08',  // AV1 Main Profile
+      'av01.0.04M.08',
+      'av01.0.08M.08'
+    ]
+    
     const vp9Codecs = [
       'vp09.00.10.08',
       'vp9'
@@ -68,12 +79,12 @@ export class WebCodecsEncoder {
     
     const vp8Codecs = ['vp8']
     
-    // Select codec list based on format
+    // Select codec list based on format - try modern codecs first
     let codecList: string[] = []
     if (format === ExportFormat.MP4 || format === ExportFormat.MOV) {
-      codecList = h264Codecs
+      codecList = [...av1Codecs, ...h265Codecs, ...h264Codecs]
     } else if (format === ExportFormat.WEBM) {
-      codecList = [...vp9Codecs, ...vp8Codecs]
+      codecList = [...av1Codecs, ...vp9Codecs, ...vp8Codecs]
     }
     
     // Test each codec
@@ -218,6 +229,7 @@ export class WebCodecsEncoder {
     if (codec.includes('avc')) {
       config.avc = { format: 'avc' }
     }
+    // H.265/HEVC and AV1 don't need special config in WebCodecs
     
     await this.encoder.configure(config)
     
@@ -505,11 +517,19 @@ export async function checkWebCodecsSupport(): Promise<{
   
   const supportedCodecs: string[] = []
   const testCodecs = [
+    // AV1
+    'av01.0.00M.08',
+    'av01.0.04M.08',
+    // H.265/HEVC
+    'hvc1.1.6.L93.B0',
+    'hev1.1.6.L93.B0',
+    // H.264/AVC
     'avc1.42001E',
-    'avc1.4D401E', 
+    'avc1.4D401E',
+    // VP9
     'vp09.00.10.08',
-    'vp8',
-    'av01.0.00M.08'
+    // VP8
+    'vp8'
   ]
   
   for (const codec of testCodecs) {
