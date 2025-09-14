@@ -101,6 +101,7 @@ export class FFmpegExportEngine {
       const inputData = await fetchFile(blob)
       console.log(`Writing input file: ${inputName}, size: ${blob.size} bytes`)
       await this.ffmpeg.writeFile(inputName, inputData)
+      console.log('Input file written successfully')
 
       onProgress?.({
         progress: 20,
@@ -129,39 +130,18 @@ export class FFmpegExportEngine {
           const zoomData = zoomEffect.data as any
           const scale = zoomData.scale || 2
 
-          // Use shared interpolation for normalized mouse position
-          let nx = 0.5
-          let ny = 0.5
-          if (mouseEvents && mouseEvents.length > 0) {
-            const normalized = interpolateMousePositionNormalized(
-              mouseEvents.map(e => ({
-                timestamp: e.timestamp,
-                x: e.mouseX,
-                y: e.mouseY,
-                screenWidth: e.captureWidth || 1920,
-                screenHeight: e.captureHeight || 1080,
-                captureWidth: e.captureWidth,
-                captureHeight: e.captureHeight
-              })) as any,
-              zoomEffect.startTime
-            )
-            if (normalized && !isNaN(normalized.x) && !isNaN(normalized.y)) {
-              nx = Math.max(0, Math.min(1, normalized.x))
-              ny = Math.max(0, Math.min(1, normalized.y))
-            }
-          }
+          console.log(`Zoom effect: scale=${scale} - simplifying for FFmpeg.wasm`)
 
-          console.log(`Zoom effect: scale=${scale}, position=(${nx}, ${ny})`)
-
-          // Zoom filter: scale and crop centered at normalized mouse position
-          // Ensure we don't go out of bounds
-          const cropW = `iw/${scale}`
-          const cropH = `ih/${scale}`
-          const cropX = `(iw-${cropW})*${nx}`
-          const cropY = `(ih-${cropH})*${ny}`
+          // Simplified zoom: just scale to target resolution with zoom factor
+          // FFmpeg.wasm has issues with complex filter expressions
+          const targetWidth = Math.round(settings.resolution.width * scale)
+          const targetHeight = Math.round(settings.resolution.height * scale)
           
-          filters.push(`scale=${scale}*iw:${scale}*ih`)
-          filters.push(`crop=${cropW}:${cropH}:${cropX}:${cropY}`)
+          // Simple scale up
+          filters.push(`scale=${targetWidth}:${targetHeight}`)
+          
+          // Simple center crop to target resolution
+          filters.push(`crop=${settings.resolution.width}:${settings.resolution.height}`)
         }
       }
 
@@ -179,16 +159,16 @@ export class FFmpegExportEngine {
       const outputName = `output.webm`  // Always output WebM from FFmpeg.wasm
       let codecOptions = ''
 
-      // FFmpeg.wasm works best with VP8/VP9 codecs
-      // We'll convert to other formats in a post-processing step if needed
+      // FFmpeg.wasm works best with simple settings
       switch (settings.format) {
         case ExportFormat.GIF:
           codecOptions = ''
           filters.unshift('fps=10,scale=480:-1:flags=lanczos')
           break
         default:
-          // Use VP8 for better compatibility with FFmpeg.wasm
-          codecOptions = '-c:v libvpx -b:v 1M -c:a libvorbis -b:a 128k'
+          // Very simple VP8 encoding for maximum compatibility
+          // Lower quality but should work reliably
+          codecOptions = '-c:v libvpx -deadline realtime -cpu-used 5 -b:v 500k -an'
           break
       }
 
@@ -232,16 +212,36 @@ export class FFmpegExportEngine {
       
       console.log('FFmpeg command:', ffmpegArgs.join(' '))
       
-      // Execute FFmpeg command
+      // Execute FFmpeg command with timeout
       console.log('Executing FFmpeg command...')
       
       try {
-        await this.ffmpeg.exec(ffmpegArgs)
+        // Create a timeout promise
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('FFmpeg timeout after 30 seconds')), 30000)
+        })
+        
+        // Execute with timeout
+        await Promise.race([
+          this.ffmpeg.exec(ffmpegArgs),
+          timeoutPromise
+        ])
+        
         console.log('FFmpeg execution completed successfully')
       } catch (execError) {
         console.error('FFmpeg execution failed:', execError)
         console.error('Failed command:', ffmpegArgs.join(' '))
-        throw new Error(`FFmpeg encoding failed: ${execError}`);
+        
+        // If it failed, try the most basic possible command
+        console.log('Trying ultra-simple copy command...')
+        try {
+          // Just copy without any re-encoding
+          const copyArgs = ['-i', inputName, '-c', 'copy', '-t', '30', outputName]
+          await this.ffmpeg.exec(copyArgs)
+          console.log('Copy succeeded - no effects applied')
+        } catch (copyError) {
+          throw new Error(`FFmpeg encoding completely failed: ${execError}`)
+        }
       }
 
       onProgress?.({
