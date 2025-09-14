@@ -5,6 +5,8 @@ import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { cn } from '@/lib/utils'
 import type { Project, ZoomBlock, ZoomEffectData } from '@/types/project'
+import { EffectType, TrackType, TimelineTrackType } from '@/types/project'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 // Sub-components
 import { TimelineRuler } from './timeline-ruler'
@@ -106,11 +108,12 @@ export function TimelineCanvas({
   const pixelsPerMs = TimeConverter.calculatePixelsPerMs(stageSize.width, zoom)
   const timelineWidth = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
   // Show zoom track if ANY zoom effects exist (enabled or disabled)
-  const zoomTrackExists = currentProject?.timeline.effects?.some(e => e.type === 'zoom') ?? false
+  const zoomTrackExists = (currentProject?.timeline.effects?.length ?? 0) > 0 && 
+    currentProject!.timeline.effects!.some(e => e.type === EffectType.Zoom)
   // Determine if any zoom block is enabled
-  const isZoomEnabled = currentProject?.timeline.effects?.some(e => e.type === 'zoom' && e.enabled) ?? false
+  const isZoomEnabled = EffectsFactory.hasActiveZoomEffects(currentProject?.timeline.effects || [])
   // Show keystroke track if ANY keystroke effects exist
-  const hasKeystrokeTrack = currentProject?.timeline.effects?.some(e => e.type === 'keystroke' && e.enabled) ?? false
+  const hasKeystrokeTrack = EffectsFactory.hasKeystrokeTrack(currentProject?.timeline.effects || [])
 
   // Calculate track heights based on number of tracks
   const calculateTrackHeights = () => {
@@ -381,7 +384,7 @@ export function TimelineCanvas({
             />
 
             <TimelineTrack
-              type="video"
+              type={TimelineTrackType.Video}
               y={rulerHeight}
               width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={videoTrackHeight}
@@ -389,7 +392,7 @@ export function TimelineCanvas({
 
             {zoomTrackExists && (
               <TimelineTrack
-                type="zoom"
+                type={TimelineTrackType.Zoom}
                 y={rulerHeight + videoTrackHeight}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={zoomTrackHeight}
@@ -399,7 +402,7 @@ export function TimelineCanvas({
 
             {hasKeystrokeTrack && (
               <TimelineTrack
-                type="keystroke"
+                type={TimelineTrackType.Keystroke}
                 y={rulerHeight + videoTrackHeight + zoomTrackHeight}
                 width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
                 height={keystrokeTrackHeight}
@@ -407,7 +410,7 @@ export function TimelineCanvas({
             )}
 
             <TimelineTrack
-              type="audio"
+              type={TimelineTrackType.Audio}
               y={rulerHeight + videoTrackHeight + zoomTrackHeight + keystrokeTrackHeight}
               width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={audioTrackHeight}
@@ -428,7 +431,7 @@ export function TimelineCanvas({
           <Layer>
             {/* Video clips */}
             {(() => {
-              const videoTrack = currentProject.timeline.tracks.find(t => t.type === 'video')
+              const videoTrack = currentProject.timeline.tracks.find(t => t.type === TrackType.Video)
               const videoClips = videoTrack?.clips || []
 
               return videoClips.map(clip => {
@@ -443,7 +446,7 @@ export function TimelineCanvas({
                     key={clip.id}
                     clip={clip}
                     recording={recording}
-                    trackType="video"
+                    trackType={TrackType.Video}
                     trackY={rulerHeight}
                     trackHeight={videoTrackHeight}
                     pixelsPerMs={pixelsPerMs}
@@ -471,7 +474,7 @@ export function TimelineCanvas({
 
               // Get ALL zoom effects from timeline.effects (timeline-global)
               const effectsSource = currentProject.timeline.effects || []
-              const zoomEffects = effectsSource.filter(e => e.type === 'zoom')
+              const zoomEffects = EffectsFactory.getZoomEffects(effectsSource)
 
 
               // Render each zoom effect as a block on the timeline
@@ -555,7 +558,7 @@ export function TimelineCanvas({
             {/* Screen Effects blocks - timeline-global */}
             {(() => {
               const effectsSource = currentProject.timeline.effects || []
-              const screenEffects = effectsSource.filter(e => e.type === 'screen')
+              const screenEffects = EffectsFactory.getScreenEffects(effectsSource)
               if (screenEffects.length === 0) return null
 
               const yBase = rulerHeight + videoTrackHeight + (zoomTrackHeight || 0) + TimelineConfig.TRACK_PADDING
@@ -589,14 +592,14 @@ export function TimelineCanvas({
 
             {/* Audio clips */}
             {(() => {
-              const audioTrack = currentProject.timeline.tracks.find(t => t.type === 'audio')
+              const audioTrack = currentProject.timeline.tracks.find(t => t.type === TrackType.Audio)
               const audioClips = audioTrack?.clips || []
 
               return audioClips.map(clip => (
                 <TimelineClip
                   key={clip.id}
                   clip={clip}
-                  trackType="audio"
+                  trackType={TrackType.Audio}
                   trackY={rulerHeight + videoTrackHeight + zoomTrackHeight + keystrokeTrackHeight}
                   trackHeight={audioTrackHeight}
                   pixelsPerMs={pixelsPerMs}

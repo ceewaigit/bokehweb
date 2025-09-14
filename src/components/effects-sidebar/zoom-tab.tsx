@@ -7,15 +7,17 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect, ZoomEffectData } from '@/types/project'
+import { EffectType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 interface ZoomTabProps {
   effects: Effect[] | undefined
   selectedEffectLayer?: SelectedEffectLayer
   selectedClip: Clip | null
   onUpdateZoom: (updates: any) => void
-  onEffectChange: (type: 'zoom' | 'annotation', data: any) => void
+  onEffectChange: (type: EffectType.Zoom | EffectType.Annotation, data: any) => void
 }
 
 export function ZoomTab({ 
@@ -29,7 +31,7 @@ export function ZoomTab({
   const playheadRecording = useProjectStore(s => s.playheadRecording)
   const projectRecordings = useProjectStore(s => s.currentProject?.recordings)
   
-  const zoomEffects = effects?.filter(e => e.type === 'zoom' && e.enabled) || []
+  const zoomEffects = effects ? EffectsFactory.getZoomEffects(effects) : []
 
   return (
     <div className="space-y-4">
@@ -166,18 +168,18 @@ export function ZoomTab({
           <div className="flex items-center justify-between">
             <span className="text-xs">Cinematic Scroll</span>
             <Switch
-              checked={!!effects?.some(e => e.type === 'annotation' && (e as any).data?.kind === 'scrollCinematic' && e.enabled)}
+              checked={!!effects?.some(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled)}
               onCheckedChange={(checked) => {
-                onEffectChange('annotation', { kind: 'scrollCinematic', enabled: checked, data: { preset: 'medium' } })
+                onEffectChange(EffectType.Annotation, { kind: 'scrollCinematic', enabled: checked, data: { preset: 'medium' } })
               }}
             />
           </div>
           
           {/* Preset selector when enabled */}
-          {effects?.some(e => e.type === 'annotation' && (e as any).data?.kind === 'scrollCinematic' && e.enabled) && (
+          {effects?.some(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled) && (
             <div className="grid grid-cols-3 gap-1">
               {(['subtle', 'medium', 'dramatic'] as const).map(preset => {
-                const scrollEffect = effects?.find(e => e.type === 'annotation' && (e as any).data?.kind === 'scrollCinematic');
+                const scrollEffect = effects?.find(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic');
                 const currentPreset = (scrollEffect?.data as any)?.preset || 'medium';
                 return (
                   <button
@@ -189,7 +191,7 @@ export function ZoomTab({
                         : "bg-background/50 hover:bg-background/70"
                     )}
                     onClick={() => {
-                      onEffectChange('annotation', { kind: 'scrollCinematic', enabled: true, data: { preset } })
+                      onEffectChange(EffectType.Annotation, { kind: 'scrollCinematic', enabled: true, data: { preset } })
                     }}
                   >
                     {preset}

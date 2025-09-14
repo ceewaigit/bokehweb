@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { RecordingState, RecordingSettings } from '@/types'
+import { RecordingArea, AudioInput } from '@/types'
+import { QualityLevel, ExportFormat } from '@/types/project'
 import { logger } from '@/lib/utils/logger'
 
 interface RecordingStore extends RecordingState {
@@ -29,15 +31,15 @@ interface RecordingStore extends RecordingState {
 }
 
 const defaultSettings: RecordingSettings = {
-  area: 'fullscreen',
-  audioInput: 'system',
-  quality: 'high',
+  area: RecordingArea.Fullscreen,
+  audioInput: AudioInput.System,
+  quality: QualityLevel.High,
   framerate: 60,
-  format: 'webm',
+  format: ExportFormat.WEBM,
   sourceId: undefined
 }
 
-export const useRecordingStore = create<RecordingStore>((set, get) => ({
+export const useRecordingSessionStore = create<RecordingStore>((set, get) => ({
   isRecording: false,
   isPaused: false,
   duration: 0,
@@ -108,11 +110,11 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
 
     // Determine recording area based on source ID
     if (sourceId.startsWith('area:')) {
-      updateSettings({ area: 'region', sourceId })
+      updateSettings({ area: RecordingArea.Region, sourceId })
     } else if (sourceId.startsWith('screen:')) {
-      updateSettings({ area: 'fullscreen', sourceId })
+      updateSettings({ area: RecordingArea.Fullscreen, sourceId })
     } else {
-      updateSettings({ area: 'window', sourceId })
+      updateSettings({ area: RecordingArea.Window, sourceId })
     }
 
     logger.debug('Recording prepared with source:', sourceId, 'displayId:', displayId)

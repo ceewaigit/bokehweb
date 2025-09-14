@@ -12,8 +12,10 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Clip, Effect, BackgroundEffectData, CursorEffectData, KeystrokeEffectData } from '@/types/project'
+import { EffectType, BackgroundType } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 import { BackgroundTab } from './background-tab'
 import { CursorTab } from './cursor-tab'
@@ -28,7 +30,7 @@ interface EffectsSidebarProps {
   selectedClip: Clip | null
   effects: Effect[] | undefined
   selectedEffectLayer?: SelectedEffectLayer
-  onEffectChange: (type: 'zoom' | 'cursor' | 'keystroke' | 'background' | 'screen' | 'annotation', data: any) => void
+  onEffectChange: (type: EffectType, data: any) => void
 }
 
 export function EffectsSidebar({
@@ -40,10 +42,10 @@ export function EffectsSidebar({
 }: EffectsSidebarProps) {
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'keystroke' | 'zoom' | 'shape' | 'screen' | 'clip'>('background')
 
-  // Extract current effects from the array
-  const backgroundEffect = effects?.find(e => e.type === 'background' && e.enabled)
-  const cursorEffect = effects?.find(e => e.type === 'cursor')
-  const keystrokeEffect = effects?.find(e => e.type === 'keystroke')
+  // Extract current effects from the array using EffectsFactory helpers
+  const backgroundEffect = effects ? EffectsFactory.getBackgroundEffect(effects) : undefined
+  const cursorEffect = effects ? EffectsFactory.getCursorEffect(effects) : undefined
+  const keystrokeEffect = effects ? EffectsFactory.getKeystrokeEffect(effects) : undefined
 
   // Track last selected clip id and previous effect layer type to control auto-tab switching
   const lastClipIdRef = React.useRef<string | null>(null)
@@ -74,13 +76,14 @@ export function EffectsSidebar({
     prevEffectTypeRef.current = currentEffectType
   }, [selectedEffectLayer, selectedClip?.id])
 
-  const updateEffect = useCallback((category: 'cursor' | 'keystroke', updates: any) => {
-    const effect = category === 'cursor' ? cursorEffect : keystrokeEffect
+  const updateEffect = useCallback((category: EffectType.Cursor | EffectType.Keystroke, updates: any) => {
+    const effect = category === EffectType.Cursor ? cursorEffect : keystrokeEffect
+    const effectType = category
     if (effect) {
       const currentData = effect.data as CursorEffectData | KeystrokeEffectData
-      onEffectChange(category, { ...currentData, ...updates })
+      onEffectChange(effectType, { ...currentData, ...updates })
     } else {
-      onEffectChange(category, updates)
+      onEffectChange(effectType, updates)
     }
   }, [cursorEffect, keystrokeEffect, onEffectChange])
 
@@ -88,8 +91,8 @@ export function EffectsSidebar({
   const updateBackgroundEffect = useCallback((updates: any) => {
     // If no background effect exists, create it with sensible defaults
     if (!backgroundEffect) {
-      onEffectChange('background', {
-        type: updates.type || 'gradient',
+      onEffectChange(EffectType.Background, {
+        type: updates.type || BackgroundType.Gradient,
         gradient: {
           type: 'linear',
           colors: ['#2D3748', '#1A202C'],
@@ -105,7 +108,7 @@ export function EffectsSidebar({
 
     const currentBg = backgroundEffect.data as BackgroundEffectData
 
-    onEffectChange('background', {
+    onEffectChange(EffectType.Background, {
       ...currentBg,
       ...updates
     })
@@ -234,16 +237,16 @@ export function EffectsSidebar({
           {activeTab === 'cursor' && (
             <CursorTab
               cursorEffect={cursorEffect}
-              onUpdateCursor={(updates) => updateEffect('cursor', updates)}
-              onEffectChange={(type, data) => onEffectChange(type, data)}
+              onUpdateCursor={(updates) => updateEffect(EffectType.Cursor, updates)}
+              onEffectChange={onEffectChange}
             />
           )}
 
           {activeTab === 'keystroke' && (
             <KeystrokeTab
               keystrokeEffect={keystrokeEffect}
-              onUpdateKeystroke={(updates) => updateEffect('keystroke', updates)}
-              onEffectChange={(type, data) => onEffectChange(type, data)}
+              onUpdateKeystroke={(updates) => updateEffect(EffectType.Keystroke, updates)}
+              onEffectChange={onEffectChange}
             />
           )}
 
@@ -252,8 +255,8 @@ export function EffectsSidebar({
               effects={effects}
               selectedEffectLayer={selectedEffectLayer}
               selectedClip={selectedClip}
-              onUpdateZoom={(updates) => onEffectChange('zoom', updates)}
-              onEffectChange={(type, data) => onEffectChange(type, data)}
+              onUpdateZoom={(updates) => onEffectChange(EffectType.Zoom, updates)}
+              onEffectChange={onEffectChange}
             />
           )}
 
@@ -268,7 +271,7 @@ export function EffectsSidebar({
             <ScreenTab
               selectedClip={selectedClip}
               selectedEffectLayer={selectedEffectLayer}
-              onEffectChange={(type, data) => onEffectChange(type, data)}
+              onEffectChange={(type, data) => onEffectChange(EffectType.Screen, data)}
             />
           )}
 

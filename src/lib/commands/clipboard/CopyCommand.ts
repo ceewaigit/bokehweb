@@ -2,11 +2,12 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 import { EffectLayerType } from '@/types/effects'
+import { EffectType } from '@/types'
 
 export interface CopyResult {
   type: 'clip' | 'effect'
   clipId?: string
-  effectType?: 'zoom' | 'cursor' | 'background'
+  effectType?: EffectType.Zoom | EffectType.Cursor | EffectType.Background
   blockId?: string
 }
 
@@ -45,21 +46,17 @@ export class CopyCommand extends Command<CopyResult> {
     // Handle zoom effect copy (timeline-global, no clip needed)
     if (selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer.id) {
       const project = this.context.getProject()
-      const zoomEffect = project?.timeline.effects?.find(e => e.id === selectedEffectLayer.id && e.type === 'zoom')
+      const zoomEffect = project?.timeline.effects?.find(e => e.id === selectedEffectLayer.id && e.type === EffectType.Zoom)
       
       if (zoomEffect) {
-        // Copy the full zoom effect with timing information
-        store.copyEffect('zoom', { 
-          ...zoomEffect.data,
-          startTime: zoomEffect.startTime,
-          endTime: zoomEffect.endTime
-        }, '') // Empty clipId since zoom is timeline-global
+        // Copy just the zoom effect data
+        store.copyEffect(EffectType.Zoom, zoomEffect.data as any, '') // Empty clipId since zoom is timeline-global
         
         return {
           success: true,
           data: {
             type: 'effect',
-            effectType: 'zoom',
+            effectType: EffectType.Zoom,
             blockId: selectedEffectLayer.id,
             clipId: ''
           }
@@ -94,12 +91,22 @@ export class CopyCommand extends Command<CopyResult> {
       // Copy cursor or background settings
       const effect = effects.find((e: any) => e.type === selectedEffectLayer.type)
       if (effect) {
-        store.copyEffect(selectedEffectLayer.type as unknown as 'cursor' | 'background' | 'zoom', { ...effect.data }, clipId)
+        const effectTypeMap = {
+          [EffectLayerType.Cursor]: EffectType.Cursor,
+          [EffectLayerType.Background]: EffectType.Background,
+          [EffectLayerType.Zoom]: EffectType.Zoom
+        }
+        const mappedType = effectTypeMap[selectedEffectLayer.type as keyof typeof effectTypeMap]
+        if (mappedType) {
+          store.copyEffect(mappedType as EffectType.Zoom | EffectType.Cursor | EffectType.Background, effect.data as any, clipId)
+        }
         return {
           success: true,
           data: {
             type: 'effect',
-            effectType: (selectedEffectLayer.type as unknown as 'cursor' | 'background' | 'zoom'),
+            effectType: selectedEffectLayer.type === EffectLayerType.Cursor ? EffectType.Cursor : 
+                       selectedEffectLayer.type === EffectLayerType.Background ? EffectType.Background : 
+                       EffectType.Zoom,
             clipId
           }
         }

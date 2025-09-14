@@ -3,11 +3,13 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
-import { useRecordingStore } from '@/stores/recording-store'
+import { useRecordingSessionStore } from '@/stores/recording-session-store'
 import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/utils/logger'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
+import { RecordingSourceType } from '@/types/project'
+import { AudioInput } from '@/types'
 import {
   Mic,
   MicOff,
@@ -29,7 +31,7 @@ import {
 interface Source {
   id: string
   name: string
-  type: 'screen' | 'window' | 'area'
+  type: RecordingSourceType
   displayInfo?: {
     id: number
     isPrimary: boolean
@@ -63,7 +65,7 @@ export function RecordButtonDock() {
     updateSettings,
     startCountdown,
     prepareRecording
-  } = useRecordingStore()
+  } = useRecordingSessionStore()
 
   // Configure window for overlay mode
   useEffect(() => {
@@ -123,11 +125,11 @@ export function RecordButtonDock() {
       const mappedSources: Source[] = desktopSources.map(source => ({
         id: source.id,
         name: source.name,
-        type: source.id.startsWith('screen:') ? 'screen' : 'window',
+        type: source.id.startsWith('screen:') ? RecordingSourceType.Screen : RecordingSourceType.Window,
         displayInfo: source.displayInfo
       }))
 
-      logger.info('Mapped sources:', mappedSources.filter(s => s.type === 'screen').map(s => ({
+      logger.info('Mapped sources:', mappedSources.filter(s => s.type === RecordingSourceType.Screen).map(s => ({
         id: s.id,
         name: s.name,
         displayInfo: s.displayInfo
@@ -147,7 +149,7 @@ export function RecordButtonDock() {
         {
           id: 'area:selection',
           name: 'Select Area',
-          type: 'area'
+          type: RecordingSourceType.Area
         },
         ...filteredSources
       ]
@@ -155,8 +157,8 @@ export function RecordButtonDock() {
       setSources(allSources)
 
       // Pre-select the primary display (instead of first screen)
-      const primaryDisplay = allSources.find(s => s.type === 'screen' && s.displayInfo?.isPrimary)
-      const defaultScreen = primaryDisplay || allSources.find(s => s.type === 'screen')
+      const primaryDisplay = allSources.find(s => s.type === RecordingSourceType.Screen && s.displayInfo?.isPrimary)
+      const defaultScreen = primaryDisplay || allSources.find(s => s.type === RecordingSourceType.Screen)
 
       if (defaultScreen) {
         setSelectedSourceId(defaultScreen.id)
@@ -195,7 +197,7 @@ export function RecordButtonDock() {
   // Update recording settings when audio changes
   useEffect(() => {
     updateSettings({
-      audioInput: audioEnabled ? 'system' : 'none'  // System audio from desktop
+      audioInput: audioEnabled ? AudioInput.System : AudioInput.None  // System audio from desktop
     })
   }, [audioEnabled, updateSettings])
 
@@ -209,7 +211,7 @@ export function RecordButtonDock() {
     // Show overlay for the currently selected source (which should be primary display)
     if (selectedSourceId) {
       const selectedSource = sources.find(s => s.id === selectedSourceId)
-      if (selectedSource?.type === 'screen' && selectedSource.displayInfo?.id !== undefined) {
+      if (selectedSource?.type === RecordingSourceType.Screen && selectedSource.displayInfo?.id !== undefined) {
         logger.info('Showing overlay for default selection:', selectedSource.displayInfo.id)
         window.electronAPI?.showMonitorOverlay?.(selectedSource.displayInfo.id)
       }
@@ -231,12 +233,12 @@ export function RecordButtonDock() {
     setSelectedSourceId(source.id)
 
     // Show overlay on the selected monitor immediately for screens
-    if (source.type === 'screen' && source.displayInfo?.id !== undefined) {
+    if (source.type === RecordingSourceType.Screen && source.displayInfo?.id !== undefined) {
       logger.info('Showing overlay on display:', source.displayInfo.id)
       window.electronAPI?.showMonitorOverlay?.(source.displayInfo.id)
     } else {
       logger.warn('Not showing overlay:', {
-        isScreen: source.type === 'screen',
+        isScreen: source.type === RecordingSourceType.Screen,
         hasDisplayInfo: !!source.displayInfo,
         displayId: source.displayInfo?.id
       })
@@ -258,7 +260,7 @@ export function RecordButtonDock() {
     setSelectedSourceId(source.id)
 
     // Show overlay for the specific window
-    if (source.type === 'window') {
+    if (source.type === RecordingSourceType.Window) {
       logger.info('Showing window overlay for:', source.name)
       window.electronAPI?.showWindowOverlay?.(source.id)
     }
@@ -309,9 +311,9 @@ export function RecordButtonDock() {
     window.electronAPI?.openWorkspace?.()
   }
 
-  const screens = sources.filter(s => s.type === 'screen')
-  const windows = sources.filter(s => s.type === 'window')
-  const areaOption = sources.find(s => s.type === 'area')
+  const screens = sources.filter(s => s.type === RecordingSourceType.Screen)
+  const windows = sources.filter(s => s.type === RecordingSourceType.Window)
+  const areaOption = sources.find(s => s.type === RecordingSourceType.Area)
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-start" style={{ padding: '8px' }}>

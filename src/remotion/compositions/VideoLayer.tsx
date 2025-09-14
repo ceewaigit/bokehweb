@@ -6,6 +6,66 @@ import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
 import { createCinematicTransform, createBlurFilter } from '@/lib/effects/cinematic-scroll';
+import type { TimeRemapPeriod } from '@/types/project';
+import { EffectType, ScreenEffectPreset } from '@/types/project';
+import { EffectsFactory } from '@/lib/effects/effects-factory';
+
+// Calculate remapped source time based on time remap periods
+function calculateRemappedSourceTime(
+  elapsedMs: number,
+  sourceIn: number,
+  timeRemapPeriods?: TimeRemapPeriod[],
+  playbackRate: number = 1
+): number {
+  // If no time remap periods, use simple calculation
+  if (!timeRemapPeriods || timeRemapPeriods.length === 0) {
+    return sourceIn + elapsedMs * playbackRate;
+  }
+
+  // Start from sourceIn
+  let currentSourceTime = sourceIn;
+  let remainingElapsed = elapsedMs;
+  
+  // Process each period in order
+  for (const period of timeRemapPeriods) {
+    const periodDuration = period.sourceEndTime - period.sourceStartTime;
+    const periodPlaybackDuration = periodDuration / period.speedMultiplier;
+    
+    // If we're before this period starts
+    if (currentSourceTime < period.sourceStartTime) {
+      // Time before the period plays at normal rate
+      const gapDuration = period.sourceStartTime - currentSourceTime;
+      const gapPlaybackDuration = gapDuration / playbackRate;
+      
+      if (remainingElapsed <= gapPlaybackDuration) {
+        // We're in the gap before this period
+        return currentSourceTime + remainingElapsed * playbackRate;
+      }
+      
+      // Move through the gap
+      remainingElapsed -= gapPlaybackDuration;
+      currentSourceTime = period.sourceStartTime;
+    }
+    
+    // If we're within this period
+    if (currentSourceTime >= period.sourceStartTime && currentSourceTime < period.sourceEndTime) {
+      const remainingInPeriod = period.sourceEndTime - currentSourceTime;
+      const remainingPlaybackInPeriod = remainingInPeriod / period.speedMultiplier;
+      
+      if (remainingElapsed <= remainingPlaybackInPeriod) {
+        // We end within this period
+        return currentSourceTime + remainingElapsed * period.speedMultiplier;
+      }
+      
+      // Move through this period
+      remainingElapsed -= remainingPlaybackInPeriod;
+      currentSourceTime = period.sourceEndTime;
+    }
+  }
+  
+  // Any remaining time after all periods plays at normal rate
+  return currentSourceTime + remainingElapsed * playbackRate;
+}
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
@@ -65,18 +125,40 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 
   // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
+  
+  // Calculate remapped source time for time-variable playback
+  const remappedSourceTime = useMemo(() => {
+    if (!clip) return 0;
+    
+    // If clip has time remap periods, use them
+    if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
+      return calculateRemappedSourceTime(
+        currentTimeMs,
+        clip.sourceIn || 0,
+        clip.timeRemapPeriods,
+        clip.playbackRate || 1
+      );
+    }
+    
+    // Otherwise use simple calculation with playback rate
+    const sourceIn = clip.sourceIn || 0;
+    const rate = clip.playbackRate || 1;
+    return sourceIn + currentTimeMs * rate;
+  }, [clip, currentTimeMs]);
+  
+  // Convert remapped source time to frame for startFrom
+  const startFromFrame = Math.round((remappedSourceTime / 1000) * fps);
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
 
   // Get background effect for padding and styling
-  const backgroundEffect = effects?.find(e =>
-    e.type === 'background' &&
-    e.enabled &&
-    currentTimeMs >= e.startTime &&
-    currentTimeMs <= e.endTime
-  );
-  const backgroundData = backgroundEffect?.data as any
+  const backgroundEffect = effects ? EffectsFactory.getActiveEffectAtTime(
+    effects,
+    EffectType.Background,
+    currentTimeMs
+  ) : undefined;
+  const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null
   const padding = backgroundData?.padding || 0;
   const cornerRadius = backgroundData?.cornerRadius || 0;
   const shadowIntensity = backgroundData?.shadowIntensity || 0;
@@ -115,28 +197,32 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   }
 
   // Optional 3D screen effect: prefer screen blocks
-  const screenBlock = effects?.find(e => e.type === 'screen' && e.enabled && currentTimeMs >= e.startTime && currentTimeMs <= e.endTime)
-  const screenData: any = screenBlock?.data
+  const screenBlock = effects ? EffectsFactory.getActiveEffectAtTime(
+    effects,
+    EffectType.Screen,
+    currentTimeMs
+  ) : undefined;
+  const screenData = screenBlock ? EffectsFactory.getScreenData(screenBlock) : null
   if (screenData) {
-    const preset = screenData.preset as ('subtle' | 'medium' | 'dramatic' | 'window' | 'cinematic' | 'hero' | 'isometric' | 'flat' | 'tilt-left' | 'tilt-right') | undefined
+    const preset = screenData.preset
     let tiltX = screenData.tiltX
     let tiltY = screenData.tiltY
     let perspective = screenData.perspective
 
     // Defaults per preset
     // Centering presets optionally add a slight y-tilt balance to keep horizon centered
-    if (preset === 'subtle') { tiltX ??= -2; tiltY ??= 4; perspective ??= 1000 }
-    if (preset === 'medium') { tiltX ??= -4; tiltY ??= 8; perspective ??= 900 }
-    if (preset === 'dramatic') { tiltX ??= -8; tiltY ??= 14; perspective ??= 800 }
-    if (preset === 'window') { tiltX ??= -3; tiltY ??= 12; perspective ??= 700 }
+    if (preset === ScreenEffectPreset.Subtle) { tiltX ??= -2; tiltY ??= 4; perspective ??= 1000 }
+    if (preset === ScreenEffectPreset.Medium) { tiltX ??= -4; tiltY ??= 8; perspective ??= 900 }
+    if (preset === ScreenEffectPreset.Dramatic) { tiltX ??= -8; tiltY ??= 14; perspective ??= 800 }
+    if (preset === ScreenEffectPreset.Window) { tiltX ??= -3; tiltY ??= 12; perspective ??= 700 }
 
     // New presets
-    if (preset === 'cinematic') { tiltX ??= -5; tiltY ??= 10; perspective ??= 850 }
-    if (preset === 'hero') { tiltX ??= -10; tiltY ??= 16; perspective ??= 760 }
-    if (preset === 'isometric') { tiltX ??= -25; tiltY ??= 25; perspective ??= 950 }
-    if (preset === 'flat') { tiltX ??= 0; tiltY ??= 0; perspective ??= 1200 }
-    if (preset === 'tilt-left') { tiltX ??= -6; tiltY ??= -10; perspective ??= 900 }
-    if (preset === 'tilt-right') { tiltX ??= -6; tiltY ??= 10; perspective ??= 900 }
+    if (preset === ScreenEffectPreset.Cinematic) { tiltX ??= -5; tiltY ??= 10; perspective ??= 850 }
+    if (preset === ScreenEffectPreset.Hero) { tiltX ??= -10; tiltY ??= 16; perspective ??= 760 }
+    if (preset === ScreenEffectPreset.Isometric) { tiltX ??= -25; tiltY ??= 25; perspective ??= 950 }
+    if (preset === ScreenEffectPreset.Flat) { tiltX ??= 0; tiltY ??= 0; perspective ??= 1200 }
+    if (preset === ScreenEffectPreset.TiltLeft) { tiltX ??= -6; tiltY ??= -10; perspective ??= 900 }
+    if (preset === ScreenEffectPreset.TiltRight) { tiltX ??= -6; tiltY ??= 10; perspective ??= 900 }
 
     // Easing for tilt intro/outro
     const introMs = typeof screenData.introMs === 'number' ? screenData.introMs : 400
@@ -164,7 +250,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     // Certain presets should be visually centered more aggressively
     // Use a compensating translate3d to keep content centered in frame
     let centerAdjust = ''
-    if (preset === 'cinematic' || preset === 'hero' || preset === 'isometric' || preset === 'flat') {
+    if (preset === ScreenEffectPreset.Cinematic || preset === ScreenEffectPreset.Hero || preset === ScreenEffectPreset.Isometric || preset === ScreenEffectPreset.Flat) {
       // Compute a small centering nudge based on tilt
       const tx = 0 // horizontal centering minimal to avoid cropping
       const ty = (Math.abs(easedTiltY ?? 0) > 0 ? -4 : 0) // nudge up a few pixels
@@ -248,14 +334,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Single persistent video element to avoid decoder resets across splits */}
+        {/* Single persistent video element with time remapping support */}
         <OffthreadVideo
           src={videoUrl}
           style={videoStyle}
           volume={1}
           muted={false}
-          playbackRate={clip?.playbackRate || 1}
-          startFrom={0}
+          playbackRate={1} // Always 1 since we handle speed via startFrom
+          startFrom={startFromFrame}
           pauseWhenBuffering={true}
           onError={(e) => {
             console.error('Video playback error:', e)

@@ -2,12 +2,13 @@ import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import { AddClipCommand } from '../timeline/AddClipCommand'
 import { AddZoomBlockCommand } from '../effects/AddZoomBlockCommand'
-import type { Clip, ZoomBlock } from '@/types/project'
+import type { Clip, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
+import { EffectType } from '@/types/project'
 
 export interface PasteResult {
   type: 'clip' | 'effect'
   clipId?: string
-  effectType?: 'zoom' | 'cursor' | 'background'
+  effectType?: EffectType.Zoom | EffectType.Cursor | EffectType.Background
   blockId?: string
 }
 
@@ -38,16 +39,17 @@ export class PasteCommand extends Command<PasteResult> {
     // Paste effect if we have one
     if (clipboard.effect) {
       // Zoom effects are timeline-global, don't need a clip
-      if (clipboard.effect.type === 'zoom') {
-        const zoomBlock = clipboard.effect.data as ZoomBlock
-        const blockDuration = zoomBlock.endTime - zoomBlock.startTime
+      if (clipboard.effect.type === EffectType.Zoom) {
+        const zoomData = clipboard.effect.data as unknown as ZoomEffectData
+        // For pasting, we need to determine duration - use a default of 5 seconds
+        const blockDuration = 5000 // 5 seconds default for zoom effect
         const currentTime = this.pasteTime ?? this.context.getCurrentTime()
         let pasteStartTime = Math.max(0, currentTime) // Use absolute timeline position
         
         // Find non-overlapping position - check ALL zoom effects globally
         const project = this.context.getProject()
         const existingZoomEffects = (project?.timeline.effects || [])
-          .filter(e => e.type === 'zoom')
+          .filter(e => e.type === EffectType.Zoom)
           .sort((a, b) => a.startTime - b.startTime)
         
         for (const effect of existingZoomEffects) {
@@ -57,10 +59,11 @@ export class PasteCommand extends Command<PasteResult> {
         }
         
         const newBlock: ZoomBlock = {
-          ...zoomBlock,
+          ...zoomData,
           id: `zoom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           startTime: pasteStartTime,
-          endTime: pasteStartTime + blockDuration
+          endTime: pasteStartTime + blockDuration,
+          scale: zoomData.scale || 2
         }
         
         // Pass empty string for clipId since zoom is timeline-global
@@ -72,7 +75,7 @@ export class PasteCommand extends Command<PasteResult> {
             success: true,
             data: {
               type: 'effect',
-              effectType: 'zoom',
+              effectType: EffectType.Zoom,
               blockId: newBlock.id,
               clipId: '' // Empty since zoom is timeline-global
             }
@@ -118,7 +121,7 @@ export class PasteCommand extends Command<PasteResult> {
           // Create new effect if none exists (timeline-global)
           store.addEffect({
             id: `${effectType}-global-${Date.now()}`,
-            type: effectType as 'cursor' | 'background',
+            type: effectType as EffectType,
             startTime: targetClip.startTime,
             endTime: targetClip.startTime + targetClip.duration,
             data: effectData,

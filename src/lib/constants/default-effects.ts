@@ -1,8 +1,9 @@
 import type { BackgroundEffectData, CursorEffectData, ZoomEffectData } from '@/types/project'
+import { BackgroundType, CursorStyle } from '@/types/project'
 
 // Default background effect data
 export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
-  type: 'wallpaper',
+  type: BackgroundType.Wallpaper,
   gradient: {
     colors: ['#2D3748', '#1A202C'],
     angle: 135
@@ -13,7 +14,7 @@ export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
 
 // Screen Studio style background effect data
 export const SCREEN_STUDIO_BACKGROUND_DATA: BackgroundEffectData = {
-  type: 'wallpaper',
+  type: BackgroundType.Wallpaper,
   gradient: {
     colors: ['#2D3748', '#1A202C'],
     angle: 135
@@ -24,7 +25,7 @@ export const SCREEN_STUDIO_BACKGROUND_DATA: BackgroundEffectData = {
 
 // Default cursor effect data
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
-  style: 'default',
+  style: CursorStyle.Default,
   size: 3.0,
   color: '#ffffff',
   clickEffects: false,

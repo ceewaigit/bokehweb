@@ -2,7 +2,8 @@
  * Shared types for the effects system
  */
 
-import type { MouseEvent, ClickEvent } from '@/types/project'
+import type { MouseEvent, ClickEvent, Effect } from '@/types/project'
+import { EffectType } from '@/types/project'
 
 // Extended event type that includes both mouse and click events
 export interface ProjectEvent extends MouseEvent {
@@ -12,18 +13,9 @@ export interface ProjectEvent extends MouseEvent {
   scrollDelta?: { x: number; y: number }
 }
 
-// Base effect interface
-export interface Effect {
-  id: string
-  type: string
-  startTime: number
-  endTime: number
-  params: any
-}
-
-// Zoom effect specifically
+// Zoom effect specifically (extends from centralized Effect type)
 export interface ZoomEffect extends Effect {
-  type: 'zoom'
+  type: EffectType.Zoom
   params: {
     scale: number        // Zoom level (e.g., 1.8)
     introMs: number      // Intro animation duration

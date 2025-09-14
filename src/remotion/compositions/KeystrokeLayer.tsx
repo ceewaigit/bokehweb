@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { KeystrokeRenderer } from '@/lib/effects/keystroke-renderer';
 import type { KeyboardEvent } from '@/types/project';
+import { KeystrokePosition } from '@/types/project';
 
 interface KeystrokeLayerProps {
   keyboardEvents: KeyboardEvent[];
   settings?: {
-    position?: 'bottom-center' | 'bottom-right' | 'top-center';
+    position?: KeystrokePosition;
     fontSize?: number;
     fontFamily?: string;
     backgroundColor?: string;
@@ -40,7 +41,7 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
         borderRadius: settings.borderRadius || 6,
         padding: settings.padding || 12,
         fadeOutDuration: settings.fadeOutDuration || 300,
-        position: settings.position || 'bottom-center',
+        position: settings.position || KeystrokePosition.BottomCenter,
         maxWidth: settings.maxWidth || 300
       });
     }
@@ -55,7 +56,7 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
       borderRadius: settings.borderRadius || 6,
       padding: settings.padding || 12,
       fadeOutDuration: settings.fadeOutDuration || 300,
-      position: settings.position || 'bottom-center',
+      position: settings.position || KeystrokePosition.BottomCenter,
       maxWidth: settings.maxWidth || 300
     });
     

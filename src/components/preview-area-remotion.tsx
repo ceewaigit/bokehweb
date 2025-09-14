@@ -7,6 +7,7 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Recording, Effect } from '@/types/project'
+import { EffectType } from '@/types/project'
 
 interface PreviewAreaRemotionProps {
   playheadClip?: Clip | null
@@ -51,6 +52,52 @@ export function PreviewAreaRemotion({
     const clipStart = clip.startTime
     const elapsedMs = Math.max(0, nowMs - clipStart)
     const sourceInMs = clip.sourceIn || 0
+    
+    // If clip has time remap periods, use them
+    if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
+      // Calculate remapped source time
+      let currentSourceTime = sourceInMs
+      let remainingElapsed = elapsedMs
+      const playbackRate = clip.playbackRate || 1
+      
+      for (const period of clip.timeRemapPeriods) {
+        const periodDuration = period.sourceEndTime - period.sourceStartTime
+        const periodPlaybackDuration = periodDuration / period.speedMultiplier
+        
+        // If we're before this period starts
+        if (currentSourceTime < period.sourceStartTime) {
+          const gapDuration = period.sourceStartTime - currentSourceTime
+          const gapPlaybackDuration = gapDuration / playbackRate
+          
+          if (remainingElapsed <= gapPlaybackDuration) {
+            // We're in the gap before this period
+            return (currentSourceTime + remainingElapsed * playbackRate) / 1000
+          }
+          
+          remainingElapsed -= gapPlaybackDuration
+          currentSourceTime = period.sourceStartTime
+        }
+        
+        // If we're within this period
+        if (currentSourceTime >= period.sourceStartTime && currentSourceTime < period.sourceEndTime) {
+          const remainingInPeriod = period.sourceEndTime - currentSourceTime
+          const remainingPlaybackInPeriod = remainingInPeriod / period.speedMultiplier
+          
+          if (remainingElapsed <= remainingPlaybackInPeriod) {
+            // We end within this period
+            return (currentSourceTime + remainingElapsed * period.speedMultiplier) / 1000
+          }
+          
+          remainingElapsed -= remainingPlaybackInPeriod
+          currentSourceTime = period.sourceEndTime
+        }
+      }
+      
+      // Any remaining time after all periods plays at normal rate
+      return (currentSourceTime + remainingElapsed * playbackRate) / 1000
+    }
+    
+    // Otherwise use simple calculation with playback rate
     const rate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
     return (sourceInMs / 1000) + (elapsedMs / 1000) * rate
   }, [])
@@ -205,12 +252,12 @@ export function PreviewAreaRemotion({
     const recordingClips: Array<any> = (allTracks || []).flatMap((t: any) => t.clips || []).filter((c: any) => c.recordingId === previewRecording?.id)
 
     return effectsToConvert.map(effect => {
-      if (effect.type === 'background') {
+      if (effect.type === EffectType.Background) {
         return { ...effect, startTime: 0, endTime: Number.MAX_SAFE_INTEGER }
       }
 
       // For zoom/screen, compute a continuous recording-time window across all overlapping clips of this recording
-      if (effect.type === 'zoom' || effect.type === 'screen') {
+      if (effect.type === EffectType.Zoom || effect.type === EffectType.Screen) {
         let segRecStarts: number[] = []
         let segRecEnds: number[] = []
         for (const c of recordingClips) {

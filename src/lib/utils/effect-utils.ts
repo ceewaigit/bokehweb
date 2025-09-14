@@ -23,29 +23,6 @@ export class EffectUtils {
     return cloned as Effect
   }
 
-  /**
-   * Clone multiple effects (no longer needed - effects are timeline-global)
-   * @deprecated Effects are now timeline-global
-   */
-  static cloneEffectsForClip(effects: Effect[], newClipId: string): Effect[] {
-    // No-op: Effects are timeline-global, not per-clip
-    return []
-  }
-
-  /**
-   * Split an effect at a specific point (effects are timeline-global, splits may still be needed for zoom effects)
-   */
-  static splitEffect(effect: Effect, splitPoint: number, leftClipId: string, rightClipId: string): Effect[] {
-    // For timeline-global effects, we don't need to split most effects
-    // Only zoom effects might need splitting if they're specific to a region
-    if (effect.type !== 'zoom') {
-      // Background, cursor, keystroke effects don't need splitting
-      return [effect]
-    }
-    
-    // For zoom effects, keep them as-is since they use absolute timeline positions
-    return [effect]
-  }
 
   /**
    * Adjust effect timing for trim operations
@@ -62,5 +39,26 @@ export class EffectUtils {
       startTime: Math.max(0, effect.startTime - trimStart),
       endTime: Math.min(trimEnd - trimStart, effect.endTime - trimStart)
     }
+  }
+
+  /**
+   * Check if an effect is active at a given time
+   */
+  static isEffectActive(effect: Effect, time: number): boolean {
+    return effect.enabled && time >= effect.startTime && time <= effect.endTime
+  }
+
+  /**
+   * Get all effects active at a specific time
+   */
+  static getActiveEffectsAtTime(effects: Effect[], time: number): Effect[] {
+    return effects.filter(effect => this.isEffectActive(effect, time))
+  }
+
+  /**
+   * Check if effects overlap in time
+   */
+  static doEffectsOverlap(effect1: Effect, effect2: Effect): boolean {
+    return effect1.startTime < effect2.endTime && effect2.startTime < effect1.endTime
   }
 }

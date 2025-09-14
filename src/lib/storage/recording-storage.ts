@@ -5,7 +5,8 @@
 
 import { logger } from '@/lib/utils/logger'
 import type { Project, Recording, Clip, CaptureArea, Effect, ZoomEffectData, BackgroundEffectData, CursorEffectData } from '@/types/project'
-import { ZoomDetector } from '@/lib/effects/utils/zoom-detector'
+import { TrackType, EffectType, ExportFormat, QualityLevel, RecordingSourceType, KeystrokePosition } from '@/types/project'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 export class RecordingStorage {
   private static readonly BLOB_PREFIX = 'recording-blob-'
@@ -262,7 +263,7 @@ export class RecordingStorage {
           {
             id: 'video-1',
             name: 'Video',
-            type: 'video',
+            type: TrackType.Video,
             clips: [],
             muted: false,
             locked: false
@@ -270,7 +271,7 @@ export class RecordingStorage {
           {
             id: 'audio-1',
             name: 'Audio',
-            type: 'audio',
+            type: TrackType.Audio,
             clips: [],
             muted: false,
             locked: false
@@ -288,9 +289,9 @@ export class RecordingStorage {
         {
           id: 'default',
           name: 'Default',
-          format: 'mp4',
+          format: ExportFormat.MP4,
           codec: 'h264',
-          quality: 'high',
+          quality: QualityLevel.High,
           resolution: { width: 1920, height: 1080 },
           frameRate: 60
         }
@@ -507,7 +508,7 @@ export class RecordingStorage {
         fullBounds: sourceBounds,
         workArea: sourceBounds,
         scaleFactor: 1,
-        sourceType: firstEventWithBounds?.sourceType || 'screen',
+        sourceType: firstEventWithBounds?.sourceType || RecordingSourceType.Screen,
         sourceId: ''
       } : captureArea
 
@@ -546,101 +547,39 @@ export class RecordingStorage {
         sourceOut: duration
       }
 
-      const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
+      const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
       if (videoTrack) {
         videoTrack.clips.push(clip)
       }
 
       project.timeline.duration = duration
 
-      // Auto-generate zoom effects as separate entities
-      const detector = new ZoomDetector()
-      const zoomBlocks = detector.detectZoomBlocks(
-        mouseEvents,
-        captureWidth || width,
-        captureHeight || height,
-        duration
-      )
-
       // Initialize effects array if needed
       if (!project.timeline.effects) {
         project.timeline.effects = []
       }
 
-      // Add zoom effects with absolute timeline positions
-      zoomBlocks.forEach((block, index) => {
-        project.timeline.effects!.push({
-          id: `zoom-${clip.id}-${index}`,
-          type: 'zoom',
-          startTime: clip.startTime + block.startTime,
-          endTime: clip.startTime + block.endTime,
-          data: {
-            scale: block.scale,
-            targetX: block.targetX,
-            targetY: block.targetY,
-            introMs: block.introMs || 300,
-            outroMs: block.outroMs || 300,
-            smoothing: 0.1
-          },
-          enabled: true
-        })
-      })
-
-      // Add global background effect if it doesn't exist
-      const hasBackground = project.timeline.effects!.some(e => e.type === 'background')
-      if (!hasBackground) {
-        project.timeline.effects!.push({
-          id: `background-global`,
-          type: 'background',
-          startTime: 0,
-          endTime: Number.MAX_SAFE_INTEGER,
-          data: {
-            type: 'wallpaper',
-            gradient: {
-              colors: ['#2D3748', '#1A202C'],
-              angle: 135
-            },
-            wallpaper: undefined,
-            padding: 40,
-            cornerRadius: 15,
-            shadowIntensity: 85
-          },
-          enabled: true
-        })
-      }
-
-      // Add global cursor effect if it doesn't exist
-      const hasCursor = project.timeline.effects!.some(e => e.type === 'cursor')
-      if (!hasCursor) {
-        project.timeline.effects!.push({
-          id: `cursor-global`,
-          type: 'cursor',
-          startTime: 0,
-          endTime: Number.MAX_SAFE_INTEGER,
-          data: {
-            style: 'macOS',
-            size: 4.0,
-            color: '#ffffff',
-            clickEffects: true,
-            motionBlur: true,
-            hideOnIdle: true,
-            idleTimeout: 3000
-          },
-          enabled: true
-        })
-      }
+      // Use EffectsFactory to create initial effects for the recording
+      const newEffects = EffectsFactory.createInitialEffectsForRecording(
+        recording,
+        clip,
+        project.timeline.effects
+      )
+      
+      // Add the new effects to the timeline
+      project.timeline.effects.push(...newEffects)
 
       // Add global keystroke effect if keyboard events exist and not already present
-      const hasKeystroke = project.timeline.effects!.some(e => e.type === 'keystroke')
+      const hasKeystroke = !!EffectsFactory.getKeystrokeEffect(project.timeline.effects)
       if (keyboardEvents.length > 0 && !hasKeystroke) {
         logger.info(`✅ Creating global keystroke effect for ${keyboardEvents.length} keyboard events`)
         project.timeline.effects!.push({
           id: `keystroke-global`,
-          type: 'keystroke',
+          type: EffectType.Keystroke,
           startTime: 0,
           endTime: Number.MAX_SAFE_INTEGER,
           data: {
-            position: 'bottom-center',
+            position: KeystrokePosition.BottomCenter,
             fontSize: 16,
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
             textColor: '#ffffff',

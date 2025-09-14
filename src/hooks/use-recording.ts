@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useRecordingStore } from '@/stores/recording-store'
+import { useRecordingSessionStore } from '@/stores/recording-session-store'
 import { useProjectStore } from '@/stores/project-store'
 import { ElectronRecorder, type ElectronRecordingResult } from '@/lib/recording'
 import { RecordingError, RecordingErrorCode, PermissionError, ElectronError } from '@/lib/core/errors'
@@ -21,7 +21,7 @@ export function useRecording() {
     setPaused,
     setDuration,
     setStatus
-  } = useRecordingStore()
+  } = useRecordingSessionStore()
 
   // Use the simplified timer hook
   const timer = useTimer((elapsedMs) => {
@@ -89,7 +89,7 @@ export function useRecording() {
       setStatus('preparing')
 
       // Get the current settings from the store to ensure we have the latest values
-      const currentSettings = useRecordingStore.getState().settings
+      const currentSettings = useRecordingSessionStore.getState().settings
 
       // Start recording (enhancements are now applied during export, not recording)
       await recorderRef.current.startRecording(currentSettings)
@@ -129,7 +129,7 @@ export function useRecording() {
     logger.debug('useRecording.stopRecording called')
 
     // Check store state first to prevent double-stops
-    const currentState = useRecordingStore.getState()
+    const currentState = useRecordingSessionStore.getState()
     if (!currentState.isRecording) {
       logger.debug('useRecording: Not currently recording according to store - ignoring stop call')
       return null

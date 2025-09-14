@@ -1,4 +1,5 @@
 import type { KeyboardEvent } from '@/types/project'
+import { KeystrokePosition } from '@/types/project'
 
 interface KeystrokeOptions {
   fontSize?: number
@@ -9,7 +10,7 @@ interface KeystrokeOptions {
   borderRadius?: number
   padding?: number
   fadeOutDuration?: number
-  position?: 'bottom-center' | 'bottom-right' | 'top-center'
+  position?: KeystrokePosition
   maxWidth?: number
 }
 
@@ -56,7 +57,7 @@ export class KeystrokeRenderer {
       borderRadius: 6,
       padding: 12,
       fadeOutDuration: this.FADE_DURATION,
-      position: 'bottom-center',
+      position: KeystrokePosition.BottomCenter,
       maxWidth: 300,
       ...options
     }
@@ -356,17 +357,17 @@ export class KeystrokeRenderer {
     const margin = 40
 
     switch (this.options.position) {
-      case 'bottom-right':
+      case KeystrokePosition.BottomRight:
         return {
           x: videoWidth - margin - 150, // Estimate for right alignment
           y: videoHeight - margin
         }
-      case 'top-center':
+      case KeystrokePosition.TopCenter:
         return {
           x: videoWidth / 2,
           y: margin
         }
-      case 'bottom-center':
+      case KeystrokePosition.BottomCenter:
       default:
         return {
           x: videoWidth / 2,

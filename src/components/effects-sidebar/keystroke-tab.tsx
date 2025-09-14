@@ -6,11 +6,12 @@ import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { KeystrokeEffectData, Effect } from '@/types/project'
+import { EffectType, KeystrokePosition } from '@/types'
 
 interface KeystrokeTabProps {
   keystrokeEffect: Effect | undefined
   onUpdateKeystroke: (updates: any) => void
-  onEffectChange: (type: 'keystroke', data: any) => void
+  onEffectChange: (type: EffectType, data: any) => void
 }
 
 export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChange }: KeystrokeTabProps) {
@@ -31,10 +32,10 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             checked={keystrokeEffect?.enabled ?? false}
             onCheckedChange={(checked) => {
               if (keystrokeEffect) {
-                onEffectChange('keystroke', { ...keystrokeData, enabled: checked })
+                onEffectChange(EffectType.Keystroke, { ...keystrokeData, enabled: checked })
               } else {
-                onEffectChange('keystroke', {
-                  position: 'bottom-center',
+                onEffectChange(EffectType.Keystroke, {
+                  position: KeystrokePosition.BottomCenter,
                   fontSize: 16,
                   backgroundColor: 'rgba(0, 0, 0, 0.8)',
                   textColor: '#ffffff',

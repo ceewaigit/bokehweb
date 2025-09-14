@@ -1,6 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
+import { EffectType } from '@/types/project'
 
 export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   private block: ZoomBlock
@@ -36,7 +37,7 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
     // Create a new zoom effect from the block (with absolute timeline positions)
     const zoomEffect: Effect = {
       id: this.block.id,
-      type: 'zoom',
+      type: EffectType.Zoom,
       startTime: this.block.startTime,
       endTime: this.block.endTime,
       data: {
@@ -78,7 +79,7 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
     // Re-add the zoom effect (with absolute timeline positions)
     const zoomEffect: Effect = {
       id: this.block.id,
-      type: 'zoom',
+      type: EffectType.Zoom,
       startTime: this.block.startTime,
       endTime: this.block.endTime,
       data: {

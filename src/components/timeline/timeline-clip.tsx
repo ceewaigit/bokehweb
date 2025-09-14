@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
 import Konva from 'konva'
 import type { Clip, Recording } from '@/types/project'
+import { TrackType } from '@/types/project'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-converter'
 import { ClipPositioning } from '@/lib/timeline/clip-positioning'
@@ -10,6 +11,7 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { WaveformAnalyzer, type WaveformData } from '@/lib/audio/waveform-analyzer'
 import { EffectLayerType } from '@/types/effects'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { TypingDetector, type TypingSuggestions, type TypingPeriod } from '@/lib/timeline/typing-detector'
 import { TypingSuggestionsBar } from './typing-suggestions-bar'
 
@@ -23,7 +25,7 @@ import { CommandManager } from '@/lib/commands'
 interface TimelineClipProps {
   clip: Clip
   recording?: Recording | null
-  trackType: 'video' | 'audio'
+  trackType: TrackType.Video | TrackType.Audio
   trackY: number
   trackHeight: number
   pixelsPerMs: number
@@ -425,9 +427,9 @@ export const TimelineClip = React.memo(({
         width={clipWidth}
         height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
         fill={
-          trackType === 'video' && thumbnails.length > 0
+          trackType === TrackType.Video && thumbnails.length > 0
             ? 'transparent'
-            : trackType === 'video'
+            : trackType === TrackType.Video
               ? colors.info
               : colors.success
         }
@@ -448,7 +450,7 @@ export const TimelineClip = React.memo(({
       />
 
       {/* Video thumbnails */}
-      {trackType === 'video' && thumbnails.length > 0 && (
+      {trackType === TrackType.Video && thumbnails.length > 0 && (
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
@@ -489,7 +491,7 @@ export const TimelineClip = React.memo(({
       )}
 
       {/* Audio waveform visualization for clips with audio */}
-      {trackType === 'video' && recording?.hasAudio && (
+      {trackType === TrackType.Video && recording?.hasAudio && (
         <Group
           y={trackHeight / 2}
           opacity={0.7}
@@ -566,7 +568,7 @@ export const TimelineClip = React.memo(({
       )}
 
       {/* Effect badges for video clips - clickable indicators */}
-      {trackType === 'video' && (() => {
+      {trackType === TrackType.Video && (() => {
         const badges = []
         let xOffset = 0
 
@@ -576,7 +578,7 @@ export const TimelineClip = React.memo(({
           onSelectEffect?.(type)
         }
 
-        const hasZoomEffect = clipEffects.some(e => e.type === 'zoom' && e.enabled)
+        const hasZoomEffect = EffectsFactory.hasActiveZoomEffects(clipEffects)
         if (hasZoomEffect) {
           badges.push(
             <Group
@@ -600,7 +602,7 @@ export const TimelineClip = React.memo(({
         }
 
         // Only show cursor badge when cursor is enabled
-        const hasCursorEffect = clipEffects.some(e => e.type === 'cursor' && e.enabled)
+        const hasCursorEffect = !!EffectsFactory.getCursorEffect(clipEffects)
         if (hasCursorEffect) {
           badges.push(
             <Group
@@ -623,8 +625,9 @@ export const TimelineClip = React.memo(({
           xOffset += 36
         }
 
-        const backgroundEffect = clipEffects.find(e => e.type === 'background' && e.enabled)
-        if (backgroundEffect?.data?.type && backgroundEffect.data.type !== 'none') {
+        const backgroundEffect = EffectsFactory.getBackgroundEffect(clipEffects)
+        const bgData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null
+        if (bgData?.type && bgData.type !== 'none') {
           badges.push(
             <Group
               key="bg"
@@ -701,7 +704,7 @@ export const TimelineClip = React.memo(({
       })()}
 
       {/* Typing suggestions bar - only show for video clips with typing detected and enabled in settings */}
-      {trackType === 'video' && typingSuggestions && settings.showTypingSuggestions && (
+      {trackType === TrackType.Video && typingSuggestions && settings.showTypingSuggestions && (
         <TypingSuggestionsBar
           suggestions={typingSuggestions}
           clipStartTime={clip.startTime}

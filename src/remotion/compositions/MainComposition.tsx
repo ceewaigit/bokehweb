@@ -6,10 +6,12 @@ import { CursorLayer } from './CursorLayer';
 import { KeystrokeLayer } from './KeystrokeLayer';
 import type { MainCompositionProps } from './types';
 import type { ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ZoomBlock } from '@/types/project';
+import { EffectType } from '@/types/project';
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 import { calculateZoomScale } from './utils/zoom-transform';
 import { CinematicScrollCalculator } from '@/lib/effects/cinematic-scroll';
+import { EffectsFactory } from '@/lib/effects/effects-factory';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -47,21 +49,22 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     currentTimeMs <= e.endTime
   ) || [];
 
-  // Find specific effect types
-  const backgroundEffect = activeEffects.find(e => e.type === 'background');
-  const cursorEffect = activeEffects.find(e => e.type === 'cursor');
-  const keystrokeEffect = activeEffects.find(e => e.type === 'keystroke');
-  const zoomEffects = activeEffects.filter(e => e.type === 'zoom');
+  // Find specific effect types using EffectsFactory
+  const backgroundEffect = EffectsFactory.getBackgroundEffect(activeEffects);
+  const cursorEffect = EffectsFactory.getCursorEffect(activeEffects);
+  const keystrokeEffect = EffectsFactory.getKeystrokeEffect(activeEffects);
+  const zoomEffects = EffectsFactory.getZoomEffects(activeEffects);
 
 
-  // Extract background padding
-  const padding = backgroundEffect ? (backgroundEffect.data as BackgroundEffectData).padding : 0;
+  // Extract background padding using type-safe getter
+  const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
+  const padding = backgroundData?.padding || 0;
   const videoPosition = calculateVideoPosition(width, height, videoWidth, videoHeight, padding);
 
   // Convert zoom effects to zoom blocks
   const zoomEnabled = zoomEffects.length > 0;
   const zoomBlocks: ZoomBlock[] = zoomEffects.map(effect => {
-    const data = effect.data as ZoomEffectData;
+    const data = EffectsFactory.getZoomData(effect) || { scale: 2, targetX: 0.5, targetY: 0.5, introMs: 300, outroMs: 300, smoothing: 0.1 };
     return {
       id: effect.id,
       startTime: effect.startTime,
@@ -188,7 +191,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
 
   // Compute cinematic scroll effects when enabled
   const cinematicScrollState = useMemo(() => {
-    const anno = (effects || []).find(e => e.type === 'annotation' && (e as any).data?.kind === 'scrollCinematic' && e.enabled)
+    const anno = (effects || []).find(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled)
     if (!anno || !scrollEvents || scrollEvents.length === 0) {
       scrollCalculatorRef.current = null;
       return null;
@@ -222,7 +225,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
       {backgroundEffect && (
         <Sequence from={0}>
           <BackgroundLayer
-            backgroundData={backgroundEffect.data as BackgroundEffectData}
+            backgroundData={EffectsFactory.getBackgroundData(backgroundEffect) || undefined}
             videoWidth={width}
             videoHeight={height}
           />
@@ -250,7 +253,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         <Sequence from={0}>
           <KeystrokeLayer
             keyboardEvents={keystrokeEvents}
-            settings={keystrokeEffect.data as KeystrokeEffectData}
+            settings={EffectsFactory.getKeystrokeData(keystrokeEffect) || undefined}
           />
         </Sequence>
       )}
@@ -272,7 +275,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             zoomState={completeZoomState}
             videoWidth={videoWidth}
             videoHeight={videoHeight}
-            cursorData={cursorEffect.data as CursorEffectData}
+            cursorData={EffectsFactory.getCursorData(cursorEffect) || undefined}
           />
         </Sequence>
       )}

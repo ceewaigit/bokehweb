@@ -1,6 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { ZoomBlock } from '@/types/project'
+import { EffectType } from '@/types/project'
 
 export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
   private originalBlock?: ZoomBlock
@@ -24,14 +25,14 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
   canExecute(): boolean {
     // Zoom effects are timeline-global
     const project = this.context.getProject()
-    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === EffectType.Zoom)
     return effect !== undefined
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
     const project = this.context.getProject()
-    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === EffectType.Zoom)
 
     if (!effect) {
       return {
@@ -115,7 +116,7 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
     const project = this.context.getProject()
 
     // Re-apply updates  
-    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === EffectType.Zoom)
 
     if (effect) {
       const zoomData = effect.data as any

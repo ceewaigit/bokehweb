@@ -15,6 +15,7 @@ import {
 } from '@/lib/commands'
 import { toast } from 'sonner'
 import { EffectLayerType } from '@/types/effects'
+import { EffectType } from '@/types'
 
 interface UseCommandKeyboardProps {
   enabled?: boolean
@@ -93,7 +94,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
         if (result.success) {
           if (result.data?.type === 'effect') {
             // Auto-select pasted effect in sidebar
-            if (result.data.effectType === 'zoom' && result.data.blockId) {
+            if (result.data.effectType === EffectType.Zoom && result.data.blockId) {
               useProjectStore.getState().selectEffectLayer(EffectLayerType.Zoom, result.data.blockId)
             }
             toast(`${result.data.effectType} block pasted`)

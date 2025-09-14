@@ -5,8 +5,9 @@ import { Camera, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect } from '@/types/project'
+import { ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
-import { EffectLayerType } from '@/types/effects'
+import { EffectLayerType, EffectType } from '@/types/effects'
 
 interface ScreenTabProps {
   selectedClip: Clip | null
@@ -30,11 +31,11 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
             if (!selectedClip) return
             const newEffect: Effect = {
               id: `screen-${Date.now()}`,
-              type: 'screen',
+              type: EffectType.Screen,
               startTime: selectedClip.startTime,
               endTime: selectedClip.startTime + selectedClip.duration,
               enabled: true,
-              data: { preset: 'subtle' }
+              data: { preset: ScreenEffectPreset.Subtle }
             }
             useProjectStore.getState().addEffect(newEffect)
           }}

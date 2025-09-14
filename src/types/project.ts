@@ -5,6 +5,53 @@
  * This file contains ONLY type definitions - no business logic
  */
 
+// Import and re-export EffectType for convenience
+import type { EffectType } from './effects'
+export { EffectType } from './effects'
+
+// Enums for various types
+export enum TrackType {
+  Video = 'video',
+  Audio = 'audio',
+  Annotation = 'annotation'
+}
+
+// Timeline display track types (includes effect lanes)
+export enum TimelineTrackType {
+  Video = 'video',
+  Audio = 'audio',
+  Zoom = 'zoom',
+  Keystroke = 'keystroke'
+}
+
+export enum TransitionType {
+  Fade = 'fade',
+  Dissolve = 'dissolve',
+  Wipe = 'wipe',
+  Slide = 'slide'
+}
+
+export enum RecordingSourceType {
+  Screen = 'screen',
+  Window = 'window',
+  Area = 'area'
+}
+
+export enum ExportFormat {
+  MP4 = 'mp4',
+  MOV = 'mov',
+  WEBM = 'webm',
+  GIF = 'gif'
+}
+
+export enum QualityLevel {
+  Low = 'low',
+  Medium = 'medium',
+  High = 'high',
+  Ultra = 'ultra',
+  Custom = 'custom'
+}
+
 export interface Project {
   version: string
   id: string
@@ -74,7 +121,7 @@ export interface CaptureArea {
   // Display scale factor for HiDPI screens
   scaleFactor: number
   // Source type for determining if cropping is needed
-  sourceType?: 'screen' | 'window'
+  sourceType?: RecordingSourceType
   // Source ID for the recording
   sourceId?: string
 }
@@ -145,7 +192,7 @@ export interface Timeline {
 export interface Track {
   id: string
   name: string
-  type: 'video' | 'audio' | 'annotation'
+  type: TrackType
   clips: Clip[]
   muted: boolean
   locked: boolean
@@ -166,16 +213,28 @@ export interface Clip {
   // Playback control
   playbackRate?: number // Speed multiplier (1.0 = normal, 2.0 = 2x speed, 0.5 = half speed)
   typingSpeedApplied?: boolean // Flag to indicate typing speed has been applied to this clip
+  
+  // Time remapping for variable speed (typing speed, etc)
+  timeRemapPeriods?: TimeRemapPeriod[]
 
   // Transitions
   transitionIn?: Transition
   transitionOut?: Transition
 }
 
+// Time remapping period for variable playback speed
+export interface TimeRemapPeriod {
+  // Source time range (in recording coordinates)
+  sourceStartTime: number
+  sourceEndTime: number
+  // Playback speed multiplier for this period
+  speedMultiplier: number
+}
+
 // New: Independent effect entity (timeline-global, not per-clip)
 export interface Effect {
   id: string
-  type: 'zoom' | 'cursor' | 'keystroke' | 'background' | 'annotation' | 'screen'
+  type: EffectType
   
   // Timing on timeline (absolute, not relative to any clip)
   startTime: number  // Start time on timeline (absolute)
@@ -203,6 +262,56 @@ export interface ZoomBlock {
   outroMs?: number  // Duration of zoom out animation
 }
 
+// Background type enum
+export enum BackgroundType {
+  None = 'none',
+  Color = 'color',
+  Gradient = 'gradient',
+  Image = 'image',
+  Wallpaper = 'wallpaper'
+}
+
+// Screen effect preset enum
+export enum ScreenEffectPreset {
+  Subtle = 'subtle',
+  Medium = 'medium',
+  Dramatic = 'dramatic',
+  Window = 'window',
+  Cinematic = 'cinematic',
+  Hero = 'hero',
+  Isometric = 'isometric',
+  Flat = 'flat',
+  TiltLeft = 'tilt-left',
+  TiltRight = 'tilt-right'
+}
+
+// Annotation type enum
+export enum AnnotationType {
+  Text = 'text',
+  Arrow = 'arrow',
+  Highlight = 'highlight',
+  Keyboard = 'keyboard'
+}
+
+// Cursor style enum
+export enum CursorStyle {
+  Default = 'default',
+  MacOS = 'macOS',
+  Custom = 'custom'
+}
+
+// Zoom follow strategy enum
+export enum ZoomFollowStrategy {
+  Mouse = 'mouse'
+}
+
+// Keystroke position enum
+export enum KeystrokePosition {
+  BottomCenter = 'bottom-center',
+  BottomRight = 'bottom-right',
+  TopCenter = 'top-center'
+}
+
 // New: Effect-specific data types for independent effects
 export interface ZoomEffectData {
   scale: number
@@ -212,13 +321,13 @@ export interface ZoomEffectData {
   outroMs: number
   smoothing: number
   // Follow strategy: mouse only
-  followStrategy?: 'mouse'
+  followStrategy?: ZoomFollowStrategy
   // Mouse idle threshold in pixels (physical) to consider idle within the velocity window
   mouseIdlePx?: number
 }
 
 export interface CursorEffectData {
-  style: 'default' | 'macOS' | 'custom'
+  style: CursorStyle
   size: number
   color: string
   clickEffects: boolean
@@ -228,7 +337,7 @@ export interface CursorEffectData {
 }
 
 export interface KeystrokeEffectData {
-  position?: 'bottom-center' | 'bottom-right' | 'top-center'
+  position?: KeystrokePosition
   fontSize?: number
   fontFamily?: string
   backgroundColor?: string
@@ -241,7 +350,7 @@ export interface KeystrokeEffectData {
 }
 
 export interface BackgroundEffectData {
-  type: 'none' | 'color' | 'gradient' | 'image' | 'wallpaper'
+  type: BackgroundType
   color?: string
   gradient?: {
     colors: string[]
@@ -255,20 +364,39 @@ export interface BackgroundEffectData {
   shadowIntensity?: number  // Shadow intensity 0-100
 }
 
+// Annotation style definition
+export interface AnnotationStyle {
+  color?: string
+  fontSize?: number
+  fontFamily?: string
+  fontWeight?: string | number
+  backgroundColor?: string
+  borderColor?: string
+  borderWidth?: number
+  borderRadius?: number
+  padding?: number | { top: number; right: number; bottom: number; left: number }
+  opacity?: number
+  strokeWidth?: number
+  arrowHeadSize?: number
+}
+
 export interface AnnotationData {
   type?: 'text' | 'arrow' | 'highlight' | 'keyboard'
   position?: { x: number; y: number }
   content?: string
-  style?: any
+  style?: AnnotationStyle
   // Optional discriminator for advanced behaviors (e.g., 'screen3d', 'scrollCinematic')
   kind?: string
-  // Generic payload to support custom annotation kinds
-  [key: string]: any
+  // Additional properties for specific annotation types
+  endPosition?: { x: number; y: number } // For arrows
+  width?: number // For highlights
+  height?: number // For highlights
+  keys?: string[] // For keyboard annotations
 }
 
 export interface Annotation {
   id: string
-  type: 'text' | 'arrow' | 'highlight' | 'keyboard'
+  type: AnnotationType
   startTime: number
   endTime: number
   position: { x: number; y: number }
@@ -276,7 +404,7 @@ export interface Annotation {
 }
 
 export interface Transition {
-  type: 'fade' | 'dissolve' | 'wipe' | 'slide'
+  type: TransitionType
   duration: number
   easing: string
 }
@@ -293,9 +421,9 @@ export interface ProjectSettings {
 export interface ExportPreset {
   id: string
   name: string
-  format: 'mp4' | 'webm' | 'gif' | 'mov'
+  format: ExportFormat
   codec: string
-  quality: 'low' | 'medium' | 'high' | 'ultra'
+  quality: QualityLevel
   resolution: {
     width: number
     height: number
@@ -308,7 +436,7 @@ export type ExportStatus = 'idle' | 'preparing' | 'exporting' | 'complete' | 'er
 
 export interface ScreenEffectData {
   // Simple preset selector; actual parameters derived by renderer
-  preset: 'subtle' | 'medium' | 'dramatic' | 'window' | 'cinematic' | 'hero' | 'isometric' | 'flat' | 'tilt-left' | 'tilt-right'
+  preset: ScreenEffectPreset
   // Optional fine-tune overrides
   tiltX?: number
   tiltY?: number

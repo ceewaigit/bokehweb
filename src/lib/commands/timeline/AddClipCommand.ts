@@ -1,6 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext, hasClipOverlap, findNextValidPosition, calculateTimelineDuration } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
+import { TrackType } from '@/types/project'
 
 export class AddClipCommand extends Command<{ clipId: string }> {
   private clip?: Clip
@@ -69,7 +70,7 @@ export class AddClipCommand extends Command<{ clipId: string }> {
       }
     }
 
-    const videoTrack = project.timeline.tracks.find(t => t.type === 'video')
+    const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
     if (!videoTrack) {
       return {
         success: false,

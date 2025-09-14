@@ -5,6 +5,7 @@
 
 import type { RecordingSettings } from '@/types'
 import type { ElectronRecordingResult, ElectronMetadata } from '@/types/recording'
+import { RecordingSourceType } from '@/types'
 import { logger } from '@/lib/utils/logger'
 import { PermissionError, ElectronError } from '@/lib/core/errors'
 
@@ -134,7 +135,7 @@ export class ElectronRecorder {
             fullBounds: bounds,
             workArea: bounds,
             scaleFactor,
-            sourceType: primarySource.id.startsWith('screen:') ? 'screen' : 'window',
+            sourceType: primarySource.id.startsWith('screen:') ? RecordingSourceType.Screen : RecordingSourceType.Window,
             sourceId: primarySource.id
           }
           // Store capture dimensions in PHYSICAL PIXELS for consistency

@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
 import type { BackgroundLayerProps } from './types';
+import { BackgroundType } from '@/types/project';
 
 export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   backgroundData,
@@ -14,7 +15,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   let backgroundStyle: React.CSSProperties = {};
 
   switch (backgroundData.type) {
-    case 'wallpaper':
+    case BackgroundType.Wallpaper:
       // Wallpaper type must render gradient (wallpaper is optional enhancement)
       if (backgroundData.gradient?.colors?.length) {
         const { colors, angle = 135 } = backgroundData.gradient;
@@ -39,13 +40,13 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       }
       break;
 
-    case 'color':
+    case BackgroundType.Color:
       backgroundStyle = {
         backgroundColor: backgroundData.color || '#000000'
       };
       break;
 
-    case 'gradient':
+    case BackgroundType.Gradient:
       if (!backgroundData.gradient?.colors?.length) return null;
       const { colors, angle = 135 } = backgroundData.gradient;
       const gradientColors = colors.map((color, index) => {
@@ -57,7 +58,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       };
       break;
 
-    case 'image':
+    case BackgroundType.Image:
       if (!backgroundData.image) return null;
       backgroundStyle = {
         backgroundImage: `url(${backgroundData.image})`,
@@ -66,7 +67,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
       };
       break;
 
-    case 'none':
+    case BackgroundType.None:
       return null;
 
     default:
@@ -74,7 +75,7 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   }
 
   // Apply blur for image-based backgrounds
-  if (backgroundData.blur && backgroundData.blur > 0 && (backgroundData.type === 'wallpaper' || backgroundData.type === 'image')) {
+  if (backgroundData.blur && backgroundData.blur > 0 && (backgroundData.type === BackgroundType.Wallpaper || backgroundData.type === BackgroundType.Image)) {
     backgroundStyle.filter = `blur(${backgroundData.blur}px)`;
   }
 

@@ -5,11 +5,12 @@ import { MousePointer } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { CursorEffectData, Effect } from '@/types/project'
+import { EffectType, CursorStyle } from '@/types'
 
 interface CursorTabProps {
   cursorEffect: Effect | undefined
   onUpdateCursor: (updates: any) => void
-  onEffectChange: (type: 'cursor', data: any) => void
+  onEffectChange: (type: EffectType, data: any) => void
 }
 
 export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: CursorTabProps) {
@@ -30,10 +31,10 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             checked={cursorEffect?.enabled ?? false}
             onCheckedChange={(checked) => {
               if (cursorEffect) {
-                onEffectChange('cursor', { ...cursorData, enabled: checked })
+                onEffectChange(EffectType.Cursor, { ...cursorData, enabled: checked })
               } else {
-                onEffectChange('cursor', {
-                  style: 'default',
+                onEffectChange(EffectType.Cursor, {
+                  style: CursorStyle.Default,
                   size: 3.0,
                   color: '#ffffff',
                   clickEffects: true,

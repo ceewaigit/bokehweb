@@ -5,31 +5,76 @@ export interface RecordingState {
   status: 'idle' | 'preparing' | 'recording' | 'paused' | 'processing'
 }
 
+export enum RecordingArea {
+  Fullscreen = 'fullscreen',
+  Window = 'window',
+  Region = 'region'
+}
+
+export enum AudioInput {
+  System = 'system',
+  Microphone = 'microphone',
+  Both = 'both',
+  None = 'none'
+}
+
 export interface RecordingSettings {
-  area: 'fullscreen' | 'window' | 'region'
-  audioInput: 'system' | 'microphone' | 'both' | 'none'
-  quality: 'high' | 'medium' | 'low'
+  area: RecordingArea
+  audioInput: AudioInput
+  quality: import('./project').QualityLevel
   framerate: 30 | 60
-  format: 'mp4' | 'mov' | 'webm'
+  format: import('./project').ExportFormat
   sourceId?: string // Specific source ID to record
 }
 
-// Re-export from project.ts to avoid duplication
+// Re-export from project.ts
 export type {
   Project,
   Recording,
+  RecordingMetadata,
+  Clip,
   Clip as TimelineClip,
   ProjectSettings,
   KeyboardEvent,
   MouseEvent,
   ClickEvent,
+  ScrollEvent,
+  ScreenEvent,
   Timeline,
   Track,
+  Effect,
   Annotation,
   Transition,
   ExportPreset,
-  ZoomBlock
+  ZoomBlock,
+  ZoomEffectData,
+  CursorEffectData,
+  KeystrokeEffectData,
+  BackgroundEffectData,
+  AnnotationData,
+  ScreenEffectData,
+  CaptureArea,
+  TimeRemapPeriod
 } from './project'
+
+// Re-export enums
+export {
+  TrackType,
+  TimelineTrackType,
+  TransitionType,
+  RecordingSourceType,
+  ExportFormat,
+  QualityLevel,
+  BackgroundType,
+  ScreenEffectPreset,
+  AnnotationType,
+  CursorStyle,
+  ZoomFollowStrategy,
+  KeystrokePosition
+} from './project'
+
+// Re-export effect types
+export { EffectType } from './effects'
 
 // Keyframe interface for animations
 export interface KeyframeData {
@@ -38,11 +83,5 @@ export interface KeyframeData {
   easing?: 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out'
 }
 
-export interface ExportSettings {
-  format: 'mp4' | 'mov' | 'gif' | 'webm'
-  quality: 'low' | 'medium' | 'high' | 'ultra' | 'custom'
-  resolution: { width: number; height: number }
-  framerate: number
-  bitrate?: number
-  outputPath: string
-}
+// Export settings from separate file
+export type { ExportSettings } from './export'

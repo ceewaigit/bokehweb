@@ -1,45 +1,6 @@
-import type { Project, Clip, Track, Recording } from '@/types/project'
+import type { Project, Clip, Track, Recording, Effect } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
-
-// Define ProjectStore interface locally to avoid circular dependency
-interface ProjectStore {
-  currentProject: Project | null
-  currentTime: number
-  selectedClips: string[]
-  selectedEffectLayer: SelectedEffectLayer
-  clipboard: {
-    clip?: Clip
-    effect?: { type: 'zoom' | 'cursor' | 'background'; data: any; sourceClipId: string }
-  }
-  
-  // Store methods used by commands
-  addClip: (clip: Clip | string, startTime?: number) => void
-  removeClip: (clipId: string) => void
-  updateClip: (clipId: string, updates: Partial<Clip>, options?: { exact?: boolean }) => void
-  // New restore API to reinsert a clip at a specific track/index
-  restoreClip: (trackId: string, clip: Clip, index: number) => void
-  selectClip: (clipId: string | null, multi?: boolean) => void
-  splitClip: (clipId: string, splitTime: number) => void
-  trimClipStart: (clipId: string, newStartTime: number) => void
-  trimClipEnd: (clipId: string, newEndTime: number) => void
-  duplicateClip: (clipId: string) => string | null
-  copyClip: (clip: Clip) => void
-  copyEffect: (type: 'zoom' | 'cursor' | 'background', data: any, sourceClipId: string) => void
-  clearClipboard: () => void
-  
-  // Effects Management (timeline-global)
-  addEffect: (effect: import('@/types/project').Effect) => void
-  removeEffect: (effectId: string) => void
-  updateEffect: (effectId: string, updates: Partial<import('@/types/project').Effect>) => void
-  getEffectsAtTimeRange: (clipId: string) => import('@/types/project').Effect[]
-  
-  // Typing Speed
-  applyTypingSpeedToClip: (clipId: string, periods: Array<{
-    startTime: number
-    endTime: number
-    suggestedSpeedMultiplier: number
-  }>) => { affectedClips: string[]; originalClips: Clip[] }
-}
+import type { ProjectStore, ClipboardEffect } from '@/types/stores'
 
 export interface CommandContext {
   getProject(): Project | null
@@ -48,7 +9,7 @@ export interface CommandContext {
   getSelectedEffectLayer(): SelectedEffectLayer
   getClipboard(): {
     clip?: Clip
-    effect?: { type: 'zoom' | 'cursor' | 'background'; data: any; sourceClipId: string }
+    effect?: ClipboardEffect
   }
   
   findClip(clipId: string): { clip: Clip; track: Track } | null

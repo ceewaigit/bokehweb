@@ -3,6 +3,7 @@ import { ExportEngine, type ExportProgress } from '@/lib/export'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import type { ExportSettings, Project } from '@/types'
+import { ExportFormat, QualityLevel } from '@/types'
 
 interface ExportStore {
   engine: ExportEngine | null
@@ -24,8 +25,8 @@ interface ExportStore {
 }
 
 const defaultSettings: ExportSettings = {
-  format: 'mp4',
-  quality: 'high',
+  format: ExportFormat.MP4,
+  quality: QualityLevel.High,
   resolution: { width: 1920, height: 1080 },
   framerate: 60,
   outputPath: ''
@@ -65,21 +66,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
       set({ isExporting: true, progress: null, lastExport: null })
 
       try {
-        // Get the first video clip from all tracks
-        const videoClip = project.timeline.tracks
-          .filter(track => track.type === 'video')
-          .flatMap(track => track.clips)[0]
-
-        if (!videoClip) {
-          throw new Error('No video clips found in project')
-        }
-
-        // Check if we should use effects export by checking for metadata
-        const metadata = typeof window !== 'undefined' ?
-          RecordingStorage.getMetadata(videoClip.recordingId) : null
-        const hasMetadata = !!metadata
-
-        // Use unified export engine
+        // Use the new unified export engine that handles everything
         const engine = getEngine()
 
         const blob = await engine.exportProject(
@@ -125,7 +112,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
         // Export as GIF by changing the format
         const gifSettings = {
           ...exportSettings,
-          format: 'gif' as const,
+          format: ExportFormat.GIF,
           framerate: 10
         }
 
@@ -183,32 +170,32 @@ export const useExportStore = create<ExportStore>((set, get) => {
       // Define preset settings
       const presets: Record<string, Partial<ExportSettings>> = {
         'youtube-1080p': {
-          format: 'mp4',
-          quality: 'high',
+          format: ExportFormat.MP4,
+          quality: QualityLevel.High,
           resolution: { width: 1920, height: 1080 },
           framerate: 60
         },
         'youtube-720p': {
-          format: 'mp4',
-          quality: 'medium',
+          format: ExportFormat.MP4,
+          quality: QualityLevel.Medium,
           resolution: { width: 1280, height: 720 },
           framerate: 60
         },
         'twitter': {
-          format: 'mp4',
-          quality: 'medium',
+          format: ExportFormat.MP4,
+          quality: QualityLevel.Medium,
           resolution: { width: 1280, height: 720 },
           framerate: 30
         },
         'instagram': {
-          format: 'mp4',
-          quality: 'medium',
+          format: ExportFormat.MP4,
+          quality: QualityLevel.Medium,
           resolution: { width: 1080, height: 1080 },
           framerate: 30
         },
         'gif': {
-          format: 'gif',
-          quality: 'low',
+          format: ExportFormat.GIF,
+          quality: QualityLevel.Low,
           resolution: { width: 640, height: 360 },
           framerate: 10
         }

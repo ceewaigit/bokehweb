@@ -1,5 +1,6 @@
 import { ipcMain, screen, IpcMainInvokeEvent, WebContents } from 'electron'
 import { initializeCursorDetector } from '../utils/cursor-detector'
+import type { MouseTrackingOptions } from '../../types/electron-shared'
 // Simple logger for production
 const logger = {
   debug: (msg: string, ...args: any[]) => process.env.NODE_ENV === 'development' && console.log(msg, ...args),
@@ -27,9 +28,8 @@ let uiohookStarted = false
 let isMouseDown = false
 let lastClickPosition = { x: 0, y: 0 }
 
-
-interface MouseTrackingOptions {
-  intervalMs?: number
+// Extend the imported MouseTrackingOptions for local needs
+interface ExtendedMouseTrackingOptions extends MouseTrackingOptions {
   sourceType?: 'screen' | 'window'
   sourceId?: string
 }

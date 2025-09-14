@@ -9,28 +9,30 @@ import { cn, formatTime } from '@/lib/utils'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { getVideoDuration } from '@/lib/utils/video-metadata'
-import { type Project, type Recording as ProjectRecording } from '@/types'
-
-interface LibraryRecording {
-  name: string
-  path: string
-  timestamp: Date
-  project?: Project
-  size?: number
-  thumbnailUrl?: string
-}
+import { type Recording as ProjectRecording, type Project } from '@/types'
+import { useRecordingsLibraryStore, type LibraryRecording } from '@/stores/recordings-library-store'
 
 interface RecordingsLibraryProps {
   onSelectRecording: (recording: LibraryRecording) => void | Promise<void>
 }
 
 export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps) {
-  const [allRecordings, setAllRecordings] = useState<LibraryRecording[]>([])
-  const [recordings, setRecordings] = useState<LibraryRecording[]>([])
+  // Use store for persistent state
+  const {
+    recordings,
+    allRecordings,
+    currentPage,
+    isHydrated,
+    setRecordings,
+    setAllRecordings,
+    setCurrentPage,
+    updateRecording,
+    setHydrated
+  } = useRecordingsLibraryStore()
+  
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [isPageHydrating, setIsPageHydrating] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
   const PAGE_SIZE = 24
 
   const generateThumbnail = useCallback(async (recording: LibraryRecording, videoPath: string) => {
@@ -56,24 +58,14 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     const start = (normalizedPage - 1) * PAGE_SIZE
     const end = Math.min(list.length, start + PAGE_SIZE)
 
-    const pageItems = list.slice(start, end).map(item => ({
-      ...item,
-      project: undefined,
-      thumbnailUrl: undefined
-    }))
+    const pageItems = list.slice(start, end)
 
     setRecordings(pageItems)
     setIsPageHydrating(true)
 
-    // Helper to update a single item by path
+    // Helper to update a single item by path - now uses store
     const updateItemByPath = (path: string, updated: Partial<LibraryRecording>) => {
-      setRecordings(prev => {
-        const idx = prev.findIndex(r => r.path === path)
-        if (idx === -1) return prev
-        const next = [...prev]
-        next[idx] = { ...next[idx], ...updated }
-        return next
-      })
+      updateRecording(path, updated)
     }
 
     const processItem = async (item: LibraryRecording) => {
@@ -115,25 +107,16 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   if (videoUrl) {
                     const videoDuration = await getVideoDuration(videoUrl)
                     if (videoDuration > 0) {
-                      // Update project duration values
-                      setRecordings(prev => {
-                        const idx = prev.findIndex(r => r.path === item.path)
-                        if (idx === -1) return prev
-                        const cloned = [...prev]
-                        const updated = { ...cloned[idx] }
-                        if (updated.project) {
-                          updated.project = { ...updated.project }
-                          updated.project.recordings = [...updated.project.recordings]
-                          updated.project.recordings[0] = { ...updated.project.recordings[0] as ProjectRecording, duration: videoDuration }
-                          if (!updated.project.timeline) {
-                            updated.project.timeline = { tracks: [], duration: videoDuration, effects: [] }
-                          } else {
-                            updated.project.timeline = { ...updated.project.timeline, duration: videoDuration }
-                          }
-                        }
-                        cloned[idx] = updated
-                        return cloned
-                      })
+                      // Update project duration values using store
+                      const updatedProject = { ...item.project! }
+                      updatedProject.recordings = [...updatedProject.recordings]
+                      updatedProject.recordings[0] = { ...updatedProject.recordings[0] as ProjectRecording, duration: videoDuration }
+                      if (!updatedProject.timeline) {
+                        updatedProject.timeline = { tracks: [], duration: videoDuration, effects: [] }
+                      } else {
+                        updatedProject.timeline = { ...updatedProject.timeline, duration: videoDuration }
+                      }
+                      updateRecording(item.path, { project: updatedProject })
                     }
                   }
                 } catch (e) {
@@ -168,7 +151,12 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     setIsPageHydrating(false)
   }, [allRecordings, generateThumbnail])
 
-  const loadRecordings = async () => {
+  const loadRecordings = async (forceReload = false) => {
+    // Skip if already loaded and not forcing reload
+    if (isHydrated && !forceReload && allRecordings.length > 0) {
+      return
+    }
+    
     try {
       setLoading(true)
       if (window.electronAPI?.loadRecordings) {
@@ -201,8 +189,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
         uniqueRecordings.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
         setAllRecordings(uniqueRecordings)
+        setHydrated(true)
 
-        // Load first page and hydrate only that page
+        // Load first page
         await loadPage(1, uniqueRecordings)
       }
     } catch (error) {
@@ -213,21 +202,18 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   }
 
   useEffect(() => {
-    loadRecordings()
-    // Hide record button when library is shown (main window visible)
-    if (window.electronAPI?.minimizeRecordButton) {
-      window.electronAPI.minimizeRecordButton()
+    // Load recordings or restore current page
+    if (!isHydrated) {
+      loadRecordings()
+    } else if (allRecordings.length > 0) {
+      loadPage(currentPage, allRecordings)
     }
+    
+    // Hide record button when library is shown
+    window.electronAPI?.minimizeRecordButton?.()
   }, [])
 
-  // Cleanup on unmount
-  // Removed to keep thumbnail cache across navigation and reduce reloads
-  // useEffect(() => {
-  //   return () => {
-  //     ThumbnailGenerator.clearCache()
-  //     globalBlobManager.cleanupByType('thumbnail')
-  //   }
-  // }, [])
+  // No cleanup on unmount - keep cache for fast navigation
 
   const totalPages = Math.max(1, Math.ceil(allRecordings.length / PAGE_SIZE))
   const canPrev = currentPage > 1
@@ -485,7 +471,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   size="sm"
                   variant="outline"
                   className="h-7 px-3 text-[11px] font-medium"
-                  onClick={loadRecordings}
+                  onClick={() => loadRecordings(true)}
                   title="Refresh Library"
                 >
                   <RefreshCw className="w-3 h-3 mr-1.5" />
@@ -510,7 +496,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         <div className="p-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-3">
             <AnimatePresence mode="popLayout">
-              {recordings.map((recording, index) => {
+              {recordings.map((recording: LibraryRecording, index: number) => {
                 const isHovered = hoveredIndex === index
 
                 return (

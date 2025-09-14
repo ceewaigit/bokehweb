@@ -2,6 +2,8 @@
  * Recording-related type definitions
  */
 
+import { RecordingSourceType } from './project'
+
 export interface ElectronMetadata {
   timestamp: number
   mouseX?: number  // Optional for keyboard events, in physical pixels
@@ -17,7 +19,7 @@ export interface ElectronMetadata {
   scaleFactor?: number
   cursorType?: string
   sourceBounds?: { x: number; y: number; width: number; height: number }
-  sourceType?: 'screen' | 'window' | 'area'
+  sourceType?: RecordingSourceType
   // Debugging fields - logical coordinates before scaling
   logicalX?: number
   logicalY?: number
@@ -32,7 +34,7 @@ export interface ElectronRecordingResult {
     fullBounds: { x: number; y: number; width: number; height: number }
     workArea: { x: number; y: number; width: number; height: number }
     scaleFactor: number
-    sourceType?: 'screen' | 'window'
+    sourceType?: RecordingSourceType
     sourceId?: string
   }
 }

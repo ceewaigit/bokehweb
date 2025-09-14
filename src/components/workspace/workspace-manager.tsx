@@ -17,10 +17,12 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
+import { EffectType, BackgroundType } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
 import { TimeConverter } from '@/lib/timeline/time-converter'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -135,16 +137,19 @@ async function loadProjectRecording(
   }
 
   // Ensure global background and cursor effects exist
-  const hasGlobalBackground = project.timeline.effects.some((e: any) => e.type === 'background')
-  const hasGlobalCursor = project.timeline.effects.some((e: any) => e.type === 'cursor')
+  const hasGlobalBackground = !!EffectsFactory.getBackgroundEffect(project.timeline.effects)
+  const hasGlobalCursor = !!EffectsFactory.getCursorEffect(project.timeline.effects)
 
   // Update existing background effect with wallpaper if needed
-  const existingBg = project.timeline.effects.find((e: any) => e.type === 'background')
-  if (existingBg && existingBg.data?.type === 'wallpaper' && !existingBg.data?.wallpaper) {
-    const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
-    const defaultWallpaper = getDefaultWallpaper()
-    if (defaultWallpaper) {
-      existingBg.data.wallpaper = defaultWallpaper
+  const existingBg = EffectsFactory.getBackgroundEffect(project.timeline.effects)
+  if (existingBg) {
+    const bgData = EffectsFactory.getBackgroundData(existingBg)
+    if (bgData && bgData.type === BackgroundType.Wallpaper && !bgData.wallpaper) {
+      const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
+      const defaultWallpaper = getDefaultWallpaper()
+      if (defaultWallpaper) {
+        bgData.wallpaper = defaultWallpaper
+      }
     }
   }
 
@@ -158,7 +163,7 @@ async function loadProjectRecording(
       startTime: 0,
       endTime: Number.MAX_SAFE_INTEGER,
       data: {
-        type: 'wallpaper',
+        type: BackgroundType.Wallpaper,
         gradient: {
           colors: ['#2D3748', '#1A202C'],
           angle: 135
@@ -403,30 +408,30 @@ export function WorkspaceManager() {
     selectClip(clipId)
   }, [selectClip])
 
-  const handleEffectChange = useCallback((type: 'zoom' | 'cursor' | 'background' | 'keystroke' | 'annotation' | 'screen', data: any) => {
+  const handleEffectChange = useCallback((type: EffectType, data: any) => {
     // Always operate on the full effect list for correctness
     const baseEffects = localEffects || currentProject?.timeline.effects || []
 
     let newEffects: Effect[]
 
     // Zoom-specific handling
-    if (type === 'zoom' && (data.enabled !== undefined || data.regenerate)) {
+    if (type === EffectType.Zoom && (data.enabled !== undefined || data.regenerate)) {
       // Global zoom operations regardless of selection
       if (data.enabled !== undefined) {
         newEffects = baseEffects.map(effect => (
-          effect.type === 'zoom' ? { ...effect, enabled: data.enabled } : effect
+          effect.type === EffectType.Zoom ? { ...effect, enabled: data.enabled } : effect
         ))
 
         // Also update store so timeline reflects the state immediately
         baseEffects.forEach(effect => {
-          if (effect.type === 'zoom') {
+          if (effect.type === EffectType.Zoom) {
             updateEffect(effect.id, { enabled: data.enabled })
           }
         })
       } else {
         newEffects = [...baseEffects]
       }
-    } else if (type === 'zoom' && selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id) {
+    } else if (type === EffectType.Zoom && selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id) {
       // Update a specific zoom block
       const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {
@@ -441,9 +446,9 @@ export function WorkspaceManager() {
       } else {
         return
       }
-    } else if (type === 'zoom') {
+    } else if (type === EffectType.Zoom) {
       newEffects = [...baseEffects]
-    } else if (type === 'screen' && selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id) {
+    } else if (type === EffectType.Screen && selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id) {
       // Update a specific screen block
       const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {
@@ -458,11 +463,11 @@ export function WorkspaceManager() {
       } else {
         return
       }
-    } else if (type === 'annotation') {
+    } else if (type === EffectType.Annotation) {
       // Screen effects and cinematic scroll as annotations
       const kind = data?.kind
       if (!kind) return
-      const existsIndex = baseEffects.findIndex(e => e.type === 'annotation' && (e as any).data?.kind === kind)
+      const existsIndex = baseEffects.findIndex(e => e.type === EffectType.Annotation && (e as any).data?.kind === kind)
       let newEffectsArr = [...baseEffects]
       if (existsIndex >= 0) {
         const prev = newEffectsArr[existsIndex]
@@ -476,7 +481,7 @@ export function WorkspaceManager() {
         const endTime = clip ? clip.startTime + clip.duration : (currentProject?.timeline.duration || Number.MAX_SAFE_INTEGER)
         const newEffect: Effect = {
           id: `anno-${kind}-${Date.now()}`,
-          type: 'annotation',
+          type: EffectType.Annotation,
           startTime,
           endTime,
           enabled: data.enabled !== undefined ? data.enabled : true,
@@ -506,7 +511,7 @@ export function WorkspaceManager() {
         const { enabled: dataEnabled, ...effectData } = data
         const newEffect: Effect = {
           id: `${type}-global-${Date.now()}`,
-          type,
+          type: type as EffectType,
           startTime: 0,
           endTime: Number.MAX_SAFE_INTEGER,
           data: effectData,

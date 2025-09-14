@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { BackgroundEffectData, Effect } from '@/types/project'
+import { BackgroundType } from '@/types/project'
 import { GRADIENT_PRESETS, COLOR_PRESETS } from './constants'
 
 interface BackgroundTabProps {
@@ -107,7 +108,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                           const dataUrl = await window.electronAPI?.loadWallpaperImage?.(wallpaper.path)
                           if (dataUrl) {
                             onUpdateBackground({
-                              type: 'wallpaper',
+                              type: BackgroundType.Wallpaper,
                               wallpaper: dataUrl
                             })
                           }
@@ -187,7 +188,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             <div className="flex gap-2 items-center p-3 bg-background/30 rounded-lg">
               <input
                 type="color"
-                value={bgData?.type === 'color' ? (bgData?.color || '#000000') : '#000000'}
+                value={bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000'}
                 onChange={(e) => {
                   onUpdateBackground({
                     type: 'color',
@@ -195,11 +196,11 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   })
                 }}
                 className="w-12 h-12 rounded-md cursor-pointer border-0 bg-transparent"
-                style={{ backgroundColor: bgData?.type === 'color' ? (bgData?.color || '#000000') : '#000000' }}
+                style={{ backgroundColor: bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000' }}
               />
               <input
                 type="text"
-                value={bgData?.type === 'color' ? (bgData?.color || '#000000') : '#000000'}
+                value={bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000'}
                 onChange={(e) => {
                   const value = e.target.value;
                   if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
@@ -238,7 +239,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   }}
                   className={cn(
                     "aspect-square rounded-md transition-all hover:scale-110",
-                    bgData?.type === 'color' && bgData?.color?.toUpperCase() === color.toUpperCase()
+                    bgData?.type === BackgroundType.Color && bgData?.color?.toUpperCase() === color.toUpperCase()
                       ? "ring-2 ring-primary shadow-lg"
                       : "ring-1 ring-border/30 hover:ring-border/50"
                   )}

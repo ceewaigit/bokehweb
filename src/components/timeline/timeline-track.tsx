@@ -2,9 +2,10 @@ import React from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { useTimelineColors } from '@/lib/timeline/colors'
+import { TimelineTrackType } from '@/types/project'
 
 interface TimelineTrackProps {
-  type: 'video' | 'zoom' | 'keystroke' | 'audio'
+  type: TimelineTrackType
   y: number
   width: number
   height: number
@@ -16,28 +17,28 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
   
   const getTrackStyle = () => {
     switch (type) {
-      case 'video':
+      case TimelineTrackType.Video:
         return { 
           bgFill: colors.background, 
           bgOpacity: 0.5, 
           labelText: 'V', 
           labelColor: colors.mutedForeground
         }
-      case 'zoom':
+      case TimelineTrackType.Zoom:
         return { 
           bgFill: colors.muted, 
           bgOpacity: 0.05, 
           labelText: 'Z', 
           labelColor: colors.info
         }
-      case 'keystroke':
+      case TimelineTrackType.Keystroke:
         return { 
           bgFill: colors.muted, 
           bgOpacity: 0.05, 
           labelText: 'K', 
           labelColor: colors.warning
         }
-      case 'audio':
+      case TimelineTrackType.Audio:
         return { 
           bgFill: colors.background, 
           bgOpacity: 0.3, 

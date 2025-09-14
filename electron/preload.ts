@@ -1,57 +1,13 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
-
-interface DesktopSourceOptions {
-  types?: string[]
-  thumbnailSize?: { width: number; height: number }
-}
-
-interface DesktopSource {
-  id: string
-  name: string
-  display_id?: number
-  thumbnail?: string
-}
-
-interface MousePosition {
-  x: number
-  y: number
-  timestamp?: number
-}
-
-interface MouseTrackingOptions {
-  intervalMs?: number
-}
-
-interface MessageBoxOptions {
-  type?: 'none' | 'info' | 'error' | 'question' | 'warning'
-  buttons?: string[]
-  defaultId?: number
-  title?: string
-  message: string
-  detail?: string
-  checkboxLabel?: string
-  checkboxChecked?: boolean
-  cancelId?: number
-}
-
-interface SaveDialogOptions {
-  title?: string
-  defaultPath?: string
-  buttonLabel?: string
-  filters?: Array<{ name: string; extensions: string[] }>
-  message?: string
-  nameFieldLabel?: string
-  showsTagField?: boolean
-}
-
-interface OpenDialogOptions {
-  title?: string
-  defaultPath?: string
-  buttonLabel?: string
-  filters?: Array<{ name: string; extensions: string[] }>
-  properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory'>
-  message?: string
-}
+import type { 
+  DesktopSourceOptions, 
+  DesktopSource, 
+  MousePosition, 
+  MouseTrackingOptions,
+  MessageBoxOptions,
+  SaveDialogOptions,
+  OpenDialogOptions
+} from './types/electron-shared'
 
 const electronAPI = {
   // Desktop capture - properly use IPC with error handling

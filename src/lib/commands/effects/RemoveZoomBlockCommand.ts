@@ -1,6 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Effect } from '@/types/project'
+import { EffectType } from '@/types/project'
 
 export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
   private effect?: Effect
@@ -21,13 +22,13 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
   canExecute(): boolean {
     // Zoom effects are timeline-global, check project effects directly
     const project = this.context.getProject()
-    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === EffectType.Zoom)
     return effect !== undefined
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
     const project = this.context.getProject()
-    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === 'zoom')
+    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === EffectType.Zoom)
     
     if (!effect) {
       return {

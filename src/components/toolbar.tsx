@@ -15,7 +15,7 @@ import {
   Library
 } from 'lucide-react'
 import { Button } from './ui/button'
-import { useRecordingStore } from '@/stores/recording-store'
+import { useRecordingSessionStore } from '@/stores/recording-session-store'
 import { cn, formatTime } from '@/lib/utils'
 import type { Project } from '@/types/project'
 import { useTheme } from '@/contexts/theme-context'
@@ -51,7 +51,7 @@ export function Toolbar({
     isRecording,
     duration,
     status
-  } = useRecordingStore()
+  } = useRecordingSessionStore()
 
   const { theme, setTheme } = useTheme()
   const [propertiesOpen, setPropertiesOpen] = useState(true)

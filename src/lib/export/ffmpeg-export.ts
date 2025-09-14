@@ -5,8 +5,8 @@
 
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
-import type { Project, Clip } from '@/types/project'
-import type { ExportSettings } from '@/types'
+import type { Project, Clip, ExportSettings, Effect } from '@/types'
+import { ExportFormat, EffectType } from '@/types'
 import type { ExportProgress } from './export-engine'
 import { interpolateMousePositionNormalized } from '@/lib/effects/utils/mouse-interpolation'
 
@@ -34,7 +34,8 @@ export class FFmpegExportEngine {
     settings: ExportSettings,
     onProgress?: (progress: ExportProgress) => void,
     captureArea?: { x: number; y: number; width: number; height: number },
-    mouseEvents?: Array<{ timestamp: number; mouseX: number; mouseY: number; captureWidth?: number; captureHeight?: number }>
+    mouseEvents?: Array<{ timestamp: number; mouseX: number; mouseY: number; captureWidth?: number; captureHeight?: number }>,
+    effects?: Effect[]
   ): Promise<Blob> {
     try {
       onProgress?.({
@@ -70,14 +71,20 @@ export class FFmpegExportEngine {
         filters.push(`crop=${captureArea.width}:${captureArea.height}:${captureArea.x}:${captureArea.y}`)
       }
 
-      // Apply zoom effect if enabled
-      const zoomEffects = (settings as any).zoomEffects || []
-      if (zoomEffects.length > 0) {
-        const firstBlock = zoomEffects[0]
-        if (firstBlock) {
-          const scale = firstBlock.scale || 2
+      // Apply zoom effect if present in effects array
+      if (effects && effects.length > 0) {
+        const zoomEffect = effects.find(e => 
+          e.type === EffectType.Zoom && 
+          e.enabled &&
+          e.startTime <= clip.startTime + clip.duration &&
+          e.endTime >= clip.startTime
+        )
+        
+        if (zoomEffect) {
+          const zoomData = zoomEffect.data as any
+          const scale = zoomData.scale || 2
 
-          // Use shared interpolation for normalized mouse position at block start
+          // Use shared interpolation for normalized mouse position
           let nx = 0.5
           let ny = 0.5
           if (mouseEvents && mouseEvents.length > 0) {
@@ -91,7 +98,7 @@ export class FFmpegExportEngine {
                 captureWidth: e.captureWidth,
                 captureHeight: e.captureHeight
               })) as any,
-              firstBlock.startTime
+              zoomEffect.startTime
             )
             if (normalized) {
               nx = normalized.x
@@ -122,13 +129,14 @@ export class FFmpegExportEngine {
       let codecOptions = ''
 
       switch (settings.format) {
-        case 'mp4':
+        case ExportFormat.MP4:
+        case ExportFormat.MOV:
           codecOptions = '-c:v libx264 -preset fast -crf 22 -c:a aac -b:a 128k'
           break
-        case 'webm':
+        case ExportFormat.WEBM:
           codecOptions = '-c:v libvpx-vp9 -crf 30 -b:v 0 -c:a libopus -b:a 128k'
           break
-        case 'gif':
+        case ExportFormat.GIF:
           codecOptions = ''
           filters.unshift('fps=10,scale=480:-1:flags=lanczos')
           break
@@ -155,7 +163,7 @@ export class FFmpegExportEngine {
 
       const data = await this.ffmpeg.readFile(outputName)
       const outputBlob = new Blob([data as BlobPart], {
-        type: `video/${settings.format === 'gif' ? 'gif' : settings.format}`
+        type: `video/${settings.format === ExportFormat.GIF ? 'gif' : settings.format}`
       })
 
       onProgress?.({
@@ -173,5 +181,42 @@ export class FFmpegExportEngine {
       })
       throw error
     }
+  }
+
+  /**
+   * Concatenate multiple video blobs into one
+   */
+  async concatenateBlobs(
+    blobs: Blob[],
+    settings: ExportSettings
+  ): Promise<Blob> {
+    await this.loadFFmpeg()
+    if (!this.ffmpeg) throw new Error('FFmpeg not loaded')
+
+    // Write all segments to FFmpeg filesystem
+    const fileList: string[] = []
+    for (let i = 0; i < blobs.length; i++) {
+      const filename = `segment${i}.webm`
+      await this.ffmpeg.writeFile(filename, await fetchFile(blobs[i]))
+      fileList.push(`file '${filename}'`)
+    }
+
+    // Create concat list
+    await this.ffmpeg.writeFile('concat.txt', fileList.join('\n'))
+
+    // Concatenate using FFmpeg
+    const outputName = `output.${settings.format}`
+    await this.ffmpeg.exec([
+      '-f', 'concat',
+      '-safe', '0',
+      '-i', 'concat.txt',
+      '-c', 'copy',
+      outputName
+    ])
+
+    const data = await this.ffmpeg.readFile(outputName)
+    return new Blob([data as BlobPart], {
+      type: `video/${settings.format}`
+    })
   }
 }
