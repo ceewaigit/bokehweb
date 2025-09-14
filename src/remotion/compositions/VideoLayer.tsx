@@ -21,12 +21,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const frame = useCurrentFrame();
 
   // Calculate source positions for both current and next clips
+  // Use Math.round consistently for frame-perfect alignment
   const currentSourceInMs = clip ? (clip.sourceIn || 0) : 0;
-  const currentStartFrame = Math.floor((currentSourceInMs / 1000) * fps);
+  const currentStartFrame = Math.round((currentSourceInMs / 1000) * fps);
   
   // Pre-calculate next clip's position for buffering
   const nextSourceInMs = nextClip ? (nextClip.sourceIn || 0) : 0;
-  const nextStartFrame = Math.floor((nextSourceInMs / 1000) * fps);
+  const nextStartFrame = Math.round((nextSourceInMs / 1000) * fps);
   
   // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
@@ -40,14 +41,26 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const preloadFrames = 10;
   const crossfadeFrames = 2;
   
-  // Detect if we should pre-load the next clip
-  const shouldPreloadNext = useMemo(() => {
+  // Check if next clip is a consecutive split (no gap between clips)
+  const isConsecutiveSplit = useMemo(() => {
     if (!clip || !nextClip) return false;
     if (clip.recordingId !== nextClip.recordingId) return false; // Different recording
     
+    // Check if clips are consecutive (next starts exactly when current ends)
+    // Use small epsilon for floating point comparison
+    const epsilon = 0.001;
+    const currentEndTime = (clip.startTime || 0) + clip.duration;
+    const nextStartTime = nextClip.startTime || 0;
+    return Math.abs(nextStartTime - currentEndTime) < epsilon;
+  }, [clip, nextClip]);
+  
+  // Detect if we should pre-load the next clip
+  const shouldPreloadNext = useMemo(() => {
+    if (!isConsecutiveSplit) return false;
+    
     // Start preloading when within 10 frames of the end
     return framesUntilEnd <= preloadFrames && framesUntilEnd >= 0;
-  }, [clip, nextClip, framesUntilEnd, preloadFrames]);
+  }, [isConsecutiveSplit, framesUntilEnd, preloadFrames]);
   
   // Detect if we're in the crossfade zone (last 2 frames)
   const isInCrossfade = useMemo(() => {
@@ -64,12 +77,17 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     
     // Log for debugging
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[VideoLayer] Crossfade:', {
+      console.log('[VideoLayer] Transition:', {
         currentFrame: currentFrameInClip,
         totalFrames: totalFramesInClip,
         framesUntilEnd,
         fadeProgress,
-        opacity: { current: 1 - fadeProgress, next: fadeProgress }
+        opacity: { current: 1 - fadeProgress, next: fadeProgress },
+        currentStartFrame,
+        nextStartFrame,
+        clipSourceIn: currentSourceInMs,
+        nextClipSourceIn: nextSourceInMs,
+        isConsecutive: isConsecutiveSplit
       });
     }
     
@@ -77,7 +95,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
       current: Math.max(0, 1 - fadeProgress),
       next: Math.min(1, fadeProgress)
     };
-  }, [isInCrossfade, clip, framesUntilEnd, crossfadeFrames, currentFrameInClip, totalFramesInClip])
+  }, [isInCrossfade, clip, framesUntilEnd, crossfadeFrames, currentFrameInClip, totalFramesInClip, currentStartFrame, nextStartFrame, currentSourceInMs, nextSourceInMs, isConsecutiveSplit])
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };

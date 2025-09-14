@@ -324,11 +324,25 @@ export const useProjectStore = create<ProjectStore>()(
         }
 
         // Load all videos and metadata in one call
+        // Check if we need to load metadata from chunks (new structure)
+        for (const recording of project.recordings) {
+          if (recording.folderPath && recording.metadataChunks) {
+            // Load metadata from chunks if not already in memory
+            if (!recording.metadata || Object.keys(recording.metadata).length === 0) {
+              recording.metadata = await RecordingStorage.loadMetadataChunks(
+                recording.folderPath,
+                recording.metadataChunks
+              )
+            }
+          }
+        }
+        
+        // Load videos with folder path support
         await globalBlobManager.loadVideos(
           project.recordings.map((r: Recording) => ({
             id: r.id,
             filePath: r.filePath,
-            metadata: r.metadata
+            folderPath: r.folderPath
           }))
         )
 
@@ -488,10 +502,7 @@ export const useProjectStore = create<ProjectStore>()(
         )
 
         // Create blob URL (automatically cached by the manager)
-        globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`)
-        if (completeRecording.metadata) {
-          globalBlobManager.storeMetadata(completeRecording.id, completeRecording.metadata)
-        }
+        globalBlobManager.create(videoBlob, `recording-${completeRecording.id}`, 'video')
 
         state.currentProject.modifiedAt = new Date().toISOString()
         state.selectedClipId = clip.id
@@ -788,26 +799,31 @@ export const useProjectStore = create<ProjectStore>()(
         // Calculate source split point accounting for playback rate
         const playbackRate = clip.playbackRate || 1
         const sourceSplitPoint = splitPoint * playbackRate
+        
+        // For frame-perfect splits, we need to ensure no frame is lost or duplicated
+        // The sourceOut of first clip should be exclusive (not include the boundary frame)
+        // The sourceIn of second clip should be inclusive (include the boundary frame)
+        // This ensures continuity without gaps
 
-        // Create first clip - simple and clean
+        // Create first clip
         const firstClip: Clip = {
           id: `${clip.id}-split1-${timestamp}`,
           recordingId: clip.recordingId,
           startTime: clip.startTime,
           duration: splitPoint,
           sourceIn: clip.sourceIn,
-          sourceOut: clip.sourceIn + sourceSplitPoint,
+          sourceOut: clip.sourceIn + sourceSplitPoint, // Exclusive end
           playbackRate: clip.playbackRate,
           typingSpeedApplied: clip.typingSpeedApplied  // Preserve typing speed flag
         }
 
-        // Create second clip
+        // Create second clip - starts exactly where first ends
         const secondClip: Clip = {
           id: `${clip.id}-split2-${timestamp}`,
           recordingId: clip.recordingId,
           startTime: splitTime,
           duration: clip.duration - splitPoint,
-          sourceIn: clip.sourceIn + sourceSplitPoint,
+          sourceIn: clip.sourceIn + sourceSplitPoint, // Inclusive start (same as firstClip.sourceOut)
           sourceOut: clip.sourceOut,
           playbackRate: clip.playbackRate,
           typingSpeedApplied: clip.typingSpeedApplied  // Preserve typing speed flag
