@@ -9,7 +9,30 @@ export function getAppURL(route: string = ''): string {
   console.log('🔍 isDev:', isDev)
   console.log('🔍 MAIN_WINDOW_WEBPACK_ENTRY:', process.env.MAIN_WINDOW_WEBPACK_ENTRY)
   console.log('🔍 DEV_SERVER_URL:', process.env.DEV_SERVER_URL)
+  console.log('🔍 npm_lifecycle_event:', process.env.npm_lifecycle_event)
+  console.log('🔍 process.argv:', process.argv)
   
+  // Try to detect if we're in webpack dev mode by checking for common webpack indicators
+  const isWebpackDev = process.env.npm_lifecycle_event === 'forge:start' || 
+                       process.env.ELECTRON_IS_DEV === 'true' ||
+                       process.argv.some(arg => arg.includes('forge') || arg.includes('webpack')) ||
+                       __dirname.includes('.webpack')
+  
+  console.log('🔍 isWebpackDev:', isWebpackDev)
+  console.log('🔍 __dirname:', __dirname)
+  
+  if (isWebpackDev) {
+    // When running with forge:start, use the webpack dev server
+    // The webpack renderer runs on port 3001 with the main_window endpoint
+    const webpackDevUrl = 'http://localhost:3001/main_window'
+    console.log('🔍 Using webpack dev server:', webpackDevUrl)
+    
+    if (route) {
+      return `${webpackDevUrl}#${route}`
+    }
+    return webpackDevUrl
+  }
+
   if (isDev && !process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
     // Development mode with Next.js dev server
     const devServerUrl = process.env.DEV_SERVER_URL || 'http://localhost:3000'
@@ -51,7 +74,8 @@ export function getAppURL(route: string = ''): string {
   } else {
     // Local build without webpack
     const htmlPath = path.join(__dirname, '../../out/index.html')
-    const fileUrl = `file://${htmlPath}`
+    // Properly encode the file path to handle spaces and special characters
+    const fileUrl = `file://${encodeURI(htmlPath.replace(/\\/g, '/'))}`
 
     if (route) {
       return `${fileUrl}#${route}`
