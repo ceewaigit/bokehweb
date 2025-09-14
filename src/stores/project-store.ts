@@ -187,12 +187,21 @@ const updatePlayheadState = (state: any) => {
   state.nextRecording = null
 
   if (state.currentProject && state.currentTime !== undefined) {
-    // Find current clip - use exact boundaries for split clips
+    // Find current clip - handle exact boundaries for split clips
     for (const track of state.currentProject.timeline.tracks) {
-      const clip = track.clips.find((c: Clip) => {
-        return state.currentTime >= c.startTime && 
-               state.currentTime < c.startTime + c.duration
+      // Sort clips by start time to ensure consistent ordering
+      const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime)
+      
+      // Find the clip, preferring clips that start at current time
+      const clip = sortedClips.find((c: Clip) => {
+        // If we're exactly at the start of a clip, prioritize it
+        const atStart = state.currentTime === c.startTime
+        // Otherwise check if we're within the clip (inclusive of end boundary)
+        const withinClip = state.currentTime > c.startTime && 
+                          state.currentTime <= c.startTime + c.duration
+        return atStart || withinClip
       })
+      
       if (clip) {
         state.playheadClip = clip
         state.playheadRecording = state.currentProject.recordings.find(
