@@ -222,8 +222,9 @@ export class WebCodecsExportEngine {
 
       // Extract frames with proper timing
       if (this.useWorkers && this.workerPool) {
-        // Batch process frames with workers
-        const framePromises: Promise<void>[] = []
+        // Non-blocking frame processing pipeline
+        const pendingFrames = new Set<Promise<void>>()
+        let frameIndex = 0
         
         await this.frameExtractor.extractClipFramesStreamed(
           clip,
@@ -231,60 +232,91 @@ export class WebCodecsExportEngine {
           clipStartInSegment,
           clipEndInSegment,
           async (frame) => {
-            // Create bitmap from video frame
-            let bitmap: ImageBitmap
-            if (frame.imageData instanceof HTMLVideoElement) {
-              bitmap = await createImageBitmap(frame.imageData)
-            } else {
-              bitmap = frame.imageData as ImageBitmap
-            }
+            const currentFrameIndex = frameIndex++
+            const frameId = `${clip.id}_${frame.timestamp}_${currentFrameIndex}`
             
-            // Queue frame for worker processing
-            const frameTask: FrameTask = {
-              id: `${clip.id}_${frame.timestamp}`,
-              bitmap,
-              effects: segment.effects,
-              timestamp: frame.timestamp,
-              metadata: metadata.get(clipData.recording.id)
-            }
-            
-            // Process frame in worker
-            const frameId = `${clip.id}_${frame.timestamp}`
             this.monitor.frameStart(frameId)
             
-            const framePromise = this.workerPool!.processFrame(frameTask).then(async (processed) => {
-              // Encode the processed frame
-              await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
-              processedFrames++
-              this.monitor.frameEnd(frameId)
-              
-              // Update progress
-              if (processedFrames % 5 === 0 && onProgress) {
-                const globalFrame = startFrame + processedFrames
-                const progress = Math.min(95, (globalFrame / totalFrames) * 95)
-                onProgress({
-                  progress,
-                  stage: 'encoding',
-                  message: `Processing frame ${globalFrame} of ${totalFrames}...`,
-                  currentFrame: globalFrame,
-                  totalFrames
-                })
+            // For video elements, process directly without workers (much faster)
+            let framePromise: Promise<void>
+            
+            if (frame.imageData instanceof HTMLVideoElement) {
+              // Direct processing for video elements - no worker overhead
+              framePromise = (async () => {
+                // Apply effects directly on main thread
+                await this.applyEffects(
+                  frame.imageData,
+                  frame.timestamp,
+                  segment.effects,
+                  clipData.recording,
+                  metadata.get(clipData.recording.id)
+                )
+                
+                // Encode directly from canvas
+                await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
+                processedFrames++
+                this.monitor.frameEnd(frameId)
+                
+                // Update progress
+                if (processedFrames % 5 === 0 && onProgress) {
+                  const globalFrame = startFrame + processedFrames
+                  const progress = Math.min(95, (globalFrame / totalFrames) * 95)
+                  onProgress({
+                    progress,
+                    stage: 'encoding',
+                    message: `Processing frame ${globalFrame} of ${totalFrames}...`,
+                    currentFrame: globalFrame,
+                    totalFrames
+                  })
+                }
+              })()
+            } else {
+              // Use workers for ImageBitmap
+              const frameTask: FrameTask = {
+                id: frameId,
+                bitmap: frame.imageData as ImageBitmap,
+                effects: segment.effects,
+                timestamp: frame.timestamp,
+                metadata: metadata.get(clipData.recording.id)
               }
+              
+              framePromise = this.workerPool!.processFrame(frameTask)
+                .then(async (processed) => {
+                  await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
+                  processedFrames++
+                  this.monitor.frameEnd(frameId)
+                  
+                  if (processedFrames % 5 === 0 && onProgress) {
+                    const globalFrame = startFrame + processedFrames
+                    const progress = Math.min(95, (globalFrame / totalFrames) * 95)
+                    onProgress({
+                      progress,
+                      stage: 'encoding',
+                      message: `Processing frame ${globalFrame} of ${totalFrames}...`,
+                      currentFrame: globalFrame,
+                      totalFrames
+                    })
+                  }
+                })
+            }
+            
+            framePromise = framePromise.finally(() => {
+              pendingFrames.delete(framePromise)
             })
             
-            framePromises.push(framePromise)
+            pendingFrames.add(framePromise)
             
-            // Process in batches to avoid memory overflow
-            if (framePromises.length >= 30) {
-              await Promise.all(framePromises)
-              framePromises.length = 0
+            // Apply backpressure if too many frames pending
+            if (pendingFrames.size >= 100) {
+              // Wait for some frames to complete before continuing
+              await Promise.race(Array.from(pendingFrames))
             }
           }
         )
         
-        // Wait for remaining frames
-        if (framePromises.length > 0) {
-          await Promise.all(framePromises)
+        // Wait for all remaining frames
+        if (pendingFrames.size > 0) {
+          await Promise.all(Array.from(pendingFrames))
         }
       } else {
         // Fallback to single-threaded processing

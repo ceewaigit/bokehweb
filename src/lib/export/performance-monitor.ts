@@ -94,9 +94,9 @@ export class PerformanceMonitor {
       this.frameTimes.shift()
     }
     
-    // Check if we should report
+    // Check if we should report (reduced frequency)
     const now = performance.now()
-    if (now - this.lastReportTime >= this.reportInterval) {
+    if (now - this.lastReportTime >= this.reportInterval * 2) { // Report less frequently
       this.report()
       this.lastReportTime = now
     }

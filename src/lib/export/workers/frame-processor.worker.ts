@@ -9,7 +9,7 @@ import { EffectType } from '@/types'
 interface ProcessFrameMessage {
   type: 'process'
   frameId: string
-  bitmap: ImageBitmap
+  bitmap: ImageBitmap | any // Can be video element or bitmap
   effects: Effect[]
   width: number
   height: number
@@ -38,13 +38,31 @@ function initialize(width: number, height: number) {
 
 // Process a single frame with effects
 async function processFrame(
-  bitmap: ImageBitmap,
+  source: ImageBitmap | any,
   effects: Effect[],
   timestamp: number,
   metadata?: any
 ): Promise<ImageBitmap> {
   if (!ctx || !canvas) {
     throw new Error('Worker not initialized')
+  }
+
+  // Handle video element or ImageBitmap
+  let bitmap: ImageBitmap
+  if (source instanceof ImageBitmap) {
+    bitmap = source
+  } else {
+    // For video elements or other sources, we can't create bitmap in worker
+    // Just draw directly (this will be a canvas from main thread)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    try {
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height)
+    } catch (e) {
+      // If we can't draw it, return a black frame
+      ctx.fillStyle = '#000000'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    }
+    return canvas.transferToImageBitmap()
   }
 
   // Clear and draw base frame

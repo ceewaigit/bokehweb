@@ -295,11 +295,9 @@ export class VideoFrameExtractor {
 
     let nextCapture = startSec
     let done = false
-    let frameBuffer: ExtractedFrame[] = []
-    const maxBufferSize = 10 // Buffer frames for smoother processing
 
     await new Promise<void>((resolve) => {
-      const cb = async (_now: number, metadata: any) => {
+      const cb = (_now: number, metadata: any) => {
         if (done) return
         const mediaTime = metadata?.mediaTime ?? video.currentTime
 
@@ -314,13 +312,10 @@ export class VideoFrameExtractor {
             }
             
             if (onFrame) {
-              frameBuffer.push(frame)
-              
-              // Process buffered frames in batch
-              if (frameBuffer.length >= maxBufferSize || mediaTime >= endSec - 1e-4) {
-                const batch = frameBuffer.splice(0, frameBuffer.length)
-                await Promise.all(batch.map(f => onFrame(f)))
-              }
+              // Fire and forget - don't await or batch
+              onFrame(frame).catch(err => {
+                console.error('Frame processing error:', err)
+              })
             }
           }
           nextCapture += frameDt
@@ -329,12 +324,6 @@ export class VideoFrameExtractor {
         if (mediaTime >= endSec - 1e-4) {
           done = true
           video.pause()
-          
-          // Process remaining buffered frames
-          if (frameBuffer.length > 0 && onFrame) {
-            await Promise.all(frameBuffer.map(f => onFrame(f)))
-          }
-          
           resolve()
           return
         }
