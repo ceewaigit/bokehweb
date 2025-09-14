@@ -1,5 +1,5 @@
-import React from 'react';
-import { Video, AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
+import React, { useMemo } from 'react';
+import { Video, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
@@ -8,6 +8,7 @@ import { createCinematicTransform, createBlurFilter } from '@/lib/effects/cinema
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
   clip,
+  nextClip,
   effects,
   zoomBlocks,
   videoWidth,
@@ -19,16 +20,47 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // For split clips, we use Sequence with negative offset to avoid video remounting
-  // This keeps the video playing from frame 0 but shows only the portion we need
-  const sourceInMs = clip ? (clip.sourceIn || 0) : 0
-  const sourceOffsetFrames = Math.floor((sourceInMs / 1000) * fps)
+  // Calculate source positions for both current and next clips
+  const currentSourceInMs = clip ? (clip.sourceIn || 0) : 0;
+  const currentStartFrame = Math.floor((currentSourceInMs / 1000) * fps);
+  
+  // Pre-calculate next clip's position for buffering
+  const nextSourceInMs = nextClip ? (nextClip.sourceIn || 0) : 0;
+  const nextStartFrame = Math.floor((nextSourceInMs / 1000) * fps);
+  
+  // Calculate current time in milliseconds
+  const currentTimeMs = (frame / fps) * 1000;
+  
+  // Detect if we're near a transition (within 2 frames)
+  const isNearTransition = useMemo(() => {
+    if (!clip || !nextClip) return false;
+    if (clip.recordingId !== nextClip.recordingId) return false; // Different recording
+    
+    const clipEndTime = clip.duration;
+    const timeToEnd = clipEndTime - (currentTimeMs - (clip.startTime || 0));
+    return timeToEnd <= (2 / fps) * 1000 && timeToEnd >= 0; // Within 2 frames
+  }, [clip, nextClip, currentTimeMs, fps]);
+  
+  // Calculate crossfade opacity for seamless transition
+  const crossfadeOpacity = useMemo(() => {
+    if (!isNearTransition || !clip) return { current: 1, next: 0 };
+    
+    const clipEndTime = clip.duration;
+    const timeToEnd = clipEndTime - (currentTimeMs - (clip.startTime || 0));
+    const fadeFrames = 2; // 2 frame crossfade
+    const fadeDuration = (fadeFrames / fps) * 1000;
+    
+    if (timeToEnd > fadeDuration) return { current: 1, next: 0 };
+    
+    const fadeProgress = 1 - (timeToEnd / fadeDuration);
+    return {
+      current: 1 - fadeProgress,
+      next: fadeProgress
+    };
+  }, [isNearTransition, clip, currentTimeMs, fps])
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
-
-  // Calculate current time in milliseconds
-  const currentTimeMs = (frame / fps) * 1000;
 
   // Get background effect for padding and styling
   const backgroundEffect = effects?.find(e =>
@@ -193,7 +225,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           }}
         />
       )}
-      {/* Video container - single continuous element */}
+      {/* Video container with double buffering */}
       <div
         style={{
           position: 'absolute',
@@ -209,22 +241,53 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Use Sequence with negative offset to avoid video remounting */}
-        <Sequence from={-sourceOffsetFrames}>
+        {/* Current video buffer */}
+        <div
+          style={{
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+            opacity: crossfadeOpacity.current,
+            transition: isNearTransition ? 'opacity 0.067s linear' : 'none', // 2 frames at 30fps
+          }}
+        >
           <Video
             src={videoUrl}
             style={videoStyle}
             volume={1}
             muted={false}
             playbackRate={clip?.playbackRate || 1}
-            startFrom={0}  // Always start from 0 to avoid remounting
-            // Don't use trimBefore/trimAfter to avoid re-seeking on clip changes
+            startFrom={currentStartFrame}
             onError={(e) => {
-              console.error('Video playback error in VideoLayer:', e)
-              // Don't throw - let Remotion handle gracefully
+              console.error('Video playback error in current buffer:', e)
             }}
           />
-        </Sequence>
+        </div>
+        
+        {/* Next video buffer - only render when near transition */}
+        {isNearTransition && nextClip && (
+          <div
+            style={{
+              position: 'absolute',
+              width: '100%',
+              height: '100%',
+              opacity: crossfadeOpacity.next,
+              transition: 'opacity 0.067s linear', // 2 frames at 30fps
+            }}
+          >
+            <Video
+              src={videoUrl}
+              style={videoStyle}
+              volume={1}
+              muted={false}
+              playbackRate={nextClip.playbackRate || 1}
+              startFrom={nextStartFrame}
+              onError={(e) => {
+                console.error('Video playback error in next buffer:', e)
+              }}
+            />
+          </div>
+        )}
       </div>
     </AbsoluteFill>
   );
