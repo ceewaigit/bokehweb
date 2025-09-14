@@ -329,14 +329,27 @@ export class WebCodecsExportEngine {
                 if (hasEffects) {
                   // Use WebGL if available for GPU-accelerated effects
                   if (this.useWebGL && this.webglRenderer) {
-                    const processedFrame = await this.webglRenderer.processFrame(
-                      frame.imageData,
-                      segment.effects || [],
-                      frame.timestamp
-                    )
-                    await this.encoder!.encodeFrame(processedFrame, frame.timestamp)
-                    if (processedFrame && typeof processedFrame.close === 'function') {
-                      processedFrame.close()
+                    try {
+                      const processedFrame = await this.webglRenderer.processFrame(
+                        frame.imageData,
+                        segment.effects || [],
+                        frame.timestamp
+                      )
+                      await this.encoder!.encodeFrame(processedFrame, frame.timestamp)
+                      if (processedFrame && typeof processedFrame.close === 'function') {
+                        processedFrame.close()
+                      }
+                    } catch (webglError) {
+                      // Fall back to CPU rendering if WebGL fails
+                      logger.warn('WebGL processing failed, falling back to CPU:', webglError)
+                      await this.applyEffects(
+                        frame.imageData,
+                        frame.timestamp,
+                        segment.effects,
+                        clipData.recording,
+                        metadata.get(clipData.recording.id)
+                      )
+                      await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
                     }
                   } else {
                     // Fallback to CPU-based effects
