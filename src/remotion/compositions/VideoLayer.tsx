@@ -23,7 +23,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const frame = useCurrentFrame();
   const buffer = useBufferState();
 
-  // Calculate the correct start frame based on clip's sourceIn
+  // Calculate the correct start frame based on clip's sourceIn (kept for reference)
   const currentSourceInMs = clip ? (clip.sourceIn || 0) : 0;
   const currentStartFrame = Math.round((currentSourceInMs / 1000) * fps);
 
@@ -248,60 +248,19 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Use TransitionSeries for seamless clip transitions */}
-        {isConsecutiveSplit && nextClip ? (
-          // When we have consecutive splits, use TransitionSeries with crossfade
-          <TransitionSeries>
-            <TransitionSeries.Sequence durationInFrames={clipDurationInFrames}>
-              <OffthreadVideo
-                src={videoUrl}
-                style={videoStyle}
-                volume={1}
-                muted={false}
-                playbackRate={clip?.playbackRate || 1}
-                startFrom={currentStartFrame}
-                pauseWhenBuffering={true} // Critical: Pause when not ready
-                onError={(e) => {
-                  console.error('Video playback error in current clip:', e)
-                }}
-              />
-            </TransitionSeries.Sequence>
-
-            <TransitionSeries.Transition
-              presentation={fade()}
-              timing={linearTiming({ durationInFrames: 2 })} // 2-frame crossfade
-            />
-
-            <TransitionSeries.Sequence durationInFrames={nextDurationInFrames}>
-              <OffthreadVideo
-                src={videoUrl}
-                style={videoStyle}
-                volume={1}
-                muted={false}
-                playbackRate={nextClip.playbackRate || 1}
-                startFrom={nextStartFrame}
-                pauseWhenBuffering={true} // Critical: Pause when not ready
-                onError={(e) => {
-                  console.error('Video playback error in next clip:', e)
-                }}
-              />
-            </TransitionSeries.Sequence>
-          </TransitionSeries>
-        ) : (
-          // Single clip without splits
-          <OffthreadVideo
-            src={videoUrl}
-            style={videoStyle}
-            volume={1}
-            muted={false}
-            playbackRate={clip?.playbackRate || 1}
-            startFrom={currentStartFrame}
-            pauseWhenBuffering={true} // Critical: Pause when not ready
-            onError={(e) => {
-              console.error('Video playback error:', e)
-            }}
-          />
-        )}
+        {/* Single persistent video element to avoid decoder resets across splits */}
+        <OffthreadVideo
+          src={videoUrl}
+          style={videoStyle}
+          volume={1}
+          muted={false}
+          playbackRate={clip?.playbackRate || 1}
+          startFrom={0}
+          pauseWhenBuffering={true}
+          onError={(e) => {
+            console.error('Video playback error:', e)
+          }}
+        />
       </div>
     </AbsoluteFill>
   );

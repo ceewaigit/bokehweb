@@ -1209,6 +1209,30 @@ export const useProjectStore = create<ProjectStore>()(
           return
         }
 
+        // Begin debug group
+        try {
+          console.group('[TypingApply] applyTypingSpeedToClip')
+          console.log('sourceClip', {
+            id: sourceClip.id,
+            startTime: sourceClip.startTime,
+            duration: sourceClip.duration,
+            sourceIn: sourceClip.sourceIn,
+            sourceOut: sourceClip.sourceOut,
+            rate: sourceClip.playbackRate
+          })
+          console.log('periods', periods.map(p => ({ start: p.startTime, end: p.endTime, rate: p.suggestedSpeedMultiplier })))
+        } catch {}
+
+        // Tolerances
+        const TIME_EPS = 0.5
+        const SRC_EPS = 1
+        const FRAME_MS = 1000 / 30
+        const quantizeMs = (ms: number) => Math.round(ms / FRAME_MS) * FRAME_MS
+
+        // Remember original block start to reflow from after edits
+        const originalBlockStartTime = sourceClip.startTime
+        const originalBlockEndTime = sourceClip.startTime + sourceClip.duration
+
         // Save original state of all clips from this recording
         const recordingId = sourceClip.recordingId
         for (const clip of track.clips) {
@@ -1217,191 +1241,155 @@ export const useProjectStore = create<ProjectStore>()(
           }
         }
 
-        // PHASE 1: Collect all split points and their associated periods
-        interface SplitInfo {
-          timelineTime: number
-          sourceTime: number
-          clipId: string
-          type: 'start' | 'end'
-          period: typeof periods[0]
-        }
-        
-        const allSplits: SplitInfo[] = []
-        
-        for (const period of periods) {
-          // Find which clip contains this period
-          let targetClip: Clip | null = null
-          for (const clip of track.clips) {
-            if (clip.recordingId !== recordingId) continue
-            
-            const clipSourceIn = clip.sourceIn || 0
-            const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration)
-            
-            if (period.startTime < clipSourceOut && period.endTime > clipSourceIn) {
-              targetClip = clip
-              break
+        // PHASE 1+2+3: Rebuild the source clip into contiguous source-interval segments
+        {
+          const clipSrcIn = sourceClip.sourceIn || 0
+          const clipRate = sourceClip.playbackRate || 1
+          const clipSrcOut = sourceClip.sourceOut || (clipSrcIn + sourceClip.duration * clipRate)
+
+          // Build boundaries: clip edges + all period edges clipped to clip range
+          const bounds: number[] = [clipSrcIn, clipSrcOut]
+          for (const p of periods) {
+            const start = Math.max(clipSrcIn, Math.min(clipSrcOut, p.startTime))
+            const end = Math.max(clipSrcIn, Math.min(clipSrcOut, p.endTime))
+            if (end - start > SRC_EPS) {
+              bounds.push(start, end)
             }
           }
-          
-          if (!targetClip) continue
-          
-          const clipSourceIn = targetClip.sourceIn || 0
-          const clipSourceOut = targetClip.sourceOut || (clipSourceIn + targetClip.duration)
-          const clipPlaybackRate = targetClip.playbackRate || 1
-          
-          // Clip the period to this clip's source range
-          const clippedStart = Math.max(period.startTime, clipSourceIn)
-          const clippedEnd = Math.min(period.endTime, clipSourceOut)
-          
-          // Convert to timeline coordinates
-          const relativeStart = (clippedStart - clipSourceIn) / clipPlaybackRate
-          const relativeEnd = (clippedEnd - clipSourceIn) / clipPlaybackRate
-          const timelineStart = targetClip.startTime + relativeStart
-          const timelineEnd = targetClip.startTime + relativeEnd
-          
-          const clipStart = targetClip.startTime
-          const clipEnd = targetClip.startTime + targetClip.duration
-          
-          // Add split points if needed
-          if (timelineStart > clipStart + 0.1) {
-            allSplits.push({
-              timelineTime: timelineStart,
-              sourceTime: clippedStart,
-              clipId: targetClip.id,
-              type: 'start',
-              period
-            })
-          }
-          
-          if (timelineEnd < clipEnd - 0.1) {
-            allSplits.push({
-              timelineTime: timelineEnd,
-              sourceTime: clippedEnd,
-              clipId: targetClip.id,
-              type: 'end',
-              period
-            })
-          }
-        }
-        
-        // PHASE 2: Process all splits atomically
-        allSplits.sort((a, b) => a.timelineTime - b.timelineTime)
-        
-        // Map to track which new clips correspond to which periods
-        const periodToClips = new Map<typeof periods[0], string[]>()
-        
-        for (const split of allSplits) {
-          const clipToSplit = track.clips.find(c => {
-            if (c.recordingId !== recordingId) return false
-            const clipEnd = c.startTime + c.duration
-            return c.startTime <= split.timelineTime + 0.01 && clipEnd >= split.timelineTime - 0.01
-          })
-          
-          if (!clipToSplit) continue
-          
-          const clipIndex = track.clips.indexOf(clipToSplit)
-          const splitPoint = split.timelineTime - clipToSplit.startTime
-          const timestamp = Date.now()
-          const sourceSplitPoint = splitPoint * (clipToSplit.playbackRate || 1)
-          
-          // Create the two new clips
-          const firstClip: Clip = {
-            id: `${clipToSplit.id}-split1-${timestamp}`,
-            recordingId: clipToSplit.recordingId,
-            startTime: clipToSplit.startTime,
-            duration: splitPoint,
-            sourceIn: clipToSplit.sourceIn,
-            sourceOut: (clipToSplit.sourceIn || 0) + sourceSplitPoint,
-            playbackRate: clipToSplit.playbackRate,
-            typingSpeedApplied: clipToSplit.typingSpeedApplied  // Preserve flag
-          }
-          
-          const secondClip: Clip = {
-            id: `${clipToSplit.id}-split2-${timestamp}`,
-            recordingId: clipToSplit.recordingId,
-            startTime: split.timelineTime,
-            duration: clipToSplit.duration - splitPoint,
-            sourceIn: (clipToSplit.sourceIn || 0) + sourceSplitPoint,
-            sourceOut: clipToSplit.sourceOut,
-            playbackRate: clipToSplit.playbackRate,
-            typingSpeedApplied: clipToSplit.typingSpeedApplied  // Preserve flag
-          }
-          
-          // Replace the original clip with the two new ones
-          track.clips.splice(clipIndex, 1, firstClip, secondClip)
-          
-          // Track which clip should have speed applied based on split type
-          if (split.type === 'start') {
-            // Speed should be applied to the second clip
-            if (!periodToClips.has(split.period)) {
-              periodToClips.set(split.period, [])
+          // Unique + sorted with tolerance
+          bounds.sort((a, b) => a - b)
+          const uniqBounds: number[] = []
+          for (const b of bounds) {
+            if (uniqBounds.length === 0 || Math.abs(b - uniqBounds[uniqBounds.length - 1]) > SRC_EPS) {
+              uniqBounds.push(b)
             }
-            periodToClips.get(split.period)!.push(secondClip.id)
-          } else {
-            // Speed should be applied to the first clip
-            if (!periodToClips.has(split.period)) {
-              periodToClips.set(split.period, [])
-            }
-            periodToClips.get(split.period)!.push(firstClip.id)
           }
-        }
-        
-        // PHASE 3: Apply speed to the appropriate clips
-        for (const period of periods) {
-          // If no splits were made for this period, find the clip that contains it
-          if (!periodToClips.has(period)) {
-            for (const clip of track.clips) {
-              if (clip.recordingId !== recordingId) continue
-              
-              const clipSourceIn = clip.sourceIn || 0
-              const clipSourceOut = clip.sourceOut || (clipSourceIn + clip.duration)
-              
-              // Check if this period is entirely within this clip
-              if (period.startTime >= clipSourceIn && period.endTime <= clipSourceOut) {
-                periodToClips.set(period, [clip.id])
-                break
+
+          // Helper: choose speed multiplier for a source interval midpoint
+          const pickRate = (mid: number): number => {
+            let chosen = 1
+            let bestOverlap = 0
+            for (const p of periods) {
+              const s = Math.max(clipSrcIn, Math.min(clipSrcOut, p.startTime))
+              const e = Math.max(clipSrcIn, Math.min(clipSrcOut, p.endTime))
+              if (mid >= s - SRC_EPS && mid <= e + SRC_EPS) {
+                const overlap = e - s
+                if (overlap > bestOverlap) {
+                  bestOverlap = overlap
+                  chosen = p.suggestedSpeedMultiplier || 1
+                }
               }
             }
+            return chosen
+          }
+
+          // Build new segments
+          const timestamp = Date.now()
+          type IntervalSpec = { index: number; sIn: number; sOut: number; rate: number; rawFrames: number; floorFrames: number; remainder: number }
+          const intervals: IntervalSpec[] = []
+          for (let i = 0; i < uniqBounds.length - 1; i++) {
+            const sIn = uniqBounds[i]
+            const sOut = uniqBounds[i + 1]
+            const srcLen = sOut - sIn
+            if (srcLen <= SRC_EPS) continue
+            const mid = (sIn + sOut) / 2
+            const rate = pickRate(mid) || 1
+            const rawFrames = srcLen / (rate * FRAME_MS)
+            const floorFrames = Math.max(1, Math.floor(rawFrames))
+            const remainder = Math.max(0, rawFrames - floorFrames)
+            intervals.push({ index: i, sIn, sOut, rate, rawFrames, floorFrames, remainder })
+          }
+
+          // Largest remainder method to distribute rounding so sum matches rounded total
+          const totalRawFrames = intervals.reduce((sum, it) => sum + it.rawFrames, 0)
+          const targetTotalFrames = Math.max(1, Math.round(totalRawFrames))
+          let assignedFrames = intervals.reduce((sum, it) => sum + it.floorFrames, 0)
+          let framesToDistribute = Math.max(0, targetTotalFrames - assignedFrames)
+          const order = [...intervals].sort((a, b) => b.remainder - a.remainder)
+          for (let k = 0; k < order.length && framesToDistribute > 0; k++, framesToDistribute--) {
+            order[k].floorFrames += 1
+          }
+
+          // Build segments with final frame counts
+          const newSegments: Clip[] = []
+          let cursorTimeline = sourceClip.startTime
+          for (const it of intervals) {
+            const duration = Math.max(FRAME_MS, it.floorFrames * FRAME_MS)
+            const seg: Clip = {
+              id: `${sourceClip.id}-seg-${timestamp}-${it.index}`,
+              recordingId: sourceClip.recordingId,
+              startTime: cursorTimeline,
+              duration,
+              sourceIn: it.sIn,
+              sourceOut: it.sOut,
+              playbackRate: it.rate,
+              typingSpeedApplied: it.rate !== 1
+            }
+            newSegments.push(seg)
+            cursorTimeline += duration
           }
           
-          const clipIds = periodToClips.get(period) || []
-          
-          for (const clipId of clipIds) {
-            const clip = track.clips.find(c => c.id === clipId)
-            if (!clip) continue
-            
-            const oldPlaybackRate = clip.playbackRate || 1
-            
-            // When a clip already has a playback rate, we need to calculate the actual source duration
-            // from the current timeline duration and playback rate
-            const actualSourceDuration = clip.duration * oldPlaybackRate
-            const newDuration = actualSourceDuration / period.suggestedSpeedMultiplier
-            
-            clip.duration = newDuration
-            clip.playbackRate = period.suggestedSpeedMultiplier
-            clip.typingSpeedApplied = true  // Mark that typing speed has been applied
-            affectedClips.push(clip.id)
+          // Replace the original clip with rebuilt segments
+          const idx = track.clips.findIndex(c => c.id === sourceClip.id)
+          if (idx !== -1) {
+            track.clips.splice(idx, 1, ...newSegments)
+            try { console.log('[TypingApply] rebuild', { count: newSegments.length, segments: newSegments.map(s => ({ id: s.id, start: s.startTime, end: s.startTime + s.duration, srcIn: s.sourceIn, srcOut: s.sourceOut, rate: s.playbackRate })) }) } catch {}
+            affectedClips.push(...newSegments.map(s => s.id))
           }
         }
         
-        // PHASE 4: Fix overlaps and gaps - ensure clips are properly positioned
+        // PHASE 4: Normalize source continuity within lineage (fix tiny gaps/overlaps)
+        {
+          const lineage = track.clips
+            .filter(c => c.recordingId === recordingId)
+            .filter(c => {
+              const cIn = c.sourceIn || 0
+              const cOut = c.sourceOut || (cIn + (c.playbackRate || 1) * c.duration)
+              // within original clip source window
+              const inLineage = cIn >= (sourceClip.sourceIn || 0) - SRC_EPS && cOut <= (sourceClip.sourceOut || Number.MAX_SAFE_INTEGER) + SRC_EPS
+              return inLineage
+            })
+            .sort((a, b) => (a.sourceIn || 0) - (b.sourceIn || 0))
+
+          for (let i = 1; i < lineage.length; i++) {
+            const prev = lineage[i - 1]
+            const curr = lineage[i]
+            const pIn = prev.sourceIn || 0
+            const pOut = prev.sourceOut || (pIn + (prev.playbackRate || 1) * prev.duration)
+            const cIn = curr.sourceIn || 0
+            const cOut = curr.sourceOut || (cIn + (curr.playbackRate || 1) * curr.duration)
+
+            const overlap = pOut - cIn
+            const gap = cIn - pOut
+
+            if (overlap > SRC_EPS) {
+              // Move curr start to prev end
+              curr.sourceIn = pOut
+              const rate = curr.playbackRate || 1
+              const newSourceDuration = Math.max(0, cOut - curr.sourceIn)
+              const newDuration = Math.max(1, quantizeMs(newSourceDuration / rate))
+              try { console.log('[TypingApply] normalize(overlap)', { currId: curr.id, oldIn: cIn, newIn: curr.sourceIn, newDuration }) } catch {}
+              curr.duration = newDuration
+            } else if (gap > SRC_EPS) {
+              // Close tiny gap by pulling curr start back to prev end
+              curr.sourceIn = pOut
+              const rate = curr.playbackRate || 1
+              const newSourceDuration = Math.max(0, cOut - curr.sourceIn)
+              const newDuration = Math.max(1, quantizeMs(newSourceDuration / rate))
+              try { console.log('[TypingApply] normalize(gap)', { currId: curr.id, oldIn: cIn, newIn: curr.sourceIn, newDuration }) } catch {}
+              curr.duration = newDuration
+            }
+          }
+        }
+        
+        // PHASE 5: Fix overlaps and gaps - reflow the track from the edited block forward
+        // Sort by time and reflow from the original block start to keep global ordering intact
         track.clips.sort((a, b) => a.startTime - b.startTime)
+        const startIndex = Math.max(0, track.clips.findIndex(c => c.startTime >= originalBlockStartTime - 0.01))
+        reflowClips(track, startIndex, state.currentProject)
+        try { console.log('[TypingApply] reflowFrom', { originalBlockStartTime, order: track.clips.map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })) }) } catch {}
         
-        // Only adjust clips from the same recording that were affected by speed changes
-        const recordingClips = track.clips.filter(c => c.recordingId === recordingId)
-        
-        for (let i = 1; i < recordingClips.length; i++) {
-          const prevClip = recordingClips[i - 1]
-          const currentClip = recordingClips[i]
-          const prevEnd = prevClip.startTime + prevClip.duration
-          
-          // Position current clip right after previous clip (no gap, no overlap)
-          if (Math.abs(currentClip.startTime - prevEnd) > 0.01) {
-            currentClip.startTime = prevEnd
-          }
-        }
-        
-        // PHASE 5: Remove applied typing periods from the recording's metadata
+        // PHASE 6: Remove applied typing periods from the recording's metadata
         // This is the elegant solution - the metadata becomes the single source of truth
         const recording = state.currentProject.recordings.find(r => r.id === recordingId)
         if (recording && recording.metadata?.keyboardEvents) {
@@ -1431,6 +1419,9 @@ export const useProjectStore = create<ProjectStore>()(
             updatePlayheadState(state)
           }
         }
+
+        // End debug group
+        try { console.groupEnd() } catch {}
       })
 
       return { affectedClips, originalClips }

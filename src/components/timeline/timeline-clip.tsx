@@ -72,8 +72,6 @@ export const TimelineClip = React.memo(({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const colors = useTimelineColors()
   const { settings } = useProjectStore()
-  
-  const recordingId = recording?.id || clip.recordingId
 
   const clipX = TimeConverter.msToPixels(clip.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
   const clipWidth = Math.max(
@@ -566,20 +564,6 @@ export const TimelineClip = React.memo(({
           />
         </Group>
       )}
-
-      {/* Clip ID label */}
-      <Text
-        x={8}
-        y={8}
-        text={`${clip.id.slice(-4)}`}
-        fontSize={11}
-        fill={colors.foreground}
-        fontFamily="system-ui"
-        fontStyle="bold"
-        shadowColor="black"
-        shadowBlur={3}
-        shadowOpacity={0.8}
-      />
 
       {/* Effect badges for video clips - clickable indicators */}
       {trackType === 'video' && (() => {

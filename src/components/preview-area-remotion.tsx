@@ -20,10 +20,10 @@ interface PreviewAreaRemotionProps {
 type PreviewQuality = 'low' | 'medium' | 'high' | 'auto'
 
 const QUALITY_PRESETS: Record<PreviewQuality, { maxWidth: number; maxHeight: number; label: string }> = {
-  low: { maxWidth: 854, maxHeight: 480, label: '480p' },      // 480p
-  medium: { maxWidth: 1280, maxHeight: 720, label: '720p' },   // 720p
-  high: { maxWidth: 1920, maxHeight: 1080, label: '1080p' },   // 1080p
-  auto: { maxWidth: 1280, maxHeight: 720, label: 'Auto' }      // Default to 720p for auto
+  low: { maxWidth: 854, maxHeight: 480, label: '480p' },
+  medium: { maxWidth: 1280, maxHeight: 720, label: '720p' },
+  high: { maxWidth: 1920, maxHeight: 1080, label: '1080p' },
+  auto: { maxWidth: 1280, maxHeight: 720, label: 'Auto' }
 }
 
 export function PreviewAreaRemotion({
@@ -35,108 +35,98 @@ export function PreviewAreaRemotion({
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
   
-  // Video state for seamless transitions
+  // Video state
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null)
   const [activeClip, setActiveClip] = useState<Clip | null>(null)
   const [activeRecording, setActiveRecording] = useState<Recording | null>(null)
   
-  // Resolution selection removed; default to 'auto' preset internally
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
   
-  // Get next clip/recording from store for preloading
   const nextClip = useProjectStore(state => state.nextClip)
   const nextRecording = useProjectStore(state => state.nextRecording)
+  const allTracks = useProjectStore(state => state.currentProject?.timeline.tracks)
   
-  // Handle clip transitions - only update video when recording changes
+  // Helper: compute recording-seconds from global timeline time and current clip
+  const getRecordingSeconds = useCallback((clip: Clip, nowMs: number) => {
+    const clipStart = clip.startTime
+    const elapsedMs = Math.max(0, nowMs - clipStart)
+    const sourceInMs = clip.sourceIn || 0
+    const rate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
+    return (sourceInMs / 1000) + (elapsedMs / 1000) * rate
+  }, [])
+  
+  // Handle clip transitions
   useEffect(() => {
     if (playheadClip && playheadRecording) {
-      // Check if we're switching to a different recording (not just a split)
       const recordingChanged = !activeRecording || activeRecording.id !== playheadRecording.id
-      
       if (recordingChanged) {
-        // Different recording - need to load new video
         const url = RecordingStorage.getBlobUrl(playheadRecording.id)
         if (url) {
           setActiveVideoUrl(url)
         } else if (playheadRecording.filePath) {
-          // Load if not cached
           globalBlobManager.ensureVideoLoaded(
             playheadRecording.id,
             playheadRecording.filePath
-          ).then(url => {
-            if (url) setActiveVideoUrl(url)
-          })
+          ).then(url => { if (url) setActiveVideoUrl(url) })
         }
         setActiveRecording(playheadRecording)
       }
-      
-      // Always update active clip (even for splits)
       setActiveClip(playheadClip)
     }
   }, [playheadClip?.id, playheadRecording?.id])
   
-  // Preload next recording if different from current
+  // Preload next recording if different
   useEffect(() => {
     if (nextClip && nextRecording && activeRecording) {
-      // Only preload if it's a different recording
       if (nextRecording.id !== activeRecording.id) {
         const existingUrl = RecordingStorage.getBlobUrl(nextRecording.id)
         if (!existingUrl && nextRecording.filePath) {
-          // Preload in background
-          globalBlobManager.ensureVideoLoaded(
-            nextRecording.id,
-            nextRecording.filePath
-          ).catch(() => {})
+          globalBlobManager.ensureVideoLoaded(nextRecording.id, nextRecording.filePath).catch(() => {})
         }
       }
     }
   }, [nextClip?.id, nextRecording?.id, activeRecording?.id])
   
-  // Use playhead clip/recording directly for preview
-  // This ensures we always show the current position
   const previewClip = playheadClip || activeClip
   const previewRecording = playheadRecording || activeRecording
 
-  // Check if next clip is a split from same recording
   const isNextClipSplit = useMemo(() => {
     if (!nextClip || !nextRecording || !activeRecording) return false
     return nextRecording.id === activeRecording.id
   }, [nextClip, nextRecording?.id, activeRecording?.id])
 
-  // Sync playback state with timeline
+  // Sync playback state
   useEffect(() => {
     if (!playerRef.current) return;
-
-    // Control video player based on timeline state AND clip availability
-    // Use previewClip instead of playheadClip to avoid pausing during transitions
     if (isPlaying && previewClip && previewRecording) {
-      // Timeline is playing AND there's a clip - play video
       playerRef.current.play();
     } else {
-      // Timeline stopped OR no clip - pause video
       playerRef.current.pause();
     }
   }, [isPlaying, previewClip, previewRecording]);
 
-  // Sync current time when scrubbing (not playing)
+  // Seek when scrubbing (paused) to recording time
   useEffect(() => {
     if (!playerRef.current || isPlaying) return;
-
-    // Only seek if we have a valid clip and video
     if (!previewClip || !activeVideoUrl) {
-      // No clip or video - ensure player is at frame 0
       playerRef.current.seekTo(0);
       return;
     }
-
-    // Convert timeline time to clip-relative frame
-    const clipStart = previewClip.startTime;
-    const clipProgress = Math.max(0, currentTime - clipStart);
+    const recSeconds = getRecordingSeconds(previewClip, currentTime)
     const frameRate = 30
-    const targetFrame = Math.floor((clipProgress / 1000) * frameRate);
-
+    const targetFrame = Math.floor(recSeconds * frameRate)
     playerRef.current.seekTo(targetFrame);
-  }, [currentTime, previewClip, isPlaying, activeVideoUrl]);
+  }, [currentTime, previewClip, isPlaying, activeVideoUrl, getRecordingSeconds]);
+
+  useEffect(() => {
+    if (!playerRef.current) return;
+    if (!previewClip || !activeVideoUrl) return;
+    // Seek once when the clip changes to align to the new source offset
+    const recSeconds = getRecordingSeconds(previewClip, currentTime)
+    const frameRate = 30
+    const targetFrame = Math.floor(recSeconds * frameRate)
+    playerRef.current.seekTo(targetFrame)
+  }, [previewClip?.id, activeVideoUrl])
 
   useEffect(() => {
     return () => {
@@ -149,19 +139,14 @@ export function PreviewAreaRemotion({
     }
   }, [])
 
-  // Get video dimensions
   const videoWidth = previewRecording?.width || 1920
   const videoHeight = previewRecording?.height || 1080
 
-  // Get timeline effects (timeline-global)
   const timelineEffects = useProjectStore(state => state.currentProject?.timeline.effects)
 
-  // Build clip-relative event streams so previews respect trim/split
+  // Build recording-time event streams (filtered to clip window)
   const adjustedEvents = useMemo(() => {
     const recordingMeta: any = previewRecording?.metadata || {}
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[PreviewArea] Total scroll events in recording:', recordingMeta.scrollEvents?.length || 0, 'First few:', recordingMeta.scrollEvents?.slice(0, 3))
-    }
     const clip = previewClip
     if (!clip) {
       return {
@@ -176,91 +161,94 @@ export function PreviewAreaRemotion({
     const sourceIn = clip.sourceIn || 0
     const sourceOut = clip.sourceOut || (clip.sourceIn + (clip.duration * rate))
 
-    // Map source timestamps into clip-relative timeline, then scale by playback rate
-    const mapWindow = (ts: number) => (ts - sourceIn) / rate
-
     const within = (ts: number) => ts >= sourceIn && ts <= sourceOut
 
-    const mouseEvents = (recordingMeta.mouseEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
-      ...e,
-      timestamp: mapWindow(e.timestamp)
-    }))
-    const clickEvents = (recordingMeta.clickEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
-      ...e,
-      timestamp: mapWindow(e.timestamp)
-    }))
-    const scrollEvents = (recordingMeta.scrollEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
-      ...e,
-      timestamp: mapWindow(e.timestamp)
-    }))
-
-    if (process.env.NODE_ENV !== 'production' && scrollEvents.length > 0) {
-      console.log('[PreviewArea] Scroll events for clip:', scrollEvents.length, 'First few:', scrollEvents.slice(0, 3))
-    }
-    const keyboardEvents = (recordingMeta.keyboardEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({
-      ...e,
-      timestamp: mapWindow(e.timestamp)
-    }))
+    const mouseEvents = (recordingMeta.mouseEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({ ...e, timestamp: e.timestamp }))
+    const clickEvents = (recordingMeta.clickEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({ ...e, timestamp: e.timestamp }))
+    const scrollEvents = (recordingMeta.scrollEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({ ...e, timestamp: e.timestamp }))
+    const keyboardEvents = (recordingMeta.keyboardEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({ ...e, timestamp: e.timestamp }))
 
     return { mouseEvents, clickEvents, scrollEvents, keyboardEvents }
   }, [previewClip, previewRecording?.metadata])
 
-  // Convert effects to clip-relative times for Remotion
+  // Convert effects to recording-time windows; keep background persistent
   const clipRelativeEffects = useMemo(() => {
     if (!previewClip) return null
 
     const clipStart = previewClip.startTime
     const clipEnd = previewClip.startTime + previewClip.duration
+    const rate = previewClip.playbackRate && previewClip.playbackRate > 0 ? previewClip.playbackRate : 1
+    const sourceIn = previewClip.sourceIn || 0
 
-    // Merge store effects with local (unsaved) effects.
-    // - Keep store timing (start/end) authoritative to reflect timeline edits immediately
-    // - Apply local data/enabled overrides when present
+    const EPS = 1 // ms
+
     const baseEffects: Effect[] = (timelineEffects || []) as Effect[]
 
     let mergedEffects: Effect[] = baseEffects
 
     if (localEffects) {
       const byId = new Map<string, Effect>(baseEffects.map(e => [e.id, e]))
-
       for (const le of localEffects) {
         const existing = byId.get(le.id)
         if (existing) {
-          byId.set(le.id, {
-            ...existing,
-            // Preserve store timing so duration/position changes from timeline are reflected
-            startTime: existing.startTime,
-            endTime: existing.endTime,
-            // Override effect data and enabled flag from local changes
-            data: { ...(existing as any).data, ...(le as any).data } as any,
-            enabled: le.enabled ?? existing.enabled
-          } as Effect)
+          byId.set(le.id, { ...existing, startTime: existing.startTime, endTime: existing.endTime, data: { ...(existing as any).data, ...(le as any).data } as any, enabled: le.enabled ?? existing.enabled } as Effect)
         } else {
-          // Local-only effect (e.g., newly created but not yet saved)
           byId.set(le.id, le)
         }
       }
-
       mergedEffects = Array.from(byId.values())
     }
 
-    const effectsToConvert = mergedEffects.filter(effect =>
-      effect.enabled &&
-      effect.startTime < clipEnd &&
-      effect.endTime > clipStart
-    )
+    const effectsToConvert = mergedEffects.filter(effect => effect.enabled)
 
-    return effectsToConvert.map(effect => ({
-      ...effect,
-      startTime: effect.startTime - clipStart,
-      endTime: effect.endTime - clipStart
-    }))
-  }, [previewClip, localEffects, timelineEffects])
+    // Collect all clips for this recording to compute continuous rec window
+    const recordingClips: Array<any> = (allTracks || []).flatMap((t: any) => t.clips || []).filter((c: any) => c.recordingId === previewRecording?.id)
 
-  // Memoize composition props to prevent unnecessary re-renders
+    return effectsToConvert.map(effect => {
+      if (effect.type === 'background') {
+        return { ...effect, startTime: 0, endTime: Number.MAX_SAFE_INTEGER }
+      }
+
+      // For zoom/screen, compute a continuous recording-time window across all overlapping clips of this recording
+      if (effect.type === 'zoom' || effect.type === 'screen') {
+        let segRecStarts: number[] = []
+        let segRecEnds: number[] = []
+        for (const c of recordingClips) {
+          const cRate = c.playbackRate && c.playbackRate > 0 ? c.playbackRate : 1
+          const cStart = c.startTime
+          const cEnd = c.startTime + c.duration
+          const overlapStart = Math.max(effect.startTime, cStart)
+          const overlapEnd = Math.min(effect.endTime, cEnd)
+          if (overlapEnd > overlapStart) {
+            const recStartSeg = (c.sourceIn || 0) + (overlapStart - cStart) * cRate
+            const recEndSeg = (c.sourceIn || 0) + (overlapEnd - cStart) * cRate
+            segRecStarts.push(recStartSeg)
+            segRecEnds.push(recEndSeg)
+          }
+        }
+        if (segRecStarts.length > 0) {
+          const recStart = Math.max(0, Math.min(...segRecStarts) - EPS)
+          const recEnd = Math.max(...segRecEnds) + EPS
+          return { ...effect, startTime: recStart, endTime: recEnd }
+        }
+        // No overlap with this recording; drop
+        return { ...effect, startTime: Number.MAX_SAFE_INTEGER - 1, endTime: Number.MAX_SAFE_INTEGER }
+      }
+
+      // For other effects (annotations, cursor, keystroke), project current clip window to recording time
+      const windowStart = Math.max(effect.startTime, clipStart)
+      const windowEnd = Math.min(effect.endTime, clipEnd)
+      const recStart = Math.max(0, sourceIn + (windowStart - clipStart) * rate - EPS)
+      const recEnd = sourceIn + (windowEnd - clipStart) * rate + EPS
+      return { ...effect, startTime: recStart, endTime: recEnd }
+    })
+  }, [previewClip, previewRecording?.id, localEffects, timelineEffects, allTracks])
+
   const compositionProps = useMemo(() => {
     return {
       videoUrl: activeVideoUrl || '',
       clip: previewClip,
+      nextClip: nextClip || undefined,
       effects: clipRelativeEffects,
       cursorEvents: adjustedEvents.mouseEvents,
       clickEvents: adjustedEvents.clickEvents,
@@ -270,14 +258,12 @@ export function PreviewAreaRemotion({
       videoHeight,
       isSplitTransition: isNextClipSplit
     }
-  }, [previewClip, activeVideoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight, isNextClipSplit])
+  }, [previewClip, nextClip, activeVideoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight, isNextClipSplit])
 
-  // Calculate optimal composition size based on container and quality settings
   const calculateOptimalCompositionSize = useCallback(() => {
     const preset = QUALITY_PRESETS[DEFAULT_PREVIEW_QUALITY]
     const videoAspectRatio = videoWidth / videoHeight
 
-    // Determine a scale based on preset limits relative to the source video
     const scaleByWidth = preset.maxWidth / videoWidth
     const scaleByHeight = preset.maxHeight / videoHeight
     const scale = Math.min(scaleByWidth, scaleByHeight)
@@ -285,12 +271,10 @@ export function PreviewAreaRemotion({
     let compositionWidth = Math.max(320, Math.round(videoWidth * scale))
     let compositionHeight = Math.max(180, Math.round(videoHeight * scale))
 
-    // Keep aspect ratio exact
     if (Math.abs(compositionWidth / compositionHeight - videoAspectRatio) > 0.001) {
       compositionHeight = Math.round(compositionWidth / videoAspectRatio)
     }
 
-    // Round to even numbers for better codec compatibility
     compositionWidth = Math.floor(compositionWidth / 2) * 2
     compositionHeight = Math.floor(compositionHeight / 2) * 2
 
@@ -299,25 +283,30 @@ export function PreviewAreaRemotion({
   
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
-  // Use recording duration when available to prevent Player resets between splits
   const durationInFrames = useMemo(() => {
-    // Use full recording duration if available to keep Player stable
     if (previewRecording) {
       return Math.ceil((previewRecording.duration / 1000) * 30)
     }
-    // Fallback to clip duration
     if (previewClip) {
       return Math.ceil((previewClip.duration / 1000) * 30)
     }
     return 900
   }, [previewRecording?.duration, previewClip?.duration]);
-  // Smart player key - only remount when switching recordings, not between splits
+
+  // Compute initial frame at mount to avoid first-frame flash
+  const initialFrame = useMemo(() => {
+    if (previewClip) {
+      const recSeconds = getRecordingSeconds(previewClip, currentTime)
+      return Math.floor(recSeconds * 30)
+    }
+    return 0
+  }, [previewClip?.id, activeRecording?.id])
+
   const playerKey = useMemo(() => {
     const recordingId = activeRecording?.id || 'none'
-    return `${recordingId}-${previewClip?.playbackRate ?? 1}-${compositionWidth}x${compositionHeight}`
-  }, [activeRecording?.id, previewClip?.playbackRate, compositionWidth, compositionHeight])
+    return `${recordingId}`
+  }, [activeRecording?.id])
 
-  // Show message when no content available
   if (!previewClip || !previewRecording || !activeVideoUrl) {
     return (
       <div className="relative w-full h-full overflow-hidden bg-background">
@@ -334,9 +323,7 @@ export function PreviewAreaRemotion({
   return (
     <div className="relative w-full h-full overflow-hidden bg-background">
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div
-          className="relative w-full h-full flex items-center justify-center"
-        >
+        <div className="relative w-full h-full flex items-center justify-center">
           <Player
             key={playerKey}
             ref={playerRef}
@@ -346,13 +333,8 @@ export function PreviewAreaRemotion({
             compositionWidth={compositionWidth}
             compositionHeight={compositionHeight}
             fps={30}
-            style={{
-              width: '100%',
-              height: '100%',
-              maxWidth: '100%',
-              maxHeight: '100%',
-              objectFit: 'contain'
-            }}
+            initialFrame={initialFrame}
+            style={{ width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
             controls={false}
             loop={false}
             clickToPlay={false}
@@ -363,7 +345,6 @@ export function PreviewAreaRemotion({
                 <div className="text-sm text-muted-foreground">Loading preview...</div>
               </div>
             )}
-            // Performance optimizations
             alwaysShowControls={false}
             initiallyShowControls={false}
             showPosterWhenPaused={false}
