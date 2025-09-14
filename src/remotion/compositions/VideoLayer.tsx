@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Video, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Video, AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
@@ -20,21 +20,16 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // For continuous playback, always start from 0 and use CSS to show the right portion
-  // This prevents decoder reinitialization
+  // Calculate the correct start frame based on clip's sourceIn
   const currentSourceInMs = clip ? (clip.sourceIn || 0) : 0;
-  const currentSourceInFrames = Math.round((currentSourceInMs / 1000) * fps);
+  const currentStartFrame = Math.round((currentSourceInMs / 1000) * fps);
   
-  // Calculate the video offset to show the correct portion
-  // The video plays from 0, but we offset it to show the sourceIn position
-  const videoOffsetFrames = -currentSourceInFrames;
-  const videoOffsetPixels = useMemo(() => {
-    // Calculate how much to shift the video based on the source position
-    // This creates a "viewport" effect where the video plays continuously
-    // but we only see the portion we need
-    const frameWidth = videoWidth / fps; // Approximate, will be adjusted
-    return videoOffsetFrames * frameWidth;
-  }, [videoOffsetFrames, videoWidth, fps]);
+  // For split clips from same recording, use a stable key to prevent remounting
+  const videoKey = useMemo(() => {
+    if (!clip) return 'no-clip';
+    // Use recording ID so splits don't remount the video
+    return `video-${clip.recordingId}`;
+  }, [clip?.recordingId]);
   
   // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
@@ -221,25 +216,22 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Single continuous video - always plays from frame 0 */}
-        {/* We use the current frame + sourceIn offset to show the right portion */}
+        {/* Single video with stable key to prevent remounting between splits */}
         <div
           style={{
             position: 'absolute',
             width: '100%',
             height: '100%',
-            // No transform needed - video plays naturally
           }}
         >
           <Video
+            key={videoKey}  // Stable key prevents remounting for same recording
             src={videoUrl}
             style={videoStyle}
             volume={1}
             muted={false}
             playbackRate={clip?.playbackRate || 1}
-            // CRITICAL: Always start from 0 + current frame position
-            // This keeps the decoder running continuously
-            startFrom={currentSourceInFrames + frame}
+            startFrom={currentStartFrame}
             onError={(e) => {
               console.error('Video playback error:', e)
             }}
