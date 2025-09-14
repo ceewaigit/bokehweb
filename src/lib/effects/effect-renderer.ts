@@ -16,6 +16,8 @@ import type {
 import { EffectType, BackgroundType, AnnotationType, CursorStyle, KeystrokePosition } from '@/types/project'
 import { KeystrokeRenderer } from './keystroke-renderer'
 import { CursorType, electronToCustomCursor, getCursorImagePath } from './cursor-types'
+import { calculateBackgroundStyle, applyGradientToCanvas } from './utils/background-calculator'
+import { calculateCursorState, getCursorPath } from './utils/cursor-calculator'
 
 export interface EffectRenderContext {
   canvas: HTMLCanvasElement | OffscreenCanvas
@@ -57,90 +59,83 @@ export class EffectRenderer {
   }
 
   /**
-   * Render background effect
+   * Render background effect using calculator
    */
   renderBackground(context: EffectRenderContext, effect: Effect): void {
     const data = effect.data as BackgroundEffectData
     if (!data?.type) return
 
     const { ctx, width, height } = context
-
-    switch (data.type) {
-      case BackgroundType.Color:
-        ctx.fillStyle = data.color || '#000000'
+    
+    // Use background calculator for consistent rendering
+    const backgroundStyle = calculateBackgroundStyle(data, width, height)
+    
+    if (backgroundStyle.canvasDrawing) {
+      if (backgroundStyle.canvasDrawing.type === 'fill') {
+        ctx.fillStyle = backgroundStyle.canvasDrawing.color || '#000000'
         ctx.fillRect(0, 0, width, height)
-        break
-
-      case BackgroundType.Gradient:
-        if (data.gradient?.colors?.length) {
-          const gradient = this.createGradient(ctx, width, height, data.gradient)
-          ctx.fillStyle = gradient
-          ctx.fillRect(0, 0, width, height)
-        }
-        break
-
-      case BackgroundType.Wallpaper:
-        // Draw gradient first as base
-        if (data.gradient?.colors?.length) {
-          const gradient = this.createGradient(ctx, width, height, data.gradient)
-          ctx.fillStyle = gradient
-          ctx.fillRect(0, 0, width, height)
-        }
-        // Wallpaper would be composited on top if available
-        // This requires image loading which should be handled externally
-        break
-
-      case BackgroundType.Image:
-        // Image rendering requires external image loading
-        // Should be handled by the compositor
-        break
+      } else if (backgroundStyle.canvasDrawing.type === 'gradient' && backgroundStyle.canvasDrawing.gradient) {
+        applyGradientToCanvas(
+          ctx,
+          backgroundStyle.canvasDrawing.gradient,
+          width,
+          height
+        )
+      }
+      // Image backgrounds handled externally by compositor
     }
   }
 
   /**
-   * Render cursor effect using exact same logic as CursorLayer
+   * Render cursor effect using calculator
    */
   async renderCursor(context: EffectRenderContext, effect: Effect): Promise<void> {
     const data = effect.data as CursorEffectData
     if (!context.mouseEvents || context.mouseEvents.length === 0) return
 
-    const { ctx, timestamp, videoWidth, videoHeight } = context
-
-    // Find cursor position at timestamp (same interpolation as CursorLayer)
-    const cursorPos = this.interpolateCursorPosition(context.mouseEvents, timestamp)
-    if (!cursorPos) return
-
-    // Determine cursor type from events
-    const cursorEvent = context.mouseEvents.find(e => e.timestamp <= timestamp) || context.mouseEvents[0]
-    const cursorType = electronToCustomCursor(cursorEvent?.cursorType || 'default')
-
-    // Apply hide on idle if configured
-    if (data.hideOnIdle) {
-      const lastMovement = context.mouseEvents
-        .filter(e => e.timestamp <= timestamp)
-        .sort((a, b) => b.timestamp - a.timestamp)[0]
-
-      if (lastMovement && timestamp - lastMovement.timestamp > data.idleTimeout) {
-        return // Hide cursor when idle
+    const { ctx, timestamp } = context
+    
+    // Use cursor calculator for state calculation
+    const cursorState = calculateCursorState(
+      data,
+      context.mouseEvents,
+      context.clickEvents || [],
+      timestamp
+    )
+    
+    if (!cursorState.visible) return
+    
+    // Draw cursor using calculated state
+    ctx.save()
+    ctx.globalAlpha = cursorState.opacity
+    
+    // Apply shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+    ctx.shadowBlur = 4 * cursorState.scale
+    ctx.shadowOffsetX = 1 * cursorState.scale
+    ctx.shadowOffsetY = 2 * cursorState.scale
+    
+    // Draw cursor using path from calculator
+    const cursorPath = getCursorPath(cursorState.x, cursorState.y, cursorState.type, cursorState.scale)
+    ctx.fillStyle = data.style === CursorStyle.Custom && data.color ? data.color : '#ffffff'
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 1 * cursorState.scale
+    ctx.fill(cursorPath)
+    ctx.stroke(cursorPath)
+    
+    // Draw click effects from calculated state
+    if (cursorState.clickEffects.length > 0) {
+      ctx.shadowColor = 'transparent'
+      for (const click of cursorState.clickEffects) {
+        ctx.globalAlpha = click.opacity
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(click.x, click.y, click.radius, 0, Math.PI * 2)
+        ctx.stroke()
       }
     }
-
-    // Draw cursor based on style
-    ctx.save()
-
-    if (data.style === CursorStyle.MacOS || data.style === CursorStyle.Default) {
-      // Draw macOS-style cursor
-      this.drawMacOSCursor(ctx, cursorPos.x, cursorPos.y, cursorType, data.size || 1)
-    } else if (data.style === CursorStyle.Custom && data.color) {
-      // Draw custom colored cursor
-      this.drawCustomCursor(ctx, cursorPos.x, cursorPos.y, data.color, data.size || 1)
-    }
-
-    // Draw click effect if needed
-    if (data.clickEffects && context.clickEvents) {
-      this.drawClickEffects(ctx, context.clickEvents, timestamp)
-    }
-
+    
     ctx.restore()
   }
 
@@ -249,143 +244,9 @@ export class EffectRenderer {
     }
   }
 
-  // Helper methods
+  // Helper methods - Most logic now moved to calculators
 
-  private createGradient(
-    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-    width: number,
-    height: number,
-    gradientData: { colors: string[], angle: number }
-  ): CanvasGradient {
-    const angle = (gradientData.angle || 135) * Math.PI / 180
-    const x1 = width / 2 - Math.cos(angle) * width / 2
-    const y1 = height / 2 - Math.sin(angle) * height / 2
-    const x2 = width / 2 + Math.cos(angle) * width / 2
-    const y2 = height / 2 + Math.sin(angle) * height / 2
-
-    const gradient = ctx.createLinearGradient(x1, y1, x2, y2)
-    gradientData.colors.forEach((color, index) => {
-      const stop = index / (gradientData.colors.length - 1)
-      gradient.addColorStop(stop, color)
-    })
-
-    return gradient
-  }
-
-  private interpolateCursorPosition(
-    mouseEvents: MouseEvent[],
-    timestamp: number
-  ): { x: number, y: number } | null {
-    if (mouseEvents.length === 0) return null
-
-    // Find surrounding events for interpolation
-    let before = mouseEvents[0]
-    let after = mouseEvents[mouseEvents.length - 1]
-
-    for (let i = 0; i < mouseEvents.length - 1; i++) {
-      if (mouseEvents[i].timestamp <= timestamp && mouseEvents[i + 1].timestamp > timestamp) {
-        before = mouseEvents[i]
-        after = mouseEvents[i + 1]
-        break
-      }
-    }
-
-    if (before === after) {
-      return { x: before.x, y: before.y }
-    }
-
-    // Smooth interpolation
-    const t = (timestamp - before.timestamp) / (after.timestamp - before.timestamp)
-    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
-
-    return {
-      x: before.x + (after.x - before.x) * eased,
-      y: before.y + (after.y - before.y) * eased
-    }
-  }
-
-  private drawMacOSCursor(
-    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-    x: number,
-    y: number,
-    type: CursorType,
-    scale: number
-  ): void {
-    // Draw macOS-style cursor
-    ctx.save()
-
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
-    ctx.shadowBlur = 4 * scale
-    ctx.shadowOffsetX = 1 * scale
-    ctx.shadowOffsetY = 2 * scale
-
-    ctx.fillStyle = 'white'
-    ctx.strokeStyle = 'black'
-    ctx.lineWidth = 1 * scale
-
-    if (type === CursorType.ARROW) {
-      ctx.beginPath()
-      ctx.moveTo(x, y)
-      ctx.lineTo(x + 12 * scale, y + 12 * scale)
-      ctx.lineTo(x + 5 * scale, y + 12 * scale)
-      ctx.lineTo(x + 7 * scale, y + 17 * scale)
-      ctx.lineTo(x + 4 * scale, y + 18 * scale)
-      ctx.lineTo(x + 2 * scale, y + 13 * scale)
-      ctx.lineTo(x, y + 15 * scale)
-      ctx.closePath()
-
-      ctx.fill()
-      ctx.stroke()
-    }
-    // Add other cursor types as needed
-
-    ctx.restore()
-  }
-
-  private drawCustomCursor(
-    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-    x: number,
-    y: number,
-    color: string,
-    scale: number
-  ): void {
-    ctx.save()
-
-    ctx.fillStyle = color
-    ctx.beginPath()
-    ctx.arc(x, y, 5 * scale, 0, Math.PI * 2)
-    ctx.fill()
-
-    ctx.restore()
-  }
-
-  private drawClickEffects(
-    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-    clickEvents: ClickEvent[],
-    timestamp: number
-  ): void {
-    // Draw ripple effects for recent clicks
-    const recentClicks = clickEvents.filter(e =>
-      e.timestamp <= timestamp &&
-      timestamp - e.timestamp < 500 // Show ripple for 500ms
-    )
-
-    for (const click of recentClicks) {
-      const age = timestamp - click.timestamp
-      const progress = age / 500
-      const radius = 20 + progress * 30
-      const opacity = 1 - progress
-
-      ctx.save()
-      ctx.globalAlpha = opacity * 0.5
-      ctx.strokeStyle = '#ffffff'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(click.x, click.y, radius, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.restore()
-    }
-  }
+  // Drawing methods removed - now using calculators and their path generation
 
   private drawTextAnnotation(
     ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,

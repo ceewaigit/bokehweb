@@ -15,10 +15,13 @@ import type {
 import { ExportFormat, EffectType } from '@/types'
 import { WebCodecsEncoder } from './webcodecs-encoder'
 import { VideoFrameExtractor } from './video-frame-extractor'
-import { canvasCompositor } from './canvas-compositor'
 import { logger } from '@/lib/utils/logger'
 import type { ExportProgress } from './export-engine'
 import type { TimelineSegment } from './timeline-processor'
+import { calculateZoomTransform } from '@/remotion/compositions/utils/zoom-transform'
+import { calculateBackgroundStyle, applyGradientToCanvas } from '@/lib/effects/utils/background-calculator'
+import { calculateCursorState, getCursorPath } from '@/lib/effects/utils/cursor-calculator'
+import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 interface FrameData {
   timestamp: number  // in milliseconds
@@ -281,45 +284,174 @@ export class WebCodecsExportEngine {
     )
 
     if (activeEffects.length > 0) {
+      // Apply background effect first if present
+      const backgroundEffect = EffectsFactory.getBackgroundEffect(activeEffects)
+      if (backgroundEffect) {
+        const backgroundData = EffectsFactory.getBackgroundData(backgroundEffect)
+        if (backgroundData) {
+          const backgroundStyle = calculateBackgroundStyle(backgroundData, this.canvas.width, this.canvas.height)
+          
+          // Clear canvas and apply background
+          this.ctx.save()
+          if (backgroundStyle.canvasDrawing) {
+            if (backgroundStyle.canvasDrawing.type === 'fill') {
+              this.ctx.fillStyle = backgroundStyle.canvasDrawing.color || '#000000'
+              this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+            } else if (backgroundStyle.canvasDrawing.type === 'gradient' && backgroundStyle.canvasDrawing.gradient) {
+              applyGradientToCanvas(
+                this.ctx,
+                backgroundStyle.canvasDrawing.gradient,
+                this.canvas.width,
+                this.canvas.height
+              )
+            }
+          }
+          this.ctx.restore()
+          
+          // Re-draw the frame on top of background with padding if needed
+          if (backgroundData.padding && backgroundData.padding > 0) {
+            const padding = backgroundData.padding
+            const scale = Math.min(
+              (this.canvas.width - padding * 2) / this.canvas.width,
+              (this.canvas.height - padding * 2) / this.canvas.height
+            )
+            const scaledWidth = this.canvas.width * scale
+            const scaledHeight = this.canvas.height * scale
+            const x = (this.canvas.width - scaledWidth) / 2
+            const y = (this.canvas.height - scaledHeight) / 2
+            
+            // Create temp canvas with original frame
+            const tempCanvas = document.createElement('canvas')
+            tempCanvas.width = this.canvas.width
+            tempCanvas.height = this.canvas.height
+            const tempCtx = tempCanvas.getContext('2d')!
+            tempCtx.putImageData(imageData, 0, 0)
+            
+            // Clear and redraw with padding
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+            
+            // Reapply background
+            if (backgroundStyle.canvasDrawing?.type === 'gradient' && backgroundStyle.canvasDrawing.gradient) {
+              applyGradientToCanvas(
+                this.ctx,
+                backgroundStyle.canvasDrawing.gradient,
+                this.canvas.width,
+                this.canvas.height
+              )
+            } else if (backgroundStyle.canvasDrawing?.type === 'fill') {
+              this.ctx.fillStyle = backgroundStyle.canvasDrawing.color || '#000000'
+              this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+            }
+            
+            // Draw padded frame
+            this.ctx.drawImage(tempCanvas, x, y, scaledWidth, scaledHeight)
+            tempCanvas.remove()
+          }
+        }
+      }
+      
       this.ctx.save()
 
-      // Apply zoom effect
-      const zoomEffect = activeEffects.find(e => e.type === EffectType.Zoom)
-      if (zoomEffect) {
-        const zoomData = zoomEffect.data as any
-        const scale = zoomData.scale || 2
-        const centerX = this.canvas.width / 2
-        const centerY = this.canvas.height / 2
-
-        // Create a temporary canvas for zoom
-        const tempCanvas = document.createElement('canvas')
-        tempCanvas.width = this.canvas.width
-        tempCanvas.height = this.canvas.height
-        const tempCtx = tempCanvas.getContext('2d')!
+      // Apply zoom effect using calculator
+      const zoomEffects = EffectsFactory.getZoomEffects(activeEffects)
+      if (zoomEffects.length > 0) {
+        const zoomEffect = zoomEffects[0]
+        const zoomData = EffectsFactory.getZoomData(zoomEffect)
         
-        // Copy current frame to temp canvas
-        tempCtx.drawImage(this.canvas, 0, 0)
-        
-        // Clear and apply zoom
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
-        this.ctx.translate(centerX, centerY)
-        this.ctx.scale(scale, scale)
-        this.ctx.translate(-centerX, -centerY)
-        this.ctx.drawImage(tempCanvas, 0, 0)
-        
-        tempCanvas.remove()
+        if (zoomData) {
+          // Calculate zoom transform using shared calculator
+          const zoomTransform = calculateZoomTransform(
+            {
+              id: zoomEffect.id,
+              startTime: zoomEffect.startTime,
+              endTime: zoomEffect.endTime,
+              scale: zoomData.scale || 2,
+              targetX: zoomData.targetX || 0.5,
+              targetY: zoomData.targetY || 0.5,
+              introMs: zoomData.introMs || 300,
+              outroMs: zoomData.outroMs || 300
+            },
+            timestamp,
+            this.canvas.width,
+            this.canvas.height,
+            { x: zoomData.targetX || 0.5, y: zoomData.targetY || 0.5 }
+          )
+          
+          // Apply the calculated transform
+          if (zoomTransform.scale !== 1) {
+            const tempCanvas = document.createElement('canvas')
+            tempCanvas.width = this.canvas.width
+            tempCanvas.height = this.canvas.height
+            const tempCtx = tempCanvas.getContext('2d')!
+            
+            // Copy current frame to temp canvas
+            tempCtx.drawImage(this.canvas, 0, 0)
+            
+            // Clear and apply zoom with calculated values
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+            this.ctx.save()
+            
+            // Apply transform from calculator
+            const centerX = this.canvas.width / 2
+            const centerY = this.canvas.height / 2
+            this.ctx.translate(centerX, centerY)
+            this.ctx.scale(zoomTransform.scale, zoomTransform.scale)
+            this.ctx.translate(-centerX + zoomTransform.scaleCompensationX, -centerY + zoomTransform.scaleCompensationY)
+            this.ctx.drawImage(tempCanvas, 0, 0)
+            
+            this.ctx.restore()
+            tempCanvas.remove()
+          }
+        }
       }
 
-      // Apply cursor overlay if available
-      if (metadata?.mouseEvents) {
-        // Find mouse position at this timestamp
-        const mouseEvent = this.findMouseEventAtTime(metadata.mouseEvents, timestamp)
-        if (mouseEvent) {
-          // Draw cursor indicator
-          this.ctx.fillStyle = 'rgba(255, 255, 0, 0.5)'
-          this.ctx.beginPath()
-          this.ctx.arc(mouseEvent.mouseX, mouseEvent.mouseY, 10, 0, Math.PI * 2)
-          this.ctx.fill()
+      // Apply cursor effect using calculator
+      const cursorEffect = EffectsFactory.getCursorEffect(activeEffects)
+      if (cursorEffect && metadata?.mouseEvents) {
+        const cursorData = EffectsFactory.getCursorData(cursorEffect)
+        if (cursorData) {
+          // Calculate cursor state using shared calculator
+          const cursorState = calculateCursorState(
+            cursorData,
+            metadata.mouseEvents,
+            metadata.clickEvents || [],
+            timestamp
+          )
+          
+          if (cursorState.visible) {
+            // Draw cursor using calculated state
+            this.ctx.save()
+            this.ctx.globalAlpha = cursorState.opacity
+            
+            // Draw cursor shadow
+            this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+            this.ctx.shadowBlur = 4 * cursorState.scale
+            this.ctx.shadowOffsetX = 1 * cursorState.scale
+            this.ctx.shadowOffsetY = 2 * cursorState.scale
+            
+            // Draw cursor shape
+            const cursorPath = getCursorPath(cursorState.x, cursorState.y, cursorState.type, cursorState.scale)
+            this.ctx.fillStyle = '#ffffff'
+            this.ctx.strokeStyle = '#000000'
+            this.ctx.lineWidth = 1 * cursorState.scale
+            this.ctx.fill(cursorPath)
+            this.ctx.stroke(cursorPath)
+            
+            // Draw click effects
+            if (cursorState.clickEffects.length > 0) {
+              this.ctx.shadowColor = 'transparent'
+              for (const click of cursorState.clickEffects) {
+                this.ctx.globalAlpha = click.opacity
+                this.ctx.strokeStyle = '#ffffff'
+                this.ctx.lineWidth = 2
+                this.ctx.beginPath()
+                this.ctx.arc(click.x, click.y, click.radius, 0, Math.PI * 2)
+                this.ctx.stroke()
+              }
+            }
+            
+            this.ctx.restore()
+          }
         }
       }
 
@@ -328,31 +460,6 @@ export class WebCodecsExportEngine {
 
     // Get the processed frame
     return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height)
-  }
-
-  /**
-   * Find mouse event at specific timestamp
-   */
-  private findMouseEventAtTime(
-    mouseEvents: any[],
-    timestamp: number
-  ): any {
-    if (!mouseEvents || mouseEvents.length === 0) return null
-    
-    // Find the closest mouse event
-    let closest = mouseEvents[0]
-    let minDiff = Math.abs(mouseEvents[0].timestamp - timestamp)
-    
-    for (const event of mouseEvents) {
-      const diff = Math.abs(event.timestamp - timestamp)
-      if (diff < minDiff) {
-        minDiff = diff
-        closest = event
-      }
-    }
-    
-    // Only return if within reasonable range (100ms)
-    return minDiff < 100 ? closest : null
   }
 
   /**
