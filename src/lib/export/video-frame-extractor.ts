@@ -296,10 +296,11 @@ export class VideoFrameExtractor {
     let nextCapture = startSec
     let done = false
     const frameQueue: ExtractedFrame[] = []
-    const maxQueueSize = 5  // Process in very small batches for better responsiveness
+    const processingPromises: Promise<void>[] = []
+    const maxConcurrent = 50  // Allow up to 50 frames processing concurrently
     
     await new Promise<void>((resolve) => {
-      const cb = async (_now: number, metadata: any) => {
+      const cb = (_now: number, metadata: any) => {
         if (done) return
         const mediaTime = metadata?.mediaTime ?? video.currentTime
 
@@ -313,15 +314,22 @@ export class VideoFrameExtractor {
               sourceTime: (nextCapture - sourceInSec) * 1000
             }
             
-            frameQueue.push(frame)
-            
-            // Process queue when it reaches max size
-            if (frameQueue.length >= maxQueueSize) {
-              const batch = frameQueue.splice(0, frameQueue.length)
-              if (onFrame) {
-                // Process batch concurrently but with limit
-                const promises = batch.map(f => onFrame(f))
-                await Promise.all(promises)
+            if (onFrame) {
+              // Start processing immediately without waiting
+              const promise = onFrame(frame).catch(err => {
+                console.error('Frame processing error:', err)
+              })
+              
+              processingPromises.push(promise)
+              
+              // Clean up completed promises
+              if (processingPromises.length >= maxConcurrent) {
+                // Remove completed promises
+                for (let i = processingPromises.length - 1; i >= 0; i--) {
+                  if ((processingPromises[i] as any).isSettled) {
+                    processingPromises.splice(i, 1)
+                  }
+                }
               }
             }
           }
@@ -332,13 +340,8 @@ export class VideoFrameExtractor {
           done = true
           video.pause()
           
-          // Process remaining frames
-          if (frameQueue.length > 0 && onFrame) {
-            const promises = frameQueue.map(f => onFrame(f))
-            await Promise.all(promises)
-          }
-          
-          resolve()
+          // Wait for all processing to complete
+          Promise.all(processingPromises).then(() => resolve())
           return
         }
 
