@@ -192,18 +192,28 @@ export class WebCodecsExportEngine {
           continue
         }
 
-        // Process this segment frame by frame
-        const segmentFrames = await this.processSegment(
-          segment,
-          recordings,
-          metadata,
-          settings,
-          currentFrame,
-          totalFrames,
-          onProgress
-        )
+        try {
+          // Process this segment frame by frame
+          const segmentFrames = await this.processSegment(
+            segment,
+            recordings,
+            metadata,
+            settings,
+            currentFrame,
+            totalFrames,
+            onProgress
+          )
 
-        currentFrame += segmentFrames
+          currentFrame += segmentFrames
+        } catch (segmentError) {
+          logger.error(`Failed to process segment ${segment.id}:`, segmentError)
+          // Try to continue with next segment instead of failing entirely
+          onProgress?.({
+            progress: (currentFrame / totalFrames) * 95,
+            stage: 'encoding',
+            message: `Error in segment ${segment.id}, continuing...`
+          })
+        }
       }
 
       onProgress?.({
@@ -264,9 +274,21 @@ export class WebCodecsExportEngine {
     // Pre-load all videos for this segment
     const videoMap = new Map<string, HTMLVideoElement>()
     for (const clipData of segment.clips) {
-      const videoUrl = await this.getVideoUrl(clipData.recording)
-      const video = await this.frameExtractor.loadVideo(clipData.recording.id, videoUrl)
-      videoMap.set(clipData.clip.id, video)
+      try {
+        const videoUrl = await this.getVideoUrl(clipData.recording)
+        logger.debug(`Loading video for recording ${clipData.recording.id}: ${videoUrl}`)
+        const video = await this.frameExtractor.loadVideo(clipData.recording.id, videoUrl)
+        videoMap.set(clipData.clip.id, video)
+      } catch (loadError) {
+        logger.error(`Failed to load video for clip ${clipData.clip.id}:`, loadError)
+        // Skip this clip if video fails to load
+        continue
+      }
+    }
+    
+    if (videoMap.size === 0) {
+      logger.warn(`No videos loaded for segment ${segment.id}`)
+      return 0
     }
 
     let processedFrames = 0
@@ -289,7 +311,7 @@ export class WebCodecsExportEngine {
       logger.debug(`Processing ${isTypingSpeedClip ? 'typing-speed' : 'normal'} clip ${clip.id} from ${clipStartInSegment}ms to ${clipEndInSegment}ms`)
 
       // Use high-performance pipeline for frame processing
-      if (this.useWorkers && this.workerPool) {
+      if (false && this.useWorkers && this.workerPool) { // Temporarily disabled
         const pipeline = createOptimizedPipeline()
         
         // Don't pre-allocate all renderers - acquire as needed to avoid deadlock

@@ -307,7 +307,7 @@ export class PerformanceMonitor {
       encoderQueueDepth: memoryGB > 4 ? 30 : 20, // Much lower to prevent stalls
       frameBatchSize: memoryGB > 4 ? 10 : 5, // Smaller batches
       useWebGL: false, // Disable WebGL for now - it may be causing crashes
-      useWorkers: cores > 2 && memoryGB > 2, // Only use workers with enough resources
+      useWorkers: false, // Disable workers temporarily to isolate crash
       useGPU: hasGPU
     }
   }
