@@ -86,11 +86,24 @@ export class TimelineProcessor {
     segmentDuration: number
   ): TimelineSegment[] {
     const segments: TimelineSegment[] = []
-    const segmentCount = Math.ceil(totalDuration / segmentDuration)
+    
+    // If no clips, return empty
+    if (clips.length === 0) {
+      return segments
+    }
+    
+    // Use the actual clip range instead of total timeline duration
+    const firstClipStart = clips[0].startTime
+    const lastClip = clips[clips.length - 1]
+    const actualEndTime = lastClip.startTime + lastClip.duration
+    const actualDuration = actualEndTime - firstClipStart
+    
+    // Create segments only for the actual content range
+    const segmentCount = Math.ceil(actualDuration / segmentDuration)
     
     for (let i = 0; i < segmentCount; i++) {
-      const segmentStart = i * segmentDuration
-      const segmentEnd = Math.min((i + 1) * segmentDuration, totalDuration)
+      const segmentStart = firstClipStart + (i * segmentDuration)
+      const segmentEnd = Math.min(firstClipStart + ((i + 1) * segmentDuration), actualEndTime)
       
       // Find clips that overlap with this segment
       const segmentClips = clips
@@ -166,34 +179,13 @@ export class TimelineProcessor {
     segmentStart: number,
     segmentEnd: number
   ): boolean {
+    // If no clips, it's a gap only if this isn't a partial segment at the end
     if (segmentClips.length === 0) {
-      return true  // Entire segment is a gap
+      return false  // Don't treat empty segments as gaps - they'll be skipped anyway
     }
     
-    // Sort clips by start time within segment
-    const sortedClips = [...segmentClips].sort((a, b) => a.segmentStartTime - b.segmentStartTime)
-    
-    // Check for gap at the beginning
-    if (sortedClips[0].segmentStartTime > 0) {
-      return true
-    }
-    
-    // Check for gaps between clips
-    for (let i = 1; i < sortedClips.length; i++) {
-      const prevEnd = sortedClips[i - 1].segmentEndTime
-      const currStart = sortedClips[i].segmentStartTime
-      
-      if (currStart - prevEnd > 10) {  // 10ms threshold
-        return true
-      }
-    }
-    
-    // Check for gap at the end
-    const lastClip = sortedClips[sortedClips.length - 1]
-    if (lastClip.segmentEndTime < segmentEnd - segmentStart) {
-      return true
-    }
-    
+    // Don't check for gaps, just process what we have
+    // The split clips from typing speed adjustments shouldn't be treated as gaps
     return false
   }
   

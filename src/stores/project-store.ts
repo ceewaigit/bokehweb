@@ -600,6 +600,9 @@ export const useProjectStore = create<ProjectStore>()(
           periods
         )
 
+        // Update modified timestamp to trigger save button
+        state.currentProject.modifiedAt = new Date().toISOString()
+
         // Update playhead state
         updatePlayheadState(state)
 

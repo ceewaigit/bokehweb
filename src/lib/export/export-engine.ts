@@ -185,6 +185,13 @@ export class ExportEngine {
           message: `Processing segment ${i + 1}/${totalSegments} with effects...`
         })
 
+        // Log segment details for debugging
+        if (segment.clips.length === 0) {
+          logger.debug(`Segment ${i + 1} has no clips (${segment.startTime}-${segment.endTime}ms)`)
+        } else {
+          logger.info(`Segment ${i + 1}: ${segment.clips.length} clips from ${segment.startTime}ms to ${segment.endTime}ms`)
+        }
+        
         const segmentBlob = await this.processSegmentWithEffects(
           segment,
           recordings,
