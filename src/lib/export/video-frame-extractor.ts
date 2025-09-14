@@ -296,7 +296,7 @@ export class VideoFrameExtractor {
     let nextCapture = startSec
     let done = false
     const frameQueue: ExtractedFrame[] = []
-    const maxQueueSize = 20  // Process in smaller batches
+    const maxQueueSize = 5  // Process in very small batches for better responsiveness
     
     await new Promise<void>((resolve) => {
       const cb = async (_now: number, metadata: any) => {
