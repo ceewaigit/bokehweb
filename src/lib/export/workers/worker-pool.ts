@@ -187,6 +187,12 @@ export class WorkerPool {
     availableWorker.worker.addEventListener('message', handleMessage)
 
     // Send task to worker
+    // Only transfer if it's actually an ImageBitmap (not HTMLVideoElement)
+    const transferables: Transferable[] = []
+    if (task.bitmap instanceof ImageBitmap) {
+      transferables.push(task.bitmap)
+    }
+    
     availableWorker.worker.postMessage({
       type: 'process',
       frameId: task.id,
@@ -194,7 +200,7 @@ export class WorkerPool {
       effects: task.effects,
       timestamp: task.timestamp,
       metadata: task.metadata
-    }, [task.bitmap])
+    }, transferables)
     }
   }
 

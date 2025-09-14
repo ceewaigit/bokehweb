@@ -346,6 +346,34 @@ export class WebCodecsExportEngine {
             )
             
             if (frame.imageData instanceof HTMLVideoElement) {
+              // Convert video frame to ImageBitmap for worker processing
+              if (this.useWorkers && this.workerPool && hasEffects) {
+                try {
+                  // Create ImageBitmap from video frame
+                  const bitmap = await createImageBitmap(frame.imageData)
+                  
+                  const frameTask: FrameTask = {
+                    id: frameId,
+                    bitmap: bitmap,
+                    effects: segment.effects || [],
+                    timestamp: frame.timestamp,
+                    metadata: metadata.get(clipData.recording.id)
+                  }
+                  
+                  const processed = await this.workerPool.processFrame(frameTask)
+                  await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
+                  processed.bitmap.close() // Clean up
+                  
+                  processedFrames++
+                  this.monitor.frameEnd(frameId)
+                  continue // Skip to next frame
+                } catch (workerError) {
+                  logger.warn('Worker processing failed for video frame, falling back:', workerError)
+                  // Continue with non-worker path below
+                }
+              }
+              
+              // Non-worker path for video frames
               // Try to get a renderer, with timeout to prevent deadlock
               let renderer: OffscreenRenderer | null = null
               
