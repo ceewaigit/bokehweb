@@ -28,36 +28,56 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const nextSourceInMs = nextClip ? (nextClip.sourceIn || 0) : 0;
   const nextStartFrame = Math.floor((nextSourceInMs / 1000) * fps);
   
-  // Calculate current time in milliseconds
+  // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
   
-  // Detect if we're near a transition (within 2 frames)
-  const isNearTransition = useMemo(() => {
+  // Calculate frames for precise boundary detection
+  const totalFramesInClip = clip ? Math.round((clip.duration / 1000) * fps) : 0;
+  const currentFrameInClip = frame; // Already clip-relative from Remotion
+  const framesUntilEnd = totalFramesInClip - currentFrameInClip;
+  
+  // Pre-load much earlier (10 frames) but only show crossfade at the end (2 frames)
+  const preloadFrames = 10;
+  const crossfadeFrames = 2;
+  
+  // Detect if we should pre-load the next clip
+  const shouldPreloadNext = useMemo(() => {
     if (!clip || !nextClip) return false;
     if (clip.recordingId !== nextClip.recordingId) return false; // Different recording
     
-    const clipEndTime = clip.duration;
-    const timeToEnd = clipEndTime - (currentTimeMs - (clip.startTime || 0));
-    return timeToEnd <= (2 / fps) * 1000 && timeToEnd >= 0; // Within 2 frames
-  }, [clip, nextClip, currentTimeMs, fps]);
+    // Start preloading when within 10 frames of the end
+    return framesUntilEnd <= preloadFrames && framesUntilEnd >= 0;
+  }, [clip, nextClip, framesUntilEnd, preloadFrames]);
+  
+  // Detect if we're in the crossfade zone (last 2 frames)
+  const isInCrossfade = useMemo(() => {
+    if (!shouldPreloadNext) return false;
+    return framesUntilEnd <= crossfadeFrames && framesUntilEnd >= 0;
+  }, [shouldPreloadNext, framesUntilEnd, crossfadeFrames]);
   
   // Calculate crossfade opacity for seamless transition
   const crossfadeOpacity = useMemo(() => {
-    if (!isNearTransition || !clip) return { current: 1, next: 0 };
+    if (!isInCrossfade || !clip) return { current: 1, next: 0 };
     
-    const clipEndTime = clip.duration;
-    const timeToEnd = clipEndTime - (currentTimeMs - (clip.startTime || 0));
-    const fadeFrames = 2; // 2 frame crossfade
-    const fadeDuration = (fadeFrames / fps) * 1000;
+    // Use frame-based calculation for precision
+    const fadeProgress = (crossfadeFrames - framesUntilEnd) / crossfadeFrames;
     
-    if (timeToEnd > fadeDuration) return { current: 1, next: 0 };
+    // Log for debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[VideoLayer] Crossfade:', {
+        currentFrame: currentFrameInClip,
+        totalFrames: totalFramesInClip,
+        framesUntilEnd,
+        fadeProgress,
+        opacity: { current: 1 - fadeProgress, next: fadeProgress }
+      });
+    }
     
-    const fadeProgress = 1 - (timeToEnd / fadeDuration);
     return {
-      current: 1 - fadeProgress,
-      next: fadeProgress
+      current: Math.max(0, 1 - fadeProgress),
+      next: Math.min(1, fadeProgress)
     };
-  }, [isNearTransition, clip, currentTimeMs, fps])
+  }, [isInCrossfade, clip, framesUntilEnd, crossfadeFrames, currentFrameInClip, totalFramesInClip])
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
@@ -248,7 +268,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             width: '100%',
             height: '100%',
             opacity: crossfadeOpacity.current,
-            transition: isNearTransition ? 'opacity 0.067s linear' : 'none', // 2 frames at 30fps
+            transition: isInCrossfade ? 'opacity 0.067s linear' : 'none', // Smooth transition only during crossfade
+            zIndex: isInCrossfade ? 1 : 2, // Current video on top except during crossfade
           }}
         >
           <Video
@@ -264,15 +285,17 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           />
         </div>
         
-        {/* Next video buffer - only render when near transition */}
-        {isNearTransition && nextClip && (
+        {/* Next video buffer - preload early but only show during crossfade */}
+        {shouldPreloadNext && nextClip && (
           <div
             style={{
               position: 'absolute',
               width: '100%',
               height: '100%',
               opacity: crossfadeOpacity.next,
-              transition: 'opacity 0.067s linear', // 2 frames at 30fps
+              visibility: isInCrossfade ? 'visible' : 'hidden', // Hidden until crossfade starts
+              transition: isInCrossfade ? 'opacity 0.067s linear' : 'none',
+              zIndex: isInCrossfade ? 2 : 1, // Next video on top during crossfade
             }}
           >
             <Video

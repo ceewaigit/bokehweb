@@ -8,8 +8,8 @@ import type { MainCompositionProps } from './types';
 import type { ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ZoomBlock } from '@/types/project';
 import { calculateVideoPosition } from './utils/video-position';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
-import { calculateZoomScale, calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
-import { CinematicScrollCalculator, createCinematicTransform, createBlurFilter } from '@/lib/effects/cinematic-scroll';
+import { calculateZoomScale } from './utils/zoom-transform';
+import { CinematicScrollCalculator } from '@/lib/effects/cinematic-scroll';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -75,24 +75,6 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     };
   });
 
-  // Read zoom behavior settings (prefer active block; fallback to first)
-  const zoomBehavior = useMemo(() => {
-    // Determine active block at current time
-    const active = zoomEffects.find(e => currentTimeMs >= e.startTime && currentTimeMs <= e.endTime)
-    const source = active || zoomEffects[0]
-    const data = (source?.data as ZoomEffectData) || ({} as any)
-
-    return {
-      id: source?.id,
-      startTime: source?.startTime || 0,
-      endTime: source?.endTime || 0,
-      scale: data.scale || 2,
-      introMs: data.introMs || 300,
-      outroMs: data.outroMs || 300,
-      followStrategy: data.followStrategy || 'mouse',
-      mouseIdlePx: data.mouseIdlePx ?? 3
-    }
-  }, [zoomEffects, currentTimeMs])
 
   // Calculate complete zoom state including dynamic pan
   const completeZoomState = useMemo(() => {
@@ -203,7 +185,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
 
   // Initialize cinematic scroll calculator
   const scrollCalculatorRef = useRef<{ calculator: CinematicScrollCalculator; preset: string } | null>(null);
-  
+
   // Compute cinematic scroll effects when enabled
   const cinematicScrollState = useMemo(() => {
     const anno = (effects || []).find(e => e.type === 'annotation' && (e as any).data?.kind === 'scrollCinematic' && e.enabled)
@@ -214,7 +196,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
 
     // Get preset from annotation data or use 'medium' as default
     const preset = (anno.data as any)?.preset || 'medium';
-    
+
     // Create or update calculator when preset changes
     if (!scrollCalculatorRef.current || scrollCalculatorRef.current.preset !== preset) {
       scrollCalculatorRef.current = {
@@ -222,13 +204,13 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         preset
       };
     }
-    
+
     // Update and get current state
     const state = scrollCalculatorRef.current.calculator.update(scrollEvents, currentTimeMs);
-    
+
     // Get parallax layers for multi-depth effect
     const layers = scrollCalculatorRef.current.calculator.getParallaxLayers(state);
-    
+
     return { state, layers };
   }, [effects, scrollEvents, currentTimeMs])
 
