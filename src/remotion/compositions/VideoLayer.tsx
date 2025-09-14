@@ -1,5 +1,7 @@
-import React, { useMemo } from 'react';
-import { Video, AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
+import React, { useMemo, useEffect } from 'react';
+import { OffthreadVideo, AbsoluteFill, Series, useCurrentFrame, useVideoConfig, useBufferState } from 'remotion';
+import { TransitionSeries, linearTiming } from '@remotion/transitions';
+import { fade } from '@remotion/transitions/fade';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
@@ -19,18 +21,48 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
+  const buffer = useBufferState();
 
   // Calculate the correct start frame based on clip's sourceIn
   const currentSourceInMs = clip ? (clip.sourceIn || 0) : 0;
   const currentStartFrame = Math.round((currentSourceInMs / 1000) * fps);
-  
-  // For split clips from same recording, use a stable key to prevent remounting
-  const videoKey = useMemo(() => {
-    if (!clip) return 'no-clip';
-    // Use recording ID so splits don't remount the video
-    return `video-${clip.recordingId}`;
-  }, [clip?.recordingId]);
-  
+
+  // Calculate duration in frames for current clip
+  const clipDurationInFrames = clip ? Math.round((clip.duration / 1000) * fps) : 0;
+
+  // Calculate next clip's start frame and duration if it's a consecutive split
+  const nextSourceInMs = nextClip ? (nextClip.sourceIn || 0) : 0;
+  const nextStartFrame = Math.round((nextSourceInMs / 1000) * fps);
+  const nextDurationInFrames = nextClip ? Math.round((nextClip.duration / 1000) * fps) : 0;
+
+  // Check if next clip is consecutive (split from same recording)
+  const isConsecutiveSplit = useMemo(() => {
+    if (!clip || !nextClip) return false;
+    if (clip.recordingId !== nextClip.recordingId) return false;
+    const epsilon = 0.001;
+    const currentEndTime = (clip.startTime || 0) + clip.duration;
+    const nextStartTime = nextClip.startTime || 0;
+    return Math.abs(nextStartTime - currentEndTime) < epsilon;
+  }, [clip, nextClip]);
+
+  // Add buffer delay for smoother loading
+  useEffect(() => {
+    if (!clip) return;
+
+    // Delay playback briefly to ensure video is ready
+    const delayHandle = buffer.delayPlayback();
+
+    // Small delay to allow decoder to initialize
+    const timer = setTimeout(() => {
+      delayHandle.unblock();
+    }, 50); // 50ms delay
+
+    return () => {
+      clearTimeout(timer);
+      delayHandle.unblock();
+    };
+  }, [clip?.id, buffer]);
+
   // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
 
@@ -216,27 +248,60 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Single video with stable key to prevent remounting between splits */}
-        <div
-          style={{
-            position: 'absolute',
-            width: '100%',
-            height: '100%',
-          }}
-        >
-          <Video
-            key={videoKey}  // Stable key prevents remounting for same recording
+        {/* Use TransitionSeries for seamless clip transitions */}
+        {isConsecutiveSplit && nextClip ? (
+          // When we have consecutive splits, use TransitionSeries with crossfade
+          <TransitionSeries>
+            <TransitionSeries.Sequence durationInFrames={clipDurationInFrames}>
+              <OffthreadVideo
+                src={videoUrl}
+                style={videoStyle}
+                volume={1}
+                muted={false}
+                playbackRate={clip?.playbackRate || 1}
+                startFrom={currentStartFrame}
+                pauseWhenBuffering={true} // Critical: Pause when not ready
+                onError={(e) => {
+                  console.error('Video playback error in current clip:', e)
+                }}
+              />
+            </TransitionSeries.Sequence>
+
+            <TransitionSeries.Transition
+              presentation={fade()}
+              timing={linearTiming({ durationInFrames: 2 })} // 2-frame crossfade
+            />
+
+            <TransitionSeries.Sequence durationInFrames={nextDurationInFrames}>
+              <OffthreadVideo
+                src={videoUrl}
+                style={videoStyle}
+                volume={1}
+                muted={false}
+                playbackRate={nextClip.playbackRate || 1}
+                startFrom={nextStartFrame}
+                pauseWhenBuffering={true} // Critical: Pause when not ready
+                onError={(e) => {
+                  console.error('Video playback error in next clip:', e)
+                }}
+              />
+            </TransitionSeries.Sequence>
+          </TransitionSeries>
+        ) : (
+          // Single clip without splits
+          <OffthreadVideo
             src={videoUrl}
             style={videoStyle}
             volume={1}
             muted={false}
             playbackRate={clip?.playbackRate || 1}
             startFrom={currentStartFrame}
+            pauseWhenBuffering={true} // Critical: Pause when not ready
             onError={(e) => {
               console.error('Video playback error:', e)
             }}
           />
-        </div>
+        )}
       </div>
     </AbsoluteFill>
   );

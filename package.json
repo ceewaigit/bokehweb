@@ -54,7 +54,7 @@
     "@remotion/media-utils": "^4.0.340",
     "@remotion/player": "^4.0.340",
     "@remotion/renderer": "^4.0.340",
-    "@remotion/transitions": "^4.0.340",
+    "@remotion/transitions": "^4.0.347",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
