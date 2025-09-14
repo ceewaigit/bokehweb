@@ -15,6 +15,7 @@ import { TrackType, RecordingSourceType, ExportFormat } from '@/types'
 import { globalBlobManager } from '../security/blob-url-manager'
 import { RecordingStorage } from '../storage/recording-storage'
 import { FFmpegExportEngine } from './ffmpeg-export'
+import { WebCodecsExportEngine } from './webcodecs-export-engine'
 import { metadataLoader } from './metadata-loader'
 import { timelineProcessor, type ProcessedTimeline, type TimelineSegment } from './timeline-processor'
 import { canvasCompositor } from './canvas-compositor'
@@ -40,6 +41,7 @@ interface SegmentResult {
 
 export class ExportEngine {
   private ffmpegEngine: FFmpegExportEngine
+  private webCodecsExportEngine: WebCodecsExportEngine
   private webCodecsEncoder: WebCodecsEncoder | null = null
   private workerPool: WorkerPool | null = null
   private isExporting = false
@@ -49,6 +51,7 @@ export class ExportEngine {
 
   constructor() {
     this.ffmpegEngine = new FFmpegExportEngine()
+    this.webCodecsExportEngine = new WebCodecsExportEngine()
     this.checkCapabilities()
   }
 
@@ -102,22 +105,50 @@ export class ExportEngine {
       // Load all metadata in parallel
       const metadataMap = await metadataLoader.loadAllMetadata(project.recordings)
 
-      // Simplified routing: Use Canvas+FFmpeg for everything with effects or multiple clips
+      // Simplified routing: Use WebCodecs for complex exports, direct for simple ones
       const hasMultipleClips = processedTimeline.hasMultipleClips
       const hasEffects = project.timeline.effects?.some(e => e.enabled) || false
       const hasGaps = processedTimeline.hasGaps
+      const hasTypingSpeed = processedTimeline.clipCount > 5  // Many clips usually means typing speed splits
 
-      logger.info(`Export: clips=${processedTimeline.clipCount}, effects=${hasEffects}, gaps=${hasGaps}`)
+      logger.info(`Export: clips=${processedTimeline.clipCount}, effects=${hasEffects}, gaps=${hasGaps}, typingSpeed=${hasTypingSpeed}`)
 
-      if (hasMultipleClips || hasEffects || hasGaps) {
-        // Use Canvas+FFmpeg for complex exports with effects
-        return await this.exportWithEffects(
-          processedTimeline,
-          recordingsMap,
-          metadataMap,
-          settings,
-          onProgress
-        )
+      // Use WebCodecs for complex exports with multiple clips or effects
+      if (hasMultipleClips || hasEffects || hasGaps || hasTypingSpeed) {
+        logger.info('Using WebCodecs export engine for complex timeline')
+        
+        // Check if WebCodecs is supported
+        if (this.useWebCodecs) {
+          try {
+            return await this.webCodecsExportEngine.export(
+              processedTimeline.segments,
+              recordingsMap,
+              metadataMap,
+              settings,
+              onProgress,
+              this.abortController?.signal
+            )
+          } catch (error) {
+            logger.warn('WebCodecs export failed, falling back to FFmpeg:', error)
+            // Fall back to FFmpeg if WebCodecs fails
+            return await this.exportWithEffects(
+              processedTimeline,
+              recordingsMap,
+              metadataMap,
+              settings,
+              onProgress
+            )
+          }
+        } else {
+          // Use FFmpeg if WebCodecs not supported
+          return await this.exportWithEffects(
+            processedTimeline,
+            recordingsMap,
+            metadataMap,
+            settings,
+            onProgress
+          )
+        }
       } else {
         // Direct export for simple single clips without effects
         return await this.exportDirect(
