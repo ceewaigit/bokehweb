@@ -166,18 +166,17 @@ export class FFmpegExportEngine {
         filters.push(`pad=iw+${padding * 2}:ih+${padding * 2}:${padding}:${padding}:color=black`)
       }
 
-      const filterComplex = filters.length > 0 ? `-vf "${filters.join(',')}"` : ''
-
       const outputName = `output.${settings.format}`
       let codecOptions = ''
 
+      // Handle format-specific settings BEFORE creating filterComplex
       switch (settings.format) {
         case ExportFormat.MP4:
         case ExportFormat.MOV:
-          codecOptions = '-c:v libx264 -preset fast -crf 22 -c:a aac -b:a 128k'
+          codecOptions = '-c:v libx264 -preset fast -crf 22 -c:a copy'
           break
         case ExportFormat.WEBM:
-          codecOptions = '-c:v libvpx-vp9 -crf 30 -b:v 0 -c:a libopus -b:a 128k'
+          codecOptions = '-c:v libvpx-vp9 -crf 30 -b:v 0 -c:a copy'
           break
         case ExportFormat.GIF:
           codecOptions = ''
@@ -185,19 +184,43 @@ export class FFmpegExportEngine {
           break
       }
 
+      // Create filter complex AFTER all filters are added
+      const filterComplex = filters.length > 0 ? `-vf "${filters.join(',')}"` : ''
+
       onProgress?.({
         progress: 40,
         stage: 'encoding',
         message: 'Encoding video...'
       })
 
+      // Build FFmpeg command arguments properly
+      const ffmpegArgs: string[] = ['-i', inputName]
+      
+      // Add video filters if any
+      if (filterComplex && filters.length > 0) {
+        // Add the filter as two separate arguments: -vf and the filter string
+        ffmpegArgs.push('-vf')
+        ffmpegArgs.push(filters.join(','))
+      }
+      
+      // Add codec options
+      if (codecOptions) {
+        ffmpegArgs.push(...codecOptions.split(' '))
+      }
+      
+      // Add output file
+      ffmpegArgs.push(outputName)
+      
+      console.log('FFmpeg command:', ffmpegArgs.join(' '))
+      
       // Execute FFmpeg command with better error handling
-      const execResult = await this.ffmpeg.exec([
-        '-i', inputName,
-        ...filterComplex.split(' '),
-        ...codecOptions.split(' '),
-        outputName
-      ])
+      try {
+        const execResult = await this.ffmpeg.exec(ffmpegArgs)
+        console.log('FFmpeg execution completed')
+      } catch (execError) {
+        console.error('FFmpeg execution failed:', execError)
+        throw new Error(`FFmpeg failed to encode video: ${execError}`)
+      }
 
       onProgress?.({
         progress: 80,
