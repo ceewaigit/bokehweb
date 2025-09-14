@@ -1,10 +1,9 @@
-import React, { useRef, useMemo } from 'react';
-import { OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, Sequence } from 'remotion';
+import React from 'react';
+import { Video, AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
 import { createCinematicTransform, createBlurFilter } from '@/lib/effects/cinematic-scroll';
-import { getSourceDuration } from '@/lib/timeline/clip-utils'
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
@@ -15,32 +14,15 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoHeight,
   zoomCenter,
   cinematicScrollState,
-  computedScale,
-  isSplitTransition = false
+  computedScale
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // For split clips from the same recording, we need to keep startFrom constant
-  // We'll always start from 0 and let Remotion handle the seeking
-  const startFromFrame = 0; // Always 0 to prevent remounting
-  
-  // Calculate the actual frame we should be showing
-  const targetFrame = useMemo(() => {
-    if (!clip) return 0;
-    
-    // Current progress in the clip
-    const clipProgressMs = (frame / fps) * 1000;
-    
-    // Apply playback rate
-    const sourceProgressMs = clipProgressMs * (clip.playbackRate || 1);
-    
-    // Add the clip's source offset
-    const sourcePositionMs = clip.sourceIn + sourceProgressMs;
-    
-    // Convert to frames
-    return Math.floor((sourcePositionMs / 1000) * fps);
-  }, [clip, frame, fps]);
+  // For split clips, we use Sequence with negative offset to avoid video remounting
+  // This keeps the video playing from frame 0 but shows only the portion we need
+  const sourceInMs = clip ? (clip.sourceIn || 0) : 0
+  const sourceOffsetFrames = Math.floor((sourceInMs / 1000) * fps)
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
@@ -227,14 +209,16 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        <Sequence from={-targetFrame}>
-          <OffthreadVideo
+        {/* Use Sequence with negative offset to avoid video remounting */}
+        <Sequence from={-sourceOffsetFrames}>
+          <Video
             src={videoUrl}
             style={videoStyle}
             volume={1}
             muted={false}
-            playbackRate={1} // Always 1, we handle rate in our calculation
-            startFrom={0} // Always 0 to prevent ANY remounting
+            playbackRate={clip?.playbackRate || 1}
+            startFrom={0}  // Always start from 0 to avoid remounting
+            // Don't use trimBefore/trimAfter to avoid re-seeking on clip changes
             onError={(e) => {
               console.error('Video playback error in VideoLayer:', e)
               // Don't throw - let Remotion handle gracefully
