@@ -220,11 +220,9 @@ export class WebCodecsExportEngine {
       
       logger.debug(`Processing ${isTypingSpeedClip ? 'typing-speed' : 'normal'} clip ${clip.id} from ${clipStartInSegment}ms to ${clipEndInSegment}ms`)
 
-      // Extract frames with proper timing
+      // Extract frames with proper timing - simplified approach
       if (this.useWorkers && this.workerPool) {
-        // Non-blocking frame processing pipeline
-        const pendingFrames = new Set<Promise<void>>()
-        let frameIndex = 0
+        let processedInBatch = 0
         
         await this.frameExtractor.extractClipFramesStreamed(
           clip,
@@ -232,18 +230,13 @@ export class WebCodecsExportEngine {
           clipStartInSegment,
           clipEndInSegment,
           async (frame) => {
-            const currentFrameIndex = frameIndex++
-            const frameId = `${clip.id}_${frame.timestamp}_${currentFrameIndex}`
-            
+            const frameId = `${clip.id}_${frame.timestamp}`
             this.monitor.frameStart(frameId)
             
-            // For video elements, process directly without workers (much faster)
-            let framePromise: Promise<void>
-            
-            if (frame.imageData instanceof HTMLVideoElement) {
-              // Direct processing for video elements - no worker overhead
-              framePromise = (async () => {
-                // Apply effects directly on main thread
+            try {
+              // Always process video frames directly (workers can't handle video elements)
+              if (frame.imageData instanceof HTMLVideoElement) {
+                // Apply effects
                 await this.applyEffects(
                   frame.imageData,
                   frame.timestamp,
@@ -252,72 +245,49 @@ export class WebCodecsExportEngine {
                   metadata.get(clipData.recording.id)
                 )
                 
-                // Encode directly from canvas
+                // Encode from canvas
                 await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
-                processedFrames++
-                this.monitor.frameEnd(frameId)
-                
-                // Update progress
-                if (processedFrames % 5 === 0 && onProgress) {
-                  const globalFrame = startFrame + processedFrames
-                  const progress = Math.min(95, (globalFrame / totalFrames) * 95)
-                  onProgress({
-                    progress,
-                    stage: 'encoding',
-                    message: `Processing frame ${globalFrame} of ${totalFrames}...`,
-                    currentFrame: globalFrame,
-                    totalFrames
-                  })
+              } else {
+                // For ImageBitmap, use workers
+                const frameTask: FrameTask = {
+                  id: frameId,
+                  bitmap: frame.imageData as ImageBitmap,
+                  effects: segment.effects,
+                  timestamp: frame.timestamp,
+                  metadata: metadata.get(clipData.recording.id)
                 }
-              })()
-            } else {
-              // Use workers for ImageBitmap
-              const frameTask: FrameTask = {
-                id: frameId,
-                bitmap: frame.imageData as ImageBitmap,
-                effects: segment.effects,
-                timestamp: frame.timestamp,
-                metadata: metadata.get(clipData.recording.id)
+                
+                const processed = await this.workerPool!.processFrame(frameTask)
+                await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
               }
               
-              framePromise = this.workerPool!.processFrame(frameTask)
-                .then(async (processed) => {
-                  await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
-                  processedFrames++
-                  this.monitor.frameEnd(frameId)
-                  
-                  if (processedFrames % 5 === 0 && onProgress) {
-                    const globalFrame = startFrame + processedFrames
-                    const progress = Math.min(95, (globalFrame / totalFrames) * 95)
-                    onProgress({
-                      progress,
-                      stage: 'encoding',
-                      message: `Processing frame ${globalFrame} of ${totalFrames}...`,
-                      currentFrame: globalFrame,
-                      totalFrames
-                    })
-                  }
+              processedFrames++
+              processedInBatch++
+              this.monitor.frameEnd(frameId)
+              
+              // Update progress
+              if (processedFrames % 10 === 0 && onProgress) {
+                const globalFrame = startFrame + processedFrames
+                const progress = Math.min(95, (globalFrame / totalFrames) * 95)
+                onProgress({
+                  progress,
+                  stage: 'encoding',
+                  message: `Processing frame ${globalFrame} of ${totalFrames}...`,
+                  currentFrame: globalFrame,
+                  totalFrames
                 })
-            }
-            
-            framePromise = framePromise.finally(() => {
-              pendingFrames.delete(framePromise)
-            })
-            
-            pendingFrames.add(framePromise)
-            
-            // Apply backpressure if too many frames pending
-            if (pendingFrames.size >= 100) {
-              // Wait for some frames to complete before continuing
-              await Promise.race(Array.from(pendingFrames))
+              }
+              
+              // Allow browser to breathe every 10 frames
+              if (processedInBatch % 10 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0))
+              }
+            } catch (error) {
+              logger.error(`Failed to process frame ${frameId}:`, error)
+              // Continue with next frame
             }
           }
         )
-        
-        // Wait for all remaining frames
-        if (pendingFrames.size > 0) {
-          await Promise.all(Array.from(pendingFrames))
-        }
       } else {
         // Fallback to single-threaded processing
         await this.frameExtractor.extractClipFramesStreamed(
