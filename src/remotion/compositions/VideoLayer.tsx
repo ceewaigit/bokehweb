@@ -21,29 +21,26 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // Keep track of the recording's base sourceIn to prevent remounting
-  // This stays stable for splits from the same recording
-  const recordingStartRef = useRef<number | null>(null);
+  // For split clips from the same recording, we need to keep startFrom constant
+  // We'll always start from 0 and let Remotion handle the seeking
+  const startFromFrame = 0; // Always 0 to prevent remounting
   
-  // Calculate stable startFrom that doesn't change for splits
-  const startFromFrame = useMemo(() => {
+  // Calculate the actual frame we should be showing
+  const targetFrame = useMemo(() => {
     if (!clip) return 0;
     
-    // Initialize or reset if it's a different recording (big jump in sourceIn)
-    if (recordingStartRef.current === null || 
-        Math.abs(clip.sourceIn - recordingStartRef.current) > 10000) {
-      recordingStartRef.current = clip.sourceIn;
-    }
+    // Current progress in the clip
+    const clipProgressMs = (frame / fps) * 1000;
     
-    return Math.floor((recordingStartRef.current / 1000) * fps);
-  }, [clip?.recordingId, fps]);
-  
-  // Calculate how much to offset the video for splits
-  const offsetFrames = useMemo(() => {
-    if (!clip || recordingStartRef.current === null) return 0;
-    const offsetMs = clip.sourceIn - recordingStartRef.current;
-    return Math.floor((offsetMs / 1000) * fps);
-  }, [clip, fps]);
+    // Apply playback rate
+    const sourceProgressMs = clipProgressMs * (clip.playbackRate || 1);
+    
+    // Add the clip's source offset
+    const sourcePositionMs = clip.sourceIn + sourceProgressMs;
+    
+    // Convert to frames
+    return Math.floor((sourcePositionMs / 1000) * fps);
+  }, [clip, frame, fps]);
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
@@ -230,15 +227,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        <Sequence from={-offsetFrames}>
+        <Sequence from={-targetFrame}>
           <OffthreadVideo
             src={videoUrl}
             style={videoStyle}
             volume={1}
             muted={false}
-            playbackRate={clip?.playbackRate || 1}
-            startFrom={startFromFrame} // This stays stable for splits
-            // Don't use trimBefore/trimAfter to avoid re-seeking on clip changes
+            playbackRate={1} // Always 1, we handle rate in our calculation
+            startFrom={0} // Always 0 to prevent ANY remounting
             onError={(e) => {
               console.error('Video playback error in VideoLayer:', e)
               // Don't throw - let Remotion handle gracefully
