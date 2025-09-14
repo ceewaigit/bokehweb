@@ -294,12 +294,11 @@ export class WebCodecsExportEngine {
                 }
               } catch (error) {
                 logger.error(`Failed to process frame ${frameId}:`, error)
-              } finally {
-                // framePromise is added after this async function
               }
             })()
             
             activeFrames.add(framePromise)
+            framePromise.finally(() => activeFrames.delete(framePromise))
           }
         )
         
