@@ -3,6 +3,7 @@ import type { Clip, MouseEvent, ClickEvent, Effect, BackgroundEffectData, ZoomBl
 export interface MainCompositionProps {
   videoUrl: string;
   clip: Clip | null;
+  nextClip?: Clip | null;
   effects: Effect[] | null;
   cursorEvents: MouseEvent[];
   clickEvents: ClickEvent[];
@@ -10,12 +11,12 @@ export interface MainCompositionProps {
   scrollEvents?: ScrollEvent[];
   videoWidth: number;
   videoHeight: number;
-  isSplitTransition?: boolean;
 }
 
 export interface VideoLayerProps {
   videoUrl: string;
   clip?: Clip | null; // Add clip data to access playback rate
+  nextClip?: Clip | null; // Next clip for pre-buffering
   effects?: Effect[] | null;
   zoomBlocks?: ZoomBlock[];
   videoWidth: number;
@@ -23,7 +24,6 @@ export interface VideoLayerProps {
   zoomCenter?: { x: number; y: number };
   cinematicScrollState?: any; // Cinematic scroll state from calculator
   computedScale?: number;
-  isSplitTransition?: boolean;
 }
 
 export interface BackgroundLayerProps {
