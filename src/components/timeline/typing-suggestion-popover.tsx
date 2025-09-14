@@ -43,12 +43,16 @@ export function TypingSuggestionPopover({
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-2 p-2">
-        {onApplyAll && (
+        {onApplyAll && allPeriods.length > 0 && (
           <button
             className="px-2 py-1 text-xs rounded bg-[#2a2f3a] hover:bg-[#343a46] text-gray-200"
-            onClick={() => { onApplyAll(allPeriods); onClose() }}
+            onClick={async () => {
+              console.log('[TypingSuggestionPopover] Apply all clicked with periods:', allPeriods);
+              await onApplyAll(allPeriods);
+              onClose();
+            }}
           >
-            Apply all
+            Apply all ({allPeriods.length})
           </button>
         )}
         <button

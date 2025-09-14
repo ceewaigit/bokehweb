@@ -19,11 +19,15 @@ export class PlaybackService {
   ): void {
     // If at the end of timeline, restart from beginning
     if (currentTime >= duration) {
+      currentTime = 0
       onUpdate(0)
     }
     
     this.isPlaying = true
     this.lastTimestamp = null
+    
+    // Store current time in closure to track properly
+    let playbackTime = currentTime
     
     const animate = (timestamp: number) => {
       if (!this.isPlaying) {
@@ -39,17 +43,16 @@ export class PlaybackService {
       this.lastTimestamp = timestamp
       
       // Calculate new time
-      const newTime = currentTime + deltaTime
+      playbackTime = playbackTime + deltaTime
       
       // Check if we've reached the end
-      if (newTime >= duration) {
+      if (playbackTime >= duration) {
         this.pause()
         onUpdate(duration)
         onEnd?.()
       } else {
         // Update time and continue
-        currentTime = newTime
-        onUpdate(newTime)
+        onUpdate(playbackTime)
         this.animationFrameId = requestAnimationFrame(animate)
       }
     }

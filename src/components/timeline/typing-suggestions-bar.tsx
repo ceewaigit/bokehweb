@@ -88,9 +88,18 @@ export const TypingSuggestionsBar: React.FC<TypingSuggestionsBarProps> = ({
               y: clientY,
               period: period,
               allPeriods: relevantPeriods,
-              onApply: async (p) => onApplySuggestion(p),
-              onApplyAll: async (ps) => onApplyAllSuggestions?.(ps),
-              onRemove: (p) => onRemoveSuggestion?.(p)
+              onApply: async (p) => {
+                console.log('[TypingSuggestionsBar] Applying single period:', p);
+                await onApplySuggestion(p);
+              },
+              onApplyAll: onApplyAllSuggestions ? async (ps) => {
+                console.log('[TypingSuggestionsBar] Applying all periods:', ps);
+                await onApplyAllSuggestions(ps);
+              } : undefined,
+              onRemove: onRemoveSuggestion ? (p) => {
+                console.log('[TypingSuggestionsBar] Removing period:', p);
+                onRemoveSuggestion(p);
+              } : undefined
             })
           }
         }}
