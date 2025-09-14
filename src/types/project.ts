@@ -173,7 +173,7 @@ export interface ClickEvent {
   timestamp: number
   x: number
   y: number
-  button: 'left' | 'right' | 'middle'
+  button: MouseButton
 }
 
 export interface ScreenEvent {
@@ -310,6 +310,12 @@ export enum KeystrokePosition {
   BottomCenter = 'bottom-center',
   BottomRight = 'bottom-right',
   TopCenter = 'top-center'
+}
+
+export enum MouseButton {
+  Left = 'left',
+  Right = 'right',
+  Middle = 'middle'
 }
 
 // New: Effect-specific data types for independent effects

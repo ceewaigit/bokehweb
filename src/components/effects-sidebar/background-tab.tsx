@@ -161,7 +161,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   key={wallpaper.id}
                   onClick={() => {
                     onUpdateBackground({
-                      type: 'gradient',
+                      type: BackgroundType.Gradient,
                       gradient: {
                         type: 'linear',
                         colors: wallpaper.colors,
@@ -191,7 +191,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                 value={bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000'}
                 onChange={(e) => {
                   onUpdateBackground({
-                    type: 'color',
+                    type: BackgroundType.Color,
                     color: e.target.value
                   })
                 }}
@@ -206,7 +206,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   if (/^#[0-9A-Fa-f]{0,6}$/.test(value)) {
                     if (value.length === 7) {
                       onUpdateBackground({
-                        type: 'color',
+                        type: BackgroundType.Color,
                         color: value
                       })
                     }
@@ -215,7 +215,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                 onBlur={(e) => {
                   if (e.target.value.length > 0) {
                     onUpdateBackground({
-                      type: 'color',
+                      type: BackgroundType.Color,
                       color: e.target.value.padEnd(7, '0')
                     })
                   }
@@ -233,7 +233,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   key={color}
                   onClick={() => {
                     onUpdateBackground({
-                      type: 'color',
+                      type: BackgroundType.Color,
                       color
                     })
                   }}
@@ -263,7 +263,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     const dataUrl = await window.electronAPI.loadImageAsDataUrl(imagePath)
                     if (dataUrl) {
                       onUpdateBackground({
-                        type: 'image',
+                        type: BackgroundType.Image,
                         image: dataUrl
                       })
                     }
@@ -284,7 +284,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                 <button
                   onClick={() => {
                     onUpdateBackground({
-                      type: 'image',
+                      type: BackgroundType.Image,
                       image: undefined
                     })
                   }}

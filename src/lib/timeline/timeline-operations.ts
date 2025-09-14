@@ -221,8 +221,8 @@ export function getEffectsInTimeRange(
   )
 }
 
-// Check for clip overlaps
-export function wouldCauseOverlap(
+// Check for clip overlaps (internal use only)
+function wouldCauseOverlap(
   clips: Clip[],
   clipId: string,
   newStartTime: number,
@@ -234,36 +234,6 @@ export function wouldCauseOverlap(
     const newEnd = newStartTime + duration
     return newStartTime < otherEnd && newEnd > otherClip.startTime
   })
-}
-
-// Find next available position for clip
-export function findNextAvailablePosition(
-  clips: Clip[],
-  duration: number,
-  excludeClipId?: string
-): number {
-  const sortedClips = clips
-    .filter(c => !excludeClipId || c.id !== excludeClipId)
-    .sort((a, b) => a.startTime - b.startTime)
-
-  if (sortedClips.length === 0) return 0
-
-  if (sortedClips[0].startTime >= duration) {
-    return 0
-  }
-
-  for (let i = 0; i < sortedClips.length - 1; i++) {
-    const currentEnd = sortedClips[i].startTime + sortedClips[i].duration
-    const nextStart = sortedClips[i + 1].startTime
-    const gap = nextStart - currentEnd
-
-    if (gap >= duration) {
-      return currentEnd
-    }
-  }
-
-  const lastClip = sortedClips[sortedClips.length - 1]
-  return lastClip.startTime + lastClip.duration
 }
 
 // Update clip with overlap handling

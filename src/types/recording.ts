@@ -42,7 +42,7 @@ export interface ElectronRecordingResult {
 export interface RecordingSource {
   id: string
   name: string
-  type: 'screen' | 'window'
+  type: RecordingSourceType
   thumbnail?: string
   bounds?: { x: number; y: number; width: number; height: number }
 }

@@ -277,8 +277,6 @@ export const useProjectStore = create<ProjectStore>()(
         const result = findClipById(state.currentProject, clipId)
         if (!result) return
 
-        const { clip } = result
-
         // Use the service to update the clip
         if (!updateClipInTrack(state.currentProject, clipId, updates, options)) {
           console.error('updateClip: Failed to update clip')
@@ -290,7 +288,7 @@ export const useProjectStore = create<ProjectStore>()(
         if (updatedResult) {
           const newTime = PlayheadService.trackPlayheadDuringClipEdit(
             state.currentTime,
-            clip,
+            result.clip,
             updatedResult.clip
           )
           if (newTime !== null) {

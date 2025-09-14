@@ -113,57 +113,12 @@ export class PlayheadService {
     }
     return false
   }
-  static getClipAtOrNearTime(
-    project: Project,
-    time: number,
-    maxDistance: number = 100
-  ): { clip: Clip; track: Track; distance: number } | null {
-    // First try exact match
-    const exactMatch = this.findClipAtTime(project, time)
-    if (exactMatch) {
-      return { ...exactMatch, distance: 0 }
-    }
-    let nearestClip: Clip | null = null
-    let nearestTrack: Track | null = null
-    let minDistance = maxDistance
-    
-    for (const track of project.timeline.tracks) {
-      for (const clip of track.clips) {
-        const clipEnd = clip.startTime + clip.duration
-        let distance: number
-        if (time < clip.startTime) {
-          distance = clip.startTime - time
-        } else if (time > clipEnd) {
-          distance = time - clipEnd
-        } else {
-          distance = 0
-        }
-        
-        if (Math.abs(distance) < minDistance) {
-          minDistance = Math.abs(distance)
-          nearestClip = clip
-          nearestTrack = track
-        }
-      }
-    }
-    
-    if (nearestClip && nearestTrack) {
-      return { clip: nearestClip, track: nearestTrack, distance: minDistance }
-    }
-    return null
-  }
   static calculateSourceTime(clip: Clip, timelineTime: number): number {
     const relativeTime = timelineTime - clip.startTime
     const playbackRate = clip.playbackRate || 1
     const sourceTime = (clip.sourceIn || 0) + (relativeTime * playbackRate)
     const sourceOut = clip.sourceOut || (clip.sourceIn + clip.duration * playbackRate)
     return Math.max(clip.sourceIn || 0, Math.min(sourceOut, sourceTime))
-  }
-  static calculateTimelineTime(clip: Clip, sourceTime: number): number {
-    const playbackRate = clip.playbackRate || 1
-    const relativeSourceTime = sourceTime - (clip.sourceIn || 0)
-    const relativeTimelineTime = relativeSourceTime / playbackRate
-    return clip.startTime + relativeTimelineTime
   }
   static trackPlayheadDuringClipEdit(
     currentTime: number,

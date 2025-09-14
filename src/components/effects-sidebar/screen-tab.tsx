@@ -12,7 +12,7 @@ import { EffectLayerType, EffectType } from '@/types/effects'
 interface ScreenTabProps {
   selectedClip: Clip | null
   selectedEffectLayer?: SelectedEffectLayer
-  onEffectChange: (type: 'screen', data: any) => void
+  onEffectChange: (type: EffectType, data: any) => void
 }
 
 export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }: ScreenTabProps) {
@@ -63,7 +63,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                   'px-2 py-1.5 text-[10px] rounded transition-all capitalize',
                   'bg-background/50 text-muted-foreground hover:bg-background/70'
                 )}
-                onClick={() => onEffectChange('screen', { preset })}
+                onClick={() => onEffectChange(EffectType.Screen, { preset })}
               >
                 {preset}
               </button>
@@ -78,7 +78,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                 min={0}
                 max={1000}
                 step={50}
-                onChange={(e) => onEffectChange('screen', { introMs: Number(e.target.value) })}
+                onChange={(e) => onEffectChange(EffectType.Screen, { introMs: Number(e.target.value) })}
                 className="w-full bg-accent"
               />
             </div>
@@ -89,7 +89,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
                 min={0}
                 max={1000}
                 step={50}
-                onChange={(e) => onEffectChange('screen', { outroMs: Number(e.target.value) })}
+                onChange={(e) => onEffectChange(EffectType.Screen, { outroMs: Number(e.target.value) })}
                 className="w-full text-accent"
               />
             </div>

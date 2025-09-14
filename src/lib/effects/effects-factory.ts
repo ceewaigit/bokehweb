@@ -1,5 +1,5 @@
 import type { Effect, Recording, Clip, Project, ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ScreenEffectData } from '@/types/project'
-import { EffectType, BackgroundType } from '@/types/project'
+import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
 import { ZoomDetector } from './utils/zoom-detector'
 import { getDefaultWallpaper } from '@/lib/constants/default-effects'
 
@@ -62,7 +62,7 @@ export class EffectsFactory {
       startTime: 0,
       endTime: Number.MAX_SAFE_INTEGER,
       data: {
-        style: 'macOS',
+        style: CursorStyle.MacOS,
         size: 4.0,
         color: '#ffffff',
         clickEffects: true,
@@ -115,28 +115,8 @@ export class EffectsFactory {
       data: { ...effect.data }
     }
   }
-  static validateEffect(effect: Effect): boolean {
-    if (!effect.id || !effect.type) return false
-    if (effect.startTime < 0 || effect.endTime < effect.startTime) return false
-    
-    switch (effect.type) {
-      case EffectType.Zoom:
-        const zoomData = effect.data as ZoomEffectData
-        if (!zoomData.scale || zoomData.scale < 1) return false
-        break
-      case EffectType.Background:
-        const bgData = effect.data as BackgroundEffectData
-        if (!bgData.type) return false
-        break
-      case EffectType.Cursor:
-        const cursorData = effect.data as CursorEffectData
-        if (!cursorData.style) return false
-        break
-    }
-    return true
-  }
   static mergeEffectUpdates(effect: Effect, updates: Partial<Effect>): Effect {
-    const { type, id, ...safeUpdates } = updates
+    const { type: _type, id: _id, ...safeUpdates } = updates
     return {
       ...effect,
       ...safeUpdates,

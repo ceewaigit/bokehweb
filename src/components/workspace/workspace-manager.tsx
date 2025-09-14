@@ -17,7 +17,7 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
-import { EffectType, BackgroundType } from '@/types/project'
+import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
 import { TimeConverter } from '@/lib/timeline/time-converter'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
@@ -159,7 +159,7 @@ async function loadProjectRecording(
 
     project.timeline.effects.push({
       id: 'background-global',
-      type: 'background',
+      type: EffectType.Background,
       startTime: 0,
       endTime: Number.MAX_SAFE_INTEGER,
       data: {
@@ -180,11 +180,11 @@ async function loadProjectRecording(
   if (!hasGlobalCursor) {
     project.timeline.effects.push({
       id: 'cursor-global',
-      type: 'cursor',
+      type: EffectType.Cursor,
       startTime: 0,
       endTime: Number.MAX_SAFE_INTEGER,
       data: {
-        style: 'macOS',
+        style: CursorStyle.MacOS,
         size: 4.0,
         color: '#ffffff',
         clickEffects: true,
