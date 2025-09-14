@@ -44,11 +44,13 @@ export class WebCodecsEncoder {
   private maxCacheSize = 50 // Reduced to save memory
   
   private pendingEnqueues = 0
-  private maxPendingEnqueues = 20 // Start conservative
+  private maxPendingEnqueues = 20 // Start moderate
+  private baseQueueDepth = 20 // Remember original depth
   private adaptiveQueueDepth = true // Dynamic queue depth adjustment
   private lastQueueCheck = 0
   private queueStallCount = 0
-  private maxStallCount = 5 // Detect issues faster
+  private maxStallCount = 8 // Give more time before reducing
+  private consecutiveSuccessFrames = 0 // Track successful frames for recovery
 
   /**
    * Check if WebCodecs is supported
@@ -419,15 +421,24 @@ export class WebCodecsEncoder {
         if (now - this.lastQueueCheck > 100 && queueSize === this.pendingEnqueues) {
           this.queueStallCount++
           if (this.queueStallCount > this.maxStallCount) {
-            logger.warn(`Encoder queue stalled at ${queueSize} for ${this.queueStallCount} checks - forcing drain`)
-            // Don't flush - that would lose frames. Just wait for queue to drain
+            logger.warn(`Encoder queue stalled at ${queueSize} for ${this.queueStallCount} checks - adjusting`)
+            // Quadratic decrease: reduce more aggressively based on stall count
+            const reductionFactor = Math.max(0.5, 1 - (this.queueStallCount * 0.05))
+            const newDepth = Math.floor(this.maxPendingEnqueues * reductionFactor)
+            
+            // But don't reduce below a safe minimum (15) or by more than 30% in one go
+            const safeMinimum = 15 // Higher floor to prevent crashes
+            this.maxPendingEnqueues = Math.max(
+              safeMinimum,
+              Math.max(newDepth, Math.floor(this.maxPendingEnqueues * 0.7))
+            )
+            logger.info(`Adjusted encoder queue depth to ${this.maxPendingEnqueues} (was ${queueSize})`)
+            
             this.queueStallCount = 0
-            // Reduce max queue depth to prevent future stalls
-            this.maxPendingEnqueues = Math.max(10, Math.floor(this.maxPendingEnqueues * 0.8))
-            logger.info(`Reduced max encoder queue depth to ${this.maxPendingEnqueues}`)
+            this.consecutiveSuccessFrames = 0 // Reset success counter
           }
         } else {
-          this.queueStallCount = 0
+          this.queueStallCount = Math.max(0, this.queueStallCount - 1) // Slowly reduce stall count
         }
         
         // Progressive backoff with timeout
@@ -449,16 +460,31 @@ export class WebCodecsEncoder {
           }
           backoffMs = Math.min(backoffMs * 2, 50)
         }
-      } else if (queueSize < this.maxPendingEnqueues * 0.3 && this.queueStallCount === 0) {
-        // Only increase if queue is draining well AND we haven't had recent stalls
-        const cores = navigator.hardwareConcurrency || 4
-        const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
-        const memoryGB = memory / 1024 / 1024 / 1024
+      } else if (queueSize < this.maxPendingEnqueues * 0.3) {
+        // Track successful frames
+        this.consecutiveSuccessFrames++
         
-        // Dynamic max based on system resources - be more conservative
-        const systemMax = memoryGB > 4 ? 40 : 25
-        // Only increase by 2 at a time, not 5
-        this.maxPendingEnqueues = Math.min(systemMax, this.maxPendingEnqueues + 2)
+        // Linear increase: only after many successful frames
+        if (this.consecutiveSuccessFrames > 100 && this.queueStallCount === 0) {
+          const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
+          const memoryGB = memory / 1024 / 1024 / 1024
+          
+          // Dynamic max based on system resources
+          const systemMax = memoryGB > 4 ? 35 : 25
+          const currentMax = this.maxPendingEnqueues
+          
+          // Linear increase by 1, very conservative
+          if (currentMax < systemMax) {
+            this.maxPendingEnqueues = Math.min(systemMax, currentMax + 1)
+            logger.debug(`Increased encoder queue depth to ${this.maxPendingEnqueues}`)
+            this.consecutiveSuccessFrames = 0 // Reset counter
+          }
+        }
+      } else {
+        // Queue is in normal range, just track success
+        if (queueSize < this.maxPendingEnqueues * 0.8) {
+          this.consecutiveSuccessFrames++
+        }
       }
       
       this.lastQueueCheck = now
