@@ -197,9 +197,9 @@ export function createOptimizedPipeline(): FramePipeline {
   )
   
   // Concurrency should not exceed encoder capacity to avoid deadlock
-  // Use 2x cores as baseline, but cap based on memory
-  const baseConcurrency = cores * 2
-  const memoryCap = memoryGB > 4 ? 30 : 20
+  // Be more conservative - use 1.5x cores, not 2x
+  const baseConcurrency = Math.floor(cores * 1.5)
+  const memoryCap = memoryGB > 4 ? 20 : 15 // Reduced to prevent encoder overload
   const maxConcurrent = Math.min(baseConcurrency, memoryCap)
   
   logger.info(`Creating frame pipeline: queue=${maxQueueSize}, concurrent=${maxConcurrent} (${cores} cores, ${memoryGB.toFixed(1)}GB RAM)`)

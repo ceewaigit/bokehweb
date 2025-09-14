@@ -115,10 +115,10 @@ export class WebCodecsExportEngine {
       
       // Match renderer count to expected concurrency to avoid deadlock
       // Need enough renderers for pipeline concurrency but not too many to exhaust memory
-      const pipelineConcurrency = Math.min(cores * 2, memoryGB > 4 ? 30 : 20)
+      const pipelineConcurrency = Math.min(Math.floor(cores * 1.5), memoryGB > 4 ? 20 : 15)
       const rendererCount = Math.min(
-        Math.max(4, Math.ceil(pipelineConcurrency / 2)), // At least half of pipeline concurrency
-        memoryGB > 4 ? 12 : 8 // Memory-based cap
+        Math.max(4, Math.ceil(pipelineConcurrency / 3)), // Conservative: 1/3 of pipeline concurrency
+        memoryGB > 4 ? 10 : 6 // Reduced memory-based cap
       )
       
       this.rendererPool = new RendererPool(

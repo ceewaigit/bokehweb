@@ -449,16 +449,16 @@ export class WebCodecsEncoder {
           }
           backoffMs = Math.min(backoffMs * 2, 50)
         }
-      } else if (queueSize < this.maxPendingEnqueues * 0.3) {
-        // Queue is draining well, can carefully increase
+      } else if (queueSize < this.maxPendingEnqueues * 0.3 && this.queueStallCount === 0) {
+        // Only increase if queue is draining well AND we haven't had recent stalls
         const cores = navigator.hardwareConcurrency || 4
         const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
         const memoryGB = memory / 1024 / 1024 / 1024
         
-        // Dynamic max based on system resources
-        const systemMax = memoryGB > 4 ? 60 : 40
-        this.maxPendingEnqueues = Math.min(systemMax, this.maxPendingEnqueues + 5)
-        this.queueStallCount = 0
+        // Dynamic max based on system resources - be more conservative
+        const systemMax = memoryGB > 4 ? 40 : 25
+        // Only increase by 2 at a time, not 5
+        this.maxPendingEnqueues = Math.min(systemMax, this.maxPendingEnqueues + 2)
       }
       
       this.lastQueueCheck = now
