@@ -23,6 +23,7 @@ import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { WorkerPool, createOptimizedWorkerPool } from './workers/worker-pool'
 import type { FrameTask } from './workers/worker-pool'
 import { PerformanceMonitor, performanceMonitor } from './performance-monitor'
+import { FramePipeline, createOptimizedPipeline } from './frame-pipeline'
 // WebGLEffectsRenderer will be imported when useWebGL is enabled
 
 export class WebCodecsExportEngine {
@@ -220,102 +221,100 @@ export class WebCodecsExportEngine {
       
       logger.debug(`Processing ${isTypingSpeedClip ? 'typing-speed' : 'normal'} clip ${clip.id} from ${clipStartInSegment}ms to ${clipEndInSegment}ms`)
 
-      // Extract frames with controlled batching for stability
+      // Use high-performance pipeline for frame processing
       if (this.useWorkers && this.workerPool) {
-        const frameQueue: Array<{ frame: ExtractedFrame, frameId: string }> = []
-        let extractionComplete = false
+        const pipeline = createOptimizedPipeline()
         
-        // Start extraction in background
-        const extractionPromise = this.frameExtractor.extractClipFramesStreamed(
+        // Setup frame processor
+        pipeline.onProcess(async (frameData) => {
+          const frame = frameData.data as ExtractedFrame
+          const frameId = frameData.id
+          
+          this.monitor.frameStart(frameId)
+          
+          try {
+            // Check if we have effects to apply
+            const hasEffects = segment.effects?.some(e => 
+              e.enabled && frame.timestamp >= e.startTime && frame.timestamp <= e.endTime
+            )
+            
+            if (frame.imageData instanceof HTMLVideoElement) {
+              // For video frames, process directly (no worker)
+              if (hasEffects) {
+                await this.applyEffects(
+                  frame.imageData,
+                  frame.timestamp,
+                  segment.effects,
+                  clipData.recording,
+                  metadata.get(clipData.recording.id)
+                )
+              } else {
+                // No effects - just draw to canvas
+                this.ctx!.drawImage(frame.imageData, 0, 0, this.canvas!.width, this.canvas!.height)
+              }
+              // Encode from canvas
+              await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
+            } else {
+              // For ImageBitmap, use workers
+              const frameTask: FrameTask = {
+                id: frameId,
+                bitmap: frame.imageData as ImageBitmap,
+                effects: segment.effects,
+                timestamp: frame.timestamp,
+                metadata: metadata.get(clipData.recording.id)
+              }
+              
+              const processed = await this.workerPool!.processFrame(frameTask)
+              await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
+            }
+            
+            processedFrames++
+            this.monitor.frameEnd(frameId)
+            
+            // Update progress
+            if (processedFrames % 30 === 0 && onProgress) {
+              const globalFrame = startFrame + processedFrames
+              const progress = Math.min(95, (globalFrame / totalFrames) * 95)
+              onProgress({
+                progress,
+                stage: 'encoding',
+                message: `Processing frame ${globalFrame} of ${totalFrames}...`,
+                currentFrame: globalFrame,
+                totalFrames
+              })
+            }
+          } catch (error) {
+            logger.error(`Failed to process frame ${frameId}:`, error)
+          }
+        })
+        
+        // Start frame extraction (non-blocking)
+        await this.frameExtractor.extractClipFramesStreamed(
           clip,
           video,
           clipStartInSegment,
           clipEndInSegment,
           async (frame) => {
             const frameId = `${clip.id}_${frame.timestamp}`
-            frameQueue.push({ frame, frameId })
-          }
-        ).then(() => {
-          extractionComplete = true
-        })
-        
-        // Process frames in controlled batches
-        const batchSize = 10
-        while (!extractionComplete || frameQueue.length > 0) {
-          // Wait for frames to be available
-          if (frameQueue.length === 0 && !extractionComplete) {
-            await new Promise(resolve => setTimeout(resolve, 10))
-            continue
-          }
-          
-          // Process a batch
-          const batch = frameQueue.splice(0, Math.min(batchSize, frameQueue.length))
-          if (batch.length === 0) continue
-          
-          // Process batch in parallel
-          await Promise.all(batch.map(async ({ frame, frameId }) => {
-            this.monitor.frameStart(frameId)
             
-            try {
-              // Check if we have effects to apply
-              const hasEffects = segment.effects?.some(e => 
-                e.enabled && frame.timestamp >= e.startTime && frame.timestamp <= e.endTime
-              )
-              
-              if (frame.imageData instanceof HTMLVideoElement) {
-                if (hasEffects) {
-                  // Apply effects if needed
-                  await this.applyEffects(
-                    frame.imageData,
-                    frame.timestamp,
-                    segment.effects,
-                    clipData.recording,
-                    metadata.get(clipData.recording.id)
-                  )
-                  // Encode from canvas
-                  await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
-                } else {
-                  // No effects - draw video to canvas and encode
-                  this.ctx!.drawImage(frame.imageData, 0, 0, this.canvas!.width, this.canvas!.height)
-                  await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
-                }
-              } else {
-                // For ImageBitmap, use workers
-                const frameTask: FrameTask = {
-                  id: frameId,
-                  bitmap: frame.imageData as ImageBitmap,
-                  effects: segment.effects,
-                  timestamp: frame.timestamp,
-                  metadata: metadata.get(clipData.recording.id)
-                }
-                
-                const processed = await this.workerPool!.processFrame(frameTask)
-                await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
-              }
-              
-              processedFrames++
-              this.monitor.frameEnd(frameId)
-              
-              // Update progress
-              if (processedFrames % 20 === 0 && onProgress) {
-                const globalFrame = startFrame + processedFrames
-                const progress = Math.min(95, (globalFrame / totalFrames) * 95)
-                onProgress({
-                  progress,
-                  stage: 'encoding',
-                  message: `Processing frame ${globalFrame} of ${totalFrames}...`,
-                  currentFrame: globalFrame,
-                  totalFrames
-                })
-              }
-            } catch (error) {
-              logger.error(`Failed to process frame ${frameId}:`, error)
-            }
-          }))
-        }
+            // Add to pipeline (non-blocking)
+            pipeline.addFrame({
+              id: frameId,
+              data: frame,
+              timestamp: frame.timestamp,
+              metadata: metadata.get(clipData.recording.id)
+            })
+          }
+        )
         
-        // Ensure extraction completed
-        await extractionPromise
+        // Wait for pipeline to complete
+        await pipeline.flush()
+        
+        // Log pipeline stats
+        const stats = pipeline.getStats()
+        if (stats.dropped > 0) {
+          logger.warn(`Pipeline dropped ${stats.dropped} frames`)
+        }
       } else {
         // Fallback to single-threaded processing
         await this.frameExtractor.extractClipFramesStreamed(

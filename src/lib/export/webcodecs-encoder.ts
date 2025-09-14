@@ -395,7 +395,7 @@ export class WebCodecsEncoder {
     // Determine if this should be a keyframe
     const isKeyFrame = this.frameCount % (this.encoderConfig?.keyFrameInterval || 60) === 0
     
-    // Encode frame (non-blocking). Backpressure via maxPendingEnqueues
+    // Encode frame (non-blocking)
     this.encoder.encode(frame, { keyFrame: isKeyFrame })
     this.pendingEnqueues++
     
@@ -404,10 +404,14 @@ export class WebCodecsEncoder {
       frame.close()
     }
 
-    // Apply simple backpressure
+    // Apply adaptive backpressure
     if (this.pendingEnqueues >= this.maxPendingEnqueues) {
-      await this.encoder.flush()
-      this.pendingEnqueues = 0
+      // Don't flush completely - just wait for half to complete
+      const targetPending = Math.floor(this.maxPendingEnqueues / 2)
+      while (this.encoder.encodeQueueSize > targetPending) {
+        await new Promise(resolve => setTimeout(resolve, 1))
+      }
+      this.pendingEnqueues = this.encoder.encodeQueueSize
     }
  
     this.frameCount++
