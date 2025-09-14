@@ -41,10 +41,10 @@ export class WebCodecsEncoder {
   
   // Frame caching for performance
   private frameCache = new Map<string, ImageBitmap>()
-  private maxCacheSize = 100 // Cache up to 100 frames
+  private maxCacheSize = 200 // Increased cache size
   
   private pendingEnqueues = 0
-  private maxPendingEnqueues = 24
+  private maxPendingEnqueues = 100 // Increased queue depth for better GPU utilization
 
   /**
    * Check if WebCodecs is supported
@@ -202,7 +202,7 @@ export class WebCodecsEncoder {
       height: settings.resolution.height,
       bitrate: this.calculateBitrate(settings),
       framerate: settings.framerate || 30,
-      keyFrameInterval: 60  // Keyframe every 2 seconds at 30fps
+      keyFrameInterval: 150  // Keyframe every 5 seconds at 30fps for better compression
     }
     
     // Initialize appropriate muxer
@@ -218,15 +218,17 @@ export class WebCodecsEncoder {
       error: (error) => this.handleEncoderError(error)
     })
     
-    // Configure encoder
+    // Configure encoder with optimized settings
     const config: VideoEncoderConfig = {
       codec,
       width: this.encoderConfig.width,
       height: this.encoderConfig.height,
       bitrate: this.encoderConfig.bitrate,
       framerate: this.encoderConfig.framerate,
-      latencyMode: 'quality',
-      hardwareAcceleration: 'prefer-hardware'
+      latencyMode: 'realtime', // Changed for faster encoding
+      hardwareAcceleration: 'prefer-hardware',
+      bitrateMode: 'constant', // More predictable performance
+      scalabilityMode: 'L1T2' // Temporal scalability for better performance
     }
     
     // Add codec-specific settings

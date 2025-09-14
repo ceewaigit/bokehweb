@@ -1,20 +1,13 @@
 /**
- * Export Engine - Complete Multi-threaded Implementation
- * Handles video export with WebCodecs, Canvas rendering, and FFmpeg fallback
+ * Export Engine - Unified high-performance video export
+ * Uses WebCodecs with WebWorker pool and GPU acceleration
  */
 
-import type {
-  ExportSettings,
-  Project,
-  Recording,
-  RecordingMetadata,
-  Clip,
-  Effect
-} from '@/types'
-import { TrackType, RecordingSourceType, ExportFormat } from '@/types'
+import type { ExportSettings, Project, Recording } from '@/types'
+import { ExportFormat } from '@/types'
 import { WebCodecsExportEngine } from './webcodecs-export-engine'
 import { metadataLoader } from './metadata-loader'
-import { timelineProcessor, type ProcessedTimeline, type TimelineSegment } from './timeline-processor'
+import { timelineProcessor } from './timeline-processor'
 import { logger } from '../utils/logger'
 
 export interface ExportProgress {
@@ -26,20 +19,13 @@ export interface ExportProgress {
   eta?: number
 }
 
-interface SegmentResult {
-  segmentId: string
-  blob: Blob
-  duration: number
-  frameCount: number
-}
-
 export class ExportEngine {
-  private webCodecsExportEngine: WebCodecsExportEngine
+  private webCodecsEngine: WebCodecsExportEngine
   private isExporting = false
   private abortController: AbortController | null = null
 
   constructor() {
-    this.webCodecsExportEngine = new WebCodecsExportEngine()
+    this.webCodecsEngine = new WebCodecsExportEngine()
   }
 
 
@@ -92,7 +78,7 @@ export class ExportEngine {
       // Always use WebCodecs for all exports
       // Prefer WebCodecs; fallback to WEBM when MP4/MOV codec is unavailable
       try {
-        return await this.webCodecsExportEngine.export(
+        return await this.webCodecsEngine.export(
           processedTimeline.segments,
           recordingsMap,
           metadataMap,
@@ -114,7 +100,7 @@ export class ExportEngine {
             message: 'MP4/H.264 not supported in this environment. Falling back to WebM (VP9/VP8)...'
           })
           const fallbackSettings: ExportSettings = { ...settings, format: ExportFormat.WEBM }
-          return await this.webCodecsExportEngine.export(
+          return await this.webCodecsEngine.export(
             processedTimeline.segments,
             recordingsMap,
             metadataMap,

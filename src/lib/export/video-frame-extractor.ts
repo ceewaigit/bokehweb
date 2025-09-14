@@ -278,17 +278,28 @@ export class VideoFrameExtractor {
       ((endTime - clip.startTime) * playbackRate + (clip.sourceIn || 0)) / 1000
     )
 
+    // Optimize video decoding
     video.currentTime = startSec
     video.muted = true
-    // Run as fast as possible (browsers clamp to ~16x). We still sample every required frame.
-    video.playbackRate = 16
+    
+    // Set optimal playback rate based on system capabilities
+    const cores = navigator.hardwareConcurrency || 4
+    const optimalRate = Math.min(16, cores * 2) // Scale with CPU cores
+    video.playbackRate = optimalRate
+    
+    // Enable hardware acceleration hints
+    ;(video as any).disablePictureInPicture = true
+    ;(video as any).disableRemotePlayback = true
+    
     await video.play().catch(() => {})
 
     let nextCapture = startSec
     let done = false
+    let frameBuffer: ExtractedFrame[] = []
+    const maxBufferSize = 10 // Buffer frames for smoother processing
 
     await new Promise<void>((resolve) => {
-      const cb = (_now: number, metadata: any) => {
+      const cb = async (_now: number, metadata: any) => {
         if (done) return
         const mediaTime = metadata?.mediaTime ?? video.currentTime
 
@@ -301,9 +312,15 @@ export class VideoFrameExtractor {
               clipId: clip.id,
               sourceTime: (nextCapture - sourceInSec) * 1000
             }
+            
             if (onFrame) {
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              onFrame(frame)
+              frameBuffer.push(frame)
+              
+              // Process buffered frames in batch
+              if (frameBuffer.length >= maxBufferSize || mediaTime >= endSec - 1e-4) {
+                const batch = frameBuffer.splice(0, frameBuffer.length)
+                await Promise.all(batch.map(f => onFrame(f)))
+              }
             }
           }
           nextCapture += frameDt
@@ -312,6 +329,12 @@ export class VideoFrameExtractor {
         if (mediaTime >= endSec - 1e-4) {
           done = true
           video.pause()
+          
+          // Process remaining buffered frames
+          if (frameBuffer.length > 0 && onFrame) {
+            await Promise.all(frameBuffer.map(f => onFrame(f)))
+          }
+          
           resolve()
           return
         }

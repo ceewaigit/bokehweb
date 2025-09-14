@@ -6,13 +6,11 @@
 
 import type {
   ExportSettings,
-  Project,
   Recording,
   RecordingMetadata,
-  Clip,
   Effect
 } from '@/types'
-import { ExportFormat, EffectType } from '@/types'
+import { EffectType } from '@/types'
 import { WebCodecsEncoder } from './webcodecs-encoder'
 import { VideoFrameExtractor } from './video-frame-extractor'
 import { logger } from '@/lib/utils/logger'
@@ -22,14 +20,10 @@ import { calculateZoomTransform } from '@/remotion/compositions/utils/zoom-trans
 import { calculateBackgroundStyle, applyGradientToCanvas } from '@/lib/effects/utils/background-calculator'
 import { calculateCursorState, getCursorPath } from '@/lib/effects/utils/cursor-calculator'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
-
-interface FrameData {
-  timestamp: number  // in milliseconds
-  clipId: string
-  sourceTime: number  // time in source video
-  playbackRate: number
-  effects: Effect[]
-}
+import { WorkerPool, createOptimizedWorkerPool } from './workers/worker-pool'
+import type { FrameTask } from './workers/worker-pool'
+import { PerformanceMonitor, performanceMonitor } from './performance-monitor'
+// WebGLEffectsRenderer will be imported when useWebGL is enabled
 
 export class WebCodecsExportEngine {
   private encoder: WebCodecsEncoder | null = null
@@ -39,6 +33,10 @@ export class WebCodecsExportEngine {
   private frameRate = 30
   private frameDuration = 1000 / 30  // milliseconds per frame
   private abortSignal: AbortSignal | null = null
+  private workerPool: WorkerPool | null = null
+  private useWorkers = true // Can be disabled for debugging
+  private useWebGL = false // Enable when ready (WebGL renderer created on demand)
+  private monitor = performanceMonitor
 
   constructor() {
     // Initialize canvas for effects processing
@@ -66,11 +64,20 @@ export class WebCodecsExportEngine {
     this.frameDuration = 1000 / this.frameRate
 
     try {
+      // Start performance monitoring
+      this.monitor.start()
+      
+      // Get optimized settings
+      const optimizedSettings = PerformanceMonitor.getOptimizedSettings()
+      this.useWorkers = optimizedSettings.useWorkers
+      this.useWebGL = optimizedSettings.useWebGL && false // Disabled for now
+      
       // Calculate total frames needed up front for accurate progress
       const totalDuration = this.calculateTotalDuration(segments)
       const totalFrames = Math.ceil((totalDuration / 1000) * this.frameRate)
 
       logger.info(`WebCodecs export: ${totalFrames} frames at ${this.frameRate}fps`)
+      logger.info(`Performance settings: Workers=${this.useWorkers}, WebGL=${this.useWebGL}`)
 
       // Initialize encoder
       this.encoder = new WebCodecsEncoder()
@@ -87,6 +94,16 @@ export class WebCodecsExportEngine {
       if (this.canvas && this.ctx) {
         this.canvas.width = settings.resolution.width
         this.canvas.height = settings.resolution.height
+      }
+
+      // Initialize worker pool if using workers
+      if (this.useWorkers) {
+        this.workerPool = createOptimizedWorkerPool(
+          settings.resolution.width,
+          settings.resolution.height
+        )
+        await this.workerPool.initialize()
+        logger.info('Worker pool initialized for parallel processing')
       }
 
       onProgress?.({
@@ -129,6 +146,9 @@ export class WebCodecsExportEngine {
 
       // Finish encoding and get final blob
       const blob = await this.encoder.finish()
+      
+      // Stop performance monitoring
+      this.monitor.stop()
 
       onProgress?.({
         progress: 100,
@@ -201,39 +221,107 @@ export class WebCodecsExportEngine {
       logger.debug(`Processing ${isTypingSpeedClip ? 'typing-speed' : 'normal'} clip ${clip.id} from ${clipStartInSegment}ms to ${clipEndInSegment}ms`)
 
       // Extract frames with proper timing
-      await this.frameExtractor.extractClipFramesStreamed(
-        clip,
-        video,
-        clipStartInSegment,
-        clipEndInSegment,
-        async (frame) => {
-          // Apply effects to the frame
-          await this.applyEffects(
-            frame.imageData,
-            frame.timestamp,
-            segment.effects,
-            clipData.recording,
-            metadata.get(clipData.recording.id)
-          )
-
-          // Encode the frame
-          await this.encoder!.encodeFrame(this.canvas as unknown as HTMLCanvasElement, frame.timestamp)
-          processedFrames++
-
-          // Update progress
-          if (processedFrames % 5 === 0 && onProgress) {
-            const globalFrame = startFrame + processedFrames
-            const progress = Math.min(95, (globalFrame / totalFrames) * 95)
-            onProgress({
-              progress,
-              stage: 'encoding',
-              message: `Processing frame ${globalFrame} of ${totalFrames}...`,
-              currentFrame: globalFrame,
-              totalFrames
+      if (this.useWorkers && this.workerPool) {
+        // Batch process frames with workers
+        const framePromises: Promise<void>[] = []
+        
+        await this.frameExtractor.extractClipFramesStreamed(
+          clip,
+          video,
+          clipStartInSegment,
+          clipEndInSegment,
+          async (frame) => {
+            // Create bitmap from video frame
+            let bitmap: ImageBitmap
+            if (frame.imageData instanceof HTMLVideoElement) {
+              bitmap = await createImageBitmap(frame.imageData)
+            } else {
+              bitmap = frame.imageData as ImageBitmap
+            }
+            
+            // Queue frame for worker processing
+            const frameTask: FrameTask = {
+              id: `${clip.id}_${frame.timestamp}`,
+              bitmap,
+              effects: segment.effects,
+              timestamp: frame.timestamp,
+              metadata: metadata.get(clipData.recording.id)
+            }
+            
+            // Process frame in worker
+            const frameId = `${clip.id}_${frame.timestamp}`
+            this.monitor.frameStart(frameId)
+            
+            const framePromise = this.workerPool!.processFrame(frameTask).then(async (processed) => {
+              // Encode the processed frame
+              await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
+              processedFrames++
+              this.monitor.frameEnd(frameId)
+              
+              // Update progress
+              if (processedFrames % 5 === 0 && onProgress) {
+                const globalFrame = startFrame + processedFrames
+                const progress = Math.min(95, (globalFrame / totalFrames) * 95)
+                onProgress({
+                  progress,
+                  stage: 'encoding',
+                  message: `Processing frame ${globalFrame} of ${totalFrames}...`,
+                  currentFrame: globalFrame,
+                  totalFrames
+                })
+              }
             })
+            
+            framePromises.push(framePromise)
+            
+            // Process in batches to avoid memory overflow
+            if (framePromises.length >= 30) {
+              await Promise.all(framePromises)
+              framePromises.length = 0
+            }
           }
+        )
+        
+        // Wait for remaining frames
+        if (framePromises.length > 0) {
+          await Promise.all(framePromises)
         }
-      )
+      } else {
+        // Fallback to single-threaded processing
+        await this.frameExtractor.extractClipFramesStreamed(
+          clip,
+          video,
+          clipStartInSegment,
+          clipEndInSegment,
+          async (frame) => {
+            // Apply effects to the frame
+            await this.applyEffects(
+              frame.imageData,
+              frame.timestamp,
+              segment.effects,
+              clipData.recording,
+              metadata.get(clipData.recording.id)
+            )
+
+            // Encode the frame
+            await this.encoder!.encodeFrame(this.canvas as unknown as HTMLCanvasElement, frame.timestamp)
+            processedFrames++
+
+            // Update progress
+            if (processedFrames % 5 === 0 && onProgress) {
+              const globalFrame = startFrame + processedFrames
+              const progress = Math.min(95, (globalFrame / totalFrames) * 95)
+              onProgress({
+                progress,
+                stage: 'encoding',
+                message: `Processing frame ${globalFrame} of ${totalFrames}...`,
+                currentFrame: globalFrame,
+                totalFrames
+              })
+            }
+          }
+        )
+      }
     }
 
     // Handle gaps - fill with black frames if needed
@@ -243,7 +331,7 @@ export class WebCodecsExportEngine {
       
       for (let i = 0; i < remainingFrames; i++) {
         const timestamp = segment.startTime + ((processedFrames + i) * this.frameDuration)
-        const blackFrame = await this.frameExtractor.createBlackFrame(timestamp)
+        await this.frameExtractor.createBlackFrame(timestamp)
         await this.encoder!.encodeFrame(this.canvas as unknown as HTMLCanvasElement, timestamp)
       }
       processedFrames = frameCount
@@ -259,7 +347,7 @@ export class WebCodecsExportEngine {
     imageData: ImageData | ImageBitmap | HTMLVideoElement,
     timestamp: number,
     effects: Effect[],
-    recording: Recording,
+    _recording: Recording,
     metadata?: RecordingMetadata
   ): Promise<void> {
     if (!this.ctx || !this.canvas) {
@@ -512,7 +600,7 @@ export class WebCodecsExportEngine {
   /**
    * Cleanup resources
    */
-  private cleanup(): void {
+  private async cleanup(): Promise<void> {
     if (this.encoder) {
       this.encoder.reset()
       this.encoder = null
@@ -521,6 +609,11 @@ export class WebCodecsExportEngine {
     if (this.frameExtractor) {
       this.frameExtractor.dispose()
       this.frameExtractor = null
+    }
+
+    if (this.workerPool) {
+      await this.workerPool.terminate()
+      this.workerPool = null
     }
 
     if (this.ctx && this.canvas) {
