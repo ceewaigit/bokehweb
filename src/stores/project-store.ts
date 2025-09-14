@@ -577,36 +577,35 @@ export const useProjectStore = create<ProjectStore>()(
 
     // Typing Speed - Apply typing speed suggestions to a clip
     applyTypingSpeedToClip: (clipId, periods) => {
-      const state = get()
-      if (!state.currentProject) {
-        console.error('applyTypingSpeedToClip: No current project')
-        return { affectedClips: [], originalClips: [] }
-      }
+      let result = { affectedClips: [] as string[], originalClips: [] as Clip[] }
+      let clipBefore: { clip: Clip; track: Track } | null = null
 
-      // Get clip before applying speed changes for playhead tracking
-      const clipBefore = findClipById(state.currentProject, clipId)
-      if (!clipBefore) {
-        console.error('applyTypingSpeedToClip: Clip not found:', clipId)
-        return { affectedClips: [], originalClips: [] }
-      }
-
-      // Use the typing speed application service
-      const result = TypingSpeedApplicationService.applyTypingSpeedToClip(
-        state.currentProject,
-        clipId,
-        periods
-      )
-
-      // Update state after applying typing speed
       set((state) => {
-        if (!state.currentProject) return
+        if (!state.currentProject) {
+          console.error('applyTypingSpeedToClip: No current project')
+          return
+        }
+
+        // Get clip before applying speed changes for playhead tracking
+        clipBefore = findClipById(state.currentProject, clipId)
+        if (!clipBefore) {
+          console.error('applyTypingSpeedToClip: Clip not found:', clipId)
+          return
+        }
+
+        // Apply typing speed within the mutable state
+        result = TypingSpeedApplicationService.applyTypingSpeedToClip(
+          state.currentProject,
+          clipId,
+          periods
+        )
 
         // Update playhead state
         updatePlayheadState(state)
 
         // Maintain playhead position if it was inside the clip
         const clipAfter = findClipById(state.currentProject, clipId)
-        if (clipAfter) {
+        if (clipAfter && clipBefore) {
           const newTime = PlayheadService.trackPlayheadDuringClipEdit(
             state.currentTime,
             clipBefore.clip,

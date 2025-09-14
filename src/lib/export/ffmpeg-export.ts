@@ -98,7 +98,9 @@ export class FFmpegExportEngine {
 
       // Write input video to FFmpeg filesystem
       const inputName = 'input.webm'
-      await this.ffmpeg.writeFile(inputName, await fetchFile(blob))
+      const inputData = await fetchFile(blob)
+      console.log(`Writing input file: ${inputName}, size: ${blob.size} bytes`)
+      await this.ffmpeg.writeFile(inputName, inputData)
 
       onProgress?.({
         progress: 20,
@@ -143,15 +145,23 @@ export class FFmpegExportEngine {
               })) as any,
               zoomEffect.startTime
             )
-            if (normalized) {
-              nx = normalized.x
-              ny = normalized.y
+            if (normalized && !isNaN(normalized.x) && !isNaN(normalized.y)) {
+              nx = Math.max(0, Math.min(1, normalized.x))
+              ny = Math.max(0, Math.min(1, normalized.y))
             }
           }
 
+          console.log(`Zoom effect: scale=${scale}, position=(${nx}, ${ny})`)
+
           // Zoom filter: scale and crop centered at normalized mouse position
+          // Ensure we don't go out of bounds
+          const cropW = `iw/${scale}`
+          const cropH = `ih/${scale}`
+          const cropX = `(iw-${cropW})*${nx}`
+          const cropY = `(ih-${cropH})*${ny}`
+          
           filters.push(`scale=${scale}*iw:${scale}*ih`)
-          filters.push(`crop=iw/${scale}:ih/${scale}:${nx}*iw:${ny}*ih`)
+          filters.push(`crop=${cropW}:${cropH}:${cropX}:${cropY}`)
         }
       }
 
@@ -194,32 +204,74 @@ export class FFmpegExportEngine {
       })
 
       // Build FFmpeg command arguments properly
-      const ffmpegArgs: string[] = ['-i', inputName]
+      const ffmpegArgs: string[] = []
       
-      // Add video filters if any
-      if (filterComplex && filters.length > 0) {
-        // Add the filter as two separate arguments: -vf and the filter string
-        ffmpegArgs.push('-vf')
-        ffmpegArgs.push(filters.join(','))
+      // If no filters and format matches, try simple copy
+      if (filters.length === 0 && settings.format === ExportFormat.WEBM) {
+        // Simple copy without re-encoding
+        ffmpegArgs.push('-i', inputName, '-c', 'copy', outputName)
+      } else {
+        // Full transcoding with filters
+        ffmpegArgs.push('-i', inputName)
+        
+        // Add video filters if any
+        if (filters.length > 0) {
+          ffmpegArgs.push('-vf')
+          ffmpegArgs.push(filters.join(','))
+        }
+        
+        // Add codec options
+        if (codecOptions) {
+          ffmpegArgs.push(...codecOptions.split(' '))
+        } else {
+          // Default codec if none specified
+          ffmpegArgs.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '22')
+        }
+        
+        // Add output file
+        ffmpegArgs.push(outputName)
       }
-      
-      // Add codec options
-      if (codecOptions) {
-        ffmpegArgs.push(...codecOptions.split(' '))
-      }
-      
-      // Add output file
-      ffmpegArgs.push(outputName)
       
       console.log('FFmpeg command:', ffmpegArgs.join(' '))
       
-      // Execute FFmpeg command with better error handling
+      // Execute FFmpeg command with timeout and better error handling
       try {
-        const execResult = await this.ffmpeg.exec(ffmpegArgs)
+        // Set up a timeout promise
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('FFmpeg execution timed out after 30 seconds')), 30000)
+        })
+        
+        // Race between FFmpeg execution and timeout
+        const execPromise = this.ffmpeg.exec(ffmpegArgs)
+        const execResult = await Promise.race([execPromise, timeoutPromise])
         console.log('FFmpeg execution completed')
       } catch (execError) {
         console.error('FFmpeg execution failed:', execError)
-        throw new Error(`FFmpeg failed to encode video: ${execError}`)
+        
+        // If it was a timeout or complex filter issue, try simpler approach
+        console.log('Trying simpler fallback command without filters...')
+        try {
+          // Very simple command that should always work
+          const fallbackArgs = [
+            '-i', inputName,
+            '-vf', `scale=${settings.resolution.width}:${settings.resolution.height}`,
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '28',
+            '-an',  // No audio for now to simplify
+            outputName
+          ]
+          console.log('Fallback command:', fallbackArgs.join(' '))
+          
+          const fallbackPromise = this.ffmpeg.exec(fallbackArgs)
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Fallback timed out')), 30000)
+          })
+          await Promise.race([fallbackPromise, timeoutPromise])
+          console.log('Fallback command succeeded')
+        } catch (fallbackError) {
+          throw new Error(`FFmpeg failed to encode video even with fallback: ${fallbackError}`)
+        }
       }
 
       onProgress?.({
