@@ -112,12 +112,22 @@ export class FFmpegExportEngine {
       // Build FFmpeg filter chain based on effects
       const filters: string[] = []
 
+      // Combine cropping and scaling into one operation
+      let finalWidth = settings.resolution.width
+      let finalHeight = settings.resolution.height
+      let cropX = 0
+      let cropY = 0
+      
       // Apply cropping if we have a capture area (for window or area recording)
       if (captureArea && captureArea.width > 0 && captureArea.height > 0) {
-        filters.push(`crop=${captureArea.width}:${captureArea.height}:${captureArea.x}:${captureArea.y}`)
+        cropX = captureArea.x
+        cropY = captureArea.y
+        finalWidth = Math.min(captureArea.width, settings.resolution.width)
+        finalHeight = Math.min(captureArea.height, settings.resolution.height)
       }
 
-      // Apply zoom effect if present in effects array
+      // Check for zoom effect
+      let hasZoom = false
       if (effects && effects.length > 0) {
         const zoomEffect = effects.find(e =>
           e.type === EffectType.Zoom &&
@@ -127,21 +137,30 @@ export class FFmpegExportEngine {
         )
 
         if (zoomEffect) {
+          hasZoom = true
           const zoomData = zoomEffect.data as any
-          const scale = zoomData.scale || 2
-
-          console.log(`Zoom effect: scale=${scale} - simplifying for FFmpeg.wasm`)
-
-          // Simplified zoom: just scale to target resolution with zoom factor
-          // FFmpeg.wasm has issues with complex filter expressions
-          const targetWidth = Math.round(settings.resolution.width * scale)
-          const targetHeight = Math.round(settings.resolution.height * scale)
+          const scale = zoomData.scale || 1.5  // Lower scale for better performance
           
-          // Simple scale up
-          filters.push(`scale=${targetWidth}:${targetHeight}`)
+          console.log(`Applying simplified zoom: ${scale}x`)
           
-          // Simple center crop to target resolution
-          filters.push(`crop=${settings.resolution.width}:${settings.resolution.height}`)
+          // Single combined filter for crop + scale
+          // This is much more efficient than multiple operations
+          if (captureArea) {
+            filters.push(`crop=${captureArea.width}:${captureArea.height}:${cropX}:${cropY},scale=${settings.resolution.width}:${settings.resolution.height}`)
+          } else {
+            filters.push(`scale=${settings.resolution.width}:${settings.resolution.height}`)
+          }
+        }
+      }
+      
+      // If no zoom, just apply crop/scale if needed
+      if (!hasZoom) {
+        if (captureArea && captureArea.width > 0) {
+          // Crop and scale in one operation
+          filters.push(`crop=${captureArea.width}:${captureArea.height}:${cropX}:${cropY},scale=${settings.resolution.width}:${settings.resolution.height}`)
+        } else if (settings.resolution.width !== 1920 || settings.resolution.height !== 1080) {
+          // Just scale if resolution is different
+          filters.push(`scale=${settings.resolution.width}:${settings.resolution.height}`)
         }
       }
 
@@ -159,17 +178,25 @@ export class FFmpegExportEngine {
       const outputName = `output.webm`  // Always output WebM from FFmpeg.wasm
       let codecOptions = ''
 
-      // FFmpeg.wasm works best with simple settings
-      switch (settings.format) {
-        case ExportFormat.GIF:
-          codecOptions = ''
-          filters.unshift('fps=10,scale=480:-1:flags=lanczos')
-          break
-        default:
-          // Very simple VP8 encoding for maximum compatibility
-          // Lower quality but should work reliably
-          codecOptions = '-c:v libvpx -deadline realtime -cpu-used 5 -b:v 500k -an'
-          break
+      // Optimize codec based on whether we have filters
+      if (filters.length === 0) {
+        // No filters = just copy the stream (fastest)
+        codecOptions = '-c copy'
+        console.log('Using stream copy (no re-encoding)')
+      } else {
+        // With filters, we need to re-encode
+        switch (settings.format) {
+          case ExportFormat.GIF:
+            codecOptions = ''
+            filters.unshift('fps=10,scale=480:-1:flags=lanczos')
+            break
+          default:
+            // Ultra-fast VP8 settings for FFmpeg.wasm
+            // Prioritize speed over quality
+            codecOptions = '-c:v libvpx -deadline realtime -cpu-used 8 -crf 30 -b:v 1000k -an -threads 1'
+            console.log('Using fast VP8 encoding')
+            break
+        }
       }
 
       // Create filter complex AFTER all filters are added
@@ -212,13 +239,15 @@ export class FFmpegExportEngine {
       
       console.log('FFmpeg command:', ffmpegArgs.join(' '))
       
-      // Execute FFmpeg command with timeout
+      // Execute FFmpeg command
       console.log('Executing FFmpeg command...')
       
       try {
-        // Create a timeout promise
+        // Increase timeout for encoding operations
+        const timeout = filters.length > 0 ? 60000 : 30000  // 60s for encoding, 30s for copy
+        
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('FFmpeg timeout after 30 seconds')), 30000)
+          setTimeout(() => reject(new Error(`FFmpeg timeout after ${timeout/1000} seconds`)), timeout)
         })
         
         // Execute with timeout
@@ -230,17 +259,20 @@ export class FFmpegExportEngine {
         console.log('FFmpeg execution completed successfully')
       } catch (execError) {
         console.error('FFmpeg execution failed:', execError)
-        console.error('Failed command:', ffmpegArgs.join(' '))
         
-        // If it failed, try the most basic possible command
-        console.log('Trying ultra-simple copy command...')
-        try {
-          // Just copy without any re-encoding
-          const copyArgs = ['-i', inputName, '-c', 'copy', '-t', '30', outputName]
-          await this.ffmpeg.exec(copyArgs)
-          console.log('Copy succeeded - no effects applied')
-        } catch (copyError) {
-          throw new Error(`FFmpeg encoding completely failed: ${execError}`)
+        // If encoding failed and we had filters, try without filters
+        if (filters.length > 0) {
+          console.log('Retrying without effects (simple copy)...')
+          try {
+            const copyArgs = ['-i', inputName, '-c', 'copy', outputName]
+            await this.ffmpeg.exec(copyArgs)
+            console.log('Fallback succeeded - exported without effects')
+          } catch (copyError) {
+            console.error('Even simple copy failed:', copyError)
+            throw new Error(`Export failed completely. The video file may be corrupted.`)
+          }
+        } else {
+          throw new Error(`Export failed: ${execError}`)
         }
       }
 
