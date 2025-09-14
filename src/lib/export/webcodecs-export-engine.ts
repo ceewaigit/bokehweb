@@ -136,9 +136,17 @@ export class WebCodecsExportEngine {
             settings.resolution.width,
             settings.resolution.height
           )
-          logger.info('WebGL effects renderer enabled')
+          const initialized = await this.webglRenderer.initialize()
+          if (initialized) {
+            logger.info('WebGL effects renderer enabled')
+          } else {
+            logger.warn('WebGL renderer initialization failed')
+            this.webglRenderer = null
+            this.useWebGL = false
+          }
         } catch (error) {
-          logger.warn('Failed to initialize WebGL renderer:', error)
+          logger.warn('Failed to create WebGL renderer:', error)
+          this.webglRenderer = null
           this.useWebGL = false
         }
       }
