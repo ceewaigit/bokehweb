@@ -1,13 +1,13 @@
-import type { Project, Track, Clip, TimeRemapPeriod } from '@/types/project'
+import type { Project, Track, Clip } from '@/types/project'
 import { reflowClips, calculateTimelineDuration } from './timeline-operations'
 
 /**
- * Service for applying typing speed suggestions to clips using time remapping
- * This replaces the old splitting logic with a cleaner time remap approach
+ * Service for applying typing speed suggestions to clips by splitting them
+ * This creates separate clips for typing sections with increased playback rates
  */
 export class TypingSpeedApplicationService {
   /**
-   * Apply typing speed suggestions to a clip using time remapping
+   * Apply typing speed suggestions to a clip by splitting it into multiple clips
    * Returns the affected clips and original state for undo
    * 
    * @param periods - Array of typing periods with at least startTime, endTime, and suggestedSpeedMultiplier
@@ -17,17 +17,20 @@ export class TypingSpeedApplicationService {
     clipId: string,
     periods: Array<Pick<import('./typing-detector').TypingPeriod, 'startTime' | 'endTime' | 'suggestedSpeedMultiplier'>>
   ): { affectedClips: string[]; originalClips: Clip[] } {
-    const affectedClips: string[] = [clipId]
+    const affectedClips: string[] = []
     const originalClips: Clip[] = []
 
     // Find the source clip and track
     let sourceClip: Clip | null = null
     let track: Track | null = null
+    let clipIndex = -1
+    
     for (const t of project.timeline.tracks) {
-      const clip = t.clips.find(c => c.id === clipId)
-      if (clip) {
-        sourceClip = clip
+      const index = t.clips.findIndex(c => c.id === clipId)
+      if (index !== -1) {
+        sourceClip = t.clips[index]
         track = t
+        clipIndex = index
         break
       }
     }
@@ -40,7 +43,7 @@ export class TypingSpeedApplicationService {
     // Save original clip state for undo
     originalClips.push({ ...sourceClip })
 
-    console.log('[TypingApply] Applying typing speed as time remap', {
+    console.log('[TypingApply] Splitting clip for typing speed', {
       clipId,
       periods: periods.map(p => ({
         start: p.startTime,
@@ -49,47 +52,102 @@ export class TypingSpeedApplicationService {
       }))
     })
 
-    // Get clip's source range
+    // Get clip's source range and base playback rate
     const sourceIn = sourceClip.sourceIn || 0
     const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration * (sourceClip.playbackRate || 1))
+    const baseRate = sourceClip.playbackRate || 1
 
-    // Convert periods to TimeRemapPeriod format and filter to clip's source range
-    const timeRemapPeriods: TimeRemapPeriod[] = periods
-      .filter(p => {
-        // Only include periods that overlap with the clip's source range
-        return p.endTime > sourceIn && p.startTime < sourceOut
-      })
+    // Filter and sort periods within the clip's source range
+    const validPeriods = periods
+      .filter(p => p.endTime > sourceIn && p.startTime < sourceOut)
       .map(p => ({
-        // Clamp periods to the clip's source range
-        sourceStartTime: Math.max(p.startTime, sourceIn),
-        sourceEndTime: Math.min(p.endTime, sourceOut),
+        start: Math.max(p.startTime, sourceIn),
+        end: Math.min(p.endTime, sourceOut),
         speedMultiplier: p.suggestedSpeedMultiplier
       }))
+      .sort((a, b) => a.start - b.start)
 
-    // Sort periods by start time
-    timeRemapPeriods.sort((a, b) => a.sourceStartTime - b.sourceStartTime)
+    if (validPeriods.length === 0) {
+      console.log('[TypingApply] No valid periods within clip range')
+      return { affectedClips: [clipId], originalClips }
+    }
 
-    // Store the periods on the clip
-    sourceClip.timeRemapPeriods = timeRemapPeriods
-    sourceClip.typingSpeedApplied = true
+    // Create split points including typing periods and gaps
+    const splitPoints: Array<{start: number, end: number, speedMultiplier: number}> = []
+    let currentPos = sourceIn
 
-    // Calculate new duration based on time remapping
-    const newDuration = this.calculateRemappedDuration(sourceClip, timeRemapPeriods)
-    const oldDuration = sourceClip.duration
-    sourceClip.duration = newDuration
+    for (const period of validPeriods) {
+      // Add gap before typing period (normal speed)
+      if (currentPos < period.start) {
+        splitPoints.push({
+          start: currentPos,
+          end: period.start,
+          speedMultiplier: 1
+        })
+      }
 
-    // Reflow clips after duration change
+      // Add typing period (sped up)
+      splitPoints.push({
+        start: period.start,
+        end: period.end,
+        speedMultiplier: period.speedMultiplier
+      })
+
+      currentPos = period.end
+    }
+
+    // Add remaining portion after last typing period (normal speed)
+    if (currentPos < sourceOut) {
+      splitPoints.push({
+        start: currentPos,
+        end: sourceOut,
+        speedMultiplier: 1
+      })
+    }
+
+    // Remove the original clip
+    track.clips.splice(clipIndex, 1)
+
+    // Create new clips from split points
+    let timelinePosition = sourceClip.startTime
+    const newClips: Clip[] = []
+
+    for (let i = 0; i < splitPoints.length; i++) {
+      const split = splitPoints[i]
+      const sourceDuration = split.end - split.start
+      const effectiveRate = baseRate * split.speedMultiplier
+      const clipDuration = sourceDuration / effectiveRate
+
+      const newClip: Clip = {
+        id: `${sourceClip.id}-split-${i}`,
+        recordingId: sourceClip.recordingId,
+        startTime: timelinePosition,
+        duration: clipDuration,
+        sourceIn: split.start,
+        sourceOut: split.end,
+        playbackRate: effectiveRate,
+        typingSpeedApplied: split.speedMultiplier > 1
+      }
+
+      newClips.push(newClip)
+      affectedClips.push(newClip.id)
+      timelinePosition += clipDuration
+    }
+
+    // Insert new clips at the original position
+    track.clips.splice(clipIndex, 0, ...newClips)
+
+    // Sort clips by start time to maintain order
+    track.clips.sort((a, b) => a.startTime - b.startTime)
+
+    // Reflow clips to ensure no gaps
     reflowClips(track, 0, project)
 
-    console.log('[TypingApply] Time remap applied', {
-      clipId: sourceClip.id,
-      sourceIn,
-      sourceOut,
-      oldDuration,
-      newDuration,
-      periods: sourceClip.timeRemapPeriods,
-      filteredCount: timeRemapPeriods.length,
-      originalCount: periods.length
+    console.log('[TypingApply] Clip split complete', {
+      originalClipId: sourceClip.id,
+      newClipsCount: newClips.length,
+      splitPoints: splitPoints.length,
+      affectedClips
     })
 
     // Remove applied typing periods from the recording's metadata
@@ -108,44 +166,5 @@ export class TypingSpeedApplicationService {
     project.modifiedAt = new Date().toISOString()
 
     return { affectedClips, originalClips }
-  }
-
-  /**
-   * Calculate the new duration for a clip with time remapping
-   */
-  private static calculateRemappedDuration(
-    clip: Clip,
-    timeRemapPeriods: TimeRemapPeriod[]
-  ): number {
-    const sourceIn = clip.sourceIn || 0
-    const sourceOut = clip.sourceOut || (sourceIn + clip.duration)
-    const baseRate = clip.playbackRate || 1
-    let totalDuration = 0
-    let currentPos = sourceIn
-
-    for (const period of timeRemapPeriods) {
-      // Handle time before this period
-      if (currentPos < period.sourceStartTime) {
-        const gapDuration = Math.min(period.sourceStartTime - currentPos, sourceOut - currentPos)
-        totalDuration += gapDuration / baseRate
-        currentPos += gapDuration
-      }
-
-      // Handle time within this period
-      if (currentPos < sourceOut && currentPos < period.sourceEndTime) {
-        const periodStart = Math.max(currentPos, period.sourceStartTime)
-        const periodEnd = Math.min(period.sourceEndTime, sourceOut)
-        const periodDuration = periodEnd - periodStart
-        totalDuration += periodDuration / period.speedMultiplier
-        currentPos = periodEnd
-      }
-    }
-
-    // Handle any remaining time after all periods
-    if (currentPos < sourceOut) {
-      totalDuration += (sourceOut - currentPos) / baseRate
-    }
-
-    return totalDuration
   }
 }

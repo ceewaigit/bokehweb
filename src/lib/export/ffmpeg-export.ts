@@ -101,15 +101,6 @@ export class FFmpegExportEngine {
       const inputData = await fetchFile(blob)
       console.log(`Writing input file: ${inputName}, size: ${blob.size} bytes`)
       await this.ffmpeg.writeFile(inputName, inputData)
-      
-      // Verify the input file is valid
-      try {
-        console.log('Probing input file...')
-        await this.ffmpeg.exec(['-i', inputName, '-f', 'null', '-t', '1', '-'])
-        console.log('Input file is valid')
-      } catch (probeError) {
-        console.warn('Input file probe failed, but continuing:', probeError)
-      }
 
       onProgress?.({
         progress: 20,
@@ -273,20 +264,8 @@ export class FFmpegExportEngine {
         throw new Error(`Export produced invalid output: ${data instanceof Uint8Array ? data.length : 0} bytes. Please check your video settings.`)
       }
 
-      // Determine actual output mime type based on what was produced
-      let mimeType: string
-      if (outputName.endsWith('.webm')) {
-        mimeType = 'video/webm'
-      } else if (outputName.endsWith('.mp4')) {
-        mimeType = 'video/mp4'
-      } else if (outputName.endsWith('.mov')) {
-        mimeType = 'video/quicktime'
-      } else if (outputName.endsWith('.gif')) {
-        mimeType = 'image/gif'
-      } else {
-        mimeType = `video/${settings.format}`
-      }
-
+      // Output is always WebM from FFmpeg.wasm (or GIF for GIF exports)
+      const mimeType = settings.format === ExportFormat.GIF ? 'image/gif' : 'video/webm'
       const outputBlob = new Blob([data as BlobPart], { type: mimeType })
 
       // Final validation
