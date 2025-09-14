@@ -76,15 +76,19 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   }
 
   const handleSave = async () => {
-    if (lastExport) {
-      const extension = exportSettings.format === 'gif' ? 'gif' : exportSettings.format
-      const filename = `${currentProject?.name || 'export'}.${extension}`
-      try {
-        await saveLastExport(filename)
-        toast.success('File saved')
-      } catch (e: any) {
-        toast.error(e?.message || 'Failed to save file')
-      }
+    if (!lastExport) return
+    const mime = lastExport.type || ''
+    const extension =
+      mime === 'video/mp4' ? 'mp4' :
+      mime === 'video/webm' ? 'webm' :
+      mime === 'image/gif' ? 'gif' :
+      (exportSettings.format === 'gif' ? 'gif' : exportSettings.format)
+    const filename = `${currentProject?.name || 'export'}.${extension}`
+    try {
+      await saveLastExport(filename)
+      toast.success('File saved')
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save file')
     }
   }
 

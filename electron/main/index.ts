@@ -106,6 +106,16 @@ if (isDev) {
   app.commandLine.appendSwitch('v', '1')
 }
 
+// Aggressive GPU acceleration flags
+app.commandLine.appendSwitch('enable-gpu-rasterization')
+app.commandLine.appendSwitch('enable-zero-copy')
+app.commandLine.appendSwitch('ignore-gpu-blacklist')
+app.commandLine.appendSwitch('disable-gpu-sandbox')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('use-angle', 'metal')
+app.commandLine.appendSwitch('enable-accelerated-2d-canvas')
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192')
+
 app.on('window-all-closed', () => {
   cleanupMouseTracking()
   cleanupKeyboardTracking()

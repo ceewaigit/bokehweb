@@ -66,18 +66,15 @@ export class WebCodecsExportEngine {
     this.frameDuration = 1000 / this.frameRate
 
     try {
+      // Calculate total frames needed up front for accurate progress
+      const totalDuration = this.calculateTotalDuration(segments)
+      const totalFrames = Math.ceil((totalDuration / 1000) * this.frameRate)
+
+      logger.info(`WebCodecs export: ${totalFrames} frames at ${this.frameRate}fps`)
+
       // Initialize encoder
       this.encoder = new WebCodecsEncoder()
-      await this.encoder.initialize(settings, (frameCount) => {
-        // Progress callback from encoder
-        const progress = Math.min(95, (frameCount / (this.frameRate * 10)) * 100)
-        onProgress?.({
-          progress,
-          stage: 'encoding',
-          message: `Encoding frame ${frameCount}...`,
-          currentFrame: frameCount
-        })
-      })
+      await this.encoder.initialize(settings)
 
       // Initialize frame extractor
       this.frameExtractor = new VideoFrameExtractor(
@@ -97,12 +94,6 @@ export class WebCodecsExportEngine {
         stage: 'preparing',
         message: 'Preparing video segments...'
       })
-
-      // Calculate total frames needed
-      const totalDuration = this.calculateTotalDuration(segments)
-      const totalFrames = Math.ceil((totalDuration / 1000) * this.frameRate)
-
-      logger.info(`WebCodecs export: ${totalFrames} frames at ${this.frameRate}fps`)
 
       // Process all segments
       let currentFrame = 0
@@ -131,7 +122,7 @@ export class WebCodecsExportEngine {
       }
 
       onProgress?.({
-        progress: 90,
+        progress: 98,
         stage: 'finalizing',
         message: 'Finalizing video...'
       })
@@ -210,14 +201,14 @@ export class WebCodecsExportEngine {
       logger.debug(`Processing ${isTypingSpeedClip ? 'typing-speed' : 'normal'} clip ${clip.id} from ${clipStartInSegment}ms to ${clipEndInSegment}ms`)
 
       // Extract frames with proper timing
-      await this.frameExtractor.extractClipFramesWithTypingSpeed(
+      await this.frameExtractor.extractClipFramesStreamed(
         clip,
         video,
         clipStartInSegment,
         clipEndInSegment,
         async (frame) => {
           // Apply effects to the frame
-          const processedFrame = await this.applyEffects(
+          await this.applyEffects(
             frame.imageData,
             frame.timestamp,
             segment.effects,
@@ -226,13 +217,13 @@ export class WebCodecsExportEngine {
           )
 
           // Encode the frame
-          await this.encoder!.encodeFrame(processedFrame, frame.timestamp)
+          await this.encoder!.encodeFrame(this.canvas as unknown as HTMLCanvasElement, frame.timestamp)
           processedFrames++
 
           // Update progress
-          if (processedFrames % 10 === 0 && onProgress) {
+          if (processedFrames % 5 === 0 && onProgress) {
             const globalFrame = startFrame + processedFrames
-            const progress = Math.min(85, (globalFrame / totalFrames) * 85)
+            const progress = Math.min(95, (globalFrame / totalFrames) * 95)
             onProgress({
               progress,
               stage: 'encoding',
@@ -252,8 +243,8 @@ export class WebCodecsExportEngine {
       
       for (let i = 0; i < remainingFrames; i++) {
         const timestamp = segment.startTime + ((processedFrames + i) * this.frameDuration)
-        const blackFrame = this.frameExtractor.createBlackFrame(timestamp)
-        await this.encoder!.encodeFrame(blackFrame.imageData, timestamp)
+        const blackFrame = await this.frameExtractor.createBlackFrame(timestamp)
+        await this.encoder!.encodeFrame(this.canvas as unknown as HTMLCanvasElement, timestamp)
       }
       processedFrames = frameCount
     }
@@ -265,18 +256,32 @@ export class WebCodecsExportEngine {
    * Apply effects to a frame
    */
   private async applyEffects(
-    imageData: ImageData,
+    imageData: ImageData | ImageBitmap | HTMLVideoElement,
     timestamp: number,
     effects: Effect[],
     recording: Recording,
     metadata?: RecordingMetadata
-  ): Promise<ImageData> {
+  ): Promise<void> {
     if (!this.ctx || !this.canvas) {
-      return imageData  // Return unmodified if canvas not available
+      return
     }
 
-    // Put the original frame on canvas
-    this.ctx.putImageData(imageData, 0, 0)
+    // Normalize source to ImageBitmap to avoid readbacks and type mismatches
+    let sourceBitmap: ImageBitmap
+    if (imageData instanceof ImageBitmap) {
+      sourceBitmap = imageData
+    } else if ((imageData as any)?.tagName === 'VIDEO') {
+      // Draw video frame directly without creating an intermediate bitmap
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+      this.ctx.drawImage(imageData as HTMLVideoElement, 0, 0, this.canvas.width, this.canvas.height)
+      return
+    } else {
+      sourceBitmap = await createImageBitmap(imageData as ImageData)
+    }
+
+    // Draw source
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    this.ctx.drawImage(sourceBitmap as unknown as CanvasImageSource, 0, 0, this.canvas.width, this.canvas.height)
 
     // Apply effects if any
     const activeEffects = effects.filter(e => 
@@ -325,7 +330,13 @@ export class WebCodecsExportEngine {
             tempCanvas.width = this.canvas.width
             tempCanvas.height = this.canvas.height
             const tempCtx = tempCanvas.getContext('2d')!
-            tempCtx.putImageData(imageData, 0, 0)
+            if (imageData instanceof ImageBitmap) {
+              tempCtx.drawImage(imageData, 0, 0)
+            } else {
+              const tmpBitmap = await createImageBitmap(imageData)
+              tempCtx.drawImage(tmpBitmap, 0, 0)
+              try { tmpBitmap.close?.() } catch {}
+            }
             
             // Clear and redraw with padding
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
@@ -458,8 +469,8 @@ export class WebCodecsExportEngine {
       this.ctx.restore()
     }
 
-    // Get the processed frame
-    return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height)
+    // Release temporary source bitmap if needed
+    try { sourceBitmap.close?.() } catch {}
   }
 
   /**

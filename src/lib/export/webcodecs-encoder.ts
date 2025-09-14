@@ -43,6 +43,9 @@ export class WebCodecsEncoder {
   private frameCache = new Map<string, ImageBitmap>()
   private maxCacheSize = 100 // Cache up to 100 frames
   
+  private pendingEnqueues = 0
+  private maxPendingEnqueues = 24
+
   /**
    * Check if WebCodecs is supported
    */
@@ -56,9 +59,12 @@ export class WebCodecsEncoder {
    */
   private async getCodecForFormat(format: ExportFormat): Promise<string> {
     const h264Codecs = [
-      'avc1.42001E',  // Baseline
-      'avc1.4D401E',  // Main
-      'avc1.64001E'   // High
+      'avc1.42E01E',  // Baseline (common variant)
+      'avc1.42001E',  // Baseline (legacy variant)
+      'avc1.4D401E',  // Main (L3.0)
+      'avc1.4D4028',  // Main (L4.0)
+      'avc1.64001E',  // High (L3.0)
+      'avc1.640028'   // High (L4.0)
     ]
     
     const h265Codecs = [
@@ -82,7 +88,7 @@ export class WebCodecsEncoder {
     // Select codec list based on format - try modern codecs first
     let codecList: string[] = []
     if (format === ExportFormat.MP4 || format === ExportFormat.MOV) {
-      codecList = [...av1Codecs, ...h265Codecs, ...h264Codecs]
+      codecList = h264Codecs
     } else if (format === ExportFormat.WEBM) {
       codecList = [...av1Codecs, ...vp9Codecs, ...vp8Codecs]
     }
@@ -139,11 +145,9 @@ export class WebCodecsEncoder {
     
     // Set up streaming output
     this.mp4File.onSegment = (id: number, user: any, buffer: ArrayBuffer) => {
-      this.muxedChunks.push(new Uint8Array(buffer))
+      // Defer to avoid blocking encoder output callback
+      queueMicrotask(() => this.muxedChunks.push(new Uint8Array(buffer)))
     }
-    
-    // Initialize with moov for streaming
-    this.mp4File.initializeSegmentation()
   }
   
   /**
@@ -286,6 +290,8 @@ export class WebCodecsEncoder {
       }
       
       this.videoTrackId = this.mp4File.addTrack(trackOptions)
+      // Initialize segmentation now that the track/moov is defined
+      this.mp4File.initializeSegmentation()
     }
     
     // Add sample
@@ -350,7 +356,7 @@ export class WebCodecsEncoder {
    * Encode a single frame with caching
    */
   async encodeFrame(
-    imageData: ImageData | ImageBitmap | VideoFrame,
+    imageData: ImageData | ImageBitmap | VideoFrame | HTMLCanvasElement,
     timestamp: number,
     cacheKey?: string
   ): Promise<void> {
@@ -360,42 +366,48 @@ export class WebCodecsEncoder {
     
     this.isEncoding = true
     
-    // Use cache for repeated frames
-    let frameBitmap: ImageBitmap | VideoFrame
-    if (cacheKey && !(imageData instanceof VideoFrame)) {
-      frameBitmap = await this.getCachedFrame(imageData, cacheKey)
-    } else if (imageData instanceof VideoFrame) {
-      frameBitmap = imageData
+    // Create a VideoFrame directly based on the input
+    let frame: VideoFrame
+    if (imageData instanceof VideoFrame) {
+      frame = imageData
+    } else if ((imageData as any)?.getContext) {
+      // HTMLCanvasElement
+      frame = new VideoFrame(imageData as HTMLCanvasElement, {
+        timestamp: timestamp * 1000,
+        duration: (1000000 / (this.encoderConfig?.framerate || 30))
+      })
     } else if (imageData instanceof ImageBitmap) {
-      frameBitmap = imageData
+      frame = new VideoFrame(imageData, {
+        timestamp: timestamp * 1000,
+        duration: (1000000 / (this.encoderConfig?.framerate || 30))
+      })
     } else {
-      frameBitmap = await createImageBitmap(imageData as ImageData)
+      const bitmap = await createImageBitmap(imageData as ImageData)
+      frame = new VideoFrame(bitmap, {
+        timestamp: timestamp * 1000,
+        duration: (1000000 / (this.encoderConfig?.framerate || 30))
+      })
+      try { bitmap.close?.() } catch {}
     }
-    
-    // Create VideoFrame
-    const frame = frameBitmap instanceof VideoFrame 
-      ? frameBitmap
-      : new VideoFrame(frameBitmap, {
-          timestamp: timestamp * 1000, // Convert to microseconds
-          duration: (1000000 / (this.encoderConfig?.framerate || 30))
-        })
     
     // Determine if this should be a keyframe
     const isKeyFrame = this.frameCount % (this.encoderConfig?.keyFrameInterval || 60) === 0
     
-    // Encode frame
+    // Encode frame (non-blocking). Backpressure via maxPendingEnqueues
     this.encoder.encode(frame, { keyFrame: isKeyFrame })
+    this.pendingEnqueues++
     
     // Clean up if we created a new frame
-    if (frame !== imageData && !(imageData instanceof VideoFrame)) {
+    if (!(imageData instanceof VideoFrame)) {
       frame.close()
     }
-    
-    // Clean up bitmap if not cached
-    if (!cacheKey && frameBitmap instanceof ImageBitmap && frameBitmap !== imageData) {
-      frameBitmap.close()
+
+    // Apply simple backpressure
+    if (this.pendingEnqueues >= this.maxPendingEnqueues) {
+      await this.encoder.flush()
+      this.pendingEnqueues = 0
     }
-    
+ 
     this.frameCount++
   }
   

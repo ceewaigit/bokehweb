@@ -7,7 +7,7 @@ import type { Clip, Recording } from '@/types'
 import { logger } from '@/lib/utils/logger'
 
 export interface ExtractedFrame {
-  imageData: ImageData
+  imageData: ImageBitmap | HTMLVideoElement
   timestamp: number
   clipId: string
   sourceTime: number
@@ -38,8 +38,7 @@ export class VideoFrameExtractor {
       this.canvas = canvas
       this.ctx = canvas.getContext('2d', {
         alpha: false,
-        desynchronized: true,
-        willReadFrequently: true
+        desynchronized: true
       })
     }
   }
@@ -96,10 +95,6 @@ export class VideoFrameExtractor {
     clipId: string,
     timestamp: number
   ): Promise<ExtractedFrame> {
-    if (!this.ctx) {
-      throw new Error('Canvas context not initialized')
-    }
-
     // Seek to the specified time
     const seekTime = sourceTime / 1000  // Convert ms to seconds
     
@@ -124,30 +119,8 @@ export class VideoFrameExtractor {
       })
     }
 
-    // Clear canvas
-    this.ctx.fillStyle = '#000000'
-    this.ctx.fillRect(0, 0, this.resolution.width, this.resolution.height)
-
-    // Draw the video frame
-    try {
-      this.ctx.drawImage(
-        video,
-        0, 0,
-        video.videoWidth, video.videoHeight,
-        0, 0,
-        this.resolution.width, this.resolution.height
-      )
-    } catch (error) {
-      logger.warn(`Failed to draw frame at ${seekTime}s:`, error)
-      // Return black frame on error
-    }
-
-    // Get image data
-    const imageData = this.ctx.getImageData(
-      0, 0,
-      this.resolution.width,
-      this.resolution.height
-    )
+    // Return the video element to be drawn by the export engine
+    const imageData = video
 
     return {
       imageData,
@@ -277,9 +250,83 @@ export class VideoFrameExtractor {
   }
 
   /**
+   * Extract frames for a clip using requestVideoFrameCallback while playing the video
+   * Leverages hardware decode and avoids per-frame seeks for higher throughput.
+   */
+  async extractClipFramesStreamed(
+    clip: Clip,
+    video: HTMLVideoElement,
+    startTime: number,
+    endTime: number,
+    onFrame?: (frame: ExtractedFrame) => Promise<void>
+  ): Promise<void> {
+    const rVFC = (video as any).requestVideoFrameCallback?.bind(video)
+    if (!rVFC) {
+      await this.extractClipFramesWithTypingSpeed(clip, video, startTime, endTime, onFrame)
+      return
+    }
+
+    const frameDt = 1 / this.frameRate
+    const playbackRate = clip.playbackRate || 1
+    const sourceInSec = (clip.sourceIn || 0) / 1000
+    const startSec = Math.max(
+      sourceInSec,
+      ((startTime - clip.startTime) * playbackRate + (clip.sourceIn || 0)) / 1000
+    )
+    const endSec = Math.min(
+      (clip.sourceOut || (clip.sourceIn || 0) + clip.duration) / 1000,
+      ((endTime - clip.startTime) * playbackRate + (clip.sourceIn || 0)) / 1000
+    )
+
+    video.currentTime = startSec
+    video.muted = true
+    // Run as fast as possible (browsers clamp to ~16x). We still sample every required frame.
+    video.playbackRate = 16
+    await video.play().catch(() => {})
+
+    let nextCapture = startSec
+    let done = false
+
+    await new Promise<void>((resolve) => {
+      const cb = (_now: number, metadata: any) => {
+        if (done) return
+        const mediaTime = metadata?.mediaTime ?? video.currentTime
+
+        while (mediaTime + 1e-4 >= nextCapture && nextCapture <= endSec + 1e-4) {
+          const timelineMs = clip.startTime + ((nextCapture - sourceInSec) * 1000) / playbackRate
+          if (timelineMs >= startTime && timelineMs < endTime) {
+            const frame: ExtractedFrame = {
+              imageData: video,
+              timestamp: timelineMs,
+              clipId: clip.id,
+              sourceTime: (nextCapture - sourceInSec) * 1000
+            }
+            if (onFrame) {
+              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+              onFrame(frame)
+            }
+          }
+          nextCapture += frameDt
+        }
+
+        if (mediaTime >= endSec - 1e-4) {
+          done = true
+          video.pause()
+          resolve()
+          return
+        }
+
+        rVFC(cb)
+      }
+
+      rVFC(cb)
+    })
+  }
+
+  /**
    * Create a black frame
    */
-  createBlackFrame(timestamp: number): ExtractedFrame {
+  async createBlackFrame(timestamp: number): Promise<ExtractedFrame> {
     if (!this.ctx) {
       throw new Error('Canvas context not initialized')
     }
@@ -288,12 +335,10 @@ export class VideoFrameExtractor {
     this.ctx.fillStyle = '#000000'
     this.ctx.fillRect(0, 0, this.resolution.width, this.resolution.height)
 
-    // Get image data
-    const imageData = this.ctx.getImageData(
-      0, 0,
-      this.resolution.width,
-      this.resolution.height
-    )
+    // Create bitmap
+    const imageData = (this.canvas instanceof OffscreenCanvas)
+      ? this.canvas.transferToImageBitmap()
+      : await createImageBitmap(this.canvas as HTMLCanvasElement)
 
     return {
       imageData,

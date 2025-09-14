@@ -90,14 +90,42 @@ export class ExportEngine {
       logger.info(`Export: clips=${processedTimeline.clipCount}, simple=${isSimpleExport}`)
 
       // Always use WebCodecs for all exports
-      return await this.webCodecsExportEngine.export(
-        processedTimeline.segments,
-        recordingsMap,
-        metadataMap,
-        settings,
-        onProgress,
-        this.abortController?.signal
-      )
+      // Prefer WebCodecs; fallback to WEBM when MP4/MOV codec is unavailable
+      try {
+        return await this.webCodecsExportEngine.export(
+          processedTimeline.segments,
+          recordingsMap,
+          metadataMap,
+          settings,
+          onProgress,
+          this.abortController?.signal
+        )
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        const isMp4OrMov = settings.format === ExportFormat.MP4 || settings.format === ExportFormat.MOV
+        const shouldFallbackToWebM =
+          isMp4OrMov && /No supported codec found|WebCodecs not supported|configure|encoder|mvhd|muxer/i.test(errorMessage)
+
+        if (shouldFallbackToWebM) {
+          logger.warn(`WebCodecs H.264 not available; falling back to WebM. Reason: ${errorMessage}`)
+          onProgress?.({
+            progress: 1,
+            stage: 'preparing',
+            message: 'MP4/H.264 not supported in this environment. Falling back to WebM (VP9/VP8)...'
+          })
+          const fallbackSettings: ExportSettings = { ...settings, format: ExportFormat.WEBM }
+          return await this.webCodecsExportEngine.export(
+            processedTimeline.segments,
+            recordingsMap,
+            metadataMap,
+            fallbackSettings,
+            onProgress,
+            this.abortController?.signal
+          )
+        }
+
+        throw err
+      }
     } catch (error) {
       onProgress?.({
         progress: 0,

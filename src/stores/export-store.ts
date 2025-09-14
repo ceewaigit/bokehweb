@@ -169,8 +169,14 @@ export const useExportStore = create<ExportStore>((set, get) => {
       const { lastExport, exportSettings } = get()
       if (!lastExport) return
 
-      // Determine extension
-      const extension = exportSettings.format === 'gif' ? 'gif' : exportSettings.format.toLowerCase()
+      // Determine extension based on the blob type when available (handles codec fallbacks)
+      const mime = lastExport.type || ''
+      const inferredExt =
+        mime === 'video/mp4' ? 'mp4' :
+        mime === 'video/webm' ? 'webm' :
+        mime === 'image/gif' ? 'gif' :
+        (exportSettings.format === 'gif' ? 'gif' : exportSettings.format.toLowerCase())
+      const extension = inferredExt
       const suggestedName = defaultFilename.endsWith(`.${extension}`)
         ? defaultFilename
         : `${defaultFilename.replace(/\.[a-zA-Z0-9]+$/, '')}.${extension}`
