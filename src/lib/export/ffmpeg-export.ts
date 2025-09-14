@@ -101,6 +101,15 @@ export class FFmpegExportEngine {
       const inputData = await fetchFile(blob)
       console.log(`Writing input file: ${inputName}, size: ${blob.size} bytes`)
       await this.ffmpeg.writeFile(inputName, inputData)
+      
+      // Verify the input file is valid
+      try {
+        console.log('Probing input file...')
+        await this.ffmpeg.exec(['-i', inputName, '-f', 'null', '-t', '1', '-'])
+        console.log('Input file is valid')
+      } catch (probeError) {
+        console.warn('Input file probe failed, but continuing:', probeError)
+      }
 
       onProgress?.({
         progress: 20,
@@ -176,21 +185,19 @@ export class FFmpegExportEngine {
         filters.push(`pad=iw+${padding * 2}:ih+${padding * 2}:${padding}:${padding}:color=black`)
       }
 
-      const outputName = `output.${settings.format}`
+      const outputName = `output.webm`  // Always output WebM from FFmpeg.wasm
       let codecOptions = ''
 
-      // Handle format-specific settings BEFORE creating filterComplex
+      // FFmpeg.wasm works best with VP8/VP9 codecs
+      // We'll convert to other formats in a post-processing step if needed
       switch (settings.format) {
-        case ExportFormat.MP4:
-        case ExportFormat.MOV:
-          codecOptions = '-c:v libx264 -preset fast -crf 22 -c:a copy'
-          break
-        case ExportFormat.WEBM:
-          codecOptions = '-c:v libvpx-vp9 -crf 30 -b:v 0 -c:a copy'
-          break
         case ExportFormat.GIF:
           codecOptions = ''
           filters.unshift('fps=10,scale=480:-1:flags=lanczos')
+          break
+        default:
+          // Use VP8 for better compatibility with FFmpeg.wasm
+          codecOptions = '-c:v libvpx -b:v 1M -c:a libvorbis -b:a 128k'
           break
       }
 
@@ -234,44 +241,16 @@ export class FFmpegExportEngine {
       
       console.log('FFmpeg command:', ffmpegArgs.join(' '))
       
-      // Execute FFmpeg command with timeout and better error handling
+      // Execute FFmpeg command
+      console.log('Executing FFmpeg command...')
+      
       try {
-        // Set up a timeout promise
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('FFmpeg execution timed out after 30 seconds')), 30000)
-        })
-        
-        // Race between FFmpeg execution and timeout
-        const execPromise = this.ffmpeg.exec(ffmpegArgs)
-        const execResult = await Promise.race([execPromise, timeoutPromise])
-        console.log('FFmpeg execution completed')
+        await this.ffmpeg.exec(ffmpegArgs)
+        console.log('FFmpeg execution completed successfully')
       } catch (execError) {
         console.error('FFmpeg execution failed:', execError)
-        
-        // If it was a timeout or complex filter issue, try simpler approach
-        console.log('Trying simpler fallback command without filters...')
-        try {
-          // Very simple command that should always work
-          const fallbackArgs = [
-            '-i', inputName,
-            '-vf', `scale=${settings.resolution.width}:${settings.resolution.height}`,
-            '-c:v', 'libx264',
-            '-preset', 'ultrafast',
-            '-crf', '28',
-            '-an',  // No audio for now to simplify
-            outputName
-          ]
-          console.log('Fallback command:', fallbackArgs.join(' '))
-          
-          const fallbackPromise = this.ffmpeg.exec(fallbackArgs)
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Fallback timed out')), 30000)
-          })
-          await Promise.race([fallbackPromise, timeoutPromise])
-          console.log('Fallback command succeeded')
-        } catch (fallbackError) {
-          throw new Error(`FFmpeg failed to encode video even with fallback: ${fallbackError}`)
-        }
+        console.error('Failed command:', ffmpegArgs.join(' '))
+        throw new Error(`FFmpeg encoding failed: ${execError}`);
       }
 
       onProgress?.({
@@ -285,7 +264,8 @@ export class FFmpegExportEngine {
       try {
         data = await this.ffmpeg.readFile(outputName)
       } catch (readError) {
-        throw new Error(`FFmpeg failed to create output file. The video encoding may have failed.`)
+        console.error('Failed to read output file:', readError)
+        throw new Error(`FFmpeg failed to create output file "${outputName}". The video encoding may have failed.`)
       }
 
       // Validate output data
@@ -293,9 +273,21 @@ export class FFmpegExportEngine {
         throw new Error(`Export produced invalid output: ${data instanceof Uint8Array ? data.length : 0} bytes. Please check your video settings.`)
       }
 
-      const outputBlob = new Blob([data as BlobPart], {
-        type: `video/${settings.format === ExportFormat.GIF ? 'gif' : settings.format}`
-      })
+      // Determine actual output mime type based on what was produced
+      let mimeType: string
+      if (outputName.endsWith('.webm')) {
+        mimeType = 'video/webm'
+      } else if (outputName.endsWith('.mp4')) {
+        mimeType = 'video/mp4'
+      } else if (outputName.endsWith('.mov')) {
+        mimeType = 'video/quicktime'
+      } else if (outputName.endsWith('.gif')) {
+        mimeType = 'image/gif'
+      } else {
+        mimeType = `video/${settings.format}`
+      }
+
+      const outputBlob = new Blob([data as BlobPart], { type: mimeType })
 
       // Final validation
       if (outputBlob.size < 1000) {

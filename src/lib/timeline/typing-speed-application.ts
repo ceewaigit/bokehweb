@@ -49,12 +49,22 @@ export class TypingSpeedApplicationService {
       }))
     })
 
-    // Convert periods to TimeRemapPeriod format
-    const timeRemapPeriods: TimeRemapPeriod[] = periods.map(p => ({
-      sourceStartTime: p.startTime,
-      sourceEndTime: p.endTime,
-      speedMultiplier: p.suggestedSpeedMultiplier
-    }))
+    // Get clip's source range
+    const sourceIn = sourceClip.sourceIn || 0
+    const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration * (sourceClip.playbackRate || 1))
+
+    // Convert periods to TimeRemapPeriod format and filter to clip's source range
+    const timeRemapPeriods: TimeRemapPeriod[] = periods
+      .filter(p => {
+        // Only include periods that overlap with the clip's source range
+        return p.endTime > sourceIn && p.startTime < sourceOut
+      })
+      .map(p => ({
+        // Clamp periods to the clip's source range
+        sourceStartTime: Math.max(p.startTime, sourceIn),
+        sourceEndTime: Math.min(p.endTime, sourceOut),
+        speedMultiplier: p.suggestedSpeedMultiplier
+      }))
 
     // Sort periods by start time
     timeRemapPeriods.sort((a, b) => a.sourceStartTime - b.sourceStartTime)
@@ -73,9 +83,13 @@ export class TypingSpeedApplicationService {
 
     console.log('[TypingApply] Time remap applied', {
       clipId: sourceClip.id,
+      sourceIn,
+      sourceOut,
       oldDuration,
       newDuration,
-      periods: sourceClip.timeRemapPeriods
+      periods: sourceClip.timeRemapPeriods,
+      filteredCount: timeRemapPeriods.length,
+      originalCount: periods.length
     })
 
     // Remove applied typing periods from the recording's metadata
