@@ -3,7 +3,7 @@
  * Handles video export with WebCodecs, Canvas rendering, and FFmpeg fallback
  */
 
-import type { 
+import type {
   ExportSettings,
   Project,
   Recording,
@@ -11,7 +11,7 @@ import type {
   Clip,
   Effect
 } from '@/types'
-import { TrackType, RecordingSourceType } from '@/types'
+import { TrackType, RecordingSourceType, ExportFormat } from '@/types'
 import { globalBlobManager } from '../security/blob-url-manager'
 import { RecordingStorage } from '../storage/recording-storage'
 import { FFmpegExportEngine } from './ffmpeg-export'
@@ -106,7 +106,7 @@ export class ExportEngine {
       const hasMultipleClips = processedTimeline.hasMultipleClips
       const hasEffects = project.timeline.effects?.some(e => e.enabled) || false
       const hasGaps = processedTimeline.hasGaps
-      
+
       logger.info(`Export: clips=${processedTimeline.clipCount}, effects=${hasEffects}, gaps=${hasGaps}`)
 
       if (hasMultipleClips || hasEffects || hasGaps) {
@@ -139,7 +139,7 @@ export class ExportEngine {
       this.abortController = null
       // Clean up resources on error
       this.cleanupResources()
-      
+
       const duration = (performance.now() - startTime) / 1000
       logger.info(`Export completed in ${duration.toFixed(2)}s`)
     }
@@ -173,33 +173,37 @@ export class ExportEngine {
       const segmentBlobs: Blob[] = []
       const totalSegments = timeline.segments.length
 
-            // Process each segment with effects
+      // Process each segment with effects
       for (let i = 0; i < timeline.segments.length; i++) {
         const segment = timeline.segments[i]
-        
+
         if (this.abortController?.signal.aborted) break
-        
+
         onProgress?.({
           progress: 10 + (80 * i / totalSegments),
           stage: 'processing',
           message: `Processing segment ${i + 1}/${totalSegments} with effects...`
         })
-        
+
         const segmentBlob = await this.processSegmentWithEffects(
           segment,
           recordings,
           metadata,
           settings
         )
-        
-        // Skip empty segments to avoid zero-byte results
-        if (segmentBlob && segmentBlob.size > 0) {
+
+        // Only add segments with actual video content (skip gaps)
+        // Minimum size check to ensure it's not just a header
+        if (segmentBlob && segmentBlob.size > 1000) {
           segmentBlobs.push(segmentBlob)
+          logger.info(`Added segment ${i + 1} with size: ${segmentBlob.size} bytes`)
+        } else if (segmentBlob) {
+          logger.warn(`Skipping segment ${i + 1} with insufficient size: ${segmentBlob.size} bytes`)
         }
       }
 
       if (segmentBlobs.length === 0) {
-        throw new Error('No segments produced during export')
+        throw new Error('No valid video segments produced during export. Please ensure your timeline contains video clips.')
       }
 
       // Concatenate segments if multiple
@@ -247,8 +251,39 @@ export class ExportEngine {
 
     // Get video blob
     const videoBlob = await this.loadVideoBlob(recording)
-    
-    // Direct export without processing
+
+    // Validate video blob
+    if (!videoBlob || videoBlob.size < 1000) {
+      throw new Error(`Invalid video data for recording ${recording.id}: ${videoBlob?.size || 0} bytes`)
+    }
+
+    // For direct export, we need to ensure the format matches what's requested
+    // If the source is WebM but user wants MP4, we need to transcode
+    const needsTranscode = settings.format !== ExportFormat.WEBM
+
+    if (needsTranscode) {
+      onProgress?.({
+        progress: 30,
+        stage: 'processing',
+        message: `Converting to ${settings.format.toUpperCase()}...`
+      })
+
+      // Use FFmpeg to transcode to the desired format
+      await this.ffmpegEngine.loadFFmpeg()
+      const transcodedBlob = await this.ffmpegEngine.exportWithEffects(
+        videoBlob,
+        firstClip.clip,
+        settings,
+        onProgress,
+        recording.captureArea?.fullBounds,
+        metadata.get(recording.id)?.mouseEvents as any,
+        []  // No effects for direct export
+      )
+
+      return transcodedBlob
+    }
+
+    // Direct export without processing for WebM
     onProgress?.({
       progress: 100,
       stage: 'complete',
@@ -266,30 +301,48 @@ export class ExportEngine {
     recordings: Map<string, Recording>,
     metadata: Map<string, RecordingMetadata>,
     settings: ExportSettings
-  ): Promise<Blob> {
-    // Handle empty segments (gaps)
+  ): Promise<Blob | null> {
+    // Skip empty segments (gaps) - return null to indicate no content
     if (segment.clips.length === 0 || segment.hasGap) {
-      return this.createBlackFrameSegment(
-        segment.endTime - segment.startTime,
-        settings
-      )
+      logger.info(`Skipping gap segment from ${segment.startTime}ms to ${segment.endTime}ms`)
+      return null
     }
 
     // Get the primary clip for this segment
     const primaryClip = segment.clips[0]
-    const videoBlob = await this.loadVideoBlob(primaryClip.recording)
-    const recordingMetadata = metadata.get(primaryClip.recording.id)
 
-    // Apply effects using FFmpeg
-    return await this.ffmpegEngine.exportWithEffects(
-      videoBlob,
-      primaryClip.clip,
-      settings,
-      undefined,
-      primaryClip.recording.captureArea?.fullBounds,
-      recordingMetadata?.mouseEvents as any,
-      segment.effects
-    )
+    try {
+      const videoBlob = await this.loadVideoBlob(primaryClip.recording)
+
+      if (!videoBlob || videoBlob.size === 0) {
+        logger.error(`Failed to load video blob for recording ${primaryClip.recording.id}`)
+        return null
+      }
+
+      const recordingMetadata = metadata.get(primaryClip.recording.id)
+
+      // Apply effects using FFmpeg
+      const result = await this.ffmpegEngine.exportWithEffects(
+        videoBlob,
+        primaryClip.clip,
+        settings,
+        undefined,
+        primaryClip.recording.captureArea?.fullBounds,
+        recordingMetadata?.mouseEvents as any,
+        segment.effects
+      )
+
+      // Validate the result
+      if (!result || result.size < 1000) {
+        logger.error(`Export produced invalid result for segment: ${result?.size || 0} bytes`)
+        return null
+      }
+
+      return result
+    } catch (error) {
+      logger.error(`Error processing segment with effects:`, error)
+      return null
+    }
   }
 
 
@@ -299,21 +352,21 @@ export class ExportEngine {
    */
   private async loadVideoBlob(recording: Recording): Promise<Blob> {
     const blobUrl = RecordingStorage.getBlobUrl(recording.id)
-    
+
     if (blobUrl) {
       const response = await fetch(blobUrl)
       return await response.blob()
     }
-    
+
     const videoUrl = await globalBlobManager.ensureVideoLoaded(
       recording.id,
       recording.filePath
     )
-    
+
     if (!videoUrl) {
       throw new Error(`Failed to load video for recording ${recording.id}`)
     }
-    
+
     const response = await fetch(videoUrl)
     return await response.blob()
   }
@@ -325,17 +378,19 @@ export class ExportEngine {
     duration: number,
     settings: ExportSettings
   ): Promise<Blob> {
-    const canvas = document.createElement('canvas')
-    canvas.width = settings.resolution.width
-    canvas.height = settings.resolution.height
-    
-    const ctx = canvas.getContext('2d')!
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob || new Blob()), 'video/webm')
-    })
+    // For gaps, we'll return an empty blob that will be skipped
+    // The concatenation process will handle the timing properly
+    // Returning a minimal valid WebM header to avoid errors
+    const webmHeader = new Uint8Array([
+      0x1a, 0x45, 0xdf, 0xa3, // EBML header
+      0x9f, 0x42, 0x86, 0x81, 0x01, 0x42, 0xf7, 0x81, 0x01, 0x42, 0xf2, 0x81,
+      0x04, 0x42, 0xf3, 0x81, 0x08, 0x42, 0x82, 0x84, 0x77, 0x65, 0x62, 0x6d,
+      0x42, 0x87, 0x81, 0x02, 0x42, 0x85, 0x81, 0x02
+    ])
+
+    // Return a minimal valid WebM that represents a gap
+    // The actual gap handling should be done in the concatenation phase
+    return new Blob([webmHeader], { type: 'video/webm' })
   }
 
   /**
@@ -346,7 +401,7 @@ export class ExportEngine {
     settings: ExportSettings
   ): Promise<Blob> {
     if (segments.length === 1) return segments[0]
-    
+
     // Use FFmpeg to concatenate
     await this.ffmpegEngine.loadFFmpeg()
     return await this.ffmpegEngine.concatenateBlobs(segments, settings)
@@ -359,11 +414,11 @@ export class ExportEngine {
   private cleanupResources(): void {
     // Dispose of canvas pool
     canvasCompositor.dispose()
-    
+
     // Clean up encoder if exists
     this.webCodecsEncoder?.reset()
     this.webCodecsEncoder = null
-    
+
     // Clean up worker pool if exists
     this.workerPool?.dispose()
     this.workerPool = null
@@ -377,7 +432,7 @@ export class ExportEngine {
       this.abortController.abort()
       this.isExporting = false
     }
-    
+
     // Clean up all resources
     this.cleanupResources()
   }

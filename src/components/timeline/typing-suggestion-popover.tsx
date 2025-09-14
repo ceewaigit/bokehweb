@@ -7,8 +7,8 @@ interface TypingSuggestionPopoverProps {
   y: number
   period: TypingPeriod
   allPeriods: TypingPeriod[]
-  onApply: (period: TypingPeriod) => void
-  onApplyAll?: (periods: TypingPeriod[]) => void
+  onApply: (period: TypingPeriod) => Promise<void>
+  onApplyAll?: (periods: TypingPeriod[]) => Promise<void>
   onRemove?: (period: TypingPeriod) => void
   onClose: () => void
 }
@@ -57,7 +57,11 @@ export function TypingSuggestionPopover({
         )}
         <button
           className="px-2 py-1 text-xs rounded bg-[#3b82f6] hover:bg-[#2563eb] text-white"
-          onClick={() => { onApply(period); onClose() }}
+          onClick={async () => {
+            console.log('[TypingSuggestionPopover] Apply suggestion clicked with period:', period);
+            await onApply(period);
+            onClose();
+          }}
         >
           Apply suggestion
         </button>

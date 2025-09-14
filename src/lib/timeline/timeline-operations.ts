@@ -241,7 +241,7 @@ export function updateClipInTrack(
   project: Project,
   clipId: string,
   updates: Partial<Clip>,
-  options?: { exact?: boolean }
+  options?: { exact?: boolean; maintainContiguous?: boolean }
 ): boolean {
   const result = findClipById(project, clipId)
   if (!result) return false
@@ -250,50 +250,12 @@ export function updateClipInTrack(
   const prevStartTime = clip.startTime
   const prevDuration = clip.duration
 
-  if (!options?.exact && updates.startTime !== undefined) {
-    const newDuration = updates.duration || clip.duration
-
-    if (wouldCauseOverlap(track.clips, clipId, updates.startTime, newDuration)) {
-      const sortedClips = track.clips
-        .filter(c => c.id !== clipId)
-        .sort((a, b) => a.startTime - b.startTime)
-
-      let validPosition = updates.startTime
-      for (const otherClip of sortedClips) {
-        const otherEnd = otherClip.startTime + otherClip.duration
-        if (validPosition < otherEnd && (validPosition + newDuration) > otherClip.startTime) {
-          validPosition = otherEnd + 100
-        }
-      }
-      updates.startTime = Math.max(0, validPosition)
-    }
-  }
-
+  // Apply updates to the clip
   Object.assign(clip, updates)
 
-  const endAfterUpdate = clip.startTime + clip.duration
-  const durationChanged = updates.duration !== undefined || updates.playbackRate !== undefined
-  const startChanged = updates.startTime !== undefined && updates.startTime !== prevStartTime
-
-  if (durationChanged || startChanged) {
-    const clipIndex = track.clips.findIndex(c => c.id === clipId)
-
-    for (let i = clipIndex + 1; i < track.clips.length; i++) {
-      const following = track.clips[i]
-
-      if (endAfterUpdate > following.startTime) {
-        const shiftAmount = endAfterUpdate - following.startTime
-
-        for (let j = i; j < track.clips.length; j++) {
-          const clipToShift = track.clips[j]
-          const oldStart = clipToShift.startTime
-          const oldEnd = clipToShift.startTime + clipToShift.duration
-          clipToShift.startTime += shiftAmount
-          shiftEffectsInWindow(project, oldStart, oldEnd, shiftAmount)
-        }
-        break
-      }
-    }
+  // Always reflow clips to maintain contiguous layout unless explicitly disabled
+  if (options?.maintainContiguous !== false) {
+    reflowClips(track, 0, project)
   }
 
   project.timeline.duration = calculateTimelineDuration(project)

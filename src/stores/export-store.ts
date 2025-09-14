@@ -79,11 +79,18 @@ export const useExportStore = create<ExportStore>((set, get) => {
           })
         )
 
-        // Sanity-check blob
+        // Validate blob thoroughly
         const size = blob.size
         if (!size || size <= 0) {
-          throw new Error('Export produced an empty file')
+          throw new Error('Export produced an empty file. Please check your timeline has video clips.')
         }
+
+        // Check for suspiciously small files (likely just headers)
+        if (size < 1000) {
+          throw new Error(`Export file is too small (${size} bytes). The export may have failed.`)
+        }
+
+        console.log(`Export successful: ${(size / 1024 / 1024).toFixed(2)} MB`)
 
         set({
           isExporting: false,
@@ -91,7 +98,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
           progress: {
             progress: 100,
             stage: 'complete',
-            message: 'Export complete!'
+            message: `Export complete! (${(size / 1024 / 1024).toFixed(2)} MB)`
           }
         })
 
@@ -197,12 +204,15 @@ export const useExportStore = create<ExportStore>((set, get) => {
     setPreset: (preset) => {
       // Define preset settings
       const presets: Record<string, Partial<ExportSettings>> = {
-        'youtube-1080p': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MP4 },
-        'youtube-720p': { resolution: { width: 1280, height: 720 }, framerate: 60, format: ExportFormat.MP4 },
-        'twitter': { resolution: { width: 1280, height: 720 }, framerate: 30, format: ExportFormat.MP4 },
-        'instagram': { resolution: { width: 1080, height: 1080 }, framerate: 30, format: ExportFormat.MP4 },
-        'prores-mov': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MOV },
-        'gif-small': { resolution: { width: 480, height: 360 }, framerate: 15, format: ExportFormat.GIF }
+        'youtube-4k': { resolution: { width: 3840, height: 2160 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.Ultra },
+        'cinema-4k': { resolution: { width: 4096, height: 2160 }, framerate: 24, format: ExportFormat.MP4, quality: QualityLevel.Ultra },
+        'youtube-1080p': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.High },
+        'youtube-720p': { resolution: { width: 1280, height: 720 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.High },
+        'twitter': { resolution: { width: 1280, height: 720 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
+        'instagram': { resolution: { width: 1080, height: 1080 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
+        'prores-4k': { resolution: { width: 3840, height: 2160 }, framerate: 30, format: ExportFormat.MOV, quality: QualityLevel.Ultra },
+        'prores-mov': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MOV, quality: QualityLevel.High },
+        'gif-small': { resolution: { width: 480, height: 360 }, framerate: 15, format: ExportFormat.GIF, quality: QualityLevel.Low }
       }
 
       set((state) => ({

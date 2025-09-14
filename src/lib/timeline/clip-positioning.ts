@@ -37,20 +37,20 @@ export class ClipPositioning {
     excludeClipId?: string
   ): OverlapCheckResult {
     const overlappingClips: Clip[] = []
-    
+
     for (const clip of otherClips) {
       // Skip self
       if (excludeClipId && clip.id === excludeClipId) continue
-      
+
       const clipEnd = clip.startTime + clip.duration
       const proposedEnd = startTime + duration
-      
+
       // Check for overlap
       if (startTime < clipEnd && proposedEnd > clip.startTime) {
         overlappingClips.push(clip)
       }
     }
-    
+
     return {
       hasOverlap: overlappingClips.length > 0,
       overlappingClips
@@ -70,20 +70,20 @@ export class ClipPositioning {
     const sortedClips = otherClips
       .filter(c => !excludeClipId || c.id !== excludeClipId)
       .sort((a, b) => a.startTime - b.startTime)
-    
+
     let position = desiredStart
-    
+
     // Keep checking until we find a gap
     for (const clip of sortedClips) {
       const clipEnd = clip.startTime + clip.duration
-      
+
       // If our position would overlap with this clip
       if (position < clipEnd && (position + duration) > clip.startTime) {
         // Move to after this clip
         position = clipEnd + this.MIN_GAP_MS
       }
     }
-    
+
     return Math.max(0, position)
   }
 
@@ -96,27 +96,27 @@ export class ClipPositioning {
     excludeClipId?: string
   ): SnapPoint[] {
     const points: SnapPoint[] = []
-    
+
     // Add timeline start
     points.push({ time: 0, type: 'start' })
-    
+
     // Add clip edges
     for (const clip of clips) {
       if (excludeClipId && clip.id === excludeClipId) continue
-      
+
       points.push({
         time: clip.startTime,
         type: 'start',
         clipId: clip.id
       })
-      
+
       points.push({
         time: clip.startTime + clip.duration,
         type: 'end',
         clipId: clip.id
       })
     }
-    
+
     // Add playhead position if provided
     if (currentTime !== undefined && currentTime > 0) {
       points.push({
@@ -124,7 +124,7 @@ export class ClipPositioning {
         type: 'playhead'
       })
     }
-    
+
     // Remove duplicates and sort
     const uniqueTimes = new Set(points.map(p => p.time))
     return Array.from(uniqueTimes)
@@ -142,7 +142,7 @@ export class ClipPositioning {
   ): SnapPoint | null {
     let nearest: SnapPoint | null = null
     let minDistance = threshold
-    
+
     for (const point of snapPoints) {
       const distance = Math.abs(time - point.time)
       if (distance < minDistance) {
@@ -150,7 +150,7 @@ export class ClipPositioning {
         nearest = point
       }
     }
-    
+
     return nearest
   }
 
@@ -168,68 +168,38 @@ export class ClipPositioning {
       .filter(c => !excludeClipId || c.id !== excludeClipId)
       .sort((a, b) => a.startTime - b.startTime)
 
-    // Try adjacency clamping first: snap to previous end or next start if within threshold
-    let clampedTime = proposedTime
-    const threshold = this.SNAP_THRESHOLD_MS
+    // For contiguous layout, always snap to adjacent clips
+    // Find the clip that would be immediately before and after this position
+    let prevClip: Clip | undefined
+    let nextClip: Clip | undefined
 
-    // Find previous and next clips relative to proposedTime
-    let prev: Clip | undefined
-    let next: Clip | undefined
-    for (let i = 0; i < sorted.length; i++) {
-      const c = sorted[i]
-      if (c.startTime + c.duration <= proposedTime) prev = c
-      if (!next && c.startTime >= proposedTime) next = c
-    }
-
-    // Snap start to previous end if within threshold
-    if (prev) {
-      const prevEnd = prev.startTime + prev.duration
-      if (Math.abs(proposedTime - prevEnd) <= threshold) {
-        clampedTime = prevEnd
+    for (const clip of sorted) {
+      const clipEnd = clip.startTime + clip.duration
+      if (clipEnd <= proposedTime) {
+        prevClip = clip
+      }
+      if (!nextClip && clip.startTime >= proposedTime) {
+        nextClip = clip
       }
     }
 
-    // Snap end to next start if within threshold
-    if (next) {
-      const nextStart = next.startTime
-      const proposedEnd = clampedTime + duration
-      if (Math.abs(proposedEnd - nextStart) <= threshold) {
-        clampedTime = nextStart - duration
-      }
+    // Always snap to the previous clip's end if there is one
+    if (prevClip) {
+      const prevEnd = prevClip.startTime + prevClip.duration
+      return { time: prevEnd }
     }
 
-    // Ensure we don't create a tiny gap between prev and this clip when moving right clip
-    if (prev) {
-      const prevEnd = prev.startTime + prev.duration
-      if (clampedTime < prevEnd) clampedTime = prevEnd
+    // If no previous clip, snap to timeline start
+    if (!prevClip && sorted.length > 0) {
+      return { time: 0 }
     }
 
-    // Ensure we don't overlap into next clip when moving left clip
-    if (next) {
-      const nextStart = next.startTime
-      if (clampedTime + duration > nextStart) clampedTime = Math.max(0, nextStart - duration)
+    // If there are no other clips, allow free positioning
+    if (sorted.length === 0) {
+      return { time: Math.max(0, proposedTime) }
     }
 
-    if (clampedTime !== proposedTime) {
-      return { time: clampedTime }
-    }
-
-    // Fallback to existing snap points (including playhead)
-    const snapPoints = this.getSnapPoints(clips, currentTime, excludeClipId)
-    const startSnap = this.findNearestSnapPoint(proposedTime, snapPoints)
-    const endSnap = this.findNearestSnapPoint(proposedTime + duration, snapPoints)
-
-    if (startSnap) {
-      return { time: startSnap.time, snappedTo: startSnap }
-    }
-    if (endSnap) {
-      return { 
-        time: endSnap.time - duration, 
-        snappedTo: endSnap 
-      }
-    }
-    
-    return { time: proposedTime }
+    return { time: Math.max(0, proposedTime) }
   }
 
   /**
@@ -260,7 +230,7 @@ export class ClipPositioning {
       )
       finalTime = snapResult.time
     }
-    
+
     // Enforce leftmost constraint if requested
     if (options.enforceLeftmostConstraint) {
       const minAllowedTime = this.getLeftmostClipEnd(clips, excludeClipId)
@@ -277,7 +247,7 @@ export class ClipPositioning {
         }
       }
     }
-    
+
     // Check for overlaps unless explicitly allowed
     if (!options.allowOverlap) {
       const overlapCheck = this.checkOverlap(
@@ -286,7 +256,7 @@ export class ClipPositioning {
         clips,
         excludeClipId
       )
-      
+
       if (overlapCheck.hasOverlap) {
         // Find next valid position
         const validPosition = this.findNextValidPosition(
@@ -295,7 +265,7 @@ export class ClipPositioning {
           clips,
           excludeClipId
         )
-        
+
         return {
           isValid: false,
           finalPosition: finalTime,
@@ -304,7 +274,7 @@ export class ClipPositioning {
         }
       }
     }
-    
+
     return {
       isValid: true,
       finalPosition: finalTime
@@ -317,14 +287,14 @@ export class ClipPositioning {
   static getLeftmostClipEnd(clips: Clip[], excludeClipId?: string): number {
     const filteredClips = clips.filter(c => !excludeClipId || c.id !== excludeClipId)
     if (filteredClips.length === 0) return 0
-    
+
     const leftmostClip = filteredClips.reduce((leftmost, current) => {
       if (!leftmost || current.startTime < leftmost.startTime) {
         return current
       }
       return leftmost
     }, null as Clip | null)
-    
+
     return leftmostClip ? leftmostClip.startTime + leftmostClip.duration : 0
   }
 
@@ -338,7 +308,7 @@ export class ClipPositioning {
     currentTime?: number
   ): number {
     const sortedClips = [...clips].sort((a, b) => a.startTime - b.startTime)
-    
+
     switch (preferredStrategy) {
       case 'after-playhead':
         if (currentTime !== undefined) {
@@ -350,8 +320,8 @@ export class ClipPositioning {
           )
           return position
         }
-        // Fall through to 'end' if no currentTime
-        
+      // Fall through to 'end' if no currentTime
+
       case 'first-gap':
         // Find first gap that fits
         let lastEnd = 0
@@ -364,7 +334,7 @@ export class ClipPositioning {
         }
         // No gap found, place at end
         return lastEnd
-        
+
       case 'end':
       default:
         // Place at the end of all clips

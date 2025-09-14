@@ -13,19 +13,62 @@ import { interpolateMousePositionNormalized } from '@/lib/effects/utils/mouse-in
 export class FFmpegExportEngine {
   private ffmpeg: FFmpeg | null = null
   private loaded = false
+  private loadAttempts = 0
+  private maxLoadAttempts = 3
 
   async loadFFmpeg(): Promise<void> {
     if (this.loaded) return
 
-    this.ffmpeg = new FFmpeg()
+    this.loadAttempts = 0
+    let lastError: Error | null = null
 
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
-    await this.ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    })
+    while (this.loadAttempts < this.maxLoadAttempts) {
+      try {
+        this.loadAttempts++
+        console.log(`Loading FFmpeg... (attempt ${this.loadAttempts}/${this.maxLoadAttempts})`)
 
-    this.loaded = true
+        this.ffmpeg = new FFmpeg()
+
+        // Try multiple CDN sources with fallback
+        const cdnSources = [
+          'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd',
+          'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
+        ]
+
+        let loadSuccess = false
+        for (const baseURL of cdnSources) {
+          try {
+            await this.ffmpeg.load({
+              coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+              wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            })
+            loadSuccess = true
+            console.log(`FFmpeg loaded successfully from ${baseURL}`)
+            break
+          } catch (cdnError) {
+            console.warn(`Failed to load from ${baseURL}:`, cdnError)
+            lastError = cdnError as Error
+          }
+        }
+
+        if (!loadSuccess) {
+          throw lastError || new Error('Failed to load FFmpeg from any CDN')
+        }
+
+        this.loaded = true
+        return
+      } catch (error) {
+        lastError = error as Error
+        console.error(`FFmpeg load attempt ${this.loadAttempts} failed:`, error)
+
+        if (this.loadAttempts < this.maxLoadAttempts) {
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000 * this.loadAttempts))
+        }
+      }
+    }
+
+    throw new Error(`Failed to load FFmpeg after ${this.maxLoadAttempts} attempts: ${lastError?.message || 'Unknown error'}`)
   }
 
   async exportWithEffects(
@@ -73,13 +116,13 @@ export class FFmpegExportEngine {
 
       // Apply zoom effect if present in effects array
       if (effects && effects.length > 0) {
-        const zoomEffect = effects.find(e => 
-          e.type === EffectType.Zoom && 
+        const zoomEffect = effects.find(e =>
+          e.type === EffectType.Zoom &&
           e.enabled &&
           e.startTime <= clip.startTime + clip.duration &&
           e.endTime >= clip.startTime
         )
-        
+
         if (zoomEffect) {
           const zoomData = zoomEffect.data as any
           const scale = zoomData.scale || 2
@@ -148,7 +191,8 @@ export class FFmpegExportEngine {
         message: 'Encoding video...'
       })
 
-      await this.ffmpeg.exec([
+      // Execute FFmpeg command with better error handling
+      const execResult = await this.ffmpeg.exec([
         '-i', inputName,
         ...filterComplex.split(' '),
         ...codecOptions.split(' '),
@@ -161,10 +205,29 @@ export class FFmpegExportEngine {
         message: 'Finalizing export...'
       })
 
-      const data = await this.ffmpeg.readFile(outputName)
+      // Check if output file was created
+      let data: Uint8Array | string
+      try {
+        data = await this.ffmpeg.readFile(outputName)
+      } catch (readError) {
+        throw new Error(`FFmpeg failed to create output file. The video encoding may have failed.`)
+      }
+
+      // Validate output data
+      if (!data || (data instanceof Uint8Array && data.length < 1000)) {
+        throw new Error(`Export produced invalid output: ${data instanceof Uint8Array ? data.length : 0} bytes. Please check your video settings.`)
+      }
+
       const outputBlob = new Blob([data as BlobPart], {
         type: `video/${settings.format === ExportFormat.GIF ? 'gif' : settings.format}`
       })
+
+      // Final validation
+      if (outputBlob.size < 1000) {
+        throw new Error(`Export produced a file that's too small (${outputBlob.size} bytes). The export may have failed.`)
+      }
+
+      console.log(`Export successful: ${outputBlob.size} bytes, format: ${settings.format}`)
 
       onProgress?.({
         progress: 100,

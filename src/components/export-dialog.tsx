@@ -42,11 +42,14 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   const { currentProject, playheadClip } = useProjectStore()
 
   const presets = [
+    { id: 'youtube-4k', name: 'YouTube 4K', desc: '3840×2160, 60fps, MP4' },
+    { id: 'cinema-4k', name: 'Cinema 4K', desc: '4096×2160, 24fps, MP4' },
     { id: 'youtube-1080p', name: 'YouTube 1080p', desc: '1920×1080, 60fps, MP4' },
     { id: 'youtube-720p', name: 'YouTube 720p', desc: '1280×720, 60fps, MP4' },
     { id: 'twitter', name: 'Twitter', desc: '1280×720, 30fps, MP4' },
     { id: 'instagram', name: 'Instagram', desc: '1080×1080, 30fps, MP4' },
-    { id: 'prores-mov', name: 'ProRes MOV', desc: '1920×1080, 60fps, MOV' },
+    { id: 'prores-4k', name: 'ProRes 4K', desc: '3840×2160, 30fps, MOV' },
+    { id: 'prores-mov', name: 'ProRes 1080p', desc: '1920×1080, 60fps, MOV' },
     { id: 'gif-small', name: 'Small GIF', desc: '480×360, 15fps, GIF' }
   ]
 

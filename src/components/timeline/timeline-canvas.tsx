@@ -96,7 +96,7 @@ export function TimelineCanvas({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const colors = useTimelineColors()
-  
+
   // Force re-render when theme changes by using colors as part of key
   const themeKey = React.useMemo(() => {
     // Create a simple hash from primary color to detect theme changes
@@ -108,7 +108,7 @@ export function TimelineCanvas({
   const pixelsPerMs = TimeConverter.calculatePixelsPerMs(stageSize.width, zoom)
   const timelineWidth = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
   // Show zoom track if ANY zoom effects exist (enabled or disabled)
-  const zoomTrackExists = (currentProject?.timeline.effects?.length ?? 0) > 0 && 
+  const zoomTrackExists = (currentProject?.timeline.effects?.length ?? 0) > 0 &&
     currentProject!.timeline.effects!.some(e => e.type === EffectType.Zoom)
   // Determine if any zoom block is enabled
   const isZoomEnabled = EffectsFactory.hasActiveZoomEffects(currentProject?.timeline.effects || [])
@@ -216,15 +216,6 @@ export function TimelineCanvas({
       { startTime: newStartTime }
     )
     await manager.execute(command)
-
-    // Ensure contiguity by nudging the clip again to its snapped location
-    // This triggers store reflow logic in updateClipInTrack
-    const command2 = new UpdateClipCommand(
-      new DefaultCommandContext(useProjectStore.getState()),
-      clipId,
-      { startTime: newStartTime }
-    )
-    await manager.execute(command2)
 
     // Keep selection on the moved clip so UI/playhead stay in sync
     selectClip(clipId)
