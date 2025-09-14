@@ -44,7 +44,7 @@ export class WorkerPool {
     this.width = width
     this.height = height
     this.poolSize = Math.min(poolSize, navigator.hardwareConcurrency || 4)
-    this.maxConcurrent = this.poolSize * 2 // Allow queuing 2x pool size
+    this.maxConcurrent = this.poolSize // Don't overqueue to prevent blocking
     
     logger.info(`Initializing worker pool with ${this.poolSize} workers`)
   }

@@ -295,9 +295,6 @@ export class VideoFrameExtractor {
 
     let nextCapture = startSec
     let done = false
-    const frameQueue: ExtractedFrame[] = []
-    const processingPromises: Promise<void>[] = []
-    const maxConcurrent = 50  // Allow up to 50 frames processing concurrently
     
     await new Promise<void>((resolve) => {
       const cb = (_now: number, metadata: any) => {
@@ -315,22 +312,10 @@ export class VideoFrameExtractor {
             }
             
             if (onFrame) {
-              // Start processing immediately without waiting
-              const promise = onFrame(frame).catch(err => {
+              // Call onFrame without waiting - let the caller handle concurrency
+              onFrame(frame).catch(err => {
                 console.error('Frame processing error:', err)
               })
-              
-              processingPromises.push(promise)
-              
-              // Clean up completed promises
-              if (processingPromises.length >= maxConcurrent) {
-                // Remove completed promises
-                for (let i = processingPromises.length - 1; i >= 0; i--) {
-                  if ((processingPromises[i] as any).isSettled) {
-                    processingPromises.splice(i, 1)
-                  }
-                }
-              }
             }
           }
           nextCapture += frameDt
@@ -339,9 +324,7 @@ export class VideoFrameExtractor {
         if (mediaTime >= endSec - 1e-4) {
           done = true
           video.pause()
-          
-          // Wait for all processing to complete
-          Promise.all(processingPromises).then(() => resolve())
+          resolve()
           return
         }
 

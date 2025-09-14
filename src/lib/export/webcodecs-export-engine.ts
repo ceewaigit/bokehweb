@@ -12,7 +12,7 @@ import type {
 } from '@/types'
 import { EffectType } from '@/types'
 import { WebCodecsEncoder } from './webcodecs-encoder'
-import { VideoFrameExtractor } from './video-frame-extractor'
+import { VideoFrameExtractor, type ExtractedFrame } from './video-frame-extractor'
 import { logger } from '@/lib/utils/logger'
 import type { ExportProgress } from './export-engine'
 import type { TimelineSegment } from './timeline-processor'
@@ -220,92 +220,102 @@ export class WebCodecsExportEngine {
       
       logger.debug(`Processing ${isTypingSpeedClip ? 'typing-speed' : 'normal'} clip ${clip.id} from ${clipStartInSegment}ms to ${clipEndInSegment}ms`)
 
-      // Extract frames with concurrent processing
+      // Extract frames with controlled batching for stability
       if (this.useWorkers && this.workerPool) {
-        const concurrentLimit = 30  // Process up to 30 frames concurrently
-        const activeFrames = new Set<Promise<void>>()
+        const frameQueue: Array<{ frame: ExtractedFrame, frameId: string }> = []
+        let extractionComplete = false
         
-        await this.frameExtractor.extractClipFramesStreamed(
+        // Start extraction in background
+        const extractionPromise = this.frameExtractor.extractClipFramesStreamed(
           clip,
           video,
           clipStartInSegment,
           clipEndInSegment,
           async (frame) => {
-            // Wait if too many frames are being processed
-            while (activeFrames.size >= concurrentLimit) {
-              await Promise.race(activeFrames)
-            }
-            
             const frameId = `${clip.id}_${frame.timestamp}`
-            const framePromise = (async () => {
-              this.monitor.frameStart(frameId)
-              
-              try {
-                // Check if we have effects to apply
-                const hasEffects = segment.effects?.some(e => 
-                  e.enabled && frame.timestamp >= e.startTime && frame.timestamp <= e.endTime
-                )
-                
-                if (frame.imageData instanceof HTMLVideoElement) {
-                  if (hasEffects) {
-                    // Apply effects if needed
-                    await this.applyEffects(
-                      frame.imageData,
-                      frame.timestamp,
-                      segment.effects,
-                      clipData.recording,
-                      metadata.get(clipData.recording.id)
-                    )
-                    // Encode from canvas
-                    await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
-                  } else {
-                    // No effects - draw video to canvas and encode
-                    this.ctx!.drawImage(frame.imageData, 0, 0, this.canvas!.width, this.canvas!.height)
-                    await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
-                  }
-                } else {
-                  // For ImageBitmap, use workers
-                  const frameTask: FrameTask = {
-                    id: frameId,
-                    bitmap: frame.imageData as ImageBitmap,
-                    effects: segment.effects,
-                    timestamp: frame.timestamp,
-                    metadata: metadata.get(clipData.recording.id)
-                  }
-                  
-                  const processed = await this.workerPool!.processFrame(frameTask)
-                  await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
-                }
-                
-                processedFrames++
-                this.monitor.frameEnd(frameId)
-                
-                // Update progress
-                if (processedFrames % 20 === 0 && onProgress) {
-                  const globalFrame = startFrame + processedFrames
-                  const progress = Math.min(95, (globalFrame / totalFrames) * 95)
-                  onProgress({
-                    progress,
-                    stage: 'encoding',
-                    message: `Processing frame ${globalFrame} of ${totalFrames}...`,
-                    currentFrame: globalFrame,
-                    totalFrames
-                  })
-                }
-              } catch (error) {
-                logger.error(`Failed to process frame ${frameId}:`, error)
-              }
-            })()
-            
-            activeFrames.add(framePromise)
-            framePromise.finally(() => activeFrames.delete(framePromise))
+            frameQueue.push({ frame, frameId })
           }
-        )
+        ).then(() => {
+          extractionComplete = true
+        })
         
-        // Wait for all remaining frames
-        if (activeFrames.size > 0) {
-          await Promise.all(activeFrames)
+        // Process frames in controlled batches
+        const batchSize = 10
+        while (!extractionComplete || frameQueue.length > 0) {
+          // Wait for frames to be available
+          if (frameQueue.length === 0 && !extractionComplete) {
+            await new Promise(resolve => setTimeout(resolve, 10))
+            continue
+          }
+          
+          // Process a batch
+          const batch = frameQueue.splice(0, Math.min(batchSize, frameQueue.length))
+          if (batch.length === 0) continue
+          
+          // Process batch in parallel
+          await Promise.all(batch.map(async ({ frame, frameId }) => {
+            this.monitor.frameStart(frameId)
+            
+            try {
+              // Check if we have effects to apply
+              const hasEffects = segment.effects?.some(e => 
+                e.enabled && frame.timestamp >= e.startTime && frame.timestamp <= e.endTime
+              )
+              
+              if (frame.imageData instanceof HTMLVideoElement) {
+                if (hasEffects) {
+                  // Apply effects if needed
+                  await this.applyEffects(
+                    frame.imageData,
+                    frame.timestamp,
+                    segment.effects,
+                    clipData.recording,
+                    metadata.get(clipData.recording.id)
+                  )
+                  // Encode from canvas
+                  await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
+                } else {
+                  // No effects - draw video to canvas and encode
+                  this.ctx!.drawImage(frame.imageData, 0, 0, this.canvas!.width, this.canvas!.height)
+                  await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
+                }
+              } else {
+                // For ImageBitmap, use workers
+                const frameTask: FrameTask = {
+                  id: frameId,
+                  bitmap: frame.imageData as ImageBitmap,
+                  effects: segment.effects,
+                  timestamp: frame.timestamp,
+                  metadata: metadata.get(clipData.recording.id)
+                }
+                
+                const processed = await this.workerPool!.processFrame(frameTask)
+                await this.encoder!.encodeFrame(processed.bitmap, processed.timestamp)
+              }
+              
+              processedFrames++
+              this.monitor.frameEnd(frameId)
+              
+              // Update progress
+              if (processedFrames % 20 === 0 && onProgress) {
+                const globalFrame = startFrame + processedFrames
+                const progress = Math.min(95, (globalFrame / totalFrames) * 95)
+                onProgress({
+                  progress,
+                  stage: 'encoding',
+                  message: `Processing frame ${globalFrame} of ${totalFrames}...`,
+                  currentFrame: globalFrame,
+                  totalFrames
+                })
+              }
+            } catch (error) {
+              logger.error(`Failed to process frame ${frameId}:`, error)
+            }
+          }))
         }
+        
+        // Ensure extraction completed
+        await extractionPromise
       } else {
         // Fallback to single-threaded processing
         await this.frameExtractor.extractClipFramesStreamed(

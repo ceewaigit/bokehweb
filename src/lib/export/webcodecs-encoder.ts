@@ -44,7 +44,7 @@ export class WebCodecsEncoder {
   private maxCacheSize = 200 // Increased cache size
   
   private pendingEnqueues = 0
-  private maxPendingEnqueues = 100 // Increased queue depth for better GPU utilization
+  private maxPendingEnqueues = 30 // Balanced queue depth to prevent memory issues
 
   /**
    * Check if WebCodecs is supported
