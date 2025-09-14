@@ -44,7 +44,7 @@ export class WorkerPool {
     this.width = width
     this.height = height
     this.poolSize = Math.min(poolSize, navigator.hardwareConcurrency || 4)
-    this.maxConcurrent = this.poolSize // Don't overqueue to prevent blocking
+    this.maxConcurrent = this.poolSize * 2 // Allow more concurrent tasks for better utilization
     
     logger.info(`Initializing worker pool with ${this.poolSize} workers`)
   }
@@ -133,12 +133,11 @@ export class WorkerPool {
    * Process the next task in queue
    */
   private processNextTask(): void {
-    if (this.taskQueue.length === 0) return
-    if (this.processingCount >= this.maxConcurrent) return
-
-    // Find available worker
-    const availableWorker = this.workers.find(w => !w.busy)
-    if (!availableWorker) return
+    // Process multiple tasks at once if possible
+    while (this.taskQueue.length > 0 && this.processingCount < this.maxConcurrent) {
+      // Find available worker
+      const availableWorker = this.workers.find(w => !w.busy)
+      if (!availableWorker) break
 
     // Get next task
     const taskItem = this.taskQueue.shift()
@@ -172,8 +171,8 @@ export class WorkerPool {
           timestamp: event.data.timestamp
         })
 
-        // Process next task
-        this.processNextTask()
+        // Process next task immediately
+        queueMicrotask(() => this.processNextTask())
       } else if (event.data.type === 'error' && event.data.frameId === task.id) {
         clearTimeout(timeout)
         availableWorker.worker.removeEventListener('message', handleMessage)
@@ -181,7 +180,7 @@ export class WorkerPool {
         this.processingCount--
 
         reject(new Error(event.data.error))
-        this.processNextTask()
+        queueMicrotask(() => this.processNextTask())
       }
     }
 
@@ -196,6 +195,7 @@ export class WorkerPool {
       timestamp: task.timestamp,
       metadata: task.metadata
     }, [task.bitmap])
+    }
   }
 
   /**
@@ -251,8 +251,8 @@ export function createOptimizedWorkerPool(
 ): WorkerPool {
   const cores = navigator.hardwareConcurrency || 4
   
-  // Use 50-75% of cores for workers, leave some for main thread and encoder
-  const optimalPoolSize = Math.max(2, Math.floor(cores * 0.6))
+  // Use more cores for workers when available
+  const optimalPoolSize = Math.max(2, Math.min(8, Math.floor(cores * 0.75)))
   
   logger.info(`Creating worker pool: ${optimalPoolSize} workers for ${cores} cores`)
   

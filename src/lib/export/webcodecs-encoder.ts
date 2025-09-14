@@ -41,10 +41,14 @@ export class WebCodecsEncoder {
   
   // Frame caching for performance
   private frameCache = new Map<string, ImageBitmap>()
-  private maxCacheSize = 200 // Increased cache size
+  private maxCacheSize = 50 // Reduced to save memory
   
   private pendingEnqueues = 0
-  private maxPendingEnqueues = 30 // Balanced queue depth to prevent memory issues
+  private maxPendingEnqueues = 30 // Balanced for stability
+  private adaptiveQueueDepth = true // Dynamic queue depth adjustment
+  private lastQueueCheck = 0
+  private queueStallCount = 0
+  private maxStallCount = 10 // Detect deadlock after 10 stalls
 
   /**
    * Check if WebCodecs is supported
@@ -225,10 +229,10 @@ export class WebCodecsEncoder {
       height: this.encoderConfig.height,
       bitrate: this.encoderConfig.bitrate,
       framerate: this.encoderConfig.framerate,
-      latencyMode: 'realtime', // Changed for faster encoding
+      latencyMode: 'quality', // Better quality and GPU utilization
       hardwareAcceleration: 'prefer-hardware',
-      bitrateMode: 'constant', // More predictable performance
-      scalabilityMode: 'L1T2' // Temporal scalability for better performance
+      bitrateMode: 'variable', // Better quality
+      scalabilityMode: 'L1T1' // Single temporal layer for simpler encoding
     }
     
     // Add codec-specific settings
@@ -358,7 +362,7 @@ export class WebCodecsEncoder {
    * Encode a single frame with caching
    */
   async encodeFrame(
-    imageData: ImageData | ImageBitmap | VideoFrame | HTMLCanvasElement,
+    imageData: ImageData | ImageBitmap | VideoFrame | HTMLCanvasElement | OffscreenCanvas,
     timestamp: number,
     cacheKey?: string
   ): Promise<void> {
@@ -373,8 +377,8 @@ export class WebCodecsEncoder {
     if (imageData instanceof VideoFrame) {
       frame = imageData
     } else if ((imageData as any)?.getContext) {
-      // HTMLCanvasElement
-      frame = new VideoFrame(imageData as HTMLCanvasElement, {
+      // HTMLCanvasElement or OffscreenCanvas
+      frame = new VideoFrame(imageData as (HTMLCanvasElement | OffscreenCanvas), {
         timestamp: timestamp * 1000,
         duration: (1000000 / (this.encoderConfig?.framerate || 30))
       })
@@ -404,14 +408,77 @@ export class WebCodecsEncoder {
       frame.close()
     }
 
-    // Apply adaptive backpressure
-    if (this.pendingEnqueues >= this.maxPendingEnqueues) {
-      // Don't flush completely - just wait for half to complete
-      const targetPending = Math.floor(this.maxPendingEnqueues / 2)
-      while (this.encoder.encodeQueueSize > targetPending) {
-        await new Promise(resolve => setTimeout(resolve, 1))
+    // Apply adaptive backpressure with deadlock detection
+    const queueSize = this.encoder.encodeQueueSize
+    
+    if (this.adaptiveQueueDepth) {
+      const now = performance.now()
+      
+      // Check for stalled queue (possible deadlock)
+      if (queueSize >= this.maxPendingEnqueues) {
+        if (now - this.lastQueueCheck > 100 && queueSize === this.pendingEnqueues) {
+          this.queueStallCount++
+          if (this.queueStallCount > this.maxStallCount) {
+            logger.error(`Encoder queue stalled at ${queueSize} for ${this.queueStallCount} checks - possible deadlock`)
+            // Force flush to recover
+            await this.encoder.flush()
+            this.queueStallCount = 0
+            this.pendingEnqueues = 0
+            return
+          }
+        } else {
+          this.queueStallCount = 0
+        }
+        
+        // Progressive backoff with timeout
+        const startWait = performance.now()
+        const timeout = 5000 // 5 second timeout
+        let backoffMs = 1
+        
+        while (this.encoder.encodeQueueSize > this.maxPendingEnqueues * 0.7) {
+          if (performance.now() - startWait > timeout) {
+            logger.warn(`Encoder queue timeout after ${timeout}ms at size ${this.encoder.encodeQueueSize}`)
+            break
+          }
+          
+          // Use microtask for first few iterations, then progressive backoff
+          if (backoffMs <= 4) {
+            await new Promise(resolve => queueMicrotask(() => resolve(undefined)))
+          } else {
+            await new Promise(resolve => setTimeout(resolve, Math.min(backoffMs, 50)))
+          }
+          backoffMs = Math.min(backoffMs * 2, 50)
+        }
+      } else if (queueSize < this.maxPendingEnqueues * 0.3) {
+        // Queue is draining well, can carefully increase
+        const cores = navigator.hardwareConcurrency || 4
+        const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
+        const memoryGB = memory / 1024 / 1024 / 1024
+        
+        // Dynamic max based on system resources
+        const systemMax = memoryGB > 4 ? 60 : 40
+        this.maxPendingEnqueues = Math.min(systemMax, this.maxPendingEnqueues + 5)
+        this.queueStallCount = 0
       }
-      this.pendingEnqueues = this.encoder.encodeQueueSize
+      
+      this.lastQueueCheck = now
+      this.pendingEnqueues = queueSize
+    } else {
+      // Simple backpressure with timeout
+      if (queueSize >= this.maxPendingEnqueues) {
+        const targetPending = Math.floor(this.maxPendingEnqueues * 0.6)
+        const startWait = performance.now()
+        const timeout = 3000
+        
+        while (this.encoder.encodeQueueSize > targetPending) {
+          if (performance.now() - startWait > timeout) {
+            logger.warn(`Simple backpressure timeout after ${timeout}ms`)
+            break
+          }
+          await new Promise(resolve => queueMicrotask(() => resolve(undefined)))
+        }
+      }
+      this.pendingEnqueues = queueSize
     }
  
     this.frameCount++

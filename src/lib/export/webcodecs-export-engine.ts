@@ -24,13 +24,17 @@ import { WorkerPool, createOptimizedWorkerPool } from './workers/worker-pool'
 import type { FrameTask } from './workers/worker-pool'
 import { PerformanceMonitor, performanceMonitor } from './performance-monitor'
 import { FramePipeline, createOptimizedPipeline } from './frame-pipeline'
-// WebGLEffectsRenderer will be imported when useWebGL is enabled
+import { OffscreenRenderer, RendererPool } from './offscreen-renderer'
+import { WebGLEffectsRenderer } from './webgl/webgl-effects-renderer'
 
 export class WebCodecsExportEngine {
   private encoder: WebCodecsEncoder | null = null
   private frameExtractor: VideoFrameExtractor | null = null
   private canvas: HTMLCanvasElement | null = null
   private ctx: CanvasRenderingContext2D | null = null
+  private renderer: OffscreenRenderer | null = null
+  private rendererPool: RendererPool | null = null
+  private webglRenderer: WebGLEffectsRenderer | null = null
   private frameRate = 30
   private frameDuration = 1000 / 30  // milliseconds per frame
   private abortSignal: AbortSignal | null = null
@@ -71,7 +75,7 @@ export class WebCodecsExportEngine {
       // Get optimized settings
       const optimizedSettings = PerformanceMonitor.getOptimizedSettings()
       this.useWorkers = optimizedSettings.useWorkers
-      this.useWebGL = optimizedSettings.useWebGL && false // Disabled for now
+      this.useWebGL = optimizedSettings.useWebGL // Enable WebGL when available
       
       // Calculate total frames needed up front for accurate progress
       const totalDuration = this.calculateTotalDuration(segments)
@@ -95,6 +99,48 @@ export class WebCodecsExportEngine {
       if (this.canvas && this.ctx) {
         this.canvas.width = settings.resolution.width
         this.canvas.height = settings.resolution.height
+      }
+
+      // Initialize OffscreenRenderer for better performance
+      this.renderer = new OffscreenRenderer(
+        settings.resolution.width,
+        settings.resolution.height
+      )
+      
+      // Dynamic renderer pool sizing based on system capabilities
+      const systemSettings = PerformanceMonitor.getOptimizedSettings()
+      const cores = navigator.hardwareConcurrency || 4
+      const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
+      const memoryGB = memory / 1024 / 1024 / 1024
+      
+      // Match renderer count to expected concurrency to avoid deadlock
+      // Need enough renderers for pipeline concurrency but not too many to exhaust memory
+      const pipelineConcurrency = Math.min(cores * 2, memoryGB > 4 ? 30 : 20)
+      const rendererCount = Math.min(
+        Math.max(4, Math.ceil(pipelineConcurrency / 2)), // At least half of pipeline concurrency
+        memoryGB > 4 ? 12 : 8 // Memory-based cap
+      )
+      
+      this.rendererPool = new RendererPool(
+        settings.resolution.width,
+        settings.resolution.height,
+        rendererCount
+      )
+      
+      logger.info(`Renderer pool: ${rendererCount} renderers for ${pipelineConcurrency} pipeline concurrency`)
+      
+      // Initialize WebGL renderer if enabled
+      if (this.useWebGL) {
+        try {
+          this.webglRenderer = new WebGLEffectsRenderer(
+            settings.resolution.width,
+            settings.resolution.height
+          )
+          logger.info('WebGL effects renderer enabled')
+        } catch (error) {
+          logger.warn('Failed to initialize WebGL renderer:', error)
+          this.useWebGL = false
+        }
       }
 
       // Initialize worker pool if using workers
@@ -225,6 +271,20 @@ export class WebCodecsExportEngine {
       if (this.useWorkers && this.workerPool) {
         const pipeline = createOptimizedPipeline()
         
+        // Don't pre-allocate all renderers - acquire as needed to avoid deadlock
+        const maxPreAllocated = Math.min(2, Math.floor(this.rendererPool!.poolSize / 2))
+        const renderers: OffscreenRenderer[] = []
+        
+        // Pre-allocate only a few renderers
+        for (let i = 0; i < maxPreAllocated; i++) {
+          try {
+            const renderer = await this.rendererPool!.acquireWithTimeout(1000)
+            if (renderer) renderers.push(renderer)
+          } catch (e) {
+            logger.warn(`Could not pre-allocate renderer ${i}: ${e}`)
+          }
+        }
+        
         // Setup frame processor
         pipeline.onProcess(async (frameData) => {
           const frame = frameData.data as ExtractedFrame
@@ -239,21 +299,64 @@ export class WebCodecsExportEngine {
             )
             
             if (frame.imageData instanceof HTMLVideoElement) {
-              // For video frames, process directly (no worker)
-              if (hasEffects) {
-                await this.applyEffects(
-                  frame.imageData,
-                  frame.timestamp,
-                  segment.effects,
-                  clipData.recording,
-                  metadata.get(clipData.recording.id)
-                )
-              } else {
-                // No effects - just draw to canvas
-                this.ctx!.drawImage(frame.imageData, 0, 0, this.canvas!.width, this.canvas!.height)
+              // Try to get a renderer, with timeout to prevent deadlock
+              let renderer: OffscreenRenderer | null = null
+              
+              // First try to use pre-allocated
+              if (renderers.length > 0) {
+                renderer = renderers[processedFrames % renderers.length]
               }
-              // Encode from canvas
-              await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
+              
+              // If no pre-allocated available, try to acquire with timeout
+              if (!renderer) {
+                try {
+                  renderer = await this.rendererPool!.acquireWithTimeout(2000)
+                } catch (e) {
+                  logger.warn('Could not acquire renderer, falling back to main canvas')
+                }
+              }
+              
+              try {
+                // For video frames, use OffscreenRenderer
+                if (hasEffects) {
+                  // Use WebGL if available for GPU-accelerated effects
+                  if (this.useWebGL && this.webglRenderer) {
+                    const processedFrame = await this.webglRenderer.processFrame(
+                      frame.imageData,
+                      segment.effects || [],
+                      frame.timestamp
+                    )
+                    await this.encoder!.encodeFrame(processedFrame, frame.timestamp)
+                    if (processedFrame && typeof processedFrame.close === 'function') {
+                      processedFrame.close()
+                    }
+                  } else {
+                    // Fallback to CPU-based effects
+                    await this.applyEffects(
+                      frame.imageData,
+                      frame.timestamp,
+                      segment.effects,
+                      clipData.recording,
+                      metadata.get(clipData.recording.id)
+                    )
+                    // Encode from main canvas
+                    await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
+                  }
+                } else if (renderer) {
+                  // No effects - use OffscreenCanvas for better performance
+                  renderer.drawVideoFrame(frame.imageData)
+                  await this.encoder!.encodeFrame(renderer.getCanvas(), frame.timestamp)
+                } else {
+                  // Fallback to main canvas if no renderer available
+                  this.ctx!.drawImage(frame.imageData, 0, 0, this.canvas!.width, this.canvas!.height)
+                  await this.encoder!.encodeFrame(this.canvas!, frame.timestamp)
+                }
+              } finally {
+                // Release renderer if it was dynamically acquired
+                if (renderer && !renderers.includes(renderer)) {
+                  this.rendererPool!.release(renderer)
+                }
+              }
             } else {
               // For ImageBitmap, use workers
               const frameTask: FrameTask = {
@@ -309,6 +412,9 @@ export class WebCodecsExportEngine {
         
         // Wait for pipeline to complete
         await pipeline.flush()
+        
+        // Release all renderers
+        renderers.forEach(r => this.rendererPool!.release(r))
         
         // Log pipeline stats
         const stats = pipeline.getStats()
@@ -630,6 +736,15 @@ export class WebCodecsExportEngine {
    * Cleanup resources
    */
   private async cleanup(): Promise<void> {
+    // Add memory cleanup with GC hint
+    if (typeof (globalThis as any).gc === 'function') {
+      try {
+        (globalThis as any).gc()
+      } catch (e) {
+        // GC not available in this context
+      }
+    }
+    
     if (this.encoder) {
       this.encoder.reset()
       this.encoder = null
@@ -639,6 +754,15 @@ export class WebCodecsExportEngine {
       this.frameExtractor.dispose()
       this.frameExtractor = null
     }
+    
+    if (this.rendererPool) {
+      this.rendererPool.dispose()
+      this.rendererPool = null
+    }
+    
+    if (this.renderer) {
+      this.renderer = null
+    }
 
     if (this.workerPool) {
       await this.workerPool.terminate()
@@ -647,6 +771,22 @@ export class WebCodecsExportEngine {
 
     if (this.ctx && this.canvas) {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    }
+    
+    if (this.webglRenderer) {
+      this.webglRenderer.dispose()
+      this.webglRenderer = null
+    }
+    
+    // Force another GC after cleanup
+    if (typeof (globalThis as any).gc === 'function') {
+      setTimeout(() => {
+        try {
+          (globalThis as any).gc()
+        } catch (e) {
+          // GC not available
+        }
+      }, 100)
     }
   }
 }

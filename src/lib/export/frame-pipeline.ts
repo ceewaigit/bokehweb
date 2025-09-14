@@ -21,6 +21,7 @@ export class FramePipeline {
   private maxConcurrent: number
   private completed = 0
   private dropped = 0
+  private batchSize = 5 // Process frames in small batches
 
   constructor(maxQueueSize = 100, maxConcurrent = 20) {
     this.maxQueueSize = maxQueueSize
@@ -57,26 +58,33 @@ export class FramePipeline {
   }
 
   /**
-   * Process queued frames continuously
+   * Process queued frames continuously with batching
    */
   private async processQueue(): Promise<void> {
     while (this.queue.length > 0 || this.activeProcessing > 0) {
-      // Process up to maxConcurrent frames in parallel
-      while (this.queue.length > 0 && this.activeProcessing < this.maxConcurrent) {
+      // Process frames in batches for better throughput
+      const batch: FrameData[] = []
+      while (batch.length < this.batchSize && this.queue.length > 0 && 
+             this.activeProcessing < this.maxConcurrent) {
         const frame = this.queue.shift()
-        if (!frame) break
-
-        this.activeProcessing++
-        
-        // Process frame without blocking the loop
-        this.processFrame(frame).finally(() => {
-          this.activeProcessing--
-          this.completed++
-        })
+        if (frame) batch.push(frame)
       }
 
-      // Wait a bit before checking again
-      await new Promise(resolve => setTimeout(resolve, 1))
+      if (batch.length > 0) {
+        this.activeProcessing += batch.length
+        
+        // Process batch in parallel
+        Promise.all(batch.map(frame => this.processFrame(frame)))
+          .finally(() => {
+            this.activeProcessing -= batch.length
+            this.completed += batch.length
+          })
+      }
+
+      // Use microtask for faster scheduling
+      if (this.queue.length > 0 || this.activeProcessing > 0) {
+        await new Promise(resolve => queueMicrotask(() => resolve(undefined)))
+      }
     }
 
     this.processing = false
@@ -96,12 +104,49 @@ export class FramePipeline {
   }
 
   /**
-   * Wait for all frames to be processed
+   * Wait for all frames to be processed with timeout and better scheduling
    */
   async flush(): Promise<void> {
-    // Wait for queue to empty
+    const startTime = performance.now()
+    const timeout = 30000 // 30 second timeout
+    let lastProgress = this.completed
+    let noProgressTime = 0
+    const noProgressTimeout = 5000 // 5 seconds without progress = stuck
+    
+    // Wait for queue to empty with progressive backoff
+    let backoffMs = 1
     while (this.queue.length > 0 || this.activeProcessing > 0) {
-      await new Promise(resolve => setTimeout(resolve, 10))
+      // Check for timeout
+      const elapsed = performance.now() - startTime
+      if (elapsed > timeout) {
+        logger.error(`Pipeline flush timeout after ${timeout}ms. Queue: ${this.queue.length}, Processing: ${this.activeProcessing}`)
+        throw new Error('Pipeline flush timeout - possible deadlock')
+      }
+      
+      // Check for progress
+      if (this.completed === lastProgress) {
+        noProgressTime += backoffMs
+        if (noProgressTime > noProgressTimeout) {
+          logger.warn(`Pipeline stuck - no progress for ${noProgressTimeout}ms. Forcing flush...`)
+          // Force clear to prevent infinite hang
+          this.clear()
+          break
+        }
+      } else {
+        lastProgress = this.completed
+        noProgressTime = 0
+        backoffMs = 1 // Reset backoff on progress
+      }
+      
+      // Use microtask for fast scheduling, with progressive backoff
+      if (backoffMs <= 4) {
+        await new Promise(resolve => queueMicrotask(() => resolve(undefined)))
+      } else {
+        await new Promise(resolve => setTimeout(resolve, Math.min(backoffMs, 100)))
+      }
+      
+      // Progressive backoff: 1, 2, 4, 8, 16, 32, 64, 100ms max
+      backoffMs = Math.min(backoffMs * 2, 100)
     }
   }
 
@@ -142,11 +187,22 @@ export function createOptimizedPipeline(): FramePipeline {
   const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
   const memoryGB = memory / 1024 / 1024 / 1024
   
-  // Adjust queue and concurrency based on system resources
-  const maxQueueSize = memoryGB > 4 ? 200 : 100
-  const maxConcurrent = Math.min(30, cores * 3) // 3x cores but max 30
+  // Dynamic resource allocation based on actual system capabilities
+  // Balance between parallelism and avoiding contention
+  const maxQueueSize = Math.floor(
+    memoryGB > 8 ? 400 :
+    memoryGB > 4 ? 250 :
+    memoryGB > 2 ? 150 :
+    100
+  )
   
-  logger.info(`Creating frame pipeline: queue=${maxQueueSize}, concurrent=${maxConcurrent}`)
+  // Concurrency should not exceed encoder capacity to avoid deadlock
+  // Use 2x cores as baseline, but cap based on memory
+  const baseConcurrency = cores * 2
+  const memoryCap = memoryGB > 4 ? 30 : 20
+  const maxConcurrent = Math.min(baseConcurrency, memoryCap)
+  
+  logger.info(`Creating frame pipeline: queue=${maxQueueSize}, concurrent=${maxConcurrent} (${cores} cores, ${memoryGB.toFixed(1)}GB RAM)`)
   
   return new FramePipeline(maxQueueSize, maxConcurrent)
 }

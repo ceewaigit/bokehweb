@@ -20,6 +20,20 @@ export interface PerformanceMetrics {
   p99FrameTime: number
 }
 
+export interface PerformanceStats {
+  avgFps: number
+  minFps: number
+  maxFps: number
+  avgFrameTime: number
+  p95FrameTime: number
+  p99FrameTime: number
+  totalFrames: number
+  droppedFrames: number
+  gpuAccelerated: boolean
+  webglEnabled: boolean
+  workersEnabled: boolean
+}
+
 export class PerformanceMonitor {
   private frameTimes: number[] = []
   private frameStartTimes = new Map<string, number>()
@@ -218,6 +232,54 @@ export class PerformanceMonitor {
   }
 
   /**
+   * Get performance statistics
+   */
+  getStats(): PerformanceStats {
+    const sortedFrameTimes = [...this.frameTimes].sort((a, b) => a - b)
+    const count = sortedFrameTimes.length
+    
+    if (count === 0) {
+      return {
+        avgFps: 0,
+        minFps: 0,
+        maxFps: 0,
+        avgFrameTime: 0,
+        p95FrameTime: 0,
+        p99FrameTime: 0,
+        totalFrames: 0,
+        droppedFrames: 0,
+        gpuAccelerated: false,
+        webglEnabled: false,
+        workersEnabled: false
+      }
+    }
+    
+    const avgFrameTime = this.frameTimes.reduce((a, b) => a + b, 0) / count
+    const avgFps = 1000 / avgFrameTime
+    const minFps = 1000 / Math.max(...sortedFrameTimes)
+    const maxFps = 1000 / Math.min(...sortedFrameTimes)
+    const p95FrameTime = sortedFrameTimes[Math.floor(count * 0.95)] || 0
+    const p99FrameTime = sortedFrameTimes[Math.floor(count * 0.99)] || 0
+    
+    // Check for GPU and feature availability
+    const settings = PerformanceMonitor.getOptimizedSettings()
+    
+    return {
+      avgFps,
+      minFps,
+      maxFps,
+      avgFrameTime,
+      p95FrameTime,
+      p99FrameTime,
+      totalFrames: this.totalFrames,
+      droppedFrames: this.droppedFrames,
+      gpuAccelerated: settings.useGPU,
+      webglEnabled: settings.useWebGL,
+      workersEnabled: settings.useWorkers
+    }
+  }
+
+  /**
    * Create optimized export settings based on system capabilities
    */
   static getOptimizedSettings(): {
@@ -226,6 +288,7 @@ export class PerformanceMonitor {
     frameBatchSize: number
     useWebGL: boolean
     useWorkers: boolean
+    useGPU: boolean
   } {
     const cores = navigator.hardwareConcurrency || 4
     const memory = (performance as any).memory?.jsHeapSizeLimit || 2147483648
@@ -236,12 +299,16 @@ export class PerformanceMonitor {
     const gl = canvas.getContext('webgl2')
     const hasWebGL2 = !!gl
     
+    // Check for GPU availability via WebCodecs
+    const hasGPU = typeof VideoEncoder !== 'undefined' && cores > 2
+    
     return {
-      workerCount: Math.min(Math.max(2, Math.floor(cores * 0.6)), 8),
-      encoderQueueDepth: memoryGB > 4 ? 100 : 50,
+      workerCount: Math.min(Math.max(2, Math.floor(cores * 0.75)), 8),
+      encoderQueueDepth: memoryGB > 4 ? 60 : 40,
       frameBatchSize: memoryGB > 4 ? 30 : 15,
       useWebGL: hasWebGL2,
-      useWorkers: cores > 2
+      useWorkers: cores > 2,
+      useGPU: hasGPU
     }
   }
 }
