@@ -312,8 +312,10 @@ export class WebCodecsExportEngine {
 
       // Use high-performance pipeline for frame processing
       if (this.useWorkers && this.workerPool) {
+        logger.debug('Using worker pipeline for clip processing')
         const pipeline = createOptimizedPipeline()
         
+        logger.debug('Pre-allocating renderers...')
         // Don't pre-allocate all renderers - acquire as needed to avoid deadlock
         const maxPreAllocated = Math.min(2, Math.floor(this.rendererPool!.poolSize / 2))
         const renderers: OffscreenRenderer[] = []
@@ -327,6 +329,8 @@ export class WebCodecsExportEngine {
             logger.warn(`Could not pre-allocate renderer ${i}: ${e}`)
           }
         }
+        
+        logger.debug(`Pre-allocated ${renderers.length} renderers`)
         
         // Setup frame processor
         pipeline.onProcess(async (frameData) => {
@@ -448,23 +452,29 @@ export class WebCodecsExportEngine {
         })
         
         // Start frame extraction (non-blocking)
-        await this.frameExtractor.extractClipFramesStreamed(
-          clip,
-          video,
-          clipStartInSegment,
-          clipEndInSegment,
-          async (frame) => {
-            const frameId = `${clip.id}_${frame.timestamp}`
-            
-            // Add to pipeline (non-blocking)
-            pipeline.addFrame({
-              id: frameId,
-              data: frame,
-              timestamp: frame.timestamp,
-              metadata: metadata.get(clipData.recording.id)
-            })
-          }
-        )
+        logger.debug(`Starting frame extraction for clip ${clip.id}`)
+        try {
+          await this.frameExtractor.extractClipFramesStreamed(
+            clip,
+            video,
+            clipStartInSegment,
+            clipEndInSegment,
+            async (frame) => {
+              const frameId = `${clip.id}_${frame.timestamp}`
+              
+              // Add to pipeline (non-blocking)
+              pipeline.addFrame({
+                id: frameId,
+                data: frame,
+                timestamp: frame.timestamp,
+                metadata: metadata.get(clipData.recording.id)
+              })
+            }
+          )
+        } catch (extractError) {
+          logger.error(`Frame extraction failed for clip ${clip.id}:`, extractError)
+          throw extractError
+        }
         
         // Wait for pipeline to complete
         await pipeline.flush()
