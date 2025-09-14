@@ -20,82 +20,24 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
 
-  // Calculate source positions for both current and next clips
-  // Use Math.round consistently for frame-perfect alignment
+  // For continuous playback, always start from 0 and use CSS to show the right portion
+  // This prevents decoder reinitialization
   const currentSourceInMs = clip ? (clip.sourceIn || 0) : 0;
-  const currentStartFrame = Math.round((currentSourceInMs / 1000) * fps);
+  const currentSourceInFrames = Math.round((currentSourceInMs / 1000) * fps);
   
-  // Pre-calculate next clip's position for buffering
-  const nextSourceInMs = nextClip ? (nextClip.sourceIn || 0) : 0;
-  const nextStartFrame = Math.round((nextSourceInMs / 1000) * fps);
+  // Calculate the video offset to show the correct portion
+  // The video plays from 0, but we offset it to show the sourceIn position
+  const videoOffsetFrames = -currentSourceInFrames;
+  const videoOffsetPixels = useMemo(() => {
+    // Calculate how much to shift the video based on the source position
+    // This creates a "viewport" effect where the video plays continuously
+    // but we only see the portion we need
+    const frameWidth = videoWidth / fps; // Approximate, will be adjusted
+    return videoOffsetFrames * frameWidth;
+  }, [videoOffsetFrames, videoWidth, fps]);
   
   // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
-  
-  // Calculate frames for precise boundary detection
-  const totalFramesInClip = clip ? Math.round((clip.duration / 1000) * fps) : 0;
-  const currentFrameInClip = frame; // Already clip-relative from Remotion
-  const framesUntilEnd = totalFramesInClip - currentFrameInClip;
-  
-  // Pre-load much earlier (10 frames) but only show crossfade at the end (2 frames)
-  const preloadFrames = 10;
-  const crossfadeFrames = 2;
-  
-  // Check if next clip is a consecutive split (no gap between clips)
-  const isConsecutiveSplit = useMemo(() => {
-    if (!clip || !nextClip) return false;
-    if (clip.recordingId !== nextClip.recordingId) return false; // Different recording
-    
-    // Check if clips are consecutive (next starts exactly when current ends)
-    // Use small epsilon for floating point comparison
-    const epsilon = 0.001;
-    const currentEndTime = (clip.startTime || 0) + clip.duration;
-    const nextStartTime = nextClip.startTime || 0;
-    return Math.abs(nextStartTime - currentEndTime) < epsilon;
-  }, [clip, nextClip]);
-  
-  // Detect if we should pre-load the next clip
-  const shouldPreloadNext = useMemo(() => {
-    if (!isConsecutiveSplit) return false;
-    
-    // Start preloading when within 10 frames of the end
-    return framesUntilEnd <= preloadFrames && framesUntilEnd >= 0;
-  }, [isConsecutiveSplit, framesUntilEnd, preloadFrames]);
-  
-  // Detect if we're in the crossfade zone (last 2 frames)
-  const isInCrossfade = useMemo(() => {
-    if (!shouldPreloadNext) return false;
-    return framesUntilEnd <= crossfadeFrames && framesUntilEnd >= 0;
-  }, [shouldPreloadNext, framesUntilEnd, crossfadeFrames]);
-  
-  // Calculate crossfade opacity for seamless transition
-  const crossfadeOpacity = useMemo(() => {
-    if (!isInCrossfade || !clip) return { current: 1, next: 0 };
-    
-    // Use frame-based calculation for precision
-    const fadeProgress = (crossfadeFrames - framesUntilEnd) / crossfadeFrames;
-    
-    // Log for debugging
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('[VideoLayer] Transition:', {
-        currentFrame: currentFrameInClip,
-        totalFrames: totalFramesInClip,
-        framesUntilEnd,
-        fadeProgress,
-        opacity: { current: 1 - fadeProgress, next: fadeProgress },
-        currentStartFrame,
-        nextStartFrame,
-        clipSourceIn: currentSourceInMs,
-        nextClipSourceIn: nextSourceInMs,
-        isConsecutive: isConsecutiveSplit
-      });
-    }
-    
-    return {
-      current: Math.max(0, 1 - fadeProgress),
-      next: Math.min(1, fadeProgress)
-    };
-  }, [isInCrossfade, clip, framesUntilEnd, crossfadeFrames, currentFrameInClip, totalFramesInClip, currentStartFrame, nextStartFrame, currentSourceInMs, nextSourceInMs, isConsecutiveSplit])
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
@@ -263,7 +205,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           }}
         />
       )}
-      {/* Video container with double buffering */}
+      {/* Video container with viewport clipping */}
       <div
         style={{
           position: 'absolute',
@@ -279,15 +221,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Current video buffer */}
+        {/* Single continuous video - always plays from frame 0 */}
+        {/* We use the current frame + sourceIn offset to show the right portion */}
         <div
           style={{
             position: 'absolute',
             width: '100%',
             height: '100%',
-            opacity: crossfadeOpacity.current,
-            transition: isInCrossfade ? 'opacity 0.067s linear' : 'none', // Smooth transition only during crossfade
-            zIndex: isInCrossfade ? 1 : 2, // Current video on top except during crossfade
+            // No transform needed - video plays naturally
           }}
         >
           <Video
@@ -296,39 +237,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             volume={1}
             muted={false}
             playbackRate={clip?.playbackRate || 1}
-            startFrom={currentStartFrame}
+            // CRITICAL: Always start from 0 + current frame position
+            // This keeps the decoder running continuously
+            startFrom={currentSourceInFrames + frame}
             onError={(e) => {
-              console.error('Video playback error in current buffer:', e)
+              console.error('Video playback error:', e)
             }}
           />
         </div>
-        
-        {/* Next video buffer - preload early but only show during crossfade */}
-        {shouldPreloadNext && nextClip && (
-          <div
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              opacity: crossfadeOpacity.next,
-              visibility: isInCrossfade ? 'visible' : 'hidden', // Hidden until crossfade starts
-              transition: isInCrossfade ? 'opacity 0.067s linear' : 'none',
-              zIndex: isInCrossfade ? 2 : 1, // Next video on top during crossfade
-            }}
-          >
-            <Video
-              src={videoUrl}
-              style={videoStyle}
-              volume={1}
-              muted={false}
-              playbackRate={nextClip.playbackRate || 1}
-              startFrom={nextStartFrame}
-              onError={(e) => {
-                console.error('Video playback error in next buffer:', e)
-              }}
-            />
-          </div>
-        )}
       </div>
     </AbsoluteFill>
   );
