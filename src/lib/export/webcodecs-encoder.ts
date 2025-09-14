@@ -44,11 +44,11 @@ export class WebCodecsEncoder {
   private maxCacheSize = 50 // Reduced to save memory
   
   private pendingEnqueues = 0
-  private maxPendingEnqueues = 30 // Balanced for stability
+  private maxPendingEnqueues = 20 // Start conservative
   private adaptiveQueueDepth = true // Dynamic queue depth adjustment
   private lastQueueCheck = 0
   private queueStallCount = 0
-  private maxStallCount = 10 // Detect deadlock after 10 stalls
+  private maxStallCount = 5 // Detect issues faster
 
   /**
    * Check if WebCodecs is supported
@@ -419,12 +419,12 @@ export class WebCodecsEncoder {
         if (now - this.lastQueueCheck > 100 && queueSize === this.pendingEnqueues) {
           this.queueStallCount++
           if (this.queueStallCount > this.maxStallCount) {
-            logger.error(`Encoder queue stalled at ${queueSize} for ${this.queueStallCount} checks - possible deadlock`)
-            // Force flush to recover
-            await this.encoder.flush()
+            logger.warn(`Encoder queue stalled at ${queueSize} for ${this.queueStallCount} checks - forcing drain`)
+            // Don't flush - that would lose frames. Just wait for queue to drain
             this.queueStallCount = 0
-            this.pendingEnqueues = 0
-            return
+            // Reduce max queue depth to prevent future stalls
+            this.maxPendingEnqueues = Math.max(10, Math.floor(this.maxPendingEnqueues * 0.8))
+            logger.info(`Reduced max encoder queue depth to ${this.maxPendingEnqueues}`)
           }
         } else {
           this.queueStallCount = 0
