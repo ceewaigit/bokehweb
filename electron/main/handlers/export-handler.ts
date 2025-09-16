@@ -30,7 +30,7 @@ function getQualitySettings(quality: string) {
     case 'ultra':
       return {
         jpegQuality: 95,
-        x264Preset: 'slow',
+        x264Preset: 'slow' as const,
         concurrency: Math.min(Math.max(cpuCount - 1, 1), 4),
         videoBitrate: '20M',
         offthreadVideoCacheSizeInBytes: Math.min(512 * 1024 * 1024, memoryGB * 64 * 1024 * 1024) // Up to 512MB
@@ -38,7 +38,7 @@ function getQualitySettings(quality: string) {
     case 'high':
       return {
         jpegQuality: 85,
-        x264Preset: 'medium',
+        x264Preset: 'medium' as const,
         concurrency: Math.min(Math.max(Math.floor(cpuCount / 2), 1), 3),
         videoBitrate: '10M',
         offthreadVideoCacheSizeInBytes: Math.min(256 * 1024 * 1024, memoryGB * 32 * 1024 * 1024) // Up to 256MB
@@ -46,7 +46,7 @@ function getQualitySettings(quality: string) {
     case 'medium':
       return {
         jpegQuality: 75,
-        x264Preset: 'faster',
+        x264Preset: 'faster' as const,
         concurrency: Math.min(Math.max(Math.floor(cpuCount / 3), 1), 2),
         videoBitrate: '5M',
         offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024 // 128MB
@@ -55,7 +55,7 @@ function getQualitySettings(quality: string) {
     default:
       return {
         jpegQuality: 60,
-        x264Preset: 'ultrafast',
+        x264Preset: 'ultrafast' as const,
         concurrency: 1,
         videoBitrate: '2M',
         offthreadVideoCacheSizeInBytes: 64 * 1024 * 1024 // 64MB
