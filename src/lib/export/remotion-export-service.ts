@@ -37,8 +37,12 @@ export class RemotionExportService {
         throw new Error('Export requires Electron environment');
       }
 
+      // Log what's available for debugging
+      console.log('Available electronAPI methods:', Object.keys(window.electronAPI));
+
       // Check if ipcRenderer is available
       if (!window.electronAPI.ipcRenderer) {
+        console.error('IPC renderer not found. Available methods:', Object.keys(window.electronAPI));
         throw new Error('IPC renderer not available. Export cannot proceed.');
       }
 
