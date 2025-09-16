@@ -1,5 +1,5 @@
 import React from 'react';
-import { OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { OffthreadVideo, Video, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
@@ -212,19 +212,34 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Single persistent video element with time remapping support */}
-        <OffthreadVideo
-          src={videoUrl}
-          style={videoStyle}
-          volume={1}
-          muted={false}
-          playbackRate={1}
-          startFrom={0}
-          pauseWhenBuffering={false}
-          onError={(e) => {
-            console.error('Video playback error:', e)
-          }}
-        />
+        {/* Use simpler Video component during rendering for memory efficiency */}
+        {getRemotionEnvironment().isRendering ? (
+          <Video
+            src={videoUrl}
+            style={videoStyle}
+            volume={1}
+            muted={false}
+            playbackRate={1}
+            startFrom={0}
+            pauseWhenBuffering={false}
+            onError={(e) => {
+              console.error('Video playback error during render:', e)
+            }}
+          />
+        ) : (
+          <OffthreadVideo
+            src={videoUrl}
+            style={videoStyle}
+            volume={1}
+            muted={false}
+            playbackRate={1}
+            startFrom={0}
+            pauseWhenBuffering={false}
+            onError={(e) => {
+              console.error('Video playback error:', e)
+            }}
+          />
+        )}
       </div>
     </AbsoluteFill>
   );

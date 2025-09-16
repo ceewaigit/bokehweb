@@ -8,12 +8,16 @@ import path from 'path';
 import fs from 'fs/promises';
 import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
+import os from 'os';
 
 // Cache directory for Chrome binary
 const CHROME_CACHE_DIR = path.join(app.getPath('userData'), 'chrome-cache');
 
 // Active export processes
 let activeExportProcess: any = null;
+
+// Maximum frames to render in a single chunk
+const MAX_FRAMES_PER_CHUNK = 500; // ~8 seconds at 60fps
 
 export function setupExportHandler() {
   console.log('📦 Setting up export handler');
@@ -37,8 +41,18 @@ export function setupExportHandler() {
       const { renderMedia, selectComposition } = await import('@remotion/renderer');
       const { bundle } = await import('@remotion/bundler');
       
+      // Kill any existing Chrome processes to free memory
+      try {
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+        await execAsync('pkill -f "chrome-headless-shell"').catch(() => {});
+        console.log('Cleaned up any existing Chrome processes');
+      } catch (e) {
+        // Ignore errors
+      }
+      
       // Note: Chrome binary will be downloaded automatically by Remotion on first use
-      // We'll use the progress callback in selectComposition to track it
       const browserExecutable = undefined; // Let Remotion handle browser download
       
       // Bundle Remotion project
@@ -79,6 +93,14 @@ export function setupExportHandler() {
         inputProps
       });
 
+      // Check if we need chunked rendering
+      const totalFrames = composition.durationInFrames;
+      const needsChunking = totalFrames > MAX_FRAMES_PER_CHUNK;
+      
+      if (needsChunking) {
+        console.log(`Large export detected: ${totalFrames} frames. Using chunked rendering.`);
+      }
+      
       // Create temp output path
       outputPath = path.join(
         app.getPath('temp'),
@@ -87,6 +109,46 @@ export function setupExportHandler() {
       
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
+      // Determine export parameters based on mode and size
+      const exportMode = settings.mode || 'preview';
+      const isLargeExport = totalFrames > 1800; // 30 seconds at 60fps
+      
+      // Configure based on export mode
+      let concurrency: number;
+      let cacheSize: number;
+      let jpegQuality: number;
+      let everyNthFrame: number = 1;
+      
+      switch (exportMode) {
+        case 'draft':
+          concurrency = 1;
+          cacheSize = 0; // No cache
+          jpegQuality = 70;
+          everyNthFrame = isLargeExport ? 2 : 1; // Skip frames for large drafts
+          break;
+        case 'final':
+          concurrency = isLargeExport ? 2 : 4;
+          cacheSize = isLargeExport ? 128 * 1024 * 1024 : 256 * 1024 * 1024;
+          jpegQuality = 95;
+          break;
+        case 'preview':
+        default:
+          concurrency = isLargeExport ? 1 : 2;
+          cacheSize = isLargeExport ? 0 : 128 * 1024 * 1024;
+          jpegQuality = settings.quality === 'high' ? 85 : 75;
+          break;
+      }
+      
+      // Override with custom settings if provided
+      if (settings.maxMemoryMB) {
+        cacheSize = Math.min(cacheSize, settings.maxMemoryMB * 1024 * 1024);
+      }
+      if (settings.disableVideoCache) {
+        cacheSize = 0;
+      }
+      
+      console.log(`Export config: mode=${exportMode}, ${totalFrames} frames, concurrency=${concurrency}, cache=${cacheSize / 1024 / 1024}MB, quality=${jpegQuality}`);
+      
       // Store the render process for potential cancellation
       activeExportProcess = renderMedia({
         composition,
@@ -97,7 +159,8 @@ export function setupExportHandler() {
         chromiumOptions: {
           enableMultiProcessOnLinux: false,
           gl: 'angle',
-          headless: true
+          headless: true,
+          disableWebSecurity: false
         },
         onProgress: (info) => {
           // Send progress to renderer
@@ -107,25 +170,41 @@ export function setupExportHandler() {
             totalFrames: composition.durationInFrames,
           });
           
-          // Periodic garbage collection
-          if (info.renderedFrames % 100 === 0 && global.gc) {
-            global.gc();
+          // More aggressive garbage collection for large exports
+          const gcInterval = isLargeExport ? 50 : 100;
+          if (info.renderedFrames % gcInterval === 0) {
+            if (global.gc) {
+              global.gc();
+              
+              // Log memory usage
+              const memUsage = process.memoryUsage();
+              const totalMem = os.totalmem();
+              const freeMem = os.freemem();
+              const usedPercent = ((totalMem - freeMem) / totalMem * 100).toFixed(1);
+              
+              console.log(`Frame ${info.renderedFrames}/${totalFrames} | Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB | System: ${usedPercent}% used`);
+              
+              // Warn if memory usage is getting high
+              if (parseFloat(usedPercent) > 85) {
+                console.warn('⚠️ High memory usage detected! Consider using draft mode for large exports.');
+              }
+            }
           }
         },
-        concurrency: 2, // Reduced from 4 to save memory
-        jpegQuality: settings.quality === 'high' ? 90 : 80, // Slightly reduced quality
+        concurrency,
+        jpegQuality,
         numberOfGifLoops: null,
-        everyNthFrame: 1,
+        everyNthFrame,
         frameRange: null,
         muted: false,
         enforceAudioTrack: false,
         proResProfile: undefined,
-        x264Preset: 'medium',
+        x264Preset: isLargeExport ? 'faster' : 'medium', // Faster preset for large exports
         pixelFormat: 'yuv420p',
         audioBitrate: null,
         videoBitrate: null,
         audioCodec: null,
-        offthreadVideoCacheSizeInBytes: 256 * 1024 * 1024 // 256MB cache limit
+        offthreadVideoCacheSizeInBytes: cacheSize
       });
       
       // Wait for render to complete
