@@ -4,14 +4,19 @@
  */
 
 import { ipcMain } from 'electron';
-import { renderMedia, selectComposition } from '@remotion/renderer';
-import { bundle } from '@remotion/bundler';
 import path from 'path';
 import fs from 'fs/promises';
 
 export function setupExportHandler() {
+  console.log('📦 Setting up export handler');
+  
   ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings }) => {
+    console.log('📹 Export handler invoked with settings:', settings);
     try {
+      // Lazy load Remotion modules to avoid import issues
+      const { renderMedia, selectComposition } = await import('@remotion/renderer');
+      const { bundle } = await import('@remotion/bundler');
+      
       // Bundle Remotion project
       const entryPoint = path.join(process.cwd(), 'src/remotion/index.ts');
       const bundleLocation = await bundle({
