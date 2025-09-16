@@ -37,6 +37,11 @@ export class RemotionExportService {
         throw new Error('Export requires Electron environment');
       }
 
+      // Check if ipcRenderer is available
+      if (!window.electronAPI.ipcRenderer) {
+        throw new Error('IPC renderer not available. Export cannot proceed.');
+      }
+
       const totalDuration = this.calculateTotalDuration(segments);
       const fps = settings.framerate || 30;
       const totalFrames = Math.ceil((totalDuration / 1000) * fps);
