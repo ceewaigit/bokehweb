@@ -15,11 +15,10 @@ export function getAppURL(route: string = ''): string {
   console.log('🔍 process.argv:', process.argv)
 
   // Try to detect if we're in webpack dev mode by checking for common webpack indicators
-  // const isWebpackDev = process.env.npm_lifecycle_event === 'forge:start' || 
-  //                      process.env.ELECTRON_IS_DEV === 'true' ||
-  //                      process.argv.some(arg => arg.includes('forge') || arg.includes('webpack')) ||
-  //                      __dirname.includes('.webpack')
-  const isWebpackDev = true
+  const isWebpackDev = process.env.npm_lifecycle_event === 'forge:start' || 
+                       process.env.ELECTRON_IS_DEV === 'true' ||
+                       process.argv.some(arg => arg.includes('forge') || arg.includes('webpack')) ||
+                       __dirname.includes('.webpack')
 
   console.log('🔍 isWebpackDev:', isWebpackDev)
   console.log('🔍 __dirname:', __dirname)
@@ -27,10 +26,9 @@ export function getAppURL(route: string = ''): string {
   if (isWebpackDev) {
     // When running with forge:start, use the webpack dev server
     // The webpack renderer runs on port 3001 with the main_window endpoint
-    // Try to detect the actual Next.js port
-    const port = getDetectedPort() || getNextJsPort()
-    const webpackDevUrl = `http://localhost:${port}/main_window`
-    console.log('🔍 Using webpack dev server on port:', port, 'URL:', webpackDevUrl)
+    const webpackPort = 3001 // Webpack dev server port from forge.config.js
+    const webpackDevUrl = `http://localhost:${webpackPort}/main_window`
+    console.log('🔍 Using webpack dev server on port:', webpackPort, 'URL:', webpackDevUrl)
 
     if (route) {
       return `${webpackDevUrl}#${route}`
