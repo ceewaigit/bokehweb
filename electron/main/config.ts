@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
+import { getNextJsPort, getDetectedPort } from './port-detector'
 
 // export const isDev = process.env.NODE_ENV === 'development'
 export const isDev = true
@@ -26,8 +27,10 @@ export function getAppURL(route: string = ''): string {
   if (isWebpackDev) {
     // When running with forge:start, use the webpack dev server
     // The webpack renderer runs on port 3001 with the main_window endpoint
-    const webpackDevUrl = 'http://localhost:3000/main_window'
-    console.log('🔍 Using webpack dev server:', webpackDevUrl)
+    // Try to detect the actual Next.js port
+    const port = getDetectedPort() || getNextJsPort()
+    const webpackDevUrl = `http://localhost:${port}/main_window`
+    console.log('🔍 Using webpack dev server on port:', port, 'URL:', webpackDevUrl)
 
     if (route) {
       return `${webpackDevUrl}#${route}`
@@ -37,7 +40,8 @@ export function getAppURL(route: string = ''): string {
 
   if (isDev && !process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
     // Development mode with Next.js dev server
-    const devServerUrl = process.env.DEV_SERVER_URL || 'http://localhost:3000'
+    const port = getDetectedPort() || getNextJsPort()
+    const devServerUrl = process.env.DEV_SERVER_URL || `http://localhost:${port}`
     // Use hash routing for client-side navigation
     if (route) {
       return `${devServerUrl}#${route}`
