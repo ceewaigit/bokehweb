@@ -22,11 +22,15 @@ const nextConfig = {
       /Critical dependency: the request of a dependency is an expression/,
     ];
     
-    // Ignore Remotion server-side packages in browser build
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@remotion/bundler': false,
-      '@remotion/renderer': false
+    // Handle Node.js modules for Electron
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+      stream: false,
+      buffer: false,
+      util: false
     };
     
     return config;
