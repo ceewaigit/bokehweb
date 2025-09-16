@@ -11,6 +11,8 @@ import { pipeline } from 'stream/promises';
 import os from 'os';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
+import { machineProfiler, type DynamicExportSettings } from '../utils/machine-profiler';
+import { performance } from 'perf_hooks';
 
 const exec = promisify(execCallback);
 
@@ -19,6 +21,12 @@ const CHROME_CACHE_DIR = path.join(app.getPath('userData'), 'chrome-cache');
 
 // Active export processes
 let activeExportProcess: any = null;
+
+// Performance tracking
+let frameRenderTimes: number[] = [];
+let lastFrameTime = 0;
+let totalFramesRendered = 0;
+let currentDynamicSettings: DynamicExportSettings | null = null;
 
 // Dynamic quality settings based on user's quality preset
 function getQualitySettings(quality: string) {
@@ -80,40 +88,8 @@ function getOptimalChunkSize(framerate: number) {
   return chunkSeconds * framerate;
 }
 
-// Determine optimal GL renderer based on hardware
-function getOptimalGLRenderer(): 'angle' | 'swangle' {
-  const memoryGB = os.totalmem() / (1024 * 1024 * 1024);
-  const cpuCount = os.cpus().length;
-  
-  // Use GPU acceleration on capable machines
-  if (cpuCount >= 4 && memoryGB >= 8) {
-    return 'angle'; // GPU acceleration
-  }
-  return 'swangle'; // Software fallback for low-end machines
-}
-
-// Get optimal Chromium options for rendering
-function getChromiumOptions() {
-  const glRenderer = getOptimalGLRenderer();
-  const isGPUEnabled = glRenderer === 'angle';
-  
-  return {
-    enableMultiProcessOnLinux: true, // Enable multi-process
-    gl: glRenderer,
-    headless: true,
-    disableWebSecurity: false,
-    args: isGPUEnabled ? [
-      '--enable-gpu',
-      '--enable-accelerated-video-decode',
-      '--enable-accelerated-mjpeg-decode',
-      '--disable-gpu-sandbox',
-      '--enable-unsafe-webgpu',
-      '--use-gl=desktop', // Use desktop OpenGL
-      '--enable-features=VaapiVideoDecoder', // Linux hardware acceleration
-      '--ignore-gpu-blocklist' // Use GPU even if blocklisted
-    ] : []
-  };
-}
+// Legacy functions - no longer used but kept for reference
+// Now replaced by MachineProfiler dynamic optimization
 
 // Calculate chunks for large exports
 function calculateChunks(totalFrames: number, framesPerChunk: number) {
@@ -135,6 +111,46 @@ export function setupExportHandler() {
   
   ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings }) => {
     console.log('📹 Export handler invoked with settings:', settings);
+    
+    // Profile the machine first
+    const videoWidth = settings.resolution?.width || 1920;
+    const videoHeight = settings.resolution?.height || 1080;
+    
+    console.log('🔍 Profiling machine capabilities...');
+    const machineProfile = await machineProfiler.profileSystem(videoWidth, videoHeight);
+    console.log('Machine profile:', {
+      cpuCores: machineProfile.cpuCores,
+      memoryGB: machineProfile.totalMemoryGB.toFixed(1),
+      frameSpeed: machineProfile.frameProcessingSpeed.toFixed(1) + 'ms',
+      gpuAvailable: machineProfile.gpuAvailable,
+      thermalPressure: machineProfile.thermalPressure,
+      memoryPressure: machineProfile.memoryPressure
+    });
+    
+    // Get dynamic settings based on actual machine capabilities
+    const targetQuality = settings.quality === 'ultra' ? 'quality' : 
+                          settings.quality === 'low' ? 'fast' : 'balanced';
+    currentDynamicSettings = machineProfiler.getDynamicExportSettings(
+      machineProfile,
+      videoWidth,
+      videoHeight,
+      targetQuality
+    );
+    
+    console.log('Dynamic export settings:', {
+      concurrency: currentDynamicSettings.concurrency,
+      chunkSize: currentDynamicSettings.chunkSizeFrames,
+      jpegQuality: currentDynamicSettings.jpegQuality,
+      videoBitrate: currentDynamicSettings.videoBitrate,
+      x264Preset: currentDynamicSettings.x264Preset,
+      useGPU: currentDynamicSettings.useGPU,
+      cacheSize: (currentDynamicSettings.offthreadVideoCacheSizeInBytes / (1024 * 1024)).toFixed(0) + 'MB'
+    });
+    
+    // Reset performance tracking
+    frameRenderTimes = [];
+    lastFrameTime = performance.now();
+    totalFramesRendered = 0;
     
     // Force aggressive memory cleanup before export
     try {
@@ -207,7 +223,7 @@ export function setupExportHandler() {
 
       const totalFrames = composition.durationInFrames;
       
-      // Get dynamic chunk size based on system and framerate
+      // Get dynamic chunk size based on system and frame
       const framesPerChunk = getOptimalChunkSize(settings.framerate || 60);
       const isLargeExport = totalFrames > framesPerChunk;
       
@@ -254,7 +270,27 @@ export function setupExportHandler() {
           
           console.log(`Rendering chunk ${index + 1}/${chunks.length}: frames ${chunk.startFrame}-${chunk.endFrame}`);
           
-          // Render this chunk with minimal memory
+          // Get chromium options
+          const chromiumOptions = {
+            enableMultiProcessOnLinux: true,
+            gl: currentDynamicSettings!.useGPU ? 'angle' as const : 'swangle' as const,
+            headless: true,
+            disableWebSecurity: false,
+            args: currentDynamicSettings!.useGPU ? [
+              '--enable-gpu',
+              '--enable-accelerated-video-decode',
+              '--enable-accelerated-mjpeg-decode',
+              '--disable-gpu-sandbox',
+              '--enable-unsafe-webgpu',
+              '--use-gl=desktop',
+              '--enable-features=VaapiVideoDecoder',
+              '--ignore-gpu-blocklist'
+            ] : []
+          };
+          
+          const chunkStartTime = performance.now();
+          
+          // Render this chunk with adaptive settings
           await renderMedia({
             composition,
             serveUrl: bundleLocation,
@@ -262,8 +298,17 @@ export function setupExportHandler() {
             outputLocation: chunkPath,
             inputProps,
             frameRange: [chunk.startFrame, chunk.endFrame],
-            chromiumOptions: getChromiumOptions(),
+            chromiumOptions,
             onProgress: (info) => {
+              // Track frame render performance
+              if (info.renderedFrames > totalFramesRendered) {
+                const now = performance.now();
+                const frameTime = now - lastFrameTime;
+                frameRenderTimes.push(frameTime);
+                lastFrameTime = now;
+                totalFramesRendered = info.renderedFrames;
+              }
+              
               // Calculate overall progress
               const chunkProgress = info.progress;
               const overallProgress = ((index + chunkProgress) / chunks.length) * 85;
@@ -286,12 +331,41 @@ export function setupExportHandler() {
             offthreadVideoCacheSizeInBytes: qualitySettings.offthreadVideoCacheSizeInBytes
           });
           
+          const chunkTime = performance.now() - chunkStartTime;
+          console.log(`Chunk ${index + 1} completed in ${(chunkTime / 1000).toFixed(1)}s`);
+          
           chunkFiles.push(chunkPath);
+          
+          // Adaptive optimization between chunks
+          if (currentDynamicSettings?.enableAdaptiveOptimization && frameRenderTimes.length > 10) {
+            const memoryUsage = 1 - (os.freemem() / os.totalmem());
+            const adaptedSettings = await machineProfiler.adaptSettingsDuringExport(
+              currentDynamicSettings!,
+              frameRenderTimes,
+              memoryUsage
+            );
+            
+            if (adaptedSettings.concurrency !== currentDynamicSettings.concurrency ||
+                adaptedSettings.chunkSizeFrames !== currentDynamicSettings.chunkSizeFrames) {
+              console.log('Adapting export settings based on performance:', {
+                concurrency: `${currentDynamicSettings.concurrency} -> ${adaptedSettings.concurrency}`,
+                chunkSize: `${currentDynamicSettings.chunkSizeFrames} -> ${adaptedSettings.chunkSizeFrames}`
+              });
+              currentDynamicSettings = adaptedSettings;
+            }
+          }
           
           // Force garbage collection between chunks
           if (global.gc) {
             global.gc();
-            console.log(`Chunk ${index + 1} complete. Memory cleaned.`);
+            console.log(`Memory cleaned after chunk ${index + 1}`);
+          }
+          
+          // Pause between chunks if needed (thermal management)
+          if (currentDynamicSettings && currentDynamicSettings.pauseBetweenChunks > 0) {
+            const pauseTime = currentDynamicSettings.pauseBetweenChunks;
+            console.log(`Pausing ${pauseTime}ms for thermal management`);
+            await new Promise(resolve => setTimeout(resolve, pauseTime));
           }
         }
         
@@ -332,6 +406,24 @@ export function setupExportHandler() {
         // Small export - render in one go
         console.log(`Small export: ${totalFrames} frames, rendering in single pass`);
         
+        // Get chromium options
+        const chromiumOptions = {
+          enableMultiProcessOnLinux: true,
+          gl: currentDynamicSettings!.useGPU ? 'angle' as const : 'swangle' as const,
+          headless: true,
+          disableWebSecurity: false,
+          args: currentDynamicSettings!.useGPU ? [
+            '--enable-gpu',
+            '--enable-accelerated-video-decode',
+            '--enable-accelerated-mjpeg-decode',
+            '--disable-gpu-sandbox',
+            '--enable-unsafe-webgpu',
+            '--use-gl=desktop',
+            '--enable-features=VaapiVideoDecoder',
+            '--ignore-gpu-blocklist'
+          ] : []
+        };
+        
         // Store the render process for potential cancellation
         activeExportProcess = renderMedia({
         composition,
@@ -339,8 +431,17 @@ export function setupExportHandler() {
         codec: settings.format === 'webm' ? 'vp8' : 'h264',
         outputLocation: outputPath,
         inputProps,
-        chromiumOptions: getChromiumOptions(),
+        chromiumOptions,
         onProgress: (info) => {
+          // Track frame render performance
+          if (info.renderedFrames > totalFramesRendered) {
+            const now = performance.now();
+            const frameTime = now - lastFrameTime;
+            frameRenderTimes.push(frameTime);
+            lastFrameTime = now;
+            totalFramesRendered = info.renderedFrames;
+          }
+          
           // Send progress to renderer
           event.sender.send('export-progress', {
             progress: Math.min(95, 10 + (info.progress * 85)),
