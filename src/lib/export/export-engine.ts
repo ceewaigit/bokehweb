@@ -1,11 +1,10 @@
 /**
- * Export Engine - Unified high-performance video export
- * Uses WebCodecs with WebWorker pool and GPU acceleration
+ * Export Engine - Simplified with Remotion only
+ * No fallbacks, no complexity, just Remotion's battle-tested export
  */
 
 import type { ExportSettings, Project, Recording } from '@/types'
-import { ExportFormat } from '@/types'
-import { WebCodecsExportEngine } from './webcodecs-export-engine'
+import { RemotionExportService } from './remotion-export-service'
 import { metadataLoader } from './metadata-loader'
 import { timelineProcessor } from './timeline-processor'
 import { logger } from '../utils/logger'
@@ -20,17 +19,16 @@ export interface ExportProgress {
 }
 
 export class ExportEngine {
-  private webCodecsEngine: WebCodecsExportEngine
+  private remotionEngine: RemotionExportService
   private isExporting = false
   private abortController: AbortController | null = null
 
   constructor() {
-    this.webCodecsEngine = new WebCodecsExportEngine()
+    this.remotionEngine = new RemotionExportService()
   }
 
-
   /**
-   * Main export entry point - simplified routing
+   * Export project using Remotion
    */
   async exportProject(
     project: Project,
@@ -46,14 +44,15 @@ export class ExportEngine {
     const startTime = performance.now()
 
     try {
-      // Analyze project complexity
+      // Prepare recordings map
       const recordingsMap = new Map<string, Recording>()
       project.recordings.forEach(r => recordingsMap.set(r.id, r))
 
+      // Process timeline into segments
       const processedTimeline = timelineProcessor.processTimeline(
         project.timeline,
         recordingsMap,
-        5000  // 5 second segments for optimal performance
+        5000  // 5 second segments
       )
 
       if (processedTimeline.clipCount === 0) {
@@ -66,52 +65,34 @@ export class ExportEngine {
         message: `Preparing ${processedTimeline.clipCount} clips for export...`
       })
 
-      // Load all metadata in parallel
+      // Load metadata
       const metadataMap = await metadataLoader.loadAllMetadata(project.recordings)
 
-      // Check if it's a simple single clip without effects
-      const isSimpleExport = processedTimeline.clipCount === 1 && 
-                            !project.timeline.effects?.some(e => e.enabled)
+      logger.info(`Remotion export: ${processedTimeline.clipCount} clips`)
 
-      logger.info(`Export: clips=${processedTimeline.clipCount}, simple=${isSimpleExport}`)
-
-      // Always use WebCodecs for all exports
-      // Prefer WebCodecs; fallback to WEBM when MP4/MOV codec is unavailable
-      try {
-        return await this.webCodecsEngine.export(
-          processedTimeline.segments,
-          recordingsMap,
-          metadataMap,
-          settings,
-          onProgress,
-          this.abortController?.signal
-        )
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        const isMp4OrMov = settings.format === ExportFormat.MP4 || settings.format === ExportFormat.MOV
-        const shouldFallbackToWebM =
-          isMp4OrMov && /No supported codec found|WebCodecs not supported|configure|encoder|mvhd|muxer/i.test(errorMessage)
-
-        if (shouldFallbackToWebM) {
-          logger.warn(`WebCodecs H.264 not available; falling back to WebM. Reason: ${errorMessage}`)
-          onProgress?.({
-            progress: 1,
-            stage: 'preparing',
-            message: 'MP4/H.264 not supported in this environment. Falling back to WebM (VP9/VP8)...'
-          })
-          const fallbackSettings: ExportSettings = { ...settings, format: ExportFormat.WEBM }
-          return await this.webCodecsEngine.export(
-            processedTimeline.segments,
-            recordingsMap,
-            metadataMap,
-            fallbackSettings,
-            onProgress,
-            this.abortController?.signal
-          )
-        }
-
-        throw err
+      // Map progress from Remotion format
+      const progressAdapter = (remotionProgress: any) => {
+        onProgress?.({
+          progress: remotionProgress.progress,
+          stage: remotionProgress.stage === 'bundling' ? 'preparing' : 
+                 remotionProgress.stage === 'rendering' ? 'processing' :
+                 remotionProgress.stage === 'encoding' ? 'encoding' : 
+                 remotionProgress.stage,
+          message: remotionProgress.message,
+          currentFrame: remotionProgress.currentFrame,
+          totalFrames: remotionProgress.totalFrames
+        })
       }
+      
+      // Export using Remotion
+      return await this.remotionEngine.export(
+        processedTimeline.segments,
+        recordingsMap,
+        metadataMap,
+        settings,
+        progressAdapter,
+        this.abortController?.signal
+      )
     } catch (error) {
       onProgress?.({
         progress: 0,
@@ -122,28 +103,10 @@ export class ExportEngine {
     } finally {
       this.isExporting = false
       this.abortController = null
-      // Clean up resources on error
-      this.cleanupResources()
 
       const duration = (performance.now() - startTime) / 1000
       logger.info(`Export completed in ${duration.toFixed(2)}s`)
     }
-  }
-
-
-
-
-
-
-
-
-
-
-  /**
-   * Clean up resources properly
-   */
-  private cleanupResources(): void {
-    // Nothing to clean up - WebCodecs engine handles its own cleanup
   }
 
   /**
@@ -152,18 +115,14 @@ export class ExportEngine {
   cancelExport(): void {
     if (this.abortController) {
       this.abortController.abort()
-      this.isExporting = false
+      logger.info('Export cancelled by user')
     }
-
-    // Clean up all resources
-    this.cleanupResources()
   }
 
   /**
-   * Dispose of all resources
+   * Check if export is in progress
    */
-  dispose(): void {
-    this.cancelExport()
-    this.cleanupResources()
+  isExportInProgress(): boolean {
+    return this.isExporting
   }
 }
