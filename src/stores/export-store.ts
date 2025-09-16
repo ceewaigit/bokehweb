@@ -29,6 +29,7 @@ const defaultSettings: ExportSettings = {
   resolution: { width: 1920, height: 1080 },
   framerate: 60,
   outputPath: ''
+  // Memory settings are hardcoded in export-handler.ts for safety
 }
 
 export const useExportStore = create<ExportStore>((set, get) => {

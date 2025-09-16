@@ -85,4 +85,3 @@ export interface KeyframeData {
 
 // Export settings from separate file
 export type { ExportSettings } from './export'
-export { ExportMode } from './export'

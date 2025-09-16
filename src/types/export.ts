@@ -4,13 +4,6 @@
 
 import type { ExportFormat, QualityLevel } from './project'
 
-// Export performance mode for memory optimization
-export enum ExportMode {
-  Draft = 'draft',     // Fast, low memory, reduced quality
-  Preview = 'preview', // Balanced performance and quality
-  Final = 'final'      // Highest quality, more memory usage
-}
-
 export interface ExportSettings {
   format: ExportFormat
   quality: QualityLevel
@@ -20,9 +13,6 @@ export interface ExportSettings {
   }
   framerate: number
   outputPath?: string
-  
-  // Performance mode
-  mode?: ExportMode
   
   // Advanced settings
   bitrate?: number
@@ -35,13 +25,6 @@ export interface ExportSettings {
   includeKeystrokes?: boolean
   includeAnnotations?: boolean
   
-  // Performance settings
+  // Performance settings (kept minimal, hardcoded in handler)
   useHardwareAcceleration?: boolean
-  maxWorkers?: number
-  segmentDuration?: number
-  
-  // Memory optimization settings
-  maxMemoryMB?: number
-  disableVideoCache?: boolean
-  chunkSize?: number
 }

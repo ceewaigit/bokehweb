@@ -16,9 +16,6 @@ const CHROME_CACHE_DIR = path.join(app.getPath('userData'), 'chrome-cache');
 // Active export processes
 let activeExportProcess: any = null;
 
-// Maximum frames to render in a single chunk
-const MAX_FRAMES_PER_CHUNK = 500; // ~8 seconds at 60fps
-
 export function setupExportHandler() {
   console.log('📦 Setting up export handler');
   
@@ -28,9 +25,25 @@ export function setupExportHandler() {
   ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings }) => {
     console.log('📹 Export handler invoked with settings:', settings);
     
-    // Force garbage collection if available
+    // Force aggressive memory cleanup before export
+    try {
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+      
+      // Kill any lingering Chrome processes
+      await execAsync('pkill -9 -f "chrome-headless-shell"').catch(() => {});
+      await execAsync('pkill -9 -f "Chrome Helper"').catch(() => {});
+      console.log('Cleaned up Chrome processes');
+    } catch (e) {
+      // Ignore
+    }
+    
+    // Force garbage collection multiple times
     if (global.gc) {
       global.gc();
+      global.gc();
+      console.log('Forced garbage collection');
     }
     
     let bundleLocation: string | null = null;
@@ -41,19 +54,7 @@ export function setupExportHandler() {
       const { renderMedia, selectComposition } = await import('@remotion/renderer');
       const { bundle } = await import('@remotion/bundler');
       
-      // Kill any existing Chrome processes to free memory
-      try {
-        const { exec } = await import('child_process');
-        const { promisify } = await import('util');
-        const execAsync = promisify(exec);
-        await execAsync('pkill -f "chrome-headless-shell"').catch(() => {});
-        console.log('Cleaned up any existing Chrome processes');
-      } catch (e) {
-        // Ignore errors
-      }
-      
-      // Note: Chrome binary will be downloaded automatically by Remotion on first use
-      const browserExecutable = undefined; // Let Remotion handle browser download
+      // Chrome cleanup already done at the start of function
       
       // Bundle Remotion project
       const entryPoint = path.join(process.cwd(), 'src/remotion/index.ts');
@@ -93,13 +94,7 @@ export function setupExportHandler() {
         inputProps
       });
 
-      // Check if we need chunked rendering
       const totalFrames = composition.durationInFrames;
-      const needsChunking = totalFrames > MAX_FRAMES_PER_CHUNK;
-      
-      if (needsChunking) {
-        console.log(`Large export detected: ${totalFrames} frames. Using chunked rendering.`);
-      }
       
       // Create temp output path
       outputPath = path.join(
@@ -109,45 +104,12 @@ export function setupExportHandler() {
       
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-      // Determine export parameters based on mode and size
-      const exportMode = settings.mode || 'preview';
-      const isLargeExport = totalFrames > 1800; // 30 seconds at 60fps
+      // MINIMAL MEMORY SETTINGS (hardcoded for safety)
+      const concurrency = 1;
+      const jpegQuality = 70;
+      const isLargeExport = totalFrames > 600;
       
-      // Configure based on export mode
-      let concurrency: number;
-      let cacheSize: number;
-      let jpegQuality: number;
-      let everyNthFrame: number = 1;
-      
-      switch (exportMode) {
-        case 'draft':
-          concurrency = 1;
-          cacheSize = 0; // No cache
-          jpegQuality = 70;
-          everyNthFrame = isLargeExport ? 2 : 1; // Skip frames for large drafts
-          break;
-        case 'final':
-          concurrency = isLargeExport ? 2 : 4;
-          cacheSize = isLargeExport ? 128 * 1024 * 1024 : 256 * 1024 * 1024;
-          jpegQuality = 95;
-          break;
-        case 'preview':
-        default:
-          concurrency = isLargeExport ? 1 : 2;
-          cacheSize = isLargeExport ? 0 : 128 * 1024 * 1024;
-          jpegQuality = settings.quality === 'high' ? 85 : 75;
-          break;
-      }
-      
-      // Override with custom settings if provided
-      if (settings.maxMemoryMB) {
-        cacheSize = Math.min(cacheSize, settings.maxMemoryMB * 1024 * 1024);
-      }
-      if (settings.disableVideoCache) {
-        cacheSize = 0;
-      }
-      
-      console.log(`Export config: mode=${exportMode}, ${totalFrames} frames, concurrency=${concurrency}, cache=${cacheSize / 1024 / 1024}MB, quality=${jpegQuality}`);
+      console.log(`Export: ${totalFrames} frames, single-threaded, no cache`);
       
       // Store the render process for potential cancellation
       activeExportProcess = renderMedia({
@@ -158,7 +120,7 @@ export function setupExportHandler() {
         inputProps,
         chromiumOptions: {
           enableMultiProcessOnLinux: false,
-          gl: 'angle',
+          gl: 'swangle', // Software renderer to avoid GPU memory
           headless: true,
           disableWebSecurity: false
         },
@@ -170,8 +132,8 @@ export function setupExportHandler() {
             totalFrames: composition.durationInFrames,
           });
           
-          // More aggressive garbage collection for large exports
-          const gcInterval = isLargeExport ? 50 : 100;
+          // VERY aggressive garbage collection
+          const gcInterval = 25; // Every 25 frames
           if (info.renderedFrames % gcInterval === 0) {
             if (global.gc) {
               global.gc();
@@ -193,18 +155,13 @@ export function setupExportHandler() {
         },
         concurrency,
         jpegQuality,
-        numberOfGifLoops: null,
-        everyNthFrame,
-        frameRange: null,
-        muted: false,
-        enforceAudioTrack: false,
-        proResProfile: undefined,
+        everyNthFrame: 1,
         x264Preset: isLargeExport ? 'faster' : 'medium', // Faster preset for large exports
         pixelFormat: 'yuv420p',
         audioBitrate: null,
         videoBitrate: null,
         audioCodec: null,
-        offthreadVideoCacheSizeInBytes: cacheSize
+        offthreadVideoCacheSizeInBytes: 0 // FORCE ZERO CACHE
       });
       
       // Wait for render to complete
