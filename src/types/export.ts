@@ -25,6 +25,6 @@ export interface ExportSettings {
   includeKeystrokes?: boolean
   includeAnnotations?: boolean
   
-  // Performance settings (kept minimal, hardcoded in handler)
+  // Performance settings are dynamically calculated in export-handler.ts based on quality level and system resources
   useHardwareAcceleration?: boolean
 }

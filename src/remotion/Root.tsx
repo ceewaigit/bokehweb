@@ -12,21 +12,24 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={1920}
         height={1080}
-        calculateMetadata={({ props }) => {
+        calculateMetadata={({ props }: { props: any }) => {
           // Calculate duration from segments if available
-          if (props.segments && props.segments.length > 0) {
-            const firstSegment = props.segments[0];
-            const lastSegment = props.segments[props.segments.length - 1];
-            const totalDurationMs = lastSegment.endTime - firstSegment.startTime;
-            const fps = props.framerate || 30;
-            const durationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
+          if (props.segments && Array.isArray(props.segments) && props.segments.length > 0) {
+            const firstSegment = props.segments[0] as any;
+            const lastSegment = props.segments[props.segments.length - 1] as any;
             
-            return {
-              durationInFrames,
-              fps,
-              width: props.resolution?.width || 1920,
-              height: props.resolution?.height || 1080,
-            };
+            if (firstSegment?.startTime !== undefined && lastSegment?.endTime !== undefined) {
+              const totalDurationMs = lastSegment.endTime - firstSegment.startTime;
+              const fps = props.framerate || 30;
+              const durationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
+              
+              return {
+                durationInFrames,
+                fps,
+                width: props.resolution?.width || 1920,
+                height: props.resolution?.height || 1080,
+              };
+            }
           }
           
           // Fallback to defaults

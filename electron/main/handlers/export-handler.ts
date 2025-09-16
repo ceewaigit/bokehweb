@@ -30,35 +30,35 @@ function getQualitySettings(quality: string) {
     case 'ultra':
       return {
         jpegQuality: 95,
-        x264Preset: 'slow' as const,
-        concurrency: Math.min(Math.max(cpuCount - 1, 1), 4),
+        x264Preset: 'medium' as const,  // Balanced for quality
+        concurrency: Math.min(cpuCount - 2, 12),  // Use most cores, leave some for OS
         videoBitrate: '20M',
-        offthreadVideoCacheSizeInBytes: Math.min(512 * 1024 * 1024, memoryGB * 64 * 1024 * 1024) // Up to 512MB
+        offthreadVideoCacheSizeInBytes: Math.min(1024 * 1024 * 1024, memoryGB * 128 * 1024 * 1024) // Up to 1GB
       };
     case 'high':
       return {
         jpegQuality: 85,
-        x264Preset: 'medium' as const,
-        concurrency: Math.min(Math.max(Math.floor(cpuCount / 2), 1), 3),
+        x264Preset: 'faster' as const,  // Faster encoding for better performance
+        concurrency: Math.min(cpuCount - 2, 8),  // Use up to 8 cores
         videoBitrate: '10M',
-        offthreadVideoCacheSizeInBytes: Math.min(256 * 1024 * 1024, memoryGB * 32 * 1024 * 1024) // Up to 256MB
+        offthreadVideoCacheSizeInBytes: Math.min(512 * 1024 * 1024, memoryGB * 64 * 1024 * 1024) // Up to 512MB
       };
     case 'medium':
       return {
         jpegQuality: 75,
-        x264Preset: 'faster' as const,
-        concurrency: Math.min(Math.max(Math.floor(cpuCount / 3), 1), 2),
+        x264Preset: 'veryfast' as const,  // Prioritize speed
+        concurrency: Math.min(Math.max(Math.floor(cpuCount * 0.6), 2), 6),  // Use 60% of cores
         videoBitrate: '5M',
-        offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024 // 128MB
+        offthreadVideoCacheSizeInBytes: 256 * 1024 * 1024 // 256MB
       };
     case 'low':
     default:
       return {
         jpegQuality: 60,
         x264Preset: 'ultrafast' as const,
-        concurrency: 1,
+        concurrency: Math.min(Math.max(Math.floor(cpuCount * 0.4), 1), 4),  // Use 40% of cores
         videoBitrate: '2M',
-        offthreadVideoCacheSizeInBytes: 64 * 1024 * 1024 // 64MB
+        offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024 // 128MB
       };
   }
 }
@@ -78,6 +78,41 @@ function getOptimalChunkSize(framerate: number) {
   }
   
   return chunkSeconds * framerate;
+}
+
+// Determine optimal GL renderer based on hardware
+function getOptimalGLRenderer(): 'angle' | 'swangle' {
+  const memoryGB = os.totalmem() / (1024 * 1024 * 1024);
+  const cpuCount = os.cpus().length;
+  
+  // Use GPU acceleration on capable machines
+  if (cpuCount >= 4 && memoryGB >= 8) {
+    return 'angle'; // GPU acceleration
+  }
+  return 'swangle'; // Software fallback for low-end machines
+}
+
+// Get optimal Chromium options for rendering
+function getChromiumOptions() {
+  const glRenderer = getOptimalGLRenderer();
+  const isGPUEnabled = glRenderer === 'angle';
+  
+  return {
+    enableMultiProcessOnLinux: true, // Enable multi-process
+    gl: glRenderer,
+    headless: true,
+    disableWebSecurity: false,
+    args: isGPUEnabled ? [
+      '--enable-gpu',
+      '--enable-accelerated-video-decode',
+      '--enable-accelerated-mjpeg-decode',
+      '--disable-gpu-sandbox',
+      '--enable-unsafe-webgpu',
+      '--use-gl=desktop', // Use desktop OpenGL
+      '--enable-features=VaapiVideoDecoder', // Linux hardware acceleration
+      '--ignore-gpu-blocklist' // Use GPU even if blocklisted
+    ] : []
+  };
 }
 
 // Calculate chunks for large exports
@@ -177,7 +212,18 @@ export function setupExportHandler() {
       const isLargeExport = totalFrames > framesPerChunk;
       
       // Get quality settings based on user's selected quality
-      const qualitySettings = getQualitySettings(settings.quality || 'high');
+      let qualitySettings = getQualitySettings(settings.quality || 'high');
+      
+      // Optimize for small exports (under 1000 frames / ~16 seconds at 60fps)
+      if (totalFrames < 1000) {
+        const cpuCount = os.cpus().length;
+        qualitySettings = {
+          ...qualitySettings,
+          concurrency: Math.min(cpuCount - 1, 12), // Use more cores for small exports
+          x264Preset: 'veryfast' as const, // Prioritize speed for small exports
+        };
+        console.log('Small export optimization: Using aggressive settings for faster processing');
+      }
       
       // Log system info for debugging
       console.log(`System: ${os.cpus().length} cores, ${(os.totalmem() / (1024 * 1024 * 1024)).toFixed(1)}GB RAM`);
@@ -216,12 +262,7 @@ export function setupExportHandler() {
             outputLocation: chunkPath,
             inputProps,
             frameRange: [chunk.startFrame, chunk.endFrame],
-            chromiumOptions: {
-              enableMultiProcessOnLinux: false,
-              gl: 'swangle',
-              headless: true,
-              disableWebSecurity: false
-            },
+            chromiumOptions: getChromiumOptions(),
             onProgress: (info) => {
               // Calculate overall progress
               const chunkProgress = info.progress;
@@ -298,12 +339,7 @@ export function setupExportHandler() {
         codec: settings.format === 'webm' ? 'vp8' : 'h264',
         outputLocation: outputPath,
         inputProps,
-        chromiumOptions: {
-          enableMultiProcessOnLinux: false,
-          gl: 'swangle', // Software renderer to avoid GPU memory
-          headless: true,
-          disableWebSecurity: false
-        },
+        chromiumOptions: getChromiumOptions(),
         onProgress: (info) => {
           // Send progress to renderer
           event.sender.send('export-progress', {
