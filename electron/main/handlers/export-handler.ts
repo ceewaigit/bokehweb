@@ -20,11 +20,68 @@ const CHROME_CACHE_DIR = path.join(app.getPath('userData'), 'chrome-cache');
 // Active export processes
 let activeExportProcess: any = null;
 
-// Frames per chunk (5 seconds at 60fps)
-const FRAMES_PER_CHUNK = 300;
+// Dynamic quality settings based on user's quality preset
+function getQualitySettings(quality: string) {
+  const cpuCount = os.cpus().length;
+  const memoryGB = os.totalmem() / (1024 * 1024 * 1024);
+  
+  // Map quality level to export parameters
+  switch(quality) {
+    case 'ultra':
+      return {
+        jpegQuality: 95,
+        x264Preset: 'slow',
+        concurrency: Math.min(Math.max(cpuCount - 1, 1), 4),
+        videoBitrate: '20M',
+        offthreadVideoCacheSizeInBytes: Math.min(512 * 1024 * 1024, memoryGB * 64 * 1024 * 1024) // Up to 512MB
+      };
+    case 'high':
+      return {
+        jpegQuality: 85,
+        x264Preset: 'medium',
+        concurrency: Math.min(Math.max(Math.floor(cpuCount / 2), 1), 3),
+        videoBitrate: '10M',
+        offthreadVideoCacheSizeInBytes: Math.min(256 * 1024 * 1024, memoryGB * 32 * 1024 * 1024) // Up to 256MB
+      };
+    case 'medium':
+      return {
+        jpegQuality: 75,
+        x264Preset: 'faster',
+        concurrency: Math.min(Math.max(Math.floor(cpuCount / 3), 1), 2),
+        videoBitrate: '5M',
+        offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024 // 128MB
+      };
+    case 'low':
+    default:
+      return {
+        jpegQuality: 60,
+        x264Preset: 'ultrafast',
+        concurrency: 1,
+        videoBitrate: '2M',
+        offthreadVideoCacheSizeInBytes: 64 * 1024 * 1024 // 64MB
+      };
+  }
+}
+
+// Calculate optimal chunk size based on system memory
+function getOptimalChunkSize(framerate: number) {
+  const memoryGB = os.totalmem() / (1024 * 1024 * 1024);
+  
+  // Determine chunk duration in seconds based on available memory
+  let chunkSeconds: number;
+  if (memoryGB < 8) {
+    chunkSeconds = 10; // Small chunks for low memory
+  } else if (memoryGB < 16) {
+    chunkSeconds = 20; // Medium chunks
+  } else {
+    chunkSeconds = 30; // Large chunks for high memory systems
+  }
+  
+  return chunkSeconds * framerate;
+}
 
 // Calculate chunks for large exports
-function calculateChunks(totalFrames: number, framesPerChunk: number = FRAMES_PER_CHUNK) {
+function calculateChunks(totalFrames: number, framesPerChunk: number) {
   const chunks = [];
   for (let start = 0; start < totalFrames; start += framesPerChunk) {
     chunks.push({
@@ -114,7 +171,18 @@ export function setupExportHandler() {
       });
 
       const totalFrames = composition.durationInFrames;
-      const isLargeExport = totalFrames > FRAMES_PER_CHUNK;
+      
+      // Get dynamic chunk size based on system and framerate
+      const framesPerChunk = getOptimalChunkSize(settings.framerate || 60);
+      const isLargeExport = totalFrames > framesPerChunk;
+      
+      // Get quality settings based on user's selected quality
+      const qualitySettings = getQualitySettings(settings.quality || 'high');
+      
+      // Log system info for debugging
+      console.log(`System: ${os.cpus().length} cores, ${(os.totalmem() / (1024 * 1024 * 1024)).toFixed(1)}GB RAM`);
+      console.log(`Export quality: ${settings.quality}, Chunk size: ${framesPerChunk} frames`);
+      console.log(`Quality settings:`, qualitySettings);
       
       // Create temp output path
       outputPath = path.join(
@@ -128,11 +196,11 @@ export function setupExportHandler() {
       if (isLargeExport) {
         console.log(`Large export detected: ${totalFrames} frames. Using chunked rendering.`);
         
-        const chunks = calculateChunks(totalFrames);
+        const chunks = calculateChunks(totalFrames, framesPerChunk);
         const chunkFiles: string[] = [];
         const tempDir = path.dirname(outputPath);
         
-        console.log(`Splitting into ${chunks.length} chunks of ${FRAMES_PER_CHUNK} frames each`);
+        console.log(`Splitting into ${chunks.length} chunks of ${framesPerChunk} frames each`);
         
         // Export each chunk
         for (const [index, chunk] of chunks.entries()) {
@@ -166,15 +234,15 @@ export function setupExportHandler() {
                 message: `Chunk ${index + 1}/${chunks.length}`
               });
             },
-            concurrency: 1,
-            jpegQuality: 70,
+            concurrency: qualitySettings.concurrency,
+            jpegQuality: qualitySettings.jpegQuality,
             everyNthFrame: 1,
-            x264Preset: 'faster',
+            x264Preset: qualitySettings.x264Preset,
             pixelFormat: 'yuv420p',
             audioBitrate: null,
-            videoBitrate: null,
+            videoBitrate: qualitySettings.videoBitrate,
             audioCodec: null,
-            offthreadVideoCacheSizeInBytes: 64 * 1024 * 1024 // 64MB cache for chunks
+            offthreadVideoCacheSizeInBytes: qualitySettings.offthreadVideoCacheSizeInBytes
           });
           
           chunkFiles.push(chunkPath);
@@ -245,15 +313,15 @@ export function setupExportHandler() {
           });
           
         },
-        concurrency: 1,
-        jpegQuality: 80, // Better quality for small exports
+        concurrency: qualitySettings.concurrency,
+        jpegQuality: qualitySettings.jpegQuality,
         everyNthFrame: 1,
-        x264Preset: 'medium',
+        x264Preset: qualitySettings.x264Preset,
         pixelFormat: 'yuv420p',
         audioBitrate: null,
-        videoBitrate: null,
+        videoBitrate: qualitySettings.videoBitrate,
         audioCodec: null,
-        offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024 // 128MB cache for small exports
+        offthreadVideoCacheSizeInBytes: qualitySettings.offthreadVideoCacheSizeInBytes
       });
       
       // Wait for render to complete

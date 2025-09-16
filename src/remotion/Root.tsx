@@ -8,10 +8,35 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="MainComposition"
         component={MainComposition as any}
-        durationInFrames={900} // 30 seconds at 30fps, will be dynamic
+        durationInFrames={900} // Default, will be overridden by calculateMetadata
         fps={30}
         width={1920}
         height={1080}
+        calculateMetadata={({ props }) => {
+          // Calculate duration from segments if available
+          if (props.segments && props.segments.length > 0) {
+            const firstSegment = props.segments[0];
+            const lastSegment = props.segments[props.segments.length - 1];
+            const totalDurationMs = lastSegment.endTime - firstSegment.startTime;
+            const fps = props.framerate || 30;
+            const durationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
+            
+            return {
+              durationInFrames,
+              fps,
+              width: props.resolution?.width || 1920,
+              height: props.resolution?.height || 1080,
+            };
+          }
+          
+          // Fallback to defaults
+          return {
+            durationInFrames: 900,
+            fps: props.framerate || 30,
+            width: props.resolution?.width || 1920,
+            height: props.resolution?.height || 1080,
+          };
+        }}
         defaultProps={{
           videoUrl: '',
           clip: null,
@@ -21,6 +46,9 @@ export const RemotionRoot: React.FC = () => {
           keystrokeEvents: [],
           videoWidth: 0, // Always overridden by actual recording
           videoHeight: 0, // Always overridden by actual recording
+          segments: [],
+          framerate: 30,
+          resolution: { width: 1920, height: 1080 }
         }}
       />
     </>
