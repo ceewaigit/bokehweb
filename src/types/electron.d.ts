@@ -75,6 +75,11 @@ export interface ElectronAPI {
 
   // IPC communication
   send: (channel: string, ...args: any[]) => void
+  ipcRenderer: {
+    on: (channel: string, listener: (event: any, ...args: any[]) => void) => void
+    removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => void
+    invoke: (channel: string, ...args: any[]) => Promise<any>
+  }
 
   // Platform-specific features
   getPlatform?: () => Promise<{ platform: string; arch: string; version: string }>

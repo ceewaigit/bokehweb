@@ -12,6 +12,7 @@ import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 import { setupNativeRecorder } from './handlers/native-recorder'
+import { setupExportHandler } from '../export-handler'
 
 // Register custom protocols before app ready
 // This ensures they're available when needed
@@ -65,6 +66,7 @@ function registerAllHandlers(): void {
   registerDialogHandlers()
   registerWindowControlHandlers()
   setupNativeRecorder()
+  setupExportHandler()
 }
 
 // Define global variables with proper types

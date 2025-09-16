@@ -262,6 +262,19 @@ const electronAPI = {
     stop: () => ipcRenderer.invoke('native-recorder:stop'),
     isRecording: () => ipcRenderer.invoke('native-recorder:is-recording'),
     readVideo: (filePath: string) => ipcRenderer.invoke('native-recorder:read-video', filePath)
+  },
+
+  // IPC Renderer for export
+  ipcRenderer: {
+    on: (channel: string, listener: (event: any, ...args: any[]) => void) => {
+      ipcRenderer.on(channel, listener)
+    },
+    removeListener: (channel: string, listener: (event: any, ...args: any[]) => void) => {
+      ipcRenderer.removeListener(channel, listener)
+    },
+    invoke: (channel: string, ...args: any[]) => {
+      return ipcRenderer.invoke(channel, ...args)
+    }
   }
 }
 
