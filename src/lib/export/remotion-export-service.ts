@@ -17,6 +17,7 @@ export interface RemotionExportProgress {
 
 export class RemotionExportService {
   private abortSignal: AbortSignal | null = null;
+  private isAborting: boolean = false;
 
   /**
    * Export video using Remotion via IPC
@@ -30,6 +31,18 @@ export class RemotionExportService {
     abortSignal?: AbortSignal
   ): Promise<Blob> {
     this.abortSignal = abortSignal || null;
+    this.isAborting = false;
+    
+    // Set up abort handler
+    if (this.abortSignal) {
+      this.abortSignal.addEventListener('abort', () => {
+        this.isAborting = true;
+        logger.info('Export aborted by user');
+        
+        // Cancel export in main process
+        window.electronAPI?.ipcRenderer.invoke('export-cancel').catch(() => {});
+      });
+    }
 
     try {
       // Check if we're in Electron
@@ -68,7 +81,7 @@ export class RemotionExportService {
 
       // Listen for progress updates
       const progressHandler = (_event: any, data: any) => {
-        if (this.abortSignal?.aborted) {
+        if (this.abortSignal?.aborted || this.isAborting) {
           window.electronAPI!.ipcRenderer.removeListener('export-progress', progressHandler);
           return;
         }
@@ -84,6 +97,12 @@ export class RemotionExportService {
 
       window.electronAPI!.ipcRenderer.on('export-progress', progressHandler);
 
+      // Check if already aborted
+      if (this.abortSignal?.aborted || this.isAborting) {
+        window.electronAPI!.ipcRenderer.removeListener('export-progress', progressHandler);
+        throw new Error('Export aborted');
+      }
+
       // Call main process to handle export
       const result = await window.electronAPI!.ipcRenderer.invoke('export-video', exportData);
 
@@ -94,16 +113,78 @@ export class RemotionExportService {
         throw new Error(result.error || 'Export failed');
       }
 
-      // Convert base64 back to Blob
-      const binaryString = atob(result.data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      let blob: Blob;
+      
+      if (result.isStream) {
+        // Handle streaming for large files
+        logger.info(`Streaming large file: ${result.fileSize} bytes`);
+        
+        const chunks: Uint8Array[] = [];
+        const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+        let offset = 0;
+        
+        while (offset < result.fileSize) {
+          // Check for abort
+          if (this.abortSignal?.aborted || this.isAborting) {
+            // Clean up temp file
+            await window.electronAPI!.ipcRenderer.invoke('export-cleanup', {
+              filePath: result.filePath
+            }).catch(() => {});
+            throw new Error('Export aborted during streaming');
+          }
+          
+          const length = Math.min(chunkSize, result.fileSize - offset);
+          
+          const chunkResult = await window.electronAPI!.ipcRenderer.invoke('export-stream-chunk', {
+            filePath: result.filePath,
+            offset,
+            length
+          });
+          
+          if (!chunkResult.success) {
+            throw new Error('Failed to stream file chunk');
+          }
+          
+          // Decode chunk
+          const binaryString = atob(chunkResult.data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          chunks.push(bytes);
+          
+          offset += length;
+          
+          // Update progress
+          const streamProgress = 95 + (offset / result.fileSize) * 5;
+          onProgress?.({
+            progress: streamProgress,
+            stage: 'encoding',
+            message: `Processing: ${Math.round(offset / 1024 / 1024)}MB / ${Math.round(result.fileSize / 1024 / 1024)}MB`
+          });
+        }
+        
+        // Combine chunks into blob
+        blob = new Blob(chunks as BlobPart[], {
+          type: settings.format === 'webm' ? 'video/webm' : 'video/mp4'
+        });
+        
+        // Clean up temp file
+        await window.electronAPI!.ipcRenderer.invoke('export-cleanup', {
+          filePath: result.filePath
+        });
+      } else {
+        // Small file - use base64 directly
+        const binaryString = atob(result.data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        blob = new Blob([bytes], {
+          type: settings.format === 'webm' ? 'video/webm' : 'video/mp4'
+        });
       }
-
-      const blob = new Blob([bytes], {
-        type: settings.format === 'webm' ? 'video/webm' : 'video/mp4'
-      });
 
       onProgress?.({
         progress: 100,
@@ -117,12 +198,22 @@ export class RemotionExportService {
 
     } catch (error) {
       logger.error('Remotion export failed:', error);
+      
+      // Check if it was an abort
+      const isAbort = this.isAborting || this.abortSignal?.aborted || 
+                      (error instanceof Error && error.message.includes('abort'));
+      
       onProgress?.({
         progress: 0,
         stage: 'error',
-        message: `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: isAbort ? 'Export canceled' : `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
+      
       throw error;
+    } finally {
+      // Clean up
+      this.abortSignal = null;
+      this.isAborting = false;
     }
   }
 

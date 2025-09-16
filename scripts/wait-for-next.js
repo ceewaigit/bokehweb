@@ -65,14 +65,15 @@ async function main() {
     // Set the port as an environment variable for Electron
     process.env.NEXT_PORT = port;
     
-    // Now start Electron
+    // Now start Electron with memory options
     console.log('🚀 Starting Electron with Next.js on port', port);
     const electron = spawn('electron', ['.'], {
       stdio: 'inherit',
       env: {
         ...process.env,
         NODE_ENV: 'development',
-        NEXT_PORT: port.toString()
+        NEXT_PORT: port.toString(),
+        NODE_OPTIONS: '--max-old-space-size=4096 --expose-gc'
       }
     });
     
