@@ -9,12 +9,31 @@ import fs from 'fs/promises';
 import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import os from 'os';
+import { exec as execCallback } from 'child_process';
+import { promisify } from 'util';
+
+const exec = promisify(execCallback);
 
 // Cache directory for Chrome binary
 const CHROME_CACHE_DIR = path.join(app.getPath('userData'), 'chrome-cache');
 
 // Active export processes
 let activeExportProcess: any = null;
+
+// Frames per chunk (5 seconds at 60fps)
+const FRAMES_PER_CHUNK = 300;
+
+// Calculate chunks for large exports
+function calculateChunks(totalFrames: number, framesPerChunk: number = FRAMES_PER_CHUNK) {
+  const chunks = [];
+  for (let start = 0; start < totalFrames; start += framesPerChunk) {
+    chunks.push({
+      startFrame: start,
+      endFrame: Math.min(start + framesPerChunk - 1, totalFrames - 1)
+    });
+  }
+  return chunks;
+}
 
 export function setupExportHandler() {
   console.log('📦 Setting up export handler');
@@ -95,6 +114,7 @@ export function setupExportHandler() {
       });
 
       const totalFrames = composition.durationInFrames;
+      const isLargeExport = totalFrames > FRAMES_PER_CHUNK;
       
       // Create temp output path
       outputPath = path.join(
@@ -103,16 +123,108 @@ export function setupExportHandler() {
       );
       
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
-
-      // MINIMAL MEMORY SETTINGS (hardcoded for safety)
-      const concurrency = 1;
-      const jpegQuality = 70;
-      const isLargeExport = totalFrames > 600;
       
-      console.log(`Export: ${totalFrames} frames, single-threaded, no cache`);
-      
-      // Store the render process for potential cancellation
-      activeExportProcess = renderMedia({
+      // Check if we need chunked export
+      if (isLargeExport) {
+        console.log(`Large export detected: ${totalFrames} frames. Using chunked rendering.`);
+        
+        const chunks = calculateChunks(totalFrames);
+        const chunkFiles: string[] = [];
+        const tempDir = path.dirname(outputPath);
+        
+        console.log(`Splitting into ${chunks.length} chunks of ${FRAMES_PER_CHUNK} frames each`);
+        
+        // Export each chunk
+        for (const [index, chunk] of chunks.entries()) {
+          const chunkPath = path.join(tempDir, `chunk-${index}.mp4`);
+          
+          console.log(`Rendering chunk ${index + 1}/${chunks.length}: frames ${chunk.startFrame}-${chunk.endFrame}`);
+          
+          // Render this chunk with minimal memory
+          await renderMedia({
+            composition,
+            serveUrl: bundleLocation,
+            codec: settings.format === 'webm' ? 'vp8' : 'h264',
+            outputLocation: chunkPath,
+            inputProps,
+            frameRange: [chunk.startFrame, chunk.endFrame],
+            chromiumOptions: {
+              enableMultiProcessOnLinux: false,
+              gl: 'swangle',
+              headless: true,
+              disableWebSecurity: false
+            },
+            onProgress: (info) => {
+              // Calculate overall progress
+              const chunkProgress = info.progress;
+              const overallProgress = ((index + chunkProgress) / chunks.length) * 85;
+              
+              event.sender.send('export-progress', {
+                progress: Math.min(85, 10 + overallProgress),
+                currentFrame: chunk.startFrame + info.renderedFrames,
+                totalFrames: totalFrames,
+                message: `Chunk ${index + 1}/${chunks.length}`
+              });
+            },
+            concurrency: 1,
+            jpegQuality: 70,
+            everyNthFrame: 1,
+            x264Preset: 'faster',
+            pixelFormat: 'yuv420p',
+            audioBitrate: null,
+            videoBitrate: null,
+            audioCodec: null,
+            offthreadVideoCacheSizeInBytes: 0
+          });
+          
+          chunkFiles.push(chunkPath);
+          
+          // Force garbage collection between chunks
+          if (global.gc) {
+            global.gc();
+            console.log(`Chunk ${index + 1} complete. Memory cleaned.`);
+          }
+        }
+        
+        // Concatenate all chunks
+        console.log('Concatenating chunks...');
+        event.sender.send('export-progress', {
+          progress: 90,
+          currentFrame: totalFrames,
+          totalFrames: totalFrames,
+          message: 'Combining video segments...'
+        });
+        
+        // Create concat list file
+        const concatListPath = path.join(tempDir, 'concat.txt');
+        const concatContent = chunkFiles.map(f => `file '${f}'`).join('\n');
+        await fs.writeFile(concatListPath, concatContent);
+        
+        // Use FFmpeg to concatenate
+        try {
+          await exec(`ffmpeg -f concat -safe 0 -i "${concatListPath}" -c copy "${outputPath}"`);
+        } catch (error) {
+          console.error('FFmpeg concat failed:', error);
+          // Fallback: use first chunk if concat fails
+          if (chunkFiles.length > 0) {
+            await fs.copyFile(chunkFiles[0], outputPath);
+          }
+        }
+        
+        // Clean up chunk files
+        for (const chunkFile of chunkFiles) {
+          await fs.unlink(chunkFile).catch(() => {});
+        }
+        await fs.unlink(concatListPath).catch(() => {});
+        
+        console.log('Chunked export complete!');
+        
+      } else {
+        // Small export - render in one go
+        console.log(`Small export: ${totalFrames} frames, rendering in single pass`);
+        
+        // Store the render process for potential cancellation
+        activeExportProcess = renderMedia({
         composition,
         serveUrl: bundleLocation,
         codec: settings.format === 'webm' ? 'vp8' : 'h264',
@@ -132,41 +244,22 @@ export function setupExportHandler() {
             totalFrames: composition.durationInFrames,
           });
           
-          // VERY aggressive garbage collection
-          const gcInterval = 25; // Every 25 frames
-          if (info.renderedFrames % gcInterval === 0) {
-            if (global.gc) {
-              global.gc();
-              
-              // Log memory usage
-              const memUsage = process.memoryUsage();
-              const totalMem = os.totalmem();
-              const freeMem = os.freemem();
-              const usedPercent = ((totalMem - freeMem) / totalMem * 100).toFixed(1);
-              
-              console.log(`Frame ${info.renderedFrames}/${totalFrames} | Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB | System: ${usedPercent}% used`);
-              
-              // Warn if memory usage is getting high
-              if (parseFloat(usedPercent) > 85) {
-                console.warn('⚠️ High memory usage detected! Consider using draft mode for large exports.');
-              }
-            }
-          }
         },
-        concurrency,
-        jpegQuality,
+        concurrency: 1,
+        jpegQuality: 80, // Better quality for small exports
         everyNthFrame: 1,
-        x264Preset: isLargeExport ? 'faster' : 'medium', // Faster preset for large exports
+        x264Preset: 'medium',
         pixelFormat: 'yuv420p',
         audioBitrate: null,
         videoBitrate: null,
         audioCodec: null,
-        offthreadVideoCacheSizeInBytes: 0 // FORCE ZERO CACHE
+        offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024 // 128MB cache for small exports
       });
       
       // Wait for render to complete
       await activeExportProcess;
       activeExportProcess = null;
+      }  // Close the else block
 
       // Stream file instead of loading into memory
       const stats = await fs.stat(outputPath);
