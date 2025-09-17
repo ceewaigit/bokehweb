@@ -60,7 +60,16 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
         
         // Fallback: try to generate URL from recording's filePath
         if (recording.filePath) {
-          videoUrl = createVideoStreamUrl(recording.filePath);
+          // Check if we're in a browser context (export) or Electron (preview)
+          // In export, we need file:// URLs, in preview we use video-stream://
+          if (typeof window !== 'undefined' && !window.electronAPI) {
+            // We're in Remotion's render context, use file:// URL
+            const url = new URL('file://' + recording.filePath);
+            videoUrl = url.toString();
+          } else {
+            // We're in Electron preview, use video-stream://
+            videoUrl = createVideoStreamUrl(recording.filePath);
+          }
           console.log(`Generated fallback URL for ${recording.id}:`, videoUrl);
         } else {
           console.error(`Recording ${recording.id} has no filePath and no video URL`);

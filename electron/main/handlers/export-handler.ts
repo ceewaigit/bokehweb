@@ -13,7 +13,7 @@ import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import { machineProfiler, type DynamicExportSettings } from '../utils/machine-profiler';
 import { performance } from 'perf_hooks';
-import { createVideoStreamUrl } from '../../utils/video-url-utils';
+import { pathToFileURL } from 'url';
 
 const exec = promisify(execCallback);
 
@@ -211,12 +211,15 @@ export function setupExportHandler() {
       const recordingsObj = Object.fromEntries(recordings);
       const videoUrls: Record<string, string> = {};
       
-      // Generate video-stream URLs for each recording
+      // Generate file:// URLs for each recording
+      // We use file:// for export because Remotion's Chrome instance doesn't have our custom protocol
       for (const [recordingId, recording] of recordings) {
         if (recording.filePath) {
-          // Normalize the path and create video-stream URL
+          // Normalize the path and create file:// URL
           const normalizedPath = path.resolve(recording.filePath);
-          videoUrls[recordingId] = createVideoStreamUrl(normalizedPath);
+          // Use pathToFileURL to properly format file URLs with encoded spaces
+          const fileUrl = pathToFileURL(normalizedPath).toString();
+          videoUrls[recordingId] = fileUrl;
           console.log(`Generated video URL for ${recordingId}:`, videoUrls[recordingId]);
         }
       }
