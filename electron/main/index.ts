@@ -13,6 +13,7 @@ import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 import { setupNativeRecorder } from './handlers/native-recorder'
 import { setupExportHandler } from './handlers/export-handler'
+import { extractPathFromVideoStreamUrl } from '../utils/video-url-utils'
 
 // Register custom protocols before app ready
 // This ensures they're available when needed
@@ -47,17 +48,8 @@ function registerProtocol(): void {
   // Register video-stream protocol for local video files
   protocol.registerFileProtocol('video-stream', (request, callback) => {
     try {
-      // Remove protocol and handle URL encoding
-      let filePath = request.url.replace('video-stream://', '')
-      
-      // Decode any URL encoding (handles spaces as %20)
-      filePath = decodeURIComponent(filePath)
-      
-      // Remove any query parameters or fragments (like #t=0,152.1)
-      const queryIndex = filePath.indexOf('?')
-      const hashIndex = filePath.indexOf('#')
-      if (queryIndex > -1) filePath = filePath.substring(0, queryIndex)
-      if (hashIndex > -1) filePath = filePath.substring(0, hashIndex)
+      // Use the utility function to safely extract and decode the file path
+      const filePath = extractPathFromVideoStreamUrl(request.url)
       
       console.log('[Protocol] video-stream resolving:', filePath)
       

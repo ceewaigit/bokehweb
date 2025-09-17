@@ -13,6 +13,7 @@ import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import { machineProfiler, type DynamicExportSettings } from '../utils/machine-profiler';
 import { performance } from 'perf_hooks';
+import { createVideoStreamUrl } from '../../utils/video-url-utils';
 
 const exec = promisify(execCallback);
 
@@ -215,8 +216,7 @@ export function setupExportHandler() {
         if (recording.filePath) {
           // Normalize the path and create video-stream URL
           const normalizedPath = path.resolve(recording.filePath);
-          const encodedPath = encodeURIComponent(normalizedPath);
-          videoUrls[recordingId] = `video-stream://${encodedPath}`;
+          videoUrls[recordingId] = createVideoStreamUrl(normalizedPath);
           console.log(`Generated video URL for ${recordingId}:`, videoUrls[recordingId]);
         }
       }
@@ -230,10 +230,13 @@ export function setupExportHandler() {
         ...settings,
       };
 
-      // Select composition
+      // Select composition - use SegmentsComposition for multi-segment exports
+      const compositionId = segments && segments.length > 0 ? 'SegmentsComposition' : 'MainComposition';
+      console.log(`Using composition: ${compositionId}`);
+      
       const composition = await selectComposition({
         serveUrl: bundleLocation,
-        id: 'MainComposition',
+        id: compositionId,
         inputProps
       });
 

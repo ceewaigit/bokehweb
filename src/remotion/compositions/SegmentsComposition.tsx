@@ -3,6 +3,7 @@ import { Sequence, useVideoConfig } from 'remotion';
 import { MainComposition } from './MainComposition';
 import type { TimelineSegment } from '@/lib/export/timeline-processor';
 import type { Recording, Effect } from '@/types';
+import { createVideoStreamUrl } from '@/lib/utils/video-url-utils';
 
 export interface SegmentsCompositionProps {
   segments: TimelineSegment[];
@@ -59,8 +60,7 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
         
         // Fallback: try to generate URL from recording's filePath
         if (recording.filePath) {
-          const encodedPath = encodeURIComponent(recording.filePath);
-          videoUrl = `video-stream://${encodedPath}`;
+          videoUrl = createVideoStreamUrl(recording.filePath);
           console.log(`Generated fallback URL for ${recording.id}:`, videoUrl);
         } else {
           console.error(`Recording ${recording.id} has no filePath and no video URL`);
