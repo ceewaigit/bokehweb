@@ -33,9 +33,9 @@ export function safeEncodeVideoPath(filePath: string): string {
     rawPath = filePath;
   }
   
-  // For video-stream protocol, we don't need to encode the path
-  // The protocol handler expects a plain file path
-  return rawPath;
+  // For video-stream protocol, we only encode spaces as %20
+  // This ensures the URL is valid while keeping the path readable
+  return rawPath.replace(/ /g, '%20');
 }
 
 /**
@@ -93,6 +93,7 @@ export function extractPathFromVideoStreamUrl(url: string): string {
   if (queryIndex > -1) path = path.substring(0, queryIndex);
   if (hashIndex > -1) path = path.substring(0, hashIndex);
   
-  // Safely decode the path
-  return safeDecodeVideoPath(path);
+  // Decode %20 back to spaces
+  // We only need to decode spaces since that's all we encode
+  return path.replace(/%20/g, ' ');
 }
