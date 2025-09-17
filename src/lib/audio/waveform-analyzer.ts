@@ -151,6 +151,9 @@ export class WaveformAnalyzer {
    * Get waveform peaks for rendering at a specific width
    */
   static resamplePeaks(peaks: number[], targetWidth: number, barWidth: number = 2, barGap: number = 2): number[] {
+    // Handle undefined or null peaks
+    if (!peaks || !Array.isArray(peaks)) return []
+    
     const barCount = Math.floor(targetWidth / (barWidth + barGap))
     const resampled: number[] = []
     

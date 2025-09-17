@@ -390,7 +390,9 @@ export class BlobURLManager {
       logger.debug(`Video path resolved: ${recordingId} at ${fullPath}`)
       
       // Use video-stream:// protocol to bypass CORS restrictions
-      const videoUrl = `video-stream://${encodeURIComponent(fullPath)}`
+      // Only encode the path to handle spaces and special characters
+      const encodedPath = encodeURI(fullPath)
+      const videoUrl = `video-stream://${encodedPath}`
       
       // Cache the URL for future use
       RecordingStorage.setBlobUrl(recordingId, videoUrl)

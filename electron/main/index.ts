@@ -46,11 +46,22 @@ function registerProtocol(): void {
 
   // Register video-stream protocol for local video files
   protocol.registerFileProtocol('video-stream', (request, callback) => {
-    const url = request.url.replace('video-stream://', '')
-    const decodedUrl = decodeURIComponent(url)
     try {
-      callback({ path: decodedUrl })
+      // Remove protocol and handle URL encoding
+      let filePath = request.url.replace('video-stream://', '')
+      
+      // Decode any URL encoding (handles spaces as %20)
+      filePath = decodeURIComponent(filePath)
+      
+      // Remove any query parameters or fragments
+      const queryIndex = filePath.indexOf('?')
+      const hashIndex = filePath.indexOf('#')
+      if (queryIndex > -1) filePath = filePath.substring(0, queryIndex)
+      if (hashIndex > -1) filePath = filePath.substring(0, hashIndex)
+      
+      callback({ path: filePath })
     } catch (error) {
+      console.error('[Protocol] Error handling video-stream URL:', error)
       callback({ error: -6 }) // net::ERR_FILE_NOT_FOUND
     }
   })
