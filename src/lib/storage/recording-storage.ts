@@ -367,10 +367,10 @@ export class RecordingStorage {
   }
 
   /**
-   * Save recording with project - supports both Blob and file path
+   * Save recording with project - uses file path from streaming
    */
   static async saveRecordingWithProject(
-    videoSource: Blob | string,  // Can be Blob or file path
+    videoPath: string,  // File path from streaming
     metadata: any[],
     projectName?: string,
     captureArea?: CaptureArea,
@@ -388,77 +388,26 @@ export class RecordingStorage {
       const recordingId = `recording-${Date.now()}`
       const projectFolder = `${recordingsDir}/${this.sanitizeName(baseName)}`
 
-      // Handle video file - either move from temp or save from blob
-      let videoFilePath: string
-      let isQuickTime = false
+      // Move video file from temp to project folder
+      if (!window.electronAPI?.moveFile) {
+        throw new Error('moveFile API not available')
+      }
       
-      if (typeof videoSource === 'string') {
-        // videoSource is a file path - move from temp to project folder
-        const ext = videoSource.toLowerCase().endsWith('.mov') ? 'mov' : 
-                    videoSource.toLowerCase().endsWith('.mp4') ? 'mp4' : 'webm'
-        isQuickTime = ext === 'mov'
-        const videoFileName = `${recordingId}.${ext}`
-        videoFilePath = `${projectFolder}/${videoFileName}`
-        
-        if (window.electronAPI?.moveFile) {
-          const moveResult = await window.electronAPI.moveFile(videoSource, videoFilePath)
-          if (!moveResult?.success) {
-            throw new Error('Failed to move video file')
-          }
-        } else {
-          throw new Error('moveFile API not available')
-        }
-      } else {
-        // Legacy: videoSource is a Blob - save to file
-        isQuickTime = !!videoSource.type && (videoSource.type.includes('quicktime') || videoSource.type.includes('mov'))
-        const videoFileName = `${recordingId}.${isQuickTime ? 'mov' : 'webm'}`
-        videoFilePath = `${projectFolder}/${videoFileName}`
-        const buffer = await videoSource.arrayBuffer()
-        await window.electronAPI.saveRecording(videoFilePath, buffer)
+      const ext = videoPath.toLowerCase().endsWith('.mov') ? 'mov' : 
+                  videoPath.toLowerCase().endsWith('.mp4') ? 'mp4' : 'webm'
+      const isQuickTime = ext === 'mov'
+      const videoFileName = `${recordingId}.${ext}`
+      const videoFilePath = `${projectFolder}/${videoFileName}`
+      
+      const moveResult = await window.electronAPI.moveFile(videoPath, videoFilePath)
+      if (!moveResult?.success) {
+        throw new Error('Failed to move video file')
       }
 
-      // Get video metadata with robust fallback
+      // Get video metadata from the metadata array or fallbacks
       let duration = 0
       let width = 0
       let height = 0
-
-      // Only try to read video metadata if we have a blob (not for file paths)
-      if (typeof videoSource !== 'string') {
-        const videoUrl = URL.createObjectURL(videoSource)
-        const video = document.createElement('video')
-        video.src = videoUrl
-
-        const loaded = await new Promise<boolean>((resolve) => {
-          let settled = false
-          const done = (ok: boolean) => { if (!settled) { settled = true; resolve(ok) } }
-          video.onloadedmetadata = () => done(true)
-          video.onerror = () => done(false)
-          setTimeout(() => done(false), 3000)
-        })
-
-        if (loaded) {
-          await new Promise<void>((resolve) => {
-            if (!isFinite(video.duration)) {
-              video.currentTime = Number.MAX_SAFE_INTEGER
-              video.onseeked = () => {
-                video.onseeked = null
-                video.currentTime = 0
-                resolve()
-              }
-            } else {
-              resolve()
-            }
-          })
-
-          if (isFinite(video.duration) && video.duration > 0) {
-            duration = video.duration * 1000
-            width = video.videoWidth
-            height = video.videoHeight
-          }
-        }
-
-        URL.revokeObjectURL(videoUrl)
-      }
 
       // Fallbacks if metadata could not be read (e.g., QuickTime in Chromium)
       if (duration <= 0) {

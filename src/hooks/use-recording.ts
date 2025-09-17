@@ -182,12 +182,10 @@ export function useRecording() {
         const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
 
         // Save recording with project using consolidated function
-        // Pass either the video blob or the video path
-        const videoSource = result.videoPath || result.video
-        if (!videoSource) {
-          throw new Error('No video source available from recording')
+        if (!result.videoPath) {
+          throw new Error('No video path available from recording')
         }
-        const saved = await RecordingStorage.saveRecordingWithProject(videoSource, result.metadata, projectName, result.captureArea, result.hasAudio, result.duration)
+        const saved = await RecordingStorage.saveRecordingWithProject(result.videoPath, result.metadata, projectName, result.captureArea, result.hasAudio, result.duration)
 
         if (saved) {
           logger.info(`Recording saved: video=${saved.videoPath}, project=${saved.projectPath}`)
