@@ -6,6 +6,7 @@
 import { logger } from '@/lib/utils/logger'
 import { MemoryError } from '@/lib/core/errors'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { createVideoStreamUrl } from '@/lib/utils/video-url-utils'
 
 interface BlobEntry {
   url: string
@@ -390,9 +391,8 @@ export class BlobURLManager {
       logger.debug(`Video path resolved: ${recordingId} at ${fullPath}`)
       
       // Use video-stream:// protocol to bypass CORS restrictions
-      // Only encode the path to handle spaces and special characters
-      const encodedPath = encodeURI(fullPath)
-      const videoUrl = `video-stream://${encodedPath}`
+      // Use safe encoding utility to prevent double-encoding
+      const videoUrl = createVideoStreamUrl(fullPath)
       
       // Cache the URL for future use
       RecordingStorage.setBlobUrl(recordingId, videoUrl)
