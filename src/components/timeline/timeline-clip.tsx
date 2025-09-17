@@ -178,7 +178,10 @@ export const TimelineClip = React.memo(({
         // Create video element
         const video = document.createElement('video')
         video.src = blobUrl
-        video.crossOrigin = 'anonymous'
+        // Don't set crossOrigin for video-stream:// URLs
+        if (!blobUrl.startsWith('video-stream://')) {
+          video.crossOrigin = 'anonymous'
+        }
         video.muted = true
 
         // Wait for metadata

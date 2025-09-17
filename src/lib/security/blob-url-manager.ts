@@ -389,14 +389,14 @@ export class BlobURLManager {
 
       logger.debug(`Video path resolved: ${recordingId} at ${fullPath}`)
       
-      // Return file:// URL directly - no blob creation for videos anymore
-      const fileUrl = `file://${fullPath}`
+      // Use video-stream:// protocol to bypass CORS restrictions
+      const videoUrl = `video-stream://${encodeURIComponent(fullPath)}`
       
-      // Cache the file URL for future use
-      RecordingStorage.setBlobUrl(recordingId, fileUrl)
+      // Cache the URL for future use
+      RecordingStorage.setBlobUrl(recordingId, videoUrl)
 
       logger.info(`Video ready for streaming: ${recordingId}`)
-      return fileUrl
+      return videoUrl
     } catch (error) {
       logger.error(`Error resolving video path ${recordingId}:`, error)
       return null

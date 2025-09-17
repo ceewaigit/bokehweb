@@ -28,6 +28,15 @@ export class WaveformAnalyzer {
     }
     
     try {
+      // Skip waveform analysis for video-stream:// URLs (can't be fetched via Fetch API)
+      if (blobUrl.startsWith('video-stream://')) {
+        // Return a flat waveform for now - could implement server-side analysis later
+        const numSamples = Math.floor(duration * samplesPerSecond)
+        const waveform = new Float32Array(numSamples).fill(0.1)
+        this.cache.set(cacheKey, waveform)
+        return waveform
+      }
+      
       // Create audio context
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
       
