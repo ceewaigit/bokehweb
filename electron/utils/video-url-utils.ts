@@ -21,13 +21,21 @@ export function isUrlEncoded(str: string): boolean {
  * @returns Encoded path safe for use in URLs
  */
 export function safeEncodeVideoPath(filePath: string): string {
-  // If already encoded, return as-is
-  if (isUrlEncoded(filePath)) {
-    return filePath;
+  // First, decode any existing encoding to get the raw path
+  let rawPath = filePath;
+  try {
+    // Keep decoding until we get the raw path
+    while (isUrlEncoded(rawPath)) {
+      rawPath = decodeURIComponent(rawPath);
+    }
+  } catch {
+    // If decoding fails, use the original path
+    rawPath = filePath;
   }
   
-  // Otherwise, encode it
-  return encodeURIComponent(filePath);
+  // For video-stream protocol, we don't need to encode the path
+  // The protocol handler expects a plain file path
+  return rawPath;
 }
 
 /**
@@ -64,8 +72,10 @@ export function safeDecodeVideoPath(encodedPath: string): string {
  * @returns video-stream:// URL
  */
 export function createVideoStreamUrl(filePath: string): string {
-  const encodedPath = safeEncodeVideoPath(filePath);
-  return `video-stream://${encodedPath}`;
+  // Get the raw, unencoded path
+  const rawPath = safeEncodeVideoPath(filePath);
+  // For video-stream protocol, we use the raw path directly
+  return `video-stream://${rawPath}`;
 }
 
 /**
