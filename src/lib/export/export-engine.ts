@@ -63,6 +63,17 @@ export class ExportEngine {
       // All exports go through the same path - chunking is handled in export-handler.ts
       logger.info(`Export: ${processedTimeline.clipCount} clips, duration: ${processedTimeline.totalDuration}ms`);
       
+      // Extract project folder from project file path
+      let projectFolder: string | undefined;
+      if (project.filePath) {
+        // Project file path is like: /path/to/recordings/ProjectFolder/project.ssproj
+        // We want: /path/to/recordings/ProjectFolder
+        const pathParts = project.filePath.split('/');
+        pathParts.pop(); // Remove the filename
+        projectFolder = pathParts.join('/');
+        logger.info(`Project folder: ${projectFolder}`);
+      }
+      
       onProgress?.({
         progress: 2,
         stage: 'preparing',
@@ -87,13 +98,15 @@ export class ExportEngine {
       }
       
       // Export using Remotion - all chunking/optimization handled in export-handler.ts
+      // Pass project folder as additional parameter
       return await this.remotionEngine.export(
         processedTimeline.segments,
         recordingsMap,
         metadataMap,
         settings,
         progressAdapter,
-        this.abortController?.signal
+        this.abortController?.signal,
+        projectFolder
       )
     } catch (error) {
       onProgress?.({

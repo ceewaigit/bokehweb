@@ -112,8 +112,9 @@ export function setupExportHandler() {
   // Ensure cache directory exists
   fs.mkdir(CHROME_CACHE_DIR, { recursive: true }).catch(console.error);
   
-  ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings }) => {
+  ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings, projectFolder }) => {
     console.log('📹 Export handler invoked with settings:', settings);
+    console.log('📁 Project folder:', projectFolder || 'Not provided');
     
     // Profile the machine first
     const videoWidth = settings.resolution?.width || 1920;
@@ -221,27 +222,39 @@ export function setupExportHandler() {
       for (const [recordingId, recording] of recordings) {
         if (recording.filePath) {
           let fullPath = recording.filePath;
+          console.log(`\n🎬 Processing recording ${recordingId}:`);
+          console.log(`  Original path: ${recording.filePath}`);
+          console.log(`  Is absolute: ${path.isAbsolute(recording.filePath)}`);
           
-          // If the path is not absolute, resolve it relative to the recordings directory
-          // This handles the case where filePath is just a filename
+          // If the path is not absolute, resolve it relative to the project folder or recordings directory
           if (!path.isAbsolute(recording.filePath)) {
-            // First, try to find the project folder by looking for the recording's parent directory
-            // The structure is typically: recordingsDir/project-folder/recording.mov
-            // We need to find which project folder contains this recording
-            
-            // For now, we'll construct the path using the recording's folderPath if available
-            // or fall back to searching the recordings directory
-            if (recording.folderPath) {
+            // If we have a project folder passed from the client, use it
+            if (projectFolder) {
+              // Try project folder first
+              const projectPath = path.join(projectFolder, path.basename(recording.filePath));
+              if (fsSync.existsSync(projectPath)) {
+                fullPath = projectPath;
+                console.log(`Found recording in project folder: ${fullPath}`);
+              } else {
+                // Try recordings directory
+                const recordingsPath = path.join(recordingsDir, path.basename(recording.filePath));
+                if (fsSync.existsSync(recordingsPath)) {
+                  fullPath = recordingsPath;
+                  console.log(`Found recording in recordings directory: ${fullPath}`);
+                } else {
+                  console.warn(`Recording ${recordingId} not found, using original path: ${recording.filePath}`);
+                  fullPath = recording.filePath;
+                }
+              }
+            } else if (recording.folderPath) {
               fullPath = path.join(recording.folderPath, recording.filePath);
             } else {
-              // Fallback: assume it's in a subfolder of the recordings directory
-              // This is a temporary solution - ideally we'd pass the project folder from the client
+              // Fallback: try recordings directory
               const possiblePath = path.join(recordingsDir, recording.filePath);
               if (fsSync.existsSync(possiblePath)) {
                 fullPath = possiblePath;
               } else {
-                // Try to find the file in any subfolder
-                console.warn(`Recording ${recordingId} not found at expected path, searching...`);
+                console.warn(`Recording ${recordingId} not found at expected path`);
                 fullPath = path.resolve(recording.filePath);
               }
             }
@@ -249,10 +262,13 @@ export function setupExportHandler() {
           
           // Normalize the path and create file:// URL
           const normalizedPath = path.resolve(fullPath);
+          console.log(`  Resolved to: ${normalizedPath}`);
+          console.log(`  File exists: ${fsSync.existsSync(normalizedPath)}`);
+          
           // Use pathToFileURL to properly format file URLs with encoded spaces
           const fileUrl = pathToFileURL(normalizedPath).toString();
           videoUrls[recordingId] = fileUrl;
-          console.log(`Generated video URL for ${recordingId}:`, videoUrls[recordingId]);
+          console.log(`  Final URL: ${videoUrls[recordingId]}`);
         }
       }
       

@@ -28,7 +28,8 @@ export class RemotionExportService {
     metadata: Map<string, RecordingMetadata>,
     settings: ExportSettings,
     onProgress?: (progress: RemotionExportProgress) => void,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    projectFolder?: string
   ): Promise<Blob> {
     this.abortSignal = abortSignal || null;
     this.isAborting = false;
@@ -76,7 +77,8 @@ export class RemotionExportService {
         segments,
         recordings: Array.from(recordings.entries()),
         metadata: Array.from(metadata.entries()),
-        settings
+        settings,
+        projectFolder
       };
 
       // Listen for progress updates
