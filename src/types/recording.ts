@@ -26,9 +26,11 @@ export interface ElectronMetadata {
 }
 
 export interface ElectronRecordingResult {
-  video: Blob
+  video?: Blob  // Legacy - optional for backward compatibility
+  videoPath?: string  // New - file path for streaming
   duration: number
   metadata: ElectronMetadata[]
+  metadataPath?: string  // Path to metadata file for streaming
   hasAudio?: boolean
   captureArea?: {
     fullBounds: { x: number; y: number; width: number; height: number }

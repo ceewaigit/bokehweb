@@ -12,7 +12,12 @@ import { PermissionError, ElectronError } from '@/lib/core/errors'
 export class ElectronRecorder {
   private mediaRecorder: MediaRecorder | null = null
   private stream: MediaStream | null = null
-  private chunks: Blob[] = []
+  private chunks: Blob[] = []  // Legacy - kept for fallback
+  private recordingPath: string | null = null
+  private metadataPath: string | null = null
+  private metadataWriteQueue: ElectronMetadata[] = []
+  private metadataFlushTimer: NodeJS.Timeout | null = null
+  private useStreaming = true  // Feature flag for streaming
   private startTime = 0
   private metadata: ElectronMetadata[] = []
   private captureArea: ElectronRecordingResult['captureArea'] = undefined
@@ -265,12 +270,44 @@ export class ElectronRecorder {
       
       logger.info(`MediaRecorder using: ${this.mediaRecorder.mimeType}`)
 
-      // Set up MediaRecorder handlers
-      this.chunks = []
+      // Set up streaming or legacy handlers
+      if (this.useStreaming && window.electronAPI?.createTempRecordingFile) {
+        // Create temp file for streaming
+        const fileResult = await window.electronAPI.createTempRecordingFile('webm')
+        if (fileResult?.success && fileResult.data) {
+          this.recordingPath = fileResult.data
+          logger.info(`Streaming to temp file: ${this.recordingPath}`)
+          
+          // Create metadata file
+          const metaResult = await window.electronAPI.createMetadataFile()
+          if (metaResult?.success && metaResult.data) {
+            this.metadataPath = metaResult.data
+          }
+        } else {
+          logger.warn('Failed to create temp file, falling back to memory chunks')
+          this.useStreaming = false
+        }
+      }
+      
+      if (!this.useStreaming) {
+        this.chunks = []
+      }
 
-      this.mediaRecorder.ondataavailable = (event) => {
+      this.mediaRecorder.ondataavailable = async (event) => {
         if (event.data?.size > 0) {
-          this.chunks.push(event.data)
+          if (this.useStreaming && this.recordingPath && window.electronAPI?.appendToRecording) {
+            // Stream chunk directly to file
+            try {
+              await window.electronAPI.appendToRecording(this.recordingPath, event.data)
+            } catch (err) {
+              logger.error('Failed to stream chunk:', err)
+              // Fallback to memory on error
+              this.chunks.push(event.data)
+            }
+          } else {
+            // Legacy: accumulate in memory
+            this.chunks.push(event.data)
+          }
         }
       }
 
@@ -341,8 +378,9 @@ export class ElectronRecorder {
 
         logger.info(`Native recording complete: ${duration}ms, ${video.size} bytes, NO CURSOR!`)
 
-        const recordingResult = {
+        const recordingResult: ElectronRecordingResult = {
           video,
+          videoPath: result.outputPath || this.nativeRecorderPath,  // Also provide path for consistency
           duration,
           metadata: this.metadata,
           captureArea: this.captureArea,
@@ -369,39 +407,103 @@ export class ElectronRecorder {
       // Handle already stopped recorder
       if (this.mediaRecorder!.state === 'inactive') {
         const duration = Date.now() - this.startTime
-        const video = new Blob(this.chunks, { type: 'video/webm' })
+        
+        if (this.useStreaming && this.recordingPath) {
+          // Finalize streaming files
+          if (window.electronAPI?.finalizeRecording) {
+            await window.electronAPI.finalizeRecording(this.recordingPath)
+          }
+          await this.flushMetadata(true)
+          
+          let metadata = this.metadata
+          if (this.metadataPath && window.electronAPI?.readMetadataFile) {
+            const metaResult = await window.electronAPI.readMetadataFile(this.metadataPath)
+            if (metaResult?.success && metaResult.data) {
+              metadata = metaResult.data
+            }
+          }
+          
+          this.isRecording = false
+          await this.cleanup()
 
-        this.isRecording = false
-        await this.cleanup()
+          resolve({
+            videoPath: this.recordingPath,
+            duration,
+            metadata,
+            captureArea: this.captureArea,
+            hasAudio: this.hasAudio
+          })
+        } else {
+          const video = new Blob(this.chunks, { type: 'video/webm' })
 
-        resolve({
-          video,
-          duration,
-          metadata: this.metadata,
-          captureArea: this.captureArea,
-          hasAudio: this.hasAudio
-        })
+          this.isRecording = false
+          await this.cleanup()
+
+          resolve({
+            video,
+            duration,
+            metadata: this.metadata,
+            captureArea: this.captureArea,
+            hasAudio: this.hasAudio
+          })
+        }
         return
       }
 
       this.mediaRecorder!.onstop = async () => {
         const duration = Date.now() - this.startTime
-        const blobType = this.hasAudio ? 'video/webm;codecs=vp8,opus' : 'video/webm'
-        const video = new Blob(this.chunks, { type: blobType })
+        
+        // Finalize streaming files
+        if (this.useStreaming && this.recordingPath) {
+          // Finalize video file
+          if (window.electronAPI?.finalizeRecording) {
+            await window.electronAPI.finalizeRecording(this.recordingPath)
+          }
+          
+          // Flush and finalize metadata
+          await this.flushMetadata(true)
+          
+          // Read metadata from file if needed
+          let metadata = this.metadata
+          if (this.metadataPath && window.electronAPI?.readMetadataFile) {
+            const metaResult = await window.electronAPI.readMetadataFile(this.metadataPath)
+            if (metaResult?.success && metaResult.data) {
+              metadata = metaResult.data
+            }
+          }
+          
+          logger.info(`Streaming recording complete: ${duration}ms, path: ${this.recordingPath}`)
+          
+          const result: ElectronRecordingResult = {
+            videoPath: this.recordingPath,
+            duration,
+            metadata,
+            captureArea: this.captureArea,
+            hasAudio: this.hasAudio
+          }
+          
+          this.isRecording = false
+          await this.cleanup()
+          resolve(result)
+        } else {
+          // Legacy: create blob from chunks
+          const blobType = this.hasAudio ? 'video/webm;codecs=vp8,opus' : 'video/webm'
+          const video = new Blob(this.chunks, { type: blobType })
 
-        logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, type: ${video.type}, chunks: ${this.chunks.length}, hasAudio: ${this.hasAudio}`)
+          logger.info(`Recording complete: ${duration}ms, ${video.size} bytes, type: ${video.type}, chunks: ${this.chunks.length}, hasAudio: ${this.hasAudio}`)
 
-        const result = {
-          video,
-          duration,
-          metadata: this.metadata,
-          captureArea: this.captureArea,
-          hasAudio: this.hasAudio
+          const result: ElectronRecordingResult = {
+            video,
+            duration,
+            metadata: this.metadata,
+            captureArea: this.captureArea,
+            hasAudio: this.hasAudio
+          }
+
+          this.isRecording = false
+          await this.cleanup()
+          resolve(result)
         }
-
-        this.isRecording = false
-        await this.cleanup()
-        resolve(result)
       }
 
       this.mediaRecorder!.onerror = (error) => {
@@ -454,7 +556,7 @@ export class ElectronRecorder {
       const timestamp = Date.now() - this.startTime
       const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
       if (!inside) return
-      this.metadata.push({
+      await this.addMetadata({
         timestamp,
         mouseX: rx, // relative to capture origin, in physical pixels
         mouseY: ry,
@@ -475,7 +577,7 @@ export class ElectronRecorder {
       const timestamp = Date.now() - this.startTime
       const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
       if (!inside) return
-      this.metadata.push({
+      await this.addMetadata({
         timestamp,
         mouseX: rx, // relative to capture origin, in physical pixels
         mouseY: ry,
@@ -491,7 +593,7 @@ export class ElectronRecorder {
 
     const handleKeyboardEvent = (_event: unknown, data: any) => {
       const timestamp = Date.now() - this.startTime
-      this.metadata.push({
+      await this.addMetadata({
         timestamp,
         eventType: 'keypress',
         key: data.key,
@@ -508,7 +610,7 @@ export class ElectronRecorder {
         deltaX: data.deltaX || 0,
         deltaY: data.deltaY || 0
       })
-      this.metadata.push({
+      await this.addMetadata({
         timestamp,
         eventType: 'scroll',
         scrollDelta: { x: data.deltaX || 0, y: data.deltaY || 0 },
@@ -557,7 +659,52 @@ export class ElectronRecorder {
     logger.debug(`Mouse tracking started at ${result.fps}fps`)
   }
 
+  private async addMetadata(metadata: ElectronMetadata) {
+    if (this.useStreaming && this.metadataPath) {
+      // Add to queue for batch writing
+      this.metadataWriteQueue.push(metadata)
+      
+      // Flush every 100 events or after 1 second
+      if (this.metadataWriteQueue.length >= 100) {
+        await this.flushMetadata()
+      } else if (!this.metadataFlushTimer) {
+        this.metadataFlushTimer = setTimeout(() => this.flushMetadata(), 1000)
+      }
+    } else {
+      // Legacy: keep in memory
+      this.metadata.push(metadata)
+    }
+  }
+
+  private async flushMetadata(isLast = false) {
+    if (this.metadataFlushTimer) {
+      clearTimeout(this.metadataFlushTimer)
+      this.metadataFlushTimer = null
+    }
+
+    if (this.metadataWriteQueue.length > 0 && this.metadataPath && window.electronAPI?.appendMetadataBatch) {
+      try {
+        await window.electronAPI.appendMetadataBatch(
+          this.metadataPath,
+          this.metadataWriteQueue,
+          isLast
+        )
+        this.metadataWriteQueue = []
+      } catch (err) {
+        logger.error('Failed to flush metadata:', err)
+        // Fallback: add to memory array
+        this.metadata.push(...this.metadataWriteQueue)
+        this.metadataWriteQueue = []
+      }
+    }
+  }
+
   private async cleanup(): Promise<void> {
+    // Flush any remaining metadata
+    if (this.metadataWriteQueue.length > 0) {
+      await this.flushMetadata(true)
+    }
+
     // Clear intervals
     if (this.dataRequestInterval) {
       clearInterval(this.dataRequestInterval)

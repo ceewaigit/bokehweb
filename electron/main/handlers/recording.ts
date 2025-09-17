@@ -1,8 +1,11 @@
-import { ipcMain, IpcMainInvokeEvent } from 'electron'
+import { ipcMain, IpcMainInvokeEvent, app } from 'electron'
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import * as fsSync from 'fs'
 import { getRecordingsDirectory } from '../config'
+
+// Active recording file handles for streaming
+const activeRecordings = new Map<string, fsSync.WriteStream>()
 
 export function registerRecordingHandlers(): void {
   ipcMain.handle('start-recording', async () => {
@@ -68,5 +71,159 @@ export function registerRecordingHandlers(): void {
       console.error('[Recording] Failed to get file size:', errorMessage)
       return { success: false, error: errorMessage }
     }
+  })
+
+  // ========== NEW STREAMING HANDLERS ==========
+  
+  // Create a temporary recording file and return its path
+  ipcMain.handle('create-temp-recording-file', async (event: IpcMainInvokeEvent, extension: string = 'webm') => {
+    try {
+      const tempDir = app.getPath('temp')
+      const timestamp = Date.now()
+      const tempPath = path.join(tempDir, `screenstudio-recording-${timestamp}.${extension}`)
+      
+      // Create write stream for this recording
+      const stream = fsSync.createWriteStream(tempPath, { flags: 'w' })
+      activeRecordings.set(tempPath, stream)
+      
+      console.log(`[Recording] Created temp file: ${tempPath}`)
+      return { success: true, data: tempPath }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to create temp file:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Append chunk to recording file (streaming write)
+  ipcMain.handle('append-to-recording', async (event: IpcMainInvokeEvent, filePath: string, chunk: ArrayBuffer | Buffer) => {
+    try {
+      const stream = activeRecordings.get(filePath)
+      if (!stream) {
+        throw new Error(`No active stream for ${filePath}`)
+      }
+
+      // Convert ArrayBuffer to Buffer if needed
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+      
+      return new Promise((resolve) => {
+        stream.write(buffer, (err) => {
+          if (err) {
+            console.error(`[Recording] Write error for ${filePath}:`, err)
+            resolve({ success: false, error: err.message })
+          } else {
+            resolve({ success: true })
+          }
+        })
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to append chunk:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Close recording stream and finalize file
+  ipcMain.handle('finalize-recording', async (event: IpcMainInvokeEvent, filePath: string) => {
+    try {
+      const stream = activeRecordings.get(filePath)
+      if (!stream) {
+        console.warn(`[Recording] No active stream for ${filePath}, may already be finalized`)
+        return { success: true }
+      }
+
+      return new Promise((resolve) => {
+        stream.end(() => {
+          activeRecordings.delete(filePath)
+          console.log(`[Recording] Finalized: ${filePath}`)
+          resolve({ success: true })
+        })
+      })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to finalize:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Move file from temp to final location
+  ipcMain.handle('move-file', async (event: IpcMainInvokeEvent, sourcePath: string, destPath: string) => {
+    try {
+      // Ensure destination directory exists
+      const destDir = path.dirname(destPath)
+      await fs.mkdir(destDir, { recursive: true })
+      
+      // Move the file
+      await fs.rename(sourcePath, destPath)
+      
+      console.log(`[Recording] Moved ${sourcePath} to ${destPath}`)
+      return { success: true, data: destPath }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to move file:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Create metadata file for streaming writes
+  ipcMain.handle('create-metadata-file', async (event: IpcMainInvokeEvent) => {
+    try {
+      const tempDir = app.getPath('temp')
+      const timestamp = Date.now()
+      const metadataPath = path.join(tempDir, `metadata-${timestamp}.json`)
+      
+      // Initialize with empty array
+      await fs.writeFile(metadataPath, '[\n', 'utf8')
+      
+      console.log(`[Recording] Created metadata file: ${metadataPath}`)
+      return { success: true, data: metadataPath }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to create metadata file:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Append metadata batch to file
+  ipcMain.handle('append-metadata-batch', async (event: IpcMainInvokeEvent, filePath: string, batch: any[], isLast: boolean = false) => {
+    try {
+      // Convert batch to JSON lines
+      const jsonLines = batch.map(item => JSON.stringify(item)).join(',\n')
+      const content = isLast ? jsonLines + '\n]' : jsonLines + ',\n'
+      
+      await fs.appendFile(filePath, content, 'utf8')
+      
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to append metadata:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Read metadata from file
+  ipcMain.handle('read-metadata-file', async (event: IpcMainInvokeEvent, filePath: string) => {
+    try {
+      const content = await fs.readFile(filePath, 'utf8')
+      const metadata = JSON.parse(content)
+      
+      // Clean up temp file
+      await fs.unlink(filePath).catch(() => {})
+      
+      return { success: true, data: metadata }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to read metadata:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
+  // Cleanup any orphaned streams on app quit
+  app.on('before-quit', () => {
+    activeRecordings.forEach((stream, path) => {
+      console.log(`[Recording] Cleaning up stream: ${path}`)
+      stream.end()
+    })
+    activeRecordings.clear()
   })
 }

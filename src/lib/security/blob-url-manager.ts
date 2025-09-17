@@ -21,8 +21,8 @@ export class BlobURLManager {
   private entries = new Map<string, BlobEntry>()
   private disposed = false
   private totalSize = 0
-  private maxSize = 500 * 1024 * 1024 // 500MB limit
-  private thumbnailMaxSize = 100 * 1024 * 1024 // 100MB for thumbnails
+  private maxSize = 50 * 1024 * 1024 // 50MB limit - reduced from 500MB (only for UI assets now)
+  private thumbnailMaxSize = 30 * 1024 * 1024 // 30MB for thumbnails
   private cleanupTimer: NodeJS.Timeout | null = null
   private loadingPromises = new Map<string, Promise<string | null>>()
   private thumbnailSize = 0
@@ -325,8 +325,8 @@ export class BlobURLManager {
   }
 
   /**
-   * Load a video file and return a blob URL
-   * Handles caching, loading, and error handling automatically
+   * Load a video file and return a file:// URL (no longer creates blob URLs for videos)
+   * Handles caching and error handling automatically
    */
   async loadVideo(recordingId: string, filePath?: string, folderPath?: string): Promise<string | null> {
     // Check cache first
@@ -366,7 +366,7 @@ export class BlobURLManager {
       return null
     }
 
-    if (!window.electronAPI?.readLocalFile || !window.electronAPI?.getRecordingsDirectory) {
+    if (!window.electronAPI?.getRecordingsDirectory) {
       logger.error('Electron API not available')
       return null
     }
@@ -387,29 +387,18 @@ export class BlobURLManager {
         }
       }
 
-      logger.debug(`Loading video: ${recordingId} from ${fullPath}`)
-      const result = await window.electronAPI.readLocalFile(fullPath)
+      logger.debug(`Video path resolved: ${recordingId} at ${fullPath}`)
+      
+      // Return file:// URL directly - no blob creation for videos anymore
+      const fileUrl = `file://${fullPath}`
+      
+      // Cache the file URL for future use
+      RecordingStorage.setBlobUrl(recordingId, fileUrl)
 
-      if (!result?.success || !result.data) {
-        logger.error(`Failed to read file: ${filePath}`)
-        return null
-      }
-
-      // Detect MIME type from extension
-      const lower = fullPath.toLowerCase()
-      const mime = lower.endsWith('.mov') ? 'video/quicktime' : lower.endsWith('.mp4') ? 'video/mp4' : 'video/webm'
-
-      // Create blob and URL
-      const blob = new Blob([result.data], { type: mime })
-      const blobUrl = this.create(blob, `recording-${recordingId}`, 'video', 10) // High priority for active videos
-
-      // Cache for future use
-      RecordingStorage.setBlobUrl(recordingId, blobUrl)
-
-      logger.info(`Video loaded: ${recordingId}`)
-      return blobUrl
+      logger.info(`Video ready for streaming: ${recordingId}`)
+      return fileUrl
     } catch (error) {
-      logger.error(`Error loading video ${recordingId}:`, error)
+      logger.error(`Error resolving video path ${recordingId}:`, error)
       return null
     }
   }

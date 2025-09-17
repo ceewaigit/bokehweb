@@ -223,6 +223,29 @@ const electronAPI = {
 
   loadRecordings: () =>
     ipcRenderer.invoke('load-recordings'),
+  
+  // Streaming recording handlers
+  createTempRecordingFile: (extension?: string) => 
+    ipcRenderer.invoke('create-temp-recording-file', extension),
+  appendToRecording: (filePath: string, chunk: ArrayBuffer | Blob) => {
+    // Convert Blob to ArrayBuffer if needed
+    if (chunk instanceof Blob) {
+      return chunk.arrayBuffer().then(buffer => 
+        ipcRenderer.invoke('append-to-recording', filePath, buffer)
+      )
+    }
+    return ipcRenderer.invoke('append-to-recording', filePath, chunk)
+  },
+  finalizeRecording: (filePath: string) => 
+    ipcRenderer.invoke('finalize-recording', filePath),
+  moveFile: (sourcePath: string, destPath: string) => 
+    ipcRenderer.invoke('move-file', sourcePath, destPath),
+  createMetadataFile: () => 
+    ipcRenderer.invoke('create-metadata-file'),
+  appendMetadataBatch: (filePath: string, batch: any[], isLast?: boolean) => 
+    ipcRenderer.invoke('append-metadata-batch', filePath, batch, isLast),
+  readMetadataFile: (filePath: string) => 
+    ipcRenderer.invoke('read-metadata-file', filePath),
 
   readLocalFile: (absolutePath: string) =>
     ipcRenderer.invoke('read-local-file', absolutePath),
