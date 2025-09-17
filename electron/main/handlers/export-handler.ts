@@ -14,6 +14,8 @@ import { promisify } from 'util';
 import { machineProfiler, type DynamicExportSettings } from '../utils/machine-profiler';
 import { performance } from 'perf_hooks';
 import { pathToFileURL } from 'url';
+import { getRecordingsDirectory } from '../config';
+import fsSync from 'fs';
 
 const exec = promisify(execCallback);
 
@@ -211,12 +213,42 @@ export function setupExportHandler() {
       const recordingsObj = Object.fromEntries(recordings);
       const videoUrls: Record<string, string> = {};
       
+      // Get the recordings directory
+      const recordingsDir = getRecordingsDirectory();
+      
       // Generate file:// URLs for each recording
       // We use file:// for export because Remotion's Chrome instance doesn't have our custom protocol
       for (const [recordingId, recording] of recordings) {
         if (recording.filePath) {
+          let fullPath = recording.filePath;
+          
+          // If the path is not absolute, resolve it relative to the recordings directory
+          // This handles the case where filePath is just a filename
+          if (!path.isAbsolute(recording.filePath)) {
+            // First, try to find the project folder by looking for the recording's parent directory
+            // The structure is typically: recordingsDir/project-folder/recording.mov
+            // We need to find which project folder contains this recording
+            
+            // For now, we'll construct the path using the recording's folderPath if available
+            // or fall back to searching the recordings directory
+            if (recording.folderPath) {
+              fullPath = path.join(recording.folderPath, recording.filePath);
+            } else {
+              // Fallback: assume it's in a subfolder of the recordings directory
+              // This is a temporary solution - ideally we'd pass the project folder from the client
+              const possiblePath = path.join(recordingsDir, recording.filePath);
+              if (fsSync.existsSync(possiblePath)) {
+                fullPath = possiblePath;
+              } else {
+                // Try to find the file in any subfolder
+                console.warn(`Recording ${recordingId} not found at expected path, searching...`);
+                fullPath = path.resolve(recording.filePath);
+              }
+            }
+          }
+          
           // Normalize the path and create file:// URL
-          const normalizedPath = path.resolve(recording.filePath);
+          const normalizedPath = path.resolve(fullPath);
           // Use pathToFileURL to properly format file URLs with encoded spaces
           const fileUrl = pathToFileURL(normalizedPath).toString();
           videoUrls[recordingId] = fileUrl;
