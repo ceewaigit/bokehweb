@@ -32,9 +32,14 @@ export class WaveformAnalyzer {
       if (blobUrl.startsWith('video-stream://')) {
         // Return a flat waveform for now - could implement server-side analysis later
         const numSamples = Math.floor(duration * samplesPerSecond)
-        const waveform = new Float32Array(numSamples).fill(0.1)
-        this.cache.set(cacheKey, waveform)
-        return waveform
+        const peaks = new Array(numSamples).fill(0.1)
+        const waveformData: WaveformData = {
+          peaks,
+          duration,
+          sampleRate: samplesPerSecond
+        }
+        this.cache.set(cacheKey, waveformData)
+        return waveformData
       }
       
       // Create audio context

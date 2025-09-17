@@ -283,13 +283,15 @@ export class ElectronRecorder {
       logger.info(`Streaming to temp file: ${this.recordingPath}`)
       
       // Create metadata file
-      const metaResult = await window.electronAPI.createMetadataFile()
-      if (metaResult?.success && metaResult.data) {
-        this.metadataPath = metaResult.data
+      if (window.electronAPI.createMetadataFile) {
+        const metaResult = await window.electronAPI.createMetadataFile()
+        if (metaResult?.success && metaResult.data) {
+          this.metadataPath = metaResult.data
+        }
       }
 
       this.mediaRecorder.ondataavailable = async (event) => {
-        if (event.data?.size > 0 && this.recordingPath) {
+        if (event.data?.size > 0 && this.recordingPath && window.electronAPI?.appendToRecording) {
           // Stream chunk directly to file
           const result = await window.electronAPI.appendToRecording(this.recordingPath, event.data)
           if (!result?.success) {

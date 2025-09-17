@@ -206,11 +206,27 @@ export function setupExportHandler() {
         },
       });
 
+      // Convert recordings to plain object and generate video URLs
+      const recordingsObj = Object.fromEntries(recordings);
+      const videoUrls: Record<string, string> = {};
+      
+      // Generate video-stream URLs for each recording
+      for (const [recordingId, recording] of recordings) {
+        if (recording.filePath) {
+          // Normalize the path and create video-stream URL
+          const normalizedPath = path.resolve(recording.filePath);
+          const encodedPath = encodeURIComponent(normalizedPath);
+          videoUrls[recordingId] = `video-stream://${encodedPath}`;
+          console.log(`Generated video URL for ${recordingId}:`, videoUrls[recordingId]);
+        }
+      }
+      
       // Prepare composition props
       const inputProps = {
         segments,
-        recordings: Object.fromEntries(recordings),
+        recordings: recordingsObj,
         metadata: Object.fromEntries(metadata),
+        videoUrls, // Add videoUrls to props
         ...settings,
       };
 

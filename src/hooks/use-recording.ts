@@ -153,12 +153,12 @@ export function useRecording() {
 
       // Stop recording and get result
       const result = await recorder.stopRecording()
-      if (!result || !result.video || result.video.size === 0) {
+      if (!result || !result.videoPath) {
         throw new Error('Invalid recording result')
       }
 
 
-      logger.info(`Recording complete: ${result.duration}ms, ${result.video.size} bytes, ${result.metadata.length} events`)
+      logger.info(`Recording complete: ${result.duration}ms, path: ${result.videoPath}, ${result.metadata.length} events`)
 
       // Reset remaining state (recording already set to false above)
       setPaused(false)
@@ -170,7 +170,7 @@ export function useRecording() {
       }
 
       // Use consolidated project saving
-      if (result.video) {
+      if (result.videoPath) {
         // Create a safe filename without slashes or colons
         const now = new Date()
         const year = now.getFullYear()
@@ -182,9 +182,6 @@ export function useRecording() {
         const projectName = `Recording_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`
 
         // Save recording with project using consolidated function
-        if (!result.videoPath) {
-          throw new Error('No video path available from recording')
-        }
         const saved = await RecordingStorage.saveRecordingWithProject(result.videoPath, result.metadata, projectName, result.captureArea, result.hasAudio, result.duration)
 
         if (saved) {
@@ -192,18 +189,17 @@ export function useRecording() {
 
           // Update the project store
           const projectStore = useProjectStore.getState()
-          if (!projectStore.currentProject) {
-            projectStore.setProject(saved.project)
-          } else {
-            // Add to existing project
-            const recording = saved.project.recordings[0]
-            projectStore.addRecording(recording, result.video)
-          }
+          // Always set the full project since it was saved to disk
+          projectStore.setProject(saved.project)
 
-          // Store video blob for preview with proper description
+          // Create video URL from file path for preview
           const recordingId = saved.project.recordings[0].id
-          const videoUrl = globalBlobManager.create(result.video, `recording-${recordingId}`, 'video', 10)
-          RecordingStorage.setBlobUrl(recordingId, videoUrl)
+          if (window.electronAPI?.getVideoUrl) {
+            const videoUrl = await window.electronAPI.getVideoUrl(result.videoPath)
+            if (videoUrl) {
+              RecordingStorage.setBlobUrl(recordingId, videoUrl)
+            }
+          }
         }
 
       }

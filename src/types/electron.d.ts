@@ -62,6 +62,19 @@ export interface ElectronAPI {
   getFileSize?: (filePath: string) => Promise<{ success: boolean; data?: { size: number }; error?: string }>
   getVideoUrl?: (filePath: string) => Promise<string | null>
   onToggleRecording?: (callback: () => void) => void
+  
+  // Streaming recording handlers
+  createTempRecordingFile?: (extension?: string) => Promise<{ success: boolean; data?: string; error?: string }>
+  appendToRecording?: (filePath: string, chunk: ArrayBuffer | Blob) => Promise<{ success: boolean; error?: string }>
+  finalizeRecording?: (filePath: string) => Promise<{ success: boolean; error?: string }>
+  createMetadataFile?: () => Promise<{ success: boolean; data?: string; error?: string }>
+  appendMetadata?: (filePath: string, metadata: any[]) => Promise<{ success: boolean; error?: string }>
+  appendMetadataBatch?: (filePath: string, metadata: any[], isLast?: boolean) => Promise<{ success: boolean; error?: string }>
+  readMetadata?: (filePath: string) => Promise<{ success: boolean; data?: any[]; error?: string }>
+  readMetadataFile?: (filePath: string) => Promise<{ success: boolean; data?: any[]; error?: string }>
+  
+  // File operations
+  moveFile?: (source: string, destination: string) => Promise<{ success: boolean; error?: string }>
 
   // Dialog APIs
   showSaveDialog: (options: any) => Promise<{ canceled: boolean; filePath?: string }>

@@ -52,11 +52,20 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
       const durationFrames = Math.ceil((durationMs / 1000) * fps);
       
       // Get the video URL for this recording
-      const videoUrl = videoUrls[recording.id];
+      let videoUrl = videoUrls[recording.id];
       
       if (!videoUrl) {
-        console.warn(`No video URL found for recording ${recording.id}`);
-        return;
+        console.warn(`No video URL found for recording ${recording.id}, attempting fallback...`);
+        
+        // Fallback: try to generate URL from recording's filePath
+        if (recording.filePath) {
+          const encodedPath = encodeURIComponent(recording.filePath);
+          videoUrl = `video-stream://${encodedPath}`;
+          console.log(`Generated fallback URL for ${recording.id}:`, videoUrl);
+        } else {
+          console.error(`Recording ${recording.id} has no filePath and no video URL`);
+          return;
+        }
       }
 
       // Get metadata for this recording

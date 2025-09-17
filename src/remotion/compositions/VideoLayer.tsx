@@ -173,8 +173,12 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 
   // Don't render anything if no video URL
   if (!videoUrl) {
+    console.error('VideoLayer: No video URL provided');
     return <AbsoluteFill />
   }
+  
+  // Log the video URL for debugging
+  console.log('VideoLayer rendering with URL:', videoUrl);
 
   return (
     <AbsoluteFill>
@@ -223,7 +227,12 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             startFrom={0}
             pauseWhenBuffering={false}
             onError={(e) => {
-              console.error('Video playback error during render:', e)
+              console.error('Video playback error during render:', {
+                error: e,
+                videoUrl,
+                clip,
+                message: e instanceof Error ? e.message : 'Unknown error'
+              });
             }}
           />
         ) : (
@@ -236,7 +245,12 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             startFrom={0}
             pauseWhenBuffering={false}
             onError={(e) => {
-              console.error('Video playback error:', e)
+              console.error('Video playback error:', {
+                error: e,
+                videoUrl,
+                clip,
+                message: e instanceof Error ? e.message : 'Unknown error'
+              });
             }}
           />
         )}
