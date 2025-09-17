@@ -2,6 +2,7 @@ import { ipcMain, app, IpcMainInvokeEvent, protocol } from 'electron'
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import { pathToFileURL } from 'url'
+import { createVideoStreamUrl } from '../../utils/video-url-utils'
 
 export function registerFileOperationHandlers(): void {
   ipcMain.handle('save-file', async (event: IpcMainInvokeEvent, data: Buffer | ArrayBuffer | string | object, filepath?: string) => {
@@ -75,8 +76,8 @@ export function registerFileOperationHandlers(): void {
       const normalizedPath = path.resolve(filePath)
       await fs.access(normalizedPath)
 
-      // Return video-stream URL for our custom protocol
-      return `video-stream://${encodeURIComponent(normalizedPath)}`
+      // Return video-stream URL using our safe encoding utility
+      return createVideoStreamUrl(normalizedPath)
     } catch (error) {
       return null
     }
