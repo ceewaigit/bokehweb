@@ -45,55 +45,27 @@ function registerProtocol(): void {
   }
 
   // Register video-stream protocol for local video files
-  protocol.registerStreamProtocol('video-stream', (request, callback) => {
+  protocol.registerFileProtocol('video-stream', (request, callback) => {
     try {
-      const fs = require('fs')
-      
       // Remove protocol and handle URL encoding
       let filePath = request.url.replace('video-stream://', '')
       
       // Decode any URL encoding (handles spaces as %20)
       filePath = decodeURIComponent(filePath)
       
-      // Remove any query parameters or fragments
+      // Remove any query parameters or fragments (like #t=0,152.1)
       const queryIndex = filePath.indexOf('?')
       const hashIndex = filePath.indexOf('#')
       if (queryIndex > -1) filePath = filePath.substring(0, queryIndex)
       if (hashIndex > -1) filePath = filePath.substring(0, hashIndex)
       
-      console.log('[Protocol] video-stream streaming:', filePath)
+      console.log('[Protocol] video-stream resolving:', filePath)
       
-      // Check if file exists
-      if (!fs.existsSync(filePath)) {
-        console.error('[Protocol] File not found:', filePath)
-        callback({ statusCode: 404 })
-        return
-      }
-      
-      // Get file stats for content-length
-      const stat = fs.statSync(filePath)
-      
-      // Determine MIME type from extension
-      const ext = path.extname(filePath).toLowerCase()
-      let mimeType = 'video/mp4'
-      if (ext === '.webm') mimeType = 'video/webm'
-      else if (ext === '.mov') mimeType = 'video/quicktime'
-      
-      // Create read stream
-      const stream = fs.createReadStream(filePath)
-      
-      callback({
-        statusCode: 200,
-        headers: {
-          'Content-Type': mimeType,
-          'Content-Length': stat.size.toString(),
-          'Accept-Ranges': 'bytes',
-        },
-        data: stream
-      })
+      // Simply return the file path - let Chromium handle the streaming
+      callback({ path: filePath })
     } catch (error) {
       console.error('[Protocol] Error handling video-stream URL:', error)
-      callback({ statusCode: 500 })
+      callback({ error: -6 }) // net::ERR_FILE_NOT_FOUND
     }
   })
 }
