@@ -2,6 +2,8 @@
  * Cursor type definitions and mappings for custom cursor rendering
  */
 
+import { staticFile, getRemotionEnvironment } from 'remotion';
+
 export enum CursorType {
   ARROW = 'arrow',
   IBEAM = 'iBeam',
@@ -129,13 +131,20 @@ export const CURSOR_HOTSPOTS: Record<CursorType, CursorHotspot> = {
  * Get cursor image path for a given cursor type
  */
 export function getCursorImagePath(cursorType: CursorType): string {
-  // Use video-stream protocol for assets in Electron environment
-  // This works in both dev and production, and during export
-  if (typeof window !== 'undefined' && window.electronAPI) {
-    return `video-stream://assets/cursors/${cursorType}.png`
+  const { isRendering } = getRemotionEnvironment();
+  
+  // During Remotion export: Use staticFile to access bundled assets
+  if (isRendering) {
+    return staticFile(`cursors/${cursorType}.png`);
   }
-  // Fallback for tests or non-Electron environments
-  return `/cursors/${cursorType}.png`
+  
+  // During Electron preview: Use our custom protocol
+  if (typeof window !== 'undefined' && window.electronAPI) {
+    return `video-stream://assets/cursors/${cursorType}.png`;
+  }
+  
+  // Fallback for development or tests
+  return `/cursors/${cursorType}.png`;
 }
 
 /**

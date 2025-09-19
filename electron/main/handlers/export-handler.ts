@@ -129,6 +129,7 @@ export function setupExportHandler() {
       const entryPoint = path.join(process.cwd(), 'src/remotion/index.ts');
       bundleLocation = await bundle({
         entryPoint,
+        publicDir: path.join(process.cwd(), 'public'), // Include public directory for assets (cursors, etc.)
         webpackOverride: (config) => {
           const resolvedPath = path.resolve(process.cwd(), 'src');
           return {
