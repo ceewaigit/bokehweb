@@ -112,9 +112,10 @@ export function PreviewAreaRemotion({
         if (url) {
           setActiveVideoUrl(url)
         } else if (playheadRecording.filePath) {
-          // Use direct file:// URL
-          const fileUrl = new URL('file://' + playheadRecording.filePath).toString()
-          setActiveVideoUrl(fileUrl)
+          // Use video-stream:// URL for consistency
+          const encodedPath = encodeURIComponent(playheadRecording.filePath)
+          const videoStreamUrl = `video-stream://local/${encodedPath}`
+          setActiveVideoUrl(videoStreamUrl)
         }
         setActiveRecording(playheadRecording)
       }

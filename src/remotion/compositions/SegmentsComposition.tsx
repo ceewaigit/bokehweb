@@ -54,9 +54,10 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
       // Get the video URL for this recording
       let videoUrl = videoUrls[recording.id];
       
-      // Use direct file:// URL as fallback
+      // Use video-stream:// URL as fallback
       if (!videoUrl && recording.filePath) {
-        videoUrl = new URL('file://' + recording.filePath).toString();
+        const encodedPath = encodeURIComponent(recording.filePath);
+        videoUrl = `video-stream://local/${encodedPath}`;
       }
       
       if (!videoUrl) {

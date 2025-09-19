@@ -3,7 +3,7 @@
  * Single source of truth for resolving recording paths
  */
 
-import path from 'path'
+import * as path from 'path'
 
 /**
  * Resolve the full path to a recording file
@@ -41,7 +41,9 @@ export async function resolveRecordingPath(
  * This replaces the old video-stream:// protocol
  */
 export function pathToFileUrl(filePath: string): string {
-  // Ensure proper file:// URL format
+  // Create video-stream:// URL instead of file://
+  // This ensures proper streaming support
   const normalizedPath = path.resolve(filePath)
-  return `file://${normalizedPath}`
+  const encodedPath = encodeURIComponent(normalizedPath)
+  return `video-stream://local/${encodedPath}`
 }
