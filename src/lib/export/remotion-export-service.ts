@@ -34,14 +34,16 @@ export class RemotionExportService {
     this.abortSignal = abortSignal || null;
     this.isAborting = false;
     
-    // Set up abort handler
+    // Set up abort handler - use direct invoke instead of ipcRenderer property
     if (this.abortSignal) {
       this.abortSignal.addEventListener('abort', () => {
         this.isAborting = true;
         logger.info('Export aborted by user');
         
-        // Cancel export in main process
-        window.electronAPI?.ipcRenderer.invoke('export-cancel').catch(() => {});
+        // Cancel export in main process - use direct invoke method if available
+        if (window.electronAPI?.ipcRenderer?.invoke) {
+          window.electronAPI.ipcRenderer.invoke('export-cancel').catch(() => {});
+        }
       });
     }
 
@@ -52,13 +54,27 @@ export class RemotionExportService {
       }
 
       // Log what's available for debugging
-      console.log('Available electronAPI methods:', Object.keys(window.electronAPI));
+      logger.info('Available electronAPI methods:', Object.keys(window.electronAPI));
+      
+      // Deep check for nested properties
+      const hasIpcRenderer = window.electronAPI.ipcRenderer && 
+                             typeof window.electronAPI.ipcRenderer.invoke === 'function' &&
+                             typeof window.electronAPI.ipcRenderer.on === 'function' &&
+                             typeof window.electronAPI.ipcRenderer.removeListener === 'function';
 
-      // Check if ipcRenderer is available
-      if (!window.electronAPI.ipcRenderer) {
-        console.error('IPC renderer not found. Available methods:', Object.keys(window.electronAPI));
-        throw new Error('IPC renderer not available. Export cannot proceed.');
+      if (!hasIpcRenderer) {
+        // Log detailed debugging info
+        logger.error('IPC renderer check failed. Available properties:', {
+          hasIpcRenderer: !!window.electronAPI.ipcRenderer,
+          ipcRendererType: typeof window.electronAPI.ipcRenderer,
+          ipcRendererKeys: window.electronAPI.ipcRenderer ? Object.keys(window.electronAPI.ipcRenderer) : 'undefined',
+          electronAPIKeys: Object.keys(window.electronAPI)
+        });
+        
+        throw new Error('IPC renderer not properly initialized. Export cannot proceed.');
       }
+      
+      logger.info('IPC renderer verified and ready')
 
       const totalDuration = this.calculateTotalDuration(segments);
       const fps = settings.framerate || 30;
