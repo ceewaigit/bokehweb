@@ -10,8 +10,8 @@ import { EffectsFactory } from '@/lib/effects/effects-factory';
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
-  clip,
-  nextClip,
+  clip,  // Keep for potential future use
+  nextClip,  // Keep for potential future use
   effects,
   zoomBlocks,
   videoWidth,
@@ -22,8 +22,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
-  // Calculate next clip's start frame and duration if it's a consecutive split
-  const nextSourceInMs = nextClip ? (nextClip.sourceIn || 0) : 0;
   // Calculate current time in milliseconds (clip-relative)
   const currentTimeMs = (frame / fps) * 1000;
 
@@ -143,7 +141,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   let cinematicBlur: string | undefined;
 
   if (cinematicScrollState) {
-    const { state, layers } = cinematicScrollState;
+    const { state } = cinematicScrollState;
     cinematicTransform = createCinematicTransform(state);
     cinematicBlur = createBlurFilter(state.blur);
 
@@ -239,25 +237,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             volume={1}
             muted={false}
             playbackRate={1}
-            startFrom={0}
             pauseWhenBuffering={false}
             crossOrigin="anonymous"
             onError={(e) => {
               console.error('Video playback error during render:', {
                 error: e,
                 videoUrl: finalVideoUrl,
-                originalUrl: videoUrl,
-                clip,
                 message: e instanceof Error ? e.message : 'Unknown error'
               });
-              
-              // Try fallback URLs if main URL fails
-              if (e && finalVideoUrl.includes('video-stream://')) {
-                // Try with a simpler path
-                const simplePath = videoUrl.replace(/^.*\/([^\/]+)$/, '$1')
-                const fallbackUrl = `video-stream://local/${encodeURIComponent(simplePath)}`
-                console.log('[VideoLayer] Attempting fallback URL:', fallbackUrl)
-              }
             }}
           />
         ) : (
@@ -267,25 +254,14 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             volume={1}
             muted={false}
             playbackRate={1}
-            startFrom={0}
             pauseWhenBuffering={false}
             crossOrigin="anonymous"
             onError={(e) => {
               console.error('Video playback error:', {
                 error: e,
                 videoUrl: finalVideoUrl,
-                originalUrl: videoUrl,
-                clip,
                 message: e instanceof Error ? e.message : 'Unknown error'
               });
-              
-              // Try fallback URLs if main URL fails
-              if (e && finalVideoUrl.includes('video-stream://')) {
-                // Try with a simpler path
-                const simplePath = videoUrl.replace(/^.*\/([^\/]+)$/, '$1')
-                const fallbackUrl = `video-stream://local/${encodeURIComponent(simplePath)}`
-                console.log('[VideoLayer] Attempting fallback URL:', fallbackUrl)
-              }
             }}
           />
         )}
