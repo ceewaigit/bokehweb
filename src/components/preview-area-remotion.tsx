@@ -107,14 +107,20 @@ export function PreviewAreaRemotion({
     if (playheadClip && playheadRecording) {
       const recordingChanged = !activeRecording || activeRecording.id !== playheadRecording.id
       if (recordingChanged) {
-        const url = RecordingStorage.getBlobUrl(playheadRecording.id)
+        let url = RecordingStorage.getBlobUrl(playheadRecording.id)
+        
+        // Convert video-stream:// to file:// for Remotion compatibility
+        if (url?.startsWith('video-stream://')) {
+          const filePath = decodeURIComponent(url.replace('video-stream://', ''))
+          url = new URL('file://' + filePath).toString()
+        }
+        
         if (url) {
           setActiveVideoUrl(url)
         } else if (playheadRecording.filePath) {
-          globalBlobManager.ensureVideoLoaded(
-            playheadRecording.id,
-            playheadRecording.filePath
-          ).then(url => { if (url) setActiveVideoUrl(url) })
+          // Use file:// URL directly instead of video-stream://
+          const fileUrl = new URL('file://' + playheadRecording.filePath).toString()
+          setActiveVideoUrl(fileUrl)
         }
         setActiveRecording(playheadRecording)
       }
