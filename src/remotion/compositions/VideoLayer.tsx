@@ -195,9 +195,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     console.log('[VideoLayer] Normalized URL', { from: videoUrl, to: finalVideoUrl });
   }
   
-  // Log the final URL for debugging
-  console.log('VideoLayer rendering with URL:', finalVideoUrl);
-
   return (
     <AbsoluteFill>
       {/* Shadow layer - rendered separately to ensure visibility */}

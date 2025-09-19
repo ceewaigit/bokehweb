@@ -197,6 +197,40 @@ export class BlobURLManager {
       logger.info(`Cleaned ${cleaned} ${type} blobs, freed ${Math.round(freedSize / 1024 / 1024)}MB`)
     }
   }
+  
+  /**
+   * Emergency cleanup for export - frees all non-essential blobs
+   */
+  cleanupForExport(): void {
+    let cleaned = 0
+    let freedSize = 0
+    
+    const entriesToClean: string[] = []
+    this.entries.forEach((entry, url) => {
+      // Keep only high-priority videos that might be in use
+      if (entry.type === 'video' && (entry.priority || 5) >= 8) {
+        return // Keep this one
+      }
+      
+      // Clean up everything else
+      freedSize += entry.size
+      entriesToClean.push(url)
+      cleaned++
+    })
+    
+    // Revoke all at once
+    entriesToClean.forEach(url => this.revoke(url))
+    
+    if (cleaned > 0) {
+      logger.info(`[Export Cleanup] Freed ${cleaned} blobs, ${Math.round(freedSize / 1024 / 1024)}MB recovered`)
+    }
+    
+    // Force GC if available
+    if (typeof global !== 'undefined' && (global as any).gc) {
+      (global as any).gc()
+      logger.info('[Export Cleanup] Forced garbage collection')
+    }
+  }
 
   /**
    * Soft cleanup: mark blobs for revocation and revoke after a short delay

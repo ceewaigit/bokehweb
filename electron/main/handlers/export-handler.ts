@@ -6,8 +6,6 @@
 import { ipcMain, app } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
-import { createReadStream } from 'fs';
-import { pipeline } from 'stream/promises';
 import os from 'os';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
@@ -20,8 +18,7 @@ import fsSync from 'fs';
 
 const exec = promisify(execCallback);
 
-// Cache directory for Chrome binary
-const CHROME_CACHE_DIR = path.join(app.getPath('userData'), 'chrome-cache');
+// Note: Chrome cache directory removed - not used in current implementation
 
 // Active export processes
 let activeExportProcess: any = null;
@@ -32,23 +29,43 @@ let lastFrameTime = 0;
 let totalFramesRendered = 0;
 let currentDynamicSettings: DynamicExportSettings | null = null;
 
-// Calculate chunks for large exports
+// Calculate chunks for large exports with proper boundaries
 function calculateChunks(totalFrames: number, framesPerChunk: number) {
   const chunks = [];
   for (let start = 0; start < totalFrames; start += framesPerChunk) {
+    const endExclusive = Math.min(start + framesPerChunk, totalFrames);
     chunks.push({
       startFrame: start,
-      endFrame: Math.min(start + framesPerChunk - 1, totalFrames - 1)
+      endFrame: endExclusive - 1 // Inclusive end for frameRange
     });
   }
+  console.log(`Created ${chunks.length} chunks for ${totalFrames} frames (${framesPerChunk} frames per chunk)`);
   return chunks;
+}
+
+// Create chromium options for rendering
+function getChromiumOptions(useGPU: boolean) {
+  return {
+    enableMultiProcessOnLinux: true,
+    gl: useGPU ? 'angle' as const : 'swangle' as const,
+    headless: true,
+    disableWebSecurity: false,
+    args: useGPU ? [
+      '--enable-gpu',
+      '--enable-accelerated-video-decode',
+      '--enable-accelerated-mjpeg-decode',
+      '--disable-gpu-sandbox',
+      '--enable-unsafe-webgpu',
+      '--use-gl=desktop',
+      '--enable-features=VaapiVideoDecoder',
+      '--ignore-gpu-blocklist'
+    ] : []
+  };
 }
 
 export function setupExportHandler() {
   console.log('📦 Setting up export handler');
   
-  // Ensure cache directory exists
-  fs.mkdir(CHROME_CACHE_DIR, { recursive: true }).catch(console.error);
   
   ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings, projectFolder }) => {
     console.log('📹 Export handler invoked with settings:', settings);
@@ -79,14 +96,23 @@ export function setupExportHandler() {
       targetQuality
     );
     
-    console.log('Dynamic export settings:', {
+    // MEMORY FIX: Override dynamic settings with conservative values to prevent OOM
+    // These settings prioritize stability over speed
+    currentDynamicSettings.concurrency = 1; // Was 2 - reduce parallel Chrome renderers
+    currentDynamicSettings.chunkSizeFrames = 30; // Was 60 - smaller chunks for better memory management
+    currentDynamicSettings.jpegQuality = 80; // Was 90 - reduce memory per frame
+    currentDynamicSettings.offthreadVideoCacheSizeInBytes = 256 * 1024 * 1024; // Cap at 256MB (was ~50% system RAM)
+    currentDynamicSettings.offthreadVideoThreads = 1; // Reduce threads for memory efficiency
+    
+    console.log('Dynamic export settings (memory-optimized):', {
       concurrency: currentDynamicSettings.concurrency,
       chunkSize: currentDynamicSettings.chunkSizeFrames,
       jpegQuality: currentDynamicSettings.jpegQuality,
       videoBitrate: currentDynamicSettings.videoBitrate,
       x264Preset: currentDynamicSettings.x264Preset,
       useGPU: currentDynamicSettings.useGPU,
-      cacheSize: (currentDynamicSettings.offthreadVideoCacheSizeInBytes / (1024 * 1024)).toFixed(0) + 'MB'
+      cacheSize: (currentDynamicSettings.offthreadVideoCacheSizeInBytes / (1024 * 1024)).toFixed(0) + 'MB',
+      offthreadVideoThreads: currentDynamicSettings.offthreadVideoThreads
     });
     
     // Reset performance tracking
@@ -96,13 +122,9 @@ export function setupExportHandler() {
     
     // Force aggressive memory cleanup before export
     try {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
-      
       // Kill any lingering Chrome processes
-      await execAsync('pkill -9 -f "chrome-headless-shell"').catch(() => {});
-      await execAsync('pkill -9 -f "Chrome Helper"').catch(() => {});
+      await exec('pkill -9 -f "chrome-headless-shell"').catch(() => {});
+      await exec('pkill -9 -f "Chrome Helper"').catch(() => {});
       console.log('Cleaned up Chrome processes');
     } catch (e) {
       // Ignore
@@ -264,22 +286,7 @@ export function setupExportHandler() {
           console.log(`Rendering chunk ${index + 1}/${chunks.length}: frames ${chunk.startFrame}-${chunk.endFrame}`);
           
           // Get chromium options
-          const chromiumOptions = {
-            enableMultiProcessOnLinux: true,
-            gl: currentDynamicSettings!.useGPU ? 'angle' as const : 'swangle' as const,
-            headless: true,
-            disableWebSecurity: false,
-            args: currentDynamicSettings!.useGPU ? [
-              '--enable-gpu',
-              '--enable-accelerated-video-decode',
-              '--enable-accelerated-mjpeg-decode',
-              '--disable-gpu-sandbox',
-              '--enable-unsafe-webgpu',
-              '--use-gl=desktop',
-              '--enable-features=VaapiVideoDecoder',
-              '--ignore-gpu-blocklist'
-            ] : []
-          };
+          const chromiumOptions = getChromiumOptions(currentDynamicSettings!.useGPU);
           
           const chunkStartTime = performance.now();
           
@@ -292,6 +299,9 @@ export function setupExportHandler() {
             inputProps,
             frameRange: [chunk.startFrame, chunk.endFrame],
             chromiumOptions,
+            onStart: ({ resolvedConcurrency, parallelEncoding }) => {
+              console.log(`[Chunk ${index + 1}] Started with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding}`);
+            },
             onProgress: (info) => {
               // Track frame render performance
               if (info.renderedFrames > totalFramesRendered) {
@@ -302,6 +312,17 @@ export function setupExportHandler() {
                 totalFramesRendered = info.renderedFrames;
               }
               
+              // MEMORY MONITORING: Check memory pressure
+              const memUsage = process.memoryUsage();
+              const heapUsedMB = Math.round(memUsage.heapUsed / (1024 * 1024));
+              const heapTotalMB = Math.round(memUsage.heapTotal / (1024 * 1024));
+              const heapPercent = (memUsage.heapUsed / memUsage.heapTotal * 100).toFixed(1);
+              
+              // Log memory status every 10 frames
+              if (info.renderedFrames % 10 === 0) {
+                console.log(`[Memory] Heap: ${heapUsedMB}MB / ${heapTotalMB}MB (${heapPercent}%)`)
+              }
+              
               // Calculate overall progress
               const chunkProgress = info.progress;
               const overallProgress = ((index + chunkProgress) / chunks.length) * 85;
@@ -310,9 +331,10 @@ export function setupExportHandler() {
                 progress: Math.min(85, 10 + overallProgress),
                 currentFrame: chunk.startFrame + info.renderedFrames,
                 totalFrames: totalFrames,
-                message: `Chunk ${index + 1}/${chunks.length}`
+                message: `Chunk ${index + 1}/${chunks.length} (Heap: ${heapPercent}%)`
               });
             },
+            hardwareAcceleration: currentDynamicSettings!.useGPU ? 'if-possible' as const : 'disable' as const,
             concurrency: currentDynamicSettings!.concurrency,
             jpegQuality: currentDynamicSettings!.jpegQuality,
             everyNthFrame: 1,
@@ -321,7 +343,8 @@ export function setupExportHandler() {
             audioBitrate: null,
             videoBitrate: currentDynamicSettings!.videoBitrate,
             audioCodec: null,
-            offthreadVideoCacheSizeInBytes: currentDynamicSettings!.offthreadVideoCacheSizeInBytes
+            offthreadVideoCacheSizeInBytes: currentDynamicSettings!.offthreadVideoCacheSizeInBytes,
+            offthreadVideoThreads: 1 // MEMORY FIX: Reduce threads for memory efficiency
           });
           
           const chunkTime = performance.now() - chunkStartTime;
@@ -348,10 +371,19 @@ export function setupExportHandler() {
             }
           }
           
-          // Force garbage collection between chunks
+          // AGGRESSIVE MEMORY CLEANUP between chunks
           if (global.gc) {
+            // Multiple GC passes for thorough cleanup
             global.gc();
-            console.log(`Memory cleaned after chunk ${index + 1}`);
+            global.gc();
+            const memAfterGC = process.memoryUsage();
+            console.log(`Memory after chunk ${index + 1}: ${Math.round(memAfterGC.heapUsed / (1024 * 1024))}MB (cleaned)`);
+            
+            // If memory is still high, pause longer
+            if (memAfterGC.heapUsed > 2 * 1024 * 1024 * 1024) { // > 2GB
+              console.log('High memory detected, pausing for recovery...');
+              await new Promise(resolve => setTimeout(resolve, 2000)); // 2s pause
+            }
           }
           
           // Pause between chunks if needed (thermal management)
@@ -400,22 +432,7 @@ export function setupExportHandler() {
         console.log(`Small export: ${totalFrames} frames, rendering in single pass`);
         
         // Get chromium options
-        const chromiumOptions = {
-          enableMultiProcessOnLinux: true,
-          gl: currentDynamicSettings!.useGPU ? 'angle' as const : 'swangle' as const,
-          headless: true,
-          disableWebSecurity: false,
-          args: currentDynamicSettings!.useGPU ? [
-            '--enable-gpu',
-            '--enable-accelerated-video-decode',
-            '--enable-accelerated-mjpeg-decode',
-            '--disable-gpu-sandbox',
-            '--enable-unsafe-webgpu',
-            '--use-gl=desktop',
-            '--enable-features=VaapiVideoDecoder',
-            '--ignore-gpu-blocklist'
-          ] : []
-        };
+        const chromiumOptions = getChromiumOptions(currentDynamicSettings!.useGPU);
         
         // Store the render process for potential cancellation
         activeExportProcess = renderMedia({
@@ -425,6 +442,9 @@ export function setupExportHandler() {
         outputLocation: outputPath,
         inputProps,
         chromiumOptions,
+        onStart: ({ resolvedConcurrency, parallelEncoding }) => {
+          console.log(`[Single Export] Started with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding}`);
+        },
         onProgress: (info) => {
           // Track frame render performance
           if (info.renderedFrames > totalFramesRendered) {
@@ -443,6 +463,7 @@ export function setupExportHandler() {
           });
           
         },
+        hardwareAcceleration: currentDynamicSettings!.useGPU ? 'if-possible' as const : 'disable' as const,
         concurrency: currentDynamicSettings!.concurrency,
         jpegQuality: currentDynamicSettings!.jpegQuality,
         everyNthFrame: 1,
@@ -451,7 +472,8 @@ export function setupExportHandler() {
         audioBitrate: null,
         videoBitrate: currentDynamicSettings!.videoBitrate,
         audioCodec: null,
-        offthreadVideoCacheSizeInBytes: currentDynamicSettings!.offthreadVideoCacheSizeInBytes
+        offthreadVideoCacheSizeInBytes: currentDynamicSettings!.offthreadVideoCacheSizeInBytes,
+        offthreadVideoThreads: 4 // Add threads for video decoding
       });
       
       // Wait for render to complete

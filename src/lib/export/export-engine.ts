@@ -8,6 +8,8 @@ import { RemotionExportService } from './remotion-export-service'
 import { metadataLoader } from './metadata-loader'
 import { timelineProcessor } from './timeline-processor'
 import { logger } from '../utils/logger'
+import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { memoryMonitor } from '@/lib/utils/memory-monitor'
 
 export interface ExportProgress {
   progress: number
@@ -42,6 +44,15 @@ export class ExportEngine {
     this.isExporting = true
     this.abortController = new AbortController()
     const startTime = performance.now()
+    
+    // Clean up memory before export starts
+    logger.info('[Export] Cleaning up memory before export...')
+    globalBlobManager.cleanupForExport()
+    
+    // Start memory monitoring
+    memoryMonitor.startMonitoring(3000, () => {
+      logger.warn('[Export] High memory pressure detected during export!')
+    })
 
     try {
       // Prepare recordings map
@@ -118,6 +129,18 @@ export class ExportEngine {
     } finally {
       this.isExporting = false
       this.abortController = null
+      
+      // Stop memory monitoring
+      memoryMonitor.stopMonitoring()
+      
+      // Final memory cleanup
+      globalBlobManager.cleanupByType('export')
+      
+      // Log memory stats
+      const memStats = memoryMonitor.getMemoryStats()
+      if (memStats) {
+        logger.info(`[Export] Final memory: ${memStats.usedMB}MB / ${memStats.limitMB}MB (${memStats.percentUsed}%)`)
+      }
 
       const duration = (performance.now() - startTime) / 1000
       logger.info(`Export completed in ${duration.toFixed(2)}s`)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useExportStore } from '@/stores/export-store'
 import { useProjectStore } from '@/stores/project-store'
 import { Button } from './ui/button'
@@ -40,6 +40,13 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
   } = useExportStore()
 
   const { currentProject, playheadClip } = useProjectStore()
+
+  // Reset export state when project changes to prevent stale data
+  useEffect(() => {
+    // Clear export state when switching projects
+    // This fixes the stale filename bug and frees memory from previous export blob
+    reset()
+  }, [currentProject?.id, reset])
 
   const presets = [
     { id: 'youtube-4k', name: 'YouTube 4K', desc: '3840×2160, 60fps, MP4' },

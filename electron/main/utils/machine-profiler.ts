@@ -42,6 +42,7 @@ export interface DynamicExportSettings {
   x264Preset: 'ultrafast' | 'superfast' | 'veryfast' | 'faster' | 'fast' | 'medium' | 'slow';
   useGPU: boolean;
   offthreadVideoCacheSizeInBytes: number;
+  offthreadVideoThreads: number; // Number of threads for OffthreadVideo processing
   enableAdaptiveOptimization: boolean;
   pauseBetweenChunks: number; // ms
 }
@@ -265,14 +266,14 @@ export class MachineProfiler {
   }
 
   /**
-   * Assess memory pressure
+   * Assess memory pressure based on absolute free RAM
+   * For video rendering, absolute free RAM matters more than ratios
    */
   private assessMemoryPressure(availableGB: number, totalGB: number): 'none' | 'light' | 'moderate' | 'heavy' {
-    const usedRatio = 1 - (availableGB / totalGB);
-    
-    if (usedRatio < 0.5) return 'none';
-    if (usedRatio < 0.7) return 'light';
-    if (usedRatio < 0.85) return 'moderate';
+    // Use absolute free RAM for video rendering workloads
+    if (availableGB >= 6) return 'none';
+    if (availableGB >= 3) return 'light';
+    if (availableGB >= 1.5) return 'moderate';
     return 'heavy';
   }
 
@@ -285,38 +286,37 @@ export class MachineProfiler {
     memoryPressure: string,
     thermalPressure: string
   ): number {
-    // Start with CPU cores
-    let concurrency = cpuCores;
+    // Start with aggressive baseline for multi-core machines
+    const baseline = cpuCores >= 8 ? Math.min(cpuCores - 1, 8) : Math.max(4, Math.floor(cpuCores * 0.8));
+    let concurrency = baseline;
     
     // Adjust based on frame processing speed
     if (frameProcessingSpeed > 200) {
-      // Slow processing: reduce concurrency
-      concurrency = Math.max(2, Math.floor(cpuCores * 0.5));
+      // Slow processing: still use decent concurrency
+      concurrency = Math.max(4, Math.floor(baseline * 0.6));
     } else if (frameProcessingSpeed > 100) {
       // Moderate processing
-      concurrency = Math.max(2, Math.floor(cpuCores * 0.75));
+      concurrency = Math.max(4, Math.floor(baseline * 0.8));
     }
     
-    // Adjust for memory pressure
+    // Only reduce for truly critical memory pressure
     if (memoryPressure === 'heavy') {
-      concurrency = Math.min(2, concurrency);
+      // Still allow reasonable concurrency even under pressure
+      concurrency = Math.max(4, Math.min(6, concurrency));
     } else if (memoryPressure === 'moderate') {
-      concurrency = Math.min(4, Math.floor(concurrency * 0.6));
-    } else if (memoryPressure === 'light') {
-      concurrency = Math.floor(concurrency * 0.8);
+      concurrency = Math.max(4, Math.floor(concurrency * 0.8));
     }
     
     // Adjust for thermal pressure
     if (thermalPressure === 'heavy') {
-      concurrency = Math.min(2, concurrency);
+      concurrency = Math.max(3, Math.min(4, concurrency));
     } else if (thermalPressure === 'moderate') {
-      concurrency = Math.floor(concurrency * 0.6);
-    } else if (thermalPressure === 'light') {
-      concurrency = Math.floor(concurrency * 0.8);
+      concurrency = Math.max(4, Math.floor(concurrency * 0.8));
     }
     
-    // Always leave at least one core for the system
-    return Math.max(1, Math.min(concurrency, cpuCores - 1));
+    // For modern multi-core systems, never go below 4 threads
+    const minConcurrency = cpuCores >= 8 ? 4 : Math.min(2, cpuCores - 1);
+    return Math.max(minConcurrency, Math.min(concurrency, cpuCores));
   }
 
   /**
@@ -365,12 +365,13 @@ export class MachineProfiler {
     // Base settings on actual performance measurements
     let settings: DynamicExportSettings = {
       concurrency: profile.optimalConcurrency,
-      chunkSizeFrames: 300, // Default: 5 seconds at 60fps
-      jpegQuality: 85,
+      chunkSizeFrames: 180, // 3 seconds at 60fps - better balance
+      jpegQuality: 80, // Remotion default - optimal balance
       videoBitrate: '10M',
-      x264Preset: 'faster',
+      x264Preset: 'veryfast', // Better speed than 'faster'
       useGPU: profile.supportsHardwareAcceleration,
-      offthreadVideoCacheSizeInBytes: 256 * 1024 * 1024, // 256MB default
+      offthreadVideoCacheSizeInBytes: 1024 * 1024 * 1024, // 1GB default minimum
+      offthreadVideoThreads: 2, // Default 2 threads for video processing
       enableAdaptiveOptimization: true,
       pauseBetweenChunks: 0
     };
@@ -383,14 +384,14 @@ export class MachineProfiler {
     // Adjust quality based on processing speed and target
     if (profile.frameProcessingSpeed < 50 && targetQuality === 'quality') {
       // Fast machine, high quality requested
-      settings.jpegQuality = 95;
+      settings.jpegQuality = 85;  // 85 is a good balance, 95 is overkill
       settings.videoBitrate = is4K ? '40M' : '20M';
-      settings.x264Preset = 'medium';
+      settings.x264Preset = 'fast';
     } else if (profile.frameProcessingSpeed < 100) {
       // Good performance
-      settings.jpegQuality = 90;
+      settings.jpegQuality = 80;  // Remotion default, good balance
       settings.videoBitrate = is4K ? '25M' : isHighRes ? '15M' : '10M';
-      settings.x264Preset = 'faster';
+      settings.x264Preset = 'veryfast';  // Better speed than 'faster'
     } else if (profile.frameProcessingSpeed < 200) {
       // Moderate performance
       settings.jpegQuality = 80;
@@ -398,21 +399,22 @@ export class MachineProfiler {
       settings.x264Preset = 'veryfast';
     } else {
       // Slow performance
-      settings.jpegQuality = 70;
+      settings.jpegQuality = 75;
       settings.videoBitrate = is4K ? '10M' : isHighRes ? '5M' : '3M';
       settings.x264Preset = 'ultrafast';
-      settings.concurrency = Math.min(2, settings.concurrency);
+      // Don't overly restrict concurrency even on slow machines
+      settings.concurrency = Math.max(4, Math.min(6, settings.concurrency));
     }
     
-    // Adjust cache size based on available memory
-    if (profile.availableMemoryGB > 16) {
+    // Adjust cache size based on total memory (more aggressive caching)
+    if (profile.totalMemoryGB >= 32) {
+      settings.offthreadVideoCacheSizeInBytes = 4 * 1024 * 1024 * 1024; // 4GB
+    } else if (profile.totalMemoryGB >= 16) {
+      settings.offthreadVideoCacheSizeInBytes = 2 * 1024 * 1024 * 1024; // 2GB for 16GB systems
+    } else if (profile.totalMemoryGB >= 8) {
       settings.offthreadVideoCacheSizeInBytes = 1024 * 1024 * 1024; // 1GB
-    } else if (profile.availableMemoryGB > 8) {
-      settings.offthreadVideoCacheSizeInBytes = 512 * 1024 * 1024; // 512MB
-    } else if (profile.availableMemoryGB > 4) {
-      settings.offthreadVideoCacheSizeInBytes = 256 * 1024 * 1024; // 256MB
     } else {
-      settings.offthreadVideoCacheSizeInBytes = 128 * 1024 * 1024; // 128MB
+      settings.offthreadVideoCacheSizeInBytes = 512 * 1024 * 1024; // 512MB minimum
     }
     
     // Add pauses for thermal management
