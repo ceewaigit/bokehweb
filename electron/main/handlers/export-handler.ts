@@ -6,11 +6,9 @@
 import { ipcMain, app } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
-import os from 'os';
 import { exec as execCallback, fork } from 'child_process';
 import { promisify } from 'util';
 import { machineProfiler, type DynamicExportSettings } from '../utils/machine-profiler';
-import { performance } from 'perf_hooks';
 import { makeVideoSrc } from '../utils/video-url-factory';
 import { getVideoServer } from '../video-http-server';
 import { getRecordingsDirectory } from '../config';
@@ -18,12 +16,10 @@ import fsSync from 'fs';
 
 const exec = promisify(execCallback);
 
-// Note: Chrome cache directory removed - not used in current implementation
-
-// Active export processes
+// Active export worker process
 let activeExportWorker: any = null;
 
-// Performance tracking
+// Current export settings
 let currentDynamicSettings: DynamicExportSettings | null = null;
 
 
@@ -71,19 +67,13 @@ export function setupExportHandler() {
     if (isEmergencyMode) {
       console.warn('⚠️ EMERGENCY MEMORY MODE: System under heavy pressure');
       currentDynamicSettings.concurrency = 1;
-      currentDynamicSettings.chunkSizeFrames = 1; // Not used in streaming, but kept for compatibility
       currentDynamicSettings.jpegQuality = 70; // Lower quality for less memory
       currentDynamicSettings.offthreadVideoCacheSizeInBytes = 16 * 1024 * 1024; // Only 16MB cache
-      currentDynamicSettings.offthreadVideoThreads = 1;
-      currentDynamicSettings.pauseBetweenChunks = 0; // Not used in streaming
     } else {
       // Normal streaming mode
       currentDynamicSettings.concurrency = 1;
-      currentDynamicSettings.chunkSizeFrames = 1; // Not used in streaming
       currentDynamicSettings.jpegQuality = 80;
       currentDynamicSettings.offthreadVideoCacheSizeInBytes = 32 * 1024 * 1024; // 32MB cache for streaming
-      currentDynamicSettings.offthreadVideoThreads = 1;
-      currentDynamicSettings.pauseBetweenChunks = 0; // Not used in streaming
     }
     
     currentDynamicSettings.enableAdaptiveOptimization = false; // Always use fixed settings
@@ -91,14 +81,11 @@ export function setupExportHandler() {
     console.log('Dynamic export settings (memory-optimized):', {
       mode: isEmergencyMode ? 'EMERGENCY' : 'NORMAL',
       concurrency: currentDynamicSettings.concurrency,
-      chunkSize: currentDynamicSettings.chunkSizeFrames,
       jpegQuality: currentDynamicSettings.jpegQuality,
       videoBitrate: currentDynamicSettings.videoBitrate,
       x264Preset: currentDynamicSettings.x264Preset,
       useGPU: currentDynamicSettings.useGPU,
-      cacheSize: (currentDynamicSettings.offthreadVideoCacheSizeInBytes / (1024 * 1024)).toFixed(0) + 'MB',
-      offthreadVideoThreads: currentDynamicSettings.offthreadVideoThreads,
-      pauseBetweenChunks: currentDynamicSettings.pauseBetweenChunks + 'ms'
+      cacheSize: (currentDynamicSettings.offthreadVideoCacheSizeInBytes / (1024 * 1024)).toFixed(0) + 'MB'
     });
     
     // PRE-EXPORT MEMORY CHECK: Refuse export if system memory is critically low
@@ -124,7 +111,7 @@ export function setupExportHandler() {
       });
     }
     
-    // Performance tracking handled by worker process now
+    // Force aggressive memory cleanup before export
     
     // Force aggressive memory cleanup before export
     try {

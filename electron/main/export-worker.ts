@@ -9,13 +9,39 @@ import { once } from 'events';
 import path from 'path';
 import fs from 'fs/promises';
 import { tmpdir } from 'os';
-import { bundle } from '@remotion/bundler';
 import {
   renderFrames,
   renderMedia,
   selectComposition,
   openBrowser
 } from '@remotion/renderer';
+
+// Get FFmpeg path from Remotion's bundled binaries
+const getFFmpegPath = (): string => {
+  const platform = process.platform;
+  const arch = process.arch;
+  
+  // Build the path to Remotion's bundled FFmpeg
+  let compositorPackage = '';
+  
+  if (platform === 'darwin') {
+    compositorPackage = arch === 'arm64' 
+      ? '@remotion/compositor-darwin-arm64'
+      : '@remotion/compositor-darwin-x64';
+  } else if (platform === 'win32') {
+    compositorPackage = '@remotion/compositor-win32-x64';
+  } else if (platform === 'linux') {
+    compositorPackage = arch === 'arm64'
+      ? '@remotion/compositor-linux-arm64'
+      : '@remotion/compositor-linux-x64';
+  }
+  
+  const ffmpegName = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const ffmpegPath = path.join(process.cwd(), 'node_modules', compositorPackage, ffmpegName);
+  
+  console.log(`[Export Worker] FFmpeg path resolved to: ${ffmpegPath}`);
+  return ffmpegPath;
+};
 
 // Types
 interface ExportJob {
@@ -168,9 +194,20 @@ async function performStreamingExport(job: ExportJob) {
       job.outputPath
     ];
 
-    console.log(`[Export Worker] Starting FFmpeg with args:`, ffmpegArgs.join(' '));
+    // Get the bundled FFmpeg path
+    const ffmpegPath = getFFmpegPath();
+    
+    // Check if FFmpeg exists
+    try {
+      await fs.access(ffmpegPath, fs.constants.X_OK);
+    } catch (error) {
+      throw new Error(`FFmpeg not found at ${ffmpegPath}. Please ensure Remotion dependencies are installed.`);
+    }
+    
+    console.log(`[Export Worker] Starting FFmpeg from: ${ffmpegPath}`);
+    console.log(`[Export Worker] FFmpeg args:`, ffmpegArgs.join(' '));
 
-    ffmpegProcess = spawn('ffmpeg', ffmpegArgs, {
+    ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, {
       stdio: ['pipe', 'pipe', 'pipe'] // stdin, stdout, stderr
     });
 
