@@ -19,25 +19,52 @@ export type VideoTarget = 'preview' | 'export'
  * @returns URL that can be used in video elements
  */
 export async function makeVideoSrc(absPath: string, target: VideoTarget): Promise<string> {
-  // Validate input
-  if (!absPath || !path.isAbsolute(absPath)) {
-    throw new Error(`Invalid video path: ${absPath}`)
+  // Clean up the path first
+  let cleanPath = absPath
+  
+  // Remove any existing protocol
+  cleanPath = cleanPath.replace(/^(file|video-stream):\/+/, '')
+  
+  // Remove 'local/' prefix if present  
+  if (cleanPath.startsWith('local/')) {
+    cleanPath = cleanPath.slice(6)
+  }
+  
+  // Decode if encoded
+  try {
+    cleanPath = decodeURIComponent(cleanPath)
+  } catch {
+    // Use as-is if decode fails
+  }
+  
+  // Make absolute if not already
+  if (!path.isAbsolute(cleanPath)) {
+    // If it looks like an absolute path without leading slash (Windows), add drive
+    if (cleanPath.match(/^[A-Z]:/i)) {
+      // Already has drive letter
+    } else if (cleanPath.match(/^(Users|home|var|tmp|opt)/i)) {
+      // Unix path missing leading slash
+      cleanPath = '/' + cleanPath
+    } else {
+      // Relative path - don't throw, just log
+      console.log(`[VideoURLFactory] Relative path provided: ${cleanPath}`)
+    }
   }
 
   if (target === 'preview') {
     // For Electron preview, use custom video-stream:// protocol
     // Encode the path to handle special characters
-    const encodedPath = encodeURIComponent(absPath)
+    const encodedPath = encodeURIComponent(cleanPath)
     const url = `video-stream://local/${encodedPath}`
-    console.log(`[VideoURLFactory] Preview URL: ${url}`)
+    console.log(`[VideoURLFactory] Preview URL created: ${url}`)
     return url
   }
 
   // For export, use HTTP server
   const server = await getVideoServer()
   // Register file with 5 minute TTL (export should complete within this time)
-  const url = server.registerFile(absPath, 5 * 60 * 1000)
-  console.log(`[VideoURLFactory] Export URL: ${url}`)
+  const url = server.registerFile(cleanPath, 5 * 60 * 1000)
+  console.log(`[VideoURLFactory] Export URL created: ${url}`)
   return url
 }
 

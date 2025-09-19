@@ -199,13 +199,8 @@ export const useExportStore = create<ExportStore>((set, get) => {
         return
       }
 
-      // Browser fallback: trigger a download
-      const url = globalBlobManager.create(lastExport, `export-${suggestedName}`)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = suggestedName
-      a.click()
-      globalBlobManager.revoke(url)
+      // We're in Electron, no browser fallback needed
+      throw new Error('Electron API not available for file save')
     },
 
     setPreset: (preset) => {

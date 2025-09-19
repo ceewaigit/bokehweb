@@ -6,7 +6,7 @@
 import { logger } from '@/lib/utils/logger'
 import { MemoryError } from '@/lib/errors'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { createVideoStreamUrl } from '@/lib/utils/video-url-utils'
+import { resolveRecordingPath, pathToFileUrl } from '@/lib/utils/path-resolver'
 
 interface BlobEntry {
   url: string
@@ -367,37 +367,18 @@ export class BlobURLManager {
       return null
     }
 
-    if (!window.electronAPI?.getRecordingsDirectory) {
-      logger.error('Electron API not available')
-      return null
-    }
-
     try {
-      // If path is not absolute, construct full path using recordings directory or provided folder
-      let fullPath = filePath
-      const isAbsolute = filePath.startsWith('/') || filePath.startsWith('C:\\')
-      if (!isAbsolute) {
-        if (folderPath && (folderPath.startsWith('/') || folderPath.startsWith('C:\\'))) {
-          // folderPath points to recording folder; video is in its parent
-          const idx = folderPath.lastIndexOf('/')
-          const projectFolder = idx > 0 ? folderPath.slice(0, idx) : folderPath
-          fullPath = `${projectFolder}/${filePath}`
-        } else {
-          const recordingsDir = await window.electronAPI.getRecordingsDirectory()
-          fullPath = `${recordingsDir}/${filePath}`
-        }
-      }
-
+      // Use unified path resolver
+      const fullPath = await resolveRecordingPath(filePath, folderPath)
       logger.debug(`Video path resolved: ${recordingId} at ${fullPath}`)
       
-      // Use video-stream:// protocol to bypass CORS restrictions
-      // Use safe encoding utility to prevent double-encoding
-      const videoUrl = createVideoStreamUrl(fullPath)
+      // Use standard file:// URL
+      const videoUrl = pathToFileUrl(fullPath)
       
       // Cache the URL for future use
       RecordingStorage.setBlobUrl(recordingId, videoUrl)
 
-      logger.info(`Video ready for streaming: ${recordingId}`)
+      logger.info(`Video ready: ${recordingId}`)
       return videoUrl
     } catch (error) {
       logger.error(`Error resolving video path ${recordingId}:`, error)

@@ -1,9 +1,9 @@
 import { app, BrowserWindow, protocol } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
-import * as crypto from 'crypto'
 import { Readable } from 'stream'
 import { isDev, getRecordingsDirectory } from './config'
+import { findVideoFile, normalizeCrossPlatform } from './utils/path-normalizer'
 import { createRecordButton, setupRecordButton } from './windows/record-button'
 import { checkMediaPermissions } from './services/permissions'
 import { registerRecordingHandlers } from './handlers/recording'
@@ -16,7 +16,6 @@ import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 import { setupNativeRecorder } from './handlers/native-recorder'
 import { setupExportHandler } from './handlers/export-handler'
-import { extractPathFromVideoStreamUrl } from '../utils/video-url-utils'
 
 // Helper functions for MIME type detection
 const guessMimeType = (filePath: string): string => {
@@ -46,20 +45,39 @@ protocol.registerSchemesAsPrivileged([
       corsEnabled: true,
       bypassCSP: true
     }
+  },
+  {
+    scheme: 'app',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true
+    }
   }
 ])
 
 function registerProtocol(): void {
   // Register app protocol for packaged app
   if (!isDev && app.isPackaged) {
-    protocol.registerFileProtocol('app', (request, callback) => {
+    protocol.handle('app', async (request) => {
       const url = request.url.replace('app://', '')
       const decodedUrl = decodeURIComponent(url)
       try {
         const filePath = path.join(app.getAppPath(), 'out', decodedUrl)
-        callback(filePath)
+        const stat = fs.statSync(filePath)
+        const stream = fs.createReadStream(filePath)
+        const body = Readable.toWeb(stream as any)
+        
+        return new Response(body as any, {
+          status: 200,
+          headers: {
+            'Content-Length': String(stat.size),
+            'Content-Type': 'text/html' // Adjust based on file type if needed
+          }
+        })
       } catch (error) {
         console.error('[Protocol] Error loading file:', error)
+        return new Response('Not found', { status: 404 })
       }
     })
   }
@@ -67,13 +85,89 @@ function registerProtocol(): void {
   // Register video-stream protocol with HTTP Range support
   protocol.handle('video-stream', async (request) => {
     try {
-      // Extract file path from URL
-      const filePath = extractPathFromVideoStreamUrl(request.url)
+      // Parse URL - handle ALL possible formats
+      const url = new URL(request.url)
+      let filePath: string = ''
       
-      // Validate file exists
-      if (!filePath || !path.isAbsolute(filePath) || !fs.existsSync(filePath)) {
-        console.error('[Protocol] File not found:', filePath)
-        return new Response('Not found', { status: 404 })
+      // Format 1: video-stream://local/<encoded-path>
+      if (url.host === 'local' || url.host === 'localhost') {
+        const encodedPath = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname
+        try {
+          filePath = decodeURIComponent(encodedPath)
+        } catch {
+          filePath = encodedPath // Use as-is if decode fails
+        }
+      } 
+      // Format 2: video-stream://Users/... or video-stream://users/... (malformed)
+      else if (url.host) {
+        // Try to reconstruct the path
+        const hostPart = url.host
+        const pathPart = url.pathname
+        
+        // Handle Windows paths (e.g., host="c", pathname="/Users/...")
+        if (hostPart.length === 1 && /[a-zA-Z]/.test(hostPart)) {
+          filePath = `${hostPart.toUpperCase()}:${pathPart}`
+        }
+        // Handle Unix paths (e.g., host="users", pathname="/name/...")
+        else {
+          // Capitalize first letter for common directories
+          const capitalizedHost = ['users', 'home', 'var', 'tmp', 'opt'].includes(hostPart.toLowerCase()) 
+            ? hostPart.charAt(0).toUpperCase() + hostPart.slice(1).toLowerCase()
+            : hostPart
+          filePath = `/${capitalizedHost}${pathPart}`
+        }
+        
+        try {
+          filePath = decodeURIComponent(filePath)
+        } catch {
+          // Use as-is if decode fails
+        }
+      }
+      // Format 3: video-stream:///path/to/file (triple slash)
+      else if (url.pathname) {
+        try {
+          filePath = decodeURIComponent(url.pathname)
+        } catch {
+          filePath = url.pathname
+        }
+      }
+      
+      // Format 4: Extract from full URL string if above failed
+      if (!filePath || filePath === '/') {
+        // Try to extract path from the original URL
+        const match = request.url.match(/video-stream:\/\/(.+)$/)
+        if (match) {
+          filePath = match[1]
+          // Remove 'local/' prefix if present
+          if (filePath.startsWith('local/')) {
+            filePath = filePath.slice(6)
+          }
+          try {
+            filePath = decodeURIComponent(filePath)
+          } catch {
+            // Use as-is
+          }
+        }
+      }
+      
+      // Use cross-platform normalizer
+      filePath = normalizeCrossPlatform(filePath)
+      
+      // Try to find the file using multiple strategies
+      const foundPath = findVideoFile(filePath)
+      if (foundPath) {
+        filePath = foundPath
+      } else {
+        // Last resort: try with recordings directory
+        const recordingsDir = getRecordingsDirectory()
+        const inRecordings = path.join(recordingsDir, path.basename(filePath))
+        if (fs.existsSync(inRecordings)) {
+          filePath = inRecordings
+        } else {
+          console.error('[Protocol] File not found after all attempts:', filePath)
+          console.log('[Protocol] Searched in recordings dir:', recordingsDir)
+          return new Response('Not found', { status: 404 })
+        }
       }
 
       const stat = fs.statSync(filePath)
@@ -199,6 +293,21 @@ async function initializeApp(): Promise<void> {
   registerProtocol()
   await checkMediaPermissions()
   registerAllHandlers()
+  
+  // Add request logging for debugging video URLs
+  const { session } = await import('electron')
+  const ses = session.defaultSession
+  
+  ses.webRequest.onBeforeRequest((details, callback) => {
+    if (details.url.startsWith('file:') || details.url.startsWith('video-stream:')) {
+      console.log('[MEDIA-REQUEST]', {
+        url: details.url,
+        resourceType: details.resourceType,
+        method: details.method
+      })
+    }
+    callback({})
+  })
 
   global.mainWindow = null
 

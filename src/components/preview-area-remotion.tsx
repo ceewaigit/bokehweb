@@ -109,16 +109,10 @@ export function PreviewAreaRemotion({
       if (recordingChanged) {
         let url = RecordingStorage.getBlobUrl(playheadRecording.id)
         
-        // Convert video-stream:// to file:// for Remotion compatibility
-        if (url?.startsWith('video-stream://')) {
-          const filePath = decodeURIComponent(url.replace('video-stream://', ''))
-          url = new URL('file://' + filePath).toString()
-        }
-        
         if (url) {
           setActiveVideoUrl(url)
         } else if (playheadRecording.filePath) {
-          // Use file:// URL directly instead of video-stream://
+          // Use direct file:// URL
           const fileUrl = new URL('file://' + playheadRecording.filePath).toString()
           setActiveVideoUrl(fileUrl)
         }

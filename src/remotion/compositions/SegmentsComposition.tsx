@@ -54,12 +54,8 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
       // Get the video URL for this recording
       let videoUrl = videoUrls[recording.id];
       
-      // Convert video-stream:// URLs to file:// for Remotion compatibility
-      if (videoUrl?.startsWith('video-stream://')) {
-        const filePath = decodeURIComponent(videoUrl.replace('video-stream://', ''));
-        videoUrl = new URL('file://' + filePath).toString();
-      } else if (!videoUrl && recording.filePath) {
-        // Fallback to recording.filePath if no URL provided
+      // Use direct file:// URL as fallback
+      if (!videoUrl && recording.filePath) {
         videoUrl = new URL('file://' + recording.filePath).toString();
       }
       

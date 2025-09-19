@@ -33,13 +33,8 @@ export const RemotionRoot: React.FC = () => {
             }
           }
           
-          // Fallback to defaults
-          return {
-            durationInFrames: 900,
-            fps: props.framerate || 30,
-            width: props.resolution?.width || 1920,
-            height: props.resolution?.height || 1080,
-          };
+          // No defaults - require valid data
+          throw new Error('Invalid composition props: missing required segment or recording data');
         }}
         defaultProps={{
           videoUrl: '',
@@ -84,13 +79,8 @@ export const RemotionRoot: React.FC = () => {
             }
           }
           
-          // Fallback to defaults
-          return {
-            durationInFrames: 900,
-            fps: props.framerate || 30,
-            width: props.resolution?.width || 1920,
-            height: props.resolution?.height || 1080,
-          };
+          // No defaults - require valid data
+          throw new Error('Invalid composition props: missing required segment or recording data');
         }}
         defaultProps={{
           segments: [],

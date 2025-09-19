@@ -14,7 +14,7 @@ import { promisify } from 'util';
 import { machineProfiler, type DynamicExportSettings } from '../utils/machine-profiler';
 import { performance } from 'perf_hooks';
 import { makeVideoSrc } from '../utils/video-url-factory';
-import { getVideoServer, stopVideoServer } from '../video-http-server';
+import { getVideoServer } from '../video-http-server';
 import { getRecordingsDirectory } from '../config';
 import fsSync from 'fs';
 
@@ -31,69 +31,6 @@ let frameRenderTimes: number[] = [];
 let lastFrameTime = 0;
 let totalFramesRendered = 0;
 let currentDynamicSettings: DynamicExportSettings | null = null;
-
-// Dynamic quality settings based on user's quality preset
-function getQualitySettings(quality: string) {
-  const cpuCount = os.cpus().length;
-  const memoryGB = os.totalmem() / (1024 * 1024 * 1024);
-  
-  // Map quality level to export parameters
-  switch(quality) {
-    case 'ultra':
-      return {
-        jpegQuality: 95,
-        x264Preset: 'medium' as const,  // Balanced for quality
-        concurrency: Math.min(cpuCount - 2, 12),  // Use most cores, leave some for OS
-        videoBitrate: '20M',
-        offthreadVideoCacheSizeInBytes: Math.min(1024 * 1024 * 1024, memoryGB * 128 * 1024 * 1024) // Up to 1GB
-      };
-    case 'high':
-      return {
-        jpegQuality: 85,
-        x264Preset: 'faster' as const,  // Faster encoding for better performance
-        concurrency: Math.min(cpuCount - 2, 8),  // Use up to 8 cores
-        videoBitrate: '10M',
-        offthreadVideoCacheSizeInBytes: Math.min(512 * 1024 * 1024, memoryGB * 64 * 1024 * 1024) // Up to 512MB
-      };
-    case 'medium':
-      return {
-        jpegQuality: 75,
-        x264Preset: 'veryfast' as const,  // Prioritize speed
-        concurrency: Math.min(Math.max(Math.floor(cpuCount * 0.6), 2), 6),  // Use 60% of cores
-        videoBitrate: '5M',
-        offthreadVideoCacheSizeInBytes: 256 * 1024 * 1024 // 256MB
-      };
-    case 'low':
-    default:
-      return {
-        jpegQuality: 60,
-        x264Preset: 'ultrafast' as const,
-        concurrency: Math.min(Math.max(Math.floor(cpuCount * 0.4), 1), 4),  // Use 40% of cores
-        videoBitrate: '2M',
-        offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024 // 128MB
-      };
-  }
-}
-
-// Calculate optimal chunk size based on system memory
-function getOptimalChunkSize(framerate: number) {
-  const memoryGB = os.totalmem() / (1024 * 1024 * 1024);
-  
-  // Determine chunk duration in seconds based on available memory
-  let chunkSeconds: number;
-  if (memoryGB < 8) {
-    chunkSeconds = 10; // Small chunks for low memory
-  } else if (memoryGB < 16) {
-    chunkSeconds = 20; // Medium chunks
-  } else {
-    chunkSeconds = 30; // Large chunks for high memory systems
-  }
-  
-  return chunkSeconds * framerate;
-}
-
-// Legacy functions - no longer used but kept for reference
-// Now replaced by MachineProfiler dynamic optimization
 
 // Calculate chunks for large exports
 function calculateChunks(totalFrames: number, framesPerChunk: number) {
@@ -213,7 +150,7 @@ export function setupExportHandler() {
 
       // Start the HTTP server for video serving during export
       console.log('🌐 Starting video HTTP server for export...');
-      const videoServer = await getVideoServer();
+      await getVideoServer();
       
       // Convert recordings to plain object and generate video URLs
       const recordingsObj = Object.fromEntries(recordings);
@@ -297,28 +234,9 @@ export function setupExportHandler() {
 
       const totalFrames = composition.durationInFrames;
       
-      // Get dynamic chunk size based on system and frame
-      const framesPerChunk = getOptimalChunkSize(settings.framerate || 60);
+      // Use dynamic settings from MachineProfiler instead of legacy functions
+      const framesPerChunk = currentDynamicSettings!.chunkSizeFrames;
       const isLargeExport = totalFrames > framesPerChunk;
-      
-      // Get quality settings based on user's selected quality
-      let qualitySettings = getQualitySettings(settings.quality || 'high');
-      
-      // Optimize for small exports (under 1000 frames / ~16 seconds at 60fps)
-      if (totalFrames < 1000) {
-        const cpuCount = os.cpus().length;
-        qualitySettings = {
-          ...qualitySettings,
-          concurrency: Math.min(cpuCount - 1, 12), // Use more cores for small exports
-          x264Preset: 'veryfast' as const, // Prioritize speed for small exports
-        };
-        console.log('Small export optimization: Using aggressive settings for faster processing');
-      }
-      
-      // Log system info for debugging
-      console.log(`System: ${os.cpus().length} cores, ${(os.totalmem() / (1024 * 1024 * 1024)).toFixed(1)}GB RAM`);
-      console.log(`Export quality: ${settings.quality}, Chunk size: ${framesPerChunk} frames`);
-      console.log(`Quality settings:`, qualitySettings);
       
       // Create temp output path
       outputPath = path.join(
@@ -394,15 +312,15 @@ export function setupExportHandler() {
                 message: `Chunk ${index + 1}/${chunks.length}`
               });
             },
-            concurrency: qualitySettings.concurrency,
-            jpegQuality: qualitySettings.jpegQuality,
+            concurrency: currentDynamicSettings!.concurrency,
+            jpegQuality: currentDynamicSettings!.jpegQuality,
             everyNthFrame: 1,
-            x264Preset: qualitySettings.x264Preset,
+            x264Preset: currentDynamicSettings!.x264Preset,
             pixelFormat: 'yuv420p',
             audioBitrate: null,
-            videoBitrate: qualitySettings.videoBitrate,
+            videoBitrate: currentDynamicSettings!.videoBitrate,
             audioCodec: null,
-            offthreadVideoCacheSizeInBytes: qualitySettings.offthreadVideoCacheSizeInBytes
+            offthreadVideoCacheSizeInBytes: currentDynamicSettings!.offthreadVideoCacheSizeInBytes
           });
           
           const chunkTime = performance.now() - chunkStartTime;
@@ -524,15 +442,15 @@ export function setupExportHandler() {
           });
           
         },
-        concurrency: qualitySettings.concurrency,
-        jpegQuality: qualitySettings.jpegQuality,
+        concurrency: currentDynamicSettings!.concurrency,
+        jpegQuality: currentDynamicSettings!.jpegQuality,
         everyNthFrame: 1,
-        x264Preset: qualitySettings.x264Preset,
+        x264Preset: currentDynamicSettings!.x264Preset,
         pixelFormat: 'yuv420p',
         audioBitrate: null,
-        videoBitrate: qualitySettings.videoBitrate,
+        videoBitrate: currentDynamicSettings!.videoBitrate,
         audioCodec: null,
-        offthreadVideoCacheSizeInBytes: qualitySettings.offthreadVideoCacheSizeInBytes
+        offthreadVideoCacheSizeInBytes: currentDynamicSettings!.offthreadVideoCacheSizeInBytes
       });
       
       // Wait for render to complete

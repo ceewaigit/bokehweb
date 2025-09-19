@@ -1,8 +1,7 @@
 import { ipcMain, app, IpcMainInvokeEvent, protocol } from 'electron'
 import * as path from 'path'
 import { promises as fs } from 'fs'
-import { pathToFileURL } from 'url'
-import { createVideoStreamUrl } from '../../utils/video-url-utils'
+import { makeVideoSrc } from '../utils/video-url-factory'
 
 export function registerFileOperationHandlers(): void {
   ipcMain.handle('save-file', async (event: IpcMainInvokeEvent, data: Buffer | ArrayBuffer | string | object, filepath?: string) => {
@@ -77,7 +76,8 @@ export function registerFileOperationHandlers(): void {
       await fs.access(normalizedPath)
 
       // Return video-stream URL using our safe encoding utility
-      return createVideoStreamUrl(normalizedPath)
+      // Use the unified video URL factory for consistency
+      return await makeVideoSrc(normalizedPath, 'preview')
     } catch (error) {
       return null
     }

@@ -177,8 +177,86 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     return <AbsoluteFill />
   }
   
-  // Log the video URL for debugging
-  console.log('VideoLayer rendering with URL:', videoUrl);
+  // Smart URL normalization with multiple fallback strategies
+  let finalVideoUrl = videoUrl;
+  let urlNormalized = false;
+  
+  // Strategy 1: Convert file:// URLs
+  if (videoUrl.startsWith('file://')) {
+    try {
+      // Extract path from file:// URL
+      let filePath = videoUrl.replace('file://', '');
+      // Handle file:/// (triple slash)
+      if (filePath.startsWith('/')) {
+        // Unix path
+        filePath = filePath;
+      } else if (filePath.match(/^[A-Z]:/)) {
+        // Windows path like C:/
+        filePath = filePath;
+      } else {
+        // Malformed, add leading slash
+        filePath = '/' + filePath;
+      }
+      
+      // Try to decode if encoded
+      try {
+        filePath = decodeURIComponent(filePath);
+      } catch {
+        // Use as-is if decode fails
+      }
+      
+      // Convert to video-stream:// URL
+      const encodedPath = encodeURIComponent(filePath);
+      finalVideoUrl = `video-stream://local/${encodedPath}`;
+      urlNormalized = true;
+      console.log('[VideoLayer] Converted file:// URL', { original: videoUrl, converted: finalVideoUrl });
+    } catch (e) {
+      console.error('[VideoLayer] Failed to convert file:// URL', e);
+    }
+  }
+  // Strategy 2: Fix malformed video-stream URLs
+  else if (videoUrl.startsWith('video-stream://') && !videoUrl.includes('//local/')) {
+    try {
+      // Extract everything after video-stream://
+      const pathPart = videoUrl.replace('video-stream://', '');
+      // Re-encode properly
+      const encodedPath = encodeURIComponent('/' + pathPart.replace(/^\/+/, ''));
+      finalVideoUrl = `video-stream://local${encodedPath}`;
+      urlNormalized = true;
+      console.log('[VideoLayer] Fixed malformed video-stream://', { original: videoUrl, converted: finalVideoUrl });
+    } catch (e) {
+      console.error('[VideoLayer] Failed to fix video-stream:// URL', e);
+    }
+  }
+  // Strategy 3: Handle bare paths
+  else if (!videoUrl.startsWith('video-stream://') && !videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
+    try {
+      // Assume it's a file path
+      let filePath = videoUrl;
+      
+      // Ensure absolute path
+      if (!filePath.startsWith('/') && !filePath.match(/^[A-Z]:/i)) {
+        filePath = '/' + filePath;
+      }
+      
+      const encodedPath = encodeURIComponent(filePath);
+      finalVideoUrl = `video-stream://local/${encodedPath}`;
+      urlNormalized = true;
+      console.log('[VideoLayer] Converted bare path', { original: videoUrl, converted: finalVideoUrl });
+    } catch (e) {
+      console.error('[VideoLayer] Failed to convert bare path', e);
+    }
+  }
+  
+  // If normalization failed, try one more time with a simple approach
+  if (!urlNormalized && !videoUrl.startsWith('http')) {
+    // Last resort: just wrap it
+    finalVideoUrl = `video-stream://local/${encodeURIComponent(videoUrl)}`;
+    console.log('[VideoLayer] Last resort conversion', { original: videoUrl, converted: finalVideoUrl });
+  }
+  
+  // Log the final URL for debugging
+  console.log('VideoLayer rendering with URL:', finalVideoUrl);
 
   return (
     <AbsoluteFill>
@@ -219,7 +297,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
         {/* Use simpler Video component during rendering for memory efficiency */}
         {getRemotionEnvironment().isRendering ? (
           <Video
-            src={videoUrl}
+            src={finalVideoUrl}
             style={videoStyle}
             volume={1}
             muted={false}
@@ -230,15 +308,24 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             onError={(e) => {
               console.error('Video playback error during render:', {
                 error: e,
-                videoUrl,
+                videoUrl: finalVideoUrl,
+                originalUrl: videoUrl,
                 clip,
                 message: e instanceof Error ? e.message : 'Unknown error'
               });
+              
+              // Try fallback URLs if main URL fails
+              if (e && finalVideoUrl.includes('video-stream://')) {
+                // Try with a simpler path
+                const simplePath = videoUrl.replace(/^.*\/([^\/]+)$/, '$1')
+                const fallbackUrl = `video-stream://local/${encodeURIComponent(simplePath)}`
+                console.log('[VideoLayer] Attempting fallback URL:', fallbackUrl)
+              }
             }}
           />
         ) : (
           <OffthreadVideo
-            src={videoUrl}
+            src={finalVideoUrl}
             style={videoStyle}
             volume={1}
             muted={false}
@@ -249,10 +336,19 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             onError={(e) => {
               console.error('Video playback error:', {
                 error: e,
-                videoUrl,
+                videoUrl: finalVideoUrl,
+                originalUrl: videoUrl,
                 clip,
                 message: e instanceof Error ? e.message : 'Unknown error'
               });
+              
+              // Try fallback URLs if main URL fails
+              if (e && finalVideoUrl.includes('video-stream://')) {
+                // Try with a simpler path
+                const simplePath = videoUrl.replace(/^.*\/([^\/]+)$/, '$1')
+                const fallbackUrl = `video-stream://local/${encodeURIComponent(simplePath)}`
+                console.log('[VideoLayer] Attempting fallback URL:', fallbackUrl)
+              }
             }}
           />
         )}
