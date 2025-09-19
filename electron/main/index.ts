@@ -94,7 +94,7 @@ function registerProtocol(): void {
       if (url.host === 'assets') {
         const assetPath = url.pathname.slice(1) // Remove leading slash
         const publicPath = isDev 
-          ? path.join(__dirname, '../../public', assetPath)
+          ? path.join(__dirname, '../../../public', assetPath)
           : path.join(process.resourcesPath, 'public', assetPath)
         
         if (!fs.existsSync(publicPath)) {
