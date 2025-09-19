@@ -225,6 +225,12 @@ export function useRecording() {
 
   const pauseRecording = useCallback(() => {
     if (recorderRef.current && isRecording && !isPaused) {
+      // Check if recorder supports pause
+      if (!recorderRef.current.canPause()) {
+        logger.warn('Current recorder does not support pause')
+        return
+      }
+      
       try {
         recorderRef.current.pauseRecording()
         setPaused(true)
@@ -240,6 +246,12 @@ export function useRecording() {
 
   const resumeRecording = useCallback(() => {
     if (recorderRef.current && isPaused && isRecording) {
+      // Check if recorder supports resume
+      if (!recorderRef.current.canResume()) {
+        logger.warn('Current recorder does not support resume')
+        return
+      }
+      
       try {
         recorderRef.current.resumeRecording()
         setPaused(false)
@@ -256,11 +268,21 @@ export function useRecording() {
   }, [isPaused, isRecording, setPaused, timer])
 
 
+  const canPause = useCallback(() => {
+    return recorderRef.current?.canPause() ?? false
+  }, [])
+
+  const canResume = useCallback(() => {
+    return recorderRef.current?.canResume() ?? false
+  }, [])
+
   return {
     startRecording,
     stopRecording,
     pauseRecording,
     resumeRecording,
+    canPause,
+    canResume,
     isRecording,
     isPaused,
     screenRecorder: recorderRef.current,

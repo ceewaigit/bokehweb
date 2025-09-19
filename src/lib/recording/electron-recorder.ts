@@ -26,6 +26,9 @@ export class ElectronRecorder {
   private useNativeRecorder = false
   private nativeRecorderPath: string | null = null
   private hasAudio = false
+  private isPaused = false
+  private pauseStartTime = 0
+  private totalPausedDuration = 0
 
   constructor() {
     logger.debug('ElectronRecorder initialized')
@@ -346,6 +349,11 @@ export class ElectronRecorder {
 
     logger.info('Stopping screen recording')
 
+    // If paused, resume first to ensure proper stopping
+    if (this.isPaused && this.mediaRecorder) {
+      this.resumeRecording()
+    }
+
     // Handle native recorder
     if (this.useNativeRecorder && this.nativeRecorderPath && window.electronAPI?.nativeRecorder) {
       try {
@@ -359,7 +367,7 @@ export class ElectronRecorder {
 
         // Stop native recording
         const result = await window.electronAPI.nativeRecorder.stop()
-        const duration = Date.now() - this.startTime
+        const duration = (Date.now() - this.startTime) - this.totalPausedDuration
 
         const tempPath = result.outputPath || this.nativeRecorderPath
         if (!tempPath) {
@@ -395,7 +403,7 @@ export class ElectronRecorder {
     return new Promise(async (resolve, reject) => {
       // Handle already stopped recorder
       if (this.mediaRecorder!.state === 'inactive') {
-        const duration = Date.now() - this.startTime
+        const duration = (Date.now() - this.startTime) - this.totalPausedDuration
         
         if (!this.recordingPath) {
           throw new Error('Recording path not available')
@@ -429,7 +437,7 @@ export class ElectronRecorder {
       }
 
       this.mediaRecorder!.onstop = async () => {
-        const duration = Date.now() - this.startTime
+        const duration = (Date.now() - this.startTime) - this.totalPausedDuration
         
         if (!this.recordingPath) {
           throw new Error('Recording path not available')
@@ -514,7 +522,7 @@ export class ElectronRecorder {
 
     // Set up event listeners for mouse data from main process
     const handleMouseMove = (_event: unknown, data: any) => {
-      const timestamp = Date.now() - this.startTime
+      const timestamp = this.getAdjustedTimestamp()
       const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
       if (!inside) return
       this.addMetadata({
@@ -535,7 +543,7 @@ export class ElectronRecorder {
     }
 
     const handleMouseClick = (_event: unknown, data: any) => {
-      const timestamp = Date.now() - this.startTime
+      const timestamp = this.getAdjustedTimestamp()
       const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
       if (!inside) return
       this.addMetadata({
@@ -553,7 +561,7 @@ export class ElectronRecorder {
     }
 
     const handleKeyboardEvent = (_event: unknown, data: any) => {
-      const timestamp = Date.now() - this.startTime
+      const timestamp = this.getAdjustedTimestamp()
       this.addMetadata({
         timestamp,
         eventType: 'keypress',
@@ -565,7 +573,7 @@ export class ElectronRecorder {
     }
 
     const handleScroll = (_event: unknown, data: any) => {
-      const timestamp = Date.now() - this.startTime
+      const timestamp = this.getAdjustedTimestamp()
       console.log('[ElectronRecorder] Scroll event received:', {
         timestamp,
         deltaX: data.deltaX || 0,
@@ -621,11 +629,19 @@ export class ElectronRecorder {
   }
 
   private addMetadata(metadata: ElectronMetadata) {
+    // Don't record metadata while paused
+    if (this.isPaused) {
+      return
+    }
+    
+    // Metadata already has adjusted timestamp from getAdjustedTimestamp()
+    const adjustedMetadata = metadata
+    
     // Add to queue for batch writing
-    this.metadataWriteQueue.push(metadata)
+    this.metadataWriteQueue.push(adjustedMetadata)
     
     // Also keep in memory for immediate access
-    this.metadata.push(metadata)
+    this.metadata.push(adjustedMetadata)
     
     // Flush every 100 events or after 1 second
     if (this.metadataWriteQueue.length >= 100) {
@@ -681,6 +697,9 @@ export class ElectronRecorder {
     this.metadata = []
     this.captureArea = undefined
     this.isRecording = false
+    this.isPaused = false
+    this.pauseStartTime = 0
+    this.totalPausedDuration = 0
 
     logger.debug('ElectronRecorder cleaned up')
   }
@@ -690,37 +709,95 @@ export class ElectronRecorder {
   }
 
   pauseRecording(): void {
-    if (!this.mediaRecorder || !this.isRecording) {
+    if (!this.isRecording) {
       logger.warn('Cannot pause: not recording')
       return
     }
 
-    if (this.mediaRecorder.state === 'recording') {
+    // Native recorder doesn't support pause
+    if (this.useNativeRecorder) {
+      logger.warn('Native recorder does not support pause/resume')
+      return
+    }
+
+    if (!this.mediaRecorder) {
+      logger.warn('Cannot pause: MediaRecorder not initialized')
+      return
+    }
+
+    if (this.mediaRecorder.state === 'recording' && !this.isPaused) {
       this.mediaRecorder.pause()
+      this.isPaused = true
+      this.pauseStartTime = Date.now()
       logger.info('Recording paused')
     }
   }
 
   resumeRecording(): void {
-    if (!this.mediaRecorder || !this.isRecording) {
+    if (!this.isRecording) {
       logger.warn('Cannot resume: not recording')
       return
     }
 
-    if (this.mediaRecorder.state === 'paused') {
+    // Native recorder doesn't support pause
+    if (this.useNativeRecorder) {
+      logger.warn('Native recorder does not support pause/resume')
+      return
+    }
+
+    if (!this.mediaRecorder) {
+      logger.warn('Cannot resume: MediaRecorder not initialized')
+      return
+    }
+
+    if (this.mediaRecorder.state === 'paused' && this.isPaused) {
+      // Calculate how long we were paused
+      const pausedDuration = Date.now() - this.pauseStartTime
+      this.totalPausedDuration += pausedDuration
+      
       this.mediaRecorder.resume()
-      logger.info('Recording resumed')
+      this.isPaused = false
+      this.pauseStartTime = 0
+      logger.info(`Recording resumed. Was paused for ${pausedDuration}ms`)
     }
   }
 
   getDuration(): number {
-    return Date.now() - this.startTime
+    let duration = Date.now() - this.startTime - this.totalPausedDuration
+    
+    // If currently paused, subtract the current pause duration
+    if (this.isPaused && this.pauseStartTime > 0) {
+      duration -= (Date.now() - this.pauseStartTime)
+    }
+    
+    return Math.max(0, duration)
   }
 
   getState(): 'idle' | 'recording' | 'paused' {
     if (!this.isRecording) return 'idle'
-    if (this.mediaRecorder?.state === 'paused') return 'paused'
+    if (this.isPaused) return 'paused'
     return 'recording'
+  }
+
+  canPause(): boolean {
+    // Native recorder doesn't support pause
+    return !this.useNativeRecorder && this.isRecording && !this.isPaused
+  }
+
+  canResume(): boolean {
+    // Native recorder doesn't support resume
+    return !this.useNativeRecorder && this.isRecording && this.isPaused
+  }
+
+  private getAdjustedTimestamp(): number {
+    let timestamp = Date.now() - this.startTime - this.totalPausedDuration
+    
+    // If currently paused, use the pause start time
+    if (this.isPaused && this.pauseStartTime > 0) {
+      timestamp = this.pauseStartTime - this.startTime - this.totalPausedDuration
+    }
+    
+    return Math.max(0, timestamp)
   }
 
 }

@@ -55,7 +55,9 @@ export function RecordButtonDock() {
     startRecording,
     stopRecording,
     pauseRecording,
-    resumeRecording
+    resumeRecording,
+    canPause,
+    canResume
   } = useRecording()
 
   const {
@@ -477,18 +479,22 @@ export function RecordButtonDock() {
               {/* Separator */}
               <div className="w-px h-5 bg-border/40" />
 
-              {/* Pause/Resume */}
-              <button
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-                className={cn(
-                  "p-1.5 rounded-lg transition-colors duration-150",
-                  "text-foreground hover:text-foreground hover:bg-accent"
-                )}
-                onClick={isPaused ? resumeRecording : pauseRecording}
-                title={isPaused ? "Resume" : "Pause"}
-              >
-                {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-              </button>
+              {/* Pause/Resume - Only show if supported */}
+              {(canPause() || canResume()) && (
+                <button
+                  style={{ WebkitAppRegion: 'no-drag' } as any}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-colors duration-150",
+                    "text-foreground hover:text-foreground hover:bg-accent",
+                    !canPause() && !canResume() && "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={isPaused ? resumeRecording : pauseRecording}
+                  disabled={!canPause() && !canResume()}
+                  title={isPaused ? "Resume" : "Pause"}
+                >
+                  {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                </button>
+              )}
 
               {/* Stop Button */}
               <button

@@ -3,7 +3,6 @@ import { Sequence, useVideoConfig } from 'remotion';
 import { MainComposition } from './MainComposition';
 import type { TimelineSegment } from '@/lib/export/timeline-processor';
 import type { Recording, Effect } from '@/types';
-import { createVideoStreamUrl } from '@/lib/utils/video-url-utils';
 
 export interface SegmentsCompositionProps {
   segments: TimelineSegment[];
@@ -55,26 +54,18 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
       // Get the video URL for this recording
       let videoUrl = videoUrls[recording.id];
       
+      // Convert video-stream:// URLs to file:// for Remotion compatibility
+      if (videoUrl?.startsWith('video-stream://')) {
+        const filePath = decodeURIComponent(videoUrl.replace('video-stream://', ''));
+        videoUrl = new URL('file://' + filePath).toString();
+      } else if (!videoUrl && recording.filePath) {
+        // Fallback to recording.filePath if no URL provided
+        videoUrl = new URL('file://' + recording.filePath).toString();
+      }
+      
       if (!videoUrl) {
-        console.warn(`No video URL found for recording ${recording.id}, attempting fallback...`);
-        
-        // Fallback: try to generate URL from recording's filePath
-        if (recording.filePath) {
-          // Check if we're in a browser context (export) or Electron (preview)
-          // In export, we need file:// URLs, in preview we use video-stream://
-          if (typeof window !== 'undefined' && !window.electronAPI) {
-            // We're in Remotion's render context, use file:// URL
-            const url = new URL('file://' + recording.filePath);
-            videoUrl = url.toString();
-          } else {
-            // We're in Electron preview, use video-stream://
-            videoUrl = createVideoStreamUrl(recording.filePath);
-          }
-          console.log(`Generated fallback URL for ${recording.id}:`, videoUrl);
-        } else {
-          console.error(`Recording ${recording.id} has no filePath and no video URL`);
-          return;
-        }
+        console.error(`Recording ${recording.id} has no valid video source`);
+        return;
       }
 
       // Get metadata for this recording
