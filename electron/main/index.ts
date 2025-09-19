@@ -1,9 +1,10 @@
-import { app, BrowserWindow, protocol } from 'electron'
+import { app, BrowserWindow, protocol, ipcMain } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import { Readable } from 'stream'
 import { isDev, getRecordingsDirectory } from './config'
 import { findVideoFile, normalizeCrossPlatform } from './utils/path-normalizer'
+import { makeVideoSrc } from './utils/video-url-factory'
 import { createRecordButton, setupRecordButton } from './windows/record-button'
 import { checkMediaPermissions } from './services/permissions'
 import { registerRecordingHandlers } from './handlers/recording'
@@ -88,6 +89,34 @@ function registerProtocol(): void {
       // Parse URL - handle ALL possible formats
       const url = new URL(request.url)
       let filePath: string = ''
+      
+      // Handle static assets (cursors, images, etc.)
+      if (url.host === 'assets') {
+        const assetPath = url.pathname.slice(1) // Remove leading slash
+        const publicPath = isDev 
+          ? path.join(__dirname, '../../public', assetPath)
+          : path.join(process.resourcesPath, 'public', assetPath)
+        
+        if (!fs.existsSync(publicPath)) {
+          console.error('[Protocol] Asset not found:', publicPath)
+          return new Response('Asset not found', { status: 404 })
+        }
+        
+        // Serve the asset file
+        const buffer = fs.readFileSync(publicPath)
+        const mimeType = assetPath.endsWith('.png') ? 'image/png' : 
+                         assetPath.endsWith('.jpg') ? 'image/jpeg' :
+                         assetPath.endsWith('.svg') ? 'image/svg+xml' :
+                         'application/octet-stream'
+        
+        return new Response(buffer, {
+          status: 200,
+          headers: {
+            'Content-Type': mimeType,
+            'Cache-Control': 'public, max-age=3600'
+          }
+        })
+      }
       
       // Format 1: video-stream://local/<encoded-path>
       if (url.host === 'local' || url.host === 'localhost') {
@@ -275,6 +304,43 @@ function registerAllHandlers(): void {
   registerWindowControlHandlers()
   setupNativeRecorder()
   setupExportHandler()
+  
+  // Path resolution handler - replaces path-resolver.ts functionality
+  ipcMain.handle('resolve-recording-path', async (_, filePath: string, folderPath?: string) => {
+    try {
+      // Handle absolute paths
+      if (path.isAbsolute(filePath)) {
+        const videoUrl = await makeVideoSrc(filePath, 'preview')
+        return videoUrl
+      }
+      
+      // Handle relative paths with folder context
+      if (folderPath) {
+        const basePath = path.isAbsolute(folderPath) 
+          ? path.dirname(folderPath)  // folderPath points to recording folder; video is in parent
+          : folderPath
+        const fullPath = path.join(basePath, filePath)
+        const videoUrl = await makeVideoSrc(fullPath, 'preview')
+        return videoUrl
+      }
+      
+      // Try to find the video file
+      const foundPath = findVideoFile(filePath)
+      if (foundPath) {
+        const videoUrl = await makeVideoSrc(foundPath, 'preview')
+        return videoUrl
+      }
+      
+      // Fallback: use recordings directory
+      const recordingsDir = getRecordingsDirectory()
+      const defaultPath = path.join(recordingsDir, filePath)
+      const videoUrl = await makeVideoSrc(defaultPath, 'preview')
+      return videoUrl
+    } catch (error) {
+      console.error('[IPC] Error resolving recording path:', error)
+      throw error
+    }
+  })
 }
 
 // Define global variables with proper types

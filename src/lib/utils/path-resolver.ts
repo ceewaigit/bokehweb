@@ -37,12 +37,9 @@ export async function resolveRecordingPath(
 }
 
 /**
- * Convert a file path to a file:// URL
- * This replaces the old video-stream:// protocol
+ * Convert a file path to a video-stream:// URL
  */
 export function pathToFileUrl(filePath: string): string {
-  // Create video-stream:// URL instead of file://
-  // This ensures proper streaming support
   const normalizedPath = path.resolve(filePath)
   const encodedPath = encodeURIComponent(normalizedPath)
   return `video-stream://local/${encodedPath}`

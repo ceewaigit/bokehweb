@@ -51,6 +51,7 @@ export interface ElectronAPI {
   startRecording?: () => Promise<any>
   stopRecording?: () => Promise<any>
   getRecordingsDirectory?: () => Promise<string>
+  resolveRecordingPath?: (filePath: string, folderPath?: string) => Promise<string>
   saveRecording?: (filePath: string, buffer: ArrayBuffer) => Promise<any>
   loadRecordings?: () => Promise<Array<{
     name: string

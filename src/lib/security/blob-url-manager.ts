@@ -6,7 +6,6 @@
 import { logger } from '@/lib/utils/logger'
 import { MemoryError } from '@/lib/errors'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
-import { resolveRecordingPath, pathToFileUrl } from '@/lib/utils/path-resolver'
 
 interface BlobEntry {
   url: string
@@ -326,7 +325,7 @@ export class BlobURLManager {
   }
 
   /**
-   * Load a video file and return a file:// URL (no longer creates blob URLs for videos)
+   * Load a video file and return a video-stream:// URL
    * Handles caching and error handling automatically
    */
   async loadVideo(recordingId: string, filePath?: string, folderPath?: string): Promise<string | null> {
@@ -368,12 +367,14 @@ export class BlobURLManager {
     }
 
     try {
-      // Use unified path resolver
-      const fullPath = await resolveRecordingPath(filePath, folderPath)
-      logger.debug(`Video path resolved: ${recordingId} at ${fullPath}`)
+      // Use IPC to resolve path and get video URL from main process
+      if (!window.electronAPI?.resolveRecordingPath) {
+        logger.error('Electron API not available for path resolution')
+        return null
+      }
       
-      // Use standard file:// URL
-      const videoUrl = pathToFileUrl(fullPath)
+      const videoUrl = await window.electronAPI.resolveRecordingPath(filePath, folderPath)
+      logger.debug(`Video URL resolved: ${recordingId} -> ${videoUrl}`)
       
       // Cache the URL for future use
       RecordingStorage.setBlobUrl(recordingId, videoUrl)

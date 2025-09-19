@@ -217,6 +217,9 @@ const electronAPI = {
   // Recording file helpers
   getRecordingsDirectory: () =>
     ipcRenderer.invoke('get-recordings-directory'),
+  
+  resolveRecordingPath: (filePath: string, folderPath?: string) =>
+    ipcRenderer.invoke('resolve-recording-path', filePath, folderPath),
 
   saveRecording: (filePath: string, buffer: ArrayBuffer) =>
     ipcRenderer.invoke('save-recording', filePath, buffer),
