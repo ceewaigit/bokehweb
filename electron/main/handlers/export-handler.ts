@@ -13,7 +13,8 @@ import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import { machineProfiler, type DynamicExportSettings } from '../utils/machine-profiler';
 import { performance } from 'perf_hooks';
-import { pathToFileURL } from 'url';
+import { makeVideoSrc } from '../utils/video-url-factory';
+import { getVideoServer, stopVideoServer } from '../video-http-server';
 import { getRecordingsDirectory } from '../config';
 import fsSync from 'fs';
 
@@ -210,6 +211,10 @@ export function setupExportHandler() {
         },
       });
 
+      // Start the HTTP server for video serving during export
+      console.log('🌐 Starting video HTTP server for export...');
+      const videoServer = await getVideoServer();
+      
       // Convert recordings to plain object and generate video URLs
       const recordingsObj = Object.fromEntries(recordings);
       const videoUrls: Record<string, string> = {};
@@ -217,8 +222,7 @@ export function setupExportHandler() {
       // Get the recordings directory
       const recordingsDir = getRecordingsDirectory();
       
-      // Generate file:// URLs for each recording
-      // We use file:// for export because Remotion's Chrome instance doesn't have our custom protocol
+      // Generate HTTP URLs for each recording (Remotion can access these)
       for (const [recordingId, recording] of recordings) {
         if (recording.filePath) {
           let fullPath = recording.filePath;
@@ -260,14 +264,14 @@ export function setupExportHandler() {
             }
           }
           
-          // Normalize the path and create file:// URL
+          // Normalize the path and create HTTP URL via video server
           const normalizedPath = path.resolve(fullPath);
           console.log(`  Resolved to: ${normalizedPath}`);
           console.log(`  File exists: ${fsSync.existsSync(normalizedPath)}`);
           
-          // Use pathToFileURL to properly format file URLs with encoded spaces
-          const fileUrl = pathToFileURL(normalizedPath).toString();
-          videoUrls[recordingId] = fileUrl;
+          // Use the video server to create HTTP URLs that Remotion can access
+          const videoUrl = await makeVideoSrc(normalizedPath, 'export');
+          videoUrls[recordingId] = videoUrl;
           console.log(`  Final URL: ${videoUrls[recordingId]}`);
         }
       }

@@ -7,7 +7,7 @@ import type { RecordingSettings } from '@/types'
 import type { ElectronRecordingResult, ElectronMetadata } from '@/types/recording'
 import { RecordingSourceType } from '@/types'
 import { logger } from '@/lib/utils/logger'
-import { PermissionError, ElectronError } from '@/lib/core/errors'
+import { PermissionError, ElectronError } from '@/lib/errors'
 
 export class ElectronRecorder {
   private mediaRecorder: MediaRecorder | null = null
@@ -123,7 +123,7 @@ export class ElectronRecorder {
               const screens = await window.electronAPI.getScreens()
               const partsForScale = primarySource.id.split(':')
               const parsedDisplayId = parseInt(partsForScale[1])
-              const displayInfo = screens?.find((d: any) => d.id === parsedDisplayId)
+              const displayInfo = screens?.find((d: { id: number; scaleFactor?: number }) => d.id === parsedDisplayId)
               if (displayInfo && typeof displayInfo.scaleFactor === 'number' && displayInfo.scaleFactor > 0) {
                 scaleFactor = displayInfo.scaleFactor
               }
@@ -521,7 +521,7 @@ export class ElectronRecorder {
     }
 
     // Set up event listeners for mouse data from main process
-    const handleMouseMove = (_event: unknown, data: any) => {
+    const handleMouseMove = (_event: unknown, data: { x: number; y: number; velocity?: { x: number; y: number }; cursorType?: string; logicalX?: number; logicalY?: number }) => {
       const timestamp = this.getAdjustedTimestamp()
       const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
       if (!inside) return
@@ -542,7 +542,7 @@ export class ElectronRecorder {
       })
     }
 
-    const handleMouseClick = (_event: unknown, data: any) => {
+    const handleMouseClick = (_event: unknown, data: { x: number; y: number; button: string; cursorType?: string; logicalX?: number; logicalY?: number }) => {
       const timestamp = this.getAdjustedTimestamp()
       const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
       if (!inside) return
@@ -560,7 +560,7 @@ export class ElectronRecorder {
       })
     }
 
-    const handleKeyboardEvent = (_event: unknown, data: any) => {
+    const handleKeyboardEvent = (_event: unknown, data: { key: string; type: 'keydown' | 'keyup'; modifiers?: string[] }) => {
       const timestamp = this.getAdjustedTimestamp()
       this.addMetadata({
         timestamp,
@@ -572,7 +572,7 @@ export class ElectronRecorder {
       logger.info(`🎹 Keyboard event captured: ${data.type} ${data.key} at ${timestamp}ms`)
     }
 
-    const handleScroll = (_event: unknown, data: any) => {
+    const handleScroll = (_event: unknown, data: { deltaX?: number; deltaY?: number }) => {
       const timestamp = this.getAdjustedTimestamp()
       console.log('[ElectronRecorder] Scroll event received:', {
         timestamp,

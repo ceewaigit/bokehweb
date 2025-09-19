@@ -3,7 +3,7 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
-import { cn } from '@/lib/utils'
+import { cn, clamp } from '@/lib/utils'
 import type { Project, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { EffectType, TrackType, TimelineTrackType } from '@/types/project'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
@@ -190,7 +190,7 @@ export function TimelineCanvas({
   }, [currentTime, isPlaying, pixelsPerMs, scrollLeft, stageSize.width])
 
   // Handle clip context menu
-  const handleClipContextMenu = useCallback((e: any, clipId: string) => {
+  const handleClipContextMenu = useCallback((e: { evt: { clientX: number; clientY: number } }, clipId: string) => {
     setContextMenu({
       x: e.evt.clientX,
       y: e.evt.clientY,
@@ -297,8 +297,66 @@ export function TimelineCanvas({
     }
   }, [selectedClips])
 
+  // Context menu wrappers - reuse existing handlers
+  const handleClipSplit = useCallback(async (clipId: string) => {
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const command = new SplitClipCommand(freshContext, clipId, currentTime)
+    await manager.execute(command)
+  }, [currentTime])
+
+  const handleClipTrimStart = useCallback(async (clipId: string) => {
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const command = new TrimCommand(freshContext, clipId, currentTime, 'start')
+    await manager.execute(command)
+  }, [currentTime])
+
+  const handleClipTrimEnd = useCallback(async (clipId: string) => {
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const command = new TrimCommand(freshContext, clipId, currentTime, 'end')
+    await manager.execute(command)
+  }, [currentTime])
+
+  const handleClipDuplicate = useCallback(async (clipId: string) => {
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const command = new DuplicateClipCommand(freshContext, clipId)
+    await manager.execute(command)
+  }, [])
+
+  const handleClipCopy = useCallback(async (clipId: string) => {
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const command = new CopyCommand(freshContext, clipId)
+    await manager.execute(command)
+  }, [])
+
+  const handleClipDelete = useCallback(async (clipId: string) => {
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const command = new RemoveClipCommand(freshContext, clipId)
+    await manager.execute(command)
+  }, [])
+
+  const handleClipSpeedUp = useCallback(async (clipId: string) => {
+    selectClip(clipId) // Ensure UI syncs
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const command = new ChangePlaybackRateCommand(freshContext, clipId, 2.0)
+    await manager.execute(command)
+  }, [selectClip])
+
   // Stage click handler - click to seek and clear selections
-  const handleStageClick = useCallback((e: any) => {
+  const handleStageClick = useCallback((e: { target: any; evt: { offsetX: number } }) => {
     if (e.target === e.target.getStage()) {
       clearEffectSelection()
 
@@ -306,7 +364,7 @@ export function TimelineCanvas({
       if (x > 0) {
         const time = TimeConverter.pixelsToMs(x, pixelsPerMs)
         const maxTime = currentProject?.timeline?.duration || 0
-        const targetTime = Math.max(0, Math.min(maxTime, time))
+        const targetTime = clamp(time, 0, maxTime)
         onSeek(targetTime)
       }
     }
@@ -635,91 +693,13 @@ export function TimelineCanvas({
             x={contextMenu.x}
             y={contextMenu.y}
             clipId={contextMenu.clipId}
-            onSplit={async (id) => {
-              const manager = commandManagerRef.current
-              if (manager) {
-                const freshContext = new DefaultCommandContext(useProjectStore.getState())
-                const command = new SplitClipCommand(
-                  freshContext,
-                  id,
-                  currentTime
-                )
-                await manager.execute(command)
-              }
-            }}
-            onTrimStart={async (id) => {
-              const manager = commandManagerRef.current
-              if (manager) {
-                const freshContext = new DefaultCommandContext(useProjectStore.getState())
-                const command = new TrimCommand(
-                  freshContext,
-                  id,
-                  currentTime,
-                  'start'
-                )
-                await manager.execute(command)
-              }
-            }}
-            onTrimEnd={async (id) => {
-              const manager = commandManagerRef.current
-              if (manager) {
-                const freshContext = new DefaultCommandContext(useProjectStore.getState())
-                const command = new TrimCommand(
-                  freshContext,
-                  id,
-                  currentTime,
-                  'end'
-                )
-                await manager.execute(command)
-              }
-            }}
-            onDuplicate={async (id) => {
-              const manager = commandManagerRef.current
-              if (manager) {
-                const freshContext = new DefaultCommandContext(useProjectStore.getState())
-                const command = new DuplicateClipCommand(
-                  freshContext,
-                  id
-                )
-                await manager.execute(command)
-              }
-            }}
-            onCopy={async (id) => {
-              const manager = commandManagerRef.current
-              if (manager) {
-                const freshContext = new DefaultCommandContext(useProjectStore.getState())
-                const command = new CopyCommand(
-                  freshContext,
-                  id
-                )
-                await manager.execute(command)
-              }
-            }}
-            onDelete={async (id) => {
-              const manager = commandManagerRef.current
-              if (manager) {
-                const freshContext = new DefaultCommandContext(useProjectStore.getState())
-                const command = new RemoveClipCommand(
-                  freshContext,
-                  id
-                )
-                await manager.execute(command)
-              }
-            }}
-            onSpeedUp={async (id) => {
-              // Ensure UI selects the target clip so sidebar and preview sync
-              selectClip(id)
-              const manager = commandManagerRef.current
-              if (manager) {
-                const freshContext = new DefaultCommandContext(useProjectStore.getState())
-                const command = new ChangePlaybackRateCommand(
-                  freshContext,
-                  id,
-                  2.0 // 2x speed
-                )
-                await manager.execute(command)
-              }
-            }}
+            onSplit={handleClipSplit}
+            onTrimStart={handleClipTrimStart}
+            onTrimEnd={handleClipTrimEnd}
+            onDuplicate={handleClipDuplicate}
+            onCopy={handleClipCopy}
+            onDelete={handleClipDelete}
+            onSpeedUp={handleClipSpeedUp}
             onClose={() => setContextMenu(null)}
           />
         )}

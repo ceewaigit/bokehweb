@@ -226,6 +226,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             playbackRate={1}
             startFrom={0}
             pauseWhenBuffering={false}
+            crossOrigin="anonymous"
             onError={(e) => {
               console.error('Video playback error during render:', {
                 error: e,
@@ -244,6 +245,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
             playbackRate={1}
             startFrom={0}
             pauseWhenBuffering={false}
+            crossOrigin="anonymous"
             onError={(e) => {
               console.error('Video playback error:', {
                 error: e,

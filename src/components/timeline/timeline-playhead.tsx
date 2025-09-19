@@ -3,6 +3,7 @@ import { Group, Line, Rect } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
+import { clamp } from '@/lib/utils'
 
 interface TimelinePlayheadProps {
   currentTime: number
@@ -39,7 +40,7 @@ export const TimelinePlayhead = React.memo(({
       onDragMove={(e) => {
         const newX = e.target.x() - TimelineConfig.TRACK_LABEL_WIDTH
         const time = TimeConverter.pixelsToMs(newX, pixelsPerMs)
-        onSeek(Math.max(0, Math.min(maxTime, time)))
+        onSeek(clamp(time, 0, maxTime))
       }}
     >
       {/* Playhead line */}

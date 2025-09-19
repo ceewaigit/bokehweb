@@ -5,6 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Clamp a value between min and max
+ * Replaces verbose Math.min(Math.max(...)) patterns
+ */
+export function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
 export function formatTime(ms: number): string {
   const seconds = Math.floor(ms / 1000)
   const minutes = Math.floor(seconds / 60)

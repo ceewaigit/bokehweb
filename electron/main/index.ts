@@ -1,5 +1,8 @@
 import { app, BrowserWindow, protocol } from 'electron'
 import * as path from 'path'
+import * as fs from 'fs'
+import * as crypto from 'crypto'
+import { Readable } from 'stream'
 import { isDev, getRecordingsDirectory } from './config'
 import { createRecordButton, setupRecordButton } from './windows/record-button'
 import { checkMediaPermissions } from './services/permissions'
@@ -15,12 +18,28 @@ import { setupNativeRecorder } from './handlers/native-recorder'
 import { setupExportHandler } from './handlers/export-handler'
 import { extractPathFromVideoStreamUrl } from '../utils/video-url-utils'
 
+// Helper functions for MIME type detection
+const guessMimeType = (filePath: string): string => {
+  const ext = path.extname(filePath).toLowerCase()
+  switch (ext) {
+    case '.mp4': return 'video/mp4'
+    case '.webm': return 'video/webm'
+    case '.mov': return 'video/quicktime'
+    case '.mkv': return 'video/x-matroska'
+    case '.m4v': return 'video/x-m4v'
+    case '.avi': return 'video/x-msvideo'
+    case '.ogv': return 'video/ogg'
+    default: return 'application/octet-stream'
+  }
+}
+
 // Register custom protocols before app ready
 // This ensures they're available when needed
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'video-stream',
     privileges: {
+      standard: true,        // Behaves like http/https
       secure: true,
       supportFetchAPI: true,
       stream: true,
@@ -45,19 +64,108 @@ function registerProtocol(): void {
     })
   }
 
-  // Register video-stream protocol for local video files
-  protocol.registerFileProtocol('video-stream', (request, callback) => {
+  // Register video-stream protocol with HTTP Range support
+  protocol.handle('video-stream', async (request) => {
     try {
-      // Use the utility function to safely extract and decode the file path
+      // Extract file path from URL
       const filePath = extractPathFromVideoStreamUrl(request.url)
       
-      console.log('[Protocol] video-stream resolving:', filePath)
-      
-      // Simply return the file path - let Chromium handle the streaming
-      callback({ path: filePath })
+      // Validate file exists
+      if (!filePath || !path.isAbsolute(filePath) || !fs.existsSync(filePath)) {
+        console.error('[Protocol] File not found:', filePath)
+        return new Response('Not found', { status: 404 })
+      }
+
+      const stat = fs.statSync(filePath)
+      const total = stat.size
+      const mimeType = guessMimeType(filePath)
+      const lastModified = stat.mtime.toUTCString()
+      const etag = `W/"${total}-${Math.floor(stat.mtimeMs)}"`
+
+      // Handle HEAD requests
+      if (request.method === 'HEAD') {
+        return new Response(null, {
+          status: 200,
+          headers: {
+            'Accept-Ranges': 'bytes',
+            'Content-Length': String(total),
+            'Content-Type': mimeType,
+            'Last-Modified': lastModified,
+            'ETag': etag,
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*'
+          }
+        })
+      }
+
+      const rangeHeader = request.headers.get('range')
+
+      if (rangeHeader) {
+        // Parse Range header: bytes=<start>-<end>
+        const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader)
+        let start = match?.[1] ? parseInt(match[1], 10) : 0
+        let end = match?.[2] ? parseInt(match[2], 10) : total - 1
+        
+        // Validate range
+        if (Number.isNaN(start) || start < 0) start = 0
+        if (Number.isNaN(end) || end >= total) end = total - 1
+        
+        if (start >= total || end < start) {
+          return new Response(null, {
+            status: 416, // Range Not Satisfiable
+            headers: {
+              'Content-Range': `bytes */${total}`,
+              'Accept-Ranges': 'bytes'
+            }
+          })
+        }
+
+        const chunkSize = end - start + 1
+        const nodeStream = fs.createReadStream(filePath, {
+          start,
+          end,
+          highWaterMark: 256 * 1024 // 256KB chunks
+        })
+
+        // Convert Node stream to Web ReadableStream
+        const body = Readable.toWeb(nodeStream as any)
+
+        return new Response(body as any, {
+          status: 206, // Partial Content
+          headers: {
+            'Content-Range': `bytes ${start}-${end}/${total}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': String(chunkSize),
+            'Content-Type': mimeType,
+            'Last-Modified': lastModified,
+            'ETag': etag,
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*'
+          }
+        })
+      }
+
+      // No Range header - stream entire file
+      const nodeStream = fs.createReadStream(filePath, {
+        highWaterMark: 256 * 1024
+      })
+      const body = Readable.toWeb(nodeStream as any)
+
+      return new Response(body as any, {
+        status: 200,
+        headers: {
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(total),
+          'Content-Type': mimeType,
+          'Last-Modified': lastModified,
+          'ETag': etag,
+          'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': '*'
+        }
+      })
     } catch (error) {
-      console.error('[Protocol] Error handling video-stream URL:', error)
-      callback({ error: -6 }) // net::ERR_FILE_NOT_FOUND
+      console.error('[Protocol] video-stream handler error:', error)
+      return new Response('Internal Server Error', { status: 500 })
     }
   })
 }

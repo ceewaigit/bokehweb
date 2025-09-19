@@ -4,7 +4,7 @@
  */
 
 import { logger } from '@/lib/utils/logger'
-import { MemoryError } from '@/lib/core/errors'
+import { MemoryError } from '@/lib/errors'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { createVideoStreamUrl } from '@/lib/utils/video-url-utils'
 

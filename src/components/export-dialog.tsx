@@ -15,7 +15,7 @@ import {
   X,
   Check
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, clamp } from '@/lib/utils'
 import { toast } from 'sonner'
 
 interface ExportDialogProps {
@@ -162,9 +162,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span>{progress.message}</span>
-                <span>{Math.max(0, Math.min(100, progress.progress)).toFixed(0)}%</span>
+                <span>{clamp(progress.progress, 0, 100).toFixed(0)}%</span>
               </div>
-              <Progress value={Math.max(0, Math.min(100, progress.progress))} className="h-2" />
+              <Progress value={clamp(progress.progress, 0, 100)} className="h-2" />
               <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                 <div className={cn(
                   "w-2 h-2 rounded-full",
