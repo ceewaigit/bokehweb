@@ -88,27 +88,22 @@ export function setupExportHandler() {
       cacheSize: (currentDynamicSettings.offthreadVideoCacheSizeInBytes / (1024 * 1024)).toFixed(0) + 'MB'
     });
     
-    // PRE-EXPORT MEMORY CHECK: Refuse export if system memory is critically low
-    if (machineProfile.availableMemoryGB < 1) {
-      console.error('❌ EXPORT BLOCKED: Less than 1GB memory available');
-      event.sender.send('export-progress', {
-        progress: 0,
-        stage: 'error',
-        message: 'Export blocked: Insufficient memory. Please close other applications and try again.'
-      });
-      return {
-        success: false,
-        error: 'Insufficient memory (< 1GB free). Close other applications and try again.'
-      };
-    }
-    
+    // Memory warning but don't block - streaming architecture can handle low memory
     if (isEmergencyMode) {
       console.warn('⚠️ Export proceeding in EMERGENCY MODE due to memory pressure');
+      console.warn(`Available memory: ${machineProfile.availableMemoryGB.toFixed(1)}GB, Pressure: ${machineProfile.memoryPressure}`);
       event.sender.send('export-progress', {
         progress: 1,
         stage: 'preparing',
-        message: 'Low memory detected. Export will be slower but more stable...'
+        message: 'Low memory detected. Export will use streaming mode for stability...'
       });
+      
+      // Extra conservative settings for very low memory
+      if (machineProfile.availableMemoryGB < 0.5) {
+        currentDynamicSettings.offthreadVideoCacheSizeInBytes = 8 * 1024 * 1024; // Only 8MB cache
+        currentDynamicSettings.jpegQuality = 65; // Even lower quality
+        console.warn('⚠️ CRITICAL: Using ultra-minimal settings due to very low memory');
+      }
     }
     
     // Force aggressive memory cleanup before export
