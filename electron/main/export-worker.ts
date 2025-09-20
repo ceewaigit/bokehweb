@@ -169,7 +169,7 @@ class ExportWorker extends BaseWorker {
       concurrency: 1, // Keep low for memory stability
       offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
       chromiumOptions: {
-        gl: 'swangle', // Use swangle to avoid ANGLE memory leaks
+        gl: process.platform === 'darwin' ? 'angle' : 'swangle', // Use angle on macOS, swangle on Linux/Windows
         enableMultiProcessOnLinux: true,
       },
       binariesDirectory: job.compositorDir,
@@ -264,14 +264,59 @@ class ExportWorker extends BaseWorker {
             return segmentEndMs >= chunkStartTimeMs && segmentStartMs <= chunkEndTimeMs;
           });
           
-          // Adjust segment times to be relative to chunk start
+          // Extract only the recording IDs used in this chunk
+          const recordingIds = new Set<string>();
+          chunkSegments.forEach((segment: any) => {
+            if (segment.clips && Array.isArray(segment.clips)) {
+              segment.clips.forEach((clipData: any) => {
+                if (clipData.recording?.id) {
+                  recordingIds.add(clipData.recording.id);
+                }
+              });
+            }
+          });
+          
+          console.log(`[ExportWorker] Chunk ${i + 1}: Using ${recordingIds.size} recordings`);
+          
+          // Create minimal segments with adjusted times
+          const minimalSegments = chunkSegments.map((segment: any) => ({
+            id: segment.id,
+            startTime: Math.max(0, segment.startTime - chunkStartTimeMs),
+            endTime: segment.endTime - chunkStartTimeMs,
+            clips: segment.clips?.map((clipData: any) => ({
+              clip: {
+                recordingId: clipData.clip?.recordingId,
+                startTime: clipData.clip?.startTime,
+                endTime: clipData.clip?.endTime
+              },
+              recording: {
+                id: clipData.recording?.id,
+                filePath: clipData.recording?.filePath
+              },
+              segmentStartTime: clipData.segmentStartTime,
+              segmentEndTime: clipData.segmentEndTime
+            })) || [],
+            effects: segment.effects || []
+          }));
+          
+          // Filter data to only what's needed for this chunk
           chunkInputProps = {
-            ...job.inputProps,
-            segments: chunkSegments.map((segment: any) => ({
-              ...segment,
-              startTime: Math.max(0, segment.startTime - chunkStartTimeMs),
-              endTime: segment.endTime - chunkStartTimeMs
-            }))
+            segments: minimalSegments,
+            recordings: Object.fromEntries(
+              Object.entries(job.inputProps.recordings || {})
+                .filter(([id]) => recordingIds.has(id))
+            ),
+            metadata: Object.fromEntries(
+              Object.entries(job.inputProps.metadata || {})
+                .filter(([id]) => recordingIds.has(id))
+            ),
+            videoUrls: Object.fromEntries(
+              Object.entries(job.inputProps.videoUrls || {})
+                .filter(([id]) => recordingIds.has(id))
+            ),
+            framerate: job.inputProps.framerate,
+            resolution: job.inputProps.resolution,
+            quality: job.inputProps.quality
           };
           
           console.log(`[ExportWorker] Chunk ${i + 1}: Filtered to ${chunkSegments.length} segments from ${allSegments.length} total`);
@@ -301,7 +346,7 @@ class ExportWorker extends BaseWorker {
           concurrency: 1,
           offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
           chromiumOptions: {
-            gl: 'swangle',
+            gl: process.platform === 'darwin' ? 'angle' : 'swangle',
             enableMultiProcessOnLinux: true,
           },
           binariesDirectory: job.compositorDir,
