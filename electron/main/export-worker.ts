@@ -1,11 +1,11 @@
 /**
  * Export Worker Process with MessagePort IPC
  * Handles video export with supervision and error recovery
+ * Optimized for memory efficiency using Remotion best practices
  */
 
 import { BaseWorker } from './utils/base-worker';
 import { spawn } from 'child_process';
-import { once } from 'events';
 import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
@@ -33,9 +33,8 @@ interface ExportJob {
 
 class ExportWorker extends BaseWorker {
   private currentExport: {
-    ffmpegProcess: ReturnType<typeof spawn> | null;
-    browser: any;
-    audioPath: string | null;
+    isActive: boolean;
+    tempFiles: string[];
   } | null = null;
 
   protected onInit(): void {
@@ -76,9 +75,8 @@ class ExportWorker extends BaseWorker {
     try {
       // Initialize export state
       this.currentExport = {
-        ffmpegProcess: null,
-        browser: null,
-        audioPath: null
+        isActive: true,
+        tempFiles: []
       };
 
       // Send progress updates
@@ -89,7 +87,7 @@ class ExportWorker extends BaseWorker {
       });
 
       // Lazy load Remotion modules
-      const { selectComposition, renderMedia, renderFrames, openBrowser } = await import('@remotion/renderer');
+      const { selectComposition, renderMedia } = await import('@remotion/renderer');
       
       // Select composition
       const composition = await selectComposition({
@@ -100,169 +98,21 @@ class ExportWorker extends BaseWorker {
 
       const fps = job.settings.framerate || composition.fps;
       const totalFrames = composition.durationInFrames;
+      const durationInSeconds = totalFrames / fps;
       
-      console.log(`[ExportWorker] Starting export: ${totalFrames} frames at ${fps}fps`);
+      console.log(`[ExportWorker] Starting export: ${totalFrames} frames at ${fps}fps (${durationInSeconds.toFixed(1)}s)`);
 
-      // Step 1: Render audio
-      this.send('progress', {
-        progress: 10,
-        stage: 'audio',
-        message: 'Rendering audio track...'
-      });
+      // Determine if we need chunked rendering
+      const CHUNK_SIZE_FRAMES = 2000; // ~1 minute at 30fps, ~33s at 60fps
+      const needsChunking = totalFrames > CHUNK_SIZE_FRAMES;
 
-      const audioPath = path.join(tmpdir(), `remotion-audio-${Date.now()}.aac`);
-      this.currentExport.audioPath = audioPath;
-      
-      await renderMedia({
-        serveUrl: job.bundleLocation,
-        composition,
-        inputProps: job.inputProps,
-        outputLocation: audioPath,
-        codec: 'aac',
-        audioCodec: 'aac',
-        imageFormat: 'none',
-        logLevel: 'info',
-        offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
-        binariesDirectory: job.compositorDir,
-      });
-
-      // Step 2: Setup FFmpeg
-      this.send('progress', {
-        progress: 20,
-        stage: 'encoding',
-        message: 'Starting video encoder...'
-      });
-
-      const imageFormat = job.jpegQuality ? 'jpeg' : 'png';
-      
-      const ffmpegArgs = [
-        '-hide_banner',
-        '-loglevel', 'error',
-        '-f', 'image2pipe',
-        '-framerate', String(fps),
-        '-i', 'pipe:0',
-        '-i', audioPath,
-        '-c:v', 'libx264',
-        '-preset', job.x264Preset || 'veryfast',
-        '-crf', job.settings.quality === 'ultra' ? '16' : job.settings.quality === 'high' ? '18' : '23',
-        '-pix_fmt', 'yuv420p',
-        ...(job.videoBitrate ? ['-b:v', job.videoBitrate] : []),
-        '-c:a', 'aac',
-        '-b:a', '192k',
-        '-shortest',
-        '-movflags', '+faststart',
-        job.outputPath
-      ];
-
-      const ffmpegProcess = spawn(job.ffmpegPath, ffmpegArgs, {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-      
-      this.currentExport.ffmpegProcess = ffmpegProcess;
-
-      let ffmpegError = '';
-      ffmpegProcess.stderr?.on('data', (data) => {
-        ffmpegError += data.toString();
-      });
-
-      ffmpegProcess.on('error', (err) => {
-        throw new Error(`FFmpeg failed: ${err.message}`);
-      });
-
-      // Step 3: Open browser
-      this.send('progress', {
-        progress: 25,
-        stage: 'rendering',
-        message: 'Starting render engine...'
-      });
-
-      const browser = await openBrowser('chrome', {
-        shouldDumpIo: false,
-      });
-      this.currentExport.browser = browser;
-
-      // Step 4: Stream frames
-      let framesRendered = 0;
-      let lastProgressUpdate = Date.now();
-
-      await renderFrames({
-        serveUrl: job.bundleLocation,
-        composition,
-        inputProps: job.inputProps,
-        outputDir: null,
-        imageFormat,
-        jpegQuality: job.jpegQuality || 80,
-        concurrency: 1,
-        offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
-        puppeteerInstance: browser,
-        chromiumOptions: {
-          gl: job.useGPU ? 'angle' : 'swangle',
-          enableMultiProcessOnLinux: true,
-        },
-        binariesDirectory: job.compositorDir,
-        onStart: ({ resolvedConcurrency }) => {
-          console.log(`[ExportWorker] Rendering with concurrency=${resolvedConcurrency}`);
-        },
-        onFrameUpdate: (frame) => {
-          framesRendered = frame;
-          
-          const now = Date.now();
-          if (now - lastProgressUpdate > 500) {
-            lastProgressUpdate = now;
-            const progress = 25 + Math.round((frame / totalFrames) * 70);
-            
-            this.send('progress', {
-              progress,
-              currentFrame: frame,
-              totalFrames,
-              stage: 'rendering',
-              message: `Rendering frame ${frame} of ${totalFrames}`
-            });
-          }
-        },
-        onFrameBuffer: async (frameBuffer: Buffer) => {
-          if (!ffmpegProcess || !ffmpegProcess.stdin) {
-            throw new Error('FFmpeg process not available');
-          }
-          
-          const canWrite = ffmpegProcess.stdin.write(frameBuffer);
-          if (!canWrite) {
-            await once(ffmpegProcess.stdin, 'drain');
-          }
-        },
-        logLevel: 'info',
-      });
-
-      // Step 5: Finalize
-      this.send('progress', {
-        progress: 95,
-        stage: 'finalizing',
-        message: 'Finalizing video...'
-      });
-
-      if (ffmpegProcess && ffmpegProcess.stdin) {
-        ffmpegProcess.stdin.end();
+      if (needsChunking) {
+        console.log(`[ExportWorker] Using chunked rendering for ${totalFrames} frames`);
+        return await this.performChunkedExport(job, composition, totalFrames, CHUNK_SIZE_FRAMES, startTime);
+      } else {
+        console.log(`[ExportWorker] Using single-pass rendering for ${totalFrames} frames`);
+        return await this.performSingleExport(job, composition, totalFrames, startTime);
       }
-
-      const [exitCode] = await once(ffmpegProcess!, 'exit') as [number];
-      
-      if (exitCode !== 0) {
-        throw new Error(`FFmpeg exited with code ${exitCode}: ${ffmpegError}`);
-      }
-
-      // Cleanup
-      await this.cleanup();
-
-      // Get file size
-      const stats = await fs.stat(job.outputPath);
-      const duration = (Date.now() - startTime) / 1000;
-      
-      console.log(`[ExportWorker] Export complete in ${duration.toFixed(1)}s`);
-
-      return {
-        success: true,
-        outputPath: job.outputPath
-      };
 
     } catch (error) {
       console.error('[ExportWorker] Export failed:', error);
@@ -275,6 +125,210 @@ class ExportWorker extends BaseWorker {
     }
   }
 
+  private async performSingleExport(
+    job: ExportJob,
+    composition: any,
+    totalFrames: number,
+    startTime: number = Date.now()
+  ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+    
+    const { renderMedia } = await import('@remotion/renderer');
+    
+    // Send progress updates
+    this.send('progress', {
+      progress: 10,
+      stage: 'rendering',
+      message: 'Starting render engine...'
+    });
+
+    let lastReportedFrame = 0;
+    let lastProgressUpdate = Date.now();
+
+    // Use renderMedia for memory-efficient single-pass rendering
+    await renderMedia({
+      serveUrl: job.bundleLocation,
+      composition,
+      inputProps: job.inputProps,
+      outputLocation: job.outputPath,
+      codec: 'h264',
+      videoBitrate: job.videoBitrate,
+      jpegQuality: job.jpegQuality,
+      imageFormat: 'jpeg',
+      concurrency: 1, // Keep low for memory stability
+      offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
+      chromiumOptions: {
+        gl: 'swangle', // Use swangle to avoid ANGLE memory leaks
+        enableMultiProcessOnLinux: true,
+      },
+      binariesDirectory: job.compositorDir,
+      disallowParallelEncoding: true, // Trade speed for memory stability
+      logLevel: 'verbose',
+      onStart: ({ resolvedConcurrency, parallelEncoding }) => {
+        console.log(`[ExportWorker] Rendering with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding}`);
+      },
+      onProgress: ({ progress, renderedFrames, encodedFrames }) => {
+        const now = Date.now();
+        
+        // Update progress at most every 500ms
+        if (now - lastProgressUpdate > 500 || renderedFrames === totalFrames) {
+          lastProgressUpdate = now;
+          lastReportedFrame = renderedFrames;
+          
+          const progressPercent = 10 + Math.round((renderedFrames / totalFrames) * 85);
+          
+          this.send('progress', {
+            progress: progressPercent,
+            currentFrame: renderedFrames,
+            totalFrames,
+            stage: 'rendering',
+            message: `Rendering frame ${renderedFrames} of ${totalFrames}`
+          });
+        }
+      }
+    });
+
+    // Finalize
+    this.send('progress', {
+      progress: 95,
+      stage: 'finalizing',
+      message: 'Finalizing video...'
+    });
+
+    // Get file size
+    const stats = await fs.stat(job.outputPath);
+    const duration = (Date.now() - startTime) / 1000;
+    
+    console.log(`[ExportWorker] Export complete in ${duration.toFixed(1)}s`);
+
+    await this.cleanup();
+
+    return {
+      success: true,
+      outputPath: job.outputPath
+    };
+  }
+
+  private async performChunkedExport(
+    job: ExportJob,
+    composition: any,
+    totalFrames: number,
+    chunkSize: number,
+    startTime: number = Date.now()
+  ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+    
+    const { renderMedia, combineVideos } = await import('@remotion/renderer');
+    
+    const chunks: string[] = [];
+    const numChunks = Math.ceil(totalFrames / chunkSize);
+    
+    console.log(`[ExportWorker] Rendering ${numChunks} chunks of ${chunkSize} frames each`);
+
+    try {
+      for (let i = 0; i < numChunks; i++) {
+        const startFrame = i * chunkSize;
+        const endFrame = Math.min(startFrame + chunkSize - 1, totalFrames - 1);
+        const chunkFrames = endFrame - startFrame + 1;
+        
+        // Create temp file for this chunk
+        const chunkPath = path.join(tmpdir(), `remotion-chunk-${i}-${Date.now()}.mp4`);
+        chunks.push(chunkPath);
+        this.currentExport?.tempFiles.push(chunkPath);
+        
+        console.log(`[ExportWorker] Rendering chunk ${i + 1}/${numChunks}: frames ${startFrame}-${endFrame}`);
+        
+        // Update progress
+        const baseProgress = (i / numChunks) * 80;
+        this.send('progress', {
+          progress: 10 + Math.round(baseProgress),
+          stage: 'rendering',
+          message: `Rendering chunk ${i + 1} of ${numChunks}...`,
+          currentFrame: startFrame,
+          totalFrames
+        });
+
+        // Render this chunk
+        await renderMedia({
+          serveUrl: job.bundleLocation,
+          composition,
+          inputProps: job.inputProps,
+          outputLocation: chunkPath,
+          codec: 'h264',
+          videoBitrate: job.videoBitrate,
+          jpegQuality: job.jpegQuality,
+          imageFormat: 'jpeg',
+          frameRange: [startFrame, endFrame],
+          concurrency: 1,
+          offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
+          chromiumOptions: {
+            gl: 'swangle',
+            enableMultiProcessOnLinux: true,
+          },
+          binariesDirectory: job.compositorDir,
+          disallowParallelEncoding: true,
+          logLevel: 'info',
+          onProgress: ({ renderedFrames }) => {
+            const chunkProgress = renderedFrames / chunkFrames;
+            const totalProgress = 10 + ((i + chunkProgress) / numChunks) * 80;
+            
+            this.send('progress', {
+              progress: Math.round(totalProgress),
+              currentFrame: startFrame + renderedFrames,
+              totalFrames,
+              stage: 'rendering',
+              message: `Rendering chunk ${i + 1}/${numChunks}: frame ${renderedFrames}/${chunkFrames}`
+            });
+          }
+        });
+
+        // Force garbage collection between chunks if available
+        if (global.gc) {
+          global.gc();
+        }
+      }
+
+      // Combine chunks
+      this.send('progress', {
+        progress: 90,
+        stage: 'finalizing',
+        message: 'Combining video chunks...'
+      });
+
+      console.log(`[ExportWorker] Combining ${chunks.length} chunks into final video`);
+      
+      await combineVideos({
+        videos: chunks.map(src => ({ src })),
+        output: job.outputPath,
+        ffmpegPath: job.ffmpegPath,
+        logLevel: 'info'
+      });
+
+      // Clean up chunk files
+      for (const chunk of chunks) {
+        await fs.unlink(chunk).catch(() => {});
+      }
+
+      this.send('progress', {
+        progress: 95,
+        stage: 'finalizing',
+        message: 'Finalizing video...'
+      });
+
+      await this.cleanup();
+
+      return {
+        success: true,
+        outputPath: job.outputPath
+      };
+
+    } catch (error) {
+      // Clean up chunk files on error
+      for (const chunk of chunks) {
+        await fs.unlink(chunk).catch(() => {});
+      }
+      throw error;
+    }
+  }
+
   private async cancelExport(): Promise<void> {
     console.log('[ExportWorker] Cancelling export...');
     await this.cleanup();
@@ -283,19 +337,9 @@ class ExportWorker extends BaseWorker {
   private async cleanup(): Promise<void> {
     if (!this.currentExport) return;
 
-    // Kill FFmpeg
-    if (this.currentExport.ffmpegProcess) {
-      this.currentExport.ffmpegProcess.kill('SIGKILL');
-    }
-
-    // Close browser
-    if (this.currentExport.browser) {
-      await this.currentExport.browser.close().catch(() => {});
-    }
-
-    // Clean up audio file
-    if (this.currentExport.audioPath) {
-      await fs.unlink(this.currentExport.audioPath).catch(() => {});
+    // Clean up any temp files
+    for (const tempFile of this.currentExport.tempFiles) {
+      await fs.unlink(tempFile).catch(() => {});
     }
 
     this.currentExport = null;
@@ -303,7 +347,7 @@ class ExportWorker extends BaseWorker {
 
   private getStatus(): { isExporting: boolean } {
     return {
-      isExporting: this.currentExport !== null
+      isExporting: this.currentExport?.isActive || false
     };
   }
 }

@@ -46,7 +46,12 @@ export function setupExportHandler() {
       // Use conservative settings for stability
       dynamicSettings.concurrency = 1;
       dynamicSettings.jpegQuality = settings.quality === 'ultra' ? 90 : 80;
-      dynamicSettings.offthreadVideoCacheSizeInBytes = 64 * 1024 * 1024;
+      
+      // Cap OffthreadVideo cache to prevent memory exhaustion
+      // Use 32MB as safe default, or 1/16 of available memory (whichever is smaller)
+      const availableMemoryGB = machineProfile.availableMemoryGB || 2;
+      const maxCacheMB = Math.min(32, Math.floor(availableMemoryGB * 1024 / 16));
+      dynamicSettings.offthreadVideoCacheSizeInBytes = maxCacheMB * 1024 * 1024;
       
       console.log('Export settings:', {
         jpegQuality: dynamicSettings.jpegQuality,
@@ -139,9 +144,12 @@ export function setupExportHandler() {
           throw new Error(`Export worker not found at ${workerPath}`);
         }
         
+        // Calculate safe memory limit for worker (1/4 of available memory, max 4GB)
+        const workerMemoryMB = Math.min(4096, Math.floor((machineProfile.availableMemoryGB || 2) * 1024 / 4));
+        
         exportWorker = await workerPool.createWorker('export', workerPath, {
           serviceName: 'Export Worker',
-          maxMemory: 3072,
+          maxMemory: workerMemoryMB,
           enableHeartbeat: true,
           maxRestarts: 2
         });
