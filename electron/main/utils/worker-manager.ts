@@ -1,9 +1,9 @@
 /**
- * Robust worker process management with supervision and MessagePort IPC
- * Based on industry best practices for production Electron apps
+ * Robust worker process management with supervision
+ * Uses utility process IPC for reliable communication
  */
 
-import { utilityProcess, MessageChannelMain, MessagePortMain } from 'electron';
+import { utilityProcess } from 'electron';
 import { EventEmitter } from 'events';
 import path from 'path';
 
@@ -29,7 +29,6 @@ interface PendingRequest {
 
 export class SupervisedWorker extends EventEmitter {
   private worker: Electron.UtilityProcess | null = null;
-  private port: MessagePortMain | null = null;
   private options: Required<WorkerOptions>;
   private restartCount = 0;
   private isShuttingDown = false;
@@ -53,7 +52,7 @@ export class SupervisedWorker extends EventEmitter {
   }
 
   /**
-   * Start the worker process with MessagePort communication
+   * Start the worker process
    */
   async start(): Promise<void> {
     if (this.worker) {
@@ -61,25 +60,16 @@ export class SupervisedWorker extends EventEmitter {
     }
 
     try {
-      // Create MessageChannel for robust IPC
-      const { port1, port2 } = new MessageChannelMain();
-      this.port = port1;
-
       // Start utility process
       this.worker = utilityProcess.fork(this.workerPath, [], {
         serviceName: this.options.serviceName,
         execArgv: [`--max-old-space-size=${this.options.maxMemory}`]
       });
 
-      // Send port2 to worker
-      this.worker.postMessage({ type: 'init', port: port2 }, [port2]);
-
-      // Set up port message handling
-      this.port.on('message', (event) => {
-        this.handleMessage(event.data);
+      // Set up message handling
+      this.worker.on('message', (message: any) => {
+        this.handleMessage(message);
       });
-
-      this.port.start();
 
       // Set up worker lifecycle handlers
       this.worker.on('spawn', () => {
@@ -92,6 +82,9 @@ export class SupervisedWorker extends EventEmitter {
         console.log(`[WorkerManager] ${this.options.serviceName} exited with code ${code}`);
         this.handleWorkerExit(code);
       });
+
+      // Send init message
+      this.worker.postMessage({ type: 'init' });
 
       // Wait for worker ready signal
       await this.waitForReady();
@@ -106,7 +99,7 @@ export class SupervisedWorker extends EventEmitter {
    * Send a request to the worker and wait for response
    */
   async request<T = any>(type: string, data: any, timeoutMs = 30000): Promise<T> {
-    if (!this.worker || !this.port) {
+    if (!this.worker) {
       throw new Error('Worker not started');
     }
 
@@ -123,7 +116,7 @@ export class SupervisedWorker extends EventEmitter {
       this.pendingRequests.set(id, { resolve, reject, timeout });
 
       // Send request
-      this.port!.postMessage({
+      this.worker!.postMessage({
         id,
         type: 'request',
         method: type,
@@ -136,11 +129,11 @@ export class SupervisedWorker extends EventEmitter {
    * Send a one-way message to the worker
    */
   send(type: string, data: any): void {
-    if (!this.port) {
+    if (!this.worker) {
       throw new Error('Worker not started');
     }
 
-    this.port.postMessage({
+    this.worker.postMessage({
       type: 'message',
       method: type,
       data
@@ -154,18 +147,13 @@ export class SupervisedWorker extends EventEmitter {
     this.isShuttingDown = true;
     this.stopHeartbeat();
 
-    if (this.port) {
+    if (this.worker) {
       // Send shutdown signal
-      this.port.postMessage({ type: 'shutdown' });
+      this.worker.postMessage({ type: 'shutdown' });
       
       // Give worker time to cleanup
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      this.port.close();
-      this.port = null;
-    }
-
-    if (this.worker) {
       this.worker.kill();
       this.worker = null;
     }
@@ -218,12 +206,12 @@ export class SupervisedWorker extends EventEmitter {
       const handler = (message: any) => {
         if (message.type === 'ready') {
           clearTimeout(timeout);
-          this.port!.off('message', handler);
+          this.worker!.off('message', handler);
           resolve();
         }
       };
 
-      this.port!.on('message', handler);
+      this.worker!.on('message', handler);
     });
   }
 
@@ -244,7 +232,7 @@ export class SupervisedWorker extends EventEmitter {
         this.handleWorkerCrash();
       } else {
         // Send heartbeat ping
-        this.port?.postMessage({ type: 'heartbeat-ping' });
+        this.worker?.postMessage({ type: 'heartbeat-ping' });
       }
     }, this.options.heartbeatInterval);
   }
@@ -265,7 +253,6 @@ export class SupervisedWorker extends EventEmitter {
   private handleWorkerExit(code: number): void {
     this.stopHeartbeat();
     this.worker = null;
-    this.port = null;
 
     if (this.isShuttingDown) {
       return;

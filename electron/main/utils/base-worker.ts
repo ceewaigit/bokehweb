@@ -1,12 +1,9 @@
 /**
- * Base class for worker processes with MessagePort communication
- * Handles the worker side of the robust IPC pattern
+ * Base class for worker processes with utility process IPC
+ * Handles the worker side of the IPC pattern
  */
 
-import { parentPort, MessagePort } from 'worker_threads';
-
 export abstract class BaseWorker {
-  private port: MessagePort | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
   constructor() {
@@ -17,70 +14,69 @@ export abstract class BaseWorker {
    * Setup IPC with parent process
    */
   private setupIPC(): void {
-    // Handle initialization from utility process
-    process.parentPort?.on('message', (e: Electron.MessageEvent) => {
+    // Handle messages from utility process parent
+    process.parentPort?.on('message', async (e: Electron.MessageEvent) => {
       const message = e.data;
       
-      if (message.type === 'init' && message.port) {
-        this.port = message.port;
-        this.setupPort();
+      if (message.type === 'init') {
+        this.initialize();
+        return;
       }
+
+      await this.handleMessage(message);
     });
   }
 
   /**
-   * Setup MessagePort handlers
+   * Initialize the worker
    */
-  private setupPort(): void {
-    if (!this.port) return;
-
-    this.port.on('message', async (event) => {
-      const message = event.data;
-
-      try {
-        // Handle different message types
-        switch (message.type) {
-          case 'request':
-            await this.handleRequest(message);
-            break;
-          
-          case 'message':
-            await this.handleMessage(message);
-            break;
-          
-          case 'heartbeat-ping':
-            this.sendHeartbeat();
-            break;
-          
-          case 'shutdown':
-            await this.handleShutdown();
-            break;
-          
-          default:
-            console.warn(`[Worker] Unknown message type: ${message.type}`);
-        }
-      } catch (error) {
-        console.error(`[Worker] Error handling message:`, error);
-        
-        if (message.id) {
-          this.port!.postMessage({
-            id: message.id,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
-      }
-    });
-
-    this.port.start();
-    
+  private initialize(): void {
     // Send ready signal
-    this.port.postMessage({ type: 'ready' });
+    this.send('ready', null);
     
     // Start heartbeat
     this.startHeartbeat();
     
     // Initialize the worker
     this.onInit();
+  }
+
+  /**
+   * Handle incoming messages
+   */
+  private async handleMessage(message: any): Promise<void> {
+    try {
+      // Handle different message types
+      switch (message.type) {
+        case 'request':
+          await this.handleRequest(message);
+          break;
+        
+        case 'message':
+          await this.handleOneWayMessage(message);
+          break;
+        
+        case 'heartbeat-ping':
+          this.sendHeartbeat();
+          break;
+        
+        case 'shutdown':
+          await this.handleShutdown();
+          break;
+        
+        default:
+          console.warn(`[Worker] Unknown message type: ${message.type}`);
+      }
+    } catch (error) {
+      console.error(`[Worker] Error handling message:`, error);
+      
+      if (message.id) {
+        process.parentPort?.postMessage({
+          id: message.id,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
   }
 
   /**
@@ -92,12 +88,12 @@ export abstract class BaseWorker {
     try {
       const result = await this.onRequest(method, data);
       
-      this.port!.postMessage({
+      process.parentPort?.postMessage({
         id,
         data: result
       });
     } catch (error) {
-      this.port!.postMessage({
+      process.parentPort?.postMessage({
         id,
         error: error instanceof Error ? error.message : String(error)
       });
@@ -107,7 +103,7 @@ export abstract class BaseWorker {
   /**
    * Handle one-way messages
    */
-  private async handleMessage(message: any): Promise<void> {
+  private async handleOneWayMessage(message: any): Promise<void> {
     const { method, data } = message;
     await this.onMessage(method, data);
   }
@@ -116,7 +112,7 @@ export abstract class BaseWorker {
    * Send heartbeat to parent
    */
   private sendHeartbeat(): void {
-    this.port?.postMessage({ type: 'heartbeat' });
+    process.parentPort?.postMessage({ type: 'heartbeat' });
   }
 
   /**
@@ -147,7 +143,7 @@ export abstract class BaseWorker {
    * Send a message to parent
    */
   protected send(type: string, data: any): void {
-    this.port?.postMessage({ type, data });
+    process.parentPort?.postMessage({ type, data });
   }
 
   /**
