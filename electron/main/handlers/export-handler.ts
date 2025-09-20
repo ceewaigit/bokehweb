@@ -254,7 +254,7 @@ export function setupExportHandler() {
       // Use utilityProcess for better Electron integration
       exportWorker = utilityProcess.fork(workerPath, [], {
         serviceName: 'Remotion Export Worker',
-        execArgv: ['--max-old-space-size=2048', '--expose-gc'],
+        execArgv: ['--max-old-space-size=3072', '--expose-gc'], // Increased memory limit
       });
       
       // Store worker reference for cancellation

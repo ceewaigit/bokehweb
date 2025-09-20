@@ -10,12 +10,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import { tmpdir } from 'os';
-import {
-  renderFrames,
-  renderMedia,
-  selectComposition,
-  openBrowser
-} from '@remotion/renderer';
+// Lazy load Remotion to avoid initial memory spike
 
 // Resolve Remotion compositor directory for binariesDirectory option
 const resolveCompositorDir = (job: ExportJob): string | null => {
@@ -126,6 +121,14 @@ async function performStreamingExport(job: ExportJob) {
   let audioPath: string | null = null;
 
   try {
+    // Log initial memory usage
+    console.log('[Export Worker] Initial memory:', process.memoryUsage());
+    
+    // Lazy load Remotion modules to reduce memory pressure
+    console.log('[Export Worker] Loading Remotion modules...');
+    const { selectComposition, renderMedia, renderFrames, openBrowser } = await import('@remotion/renderer');
+    console.log('[Export Worker] Remotion loaded, memory:', process.memoryUsage());
+    
     sendMessage({
       type: 'progress',
       data: {
