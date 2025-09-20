@@ -3,10 +3,10 @@
  * Handles the actual export using Node.js APIs
  */
 
-import { ipcMain, app } from 'electron';
+import { ipcMain, app, utilityProcess } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
-import { exec as execCallback, fork } from 'child_process';
+import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import { machineProfiler, type DynamicExportSettings } from '../utils/machine-profiler';
 import { makeVideoSrc } from '../utils/video-url-factory';
@@ -251,11 +251,10 @@ export function setupExportHandler() {
       // Create the export worker path
       const workerPath = path.join(__dirname, 'export-worker.js');
       
-      // Fork the worker process with memory limit
-      exportWorker = fork(workerPath, [], {
+      // Use utilityProcess for better production support
+      exportWorker = utilityProcess.fork(workerPath, [], {
+        serviceName: 'Remotion Export Worker',
         execArgv: ['--max-old-space-size=2048', '--expose-gc'],
-        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-        silent: false // Allow console output for debugging
       });
       
       // Store worker reference for cancellation

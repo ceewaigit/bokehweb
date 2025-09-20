@@ -2,7 +2,10 @@ const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-  entry: './electron/main/index.ts',
+  entry: {
+    index: './electron/main/index.ts',
+    'export-worker': './electron/main/export-worker.ts',
+  },
   module: {
     rules: [
       {
@@ -52,6 +55,6 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, '.webpack/main'),
-    filename: 'index.js',
+    filename: '[name].js',
   },
 };

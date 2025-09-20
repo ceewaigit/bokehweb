@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import { once } from 'events';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import { tmpdir } from 'os';
 import {
   renderFrames,
@@ -16,31 +17,58 @@ import {
   openBrowser
 } from '@remotion/renderer';
 
-// Get FFmpeg path from Remotion's bundled binaries
-const getFFmpegPath = (): string => {
+// Get FFmpeg path from Remotion's bundled binaries with ASAR support
+const getFFmpegPath = (): string | null => {
   const platform = process.platform;
   const arch = process.arch;
   
-  // Build the path to Remotion's bundled FFmpeg
-  let compositorPackage = '';
+  // Determine the correct compositor package for this platform
+  const candidates = [];
   
   if (platform === 'darwin') {
-    compositorPackage = arch === 'arm64' 
-      ? '@remotion/compositor-darwin-arm64'
-      : '@remotion/compositor-darwin-x64';
+    candidates.push(
+      arch === 'arm64' ? '@remotion/compositor-darwin-arm64' : '@remotion/compositor-darwin-x64'
+    );
   } else if (platform === 'win32') {
-    compositorPackage = '@remotion/compositor-win32-x64';
+    candidates.push('@remotion/compositor-win32-x64');
   } else if (platform === 'linux') {
-    compositorPackage = arch === 'arm64'
-      ? '@remotion/compositor-linux-arm64'
-      : '@remotion/compositor-linux-x64';
+    candidates.push(
+      arch === 'arm64' ? '@remotion/compositor-linux-arm64' : '@remotion/compositor-linux-x64'
+    );
   }
   
   const ffmpegName = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-  const ffmpegPath = path.join(process.cwd(), 'node_modules', compositorPackage, ffmpegName);
   
-  console.log(`[Export Worker] FFmpeg path resolved to: ${ffmpegPath}`);
-  return ffmpegPath;
+  // Try multiple possible locations
+  for (const packageName of candidates) {
+    const possiblePaths = [
+      // Production: unpacked from ASAR
+      path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', packageName, ffmpegName),
+      // Development or regular node_modules
+      path.join(process.cwd(), 'node_modules', packageName, ffmpegName),
+      // Alternative: resolve from require
+      (() => {
+        try {
+          const pkgJson = require.resolve(`${packageName}/package.json`);
+          const dir = path.dirname(pkgJson).replace('app.asar', 'app.asar.unpacked');
+          return path.join(dir, ffmpegName);
+        } catch {
+          return null;
+        }
+      })()
+    ].filter(Boolean) as string[];
+    
+    for (const ffmpegPath of possiblePaths) {
+      console.log(`[Export Worker] Checking FFmpeg at: ${ffmpegPath}`);
+      if (fsSync.existsSync(ffmpegPath)) {
+        console.log(`[Export Worker] FFmpeg found at: ${ffmpegPath}`);
+        return ffmpegPath;
+      }
+    }
+  }
+  
+  console.error('[Export Worker] FFmpeg not found in any expected location');
+  return null;
 };
 
 // Types
@@ -85,10 +113,19 @@ interface ErrorMessage {
   error: string;
 }
 
-// Helper to send IPC messages back to parent
+// Helper to send IPC messages back to parent (safe for utilityProcess)
 const sendMessage = (msg: ProgressMessage | CompleteMessage | ErrorMessage) => {
-  if (process.send) {
-    process.send(msg);
+  try {
+    if (process.send && typeof process.send === 'function') {
+      process.send(msg);
+    } else {
+      console.log('[Export Worker] IPC message:', JSON.stringify(msg));
+    }
+  } catch (error) {
+    // Ignore EPIPE errors when parent disconnects
+    if ((error as any)?.code !== 'EPIPE') {
+      console.error('[Export Worker] Failed to send IPC message:', error);
+    }
   }
 };
 
@@ -197,11 +234,15 @@ async function performStreamingExport(job: ExportJob) {
     // Get the bundled FFmpeg path
     const ffmpegPath = getFFmpegPath();
     
-    // Check if FFmpeg exists
+    if (!ffmpegPath) {
+      throw new Error('FFmpeg not found. Please ensure Remotion dependencies are installed.');
+    }
+    
+    // Check if FFmpeg exists and is executable
     try {
-      await fs.access(ffmpegPath, fs.constants.X_OK);
+      await fs.access(ffmpegPath, fsSync.constants.X_OK);
     } catch (error) {
-      throw new Error(`FFmpeg not found at ${ffmpegPath}. Please ensure Remotion dependencies are installed.`);
+      throw new Error(`FFmpeg found but not executable at ${ffmpegPath}`);
     }
     
     console.log(`[Export Worker] Starting FFmpeg from: ${ffmpegPath}`);
@@ -422,6 +463,12 @@ process.on('unhandledRejection', (reason) => {
     error: `Unhandled rejection: ${reason}`
   });
   process.exit(1);
+});
+
+// Handle parent disconnect
+process.on('disconnect', () => {
+  console.log('[Export Worker] Parent process disconnected, exiting...');
+  process.exit(0);
 });
 
 // Log that worker is ready

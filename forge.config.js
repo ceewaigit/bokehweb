@@ -3,7 +3,9 @@ const fs = require('fs');
 
 module.exports = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      unpack: '**/node_modules/@remotion/compositor-*/**',
+    },
     appBundleId: 'com.flowcapture.app',
     name: 'FlowCapture',
     executableName: 'screenstudio',
