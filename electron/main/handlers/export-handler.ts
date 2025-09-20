@@ -3,7 +3,7 @@
  * Handles the actual export using Node.js APIs
  */
 
-import { ipcMain, app, utilityProcess } from 'electron';
+import { ipcMain, app } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
 import { exec as execCallback } from 'child_process';
@@ -248,13 +248,31 @@ export function setupExportHandler() {
       // STREAMING EXPORT: Use separate worker process for memory isolation
       console.log('🚀 Starting streaming export in isolated worker process');
       
-      // Create the export worker path
-      const workerPath = path.join(__dirname, 'export-worker.js');
+      // Create the export worker path - check multiple locations
+      let workerPath = path.join(__dirname, 'export-worker.js');
       
-      // Use utilityProcess for better production support
-      exportWorker = utilityProcess.fork(workerPath, [], {
-        serviceName: 'Remotion Export Worker',
+      // In production with webpack, the worker might be in the same directory
+      if (!fsSync.existsSync(workerPath)) {
+        // Try webpack output directory
+        const webpackPath = path.join(__dirname, '..', '..', '..', '.webpack', 'main', 'export-worker.js');
+        if (fsSync.existsSync(webpackPath)) {
+          workerPath = webpackPath;
+        }
+      }
+      
+      console.log(`Worker path resolved to: ${workerPath}`);
+      console.log(`Worker file exists: ${fsSync.existsSync(workerPath)}`);
+      
+      if (!fsSync.existsSync(workerPath)) {
+        throw new Error(`Export worker not found at ${workerPath}`);
+      }
+      
+      // Use fork for now - utilityProcess has different API
+      const { fork } = require('child_process');
+      exportWorker = fork(workerPath, [], {
         execArgv: ['--max-old-space-size=2048', '--expose-gc'],
+        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+        silent: false
       });
       
       // Store worker reference for cancellation
