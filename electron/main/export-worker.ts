@@ -248,6 +248,35 @@ class ExportWorker extends BaseWorker {
         
         console.log(`[ExportWorker] Rendering chunk ${i + 1}/${numChunks}: frames ${startFrame}-${endFrame}`);
         
+        // Calculate time range for this chunk
+        const fps = job.settings.framerate || composition.fps || 30;
+        const chunkStartTimeMs = (startFrame / fps) * 1000;
+        const chunkEndTimeMs = (endFrame / fps) * 1000;
+        
+        // Filter segments for this chunk's time range
+        let chunkInputProps = { ...job.inputProps };
+        if (job.inputProps.segments && Array.isArray(job.inputProps.segments)) {
+          const allSegments = job.inputProps.segments;
+          const chunkSegments = allSegments.filter((segment: any) => {
+            // Include segment if it overlaps with this chunk's time range
+            const segmentStartMs = segment.startTime;
+            const segmentEndMs = segment.endTime;
+            return segmentEndMs >= chunkStartTimeMs && segmentStartMs <= chunkEndTimeMs;
+          });
+          
+          // Adjust segment times to be relative to chunk start
+          chunkInputProps = {
+            ...job.inputProps,
+            segments: chunkSegments.map((segment: any) => ({
+              ...segment,
+              startTime: Math.max(0, segment.startTime - chunkStartTimeMs),
+              endTime: segment.endTime - chunkStartTimeMs
+            }))
+          };
+          
+          console.log(`[ExportWorker] Chunk ${i + 1}: Filtered to ${chunkSegments.length} segments from ${allSegments.length} total`);
+        }
+        
         // Update progress
         const baseProgress = (i / numChunks) * 80;
         this.send('progress', {
@@ -258,11 +287,11 @@ class ExportWorker extends BaseWorker {
           totalFrames
         });
 
-        // Render this chunk
+        // Render this chunk with filtered segments
         await renderMedia({
           serveUrl: job.bundleLocation,
           composition,
-          inputProps: job.inputProps,
+          inputProps: chunkInputProps,
           outputLocation: chunkPath,
           codec: 'h264',
           videoBitrate: job.videoBitrate,
