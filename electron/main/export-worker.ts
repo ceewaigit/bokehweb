@@ -59,61 +59,7 @@ const resolveCompositorDir = (job: ExportJob): string | null => {
   return compositorPath;
 };
 
-// Get FFmpeg path from Remotion's bundled binaries with ASAR support
-const getFFmpegPath = (job: ExportJob): string | null => {
-  const platform = process.platform;
-  const arch = process.arch;
-  
-  // Determine the correct compositor package for this platform
-  const candidates = [];
-  
-  if (platform === 'darwin') {
-    candidates.push(
-      arch === 'arm64' ? '@remotion/compositor-darwin-arm64' : '@remotion/compositor-darwin-x64'
-    );
-  } else if (platform === 'win32') {
-    candidates.push('@remotion/compositor-win32-x64');
-  } else if (platform === 'linux') {
-    candidates.push(
-      arch === 'arm64' ? '@remotion/compositor-linux-arm64' : '@remotion/compositor-linux-x64'
-    );
-  }
-  
-  const ffmpegName = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-  
-  // Try multiple possible locations
-  for (const packageName of candidates) {
-    const possiblePaths = [
-      // Production: unpacked from ASAR
-      path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', packageName, ffmpegName),
-      // Development or regular node_modules
-      path.join(process.cwd(), 'node_modules', packageName, ffmpegName),
-      // Alternative: resolve from require
-      (() => {
-        try {
-          const pkgJson = require.resolve(`${packageName}/package.json`);
-          const dir = path.dirname(pkgJson).replace('app.asar', 'app.asar.unpacked');
-          return path.join(dir, ffmpegName);
-        } catch {
-          return null;
-        }
-      })()
-    ].filter(Boolean) as string[];
-    
-    for (const ffmpegPath of possiblePaths) {
-      if (ffmpegPath) {
-        console.log(`[Export Worker] Checking FFmpeg at: ${ffmpegPath}`);
-        if (fsSync.existsSync(ffmpegPath)) {
-          console.log(`[Export Worker] FFmpeg found at: ${ffmpegPath}`);
-          return ffmpegPath;
-        }
-      }
-    }
-  }
-  
-  console.error('[Export Worker] FFmpeg not found in any expected location');
-  return null;
-};
+// This function is no longer needed - we get FFmpeg from resolveCompositorDir
 
 // Types
 interface ExportJob {
@@ -161,20 +107,11 @@ interface ErrorMessage {
   error: string;
 }
 
-// Helper to send IPC messages back to parent (using utilityProcess)
+// Send IPC messages to parent via utilityProcess
 const sendMessage = (msg: ProgressMessage | CompleteMessage | ErrorMessage) => {
   try {
-    // Use parentPort for utilityProcess communication
-    if (process.parentPort) {
-      process.parentPort.postMessage(msg);
-    } else if (process.send && typeof process.send === 'function') {
-      // Fallback to process.send for regular fork
-      process.send(msg);
-    } else {
-      console.log('[Export Worker] IPC message:', JSON.stringify(msg));
-    }
+    process.parentPort?.postMessage(msg);
   } catch (error) {
-    // Ignore EPIPE errors when parent disconnects
     if ((error as any)?.code !== 'EPIPE') {
       console.error('[Export Worker] Failed to send IPC message:', error);
     }
@@ -288,27 +225,19 @@ async function performStreamingExport(job: ExportJob) {
       job.outputPath
     ];
 
-    // Get FFmpeg path from compositor directory or auto-detect
-    let ffmpegPath: string;
-    if (binariesDirectory) {
-      // Use FFmpeg from unpacked compositor directory
-      ffmpegPath = path.join(binariesDirectory, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
-    } else {
-      // Let Remotion handle it in development
-      const detectedPath = getFFmpegPath(job);
-      if (!detectedPath) {
-        throw new Error('FFmpeg not found. Please ensure Remotion dependencies are installed.');
-      }
-      ffmpegPath = detectedPath;
-    }
+    // Get FFmpeg path from compositor directory
+    const ffmpegName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+    const ffmpegPath = binariesDirectory 
+      ? path.join(binariesDirectory, ffmpegName)
+      : require.resolve(`@remotion/compositor-${process.platform}-${process.arch}/${ffmpegName}`);
     
     console.log(`[Export Worker] Using FFmpeg at: ${ffmpegPath}`);
     
-    // Check if FFmpeg exists and is executable
+    // Verify FFmpeg is executable
     try {
       await fs.access(ffmpegPath, fsSync.constants.X_OK);
     } catch (error) {
-      throw new Error(`FFmpeg found but not executable at ${ffmpegPath}`);
+      throw new Error(`FFmpeg not executable at ${ffmpegPath}`);
     }
     
     console.log(`[Export Worker] Starting FFmpeg from: ${ffmpegPath}`);
@@ -515,14 +444,8 @@ const messageHandler = async (msg: any) => {
   }
 };
 
-// Set up message listener for both utilityProcess and regular fork
-if (process.parentPort) {
-  // utilityProcess communication
-  process.parentPort.on('message', (e: any) => messageHandler(e.data));
-} else {
-  // Regular fork communication
-  process.on('message', messageHandler);
-}
+// Listen for messages from utilityProcess
+process.parentPort?.on('message', (e: any) => messageHandler(e.data));
 
 // Handle unexpected errors
 process.on('uncaughtException', (error) => {

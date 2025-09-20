@@ -106,9 +106,7 @@ export function setupExportHandler() {
       }
     }
     
-    // Force aggressive memory cleanup before export
-    
-    // Force aggressive memory cleanup before export
+    // Force memory cleanup before export
     try {
       // Kill any lingering Chrome processes
       await exec('pkill -9 -f "chrome-headless-shell"').catch(() => {});
@@ -118,9 +116,7 @@ export function setupExportHandler() {
       // Ignore
     }
     
-    // Force garbage collection multiple times
     if (global.gc) {
-      global.gc();
       global.gc();
       console.log('Forced garbage collection');
     }
