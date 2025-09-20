@@ -3,7 +3,7 @@
  * Handles the actual export using Node.js APIs
  */
 
-import { ipcMain, app } from 'electron';
+import { ipcMain, app, utilityProcess } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
 import { exec as execCallback } from 'child_process';
@@ -244,39 +244,17 @@ export function setupExportHandler() {
       // STREAMING EXPORT: Use separate worker process for memory isolation
       console.log('🚀 Starting streaming export in isolated worker process');
       
-      // Create the export worker path - check multiple locations
-      const possiblePaths = [
-        // Webpack build output (production)
-        path.join(__dirname, '..', '..', '..', '.webpack', 'main', 'export-worker.js'),
-        path.join(process.cwd(), '.webpack', 'main', 'export-worker.js'),
-        // TypeScript build output  
-        path.join(__dirname, '..', 'export-worker.js'),
-        path.join(__dirname, 'export-worker.js'),
-        // Development paths
-        path.join(process.cwd(), 'electron', 'dist', 'main', 'export-worker.js'),
-      ];
-
-      let workerPath: string | null = null;
-      for (const testPath of possiblePaths) {
-        console.log(`Checking for worker at: ${testPath}`);
-        if (fsSync.existsSync(testPath)) {
-          workerPath = testPath;
-          console.log(`✅ Found worker at: ${workerPath}`);
-          break;
-        }
+      // Use TypeScript-compiled worker (not webpack bundled)
+      const workerPath = path.join(__dirname, '..', 'export-worker.js');
+      
+      if (!fsSync.existsSync(workerPath)) {
+        throw new Error(`Export worker not found at ${workerPath}. Run 'npm run build:electron'.`);
       }
       
-      if (!workerPath) {
-        console.error('Worker not found in any of these locations:', possiblePaths);
-        throw new Error(`Export worker not found. Searched in: ${possiblePaths.join(', ')}`);
-      }
-      
-      // Use fork for now - utilityProcess has different API
-      const { fork } = require('child_process');
-      exportWorker = fork(workerPath, [], {
+      // Use utilityProcess for better Electron integration
+      exportWorker = utilityProcess.fork(workerPath, [], {
+        serviceName: 'Remotion Export Worker',
         execArgv: ['--max-old-space-size=2048', '--expose-gc'],
-        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-        silent: false
       });
       
       // Store worker reference for cancellation
@@ -321,7 +299,7 @@ export function setupExportHandler() {
       };
       
       // Send job to worker
-      exportWorker.send({ type: 'start', job: exportJob });
+      exportWorker.postMessage({ type: 'start', job: exportJob });
       
       // Wait for worker to complete
       await new Promise<void>((resolve, reject) => {
