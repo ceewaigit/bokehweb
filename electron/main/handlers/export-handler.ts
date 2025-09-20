@@ -249,22 +249,30 @@ export function setupExportHandler() {
       console.log('🚀 Starting streaming export in isolated worker process');
       
       // Create the export worker path - check multiple locations
-      let workerPath = path.join(__dirname, 'export-worker.js');
-      
-      // In production with webpack, the worker might be in the same directory
-      if (!fsSync.existsSync(workerPath)) {
-        // Try webpack output directory
-        const webpackPath = path.join(__dirname, '..', '..', '..', '.webpack', 'main', 'export-worker.js');
-        if (fsSync.existsSync(webpackPath)) {
-          workerPath = webpackPath;
+      const possiblePaths = [
+        // Webpack build output (production)
+        path.join(__dirname, '..', '..', '..', '.webpack', 'main', 'export-worker.js'),
+        path.join(process.cwd(), '.webpack', 'main', 'export-worker.js'),
+        // TypeScript build output  
+        path.join(__dirname, '..', 'export-worker.js'),
+        path.join(__dirname, 'export-worker.js'),
+        // Development paths
+        path.join(process.cwd(), 'electron', 'dist', 'main', 'export-worker.js'),
+      ];
+
+      let workerPath: string | null = null;
+      for (const testPath of possiblePaths) {
+        console.log(`Checking for worker at: ${testPath}`);
+        if (fsSync.existsSync(testPath)) {
+          workerPath = testPath;
+          console.log(`✅ Found worker at: ${workerPath}`);
+          break;
         }
       }
       
-      console.log(`Worker path resolved to: ${workerPath}`);
-      console.log(`Worker file exists: ${fsSync.existsSync(workerPath)}`);
-      
-      if (!fsSync.existsSync(workerPath)) {
-        throw new Error(`Export worker not found at ${workerPath}`);
+      if (!workerPath) {
+        console.error('Worker not found in any of these locations:', possiblePaths);
+        throw new Error(`Export worker not found. Searched in: ${possiblePaths.join(', ')}`);
       }
       
       // Use fork for now - utilityProcess has different API
