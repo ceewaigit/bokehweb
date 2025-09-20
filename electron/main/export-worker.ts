@@ -14,6 +14,14 @@ import { tmpdir } from 'os';
 interface ExportJob {
   bundleLocation: string;
   compositionId: string;
+  compositionMetadata?: {
+    width: number;
+    height: number;
+    fps: number;
+    durationInFrames: number;
+    id: string;
+    defaultProps: any;
+  };
   inputProps: any;
   outputPath: string;
   settings: {
@@ -87,14 +95,28 @@ class ExportWorker extends BaseWorker {
       });
 
       // Lazy load Remotion modules
-      const { selectComposition, renderMedia } = await import('@remotion/renderer');
+      const { renderMedia } = await import('@remotion/renderer');
       
-      // Select composition
-      const composition = await selectComposition({
-        serveUrl: job.bundleLocation,
-        id: job.compositionId,
-        inputProps: job.inputProps
-      });
+      // Use pre-selected composition metadata if available
+      let composition: any;
+      
+      if (job.compositionMetadata) {
+        // Use pre-selected composition to avoid OOM
+        composition = {
+          ...job.compositionMetadata,
+          props: job.inputProps
+        };
+        console.log('[ExportWorker] Using pre-selected composition metadata');
+      } else {
+        // Fallback to selecting composition (for backwards compatibility)
+        const { selectComposition } = await import('@remotion/renderer');
+        composition = await selectComposition({
+          serveUrl: job.bundleLocation,
+          id: job.compositionId,
+          inputProps: job.inputProps
+        });
+        console.log('[ExportWorker] Selected composition in worker');
+      }
 
       const fps = job.settings.framerate || composition.fps;
       const totalFrames = composition.durationInFrames;

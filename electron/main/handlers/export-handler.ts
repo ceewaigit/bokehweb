@@ -85,6 +85,34 @@ export function setupExportHandler() {
         },
       });
 
+      // Select composition in main process to avoid OOM in worker
+      const { selectComposition } = await import('@remotion/renderer');
+      
+      // Use minimal props for composition selection
+      const minimalProps = {
+        segments: segments?.slice(0, 1) || [], // Just first segment for metadata
+        recordings: {},
+        metadata: {},
+        videoUrls: {},
+        ...settings
+      };
+      
+      const composition = await selectComposition({
+        serveUrl: bundleLocation,
+        id: segments && segments.length > 0 ? 'SegmentsComposition' : 'MainComposition',
+        inputProps: minimalProps
+      });
+      
+      // Extract composition metadata
+      const compositionMetadata = {
+        width: composition.width,
+        height: composition.height,
+        fps: composition.fps,
+        durationInFrames: composition.durationInFrames,
+        id: composition.id,
+        defaultProps: composition.defaultProps
+      };
+
       // Start video server
       await getVideoServer();
       
@@ -162,10 +190,11 @@ export function setupExportHandler() {
         });
       }
       
-      // Prepare job
+      // Prepare job with composition metadata
       const exportJob = {
         bundleLocation,
         compositionId,
+        compositionMetadata, // Pass pre-selected composition metadata
         inputProps,
         outputPath,
         settings,
