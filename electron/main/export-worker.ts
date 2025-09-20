@@ -13,8 +13,7 @@ import { tmpdir } from 'os';
 
 interface ExportJob {
   bundleLocation: string;
-  compositionId: string;
-  compositionMetadata?: {
+  compositionMetadata: {
     width: number;
     height: number;
     fps: number;
@@ -97,26 +96,17 @@ class ExportWorker extends BaseWorker {
       // Lazy load Remotion modules
       const { renderMedia } = await import('@remotion/renderer');
       
-      // Use pre-selected composition metadata if available
-      let composition: any;
-      
-      if (job.compositionMetadata) {
-        // Use pre-selected composition to avoid OOM
-        composition = {
-          ...job.compositionMetadata,
-          props: job.inputProps
-        };
-        console.log('[ExportWorker] Using pre-selected composition metadata');
-      } else {
-        // Fallback to selecting composition (for backwards compatibility)
-        const { selectComposition } = await import('@remotion/renderer');
-        composition = await selectComposition({
-          serveUrl: job.bundleLocation,
-          id: job.compositionId,
-          inputProps: job.inputProps
-        });
-        console.log('[ExportWorker] Selected composition in worker');
+      // Use pre-selected composition metadata from main process
+      if (!job.compositionMetadata) {
+        throw new Error('Composition metadata is required');
       }
+      
+      const composition = {
+        ...job.compositionMetadata,
+        props: job.inputProps
+      };
+      
+      console.log('[ExportWorker] Using pre-selected composition metadata');
 
       const fps = job.settings.framerate || composition.fps;
       const totalFrames = composition.durationInFrames;

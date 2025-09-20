@@ -103,12 +103,25 @@ export function setupExportHandler() {
         inputProps: minimalProps
       });
       
-      // Extract composition metadata
+      // Calculate actual total frames from all segments
+      let totalDurationInFrames = composition.durationInFrames;
+      
+      // If we have segments, calculate the real duration from all of them
+      if (segments && segments.length > 0) {
+        const lastSegment = segments[segments.length - 1];
+        const firstSegment = segments[0];
+        const totalDurationMs = lastSegment.endTime - firstSegment.startTime;
+        const fps = settings.framerate || composition.fps || 30;
+        totalDurationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
+        console.log(`Calculated total frames from segments: ${totalDurationInFrames} (${segments.length} segments)`);
+      }
+      
+      // Extract composition metadata with corrected frame count
       const compositionMetadata = {
         width: composition.width,
         height: composition.height,
         fps: composition.fps,
-        durationInFrames: composition.durationInFrames,
+        durationInFrames: totalDurationInFrames,
         id: composition.id,
         defaultProps: composition.defaultProps
       };
@@ -153,8 +166,6 @@ export function setupExportHandler() {
         videoUrls,
         ...settings,
       };
-
-      const compositionId = segments && segments.length > 0 ? 'SegmentsComposition' : 'MainComposition';
       
       // Create output path
       const outputPath = path.join(
@@ -193,7 +204,6 @@ export function setupExportHandler() {
       // Prepare job with composition metadata
       const exportJob = {
         bundleLocation,
-        compositionId,
         compositionMetadata, // Pass pre-selected composition metadata
         inputProps,
         outputPath,
