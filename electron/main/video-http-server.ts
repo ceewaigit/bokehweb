@@ -83,9 +83,13 @@ export async function startVideoServer(): Promise<{
     next();
   });
   
-  // Handle OPTIONS preflight - use proper Express 5 catch-all syntax
-  app.options('/*', (req, res) => {
-    res.sendStatus(200);
+  // Handle OPTIONS preflight - Express 5 requires specific path pattern
+  app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+    } else {
+      next();
+    }
   });
   
   // Video serving route with token auth
