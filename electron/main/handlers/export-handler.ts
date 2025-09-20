@@ -430,7 +430,7 @@ export function setupExportHandler() {
       if (activeExportWorker) {
         console.log('Canceling active export worker...');
         // Send cancel message to worker
-        activeExportWorker.send({ type: 'cancel' });
+        activeExportWorker.postMessage({ type: 'cancel' });
         
         // Give worker time to clean up, then force kill if needed
         setTimeout(() => {

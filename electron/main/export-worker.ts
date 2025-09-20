@@ -17,8 +17,50 @@ import {
   openBrowser
 } from '@remotion/renderer';
 
+// Resolve Remotion compositor directory for binariesDirectory option
+const resolveCompositorDir = (job: ExportJob): string | null => {
+  // In development, let Remotion auto-detect from node_modules
+  if (!job.isPackaged) {
+    console.log('[Export Worker] Development mode - using auto-detection');
+    return null;
+  }
+  
+  // In production, point to unpacked binaries
+  const platform = process.platform;
+  const arch = process.arch;
+  
+  let compositorName = '';
+  if (platform === 'darwin') {
+    compositorName = arch === 'arm64' ? 
+      '@remotion/compositor-darwin-arm64' : 
+      '@remotion/compositor-darwin-x64';
+  } else if (platform === 'win32') {
+    compositorName = '@remotion/compositor-win32-x64';
+  } else if (platform === 'linux') {
+    compositorName = arch === 'arm64' ?
+      '@remotion/compositor-linux-arm64' :
+      '@remotion/compositor-linux-x64';
+  }
+  
+  const compositorPath = path.join(
+    job.resourcesPath!,
+    'app.asar.unpacked',
+    'node_modules',
+    compositorName
+  );
+  
+  console.log(`[Export Worker] Production mode - using compositor at: ${compositorPath}`);
+  
+  if (!fsSync.existsSync(compositorPath)) {
+    console.error(`[Export Worker] Compositor directory not found at: ${compositorPath}`);
+    return null;
+  }
+  
+  return compositorPath;
+};
+
 // Get FFmpeg path from Remotion's bundled binaries with ASAR support
-const getFFmpegPath = (): string | null => {
+const getFFmpegPath = (job: ExportJob): string | null => {
   const platform = process.platform;
   const arch = process.arch;
   
@@ -59,10 +101,12 @@ const getFFmpegPath = (): string | null => {
     ].filter(Boolean) as string[];
     
     for (const ffmpegPath of possiblePaths) {
-      console.log(`[Export Worker] Checking FFmpeg at: ${ffmpegPath}`);
-      if (fsSync.existsSync(ffmpegPath)) {
-        console.log(`[Export Worker] FFmpeg found at: ${ffmpegPath}`);
-        return ffmpegPath;
+      if (ffmpegPath) {
+        console.log(`[Export Worker] Checking FFmpeg at: ${ffmpegPath}`);
+        if (fsSync.existsSync(ffmpegPath)) {
+          console.log(`[Export Worker] FFmpeg found at: ${ffmpegPath}`);
+          return ffmpegPath;
+        }
       }
     }
   }
@@ -89,6 +133,10 @@ interface ExportJob {
   videoBitrate: string;
   x264Preset: string;
   useGPU: boolean;
+  // Path information for binary resolution
+  projectRoot: string;
+  resourcesPath?: string;
+  isPackaged: boolean;
 }
 
 interface ProgressMessage {
@@ -113,10 +161,14 @@ interface ErrorMessage {
   error: string;
 }
 
-// Helper to send IPC messages back to parent (safe for utilityProcess)
+// Helper to send IPC messages back to parent (using utilityProcess)
 const sendMessage = (msg: ProgressMessage | CompleteMessage | ErrorMessage) => {
   try {
-    if (process.send && typeof process.send === 'function') {
+    // Use parentPort for utilityProcess communication
+    if (process.parentPort) {
+      process.parentPort.postMessage(msg);
+    } else if (process.send && typeof process.send === 'function') {
+      // Fallback to process.send for regular fork
       process.send(msg);
     } else {
       console.log('[Export Worker] IPC message:', JSON.stringify(msg));
@@ -146,6 +198,10 @@ async function performStreamingExport(job: ExportJob) {
       }
     });
 
+    // Resolve binaries directory for Remotion
+    const binariesDirectory = resolveCompositorDir(job);
+    console.log(`[Export Worker] Using binaries directory: ${binariesDirectory || 'auto-detect'}`);
+    
     // Select composition
     const composition = await selectComposition({
       serveUrl: job.bundleLocation,
@@ -181,6 +237,7 @@ async function performStreamingExport(job: ExportJob) {
       imageFormat: 'none', // Audio-only render
       logLevel: 'info',
       offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
+      binariesDirectory,
     });
 
     console.log(`[Export Worker] Audio rendered to: ${audioPath}`);
@@ -231,12 +288,21 @@ async function performStreamingExport(job: ExportJob) {
       job.outputPath
     ];
 
-    // Get the bundled FFmpeg path
-    const ffmpegPath = getFFmpegPath();
-    
-    if (!ffmpegPath) {
-      throw new Error('FFmpeg not found. Please ensure Remotion dependencies are installed.');
+    // Get FFmpeg path from compositor directory or auto-detect
+    let ffmpegPath: string;
+    if (binariesDirectory) {
+      // Use FFmpeg from unpacked compositor directory
+      ffmpegPath = path.join(binariesDirectory, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+    } else {
+      // Let Remotion handle it in development
+      const detectedPath = getFFmpegPath(job);
+      if (!detectedPath) {
+        throw new Error('FFmpeg not found. Please ensure Remotion dependencies are installed.');
+      }
+      ffmpegPath = detectedPath;
     }
+    
+    console.log(`[Export Worker] Using FFmpeg at: ${ffmpegPath}`);
     
     // Check if FFmpeg exists and is executable
     try {
@@ -301,6 +367,9 @@ async function performStreamingExport(job: ExportJob) {
         gl: job.useGPU ? 'angle' : 'swangle',
         enableMultiProcessOnLinux: true,
       },
+      
+      // Use the same binaries directory
+      binariesDirectory,
       
       // Required callback
       onStart: ({ parallelEncoding, resolvedConcurrency }) => {
@@ -427,8 +496,8 @@ async function performStreamingExport(job: ExportJob) {
   }
 }
 
-// Listen for job from parent process
-process.on('message', async (msg: any) => {
+// Listen for job from parent process (utilityProcess or fork)
+const messageHandler = async (msg: any) => {
   if (msg.type === 'start' && msg.job) {
     console.log('[Export Worker] Received export job');
     try {
@@ -444,7 +513,16 @@ process.on('message', async (msg: any) => {
     console.log('[Export Worker] Export cancelled');
     process.exit(0);
   }
-});
+};
+
+// Set up message listener for both utilityProcess and regular fork
+if (process.parentPort) {
+  // utilityProcess communication
+  process.parentPort.on('message', (e: any) => messageHandler(e.data));
+} else {
+  // Regular fork communication
+  process.on('message', messageHandler);
+}
 
 // Handle unexpected errors
 process.on('uncaughtException', (error) => {
