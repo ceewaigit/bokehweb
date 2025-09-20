@@ -1,24 +1,16 @@
 import * as net from 'net'
-import * as fs from 'fs'
-import * as path from 'path'
 
-// Try to find the actual Next.js port from its output or environment
+// Get Next.js port for development
 export function getNextJsPort(): number {
-  // Check if port is set via environment variable
-  if (process.env.NEXT_PORT) {
-    const port = parseInt(process.env.NEXT_PORT, 10)
-    console.log('🔍 Using NEXT_PORT from environment:', port)
-    return port
+  // In production, Next.js is bundled - no port needed
+  if (!process.env.NODE_ENV || process.env.NODE_ENV === 'production') {
+    throw new Error('Next.js port detection not needed in production')
   }
   
-  // Check common Next.js ports in order
-  // This matches what Next.js does when auto-detecting ports
-  const portsToTry = [3000, 3001, 3002, 3003, 3004]
-  
-  // For now, we'll use port 3002 as a fallback (as detected from the output)
-  // In a production setup, you'd want to detect this dynamically
-  console.log('⚠️ NEXT_PORT not set, defaulting to port 3002')
-  return 3002
+  // For development, use environment variable or default
+  const port = process.env.NEXT_PORT ? parseInt(process.env.NEXT_PORT, 10) : 3000
+  console.log(`🔍 Development mode - using Next.js port: ${port}`)
+  return port
 }
 
 // Check if a port is available
@@ -50,36 +42,3 @@ export async function findAvailablePort(startPort: number = 3000, maxAttempts: n
   throw new Error(`No available port found between ${startPort} and ${startPort + maxAttempts}`)
 }
 
-// Store the detected port for the current session
-let detectedPort: number | null = null
-
-export function setDetectedPort(port: number) {
-  detectedPort = port
-  // Optionally write to a temp file for persistence across restarts
-  try {
-    const tempFile = path.join(__dirname, '.next-port')
-    fs.writeFileSync(tempFile, port.toString())
-  } catch (err) {
-    console.warn('Could not persist port:', err)
-  }
-}
-
-export function getDetectedPort(): number | null {
-  if (detectedPort) return detectedPort
-  
-  // Try to read from temp file
-  try {
-    const tempFile = path.join(__dirname, '.next-port')
-    if (fs.existsSync(tempFile)) {
-      const port = parseInt(fs.readFileSync(tempFile, 'utf-8'), 10)
-      if (!isNaN(port)) {
-        detectedPort = port
-        return port
-      }
-    }
-  } catch (err) {
-    // Ignore
-  }
-  
-  return null
-}

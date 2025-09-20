@@ -39,5 +39,8 @@ export async function makeVideoSrc(absPath: string, target: VideoTarget): Promis
 
   // For export, use HTTP server
   const server = await getVideoServer()
+  if (!server) {
+    throw new Error('Failed to start video HTTP server')
+  }
   return server.registerFile(cleanPath, 5 * 60 * 1000) // 5 minute TTL
 }

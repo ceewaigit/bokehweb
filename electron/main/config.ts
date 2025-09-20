@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
-import { getNextJsPort, getDetectedPort } from './port-detector'
+import { getNextJsPort } from './port-detector'
 
 // export const isDev = process.env.NODE_ENV === 'development'
 export const isDev = true
@@ -38,7 +38,7 @@ export function getAppURL(route: string = ''): string {
 
   if (isDev && !process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
     // Development mode with Next.js dev server
-    const port = getDetectedPort() || getNextJsPort()
+    const port = getNextJsPort()
     const devServerUrl = process.env.DEV_SERVER_URL || `http://localhost:${port}`
     // Use hash routing for client-side navigation
     if (route) {
