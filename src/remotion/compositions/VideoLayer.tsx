@@ -1,5 +1,5 @@
 import React from 'react';
-import { OffthreadVideo, Video, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
+import { Video, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
@@ -229,42 +229,23 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Use simpler Video component during rendering for memory efficiency */}
-        {getRemotionEnvironment().isRendering ? (
-          <Video
-            src={finalVideoUrl}
-            style={videoStyle}
-            volume={1}
-            muted={false}
-            playbackRate={1}
-            pauseWhenBuffering={false}
-            crossOrigin="anonymous"
-            onError={(e) => {
-              console.error('Video playback error during render:', {
-                error: e,
-                videoUrl: finalVideoUrl,
-                message: e instanceof Error ? e.message : 'Unknown error'
-              });
-            }}
-          />
-        ) : (
-          <OffthreadVideo
-            src={finalVideoUrl}
-            style={videoStyle}
-            volume={1}
-            muted={false}
-            playbackRate={1}
-            pauseWhenBuffering={false}
-            crossOrigin="anonymous"
-            onError={(e) => {
-              console.error('Video playback error:', {
-                error: e,
-                videoUrl: finalVideoUrl,
-                message: e instanceof Error ? e.message : 'Unknown error'
-              });
-            }}
-          />
-        )}
+        {/* Always use Video component for better stability and memory efficiency */}
+        <Video
+          src={finalVideoUrl}
+          style={videoStyle}
+          volume={1}
+          muted={false}
+          playbackRate={1}
+          pauseWhenBuffering={false}
+          crossOrigin="anonymous"
+          onError={(e) => {
+            console.error('Video playback error:', {
+              error: e,
+              videoUrl: finalVideoUrl,
+              message: e instanceof Error ? e.message : 'Unknown error'
+            });
+          }}
+        />
       </div>
     </AbsoluteFill>
   );

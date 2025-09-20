@@ -167,10 +167,13 @@ class ExportWorker extends BaseWorker {
       jpegQuality: job.jpegQuality,
       imageFormat: 'jpeg',
       concurrency: 1, // Keep low for memory stability
+      enforceAudioTrack: false, // Don't require audio track
       offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
       chromiumOptions: {
-        gl: process.platform === 'darwin' ? 'angle' : 'swangle', // Use angle on macOS, swangle on Linux/Windows
+        gl: 'angle-egl', // Use angle-egl for better stability
         enableMultiProcessOnLinux: true,
+        disableWebSecurity: false,
+        ignoreCertificateErrors: false,
       },
       binariesDirectory: job.compositorDir,
       disallowParallelEncoding: true, // Trade speed for memory stability
@@ -299,6 +302,88 @@ class ExportWorker extends BaseWorker {
             effects: segment.effects || []
           }));
           
+          // Filter metadata by time range - only include events within this chunk's window
+          const filteredMetadata: Record<string, any> = {};
+          for (const [recordingId, metadata] of Object.entries(job.inputProps.metadata || {})) {
+            if (recordingIds.has(recordingId) && metadata) {
+              const metadataObj = metadata as any;
+              const filtered: any = {
+                ...metadataObj,
+                events: []
+              };
+              
+              // Filter events by time range if they exist
+              if (Array.isArray(metadataObj.events)) {
+                filtered.events = metadataObj.events.filter((event: any) => {
+                  const eventTime = event.timestamp || event.time || 0;
+                  return eventTime >= chunkStartTimeMs && eventTime <= chunkEndTimeMs;
+                });
+                
+                // Adjust event timestamps to be relative to chunk start
+                filtered.events = filtered.events.map((event: any) => ({
+                  ...event,
+                  timestamp: (event.timestamp || event.time || 0) - chunkStartTimeMs,
+                  time: (event.time || event.timestamp || 0) - chunkStartTimeMs
+                }));
+              }
+              
+              // Also filter cursor, keyboard, clicks, scrolls arrays if they exist
+              if (Array.isArray(metadataObj.cursor)) {
+                filtered.cursor = metadataObj.cursor.filter((item: any) => 
+                  item.time >= chunkStartTimeMs && item.time <= chunkEndTimeMs
+                ).map((item: any) => ({
+                  ...item,
+                  time: item.time - chunkStartTimeMs
+                }));
+              }
+              
+              if (Array.isArray(metadataObj.keyboard)) {
+                filtered.keyboard = metadataObj.keyboard.filter((item: any) => 
+                  item.time >= chunkStartTimeMs && item.time <= chunkEndTimeMs
+                ).map((item: any) => ({
+                  ...item,
+                  time: item.time - chunkStartTimeMs
+                }));
+              }
+              
+              if (Array.isArray(metadataObj.clicks)) {
+                filtered.clicks = metadataObj.clicks.filter((item: any) => 
+                  item.time >= chunkStartTimeMs && item.time <= chunkEndTimeMs
+                ).map((item: any) => ({
+                  ...item,
+                  time: item.time - chunkStartTimeMs
+                }));
+              }
+              
+              if (Array.isArray(metadataObj.scrolls)) {
+                filtered.scrolls = metadataObj.scrolls.filter((item: any) => 
+                  item.time >= chunkStartTimeMs && item.time <= chunkEndTimeMs  
+                ).map((item: any) => ({
+                  ...item,
+                  time: item.time - chunkStartTimeMs
+                }));
+              }
+              
+              filteredMetadata[recordingId] = filtered;
+              
+              // Log how much metadata we filtered
+              const originalEventCount = (metadataObj.events?.length || 0) + 
+                                        (metadataObj.cursor?.length || 0) + 
+                                        (metadataObj.keyboard?.length || 0) + 
+                                        (metadataObj.clicks?.length || 0) + 
+                                        (metadataObj.scrolls?.length || 0);
+              const filteredEventCount = (filtered.events?.length || 0) + 
+                                        (filtered.cursor?.length || 0) + 
+                                        (filtered.keyboard?.length || 0) + 
+                                        (filtered.clicks?.length || 0) + 
+                                        (filtered.scrolls?.length || 0);
+              
+              if (originalEventCount > 0) {
+                console.log(`[ExportWorker] Chunk ${i + 1}: Filtered metadata for ${recordingId}: ${filteredEventCount}/${originalEventCount} events`);
+              }
+            }
+          }
+          
           // Filter data to only what's needed for this chunk
           chunkInputProps = {
             segments: minimalSegments,
@@ -306,10 +391,7 @@ class ExportWorker extends BaseWorker {
               Object.entries(job.inputProps.recordings || {})
                 .filter(([id]) => recordingIds.has(id))
             ),
-            metadata: Object.fromEntries(
-              Object.entries(job.inputProps.metadata || {})
-                .filter(([id]) => recordingIds.has(id))
-            ),
+            metadata: filteredMetadata,
             videoUrls: Object.fromEntries(
               Object.entries(job.inputProps.videoUrls || {})
                 .filter(([id]) => recordingIds.has(id))
@@ -344,10 +426,13 @@ class ExportWorker extends BaseWorker {
           imageFormat: 'jpeg',
           frameRange: [startFrame, endFrame],
           concurrency: 1,
+          enforceAudioTrack: false, // Don't require audio track
           offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
           chromiumOptions: {
-            gl: process.platform === 'darwin' ? 'angle' : 'swangle',
+            gl: 'angle-egl', // Use angle-egl for better stability
             enableMultiProcessOnLinux: true,
+            disableWebSecurity: false,
+            ignoreCertificateErrors: false,
           },
           binariesDirectory: job.compositorDir,
           disallowParallelEncoding: true,
