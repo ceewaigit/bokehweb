@@ -133,7 +133,7 @@ export function setupExportHandler() {
       
       // Start or get export worker
       if (!exportWorker) {
-        const workerPath = path.join(__dirname, '..', 'export-worker.js');
+        const workerPath = path.join(__dirname, 'export-worker.js');
         
         if (!fsSync.existsSync(workerPath)) {
           throw new Error(`Export worker not found at ${workerPath}`);
