@@ -83,8 +83,8 @@ export async function startVideoServer(): Promise<{
     next();
   });
   
-  // Handle OPTIONS preflight
-  app.options('*', (req, res) => {
+  // Handle OPTIONS preflight - use proper Express 5 catch-all syntax
+  app.options('/*', (req, res) => {
     res.sendStatus(200);
   });
   
