@@ -227,9 +227,23 @@ async function performStreamingExport(job: ExportJob) {
 
     // Get FFmpeg path from compositor directory
     const ffmpegName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-    const ffmpegPath = binariesDirectory 
-      ? path.join(binariesDirectory, ffmpegName)
-      : require.resolve(`@remotion/compositor-${process.platform}-${process.arch}/${ffmpegName}`);
+    let ffmpegPath: string;
+    
+    if (binariesDirectory) {
+      // Production: use unpacked binaries
+      ffmpegPath = path.join(binariesDirectory, ffmpegName);
+    } else {
+      // Development: construct path directly without require.resolve to avoid OOM
+      const platform = process.platform;
+      const arch = process.arch;
+      const compositorPackage = platform === 'darwin' 
+        ? `@remotion/compositor-darwin-${arch === 'arm64' ? 'arm64' : 'x64'}`
+        : platform === 'win32'
+        ? '@remotion/compositor-win32-x64'
+        : `@remotion/compositor-linux-${arch === 'arm64' ? 'arm64' : 'x64'}`;
+      
+      ffmpegPath = path.join(process.cwd(), 'node_modules', compositorPackage, ffmpegName);
+    }
     
     console.log(`[Export Worker] Using FFmpeg at: ${ffmpegPath}`);
     
