@@ -216,7 +216,7 @@ class ExportWorker extends BaseWorker {
     startTime: number = Date.now()
   ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
     
-    const { renderMedia, combineVideos } = await import('@remotion/renderer');
+    const { renderMedia } = await import('@remotion/renderer');
     
     const chunks: string[] = [];
     const numChunks = Math.ceil(totalFrames / chunkSize);
@@ -295,11 +295,35 @@ class ExportWorker extends BaseWorker {
 
       console.log(`[ExportWorker] Combining ${chunks.length} chunks into final video`);
       
-      await combineVideos({
-        videos: chunks.map(src => ({ src })),
-        output: job.outputPath,
-        ffmpegPath: job.ffmpegPath,
-        logLevel: 'info'
+      // Use FFmpeg directly to concatenate videos
+      const concatListPath = path.join(tmpdir(), `concat-${Date.now()}.txt`);
+      this.currentExport?.tempFiles.push(concatListPath);
+      
+      // Create concat file
+      const concatContent = chunks.map(chunk => `file '${chunk}'`).join('\n');
+      await fs.writeFile(concatListPath, concatContent);
+      
+      // Run FFmpeg concat
+      const ffmpegArgs = [
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', concatListPath,
+        '-c', 'copy',
+        '-movflags', '+faststart',
+        job.outputPath
+      ];
+      
+      const ffmpegProcess = spawn(job.ffmpegPath, ffmpegArgs);
+      
+      await new Promise<void>((resolve, reject) => {
+        ffmpegProcess.on('exit', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`FFmpeg concat failed with code ${code}`));
+          }
+        });
+        ffmpegProcess.on('error', reject);
       });
 
       // Clean up chunk files
