@@ -54,16 +54,11 @@ module.exports = {
     },
   },
   plugins: [
+    new webpack.ProvidePlugin({
+      process: 'process/browser',
+    }),
     new webpack.DefinePlugin({
-      'process': JSON.stringify({
-        env: {
-          NODE_ENV: process.env.NODE_ENV || 'development'
-        },
-        type: 'renderer',
-        platform: process.platform,
-        versions: {},
-        browser: true
-      }),
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
       'global': 'window',
     }),
     new CopyPlugin({
