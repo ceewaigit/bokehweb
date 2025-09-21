@@ -80,21 +80,22 @@ export class ApplyTypingSpeedCommand extends Command<{
       return { success: false, error: 'Cannot undo: missing track or original state' }
     }
 
-    // Find the modified clip
-    const modifiedClipIndex = track.clips.findIndex(c => 
-      this.affectedClips.includes(c.id)
-    )
+    // Get the recording ID from the first original clip
+    const recordingId = this.originalClips[0].recordingId
 
-    if (modifiedClipIndex === -1) {
-      return { success: false, error: 'Cannot undo: modified clip not found' }
+    // Remove all split clips from this recording
+    const clipsToRemove = track.clips.filter(c => 
+      c.recordingId === recordingId && this.affectedClips.includes(c.id)
+    )
+    
+    for (const clip of clipsToRemove) {
+      store.removeClip(clip.id)
     }
 
-    // Restore the original clip (without time remap periods)
-    track.clips[modifiedClipIndex] = this.originalClips[0]
-
-    // Trigger reflow to update timeline
-    const reflowClips = require('../../timeline/timeline-operations').reflowClips
-    reflowClips(track, 0, project)
+    // Restore original clips
+    for (const clip of this.originalClips) {
+      store.addClip(clip, clip.startTime)
+    }
 
     return {
       success: true,

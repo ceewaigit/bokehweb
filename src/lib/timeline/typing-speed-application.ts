@@ -10,7 +10,8 @@ const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
  */
 export class TypingSpeedApplicationService {
   /**
-   * Apply typing speed suggestions to a clip using time remap periods
+   * Apply typing speed suggestions to a clip by splitting it into multiple clips
+   * Each split clip has timeRemapPeriods for proper cursor synchronization
    * Returns the affected clips and original state for undo
    * 
    * @param periods - Array of typing periods with at least startTime, endTime, and suggestedSpeedMultiplier
@@ -47,7 +48,7 @@ export class TypingSpeedApplicationService {
     originalClips.push({ ...sourceClip })
 
     if (DEBUG_TYPING) {
-      console.log('[TypingApply] Applying typing speed with time remap', {
+      console.log('[TypingApply] Splitting clip with time remap for typing speed', {
         clipId,
         periods: periods.map(p => ({
           start: p.startTime,
@@ -66,11 +67,11 @@ export class TypingSpeedApplicationService {
     const validPeriods = periods
       .filter(p => p.endTime > sourceIn && p.startTime < sourceOut)
       .map(p => ({
-        sourceStartTime: Math.max(p.startTime, sourceIn),
-        sourceEndTime: Math.min(p.endTime, sourceOut),
+        start: Math.max(p.startTime, sourceIn),
+        end: Math.min(p.endTime, sourceOut),
         speedMultiplier: p.suggestedSpeedMultiplier
       }))
-      .sort((a, b) => a.sourceStartTime - b.sourceStartTime)
+      .sort((a, b) => a.start - b.start)
 
     if (validPeriods.length === 0) {
       if (DEBUG_TYPING) {
@@ -79,42 +80,79 @@ export class TypingSpeedApplicationService {
       return { affectedClips: [clipId], originalClips }
     }
 
-    // Create a modified clip with time remap periods
-    const modifiedClip: Clip = {
-      ...sourceClip,
-      timeRemapPeriods: validPeriods,
-      typingSpeedApplied: true
-    }
-
-    // Calculate new duration based on time remapping
-    let newDuration = 0
+    // Create split points including typing periods and gaps
+    const splitPoints: Array<{start: number, end: number, speedMultiplier: number}> = []
     let currentPos = sourceIn
 
     for (const period of validPeriods) {
-      // Add time before the period (normal speed)
-      if (currentPos < period.sourceStartTime) {
-        const gapDuration = period.sourceStartTime - currentPos
-        newDuration += gapDuration / baseRate
+      // Add gap before typing period (normal speed)
+      if (currentPos < period.start) {
+        splitPoints.push({
+          start: currentPos,
+          end: period.start,
+          speedMultiplier: 1
+        })
       }
 
-      // Add the period itself (sped up)
-      const periodDuration = period.sourceEndTime - period.sourceStartTime
-      newDuration += periodDuration / (baseRate * period.speedMultiplier)
+      // Add typing period (sped up)
+      splitPoints.push({
+        start: period.start,
+        end: period.end,
+        speedMultiplier: period.speedMultiplier
+      })
 
-      currentPos = period.sourceEndTime
+      currentPos = period.end
     }
 
-    // Add remaining time after last period (normal speed)
+    // Add remaining portion after last typing period (normal speed)
     if (currentPos < sourceOut) {
-      const remainingDuration = sourceOut - currentPos
-      newDuration += remainingDuration / baseRate
+      splitPoints.push({
+        start: currentPos,
+        end: sourceOut,
+        speedMultiplier: 1
+      })
     }
 
-    modifiedClip.duration = newDuration
+    // Remove the original clip
+    track.clips.splice(clipIndex, 1)
 
-    // Replace the original clip with the modified one
-    track.clips[clipIndex] = modifiedClip
-    affectedClips.push(modifiedClip.id)
+    // Create new clips from split points
+    let timelinePosition = sourceClip.startTime
+    const newClips: Clip[] = []
+
+    for (let i = 0; i < splitPoints.length; i++) {
+      const split = splitPoints[i]
+      const sourceDuration = split.end - split.start
+      
+      // For sped-up clips, add a timeRemapPeriod to ensure cursor sync
+      const timeRemapPeriods = split.speedMultiplier > 1 ? [{
+        sourceStartTime: split.start,
+        sourceEndTime: split.end,
+        speedMultiplier: split.speedMultiplier
+      }] : undefined
+      
+      // Calculate duration based on speed multiplier
+      const clipDuration = sourceDuration / (baseRate * split.speedMultiplier)
+
+      const newClip: Clip = {
+        id: `${sourceClip.id}-split-${i}`,
+        recordingId: sourceClip.recordingId,
+        startTime: timelinePosition,
+        duration: clipDuration,
+        sourceIn: split.start,
+        sourceOut: split.end,
+        playbackRate: baseRate,  // Keep base rate, use timeRemapPeriods for speed changes
+        timeRemapPeriods,  // This ensures cursor events are properly mapped
+        typingSpeedApplied: split.speedMultiplier > 1
+      }
+
+      newClips.push(newClip)
+      affectedClips.push(newClip.id)
+      timelinePosition += clipDuration
+    }
+
+    // Insert new clips at the original position
+    track.clips.splice(clipIndex, 0, ...newClips)
 
     // Sort clips by start time to maintain order
     track.clips.sort((a, b) => a.startTime - b.startTime)
@@ -123,10 +161,10 @@ export class TypingSpeedApplicationService {
     reflowClips(track, 0, project)
 
     if (DEBUG_TYPING) {
-      console.log('[TypingApply] Time remap applied', {
+      console.log('[TypingApply] Clip split complete with time remap', {
         originalClipId: sourceClip.id,
-        periodsCount: validPeriods.length,
-        newDuration,
+        newClipsCount: newClips.length,
+        splitPoints: splitPoints.length,
         affectedClips
       })
     }

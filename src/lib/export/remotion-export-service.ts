@@ -109,19 +109,15 @@ export class RemotionExportService {
         const chunkRendered = typeof data.chunkRenderedFrames === 'number' ? data.chunkRenderedFrames : null;
         const chunkTotal = typeof data.chunkTotalFrames === 'number' ? data.chunkTotalFrames : null;
 
-        let message: string;
-        if (chunkIndex !== null && chunkCount !== null && chunkRendered !== null && chunkTotal) {
-          message = `Chunk ${chunkIndex + 1}/${chunkCount}: frame ${chunkRendered} of ${chunkTotal}`;
-        } else {
-          message = `Rendering frame ${data.currentFrame} of ${data.totalFrames}...`;
-        }
+        // Don't try to display frame numbers since they're not provided
+        // to avoid flickering with multiple workers
+        const message = data.message || `Rendering ${Math.round(data.progress)}% complete`;
 
         onProgress?.({
           progress: data.progress,
           stage: 'encoding',
-          message,
-          currentFrame: data.currentFrame,
-          totalFrames: data.totalFrames
+          message
+          // Don't pass currentFrame/totalFrames as they're undefined
         });
       };
 
@@ -219,9 +215,8 @@ export class RemotionExportService {
       onProgress?.({
         progress: 100,
         stage: 'complete',
-        message: 'Export complete!',
-        currentFrame: totalFrames,
-        totalFrames
+        message: 'Export complete!'
+        // Don't include frame numbers
       });
 
       return blob;
