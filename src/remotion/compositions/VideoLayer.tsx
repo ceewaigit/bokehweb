@@ -186,25 +186,25 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     console.error('VideoLayer: No video URL provided');
     return <AbsoluteFill />
   }
-  
+
   // Simple URL normalization - let the protocol handler do the heavy lifting
   let finalVideoUrl = videoUrl;
-  
+
   // Only convert if not already video-stream:// or http://
   if (!videoUrl.startsWith('video-stream://') && !videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
     // It's either file:// or a bare path - convert to video-stream://
     let pathToEncode = videoUrl;
-    
+
     // Remove file:// prefix if present
     if (videoUrl.startsWith('file://')) {
       pathToEncode = videoUrl.replace('file://', '');
     }
-    
+
     // The protocol handler will figure out the rest
     finalVideoUrl = `video-stream://local/${encodeURIComponent(pathToEncode)}`;
     console.log('[VideoLayer] Normalized URL', { from: videoUrl, to: finalVideoUrl });
   }
-  
+
   return (
     <AbsoluteFill>
       {/* Shadow layer - rendered separately to ensure visibility */}
@@ -249,7 +249,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           muted={false}
           pauseWhenBuffering={false}
           crossOrigin="anonymous"
-          frame={mappedFrame}
+          trimBefore={mappedFrame}
           onError={(e) => {
             console.error('Video playback error:', {
               error: e,

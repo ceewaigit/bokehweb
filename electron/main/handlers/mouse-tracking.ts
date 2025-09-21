@@ -49,7 +49,7 @@ interface MousePosition {
 
 export function registerMouseTrackingHandlers(): void {
   ipcMain.handle('start-mouse-tracking', async (event: IpcMainInvokeEvent, options: MouseTrackingOptions = {}) => {
-    
+
     try {
       // Check accessibility permissions when starting mouse tracking
       if (cursorDetector && !cursorDetector.hasAccessibilityPermissions()) {
@@ -80,7 +80,7 @@ export function registerMouseTrackingHandlers(): void {
 
       // Start click detection using global mouse hooks with source info
       startClickDetection(sourceType, sourceId)
-      
+
       // Start scroll detection
       startScrollDetection(event.sender)
 
@@ -171,7 +171,7 @@ export function registerMouseTrackingHandlers(): void {
           // Only log on stable changes
           if ((global as any).lastLoggedCursor !== finalCursorType) {
             logger.debug(`[CURSOR] Type changed: ${(global as any).lastLoggedCursor || 'none'} -> ${finalCursorType}`)
-            ; (global as any).lastLoggedCursor = finalCursorType
+              ; (global as any).lastLoggedCursor = finalCursorType
           }
 
           // Only log in development mode
@@ -238,7 +238,7 @@ export function registerMouseTrackingHandlers(): void {
       return { success: false, error: error.message }
     }
   })
-  
+
 
   ipcMain.handle('get-mouse-position', async () => {
     try {
@@ -303,7 +303,7 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
           // Keep pointer as default
         }
       }
-      
+
       mouseEventSender.send('mouse-click', {
         x: physicalClickX,
         y: physicalClickY,
@@ -354,11 +354,11 @@ function stopClickDetection(): void {
     if (uIOhook) {
       if ((global as any).uiohookMouseDownHandler) {
         uIOhook.off('mousedown', (global as any).uiohookMouseDownHandler)
-        ; (global as any).uiohookMouseDownHandler = null
+          ; (global as any).uiohookMouseDownHandler = null
       }
       if ((global as any).uiohookMouseUpHandler) {
         uIOhook.off('mouseup', (global as any).uiohookMouseUpHandler)
-        ; (global as any).uiohookMouseUpHandler = null
+          ; (global as any).uiohookMouseUpHandler = null
       }
     }
   } catch (error) {
@@ -376,7 +376,7 @@ export function cleanupMouseTracking(): void {
   }
   stopClickDetection()
   stopScrollDetection()
-  
+
   // Stop uiohook for mouse tracking modules via manager
   stopUIohook('mouse-click-detection')
 }

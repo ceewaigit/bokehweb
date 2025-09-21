@@ -44,11 +44,11 @@ export class ExportEngine {
     this.isExporting = true
     this.abortController = new AbortController()
     const startTime = performance.now()
-    
+
     // Clean up memory before export starts
     logger.info('[Export] Cleaning up memory before export...')
     globalBlobManager.cleanupForExport()
-    
+
     // Start memory monitoring
     memoryMonitor.startMonitoring(3000, () => {
       logger.warn('[Export] High memory pressure detected during export!')
@@ -73,7 +73,7 @@ export class ExportEngine {
 
       // All exports go through the same path - chunking is handled in export-handler.ts
       logger.info(`Export: ${processedTimeline.clipCount} clips, duration: ${processedTimeline.totalDuration}ms`);
-      
+
       // Extract project folder from project file path
       let projectFolder: string | undefined;
       if (project.filePath) {
@@ -84,7 +84,7 @@ export class ExportEngine {
         projectFolder = pathParts.join('/');
         logger.info(`Project folder: ${projectFolder}`);
       }
-      
+
       onProgress?.({
         progress: 2,
         stage: 'preparing',
@@ -98,16 +98,16 @@ export class ExportEngine {
       const progressAdapter = (remotionProgress: any) => {
         onProgress?.({
           progress: remotionProgress.progress,
-          stage: remotionProgress.stage === 'bundling' ? 'preparing' : 
-                 remotionProgress.stage === 'rendering' ? 'processing' :
-                 remotionProgress.stage === 'encoding' ? 'encoding' : 
-                 remotionProgress.stage,
+          stage: remotionProgress.stage === 'bundling' ? 'preparing' :
+            remotionProgress.stage === 'rendering' ? 'processing' :
+              remotionProgress.stage === 'encoding' ? 'encoding' :
+                remotionProgress.stage,
           message: remotionProgress.message,
           currentFrame: remotionProgress.currentFrame,
           totalFrames: remotionProgress.totalFrames
         })
       }
-      
+
       // Export using Remotion - all chunking/optimization handled in export-handler.ts
       // Pass project folder as additional parameter
       return await this.remotionEngine.export(
@@ -129,13 +129,13 @@ export class ExportEngine {
     } finally {
       this.isExporting = false
       this.abortController = null
-      
+
       // Stop memory monitoring
       memoryMonitor.stopMonitoring()
-      
+
       // Final memory cleanup
       globalBlobManager.cleanupByType('export')
-      
+
       // Log memory stats
       const memStats = memoryMonitor.getMemoryStats()
       if (memStats) {

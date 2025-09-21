@@ -26,7 +26,7 @@ export class TypingDetector {
   private static readonly MAX_GAP_BETWEEN_KEYS = 3000 // 3 seconds max gap
   private static readonly MIN_KEYS_FOR_TYPING = 8 // minimum keys to consider typing
   private static readonly TYPING_CHARS = /^[a-zA-Z0-9\s.,;:!?\-_(){}[\]"'`~@#$%^&*+=<>/\\|]$/
-  
+
   /**
    * Analyze keyboard events to detect typing periods
    */
@@ -36,8 +36,8 @@ export class TypingDetector {
     }
 
     // Filter to actual typing characters (exclude pure navigation/modifier keys)
-    const typingEvents = keyboardEvents.filter(event => 
-      this.isTypingKey(event.key) && 
+    const typingEvents = keyboardEvents.filter(event =>
+      this.isTypingKey(event.key) &&
       (!event.modifiers || event.modifiers.length === 0) // exclude shortcuts
     )
 
@@ -109,7 +109,7 @@ export class TypingDetector {
    */
   private static isValidTypingPeriod(events: KeyboardEvent[]): boolean {
     if (events.length < this.MIN_KEYS_FOR_TYPING) return false
-    
+
     const duration = events[events.length - 1].timestamp - events[0].timestamp
     return duration >= this.MIN_TYPING_DURATION
   }
@@ -131,7 +131,7 @@ export class TypingDetector {
 
     // Calculate confidence based on pattern analysis
     const confidence = this.calculateConfidence(events, averageWpm)
-    
+
     // Suggest speed multiplier based on typing speed and pattern
     const suggestedSpeedMultiplier = this.calculateSpeedSuggestion(averageWpm, confidence, duration)
 
@@ -176,15 +176,15 @@ export class TypingDetector {
     // Check for consistent timing (not too erratic)
     const intervals = []
     for (let i = 1; i < events.length; i++) {
-      intervals.push(events[i].timestamp - events[i-1].timestamp)
+      intervals.push(events[i].timestamp - events[i - 1].timestamp)
     }
-    
+
     if (intervals.length > 1) {
       const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length
-      const variance = intervals.reduce((sum, interval) => 
+      const variance = intervals.reduce((sum, interval) =>
         sum + Math.pow(interval - avgInterval, 2), 0) / intervals.length
       const stdDev = Math.sqrt(variance)
-      
+
       // Lower standard deviation suggests more consistent typing
       if (stdDev < avgInterval * 0.5) {
         confidence += 0.1
@@ -247,7 +247,7 @@ export class TypingDetector {
     if (totalDuration === 0) return undefined
 
     const averageSpeed = weightedSpeedSum / totalDuration
-    const timesSaved = totalDuration * (1 - 1/averageSpeed)
+    const timesSaved = totalDuration * (1 - 1 / averageSpeed)
 
     return {
       speedMultiplier: Math.round(averageSpeed * 10) / 10, // Round to 1 decimal
@@ -259,11 +259,11 @@ export class TypingDetector {
    * Get typing periods that overlap with a specific time range
    */
   static getTypingPeriodsInRange(
-    suggestions: TypingSuggestions, 
-    startTime: number, 
+    suggestions: TypingSuggestions,
+    startTime: number,
     endTime: number
   ): TypingPeriod[] {
-    return suggestions.periods.filter(period => 
+    return suggestions.periods.filter(period =>
       period.startTime < endTime && period.endTime > startTime
     )
   }
