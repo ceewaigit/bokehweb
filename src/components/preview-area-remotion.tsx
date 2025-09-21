@@ -226,9 +226,9 @@ export function PreviewAreaRemotion({
     }
   }, [previewClip, previewRecording?.metadata])
 
-  // Keep effects in timeline space - just filter active ones
+  // Keep effects in timeline space - MainComposition will filter them
   const activeTimelineEffects = useMemo(() => {
-    if (!timelineEffects) return null
+    if (!timelineEffects) return []
     
     const baseEffects: Effect[] = timelineEffects as Effect[]
     let mergedEffects: Effect[] = baseEffects
@@ -246,13 +246,9 @@ export function PreviewAreaRemotion({
       mergedEffects = Array.from(byId.values())
     }
     
-    // Filter effects that are active at current timeline time
-    return mergedEffects.filter(effect => 
-      effect.enabled && 
-      currentTime >= effect.startTime && 
-      currentTime <= effect.endTime
-    )
-  }, [timelineEffects, localEffects, currentTime])
+    // Return all effects - MainComposition will filter by timeline time
+    return mergedEffects
+  }, [timelineEffects, localEffects])
 
   const compositionProps = useMemo(() => {
     return {

@@ -38,12 +38,18 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     scale?: number;
   }>>(new Map());
 
-  // Calculate current time in milliseconds (timeline time)
-  const currentTimeMs = clip ? clip.startTime + (frame / fps) * 1000 : 0;
+  // Calculate current time in milliseconds (clip-relative for this composition)
+  const currentTimeMs = (frame / fps) * 1000;
+  // Also track timeline time for effect filtering
+  const timelineTimeMs = clip ? clip.startTime + currentTimeMs : currentTimeMs;
 
   // Extract active effects from the array
-  // Effects are in timeline space - just use them directly
-  const activeEffects = effects || [];
+  // Effects are in timeline space, filter by timeline time
+  const activeEffects = effects?.filter(e =>
+    e.enabled &&
+    timelineTimeMs >= e.startTime &&
+    timelineTimeMs <= e.endTime
+  ) || [];
 
   // Find specific effect types using EffectsFactory
   const backgroundEffect = EffectsFactory.getBackgroundEffect(activeEffects);
@@ -57,14 +63,17 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const padding = backgroundData?.padding || 0;
   const videoPosition = calculateVideoPosition(width, height, videoWidth, videoHeight, padding);
 
-  // Convert zoom effects to zoom blocks
+  // Convert zoom effects to zoom blocks (convert from timeline to clip-relative)
   const zoomEnabled = zoomEffects.length > 0;
   const zoomBlocks: ZoomBlock[] = zoomEffects.map(effect => {
     const data = EffectsFactory.getZoomData(effect) || { scale: 2, targetX: 0.5, targetY: 0.5, introMs: 300, outroMs: 300, smoothing: 0.1 };
+    // Convert timeline times to clip-relative
+    const clipStartTime = clip ? effect.startTime - clip.startTime : effect.startTime;
+    const clipEndTime = clip ? effect.endTime - clip.startTime : effect.endTime;
     return {
       id: effect.id,
-      startTime: effect.startTime,
-      endTime: effect.endTime,
+      startTime: Math.max(0, clipStartTime),
+      endTime: Math.max(0, clipEndTime),
       scale: data.scale ?? 2,
       targetX: data.targetX,
       targetY: data.targetY,
@@ -95,9 +104,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             const captureWidth = videoWidth;
             const captureHeight = videoHeight;
 
-            // Use mouse position at block start (need to convert from timeline to clip-relative for event lookup)
-            const blockStartClipRelative = activeZoomBlock.startTime - (clip?.startTime || 0)
-            const startMouse = zoomPanCalculator.interpolateMousePosition(cursorEvents, blockStartClipRelative)
+            // Use mouse position at block start (already clip-relative)
+            const startMouse = zoomPanCalculator.interpolateMousePosition(cursorEvents, activeZoomBlock.startTime)
             if (startMouse) {
               return { cx: startMouse.x, cy: startMouse.y }
             }
@@ -124,11 +132,10 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
-        // Precompute mouse inputs (convert timeline time to clip-relative for event lookup)
+        // Precompute mouse inputs (use clip-relative time for event lookup)
         const captureWidth = videoWidth;
         const captureHeight = videoHeight;
-        const clipRelativeTime = currentTimeMs - (clip?.startTime || 0)
-        const mousePos = zoomPanCalculator.interpolateMousePosition(cursorEvents, clipRelativeTime)
+        const mousePos = zoomPanCalculator.interpolateMousePosition(cursorEvents, currentTimeMs)
 
         // Always use mouse for focus
         let targetScaleForBlock = activeZoomBlock.scale || 2
