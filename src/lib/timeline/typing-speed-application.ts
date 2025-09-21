@@ -47,12 +47,17 @@ export class TypingSpeedApplicationService {
     // Save original clip state for undo
     originalClips.push({ ...sourceClip })
 
+    // Get clip's source range and base playback rate
+    const sourceIn = sourceClip.sourceIn || 0
+    const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration * (sourceClip.playbackRate || 1))
+    const baseRate = sourceClip.playbackRate || 1
+
     if (DEBUG_TYPING) {
       console.log('[TypingApply] Starting typing speed application', {
         clipId,
-        clipSourceRange: { sourceIn, sourceOut: sourceClip.sourceOut },
+        clipSourceRange: { sourceIn, sourceOut },
         clipDuration: sourceClip.duration,
-        clipPlaybackRate: sourceClip.playbackRate,
+        clipPlaybackRate: baseRate,
         periodsReceived: periods.map(p => ({
           start: p.startTime,
           end: p.endTime,
@@ -60,11 +65,6 @@ export class TypingSpeedApplicationService {
         }))
       })
     }
-
-    // Get clip's source range and base playback rate
-    const sourceIn = sourceClip.sourceIn || 0
-    const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration * (sourceClip.playbackRate || 1))
-    const baseRate = sourceClip.playbackRate || 1
 
     // Filter and sort periods within the clip's source range
     const validPeriods = periods
