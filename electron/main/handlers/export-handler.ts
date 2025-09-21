@@ -17,7 +17,9 @@ import { workerPool, SupervisedWorker } from '../utils/worker-manager';
 import fsSync from 'fs';
 import { normalizeCrossPlatform } from '../utils/path-normalizer';
 
-const CHUNK_SIZE_FRAMES = 2000;
+// Reduced chunk size for lower memory footprint
+// 500 frames = ~8-16 seconds at 30-60fps
+const CHUNK_SIZE_FRAMES = 500;
 
 interface ChunkPlanEntry {
   index: number;
@@ -63,23 +65,28 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
   const totalMem = profile.totalMemoryGB || 4;
   const effectiveMemory = Math.max(rawAvailable, totalMem * 0.4);
 
+  // More aggressive worker allocation for better CPU utilization
   let maxWorkers = 1;
-  if (cpuCores >= 6 && effectiveMemory >= 6) maxWorkers = Math.max(maxWorkers, 2);
-  if (cpuCores >= 10 && effectiveMemory >= 10) maxWorkers = Math.max(maxWorkers, 3);
-  if (cpuCores >= 14 && effectiveMemory >= 14) maxWorkers = Math.max(maxWorkers, 4);
+  if (cpuCores >= 4 && effectiveMemory >= 4) maxWorkers = Math.max(maxWorkers, 2);
+  if (cpuCores >= 6 && effectiveMemory >= 6) maxWorkers = Math.max(maxWorkers, 3);
+  if (cpuCores >= 8 && effectiveMemory >= 8) maxWorkers = Math.max(maxWorkers, 4);
+  if (cpuCores >= 10 && effectiveMemory >= 10) maxWorkers = Math.max(maxWorkers, 5);
+  if (cpuCores >= 12 && effectiveMemory >= 12) maxWorkers = Math.max(maxWorkers, 6);
 
-  if (chunkCount >= 4 && cpuCores >= 8) {
-    maxWorkers = Math.max(maxWorkers, 2);
-  }
-  if (chunkCount >= 6 && cpuCores >= 12 && effectiveMemory >= 8) {
+  // Additional workers for many chunks
+  if (chunkCount >= 4 && cpuCores >= 6) {
     maxWorkers = Math.max(maxWorkers, 3);
   }
+  if (chunkCount >= 8 && cpuCores >= 8 && effectiveMemory >= 6) {
+    maxWorkers = Math.max(maxWorkers, 4);
+  }
 
-  const cpuLimited = Math.max(1, Math.floor(cpuCores / 4));
-  const memLimited = Math.max(1, Math.floor(effectiveMemory / 3));
+  // Less conservative CPU/memory limits
+  const cpuLimited = Math.max(1, Math.floor(cpuCores / 2)); // Changed from /4 to /2
+  const memLimited = Math.max(1, Math.floor(effectiveMemory / 2)); // Changed from /3 to /2
 
   maxWorkers = Math.min(maxWorkers, cpuLimited, memLimited);
-  maxWorkers = Math.min(maxWorkers, 4);
+  maxWorkers = Math.min(maxWorkers, 8); // Increased from 4 to 8 max workers
   maxWorkers = Math.min(maxWorkers, chunkCount);
 
   return Math.max(1, maxWorkers);
@@ -127,14 +134,18 @@ export function setupExportHandler() {
         targetQuality
       );
       
-      // Tune quality parameters based on requested preset
-      dynamicSettings.jpegQuality = settings.quality === 'ultra' ? 90 : 80;
-      
-      // Cap OffthreadVideo cache to prevent memory exhaustion
-      // Use 32MB as safe default, or 1/16 of available memory (whichever is smaller)
+      // Memory-aware quality parameters based on available memory
       const availableMemoryGB = machineProfile.availableMemoryGB || 2;
-      const maxCacheMB = Math.min(32, Math.floor(availableMemoryGB * 1024 / 16));
-      dynamicSettings.offthreadVideoCacheSizeInBytes = maxCacheMB * 1024 * 1024;
+      if (availableMemoryGB < 4) {
+        // Low memory: use lower quality intermediate frames
+        dynamicSettings.jpegQuality = Math.min(dynamicSettings.jpegQuality, 50);
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 16 * 1024 * 1024; // 16MB
+      } else if (availableMemoryGB < 8) {
+        // Medium memory: moderate quality
+        dynamicSettings.jpegQuality = Math.min(dynamicSettings.jpegQuality, 60);
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 32 * 1024 * 1024; // 32MB
+      }
+      // High memory systems keep default settings
       
       console.log('Export settings:', {
         jpegQuality: dynamicSettings.jpegQuality,

@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyPlugin = require('copy-webpack-plugin');
+const webpack = require('webpack');
 
 module.exports = {
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
@@ -53,6 +54,10 @@ module.exports = {
     },
   },
   plugins: [
+    new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+      'process.type': JSON.stringify('renderer'),
+    }),
     new CopyPlugin({
       patterns: [
         {
@@ -74,8 +79,11 @@ module.exports = {
       ],
     }),
   ],
-  target: 'web', // Use 'web' instead of 'electron-renderer' to avoid Node.js polyfills
-  node: false, // Disable all Node.js polyfills
+  target: 'electron-renderer', // Use electron-renderer for proper Electron context
+  node: {
+    __dirname: false,
+    __filename: false,
+  },
   devServer: {
     client: {
       overlay: {
