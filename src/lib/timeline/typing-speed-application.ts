@@ -1,5 +1,4 @@
-import type { Project, Track, Clip, Effect } from '@/types/project'
-import { RecordingStorage } from '@/lib/storage/recording-storage'
+import type { Project, Track, Clip } from '@/types/project'
 import { reflowClips, calculateTimelineDuration } from './timeline-operations'
 
 const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
@@ -196,128 +195,10 @@ export class TypingSpeedApplicationService {
       })
     }
 
-    // Remove applied typing periods from the recording's metadata
-    const recording = project.recordings.find(r => r.id === sourceClip.recordingId)
-    if (recording && recording.metadata?.keyboardEvents) {
-      recording.metadata.keyboardEvents = recording.metadata.keyboardEvents.filter(event => {
-        const isInAppliedPeriod = periods.some(period =>
-          event.timestamp >= period.startTime && event.timestamp <= period.endTime
-        )
-        return !isInAppliedPeriod
-      })
-
-      RecordingStorage.setMetadata(recording.id, recording.metadata)
-    }
-
-    // Adjust effects for the split clips
-    adjustEffectsForSplitClips(project, sourceClip, newClips)
-
     // Update timeline duration
     project.timeline.duration = calculateTimelineDuration(project)
     project.modifiedAt = new Date().toISOString()
 
     return { affectedClips, originalClips }
-  }
-}
-
-/**
- * Adjusts effects when a clip is split into multiple clips
- * Effects need to be adjusted to match the new clip boundaries and timing
- */
-function adjustEffectsForSplitClips(
-  project: Project,
-  originalClip: Clip,
-  newClips: Clip[]
-): void {
-  if (!project.timeline.effects || project.timeline.effects.length === 0) {
-    return
-  }
-
-  const originalStart = originalClip.startTime
-  const originalEnd = originalClip.startTime + originalClip.duration
-
-  // Find all effects that overlap with the original clip
-  const overlappingEffects = project.timeline.effects.filter(effect =>
-    effect.startTime < originalEnd && effect.endTime > originalStart
-  )
-
-  if (overlappingEffects.length === 0) {
-    return
-  }
-
-  if (DEBUG_TYPING) {
-    console.log('[TypingApply] Adjusting effects for split clips', {
-      originalClip: { id: originalClip.id, start: originalStart, end: originalEnd },
-      newClips: newClips.map(c => ({ id: c.id, start: c.startTime, end: c.startTime + c.duration })),
-      overlappingEffects: overlappingEffects.length
-    })
-  }
-
-  const effectsToRemove: string[] = []
-  const effectsToAdd: Effect[] = []
-
-  for (const effect of overlappingEffects) {
-    // Calculate the source-space position of this effect relative to the original clip
-    const effectSourceStart = originalClip.sourceIn + 
-      ((effect.startTime - originalStart) / originalClip.duration) * 
-      (originalClip.sourceOut - originalClip.sourceIn)
-    
-    const effectSourceEnd = originalClip.sourceIn + 
-      ((effect.endTime - originalStart) / originalClip.duration) * 
-      (originalClip.sourceOut - originalClip.sourceIn)
-
-    // Mark original effect for removal
-    effectsToRemove.push(effect.id)
-
-    // Create adjusted effects for each new clip that the effect overlaps
-    for (const newClip of newClips) {
-      // Check if this effect overlaps with this new clip in source space
-      if (effectSourceEnd <= newClip.sourceIn || effectSourceStart >= newClip.sourceOut) {
-        continue // No overlap in source space
-      }
-
-      // Calculate the portion of the effect that belongs to this clip
-      const clippedSourceStart = Math.max(effectSourceStart, newClip.sourceIn)
-      const clippedSourceEnd = Math.min(effectSourceEnd, newClip.sourceOut)
-
-      // Convert back to timeline space for this new clip
-      const relativeStart = (clippedSourceStart - newClip.sourceIn) / (newClip.sourceOut - newClip.sourceIn)
-      const relativeEnd = (clippedSourceEnd - newClip.sourceIn) / (newClip.sourceOut - newClip.sourceIn)
-
-      const newEffectStart = newClip.startTime + (relativeStart * newClip.duration)
-      const newEffectEnd = newClip.startTime + (relativeEnd * newClip.duration)
-
-      // Create a new effect for this clip
-      const adjustedEffect: Effect = {
-        ...effect,
-        id: `${effect.id}-${newClip.id}`,
-        startTime: newEffectStart,
-        endTime: newEffectEnd
-      }
-
-      effectsToAdd.push(adjustedEffect)
-
-      if (DEBUG_TYPING) {
-        console.log('[TypingApply] Created adjusted effect', {
-          originalEffect: { id: effect.id, start: effect.startTime, end: effect.endTime },
-          newClip: { id: newClip.id, sourceIn: newClip.sourceIn, sourceOut: newClip.sourceOut },
-          adjustedEffect: { id: adjustedEffect.id, start: adjustedEffect.startTime, end: adjustedEffect.endTime }
-        })
-      }
-    }
-  }
-
-  // Remove original effects
-  project.timeline.effects = project.timeline.effects.filter(e => !effectsToRemove.includes(e.id))
-
-  // Add adjusted effects
-  project.timeline.effects.push(...effectsToAdd)
-
-  if (DEBUG_TYPING) {
-    console.log('[TypingApply] Effects adjustment complete', {
-      removed: effectsToRemove.length,
-      added: effectsToAdd.length,
-      totalEffects: project.timeline.effects.length
-    })
   }
 }

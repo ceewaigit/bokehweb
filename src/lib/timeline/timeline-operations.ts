@@ -166,9 +166,6 @@ export function executeSplitClip(
   const clipIndex = track.clips.findIndex(c => c.id === clipId)
   track.clips.splice(clipIndex, 1, splitResult.firstClip, splitResult.secondClip)
 
-  // Adjust effects for the split
-  adjustEffectsForSingleSplit(project, clip, splitResult.firstClip, splitResult.secondClip, splitTime)
-
   project.modifiedAt = new Date().toISOString()
   return splitResult
 }
@@ -465,80 +462,3 @@ export function addRecordingToProject(
 // Typing speed is now handled by TypingSpeedApplicationService
 // which uses playbackRate instead of timeRemapPeriods
 
-/**
- * Adjusts effects when a single clip is split into two clips
- * Effects need to be split or adjusted based on the split point
- */
-function adjustEffectsForSingleSplit(
-  project: Project,
-  originalClip: Clip,
-  firstClip: Clip,
-  secondClip: Clip,
-  splitTime: number
-): void {
-  if (!project.timeline.effects || project.timeline.effects.length === 0) {
-    return
-  }
-
-  const originalStart = originalClip.startTime
-  const originalEnd = originalClip.startTime + originalClip.duration
-
-  // Find all effects that overlap with the original clip
-  const overlappingEffects = project.timeline.effects.filter(effect =>
-    effect.startTime < originalEnd && effect.endTime > originalStart
-  )
-
-  if (overlappingEffects.length === 0) {
-    return
-  }
-
-  const effectsToRemove: string[] = []
-  const effectsToAdd: Effect[] = []
-
-  for (const effect of overlappingEffects) {
-    // Effect entirely before split point - keep with first clip
-    if (effect.endTime <= splitTime) {
-      // Effect stays unchanged
-      continue
-    }
-    
-    // Effect entirely after split point - move with second clip
-    if (effect.startTime >= splitTime) {
-      // Effect stays unchanged (it's already positioned correctly)
-      continue
-    }
-
-    // Effect spans the split point - need to split it
-    effectsToRemove.push(effect.id)
-
-    // Create first part (before split)
-    if (effect.startTime < splitTime) {
-      const firstEffect: Effect = {
-        ...effect,
-        id: `${effect.id}-first`,
-        endTime: Math.min(effect.endTime, splitTime)
-      }
-      effectsToAdd.push(firstEffect)
-    }
-
-    // Create second part (after split)
-    if (effect.endTime > splitTime) {
-      const secondEffect: Effect = {
-        ...effect,
-        id: `${effect.id}-second`,
-        startTime: Math.max(effect.startTime, splitTime)
-      }
-      effectsToAdd.push(secondEffect)
-    }
-  }
-
-  // Remove effects that were split
-  if (effectsToRemove.length > 0) {
-    project.timeline.effects = project.timeline.effects.filter(e => !effectsToRemove.includes(e.id))
-  }
-
-  // Add split effects
-  if (effectsToAdd.length > 0) {
-    project.timeline.effects.push(...effectsToAdd)
-  }
-}

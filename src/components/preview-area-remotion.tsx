@@ -7,7 +7,6 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Recording, Effect } from '@/types/project'
-import { EffectType } from '@/types/project'
 import { timelineToSource, sourceToClipRelative } from '@/lib/timeline/time-space-converter'
 
 interface PreviewAreaRemotionProps {
@@ -45,7 +44,6 @@ export function PreviewAreaRemotion({
   
   const nextClip = useProjectStore(state => state.nextClip)
   const nextRecording = useProjectStore(state => state.nextRecording)
-  const allTracks = useProjectStore(state => state.currentProject?.timeline.tracks)
   
   // Helper: compute recording-seconds from global timeline time and current clip
   const getRecordingSeconds = useCallback((clip: Clip, nowMs: number) => {
@@ -228,14 +226,11 @@ export function PreviewAreaRemotion({
     }
   }, [previewClip, previewRecording?.metadata])
 
-  // Convert effects to clip-relative timeline windows; keep background persistent
-  const clipRelativeEffects = useMemo(() => {
-    if (!previewClip) return null
-
-    const clipStart = previewClip.startTime
-    const clipEnd = previewClip.startTime + previewClip.duration
-    const baseEffects: Effect[] = (timelineEffects || []) as Effect[]
-
+  // Keep effects in timeline space - just filter active ones
+  const activeTimelineEffects = useMemo(() => {
+    if (!timelineEffects) return null
+    
+    const baseEffects: Effect[] = timelineEffects as Effect[]
     let mergedEffects: Effect[] = baseEffects
 
     if (localEffects) {
@@ -243,40 +238,28 @@ export function PreviewAreaRemotion({
       for (const le of localEffects) {
         const existing = byId.get(le.id)
         if (existing) {
-          byId.set(le.id, { ...existing, startTime: existing.startTime, endTime: existing.endTime, data: { ...(existing as any).data, ...(le as any).data } as any, enabled: le.enabled ?? existing.enabled } as Effect)
+          byId.set(le.id, { ...existing, data: { ...(existing as any).data, ...(le as any).data } as any, enabled: le.enabled ?? existing.enabled } as Effect)
         } else {
           byId.set(le.id, le)
         }
       }
       mergedEffects = Array.from(byId.values())
     }
-
-    const effectsToConvert = mergedEffects.filter(effect => effect.enabled)
-
-    return effectsToConvert.map(effect => {
-      if (effect.type === EffectType.Background) {
-        return { ...effect, startTime: 0, endTime: Number.MAX_SAFE_INTEGER }
-      }
-
-      const windowStart = Math.max(effect.startTime, clipStart)
-      const windowEnd = Math.min(effect.endTime, clipEnd)
-      if (windowEnd <= windowStart) {
-        return { ...effect, startTime: Number.MAX_SAFE_INTEGER - 1, endTime: Number.MAX_SAFE_INTEGER }
-      }
-
-      const relativeStart = Math.max(0, windowStart - clipStart)
-      const relativeEnd = Math.max(relativeStart, windowEnd - clipStart)
-
-      return { ...effect, startTime: relativeStart, endTime: relativeEnd }
-    })
-  }, [previewClip, previewRecording?.id, localEffects, timelineEffects, allTracks])
+    
+    // Filter effects that are active at current timeline time
+    return mergedEffects.filter(effect => 
+      effect.enabled && 
+      currentTime >= effect.startTime && 
+      currentTime <= effect.endTime
+    )
+  }, [timelineEffects, localEffects, currentTime])
 
   const compositionProps = useMemo(() => {
     return {
       videoUrl: activeVideoUrl || '',
       clip: previewClip,
       nextClip: nextClip || undefined,
-      effects: clipRelativeEffects,
+      effects: activeTimelineEffects,
       cursorEvents: adjustedEvents.mouseEvents,
       clickEvents: adjustedEvents.clickEvents,
       keystrokeEvents: adjustedEvents.keyboardEvents,
@@ -285,7 +268,7 @@ export function PreviewAreaRemotion({
       videoHeight,
       isSplitTransition: isNextClipSplit
     }
-  }, [previewClip, nextClip, activeVideoUrl, clipRelativeEffects, adjustedEvents, videoWidth, videoHeight, isNextClipSplit])
+  }, [previewClip, nextClip, activeVideoUrl, activeTimelineEffects, adjustedEvents, videoWidth, videoHeight, isNextClipSplit])
 
   const calculateOptimalCompositionSize = useCallback(() => {
     const preset = QUALITY_PRESETS[DEFAULT_PREVIEW_QUALITY]

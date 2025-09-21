@@ -38,16 +38,12 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     scale?: number;
   }>>(new Map());
 
-  // Calculate current time in milliseconds (clip-relative)
-  const currentTimeMs = (frame / fps) * 1000;
+  // Calculate current time in milliseconds (timeline time)
+  const currentTimeMs = clip ? clip.startTime + (frame / fps) * 1000 : 0;
 
   // Extract active effects from the array
-  // Effects are already converted to clip-relative times
-  const activeEffects = effects?.filter(e =>
-    e.enabled &&
-    currentTimeMs >= e.startTime &&
-    currentTimeMs <= e.endTime
-  ) || [];
+  // Effects are in timeline space - just use them directly
+  const activeEffects = effects || [];
 
   // Find specific effect types using EffectsFactory
   const backgroundEffect = EffectsFactory.getBackgroundEffect(activeEffects);
@@ -99,8 +95,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             const captureWidth = videoWidth;
             const captureHeight = videoHeight;
 
-            // Use mouse position at block start (clip-relative time)
-            const startMouse = zoomPanCalculator.interpolateMousePosition(cursorEvents, activeZoomBlock.startTime)
+            // Use mouse position at block start (need to convert from timeline to clip-relative for event lookup)
+            const blockStartClipRelative = activeZoomBlock.startTime - (clip?.startTime || 0)
+            const startMouse = zoomPanCalculator.interpolateMousePosition(cursorEvents, blockStartClipRelative)
             if (startMouse) {
               return { cx: startMouse.x, cy: startMouse.y }
             }
@@ -127,10 +124,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
-        // Precompute mouse inputs (use clip-relative time for event lookup)
+        // Precompute mouse inputs (convert timeline time to clip-relative for event lookup)
         const captureWidth = videoWidth;
         const captureHeight = videoHeight;
-        const mousePos = zoomPanCalculator.interpolateMousePosition(cursorEvents, currentTimeMs)
+        const clipRelativeTime = currentTimeMs - (clip?.startTime || 0)
+        const mousePos = zoomPanCalculator.interpolateMousePosition(cursorEvents, clipRelativeTime)
 
         // Always use mouse for focus
         let targetScaleForBlock = activeZoomBlock.scale || 2
