@@ -68,27 +68,29 @@ export class MachineProfiler {
 
     const settings: DynamicExportSettings = {
       concurrency: baseConcurrency,
-      jpegQuality: 60, // Reduced from 80 to save memory (barely noticeable in final video)
+      jpegQuality: 90, // High quality for when using JPEG (though we now use 'none')
       videoBitrate: '8M',
       x264Preset: 'veryfast',
       useGPU: profile.gpuAvailable,
-      offthreadVideoCacheSizeInBytes: 32 * 1024 * 1024, // Reduced from 64MB to 32MB
+      offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024, // Increased to 128MB for better caching
       enableAdaptiveOptimization: false
     };
     
     // Adjust based on quality preference
     switch (quality) {
       case 'quality':
-        settings.jpegQuality = 75; // Reduced from 90 to save memory
+        settings.jpegQuality = 95; // High quality
         settings.videoBitrate = '12M';
         settings.x264Preset = 'medium';
+        settings.offthreadVideoCacheSizeInBytes = 256 * 1024 * 1024; // 256MB for quality mode
         break;
       
       case 'fast':
-        settings.jpegQuality = 50; // Reduced from 70 for faster processing
+        settings.jpegQuality = 80; // Still good quality
         settings.videoBitrate = '5M';
         settings.x264Preset = 'ultrafast';
         settings.concurrency = Math.min(settings.concurrency, 2);
+        settings.offthreadVideoCacheSizeInBytes = 64 * 1024 * 1024; // 64MB for fast mode
         break;
 
       case 'balanced':

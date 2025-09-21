@@ -192,16 +192,22 @@ class ExportWorker extends BaseWorker {
       outputLocation: job.outputPath,
       codec: 'h264',
       videoBitrate: job.videoBitrate,
-      jpegQuality: job.jpegQuality,
-      imageFormat: 'jpeg',
+      // Use no intermediate image format for direct video-to-video encoding
+      // This avoids JPEG compression artifacts and speeds up rendering
+      imageFormat: 'none',
       concurrency: renderConcurrency,
       enforceAudioTrack: false, // Don't require audio track
       offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
+      // Enable aggressive caching and preloading
+      numberOfGifLoops: null,
+      everyNthFrame: 1, // Process every frame
+      preferLossless: true, // Use lossless encoding when possible
       chromiumOptions: {
-        gl: 'angle-egl', // Use angle-egl for better stability
+        gl: 'swangle', // Use software angle for predictable performance
+        headless: true, // Run in true headless mode for better performance
         enableMultiProcessOnLinux: true,
         disableWebSecurity: false,
-        ignoreCertificateErrors: false,
+        ignoreCertificateErrors: false
       },
       binariesDirectory: job.compositorDir,
       // Allow parallel encoding for better performance when memory permits
@@ -477,17 +483,22 @@ class ExportWorker extends BaseWorker {
           outputLocation: chunkPath,
           codec: 'h264',
           videoBitrate: job.videoBitrate,
-          jpegQuality: job.jpegQuality,
-          imageFormat: 'jpeg',
+          // Use no intermediate image format for direct video-to-video encoding
+          imageFormat: 'none',
           frameRange: [0, chunkFrames - 1],
           concurrency: renderConcurrency,
           enforceAudioTrack: false, // Don't require audio track
           offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
+          // Enable aggressive caching
+          numberOfGifLoops: null,
+          everyNthFrame: 1,
+          preferLossless: true,
           chromiumOptions: {
-            gl: 'angle-egl', // Use angle-egl for better stability
+            gl: 'swangle', // Use software angle for predictable performance
+            headless: true,
             enableMultiProcessOnLinux: true,
             disableWebSecurity: false,
-            ignoreCertificateErrors: false,
+            ignoreCertificateErrors: false
           },
           binariesDirectory: job.compositorDir,
           disallowParallelEncoding: false,

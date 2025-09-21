@@ -10,64 +10,11 @@ import {
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
 import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
+import { mapClipToRecordingTime } from '@/lib/timeline/clip-utils';
 
 const getEventSourceTimestamp = (event: { sourceTimestamp?: number; timestamp: number }) =>
   typeof event.sourceTimestamp === 'number' ? event.sourceTimestamp : event.timestamp;
 
-const mapTimelineToSourceTime = (clip: Clip | null | undefined, timelineMs: number): number => {
-  if (!clip) return timelineMs;
-
-  const sourceIn = clip.sourceIn || 0;
-  const baseRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1;
-  const periods = clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0
-    ? [...clip.timeRemapPeriods].sort((a, b) => a.sourceStartTime - b.sourceStartTime)
-    : null;
-
-  if (!periods) {
-    const result = sourceIn + timelineMs * baseRate;
-    const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
-    return Math.max(sourceIn, Math.min(sourceOut, result));
-  }
-
-  let remainingTimeline = timelineMs;
-  let currentSource = sourceIn;
-
-  for (const period of periods) {
-    const periodStart = Math.max(period.sourceStartTime, sourceIn);
-    const periodEnd = Math.max(periodStart, period.sourceEndTime);
-
-    if (currentSource < periodStart) {
-      const gapDurationSource = periodStart - currentSource;
-      const gapTimelineDuration = gapDurationSource / baseRate;
-
-      if (remainingTimeline <= gapTimelineDuration) {
-        const result = currentSource + remainingTimeline * baseRate;
-        const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
-        return Math.max(sourceIn, Math.min(sourceOut, result));
-      }
-
-      remainingTimeline -= gapTimelineDuration;
-      currentSource = periodStart;
-    }
-
-    const effectiveSpeed = Math.max(0.0001, period.speedMultiplier);
-    const periodDurationSource = periodEnd - periodStart;
-    const periodTimelineDuration = periodDurationSource / effectiveSpeed;
-
-    if (remainingTimeline <= periodTimelineDuration) {
-      const result = periodStart + remainingTimeline * effectiveSpeed;
-      const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
-      return Math.max(sourceIn, Math.min(sourceOut, result));
-    }
-
-    remainingTimeline -= periodTimelineDuration;
-    currentSource = periodEnd;
-  }
-
-  const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
-  const result = currentSource + remainingTimeline * baseRate;
-  return Math.max(sourceIn, Math.min(sourceOut, result));
-};
 
 export const CursorLayer: React.FC<CursorLayerProps> = ({
   cursorEvents,
@@ -83,7 +30,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
-  const currentSourceTime = useMemo(() => mapTimelineToSourceTime(clip ?? null, currentTimeMs), [clip, currentTimeMs]);
+  const currentSourceTime = useMemo(() => clip ? mapClipToRecordingTime(clip, currentTimeMs) : currentTimeMs, [clip, currentTimeMs]);
 
   // Store previous positions for motion trail and smoothing
   const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);

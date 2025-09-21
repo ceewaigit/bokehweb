@@ -1,5 +1,5 @@
-import React from 'react';
-import { Video, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import React, { useMemo } from 'react';
+import { OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
@@ -7,62 +7,6 @@ import { createCinematicTransform, createBlurFilter } from '@/lib/effects/cinema
 import { EffectType, ScreenEffectPreset } from '@/types/project';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
 
-
-// Helper function to map timeline time to source time considering time remapping
-const mapTimelineToSourceTime = (clip: VideoLayerProps['clip'], timelineMs: number): number => {
-  if (!clip) return timelineMs;
-
-  const sourceIn = clip.sourceIn || 0;
-  const baseRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1;
-  const periods = clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0
-    ? [...clip.timeRemapPeriods].sort((a, b) => a.sourceStartTime - b.sourceStartTime)
-    : null;
-
-  if (!periods) {
-    const result = sourceIn + timelineMs * baseRate;
-    const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
-    return Math.max(sourceIn, Math.min(sourceOut, result));
-  }
-
-  let remainingTimeline = timelineMs;
-  let currentSource = sourceIn;
-
-  for (const period of periods) {
-    const periodStart = Math.max(period.sourceStartTime, sourceIn);
-    const periodEnd = Math.max(periodStart, period.sourceEndTime);
-
-    if (currentSource < periodStart) {
-      const gapDurationSource = periodStart - currentSource;
-      const gapTimelineDuration = gapDurationSource / baseRate;
-
-      if (remainingTimeline <= gapTimelineDuration) {
-        const result = currentSource + remainingTimeline * baseRate;
-        const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
-        return Math.max(sourceIn, Math.min(sourceOut, result));
-      }
-
-      remainingTimeline -= gapTimelineDuration;
-      currentSource = periodStart;
-    }
-
-    const effectiveSpeed = Math.max(0.0001, period.speedMultiplier);
-    const periodDurationSource = periodEnd - periodStart;
-    const periodTimelineDuration = periodDurationSource / effectiveSpeed;
-
-    if (remainingTimeline <= periodTimelineDuration) {
-      const result = periodStart + remainingTimeline * effectiveSpeed;
-      const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
-      return Math.max(sourceIn, Math.min(sourceOut, result));
-    }
-
-    remainingTimeline -= periodTimelineDuration;
-    currentSource = periodEnd;
-  }
-
-  const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
-  const result = currentSource + remainingTimeline * baseRate;
-  return Math.max(sourceIn, Math.min(sourceOut, result));
-};
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
@@ -95,26 +39,17 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   const cornerRadius = backgroundData?.cornerRadius || 0;
   const shadowIntensity = backgroundData?.shadowIntensity || 0;
 
-  // Calculate video position using shared utility
-  const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
-    width,
-    height,
-    videoWidth,
-    videoHeight,
-    padding
+  // Memoize video position calculation to prevent recalculation every frame
+  const { drawWidth, drawHeight, offsetX, offsetY } = useMemo(
+    () => calculateVideoPosition(width, height, videoWidth, videoHeight, padding),
+    [width, height, videoWidth, videoHeight, padding]
   );
 
-  // Calculate the correct source time considering time remapping
-  const sourceTimeMs = mapTimelineToSourceTime(clip, currentTimeMs);
-  
-  // Convert source time to frame number
-  const mappedFrame = Math.max(0, Math.floor((sourceTimeMs / 1000) * fps));
 
-  // Apply zoom if enabled
-  let transform = '';
-  let extra3DTransform = '';
-
-  if (zoomBlocks && zoomBlocks.length > 0) {
+  // Memoize zoom transformation to avoid recalculating when only frame changes
+  const transform = useMemo(() => {
+    if (!zoomBlocks || zoomBlocks.length === 0) return '';
+    
     // Find active zoom block
     const activeBlock = zoomBlocks.find(
       block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
@@ -131,8 +66,10 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     );
 
     // Generate transform string
-    transform = getZoomTransformString(zoomTransform);
-  }
+    return getZoomTransformString(zoomTransform);
+  }, [zoomBlocks, currentTimeMs, drawWidth, drawHeight, fixedZoomCenter, computedScale]);
+  
+  let extra3DTransform = '';
 
   // Optional 3D screen effect: prefer screen blocks
   const screenBlock = effects ? EffectsFactory.getActiveEffectAtTime(
@@ -291,8 +228,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Always use Video component for better stability and memory efficiency */}
-        <Video
+        {/* Use OffthreadVideo for frame caching and better performance */}
+        <OffthreadVideo
           src={finalVideoUrl}
           style={videoStyle}
           volume={1}

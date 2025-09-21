@@ -143,18 +143,19 @@ export function setupExportHandler() {
         targetQuality
       );
       
-      // Memory-aware quality parameters based on available memory
+      // Optimize cache size based on available memory for better performance
       const availableMemoryGB = machineProfile.availableMemoryGB || 2;
       if (availableMemoryGB < 4) {
-        // Low memory: use lower quality intermediate frames
-        dynamicSettings.jpegQuality = Math.min(dynamicSettings.jpegQuality, 50);
-        dynamicSettings.offthreadVideoCacheSizeInBytes = 16 * 1024 * 1024; // 16MB
+        // Low memory: smaller cache but still usable
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 64 * 1024 * 1024; // 64MB
       } else if (availableMemoryGB < 8) {
-        // Medium memory: moderate quality
-        dynamicSettings.jpegQuality = Math.min(dynamicSettings.jpegQuality, 60);
-        dynamicSettings.offthreadVideoCacheSizeInBytes = 32 * 1024 * 1024; // 32MB
+        // Medium memory: good cache size
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 128 * 1024 * 1024; // 128MB
+      } else {
+        // High memory: maximize cache for best performance
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 256 * 1024 * 1024; // 256MB
       }
-      // High memory systems keep default settings
+      // Remove jpegQuality since we're using imageFormat: 'none' now
       
       console.log('Export settings:', {
         jpegQuality: dynamicSettings.jpegQuality,
