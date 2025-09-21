@@ -91,7 +91,17 @@ export function splitClipAtTime(
 
   const timestamp = Date.now()
   const playbackRate = clip.playbackRate || 1
-  const sourceSplitPoint = relativeSplitTime * playbackRate
+  
+  // Handle time remapping if present
+  let sourceSplitPoint: number
+  if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
+    // Use the inverse mapping to get source time from clip-relative time
+    const { mapClipToRecordingTime } = require('../timeline/clip-utils')
+    sourceSplitPoint = mapClipToRecordingTime(clip, relativeSplitTime) - clip.sourceIn
+  } else {
+    // Simple calculation when no time remapping
+    sourceSplitPoint = relativeSplitTime * playbackRate
+  }
 
   const firstClip: Clip = {
     id: `${clip.id}-split1-${timestamp}`,
@@ -104,6 +114,17 @@ export function splitClipAtTime(
     typingSpeedApplied: clip.typingSpeedApplied
   }
 
+  // Copy timeRemapPeriods if they exist and adjust them for the first clip
+  if (clip.timeRemapPeriods) {
+    const splitSourceTime = clip.sourceIn + sourceSplitPoint
+    firstClip.timeRemapPeriods = clip.timeRemapPeriods
+      .filter(p => p.sourceStartTime < splitSourceTime)
+      .map(p => ({
+        ...p,
+        sourceEndTime: Math.min(p.sourceEndTime, splitSourceTime)
+      }))
+  }
+
   const secondClip: Clip = {
     id: `${clip.id}-split2-${timestamp}`,
     recordingId: clip.recordingId,
@@ -113,6 +134,17 @@ export function splitClipAtTime(
     sourceOut: clip.sourceOut,
     playbackRate: clip.playbackRate,
     typingSpeedApplied: clip.typingSpeedApplied
+  }
+
+  // Copy and adjust timeRemapPeriods for the second clip
+  if (clip.timeRemapPeriods) {
+    const splitSourceTime = clip.sourceIn + sourceSplitPoint
+    secondClip.timeRemapPeriods = clip.timeRemapPeriods
+      .filter(p => p.sourceEndTime > splitSourceTime)
+      .map(p => ({
+        ...p,
+        sourceStartTime: Math.max(p.sourceStartTime, splitSourceTime)
+      }))
   }
 
   return { firstClip, secondClip }

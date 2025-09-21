@@ -65,21 +65,19 @@ export class SplitClipCommand extends Command<SplitClipResult> {
       }
     }
 
-    // Create left clip (modify existing)
-    this.leftClip = {
-      ...JSON.parse(JSON.stringify(clip)),
-      duration: relativeTime,
-      sourceOut: clip.sourceIn + relativeTime
+    // Use the proper split function from timeline-operations to handle time remapping
+    const { splitClipAtTime } = require('../../timeline/timeline-operations')
+    const splitResult = splitClipAtTime(clip, relativeTime)
+    
+    if (!splitResult) {
+      return {
+        success: false,
+        error: 'Failed to split clip'
+      }
     }
-
-    // Create right clip (new)
-    this.rightClip = {
-      ...JSON.parse(JSON.stringify(clip)),
-      id: `clip-${Date.now()}`,
-      startTime: clip.startTime + relativeTime,
-      duration: clip.duration - relativeTime,
-      sourceIn: clip.sourceIn + relativeTime
-    }
+    
+    this.leftClip = splitResult.firstClip
+    this.rightClip = splitResult.secondClip
 
     // Execute split using store method
     // Effects are now handled independently by the store

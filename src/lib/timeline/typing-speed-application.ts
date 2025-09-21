@@ -124,15 +124,11 @@ export class TypingSpeedApplicationService {
       const split = splitPoints[i]
       const sourceDuration = split.end - split.start
       
-      // For sped-up clips, add a timeRemapPeriod to ensure cursor sync
-      const timeRemapPeriods = split.speedMultiplier > 1 ? [{
-        sourceStartTime: split.start,
-        sourceEndTime: split.end,
-        speedMultiplier: split.speedMultiplier
-      }] : undefined
+      // Apply speed directly to playbackRate for consistency with manual speed changes
+      const effectiveRate = baseRate * split.speedMultiplier
       
-      // Calculate duration based on speed multiplier
-      const clipDuration = sourceDuration / (baseRate * split.speedMultiplier)
+      // Calculate duration based on combined speed
+      const clipDuration = sourceDuration / effectiveRate
 
       const newClip: Clip = {
         id: `${sourceClip.id}-split-${i}`,
@@ -141,8 +137,7 @@ export class TypingSpeedApplicationService {
         duration: clipDuration,
         sourceIn: split.start,
         sourceOut: split.end,
-        playbackRate: baseRate,  // Keep base rate, use timeRemapPeriods for speed changes
-        timeRemapPeriods,  // This ensures cursor events are properly mapped
+        playbackRate: effectiveRate,  // Use actual speed multiplier so it's visible in UI
         typingSpeedApplied: split.speedMultiplier > 1
       }
 
@@ -157,8 +152,12 @@ export class TypingSpeedApplicationService {
     // Sort clips by start time to maintain order
     track.clips.sort((a, b) => a.startTime - b.startTime)
 
-    // Reflow clips to ensure no gaps
-    reflowClips(track, 0, project)
+    // Reflow only clips after the inserted ones to preserve timeline position
+    // Find the index of the last new clip after sorting
+    const lastNewClipIndex = track.clips.findIndex(c => c.id === newClips[newClips.length - 1].id)
+    if (lastNewClipIndex !== -1 && lastNewClipIndex < track.clips.length - 1) {
+      reflowClips(track, lastNewClipIndex + 1, project)
+    }
 
     if (DEBUG_TYPING) {
       console.log('[TypingApply] Clip split complete with time remap', {
