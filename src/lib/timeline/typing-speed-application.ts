@@ -48,9 +48,12 @@ export class TypingSpeedApplicationService {
     originalClips.push({ ...sourceClip })
 
     if (DEBUG_TYPING) {
-      console.log('[TypingApply] Splitting clip with playback rate for typing speed', {
+      console.log('[TypingApply] Starting typing speed application', {
         clipId,
-        periods: periods.map(p => ({
+        clipSourceRange: { sourceIn, sourceOut: sourceClip.sourceOut },
+        clipDuration: sourceClip.duration,
+        clipPlaybackRate: sourceClip.playbackRate,
+        periodsReceived: periods.map(p => ({
           start: p.startTime,
           end: p.endTime,
           rate: p.suggestedSpeedMultiplier
@@ -75,9 +78,19 @@ export class TypingSpeedApplicationService {
 
     if (validPeriods.length === 0) {
       if (DEBUG_TYPING) {
-        console.log('[TypingApply] No valid periods within clip range')
+        console.log('[TypingApply] No valid periods within clip range', {
+          clipSourceRange: { sourceIn, sourceOut },
+          periodsFiltered: periods.filter(p => p.endTime > sourceIn && p.startTime < sourceOut)
+        })
       }
       return { affectedClips: [clipId], originalClips }
+    }
+    
+    if (DEBUG_TYPING) {
+      console.log('[TypingApply] Valid periods after filtering', {
+        validPeriods,
+        clipSourceRange: { sourceIn, sourceOut }
+      })
     }
 
     // Create split points including typing periods and gaps
@@ -160,11 +173,26 @@ export class TypingSpeedApplicationService {
     }
 
     if (DEBUG_TYPING) {
-      console.log('[TypingApply] Clip split complete with playback rate', {
-        originalClipId: sourceClip.id,
-        newClipsCount: newClips.length,
-        splitPoints: splitPoints.length,
-        affectedClips
+      console.log('[TypingApply] Clip split complete', {
+        originalClip: {
+          id: sourceClip.id,
+          startTime: sourceClip.startTime,
+          duration: sourceClip.duration,
+          sourceIn: sourceClip.sourceIn,
+          sourceOut: sourceClip.sourceOut,
+          playbackRate: sourceClip.playbackRate
+        },
+        splitPoints,
+        newClips: newClips.map(c => ({
+          id: c.id,
+          startTime: c.startTime,
+          duration: c.duration,
+          sourceIn: c.sourceIn,
+          sourceOut: c.sourceOut,
+          playbackRate: c.playbackRate,
+          typingSpeedApplied: c.typingSpeedApplied
+        })),
+        totalNewDuration: newClips.reduce((sum, c) => sum + c.duration, 0)
       })
     }
 
