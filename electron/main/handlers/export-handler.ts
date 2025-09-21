@@ -16,10 +16,22 @@ import { resolveFfmpegPath, getCompositorDirectory } from '../utils/ffmpeg-resol
 import { workerPool, SupervisedWorker } from '../utils/worker-manager';
 import fsSync from 'fs';
 import { normalizeCrossPlatform } from '../utils/path-normalizer';
+import { preFilterMetadataForChunks, getRecordingsInTimeRange } from '../utils/metadata-filter';
 
-// Reduced chunk size for lower memory footprint
-// 500 frames = ~8-16 seconds at 30-60fps
-const CHUNK_SIZE_FRAMES = 500;
+// Dynamic chunk size based on available memory
+function getOptimalChunkSize(profile: MachineProfile): number {
+  const availableGB = profile.availableMemoryGB || 2;
+  
+  if (availableGB < 2) {
+    return 500; // Low memory: smaller chunks
+  } else if (availableGB < 4) {
+    return 1000; // Medium memory
+  } else if (availableGB < 8) {
+    return 1500; // Good memory
+  } else {
+    return 2000; // High memory: larger chunks for better performance
+  }
+}
 
 interface ChunkPlanEntry {
   index: number;
@@ -292,26 +304,38 @@ export function setupExportHandler() {
         throw new Error(`Export worker not found at ${workerPath}`);
       }
 
+      const optimalChunkSize = getOptimalChunkSize(machineProfile);
       const chunkPlan = buildChunkPlan(
         totalDurationInFrames,
-        CHUNK_SIZE_FRAMES,
+        optimalChunkSize,
         compositionMetadata.fps || settings.framerate || 30
       );
 
       const recommendedWorkers = determineParallelWorkerCount(machineProfile, chunkPlan.length);
       const workerCount = Math.min(recommendedWorkers, Math.max(1, chunkPlan.length || 1));
       const useParallel = workerCount > 1;
+      
+      // Adjust concurrency based on worker count to better utilize CPU
+      // If using multiple workers, give each worker more threads
+      // If using single worker, use all available concurrency
+      const adjustedConcurrency = useParallel 
+        ? Math.max(2, Math.floor(machineProfile.cpuCores / workerCount))
+        : Math.max(dynamicSettings.concurrency, Math.floor(machineProfile.cpuCores * 0.8));
 
       console.log('[Export] Chunk plan metrics', {
         totalFrames: totalDurationInFrames,
         chunkCount: chunkPlan.length,
-        chunkSize: CHUNK_SIZE_FRAMES,
+        chunkSize: optimalChunkSize,
         recommendedWorkers,
         workerCount,
         availableMemoryGB: machineProfile.availableMemoryGB,
         totalMemoryGB: machineProfile.totalMemoryGB,
         cpuCores: machineProfile.cpuCores
       });
+
+      // Pre-filter metadata for all chunks to avoid redundant processing
+      const metadataMapForFiltering = new Map(Object.entries(metadata));
+      const preFilteredMetadata = preFilterMetadataForChunks(metadataMapForFiltering, chunkPlan);
 
       const ffmpegPath = resolveFfmpegPath();
       const compositorDir = getCompositorDirectory();
@@ -327,10 +351,11 @@ export function setupExportHandler() {
         videoBitrate: dynamicSettings.videoBitrate,
         x264Preset: dynamicSettings.x264Preset,
         useGPU: dynamicSettings.useGPU,
-        concurrency: dynamicSettings.concurrency,
+        concurrency: adjustedConcurrency,
         ffmpegPath,
         compositorDir,
-        chunkSizeFrames: CHUNK_SIZE_FRAMES,
+        chunkSizeFrames: optimalChunkSize,
+        preFilteredMetadata, // Pass pre-filtered metadata
         totalFrames: totalDurationInFrames,
         totalChunks: chunkPlan.length
       };

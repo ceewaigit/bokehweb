@@ -299,7 +299,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           muted={false}
           pauseWhenBuffering={false}
           crossOrigin="anonymous"
-          startFrom={mappedFrame}
           onError={(e) => {
             console.error('Video playback error:', {
               error: e,

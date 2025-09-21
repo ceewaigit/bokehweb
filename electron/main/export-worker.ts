@@ -50,6 +50,7 @@ interface ExportJob {
   totalChunks?: number;
   totalFrames?: number;
   combineChunksInWorker?: boolean;
+  preFilteredMetadata?: Map<number, Map<string, any>>; // Pre-filtered metadata by chunk
 }
 
 class ExportWorker extends BaseWorker {
@@ -203,7 +204,8 @@ class ExportWorker extends BaseWorker {
         ignoreCertificateErrors: false,
       },
       binariesDirectory: job.compositorDir,
-      disallowParallelEncoding: true, // Trade speed for memory stability
+      // Allow parallel encoding for better performance when memory permits
+      disallowParallelEncoding: false,
       logLevel: 'verbose',
       onStart: ({ resolvedConcurrency, parallelEncoding }) => {
         console.log(`[ExportWorker] Rendering with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding}`);
@@ -523,7 +525,7 @@ class ExportWorker extends BaseWorker {
             ignoreCertificateErrors: false,
           },
           binariesDirectory: job.compositorDir,
-          disallowParallelEncoding: true,
+          disallowParallelEncoding: false,
           logLevel: 'info',
           onProgress: ({ renderedFrames }) => {
             const chunkProgress = renderedFrames / chunkFrames;
