@@ -23,6 +23,7 @@ import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { TypingSpeedApplicationService } from '@/lib/timeline/typing-speed-application'
 import { PlayheadService, type PlayheadState } from '@/lib/timeline/playhead-service'
 import { ProjectIOService } from '@/lib/storage/project-io-service'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { playbackService } from '@/lib/timeline/playback-service'
 
 interface ProjectStore {
@@ -60,7 +61,7 @@ interface ProjectStore {
   setProject: (project: Project) => void
 
   // Recording
-  addRecording: (recording: Recording, videoBlob: Blob) => void
+  addRecording: (recording: Recording, videoBlob: Blob) => Promise<void>
 
   // Clip Management
   addClip: (clip: Clip | string, startTime?: number) => void
@@ -215,7 +216,18 @@ export const useProjectStore = create<ProjectStore>()(
       }
     },
 
-    addRecording: (recording, videoBlob) => {
+    addRecording: async (recording, videoBlob) => {
+      // Load metadata from chunks if needed
+      if (recording.folderPath && recording.metadataChunks && (!recording.metadata || Object.keys(recording.metadata).length === 0)) {
+        console.log('[ProjectStore] Loading metadata chunks for new recording', recording.id)
+        recording.metadata = await RecordingStorage.loadMetadataChunks(
+          recording.folderPath,
+          recording.metadataChunks
+        )
+        // Cache the loaded metadata
+        RecordingStorage.setMetadata(recording.id, recording.metadata)
+      }
+
       set((state) => {
         if (!state.currentProject) return
 

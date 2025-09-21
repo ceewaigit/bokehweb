@@ -135,8 +135,26 @@ export const TimelineClip = React.memo(({
     }
 
     if (!recording?.metadata?.keyboardEvents || recording.metadata.keyboardEvents.length === 0) {
+      if (DEBUG_TYPING) {
+        console.log('[TimelineClip] No keyboard events for typing detection', {
+          clipId: clip.id,
+          recordingId: recording?.id,
+          hasMetadata: !!recording?.metadata,
+          keyboardEventsLength: recording?.metadata?.keyboardEvents?.length || 0
+        })
+      }
       setTypingSuggestions(null)
       return
+    }
+
+    if (DEBUG_TYPING) {
+      console.log('[TimelineClip] Analyzing typing with keyboard events', {
+        clipId: clip.id,
+        recordingId: recording.id,
+        keyboardEventsCount: recording.metadata.keyboardEvents.length,
+        firstEvent: recording.metadata.keyboardEvents[0],
+        lastEvent: recording.metadata.keyboardEvents[recording.metadata.keyboardEvents.length - 1]
+      })
     }
 
     try {
