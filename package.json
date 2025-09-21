@@ -33,12 +33,10 @@
     "test:integration": "jest --testPathPattern=integration",
     "test:debug": "jest --no-cache --detectOpenHandles",
     "test:quality": "npm run test:coverage && node scripts/test-quality-gate.js",
-    "claude": "claude",
     "rebuild": "node-gyp rebuild && npx electron-rebuild",
     "postinstall": "node scripts/build-native.js"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^1.0.38",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -98,7 +96,6 @@
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "@types/serve-static": "^1.15.8",
-    "claude": "^0.1.1",
     "concurrently": "^9.1.0",
     "copy-webpack-plugin": "^13.0.0",
     "css-loader": "^7.1.2",

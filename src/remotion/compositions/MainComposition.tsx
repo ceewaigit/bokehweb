@@ -12,6 +12,7 @@ import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 import { calculateZoomScale } from './utils/zoom-transform';
 import { CinematicScrollCalculator } from '@/lib/effects/cinematic-scroll';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
+import { clipRelativeToSource } from '@/lib/timeline/time-space-converter';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -104,8 +105,9 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             const captureWidth = videoWidth;
             const captureHeight = videoHeight;
 
-            // Use mouse position at block start (already clip-relative)
-            const startMouse = zoomPanCalculator.interpolateMousePosition(cursorEvents, activeZoomBlock.startTime)
+            // Convert clip-relative time to source time for mouse lookup
+            const sourceTime = clip ? clipRelativeToSource(activeZoomBlock.startTime, clip) : activeZoomBlock.startTime
+            const startMouse = zoomPanCalculator.interpolateMousePosition(cursorEvents, sourceTime)
             if (startMouse) {
               return { cx: startMouse.x, cy: startMouse.y }
             }
@@ -132,10 +134,11 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
-        // Precompute mouse inputs (use clip-relative time for event lookup)
+        // Precompute mouse inputs (convert to source time for event lookup)
         const captureWidth = videoWidth;
         const captureHeight = videoHeight;
-        const mousePos = zoomPanCalculator.interpolateMousePosition(cursorEvents, currentTimeMs)
+        const currentSourceTime = clip ? clipRelativeToSource(currentTimeMs, clip) : currentTimeMs
+        const mousePos = zoomPanCalculator.interpolateMousePosition(cursorEvents, currentSourceTime)
 
         // Always use mouse for focus
         let targetScaleForBlock = activeZoomBlock.scale || 2
