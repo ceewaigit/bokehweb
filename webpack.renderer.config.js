@@ -57,6 +57,7 @@ module.exports = {
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
       'process.type': JSON.stringify('renderer'),
+      'global': 'window',
     }),
     new CopyPlugin({
       patterns: [
@@ -79,11 +80,8 @@ module.exports = {
       ],
     }),
   ],
-  target: 'electron-renderer', // Use electron-renderer for proper Electron context
-  node: {
-    __dirname: false,
-    __filename: false,
-  },
+  target: 'web', // Use 'web' since we have contextIsolation enabled
+  node: false, // Disable Node.js polyfills for isolated context
   devServer: {
     client: {
       overlay: {
