@@ -1,7 +1,7 @@
 import React from 'react'
 import { Group, Line, Rect } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-converter'
+import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { clamp } from '@/lib/utils'
 

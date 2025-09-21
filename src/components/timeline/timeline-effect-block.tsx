@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Rect, Text, Transformer, Line, Group } from 'react-konva'
 import type { ZoomBlock } from '@/types/project'
 import { TimelineConfig } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-converter'
+import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import Konva from 'konva'
 

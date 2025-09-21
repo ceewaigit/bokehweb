@@ -1,7 +1,7 @@
 import React from 'react'
 import { Group, Rect, Text } from 'react-konva'
 import { TypingPeriod, TypingSuggestions } from '@/lib/timeline/typing-detector'
-import { TimeConverter } from '@/lib/timeline/time-converter'
+import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import type { Clip } from '@/types/project'
 import { sourceToTimeline } from '@/lib/timeline/time-space-converter'

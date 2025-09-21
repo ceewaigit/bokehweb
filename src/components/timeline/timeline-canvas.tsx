@@ -22,7 +22,7 @@ import type { TypingPeriod } from '@/lib/timeline/typing-detector'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
-import { TimeConverter } from '@/lib/timeline/time-converter'
+import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useCommandKeyboard } from '@/hooks/use-command-keyboard'
 import { useTimelinePlayback } from '@/hooks/use-timeline-playback'
 import { useTimelineColors } from '@/lib/timeline/colors'
