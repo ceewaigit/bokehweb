@@ -380,6 +380,7 @@ export function setupExportHandler() {
             progress: percent,
             stage,
             message
+            // Don't include currentFrame/totalFrames to avoid flickering
           };
 
           webContents.send('export-progress', aggregated);
@@ -397,10 +398,10 @@ export function setupExportHandler() {
               : `Rendering ${percent}% complete`;
 
           const aggregated = {
-            ...data,
             progress: percent,
             stage,
             message
+            // Don't forward frame data to avoid flickering with multiple workers
           };
 
           webContents.send('export-progress', aggregated);
