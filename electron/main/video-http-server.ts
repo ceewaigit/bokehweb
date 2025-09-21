@@ -144,24 +144,64 @@ export async function startVideoServer(): Promise<{
   // Store server instance
   serverInstance = { app, server, port };
   
-  // Cleanup expired tokens every minute
-  const cleanupInterval = setInterval(() => {
+  // Dynamic cleanup based on token expiration times
+  // Check more frequently when tokens exist, less when empty
+  let cleanupInterval: NodeJS.Timeout | null = null;
+  
+  const scheduleCleanup = () => {
+    if (cleanupInterval) clearTimeout(cleanupInterval);
+    
+    if (TOKENS.size === 0) {
+      // No tokens, check again in 1 minute
+      cleanupInterval = setTimeout(() => {
+        scheduleCleanup();
+      }, 60 * 1000);
+      return;
+    }
+    
+    // Find the nearest expiration time
+    let nearestExpiry = Infinity;
     const now = Date.now();
     let cleaned = 0;
+    
     for (const [token, entry] of TOKENS) {
-      if (entry.expiresAt < now) {
+      if (entry.expiresAt <= now) {
+        // Already expired, clean it up
         TOKENS.delete(token);
         cleaned++;
+      } else {
+        nearestExpiry = Math.min(nearestExpiry, entry.expiresAt);
       }
     }
+    
     if (cleaned > 0) {
       console.log(`[VideoServer] Cleaned up ${cleaned} expired tokens`);
     }
-  }, 60000);
+    
+    // Schedule next cleanup just after the nearest expiration
+    // Add 1 second buffer to ensure token has expired
+    const nextCheckIn = nearestExpiry === Infinity 
+      ? 60 * 1000 // No tokens, check in 1 minute
+      : Math.max(1000, nearestExpiry - now + 1000); // At least 1 second
+    
+    cleanupInterval = setTimeout(() => {
+      scheduleCleanup();
+    }, nextCheckIn);
+  };
   
-  // Clear interval on server close
+  // Start the cleanup scheduler
+  scheduleCleanup();
+  
+  // Make scheduleCleanup available globally for registerFile to trigger
+  (global as any).scheduleCleanup = scheduleCleanup;
+  
+  // Clear cleanup on server close
   server.on('close', () => {
-    clearInterval(cleanupInterval);
+    if (cleanupInterval) {
+      clearTimeout(cleanupInterval);
+      cleanupInterval = null;
+    }
+    delete (global as any).scheduleCleanup;
   });
   
   return {
@@ -175,15 +215,31 @@ export async function startVideoServer(): Promise<{
  * Create a register function for the given port
  */
 function createRegisterFunction(port: number) {
-  return (absPath: string, ttlMs = 60000): string => {
+  return (absPath: string, ttlMs?: number): string => {
+    // Default TTL based on use case - longer for exports
+    // This should be passed explicitly by the caller
+    const actualTtl = ttlMs || 30 * 60 * 1000; // 30 minutes default
     const token = crypto.randomUUID();
+    const expiresAt = Date.now() + actualTtl;
+    
     TOKENS.set(token, {
       absPath,
-      expiresAt: Date.now() + ttlMs
+      expiresAt
     });
     
     const url = `http://127.0.0.1:${port}/v/${token}`;
-    console.log(`[VideoServer] Registered: ${path.basename(absPath)} -> ${url}`);
+    console.log(`[VideoServer] Registered: ${path.basename(absPath)} -> ${url} (TTL: ${Math.round(actualTtl/1000)}s)`);
+    
+    // Trigger cleanup schedule in case this is the first/only token
+    if (serverInstance) {
+      process.nextTick(() => {
+        // Use nextTick to avoid recursion if called during cleanup
+        if (typeof (global as any).scheduleCleanup === 'function') {
+          (global as any).scheduleCleanup();
+        }
+      });
+    }
+    
     return url;
   };
 }

@@ -65,30 +65,27 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
   const totalMem = profile.totalMemoryGB || 4;
   const effectiveMemory = Math.max(rawAvailable, totalMem * 0.4);
 
-  // More aggressive worker allocation for better CPU utilization
-  let maxWorkers = 1;
-  if (cpuCores >= 4 && effectiveMemory >= 4) maxWorkers = Math.max(maxWorkers, 2);
-  if (cpuCores >= 6 && effectiveMemory >= 6) maxWorkers = Math.max(maxWorkers, 3);
-  if (cpuCores >= 8 && effectiveMemory >= 8) maxWorkers = Math.max(maxWorkers, 4);
-  if (cpuCores >= 10 && effectiveMemory >= 10) maxWorkers = Math.max(maxWorkers, 5);
-  if (cpuCores >= 12 && effectiveMemory >= 12) maxWorkers = Math.max(maxWorkers, 6);
-
-  // Additional workers for many chunks
-  if (chunkCount >= 4 && cpuCores >= 6) {
-    maxWorkers = Math.max(maxWorkers, 3);
+  // Aggressive worker allocation - use 70-80% of CPU cores
+  // Leave some headroom for system and UI responsiveness
+  let idealWorkers = Math.floor(cpuCores * 0.7);
+  
+  // Memory constraint: Each worker needs ~500MB-1GB
+  const memoryBasedWorkers = Math.floor(effectiveMemory);
+  
+  // Take the minimum of CPU-based and memory-based limits
+  let maxWorkers = Math.min(idealWorkers, memoryBasedWorkers);
+  
+  // Ensure at least 2 workers if we have 4+ cores
+  if (cpuCores >= 4) {
+    maxWorkers = Math.max(maxWorkers, 2);
   }
-  if (chunkCount >= 8 && cpuCores >= 8 && effectiveMemory >= 6) {
-    maxWorkers = Math.max(maxWorkers, 4);
-  }
-
-  // Less conservative CPU/memory limits
-  const cpuLimited = Math.max(1, Math.floor(cpuCores / 2)); // Changed from /4 to /2
-  const memLimited = Math.max(1, Math.floor(effectiveMemory / 2)); // Changed from /3 to /2
-
-  maxWorkers = Math.min(maxWorkers, cpuLimited, memLimited);
-  maxWorkers = Math.min(maxWorkers, 8); // Increased from 4 to 8 max workers
+  
+  // Cap at chunk count (no point having more workers than chunks)
   maxWorkers = Math.min(maxWorkers, chunkCount);
-
+  
+  // Reasonable upper limit to prevent system overload
+  maxWorkers = Math.min(maxWorkers, cpuCores - 1); // Leave 1 core for system
+  
   return Math.max(1, maxWorkers);
 };
 

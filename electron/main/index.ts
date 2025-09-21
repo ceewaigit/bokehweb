@@ -420,8 +420,9 @@ async function initializeApp(): Promise<void> {
 app.whenReady().then(initializeApp)
 
 if (isDev) {
-  app.commandLine.appendSwitch('enable-logging')
-  app.commandLine.appendSwitch('v', '1')
+  // Reduce logging verbosity - don't log media stream details
+  app.commandLine.appendSwitch('enable-logging', 'stderr')
+  app.commandLine.appendSwitch('log-level', '2') // Only warnings and errors
 }
 
 // Aggressive GPU acceleration flags

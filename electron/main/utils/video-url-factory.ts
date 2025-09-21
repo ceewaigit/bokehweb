@@ -42,5 +42,5 @@ export async function makeVideoSrc(absPath: string, target: VideoTarget): Promis
   if (!server) {
     throw new Error('Failed to start video HTTP server')
   }
-  return server.registerFile(cleanPath, 5 * 60 * 1000) // 5 minute TTL
+  return server.registerFile(cleanPath, 30 * 60 * 1000) // 30 minute TTL for exports
 }
