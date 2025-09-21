@@ -4,7 +4,7 @@ import { TypingPeriod, TypingSuggestions } from '@/lib/timeline/typing-detector'
 import { TimeConverter } from '@/lib/timeline/time-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import type { Clip } from '@/types/project'
-import { mapRecordingToClipTime } from '@/lib/timeline/clip-utils'
+import { sourceToTimeline } from '@/lib/timeline/time-space-converter'
 
 const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
 
@@ -52,11 +52,23 @@ export const TypingSuggestionsBar: React.FC<TypingSuggestionsBarProps> = ({
   const children: React.ReactNode[] = []
 
   relevantPeriods.forEach((period, index) => {
-    let absStart = Math.max(period.startTime, clipStartTime)
-    let absEnd = Math.min(period.endTime, clipEndTime)
+    // Convert typing period times from source space to timeline space
+    let absStart: number
+    let absEnd: number
+    
     if (clip) {
-      absStart = Math.max(clip.startTime + mapRecordingToClipTime(clip, period.startTime), clip.startTime)
-      absEnd = Math.min(clip.startTime + mapRecordingToClipTime(clip, period.endTime), clip.startTime + clip.duration)
+      // period.startTime and period.endTime are in source space (recording metadata)
+      // Convert them to timeline space for proper positioning
+      absStart = sourceToTimeline(period.startTime, clip)
+      absEnd = sourceToTimeline(period.endTime, clip)
+      
+      // Clamp to clip bounds in timeline space
+      absStart = Math.max(absStart, clip.startTime)
+      absEnd = Math.min(absEnd, clip.startTime + clip.duration)
+    } else {
+      // Fallback for non-clip contexts (shouldn't normally happen)
+      absStart = Math.max(period.startTime, clipStartTime)
+      absEnd = Math.min(period.endTime, clipEndTime)
     }
 
     const relStart = Math.max(0, absStart - clipStartTime)

@@ -2,6 +2,7 @@ import type { Effect, Recording, Clip, Project, ZoomEffectData, BackgroundEffect
 import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
 import { ZoomDetector } from './utils/zoom-detector'
 import { getDefaultWallpaper } from '@/lib/constants/default-effects'
+import { sourceToTimeline } from '@/lib/timeline/time-space-converter'
 
 export class EffectsFactory {
   static createZoomEffectsFromRecording(recording: Recording, clip: Clip): Effect[] {
@@ -15,11 +16,16 @@ export class EffectsFactory {
     )
 
     zoomBlocks.forEach((block, index) => {
+      // Convert zoom block times from source space to timeline space
+      // block.startTime and block.endTime are in source space (recording metadata)
+      const timelineStart = sourceToTimeline(block.startTime, clip)
+      const timelineEnd = sourceToTimeline(block.endTime, clip)
+      
       const zoomEffect: Effect = {
         id: `zoom-${clip.id}-${index}`,
         type: EffectType.Zoom,
-        startTime: clip.startTime + block.startTime,
-        endTime: clip.startTime + block.endTime,
+        startTime: timelineStart,  // Now in timeline space
+        endTime: timelineEnd,      // Now in timeline space
         data: {
           scale: block.scale,
           targetX: block.targetX,

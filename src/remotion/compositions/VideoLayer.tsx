@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Video, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
@@ -228,8 +228,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
-        {/* Use OffthreadVideo for frame caching and better performance */}
-        <OffthreadVideo
+        {/* Use Video component - more efficient with limited memory */}
+        <Video
           src={finalVideoUrl}
           style={videoStyle}
           volume={1}

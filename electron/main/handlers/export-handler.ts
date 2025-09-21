@@ -22,14 +22,16 @@ import { preFilterMetadataForChunks, getRecordingsInTimeRange } from '../utils/m
 function getOptimalChunkSize(profile: MachineProfile): number {
   const availableGB = profile.availableMemoryGB || 2;
   
-  if (availableGB < 2) {
-    return 500; // Low memory: smaller chunks
+  // Even with low memory, use larger chunks to reduce overhead
+  // The bottleneck is worker count, not chunk size
+  if (availableGB < 1) {
+    return 1000; // Low memory: still use 1000 frames to reduce overhead
   } else if (availableGB < 4) {
-    return 1000; // Medium memory
+    return 1500; // Medium memory
   } else if (availableGB < 8) {
-    return 1500; // Good memory
+    return 2000; // Good memory
   } else {
-    return 2000; // High memory: larger chunks for better performance
+    return 2500; // High memory: larger chunks for best performance
   }
 }
 
@@ -73,13 +75,19 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
   }
 
   const cpuCores = Math.max(1, profile.cpuCores || 1);
-  const rawAvailable = profile.availableMemoryGB ?? 0;
+  const availableMemoryGB = profile.availableMemoryGB ?? 0;
   const totalMem = profile.totalMemoryGB || 4;
-  const effectiveMemory = Math.max(rawAvailable, totalMem * 0.4);
+  
+  // CRITICAL: If available memory is very low, limit workers severely
+  if (availableMemoryGB < 1) {
+    // With < 1GB available, use at most 2 workers to prevent thrashing
+    return Math.min(2, chunkCount);
+  }
+  
+  const effectiveMemory = Math.max(availableMemoryGB, totalMem * 0.4);
 
-  // Aggressive worker allocation - use 70-80% of CPU cores
-  // Leave some headroom for system and UI responsiveness
-  let idealWorkers = Math.floor(cpuCores * 0.7);
+  // Conservative worker allocation for stability
+  let idealWorkers = Math.floor(cpuCores * 0.5); // Reduced from 0.7
   
   // Memory constraint: Each worker needs ~500MB-1GB
   const memoryBasedWorkers = Math.floor(effectiveMemory);
@@ -87,8 +95,8 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
   // Take the minimum of CPU-based and memory-based limits
   let maxWorkers = Math.min(idealWorkers, memoryBasedWorkers);
   
-  // Ensure at least 2 workers if we have 4+ cores
-  if (cpuCores >= 4) {
+  // Ensure at least 2 workers if we have 4+ cores AND enough memory
+  if (cpuCores >= 4 && availableMemoryGB >= 2) {
     maxWorkers = Math.max(maxWorkers, 2);
   }
   
@@ -96,7 +104,7 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
   maxWorkers = Math.min(maxWorkers, chunkCount);
   
   // Reasonable upper limit to prevent system overload
-  maxWorkers = Math.min(maxWorkers, cpuCores - 1); // Leave 1 core for system
+  maxWorkers = Math.min(maxWorkers, Math.max(1, cpuCores - 2)); // Leave 2 cores for system
   
   return Math.max(1, maxWorkers);
 };
@@ -543,12 +551,13 @@ export function setupExportHandler() {
           const worker = await getOrCreateWorker(workerName);
           const detach = attachProgressForwarder(worker);
           try {
-            // Convert pre-filtered metadata for this worker's chunks
-            const workerPreFilteredMetadata = new Map();
+            // Convert pre-filtered metadata to plain object for IPC serialization
+            const workerPreFilteredMetadata: Record<number, Record<string, any>> = {};
             for (const chunk of group) {
               const chunkMetadata = preFilteredMetadata.get(chunk.index);
               if (chunkMetadata) {
-                workerPreFilteredMetadata.set(chunk.index, chunkMetadata);
+                // Convert Map to plain object
+                workerPreFilteredMetadata[chunk.index] = Object.fromEntries(chunkMetadata);
               }
             }
             

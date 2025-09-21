@@ -3,6 +3,7 @@ import { Sequence, useVideoConfig } from 'remotion';
 import { MainComposition } from './MainComposition';
 import type { TimelineSegment } from '@/lib/export/timeline-processor';
 import type { Recording, Effect } from '@/types';
+import { sourceToClipRelative } from '@/lib/timeline/time-space-converter';
 
 export interface SegmentsCompositionProps {
   segments: TimelineSegment[];
@@ -98,9 +99,9 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
       const clipDuration = clip.duration || Math.max(0, (sourceOut - sourceIn) / rate);
 
       const convertTimestamp = (ts: number) => {
-        const normalized = (ts - sourceIn) / rate;
-        if (!isFinite(normalized)) return 0;
-        return Math.max(0, Math.min(clipDuration, normalized));
+        // Use centralized converter for source to clip-relative conversion
+        const clipRelativeTime = sourceToClipRelative(ts, clip);
+        return Math.max(0, Math.min(clipDuration, clipRelativeTime));
       };
 
       const within = (ts: number) => ts >= sourceIn && ts <= sourceOut;

@@ -92,16 +92,12 @@ export function splitClipAtTime(
   const timestamp = Date.now()
   const playbackRate = clip.playbackRate || 1
   
-  // Handle time remapping if present
-  let sourceSplitPoint: number
-  if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
-    // Use the inverse mapping to get source time from clip-relative time
-    const { mapClipToRecordingTime } = require('../timeline/clip-utils')
-    sourceSplitPoint = mapClipToRecordingTime(clip, relativeSplitTime) - clip.sourceIn
-  } else {
-    // Simple calculation when no time remapping
-    sourceSplitPoint = relativeSplitTime * playbackRate
-  }
+  // Import the proper conversion function
+  const { clipRelativeToSource } = require('../timeline/time-space-converter')
+  
+  // Convert clip-relative split time to source space
+  const sourceSplitAbsolute = clipRelativeToSource(relativeSplitTime, clip)
+  const sourceSplitPoint = sourceSplitAbsolute - clip.sourceIn
 
   const firstClip: Clip = {
     id: `${clip.id}-split1-${timestamp}`,
@@ -154,13 +150,17 @@ export function splitClipAtTime(
 export function executeSplitClip(
   project: Project,
   clipId: string,
-  splitTime: number
+  splitTime: number  // This is in timeline space
 ): { firstClip: Clip; secondClip: Clip } | null {
   const result = findClipById(project, clipId)
   if (!result) return null
 
   const { clip, track } = result
-  const splitResult = splitClipAtTime(clip, splitTime)
+  
+  // Convert timeline position to clip-relative time
+  const clipRelativeTime = splitTime - clip.startTime
+  
+  const splitResult = splitClipAtTime(clip, clipRelativeTime)
   if (!splitResult) return null
 
   const clipIndex = track.clips.findIndex(c => c.id === clipId)
@@ -459,50 +459,5 @@ export function addRecordingToProject(
   return clip
 }
 
-// === Typing Speed Application (merged from typing-speed-application.ts) ===
-
-interface TimeRemapPeriod {
-  sourceStartTime: number
-  sourceEndTime: number
-  speedMultiplier: number
-}
-
-export function applyTypingSpeedToClip(
-  project: Project,
-  clipId: string,
-  periods: Array<{ startTime: number; endTime: number; suggestedSpeedMultiplier: number }>
-): { affectedClips: string[]; originalClips: Clip[] } {
-  const result = findClipById(project, clipId)
-  if (!result) {
-    return { affectedClips: [], originalClips: [] }
-  }
-
-  const { clip, track } = result
-  const originalClip = { ...clip }
-
-  const timeRemapPeriods: TimeRemapPeriod[] = periods.map(period => ({
-    sourceStartTime: period.startTime,
-    sourceEndTime: period.endTime,
-    speedMultiplier: period.suggestedSpeedMultiplier
-  }))
-
-  let newDuration = 0
-  for (const period of timeRemapPeriods) {
-    const periodDuration = period.sourceEndTime - period.sourceStartTime
-    const periodPlaybackDuration = periodDuration / period.speedMultiplier
-    newDuration += periodPlaybackDuration
-  }
-
-  clip.timeRemapPeriods = timeRemapPeriods
-  clip.duration = newDuration
-  clip.typingSpeedApplied = true
-
-  reflowClips(track, track.clips.indexOf(clip), project)
-  project.timeline.duration = calculateTimelineDuration(project)
-  project.modifiedAt = new Date().toISOString()
-
-  return {
-    affectedClips: [clipId],
-    originalClips: [originalClip]
-  }
-}
+// Typing speed is now handled by TypingSpeedApplicationService
+// which uses playbackRate instead of timeRemapPeriods

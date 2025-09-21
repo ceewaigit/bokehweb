@@ -374,7 +374,9 @@ export const useProjectStore = create<ProjectStore>()(
           return
         }
 
-        // Use the service to execute the split
+        // Note: splitTime is in timeline space (what user sees on UI)
+        // executeSplitClip expects timeline-relative position, not clip-relative
+        // The conversion to clip-relative happens inside executeSplitClip
         const result = executeSplitClip(state.currentProject, clipId, splitTime)
         if (!result) {
           return

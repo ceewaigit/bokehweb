@@ -1,6 +1,7 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
+import { timelineToClipRelative } from '@/lib/timeline/time-space-converter'
 
 export interface SplitClipResult {
   originalClipId: string
@@ -32,7 +33,8 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     if (!result) return false
 
     const { clip } = result
-    const relativeTime = this.splitTime - clip.startTime
+    // Convert timeline position to clip-relative time properly
+    const relativeTime = timelineToClipRelative(this.splitTime, clip)
 
     // Can only split within clip bounds
     return relativeTime > 0 && relativeTime < clip.duration
@@ -56,7 +58,8 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     // Store original clip
     this.originalClip = JSON.parse(JSON.stringify(clip))
     
-    const relativeTime = this.splitTime - clip.startTime
+    // Convert timeline position to clip-relative time properly
+    const relativeTime = timelineToClipRelative(this.splitTime, clip)
     
     if (relativeTime <= 0 || relativeTime >= clip.duration) {
       return {

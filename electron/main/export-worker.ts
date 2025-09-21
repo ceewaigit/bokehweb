@@ -50,7 +50,7 @@ interface ExportJob {
   totalChunks?: number;
   totalFrames?: number;
   combineChunksInWorker?: boolean;
-  preFilteredMetadata?: Map<number, Map<string, any>>; // Pre-filtered metadata by chunk
+  preFilteredMetadata?: Record<number, Record<string, any>> | Map<number, Map<string, any>>; // Pre-filtered metadata by chunk
 }
 
 class ExportWorker extends BaseWorker {
@@ -315,10 +315,25 @@ class ExportWorker extends BaseWorker {
         let filteredMetadata: any = {};
         
         // Check if we have pre-filtered metadata for this chunk
-        if (job.preFilteredMetadata && job.preFilteredMetadata instanceof Map) {
-          const chunkMetadata = job.preFilteredMetadata.get(chunkInfo.index);
-          if (chunkMetadata && chunkMetadata instanceof Map) {
-            filteredMetadata = Object.fromEntries(chunkMetadata);
+        if (job.preFilteredMetadata) {
+          // Handle both Map and plain object formats
+          let chunkMetadata: any;
+          if (job.preFilteredMetadata instanceof Map) {
+            chunkMetadata = job.preFilteredMetadata.get(chunkInfo.index);
+            if (chunkMetadata instanceof Map) {
+              filteredMetadata = Object.fromEntries(chunkMetadata);
+            } else if (chunkMetadata) {
+              filteredMetadata = chunkMetadata;
+            }
+          } else {
+            // Plain object format from IPC
+            chunkMetadata = job.preFilteredMetadata[chunkInfo.index];
+            if (chunkMetadata) {
+              filteredMetadata = chunkMetadata;
+            }
+          }
+          
+          if (Object.keys(filteredMetadata).length > 0) {
             console.log(`[ExportWorker] Using pre-filtered metadata for chunk ${chunkInfo.index + 1}`);
           }
         }

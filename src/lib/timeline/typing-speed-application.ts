@@ -11,7 +11,7 @@ const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
 export class TypingSpeedApplicationService {
   /**
    * Apply typing speed suggestions to a clip by splitting it into multiple clips
-   * Each split clip has timeRemapPeriods for proper cursor synchronization
+   * Each split clip has its playbackRate adjusted for the typing speed
    * Returns the affected clips and original state for undo
    * 
    * @param periods - Array of typing periods with at least startTime, endTime, and suggestedSpeedMultiplier
@@ -48,7 +48,7 @@ export class TypingSpeedApplicationService {
     originalClips.push({ ...sourceClip })
 
     if (DEBUG_TYPING) {
-      console.log('[TypingApply] Splitting clip with time remap for typing speed', {
+      console.log('[TypingApply] Splitting clip with playback rate for typing speed', {
         clipId,
         periods: periods.map(p => ({
           start: p.startTime,
@@ -160,7 +160,7 @@ export class TypingSpeedApplicationService {
     }
 
     if (DEBUG_TYPING) {
-      console.log('[TypingApply] Clip split complete with time remap', {
+      console.log('[TypingApply] Clip split complete with playback rate', {
         originalClipId: sourceClip.id,
         newClipsCount: newClips.length,
         splitPoints: splitPoints.length,

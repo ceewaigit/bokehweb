@@ -10,7 +10,7 @@ import {
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
 import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
-import { mapClipToRecordingTime } from '@/lib/timeline/clip-utils';
+import { clipRelativeToSource } from '@/lib/timeline/time-space-converter';
 
 const getEventSourceTimestamp = (event: { sourceTimestamp?: number; timestamp: number }) =>
   typeof event.sourceTimestamp === 'number' ? event.sourceTimestamp : event.timestamp;
@@ -30,7 +30,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
-  const currentSourceTime = useMemo(() => clip ? mapClipToRecordingTime(clip, currentTimeMs) : currentTimeMs, [clip, currentTimeMs]);
+  const currentSourceTime = useMemo(() => clip ? clipRelativeToSource(currentTimeMs, clip) : currentTimeMs, [clip, currentTimeMs]);
 
   // Store previous positions for motion trail and smoothing
   const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);

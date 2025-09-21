@@ -68,9 +68,9 @@ export class MachineProfiler {
 
     const settings: DynamicExportSettings = {
       concurrency: baseConcurrency,
-      jpegQuality: 85, // High quality JPEG for minimal compression artifacts
-      videoBitrate: '10M', // Increased bitrate for better quality
-      x264Preset: 'fast', // Better balance of speed and compression
+      jpegQuality: 80, // Good quality with better performance
+      videoBitrate: '8M', // Balanced bitrate
+      x264Preset: 'veryfast', // Prioritize speed over compression
       useGPU: profile.gpuAvailable,
       offthreadVideoCacheSizeInBytes: 128 * 1024 * 1024, // 128MB for better caching
       enableAdaptiveOptimization: false
@@ -79,17 +79,17 @@ export class MachineProfiler {
     // Adjust based on quality preference
     switch (quality) {
       case 'quality':
-        settings.jpegQuality = 95; // Maximum quality
-        settings.videoBitrate = '15M'; // High bitrate for best quality
-        settings.x264Preset = 'slow'; // Better compression
+        settings.jpegQuality = 90; // High quality
+        settings.videoBitrate = '12M'; // High bitrate
+        settings.x264Preset = 'fast'; // Good balance
         settings.offthreadVideoCacheSizeInBytes = 256 * 1024 * 1024; // 256MB for quality mode
         break;
       
       case 'fast':
-        settings.jpegQuality = 75; // Lower but acceptable quality
-        settings.videoBitrate = '6M'; // Slightly higher for better quality
-        settings.x264Preset = 'veryfast'; // Faster than default
-        settings.concurrency = Math.max(settings.concurrency, 4); // Use more threads for speed
+        settings.jpegQuality = 70; // Lower quality for speed
+        settings.videoBitrate = '5M'; // Lower bitrate for speed
+        settings.x264Preset = 'ultrafast'; // Maximum speed
+        settings.concurrency = Math.min(settings.concurrency, 3); // Limit concurrency for stability
         settings.offthreadVideoCacheSizeInBytes = 64 * 1024 * 1024; // 64MB for fast mode
         break;
 

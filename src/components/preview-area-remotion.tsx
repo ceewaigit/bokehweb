@@ -8,7 +8,7 @@ import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Recording, Effect } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { mapRecordingToClipTime } from '@/lib/timeline/clip-utils'
+import { timelineToSource, sourceToClipRelative } from '@/lib/timeline/time-space-converter'
 
 interface PreviewAreaRemotionProps {
   playheadClip?: Clip | null
@@ -49,57 +49,9 @@ export function PreviewAreaRemotion({
   
   // Helper: compute recording-seconds from global timeline time and current clip
   const getRecordingSeconds = useCallback((clip: Clip, nowMs: number) => {
-    const clipStart = clip.startTime
-    const elapsedMs = Math.max(0, nowMs - clipStart)
-    const sourceInMs = clip.sourceIn || 0
-    
-    // If clip has time remap periods, use them
-    if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
-      // Calculate remapped source time
-      let currentSourceTime = sourceInMs
-      let remainingElapsed = elapsedMs
-      const playbackRate = clip.playbackRate || 1
-      
-      for (const period of clip.timeRemapPeriods) {
-        const periodDuration = period.sourceEndTime - period.sourceStartTime
-        const periodPlaybackDuration = periodDuration / period.speedMultiplier
-        
-        // If we're before this period starts
-        if (currentSourceTime < period.sourceStartTime) {
-          const gapDuration = period.sourceStartTime - currentSourceTime
-          const gapPlaybackDuration = gapDuration / playbackRate
-          
-          if (remainingElapsed <= gapPlaybackDuration) {
-            // We're in the gap before this period
-            return (currentSourceTime + remainingElapsed * playbackRate) / 1000
-          }
-          
-          remainingElapsed -= gapPlaybackDuration
-          currentSourceTime = period.sourceStartTime
-        }
-        
-        // If we're within this period
-        if (currentSourceTime >= period.sourceStartTime && currentSourceTime < period.sourceEndTime) {
-          const remainingInPeriod = period.sourceEndTime - currentSourceTime
-          const remainingPlaybackInPeriod = remainingInPeriod / period.speedMultiplier
-          
-          if (remainingElapsed <= remainingPlaybackInPeriod) {
-            // We end within this period
-            return (currentSourceTime + remainingElapsed * period.speedMultiplier) / 1000
-          }
-          
-          remainingElapsed -= remainingPlaybackInPeriod
-          currentSourceTime = period.sourceEndTime
-        }
-      }
-      
-      // Any remaining time after all periods plays at normal rate
-      return (currentSourceTime + remainingElapsed * playbackRate) / 1000
-    }
-    
-    // Otherwise use simple calculation with playback rate
-    const rate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
-    return (sourceInMs / 1000) + (elapsedMs / 1000) * rate
+    // Convert timeline position to source time using centralized converter
+    const sourceMs = timelineToSource(nowMs, clip)
+    return sourceMs / 1000
   }, [])
   
   // Handle clip transitions
@@ -245,7 +197,7 @@ export function PreviewAreaRemotion({
     const within = (ts: number) => ts >= sourceIn && ts <= sourceOut
 
     const convertTimestamp = (ts: number) => {
-      const mapped = mapRecordingToClipTime(clip, ts)
+      const mapped = sourceToClipRelative(ts, clip)
       if (!isFinite(mapped)) return 0
       return Math.max(0, Math.min(clipDuration, mapped))
     }
