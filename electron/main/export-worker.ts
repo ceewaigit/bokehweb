@@ -192,9 +192,9 @@ class ExportWorker extends BaseWorker {
       outputLocation: job.outputPath,
       codec: 'h264',
       videoBitrate: job.videoBitrate,
-      // Use no intermediate image format for direct video-to-video encoding
-      // This avoids JPEG compression artifacts and speeds up rendering
-      imageFormat: 'none',
+      // Use high-quality JPEG for compatibility and performance
+      jpegQuality: Math.max(job.jpegQuality || 85, 85), // Minimum 85 quality
+      imageFormat: 'jpeg',
       concurrency: renderConcurrency,
       enforceAudioTrack: false, // Don't require audio track
       offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
@@ -297,7 +297,8 @@ class ExportWorker extends BaseWorker {
         }
         
         // Create temp file for this chunk
-        const chunkPath = path.join(tmpdir(), `remotion-chunk-${i}-${Date.now()}.mp4`);
+        // Use .mov extension when using imageFormat: 'none' with h264
+        const chunkPath = path.join(tmpdir(), `remotion-chunk-${i}-${Date.now()}.mov`);
         chunks.push(chunkPath);
         if (combineChunksInWorker) {
           this.currentExport?.tempFiles.push(chunkPath);
@@ -483,8 +484,9 @@ class ExportWorker extends BaseWorker {
           outputLocation: chunkPath,
           codec: 'h264',
           videoBitrate: job.videoBitrate,
-          // Use no intermediate image format for direct video-to-video encoding
-          imageFormat: 'none',
+          // Use high-quality JPEG for compatibility
+          jpegQuality: Math.max(job.jpegQuality || 85, 85),
+          imageFormat: 'jpeg',
           frameRange: [0, chunkFrames - 1],
           concurrency: renderConcurrency,
           enforceAudioTrack: false, // Don't require audio track
