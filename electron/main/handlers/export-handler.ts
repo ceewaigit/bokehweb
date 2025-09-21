@@ -334,7 +334,7 @@ export function setupExportHandler() {
       });
 
       // Pre-filter metadata for all chunks to avoid redundant processing
-      const metadataMapForFiltering = new Map(Object.entries(metadata));
+      const metadataMapForFiltering = new Map(Object.entries(metadata)) as Map<string, any>;
       const preFilteredMetadata = preFilterMetadataForChunks(metadataMapForFiltering, chunkPlan);
 
       const ffmpegPath = resolveFfmpegPath();
