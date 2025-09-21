@@ -316,14 +316,41 @@ function registerAllHandlers(): void {
       
       // Handle relative paths with folder context
       if (folderPath) {
-        const basePath = path.isAbsolute(folderPath) 
-          ? path.dirname(folderPath)  // folderPath points to recording folder; video is in parent
-          : folderPath
-        const fullPath = path.join(basePath, filePath)
-        const videoUrl = await makeVideoSrc(fullPath, 'preview')
-        return videoUrl
+        const recordingsDir = getRecordingsDirectory()
+        const normalizedFolder = normalizeCrossPlatform(folderPath)
+        const resolvedFolder = path.isAbsolute(normalizedFolder)
+          ? normalizedFolder
+          : path.join(recordingsDir, normalizedFolder)
+
+        const parentDir = path.dirname(resolvedFolder)
+        const candidates = new Set<string>()
+
+        if (filePath) {
+          const normalizedFile = normalizeCrossPlatform(filePath)
+          const fileName = path.basename(normalizedFile)
+
+          // New structure: media lives inside the recording folder
+          candidates.add(path.join(resolvedFolder, fileName))
+
+          // Handle relative paths that already include the recording folder name
+          if (!path.isAbsolute(normalizedFile) && parentDir && parentDir !== resolvedFolder) {
+            candidates.add(path.join(parentDir, normalizedFile))
+          }
+
+          // Legacy structure: media sits alongside the recording folder
+          if (parentDir && parentDir !== resolvedFolder) {
+            candidates.add(path.join(parentDir, fileName))
+          }
+        }
+
+        for (const candidate of candidates) {
+          if (fs.existsSync(candidate)) {
+            const videoUrl = await makeVideoSrc(candidate, 'preview')
+            return videoUrl
+          }
+        }
       }
-      
+
       // Try to find the video file
       const foundPath = findVideoFile(filePath)
       if (foundPath) {

@@ -10,7 +10,7 @@ import { EffectsFactory } from '@/lib/effects/effects-factory';
 
 export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoUrl,
-  clip,  // Keep for potential future use
+  clip,
   nextClip,  // Keep for potential future use
   effects,
   zoomBlocks,
@@ -47,6 +47,18 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     videoHeight,
     padding
   );
+
+  const clipPlaybackRate = clip?.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1;
+  const clipSourceIn = clip?.sourceIn || 0;
+  const clipSourceOut = clip?.sourceOut;
+  const startFrame = Math.max(0, Math.floor((clipSourceIn / 1000) * fps));
+  const endFrame = clipSourceOut !== undefined
+    ? Math.max(startFrame + 1, Math.floor((clipSourceOut / 1000) * fps))
+    : undefined;
+  const rawMappedFrame = startFrame + frame * clipPlaybackRate;
+  const mappedFrame = endFrame !== undefined
+    ? Math.min(endFrame - 1, Math.max(startFrame, Math.round(rawMappedFrame)))
+    : Math.max(startFrame, Math.round(rawMappedFrame));
 
   // Apply zoom if enabled
   let transform = '';
@@ -235,9 +247,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           style={videoStyle}
           volume={1}
           muted={false}
-          playbackRate={1}
           pauseWhenBuffering={false}
           crossOrigin="anonymous"
+          frame={mappedFrame}
           onError={(e) => {
             console.error('Video playback error:', {
               error: e,

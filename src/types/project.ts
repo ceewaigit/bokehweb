@@ -148,6 +148,7 @@ export interface RecordingMetadata {
 
 export interface MouseEvent {
   timestamp: number
+  sourceTimestamp?: number
   x: number
   y: number
   screenWidth: number
@@ -159,18 +160,21 @@ export interface MouseEvent {
 
 export interface ScrollEvent {
   timestamp: number
+  sourceTimestamp?: number
   deltaX: number
   deltaY: number
 }
 
 export interface KeyboardEvent {
   timestamp: number
+  sourceTimestamp?: number
   key: string
   modifiers: string[]
 }
 
 export interface ClickEvent {
   timestamp: number
+  sourceTimestamp?: number
   x: number
   y: number
   button: MouseButton

@@ -457,8 +457,8 @@ export class BlobURLManager {
   }
 
   // Alias for backward compatibility
-  async ensureVideoLoaded(recordingId: string, filePath?: string): Promise<string | null> {
-    return this.loadVideos({ id: recordingId, filePath }) as Promise<string | null>
+  async ensureVideoLoaded(recordingId: string, filePath?: string, folderPath?: string): Promise<string | null> {
+    return this.loadVideos({ id: recordingId, filePath, folderPath }) as Promise<string | null>
   }
 
   /**

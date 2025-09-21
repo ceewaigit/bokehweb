@@ -11,6 +11,14 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import { tmpdir } from 'os';
 
+interface ChunkAssignment {
+  index: number;
+  startFrame: number;
+  endFrame: number;
+  startTimeMs: number;
+  endTimeMs: number;
+}
+
 interface ExportJob {
   bundleLocation: string;
   compositionMetadata: {
@@ -34,8 +42,14 @@ interface ExportJob {
   videoBitrate: string;
   x264Preset: string;
   useGPU: boolean;
+  concurrency?: number;
   ffmpegPath: string;
   compositorDir: string | null;
+  chunkSizeFrames?: number;
+  assignedChunks?: ChunkAssignment[];
+  totalChunks?: number;
+  totalFrames?: number;
+  combineChunksInWorker?: boolean;
 }
 
 class ExportWorker extends BaseWorker {
@@ -115,12 +129,24 @@ class ExportWorker extends BaseWorker {
       console.log(`[ExportWorker] Starting export: ${totalFrames} frames at ${fps}fps (${durationInSeconds.toFixed(1)}s)`);
 
       // Determine if we need chunked rendering
-      const CHUNK_SIZE_FRAMES = 2000; // ~1 minute at 30fps, ~33s at 60fps
-      const needsChunking = totalFrames > CHUNK_SIZE_FRAMES;
+      const chunkAssignments = Array.isArray(job.assignedChunks) && job.assignedChunks.length > 0
+        ? job.assignedChunks
+        : null;
+
+      const chunkSize = job.chunkSizeFrames ?? 2000; // ~1 minute at 30fps, ~33s at 60fps
+      const needsChunking = totalFrames > chunkSize || !!chunkAssignments;
 
       if (needsChunking) {
         console.log(`[ExportWorker] Using chunked rendering for ${totalFrames} frames`);
-        return await this.performChunkedExport(job, composition, totalFrames, CHUNK_SIZE_FRAMES, startTime);
+        return await this.performChunkedExport(
+          job,
+          composition,
+          totalFrames,
+          chunkSize,
+          startTime,
+          chunkAssignments || undefined,
+          job.combineChunksInWorker !== false
+        );
       } else {
         console.log(`[ExportWorker] Using single-pass rendering for ${totalFrames} frames`);
         return await this.performSingleExport(job, composition, totalFrames, startTime);
@@ -145,7 +171,8 @@ class ExportWorker extends BaseWorker {
   ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
     
     const { renderMedia } = await import('@remotion/renderer');
-    
+    const renderConcurrency = Math.max(1, job.concurrency || 1);
+
     // Send progress updates
     this.send('progress', {
       progress: 10,
@@ -166,7 +193,7 @@ class ExportWorker extends BaseWorker {
       videoBitrate: job.videoBitrate,
       jpegQuality: job.jpegQuality,
       imageFormat: 'jpeg',
-      concurrency: 1, // Keep low for memory stability
+      concurrency: renderConcurrency,
       enforceAudioTrack: false, // Don't require audio track
       offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
       chromiumOptions: {
@@ -228,33 +255,51 @@ class ExportWorker extends BaseWorker {
     composition: any,
     totalFrames: number,
     chunkSize: number,
-    startTime: number = Date.now()
-  ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-    
+    startTime: number = Date.now(),
+    providedChunks?: ChunkAssignment[],
+    combineChunksInWorker: boolean = true
+  ): Promise<{ success: boolean; outputPath?: string; error?: string; chunkResults?: Array<{ index: number; path: string }> }> {
+
     const { renderMedia } = await import('@remotion/renderer');
     
     const chunks: string[] = [];
-    const numChunks = Math.ceil(totalFrames / chunkSize);
-    
-    console.log(`[ExportWorker] Rendering ${numChunks} chunks of ${chunkSize} frames each`);
+    const preservedChunkResults: Array<{ index: number; path: string }> = [];
+      const renderConcurrency = Math.max(1, job.concurrency || 1);
+
+      const chunkPlan: ChunkAssignment[] = providedChunks && providedChunks.length > 0
+        ? [...providedChunks].sort((a, b) => a.index - b.index)
+        : this.buildChunkPlan(totalFrames, chunkSize, job.settings.framerate || composition.fps || 30);
+
+    const totalChunkCount = job.totalChunks ?? chunkPlan.length;
+    const fps = job.settings.framerate || composition.fps || 30;
+    const numChunks = chunkPlan.length;
+
+    console.log(`[ExportWorker] Rendering ${numChunks} chunks of ${chunkSize} frames each (combine=${combineChunksInWorker})`);
 
     try {
       for (let i = 0; i < numChunks; i++) {
-        const startFrame = i * chunkSize;
-        const endFrame = Math.min(startFrame + chunkSize - 1, totalFrames - 1);
+        const chunkInfo = chunkPlan[i];
+        const startFrame = chunkInfo.startFrame;
+        const endFrame = chunkInfo.endFrame;
         const chunkFrames = endFrame - startFrame + 1;
+
+        if (chunkFrames <= 0) {
+          console.warn(`[ExportWorker] Skipping empty chunk ${chunkInfo.index + 1}/${totalChunkCount}`);
+          continue;
+        }
         
         // Create temp file for this chunk
         const chunkPath = path.join(tmpdir(), `remotion-chunk-${i}-${Date.now()}.mp4`);
         chunks.push(chunkPath);
-        this.currentExport?.tempFiles.push(chunkPath);
+        if (combineChunksInWorker) {
+          this.currentExport?.tempFiles.push(chunkPath);
+        }
         
-        console.log(`[ExportWorker] Rendering chunk ${i + 1}/${numChunks}: frames ${startFrame}-${endFrame}`);
+        console.log(`[ExportWorker] Rendering chunk ${chunkInfo.index + 1}/${totalChunkCount}: frames ${startFrame}-${endFrame}`);
         
         // Calculate time range for this chunk
-        const fps = job.settings.framerate || composition.fps || 30;
-        const chunkStartTimeMs = (startFrame / fps) * 1000;
-        const chunkEndTimeMs = (endFrame / fps) * 1000;
+        const chunkStartTimeMs = chunkInfo.startTimeMs;
+        const chunkEndTimeMs = chunkInfo.endTimeMs;
         
         // Filter segments for this chunk's time range
         let chunkInputProps = { ...job.inputProps };
@@ -279,28 +324,59 @@ class ExportWorker extends BaseWorker {
             }
           });
           
-          console.log(`[ExportWorker] Chunk ${i + 1}: Using ${recordingIds.size} recordings`);
+          console.log(`[ExportWorker] Chunk ${chunkInfo.index + 1}: Using ${recordingIds.size} recordings`);
           
-          // Create minimal segments with adjusted times
-          const minimalSegments = chunkSegments.map((segment: any) => ({
-            id: segment.id,
-            startTime: Math.max(0, segment.startTime - chunkStartTimeMs),
-            endTime: segment.endTime - chunkStartTimeMs,
-            clips: segment.clips?.map((clipData: any) => ({
-              clip: {
-                recordingId: clipData.clip?.recordingId,
-                startTime: clipData.clip?.startTime,
-                endTime: clipData.clip?.endTime
-              },
-              recording: {
-                id: clipData.recording?.id,
-                filePath: clipData.recording?.filePath
-              },
-              segmentStartTime: clipData.segmentStartTime,
-              segmentEndTime: clipData.segmentEndTime
-            })) || [],
-            effects: segment.effects || []
-          }));
+          const trimmedSegments = chunkSegments.map((segment: any) => {
+            const trimmedSegmentStart = Math.max(chunkStartTimeMs, segment.startTime);
+            const trimmedSegmentEnd = Math.min(chunkEndTimeMs, segment.endTime);
+
+            if (!Number.isFinite(trimmedSegmentStart) || !Number.isFinite(trimmedSegmentEnd) || trimmedSegmentEnd <= trimmedSegmentStart) {
+              return null;
+            }
+
+            const trimmedClips = (segment.clips || [])
+              .map((clipData: any) => {
+                if (!clipData?.clip) {
+                  return null;
+                }
+
+                const clipStartAbs = clipData.clip.startTime + (clipData.segmentStartTime || 0);
+                const clipEndAbs = clipData.clip.startTime + (clipData.segmentEndTime || 0);
+
+                const clippedStart = Math.max(chunkStartTimeMs, clipStartAbs);
+                const clippedEnd = Math.min(chunkEndTimeMs, clipEndAbs);
+
+                if (!Number.isFinite(clippedStart) || !Number.isFinite(clippedEnd) || clippedEnd <= clippedStart) {
+                  return null;
+                }
+
+                const clipRelativeStart = Math.max(0, clippedStart - clipData.clip.startTime);
+                const clipRelativeEnd = Math.max(0, clippedEnd - clipData.clip.startTime);
+
+                return {
+                  ...clipData,
+                  segmentStartTime: clipRelativeStart,
+                  segmentEndTime: clipRelativeEnd
+                };
+              })
+              .filter(Boolean);
+
+            if (trimmedClips.length === 0) {
+              return null;
+            }
+
+            const trimmedEffects = (segment.effects || [])
+              .filter((effect: any) => effect && effect.endTime > chunkStartTimeMs && effect.startTime < chunkEndTimeMs)
+              .map((effect: any) => ({ ...effect }));
+
+            return {
+              ...segment,
+              startTime: trimmedSegmentStart - chunkStartTimeMs,
+              endTime: trimmedSegmentEnd - chunkStartTimeMs,
+              clips: trimmedClips,
+              effects: trimmedEffects
+            };
+          }).filter(Boolean);
           
           // Filter metadata by time range - only include events within this chunk's window
           const filteredMetadata: Record<string, any> = {};
@@ -386,7 +462,7 @@ class ExportWorker extends BaseWorker {
           
           // Filter data to only what's needed for this chunk
           chunkInputProps = {
-            segments: minimalSegments,
+            segments: trimmedSegments,
             recordings: Object.fromEntries(
               Object.entries(job.inputProps.recordings || {})
                 .filter(([id]) => recordingIds.has(id))
@@ -401,31 +477,43 @@ class ExportWorker extends BaseWorker {
             quality: job.inputProps.quality
           };
           
-          console.log(`[ExportWorker] Chunk ${i + 1}: Filtered to ${chunkSegments.length} segments from ${allSegments.length} total`);
+          console.log(`[ExportWorker] Chunk ${chunkInfo.index + 1}: Filtered to ${trimmedSegments.length} segments from ${allSegments.length} total`);
         }
-        
+
         // Update progress
-        const baseProgress = (i / numChunks) * 80;
+        const baseProgress = (chunkInfo.index / Math.max(1, totalChunkCount)) * 80;
         this.send('progress', {
           progress: 10 + Math.round(baseProgress),
           stage: 'rendering',
-          message: `Rendering chunk ${i + 1} of ${numChunks}...`,
+          message: `Rendering chunk ${chunkInfo.index + 1} of ${totalChunkCount}...`,
           currentFrame: startFrame,
-          totalFrames
+          totalFrames,
+          chunkIndex: chunkInfo.index,
+          chunkCount: totalChunkCount,
+          chunkRenderedFrames: 0,
+          chunkTotalFrames: chunkFrames,
+          chunkStartFrame: startFrame,
+          chunkEndFrame: endFrame
         });
 
         // Render this chunk with filtered segments
+        const chunkComposition = {
+          ...composition,
+          durationInFrames: chunkFrames,
+          props: chunkInputProps,
+        };
+
         await renderMedia({
           serveUrl: job.bundleLocation,
-          composition,
+          composition: chunkComposition,
           inputProps: chunkInputProps,
           outputLocation: chunkPath,
           codec: 'h264',
           videoBitrate: job.videoBitrate,
           jpegQuality: job.jpegQuality,
           imageFormat: 'jpeg',
-          frameRange: [startFrame, endFrame],
-          concurrency: 1,
+          frameRange: [0, chunkFrames - 1],
+          concurrency: renderConcurrency,
           enforceAudioTrack: false, // Don't require audio track
           offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
           chromiumOptions: {
@@ -439,14 +527,20 @@ class ExportWorker extends BaseWorker {
           logLevel: 'info',
           onProgress: ({ renderedFrames }) => {
             const chunkProgress = renderedFrames / chunkFrames;
-            const totalProgress = 10 + ((i + chunkProgress) / numChunks) * 80;
+            const totalProgress = 10 + ((chunkInfo.index + chunkProgress) / Math.max(1, totalChunkCount)) * 80;
             
             this.send('progress', {
               progress: Math.round(totalProgress),
               currentFrame: startFrame + renderedFrames,
               totalFrames,
               stage: 'rendering',
-              message: `Rendering chunk ${i + 1}/${numChunks}: frame ${renderedFrames}/${chunkFrames}`
+              message: `Rendering chunk ${chunkInfo.index + 1}/${totalChunkCount}: frame ${renderedFrames}/${chunkFrames}`,
+              chunkIndex: chunkInfo.index,
+              chunkCount: totalChunkCount,
+              chunkRenderedFrames: renderedFrames,
+              chunkTotalFrames: chunkFrames,
+              chunkStartFrame: startFrame,
+              chunkEndFrame: endFrame
             });
           }
         });
@@ -455,6 +549,35 @@ class ExportWorker extends BaseWorker {
         if (global.gc) {
           global.gc();
         }
+      }
+
+      if (!combineChunksInWorker) {
+        preservedChunkResults.push(...chunks.map((chunkPath, idx) => ({
+          index: chunkPlan[idx].index,
+          path: chunkPath
+        })));
+
+        const lastChunk = chunkPlan[chunkPlan.length - 1];
+        const lastChunkFrames = lastChunk ? lastChunk.endFrame - lastChunk.startFrame + 1 : 0;
+
+        this.send('progress', {
+          progress: Math.min(90, 10 + Math.round(((lastChunk?.index ?? 0) + 1) / Math.max(1, totalChunkCount) * 80)),
+          stage: 'rendering',
+          message: 'Chunk rendering complete',
+          chunkIndex: lastChunk?.index ?? 0,
+          chunkCount: totalChunkCount,
+          chunkRenderedFrames: lastChunkFrames,
+          chunkTotalFrames: lastChunkFrames,
+          chunkStartFrame: lastChunk?.startFrame ?? 0,
+          chunkEndFrame: lastChunk?.endFrame ?? 0
+        });
+
+        await this.cleanup();
+
+        return {
+          success: true,
+          chunkResults: preservedChunkResults.sort((a, b) => a.index - b.index)
+        };
       }
 
       // Combine chunks
@@ -522,6 +645,28 @@ class ExportWorker extends BaseWorker {
       }
       throw error;
     }
+  }
+
+  private buildChunkPlan(totalFrames: number, chunkSize: number, fps: number): ChunkAssignment[] {
+    const numChunks = Math.ceil(totalFrames / chunkSize);
+    const plan: ChunkAssignment[] = [];
+
+    for (let index = 0; index < numChunks; index++) {
+      const startFrame = index * chunkSize;
+      const endFrame = Math.min(startFrame + chunkSize - 1, totalFrames - 1);
+      const startTimeMs = (startFrame / fps) * 1000;
+      const endTimeMs = ((endFrame + 1) / fps) * 1000;
+
+      plan.push({
+        index,
+        startFrame,
+        endFrame,
+        startTimeMs,
+        endTimeMs
+      });
+    }
+
+    return plan;
   }
 
   private async cancelExport(): Promise<void> {

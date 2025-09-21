@@ -387,17 +387,17 @@ export class RecordingStorage {
       const baseName = projectName || `Recording_${timestamp}`
       const recordingId = `recording-${Date.now()}`
       const projectFolder = `${recordingsDir}/${this.sanitizeName(baseName)}`
+      const recordingFolder = `${projectFolder}/${recordingId}`
 
-      // Move video file from temp to project folder
+      // Move video file from temp to project folder (new folder structure nests media inside recording folder)
       if (!window.electronAPI?.moveFile) {
         throw new Error('moveFile API not available')
       }
       
       const ext = videoPath.toLowerCase().endsWith('.mov') ? 'mov' : 
                   videoPath.toLowerCase().endsWith('.mp4') ? 'mp4' : 'webm'
-      const isQuickTime = ext === 'mov'
       const videoFileName = `${recordingId}.${ext}`
-      const videoFilePath = `${projectFolder}/${videoFileName}`
+      const videoFilePath = `${recordingFolder}/${videoFileName}`
       
       const moveResult = await window.electronAPI.moveFile(videoPath, videoFilePath)
       if (!moveResult?.success) {
@@ -489,7 +489,7 @@ export class RecordingStorage {
       // Add recording to project
       const recording: Recording = {
         id: recordingId,
-        filePath: videoFileName,
+        filePath: `${recordingId}/${videoFileName}`,
         duration,
         width,
         height,
@@ -497,7 +497,7 @@ export class RecordingStorage {
         hasAudio: hasAudio || false,
         captureArea: reconstructedCaptureArea,
         // For folder-based metadata storage
-        folderPath: `${projectFolder}/${recordingId}`,
+        folderPath: recordingFolder,
         // Keep metadata in memory for immediate use; will be omitted from saved project
         metadata: {
           mouseEvents,

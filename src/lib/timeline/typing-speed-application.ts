@@ -1,5 +1,8 @@
 import type { Project, Track, Clip } from '@/types/project'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { reflowClips, calculateTimelineDuration } from './timeline-operations'
+
+const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
 
 /**
  * Service for applying typing speed suggestions to clips by splitting them
@@ -43,14 +46,16 @@ export class TypingSpeedApplicationService {
     // Save original clip state for undo
     originalClips.push({ ...sourceClip })
 
-    console.log('[TypingApply] Splitting clip for typing speed', {
-      clipId,
-      periods: periods.map(p => ({
-        start: p.startTime,
-        end: p.endTime,
-        rate: p.suggestedSpeedMultiplier
-      }))
-    })
+    if (DEBUG_TYPING) {
+      console.log('[TypingApply] Splitting clip for typing speed', {
+        clipId,
+        periods: periods.map(p => ({
+          start: p.startTime,
+          end: p.endTime,
+          rate: p.suggestedSpeedMultiplier
+        }))
+      })
+    }
 
     // Get clip's source range and base playback rate
     const sourceIn = sourceClip.sourceIn || 0
@@ -68,7 +73,9 @@ export class TypingSpeedApplicationService {
       .sort((a, b) => a.start - b.start)
 
     if (validPeriods.length === 0) {
-      console.log('[TypingApply] No valid periods within clip range')
+      if (DEBUG_TYPING) {
+        console.log('[TypingApply] No valid periods within clip range')
+      }
       return { affectedClips: [clipId], originalClips }
     }
 
@@ -143,12 +150,14 @@ export class TypingSpeedApplicationService {
     // Reflow clips to ensure no gaps
     reflowClips(track, 0, project)
 
-    console.log('[TypingApply] Clip split complete', {
-      originalClipId: sourceClip.id,
-      newClipsCount: newClips.length,
-      splitPoints: splitPoints.length,
-      affectedClips
-    })
+    if (DEBUG_TYPING) {
+      console.log('[TypingApply] Clip split complete', {
+        originalClipId: sourceClip.id,
+        newClipsCount: newClips.length,
+        splitPoints: splitPoints.length,
+        affectedClips
+      })
+    }
 
     // Remove applied typing periods from the recording's metadata
     const recording = project.recordings.find(r => r.id === sourceClip.recordingId)
@@ -159,6 +168,8 @@ export class TypingSpeedApplicationService {
         )
         return !isInAppliedPeriod
       })
+
+      RecordingStorage.setMetadata(recording.id, recording.metadata)
     }
 
     // Update timeline duration

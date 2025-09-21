@@ -46,17 +46,41 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
   let currentFrame = 0;
 
   segments.forEach(segment => {
-    segment.clips.forEach(({ clip, recording }) => {
-      // Calculate frames for this clip
-      const durationMs = clip.duration;
-      const durationFrames = Math.ceil((durationMs / 1000) * fps);
+    segment.clips.forEach(({ clip, recording, segmentStartTime, segmentEndTime }) => {
+      if (!clip || !recording) {
+        console.warn('[SegmentsComposition] Missing clip or recording data for segment', {
+          segmentId: segment.id
+        });
+        return;
+      }
+
+      const segmentDurationMs = (segmentEndTime ?? 0) - (segmentStartTime ?? 0);
+      const safeDurationMs = Number.isFinite(segmentDurationMs) ? segmentDurationMs : 0;
+      if (safeDurationMs <= 0) {
+        console.warn('[SegmentsComposition] Skipping clip with non-positive duration', {
+          clipId: clip.id,
+          segmentStartTime,
+          segmentEndTime
+        });
+        return;
+      }
+
+      const durationFrames = Math.max(1, Math.ceil((safeDurationMs / 1000) * fps));
       
       // Get the video URL for this recording
       let videoUrl = videoUrls[recording.id];
       
       // Use video-stream:// URL as fallback
       if (!videoUrl && recording.filePath) {
-        const encodedPath = encodeURIComponent(recording.filePath);
+        let resolvedPath = recording.filePath;
+
+        if (recording.folderPath) {
+          const normalizedFolder = recording.folderPath.replace(/\\/g, '/');
+          const fileName = recording.filePath.split(/[\\/]/).pop() || recording.filePath;
+          resolvedPath = `${normalizedFolder}/${fileName}`;
+        }
+
+        const encodedPath = encodeURIComponent(resolvedPath);
         videoUrl = `video-stream://local/${encodedPath}`;
       }
       
@@ -68,6 +92,62 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
       // Get metadata for this recording
       const recordingMetadata = metadata[recording.id] || {};
 
+      const rate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1;
+      const sourceIn = clip.sourceIn || 0;
+      const sourceOut = clip.sourceOut || (clip.sourceIn + (clip.duration * rate));
+      const clipDuration = clip.duration || Math.max(0, (sourceOut - sourceIn) / rate);
+
+      const convertTimestamp = (ts: number) => {
+        const normalized = (ts - sourceIn) / rate;
+        if (!isFinite(normalized)) return 0;
+        return Math.max(0, Math.min(clipDuration, normalized));
+      };
+
+      const within = (ts: number) => ts >= sourceIn && ts <= sourceOut;
+      const mapEvents = (events: any[] = []) =>
+        events
+          .filter(event => within(event.timestamp))
+          .map(event => {
+            const originalTimestamp = event.timestamp
+            const mappedTimestamp = convertTimestamp(originalTimestamp)
+            return {
+              ...event,
+              timestamp: mappedTimestamp,
+              sourceTimestamp: originalTimestamp
+            }
+          });
+
+      const clipMetadata = {
+        ...recordingMetadata,
+        mouseEvents: mapEvents(recordingMetadata.mouseEvents),
+        cursorEvents: mapEvents(recordingMetadata.mouseEvents),
+        clickEvents: mapEvents(recordingMetadata.clickEvents),
+        scrollEvents: mapEvents(recordingMetadata.scrollEvents),
+        keyboardEvents: mapEvents(recordingMetadata.keyboardEvents)
+      };
+
+      const effectStart = clip.startTime;
+      const effectEnd = clip.startTime + clip.duration;
+
+      const clipEffects = (segment.effects || []).map(effect => {
+        if (!effect.enabled) return effect;
+        if (effect.type === 'background') {
+          return { ...effect, startTime: 0, endTime: Number.MAX_SAFE_INTEGER };
+        }
+
+        const windowStart = Math.max(effect.startTime, effectStart);
+        const windowEnd = Math.min(effect.endTime, effectEnd);
+
+        if (windowEnd <= windowStart) {
+          return { ...effect, startTime: Number.MAX_SAFE_INTEGER - 1, endTime: Number.MAX_SAFE_INTEGER };
+        }
+
+        const relativeStart = Math.max(0, windowStart - effectStart);
+        const relativeEnd = Math.max(relativeStart, windowEnd - effectStart);
+
+        return { ...effect, startTime: relativeStart, endTime: relativeEnd };
+      });
+
       clips.push({
         id: `${segment.id}-${clip.id}`,
         startFrame: currentFrame,
@@ -75,8 +155,8 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
         videoUrl,
         clip,
         recording,
-        effects: segment.effects || [],
-        metadata: recordingMetadata,
+        effects: clipEffects,
+        metadata: clipMetadata,
         videoWidth: recording.width,
         videoHeight: recording.height
       });

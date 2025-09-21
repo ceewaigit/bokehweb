@@ -35,6 +35,7 @@ export interface BackgroundLayerProps {
 export interface CursorLayerProps {
   cursorEvents: MouseEvent[];
   clickEvents: ClickEvent[];
+  clip?: Clip | null;
   fps: number;
   videoOffset: {
     x: number;

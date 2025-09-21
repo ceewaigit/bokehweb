@@ -22,18 +22,26 @@ export class MetadataLoader {
   async loadAllMetadata(recordings: Recording[]): Promise<Map<string, RecordingMetadata>> {
     const startTime = performance.now()
     const results = new Map<string, RecordingMetadata>()
+    const recordingsSnapshot = recordings.map((recording) => this.createSnapshot(recording))
     
     // Create load tasks for each recording
-    const loadTasks = recordings.map(async (recording) => {
+    const loadTasks = recordingsSnapshot.map(async (recording) => {
+      const recordingId = this.safeGet(recording, 'id') ?? recording.id
+
+      if (!recordingId) {
+        logger.error('Encountered recording without id while loading metadata')
+        return { recordingId: 'unknown', metadata: null, cached: false }
+      }
+
       try {
         const metadata = await this.loadRecordingMetadata(recording)
         if (metadata) {
-          results.set(recording.id, metadata)
+          results.set(recordingId, metadata)
         }
-        return { recordingId: recording.id, metadata, cached: false }
+        return { recordingId, metadata, cached: false }
       } catch (error) {
-        logger.error(`Failed to load metadata for recording ${recording.id}:`, error)
-        return { recordingId: recording.id, metadata: null, cached: false }
+        logger.error(`Failed to load metadata for recording ${recordingId}:`, error)
+        return { recordingId, metadata: null, cached: false }
       }
     })
     
@@ -52,63 +60,78 @@ export class MetadataLoader {
    * Load metadata for a single recording (with caching)
    */
   async loadRecordingMetadata(recording: Recording): Promise<RecordingMetadata | null> {
+    const recordingId = this.safeGet(recording, 'id') ?? recording.id;
+
+    if (!recordingId) {
+      logger.error('Attempted to load metadata for recording without id');
+      return null;
+    }
+
     // Check memory cache first
-    const cached = RecordingStorage.getMetadata(recording.id)
+    const cached = RecordingStorage.getMetadata(recordingId)
     if (cached) {
-      logger.debug(`Using cached metadata for recording ${recording.id}`)
+      logger.debug(`Using cached metadata for recording ${recordingId}`)
       return cached
     }
-    
+
     // Check if we're already loading this recording
-    const existingPromise = this.loadPromises.get(recording.id)
+    const existingPromise = this.loadPromises.get(recordingId)
     if (existingPromise) {
       return existingPromise
     }
-    
+
     // Create new load promise
-    const loadPromise = this.loadMetadataFromDisk(recording)
-    this.loadPromises.set(recording.id, loadPromise)
-    
+    const loadPromise = this.loadMetadataFromDisk(recordingId, recording)
+    this.loadPromises.set(recordingId, loadPromise)
+
     try {
       const metadata = await loadPromise
       
       // Cache in memory for future use
       if (metadata) {
-        RecordingStorage.setMetadata(recording.id, metadata)
+        RecordingStorage.setMetadata(recordingId, metadata)
       }
       
       return metadata
     } finally {
       // Clean up promise cache
-      this.loadPromises.delete(recording.id)
+      this.loadPromises.delete(recordingId)
     }
   }
-  
+
   /**
    * Load metadata chunks from disk
    */
-  private async loadMetadataFromDisk(recording: Recording): Promise<RecordingMetadata | null> {
+  private async loadMetadataFromDisk(recordingId: string, recording: Recording): Promise<RecordingMetadata | null> {
     // If metadata is already in memory (from recent recording), use it
-    if (recording.metadata) {
-      return recording.metadata
+    try {
+      if (recording.metadata) {
+        return this.cloneValue(recording.metadata)
+      }
+    } catch (error) {
+      logger.debug(`Direct metadata access failed for recording ${recordingId}`, error)
     }
     
     // If we have chunked metadata on disk, load it
-    if (recording.metadataChunks && recording.folderPath) {
+    const metadataChunks = this.safeGet(recording, 'metadataChunks')
+    const folderPath = this.safeGet(recording, 'folderPath')
+
+    if (metadataChunks && folderPath) {
       try {
         const metadata = await RecordingStorage.loadMetadataChunks(
-          recording.folderPath,
-          recording.metadataChunks
+          folderPath,
+          metadataChunks
         )
         
         // Add capture area if available
-        if (recording.captureArea) {
-          metadata.captureArea = recording.captureArea
+        const captureArea = this.safeGet(recording, 'captureArea')
+        if (captureArea) {
+          metadata.captureArea = this.cloneValue(captureArea)
         }
         
         return metadata as RecordingMetadata
       } catch (error) {
-        logger.error(`Failed to load metadata chunks for recording ${recording.id}:`, error)
+        logger.error(`Failed to load metadata chunks for recording ${recordingId}:`, error)
       }
     }
     
@@ -119,7 +142,7 @@ export class MetadataLoader {
       clickEvents: [],
       scrollEvents: [],
       screenEvents: [],
-      captureArea: recording.captureArea
+      captureArea: this.cloneValue(this.safeGet(recording, 'captureArea'))
     }
   }
   
@@ -130,8 +153,11 @@ export class MetadataLoader {
   async preloadMetadata(recordings: Recording[]): Promise<void> {
     // Fire and forget - just start the loading process
     recordings.forEach(recording => {
-      this.loadRecordingMetadata(recording).catch(error => {
-        logger.debug(`Preload failed for recording ${recording.id}:`, error)
+      const snapshot = this.createSnapshot(recording)
+      const recordingId = this.safeGet(recording, 'id') ?? snapshot.id ?? 'unknown'
+
+      this.loadRecordingMetadata(snapshot).catch(error => {
+        logger.debug(`Preload failed for recording ${recordingId}:`, error)
       })
     })
   }
@@ -142,6 +168,75 @@ export class MetadataLoader {
   clearCache(): void {
     this.loadPromises.clear()
     // Note: We don't clear RecordingStorage cache here as it's managed separately
+  }
+
+  private createSnapshot(recording: Recording): Recording {
+    const snapshot: Partial<Recording> = {}
+    const copyKeys: Array<keyof Recording> = [
+      'id',
+      'metadata',
+      'metadataChunks',
+      'folderPath',
+      'captureArea',
+      'filePath',
+      'duration',
+      'width',
+      'height'
+    ]
+
+    for (const key of copyKeys) {
+      const value = this.safeGet(recording, key)
+      snapshot[key] = this.shouldDeepClone(key) ? this.cloneValue(value) : value
+    }
+
+    if (typeof snapshot.id !== 'string' || !snapshot.id) {
+      const fallbackId = this.safeGet(recording, 'id')
+      if (typeof fallbackId === 'string' && fallbackId) {
+        snapshot.id = fallbackId
+      }
+    }
+
+    return snapshot as Recording
+  }
+
+  private shouldDeepClone(key: keyof Recording): boolean {
+    return key === 'metadata' || key === 'metadataChunks' || key === 'captureArea'
+  }
+
+  private cloneValue<T>(value: T): T {
+    if (value === null || value === undefined) {
+      return value
+    }
+
+    try {
+      if (typeof structuredClone === 'function') {
+        return structuredClone(value)
+      }
+    } catch {
+      // Ignore structuredClone failures
+    }
+
+    try {
+      return JSON.parse(JSON.stringify(value)) as T
+    } catch {
+      // Final fallback to shallow clone for simple objects/arrays
+      if (Array.isArray(value)) {
+        return [...value] as unknown as T
+      }
+      if (typeof value === 'object') {
+        return { ...(value as Record<string, unknown>) } as unknown as T
+      }
+      return value
+    }
+  }
+
+  private safeGet<T>(source: Recording, key: keyof Recording): T | undefined {
+    try {
+      return source[key] as unknown as T
+    } catch (error) {
+      logger.debug(`Metadata loader failed to access ${String(key)} on recording`, error)
+      return undefined
+    }
   }
 }
 

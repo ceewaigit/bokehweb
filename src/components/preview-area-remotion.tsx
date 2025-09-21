@@ -8,6 +8,7 @@ import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Recording, Effect } from '@/types/project'
 import { EffectType } from '@/types/project'
+import { mapRecordingToClipTime } from '@/lib/timeline/clip-utils'
 
 interface PreviewAreaRemotionProps {
   playheadClip?: Clip | null
@@ -35,7 +36,6 @@ export function PreviewAreaRemotion({
   localEffects
 }: PreviewAreaRemotionProps) {
   const playerRef = useRef<PlayerRef>(null)
-  
   // Video state
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null)
   const [activeClip, setActiveClip] = useState<Clip | null>(null)
@@ -106,22 +106,50 @@ export function PreviewAreaRemotion({
   useEffect(() => {
     if (playheadClip && playheadRecording) {
       const recordingChanged = !activeRecording || activeRecording.id !== playheadRecording.id
+      let cancelNextUpdate = false
+
       if (recordingChanged) {
-        let url = RecordingStorage.getBlobUrl(playheadRecording.id)
-        
-        if (url) {
-          setActiveVideoUrl(url)
+        const cachedUrl = RecordingStorage.getBlobUrl(playheadRecording.id)
+
+        if (cachedUrl) {
+          setActiveVideoUrl(cachedUrl)
         } else if (playheadRecording.filePath) {
-          // Use video-stream:// URL for consistency
-          const encodedPath = encodeURIComponent(playheadRecording.filePath)
-          const videoStreamUrl = `video-stream://local/${encodedPath}`
-          setActiveVideoUrl(videoStreamUrl)
+          globalBlobManager.ensureVideoLoaded(
+            playheadRecording.id,
+            playheadRecording.filePath,
+            playheadRecording.folderPath
+          ).then((url) => {
+            if (cancelNextUpdate) return
+
+            if (url) {
+              setActiveVideoUrl(url)
+            } else {
+              const encodedPath = encodeURIComponent(playheadRecording.filePath)
+              setActiveVideoUrl(`video-stream://local/${encodedPath}`)
+            }
+          }).catch(() => {
+            if (cancelNextUpdate || !playheadRecording.filePath) return
+            const encodedPath = encodeURIComponent(playheadRecording.filePath)
+            setActiveVideoUrl(`video-stream://local/${encodedPath}`)
+          })
         }
+
         setActiveRecording(playheadRecording)
       }
+
       setActiveClip(playheadClip)
+
+      return () => {
+        cancelNextUpdate = true
+      }
     }
-  }, [playheadClip?.id, playheadRecording?.id])
+  }, [
+    playheadClip?.id,
+    playheadRecording?.id,
+    playheadRecording?.filePath,
+    playheadRecording?.folderPath,
+    activeRecording?.id
+  ])
   
   // Preload next recording if different
   useEffect(() => {
@@ -129,11 +157,15 @@ export function PreviewAreaRemotion({
       if (nextRecording.id !== activeRecording.id) {
         const existingUrl = RecordingStorage.getBlobUrl(nextRecording.id)
         if (!existingUrl && nextRecording.filePath) {
-          globalBlobManager.ensureVideoLoaded(nextRecording.id, nextRecording.filePath).catch(() => {})
+          globalBlobManager.ensureVideoLoaded(
+            nextRecording.id,
+            nextRecording.filePath,
+            nextRecording.folderPath
+          ).catch(() => {})
         }
       }
     }
-  }, [nextClip?.id, nextRecording?.id, activeRecording?.id])
+  }, [nextClip?.id, nextRecording?.id, nextRecording?.filePath, nextRecording?.folderPath, activeRecording?.id])
   
   const previewClip = playheadClip || activeClip
   const previewRecording = playheadRecording || activeRecording
@@ -205,31 +237,51 @@ export function PreviewAreaRemotion({
       }
     }
 
-    const rate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
+    const playbackRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
     const sourceIn = clip.sourceIn || 0
-    const sourceOut = clip.sourceOut || (clip.sourceIn + (clip.duration * rate))
+    const sourceOut = clip.sourceOut || (clip.sourceIn + (clip.duration * playbackRate))
+    const clipDuration = clip.duration || Math.max(0, (sourceOut - sourceIn) / playbackRate)
 
     const within = (ts: number) => ts >= sourceIn && ts <= sourceOut
 
-    const mouseEvents = (recordingMeta.mouseEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({ ...e, timestamp: e.timestamp }))
-    const clickEvents = (recordingMeta.clickEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({ ...e, timestamp: e.timestamp }))
-    const scrollEvents = (recordingMeta.scrollEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({ ...e, timestamp: e.timestamp }))
-    const keyboardEvents = (recordingMeta.keyboardEvents || []).filter((e: any) => within(e.timestamp)).map((e: any) => ({ ...e, timestamp: e.timestamp }))
+    const convertTimestamp = (ts: number) => {
+      const mapped = mapRecordingToClipTime(clip, ts)
+      if (!isFinite(mapped)) return 0
+      return Math.max(0, Math.min(clipDuration, mapped))
+    }
 
-    return { mouseEvents, clickEvents, scrollEvents, keyboardEvents }
+    const mapEvents = (events: any[] = []) =>
+      events
+        .filter((event) => within(event.timestamp))
+        .map((event) => {
+          const originalTimestamp = event.timestamp
+          const mappedTimestamp = convertTimestamp(originalTimestamp)
+          return {
+            ...event,
+            timestamp: mappedTimestamp,
+            sourceTimestamp: originalTimestamp
+          }
+        })
+
+    const mouseEvents = mapEvents(recordingMeta.mouseEvents)
+    const clickEvents = mapEvents(recordingMeta.clickEvents)
+    const scrollEvents = mapEvents(recordingMeta.scrollEvents)
+    const keyboardEvents = mapEvents(recordingMeta.keyboardEvents)
+
+    return {
+      mouseEvents,
+      clickEvents,
+      scrollEvents,
+      keyboardEvents
+    }
   }, [previewClip, previewRecording?.metadata])
 
-  // Convert effects to recording-time windows; keep background persistent
+  // Convert effects to clip-relative timeline windows; keep background persistent
   const clipRelativeEffects = useMemo(() => {
     if (!previewClip) return null
 
     const clipStart = previewClip.startTime
     const clipEnd = previewClip.startTime + previewClip.duration
-    const rate = previewClip.playbackRate && previewClip.playbackRate > 0 ? previewClip.playbackRate : 1
-    const sourceIn = previewClip.sourceIn || 0
-
-    const EPS = 1 // ms
-
     const baseEffects: Effect[] = (timelineEffects || []) as Effect[]
 
     let mergedEffects: Effect[] = baseEffects
@@ -249,46 +301,21 @@ export function PreviewAreaRemotion({
 
     const effectsToConvert = mergedEffects.filter(effect => effect.enabled)
 
-    // Collect all clips for this recording to compute continuous rec window
-    const recordingClips: Array<any> = (allTracks || []).flatMap((t: any) => t.clips || []).filter((c: any) => c.recordingId === previewRecording?.id)
-
     return effectsToConvert.map(effect => {
       if (effect.type === EffectType.Background) {
         return { ...effect, startTime: 0, endTime: Number.MAX_SAFE_INTEGER }
       }
 
-      // For zoom/screen, compute a continuous recording-time window across all overlapping clips of this recording
-      if (effect.type === EffectType.Zoom || effect.type === EffectType.Screen) {
-        let segRecStarts: number[] = []
-        let segRecEnds: number[] = []
-        for (const c of recordingClips) {
-          const cRate = c.playbackRate && c.playbackRate > 0 ? c.playbackRate : 1
-          const cStart = c.startTime
-          const cEnd = c.startTime + c.duration
-          const overlapStart = Math.max(effect.startTime, cStart)
-          const overlapEnd = Math.min(effect.endTime, cEnd)
-          if (overlapEnd > overlapStart) {
-            const recStartSeg = (c.sourceIn || 0) + (overlapStart - cStart) * cRate
-            const recEndSeg = (c.sourceIn || 0) + (overlapEnd - cStart) * cRate
-            segRecStarts.push(recStartSeg)
-            segRecEnds.push(recEndSeg)
-          }
-        }
-        if (segRecStarts.length > 0) {
-          const recStart = Math.max(0, Math.min(...segRecStarts) - EPS)
-          const recEnd = Math.max(...segRecEnds) + EPS
-          return { ...effect, startTime: recStart, endTime: recEnd }
-        }
-        // No overlap with this recording; drop
+      const windowStart = Math.max(effect.startTime, clipStart)
+      const windowEnd = Math.min(effect.endTime, clipEnd)
+      if (windowEnd <= windowStart) {
         return { ...effect, startTime: Number.MAX_SAFE_INTEGER - 1, endTime: Number.MAX_SAFE_INTEGER }
       }
 
-      // For other effects (annotations, cursor, keystroke), project current clip window to recording time
-      const windowStart = Math.max(effect.startTime, clipStart)
-      const windowEnd = Math.min(effect.endTime, clipEnd)
-      const recStart = Math.max(0, sourceIn + (windowStart - clipStart) * rate - EPS)
-      const recEnd = sourceIn + (windowEnd - clipStart) * rate + EPS
-      return { ...effect, startTime: recStart, endTime: recEnd }
+      const relativeStart = Math.max(0, windowStart - clipStart)
+      const relativeEnd = Math.max(relativeStart, windowEnd - clipStart)
+
+      return { ...effect, startTime: relativeStart, endTime: relativeEnd }
     })
   }, [previewClip, previewRecording?.id, localEffects, timelineEffects, allTracks])
 

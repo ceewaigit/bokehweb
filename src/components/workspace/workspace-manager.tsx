@@ -23,6 +23,7 @@ import { TimeConverter } from '@/lib/timeline/time-converter'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { RecordingStorage } from '@/lib/storage/recording-storage'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -116,12 +117,29 @@ async function loadProjectRecording(
           }
         }
 
+        // Load metadata from chunk files when not bundled in project
+        if (!rec.metadata && rec.metadataChunks && rec.folderPath) {
+          try {
+            setLoadingMessage(`Loading interactions ${i + 1} of ${project.recordings.length}...`)
+            const loadedMetadata = await RecordingStorage.loadMetadataChunks(
+              rec.folderPath,
+              rec.metadataChunks
+            )
+
+            rec.metadata = loadedMetadata
+            RecordingStorage.setMetadata(rec.id, loadedMetadata)
+          } catch (error) {
+            console.error('Failed to load metadata chunks for recording:', error)
+          }
+        }
+
         // Load video and metadata together
         if (rec.filePath || rec.metadata) {
           setLoadingMessage(`Loading video ${i + 1}...`)
           await globalBlobManager.loadVideos([{
             id: rec.id,
             filePath: rec.filePath,
+            folderPath: rec.folderPath,
             metadata: rec.metadata
           }])
         }

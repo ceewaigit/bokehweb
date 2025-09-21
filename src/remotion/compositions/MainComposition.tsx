@@ -264,6 +264,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           <CursorLayer
             cursorEvents={cursorEvents}
             clickEvents={clickEvents}
+            clip={clip}
             fps={fps}
             videoOffset={{
               x: videoPosition.offsetX,

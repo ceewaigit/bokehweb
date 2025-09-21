@@ -57,8 +57,17 @@ export class MachineProfiler {
     quality: 'fast' | 'balanced' | 'quality'
   ): DynamicExportSettings {
     // Always use conservative settings for stability
+    const cpuCores = Math.max(1, profile.cpuCores || 1);
+    const rawAvailable = profile.availableMemoryGB ?? 0;
+    const totalMemory = profile.totalMemoryGB || 4;
+    const effectiveMemory = Math.max(rawAvailable, totalMemory * 0.3);
+
+    const cpuBasedConcurrency = Math.max(1, Math.floor(cpuCores / 2));
+    const memoryBasedConcurrency = Math.max(1, Math.floor(effectiveMemory / 1.5));
+    const baseConcurrency = Math.max(1, Math.min(cpuBasedConcurrency, memoryBasedConcurrency, 6));
+
     const settings: DynamicExportSettings = {
-      concurrency: 1, // Single frame at a time
+      concurrency: baseConcurrency,
       jpegQuality: 80,
       videoBitrate: '8M',
       x264Preset: 'veryfast',
@@ -79,8 +88,9 @@ export class MachineProfiler {
         settings.jpegQuality = 70;
         settings.videoBitrate = '5M';
         settings.x264Preset = 'ultrafast';
+        settings.concurrency = Math.min(settings.concurrency, 2);
         break;
-      
+
       case 'balanced':
       default:
         // Use defaults

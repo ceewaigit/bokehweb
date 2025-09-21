@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { AbsoluteFill, Img, useCurrentFrame } from 'remotion';
 import type { CursorLayerProps } from './types';
+import type { Clip } from '@/types/project';
 import {
   CursorType,
   CURSOR_DIMENSIONS,
@@ -10,9 +11,68 @@ import {
 } from '../../lib/effects/cursor-types';
 import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
 
+const getEventSourceTimestamp = (event: { sourceTimestamp?: number; timestamp: number }) =>
+  typeof event.sourceTimestamp === 'number' ? event.sourceTimestamp : event.timestamp;
+
+const mapTimelineToSourceTime = (clip: Clip | null | undefined, timelineMs: number): number => {
+  if (!clip) return timelineMs;
+
+  const sourceIn = clip.sourceIn || 0;
+  const baseRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1;
+  const periods = clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0
+    ? [...clip.timeRemapPeriods].sort((a, b) => a.sourceStartTime - b.sourceStartTime)
+    : null;
+
+  if (!periods) {
+    const result = sourceIn + timelineMs * baseRate;
+    const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
+    return Math.max(sourceIn, Math.min(sourceOut, result));
+  }
+
+  let remainingTimeline = timelineMs;
+  let currentSource = sourceIn;
+
+  for (const period of periods) {
+    const periodStart = Math.max(period.sourceStartTime, sourceIn);
+    const periodEnd = Math.max(periodStart, period.sourceEndTime);
+
+    if (currentSource < periodStart) {
+      const gapDurationSource = periodStart - currentSource;
+      const gapTimelineDuration = gapDurationSource / baseRate;
+
+      if (remainingTimeline <= gapTimelineDuration) {
+        const result = currentSource + remainingTimeline * baseRate;
+        const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
+        return Math.max(sourceIn, Math.min(sourceOut, result));
+      }
+
+      remainingTimeline -= gapTimelineDuration;
+      currentSource = periodStart;
+    }
+
+    const effectiveSpeed = Math.max(0.0001, period.speedMultiplier);
+    const periodDurationSource = periodEnd - periodStart;
+    const periodTimelineDuration = periodDurationSource / effectiveSpeed;
+
+    if (remainingTimeline <= periodTimelineDuration) {
+      const result = periodStart + remainingTimeline * effectiveSpeed;
+      const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
+      return Math.max(sourceIn, Math.min(sourceOut, result));
+    }
+
+    remainingTimeline -= periodTimelineDuration;
+    currentSource = periodEnd;
+  }
+
+  const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate);
+  const result = currentSource + remainingTimeline * baseRate;
+  return Math.max(sourceIn, Math.min(sourceOut, result));
+};
+
 export const CursorLayer: React.FC<CursorLayerProps> = ({
   cursorEvents,
   clickEvents,
+  clip,
   fps,
   videoOffset,
   zoomBlocks,
@@ -23,12 +83,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 }) => {
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
+  const currentSourceTime = useMemo(() => mapTimelineToSourceTime(clip ?? null, currentTimeMs), [clip, currentTimeMs]);
 
   // Store previous positions for motion trail and smoothing
   const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
   const lastFrameRef = useRef<number>(-1);
   const lastMovementTimeRef = useRef<number>(0);
   const lastKnownPositionRef = useRef<{ x: number, y: number } | null>(null);
+  const timelineIndexRef = useRef<{ index: number; time: number }>({ index: 0, time: Number.NEGATIVE_INFINITY });
 
   // Heavy smoothing buffers for butter-smooth movement
   const smoothingBufferRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
@@ -38,20 +100,56 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const stableCursorTypeRef = useRef<CursorType>(CursorType.ARROW);
   const pendingCursorTypeRef = useRef<{ type: CursorType; since: number } | null>(null);
 
+  // Reset cached timeline index whenever event set changes
+  useEffect(() => {
+    timelineIndexRef.current = {
+      index: 0,
+      time: cursorEvents.length > 0 ? getEventSourceTimestamp(cursorEvents[0]) : Number.NEGATIVE_INFINITY
+    };
+  }, [cursorEvents]);
+
+  const locateEventIndex = (sourceTime: number) => {
+    const events = cursorEvents;
+    if (events.length === 0) return 0;
+
+    let { index, time: lastTime } = timelineIndexRef.current;
+    index = Math.min(Math.max(index, 0), events.length - 1);
+
+    const eventSourceTime = (eventIndex: number) => getEventSourceTimestamp(events[eventIndex]);
+
+    if (sourceTime >= lastTime) {
+      while (index < events.length - 1 && eventSourceTime(index + 1) <= sourceTime) {
+        index++;
+      }
+    } else {
+      while (index > 0 && eventSourceTime(index) > sourceTime) {
+        index--;
+      }
+
+      if (eventSourceTime(index) > sourceTime) {
+        let low = 0;
+        let high = events.length - 1;
+        while (low <= high) {
+          const mid = (low + high) >> 1;
+          if (eventSourceTime(mid) <= sourceTime) {
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+        index = Math.max(0, Math.min(events.length - 1, low - 1));
+      }
+    }
+
+    timelineIndexRef.current = { index, time: sourceTime };
+    return index;
+  };
+
   // Determine current cursor type from events
   const cursorType = useMemo(() => {
     if (!cursorEvents || cursorEvents.length === 0) return stableCursorTypeRef.current;
 
-    // Find the most recent event at or before the current time
-    let selectedEvent = cursorEvents[0];
-    for (let i = 0; i < cursorEvents.length; i++) {
-      const evt = cursorEvents[i];
-      if (evt.timestamp <= currentTimeMs) {
-        selectedEvent = evt;
-      } else {
-        break;
-      }
-    }
+    const selectedEvent = cursorEvents[locateEventIndex(currentSourceTime)] || cursorEvents[0];
 
     const desiredType = electronToCustomCursor(selectedEvent?.cursorType || 'default');
 
@@ -77,7 +175,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     // Start pending window for the new desired type
     pendingCursorTypeRef.current = { type: desiredType, since: now };
     return stableCursorTypeRef.current;
-  }, [cursorEvents, currentTimeMs]);
+  }, [cursorEvents, currentSourceTime, currentTimeMs]);
 
   // Check if cursor is idle
   const isIdle = useMemo(() => {
@@ -99,35 +197,33 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       return { x: videoWidth / 2, y: videoHeight / 2 };
     }
 
-    const targetTime = currentTimeMs;
+    const targetTimelineTime = currentTimeMs;
+    const targetSourceTime = currentSourceTime;
 
-    // Find the raw position at current time
-    let rawX = 0;
-    let rawY = 0;
-    let foundPosition = false;
+    const idx = locateEventIndex(targetSourceTime);
+    const currEvent = cursorEvents[idx];
+    const nextEvent = idx < cursorEvents.length - 1 ? cursorEvents[idx + 1] : undefined;
 
-    for (let i = 0; i < cursorEvents.length - 1; i++) {
-      const curr = cursorEvents[i];
-      const next = cursorEvents[i + 1];
+    const currSourceTime = getEventSourceTimestamp(currEvent);
+    const nextSourceTime = nextEvent ? getEventSourceTimestamp(nextEvent) : undefined;
 
-      if (targetTime >= curr.timestamp && targetTime <= next.timestamp) {
-        const t = (targetTime - curr.timestamp) / (next.timestamp - curr.timestamp);
-        rawX = curr.x + (next.x - curr.x) * t;
-        rawY = curr.y + (next.y - curr.y) * t;
-        foundPosition = true;
-        break;
-      }
-    }
+    let rawX = currEvent.x;
+    let rawY = currEvent.y;
 
-    if (!foundPosition) {
-      if (targetTime <= cursorEvents[0].timestamp) {
-        rawX = cursorEvents[0].x;
-        rawY = cursorEvents[0].y;
-      } else {
-        const last = cursorEvents[cursorEvents.length - 1];
-        rawX = last.x;
-        rawY = last.y;
-      }
+    if (
+      nextEvent &&
+      typeof nextSourceTime === 'number' &&
+      nextSourceTime > currSourceTime &&
+      targetSourceTime >= currSourceTime &&
+      targetSourceTime <= nextSourceTime
+    ) {
+      const t = (targetSourceTime - currSourceTime) / (nextSourceTime - currSourceTime);
+      rawX = currEvent.x + (nextEvent.x - currEvent.x) * t;
+      rawY = currEvent.y + (nextEvent.y - currEvent.y) * t;
+    } else if (targetSourceTime < currSourceTime && cursorEvents.length > 0) {
+      const firstEvent = cursorEvents[0];
+      rawX = firstEvent.x;
+      rawY = firstEvent.y;
     }
 
     // Initialize filtered position on first frame
@@ -149,10 +245,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       smoothingBufferRef.current = [];
     } else {
       // Add to smoothing buffer
-      smoothingBufferRef.current.push({ x: rawX, y: rawY, time: targetTime });
+      smoothingBufferRef.current.push({ x: rawX, y: rawY, time: targetTimelineTime });
 
       // Keep buffer size limited (last 150ms of data)
-      const cutoffTime = targetTime - 150;
+      const cutoffTime = targetTimelineTime - 150;
       smoothingBufferRef.current = smoothingBufferRef.current.filter(
         pos => pos.time > cutoffTime
       );
@@ -223,7 +319,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       x: clampedX,
       y: clampedY
     };
-  }, [cursorEvents, currentTimeMs]);
+  }, [cursorEvents, currentTimeMs, currentSourceTime]);
 
   // Check for active click animation (only if click effects are enabled)
   const activeClick = useMemo(() => {

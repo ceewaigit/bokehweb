@@ -21,6 +21,8 @@ import { DefaultCommandContext } from '@/lib/commands'
 import { CommandManager } from '@/lib/commands'
 import { toast } from 'sonner'
 
+const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
+
 // No global tracking needed - metadata is the source of truth
 
 interface TimelineClipProps {
@@ -95,7 +97,11 @@ export const TimelineClip = React.memo(({
         // Get or load video URL
         let blobUrl = RecordingStorage.getBlobUrl(recording.id)
         if (!blobUrl && recording.filePath) {
-          blobUrl = await globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
+          blobUrl = await globalBlobManager.ensureVideoLoaded(
+            recording.id,
+            recording.filePath,
+            recording.folderPath
+          )
         }
 
         if (!blobUrl) return
@@ -118,7 +124,7 @@ export const TimelineClip = React.memo(({
     }
 
     loadWaveform()
-  }, [recording?.id, recording?.filePath, recording?.hasAudio, clip.id, clip.sourceIn, clip.sourceOut])
+  }, [recording?.id, recording?.filePath, recording?.folderPath, recording?.hasAudio, clip.id, clip.sourceIn, clip.sourceOut])
 
   // Analyze typing patterns for speed-up suggestions
   useEffect(() => {
@@ -170,7 +176,11 @@ export const TimelineClip = React.memo(({
         // Get or load video URL
         let blobUrl = RecordingStorage.getBlobUrl(recording.id)
         if (!blobUrl && recording.filePath) {
-          blobUrl = await globalBlobManager.ensureVideoLoaded(recording.id, recording.filePath)
+          blobUrl = await globalBlobManager.ensureVideoLoaded(
+            recording.id,
+            recording.filePath,
+            recording.folderPath
+          )
         }
 
         if (!blobUrl) return
@@ -243,20 +253,22 @@ export const TimelineClip = React.memo(({
         videoRef.current = null
       }
     }
-  }, [recording?.id, recording?.filePath, clip.duration, clipWidth, trackHeight, trackType])
+  }, [recording?.id, recording?.filePath, recording?.folderPath, clip.duration, clipWidth, trackHeight, trackType])
 
 
   // Handle applying typing speed suggestions
   const handleApplyTypingSuggestion = async (period: TypingPeriod) => {
     
-    console.log('[TimelineClip] Applying single typing suggestion:', {
-      clipId: clip.id,
-      period: {
-        start: period.startTime,
-        end: period.endTime,
-        speedMultiplier: period.suggestedSpeedMultiplier
-      }
-    })
+    if (DEBUG_TYPING) {
+      console.log('[TimelineClip] Applying single typing suggestion:', {
+        clipId: clip.id,
+        period: {
+          start: period.startTime,
+          end: period.endTime,
+          speedMultiplier: period.suggestedSpeedMultiplier
+        }
+      })
+    }
     
     try {
       const store = useProjectStore.getState()
@@ -268,7 +280,9 @@ export const TimelineClip = React.memo(({
       const result = await manager.execute(command)
       
       if (result.success) {
-        console.log('[TimelineClip] Successfully applied typing suggestion:', result.data)
+        if (DEBUG_TYPING) {
+          console.log('[TimelineClip] Successfully applied typing suggestion:', result.data)
+        }
         setTypingSuggestions(null)
         toast.success('Applied typing suggestion')
       } else {
@@ -284,15 +298,17 @@ export const TimelineClip = React.memo(({
   const handleApplyAllTypingSuggestions = async (periods: TypingPeriod[]) => {
     if (!periods?.length) return
     
-    console.log('[TimelineClip] Applying all typing suggestions:', {
-      clipId: clip.id,
-      periodCount: periods.length,
-      periods: periods.map(p => ({
-        start: p.startTime,
-        end: p.endTime,
-        speedMultiplier: p.suggestedSpeedMultiplier
-      }))
-    })
+    if (DEBUG_TYPING) {
+      console.log('[TimelineClip] Applying all typing suggestions:', {
+        clipId: clip.id,
+        periodCount: periods.length,
+        periods: periods.map(p => ({
+          start: p.startTime,
+          end: p.endTime,
+          speedMultiplier: p.suggestedSpeedMultiplier
+        }))
+      })
+    }
     
     try {
       // Apply all periods in a single command for atomic operation
@@ -305,7 +321,9 @@ export const TimelineClip = React.memo(({
       const result = await manager.execute(command)
       
       if (result.success) {
-        console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
+        if (DEBUG_TYPING) {
+          console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
+        }
         setTypingSuggestions(null)
         toast.success(`Applied ${result.data?.applied || periods.length} typing suggestions`)
       } else {

@@ -328,6 +328,17 @@ export class WorkerPool {
   }
 
   /**
+   * Destroy and remove a worker from the pool
+   */
+  async destroyWorker(name: string): Promise<void> {
+    const worker = this.workers.get(name);
+    if (!worker) return;
+
+    await worker.shutdown();
+    this.workers.delete(name);
+  }
+
+  /**
    * Shutdown all workers
    */
   async shutdownAll(): Promise<void> {

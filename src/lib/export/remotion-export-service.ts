@@ -104,10 +104,22 @@ export class RemotionExportService {
           return;
         }
 
+        const chunkIndex = typeof data.chunkIndex === 'number' ? data.chunkIndex : null;
+        const chunkCount = typeof data.chunkCount === 'number' ? data.chunkCount : null;
+        const chunkRendered = typeof data.chunkRenderedFrames === 'number' ? data.chunkRenderedFrames : null;
+        const chunkTotal = typeof data.chunkTotalFrames === 'number' ? data.chunkTotalFrames : null;
+
+        let message: string;
+        if (chunkIndex !== null && chunkCount !== null && chunkRendered !== null && chunkTotal) {
+          message = `Chunk ${chunkIndex + 1}/${chunkCount}: frame ${chunkRendered} of ${chunkTotal}`;
+        } else {
+          message = `Rendering frame ${data.currentFrame} of ${data.totalFrames}...`;
+        }
+
         onProgress?.({
           progress: data.progress,
           stage: 'encoding',
-          message: `Rendering frame ${data.currentFrame} of ${data.totalFrames}...`,
+          message,
           currentFrame: data.currentFrame,
           totalFrames: data.totalFrames
         });
