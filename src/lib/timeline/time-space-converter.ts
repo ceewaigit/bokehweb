@@ -275,3 +275,120 @@ export function isSourceTimeInClip(sourceMs: number, clip: Clip): boolean {
   const sourceOut = clip.sourceOut || (sourceIn + getSourceDuration(clip))
   return sourceMs >= sourceIn && sourceMs <= sourceOut
 }
+
+/**
+ * PIXEL CONVERSION FUNCTIONS
+ * Convert between timeline time (ms) and UI pixel positions
+ */
+
+/**
+ * Calculate pixels per millisecond for a given zoom level
+ * @param stageWidth - Width of the timeline stage in pixels
+ * @param zoom - Zoom level (1 = default, 2 = 2x zoom, etc)
+ * @returns Pixels per millisecond
+ */
+export function calculatePixelsPerMs(stageWidth: number, zoom: number): number {
+  const basePixelsPerMs = 0.1 // Base scale: 0.1 pixel per ms
+  return basePixelsPerMs * zoom
+}
+
+/**
+ * Calculate total timeline width based on duration and zoom
+ * @param duration - Duration in milliseconds
+ * @param pixelsPerMs - Pixels per millisecond (from calculatePixelsPerMs)
+ * @param minWidth - Minimum width in pixels
+ * @returns Total timeline width in pixels
+ */
+export function calculateTimelineWidth(duration: number, pixelsPerMs: number, minWidth: number): number {
+  return Math.max(duration * pixelsPerMs, minWidth)
+}
+
+/**
+ * Convert milliseconds to pixel position on timeline
+ * @param timeMs - Time in milliseconds
+ * @param pixelsPerMs - Pixels per millisecond
+ * @returns Pixel position
+ */
+export function msToPixels(timeMs: number, pixelsPerMs: number): number {
+  return timeMs * pixelsPerMs
+}
+
+/**
+ * Convert pixel position to milliseconds on timeline
+ * @param pixels - Pixel position
+ * @param pixelsPerMs - Pixels per millisecond
+ * @returns Time in milliseconds
+ */
+export function pixelsToMs(pixels: number, pixelsPerMs: number): number {
+  return pixels / pixelsPerMs
+}
+
+/**
+ * Calculate optimal zoom level for a given duration and viewport
+ * @param duration - Duration in milliseconds
+ * @param viewportWidth - Width of the viewport in pixels
+ * @returns Optimal zoom level
+ */
+export function calculateOptimalZoom(duration: number, viewportWidth: number): number {
+  if (duration === 0) return 1
+  
+  // We want the timeline to fit comfortably in the viewport
+  // Leave some padding (80% of viewport)
+  const targetWidth = viewportWidth * 0.8
+  const basePixelsPerMs = 0.1
+  
+  // Calculate zoom needed to fit duration in target width
+  const requiredZoom = targetWidth / (duration * basePixelsPerMs)
+  
+  // Clamp between reasonable zoom levels
+  return Math.max(0.1, Math.min(10, requiredZoom))
+}
+
+/**
+ * Get ruler intervals for timeline based on zoom level
+ * @param zoom - Current zoom level
+ * @returns Object with major and minor interval in milliseconds
+ */
+export function getRulerIntervals(zoom: number): { major: number; minor: number } {
+  // Adjust intervals based on zoom level
+  if (zoom < 0.5) {
+    return { major: 10000, minor: 5000 } // 10s major, 5s minor
+  } else if (zoom < 1) {
+    return { major: 5000, minor: 1000 } // 5s major, 1s minor
+  } else if (zoom < 2) {
+    return { major: 1000, minor: 500 } // 1s major, 500ms minor
+  } else if (zoom < 5) {
+    return { major: 500, minor: 100 } // 500ms major, 100ms minor
+  } else {
+    return { major: 100, minor: 50 } // 100ms major, 50ms minor
+  }
+}
+
+/**
+ * TimeConverter namespace - groups all time conversion functions
+ * Used for backward compatibility with existing imports
+ */
+export const TimeConverter = {
+  // Time coordinate conversions
+  sourceToTimeline,
+  timelineToSource,
+  sourceToClipRelative,
+  clipRelativeToSource,
+  timelineToClipRelative,
+  clipRelativeToTimeline,
+  getSourceDuration,
+  computeEffectiveDuration,
+  isTimelinePositionInClip,
+  isSourceTimeInClip,
+  
+  // Pixel conversions
+  calculatePixelsPerMs,
+  calculateTimelineWidth,
+  msToPixels,
+  pixelsToMs,
+  calculateOptimalZoom,
+  getRulerIntervals
+}
+
+// Alias for backward compatibility
+export const TimeSpaceConverter = TimeConverter

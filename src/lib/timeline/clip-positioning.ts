@@ -1,6 +1,5 @@
 import type { Clip } from '@/types/project'
 import { TimelineConfig } from './config'
-import { TimeConverter } from './time-converter'
 
 export interface OverlapCheckResult {
   hasOverlap: boolean
