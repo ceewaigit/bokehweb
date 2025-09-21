@@ -489,7 +489,11 @@ export function setupExportHandler() {
 
       const runSequentialExport = async () => {
         const worker = await ensurePrimaryWorker();
-        return executeWorkerRequest(worker, commonJob);
+        const jobWithMetadata = {
+          ...commonJob,
+          preFilteredMetadata // Pass pre-filtered metadata for sequential export too
+        };
+        return executeWorkerRequest(worker, jobWithMetadata);
       };
 
       const runParallelExport = async () => {
@@ -538,11 +542,21 @@ export function setupExportHandler() {
           const worker = await getOrCreateWorker(workerName);
           const detach = attachProgressForwarder(worker);
           try {
+            // Convert pre-filtered metadata for this worker's chunks
+            const workerPreFilteredMetadata = new Map();
+            for (const chunk of group) {
+              const chunkMetadata = preFilteredMetadata.get(chunk.index);
+              if (chunkMetadata) {
+                workerPreFilteredMetadata.set(chunk.index, chunkMetadata);
+              }
+            }
+            
             const job = {
               ...commonJob,
               outputPath: path.join(app.getPath('temp'), `export-worker-${Date.now()}-${index}.mp4`),
               assignedChunks: group,
-              combineChunksInWorker: false
+              combineChunksInWorker: false,
+              preFilteredMetadata: workerPreFilteredMetadata
             };
 
             const result = await worker.request('export', job, 10 * 60 * 1000);

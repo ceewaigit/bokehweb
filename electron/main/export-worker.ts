@@ -303,8 +303,19 @@ class ExportWorker extends BaseWorker {
         const chunkStartTimeMs = chunkInfo.startTimeMs;
         const chunkEndTimeMs = chunkInfo.endTimeMs;
         
-        // Filter segments for this chunk's time range
+        // Use pre-filtered metadata if available, otherwise filter on demand
         let chunkInputProps = { ...job.inputProps };
+        let filteredMetadata: any = {};
+        
+        // Check if we have pre-filtered metadata for this chunk
+        if (job.preFilteredMetadata && job.preFilteredMetadata instanceof Map) {
+          const chunkMetadata = job.preFilteredMetadata.get(chunkInfo.index);
+          if (chunkMetadata && chunkMetadata instanceof Map) {
+            filteredMetadata = Object.fromEntries(chunkMetadata);
+            console.log(`[ExportWorker] Using pre-filtered metadata for chunk ${chunkInfo.index + 1}`);
+          }
+        }
+        
         if (job.inputProps.segments && Array.isArray(job.inputProps.segments)) {
           const allSegments = job.inputProps.segments;
           const chunkSegments = allSegments.filter((segment: any) => {
@@ -380,84 +391,38 @@ class ExportWorker extends BaseWorker {
             };
           }).filter(Boolean);
           
-          // Filter metadata by time range - only include events within this chunk's window
-          const filteredMetadata: Record<string, any> = {};
-          for (const [recordingId, metadata] of Object.entries(job.inputProps.metadata || {})) {
-            if (recordingIds.has(recordingId) && metadata) {
-              const metadataObj = metadata as any;
-              const filtered: any = {
-                ...metadataObj,
-                events: []
-              };
-              
-              // Filter events by time range if they exist
-              if (Array.isArray(metadataObj.events)) {
-                filtered.events = metadataObj.events.filter((event: any) => {
-                  const eventTime = event.timestamp || event.time || 0;
-                  return eventTime >= chunkStartTimeMs && eventTime <= chunkEndTimeMs;
-                });
+          // Only filter metadata if not pre-filtered
+          if (Object.keys(filteredMetadata).length === 0) {
+            console.log(`[ExportWorker] Filtering metadata on-demand for chunk ${chunkInfo.index + 1}`);
+            for (const [recordingId, metadata] of Object.entries(job.inputProps.metadata || {})) {
+              if (recordingIds.has(recordingId) && metadata) {
+                const metadataObj = metadata as any;
+                const filtered: any = {
+                  ...metadataObj,
+                  events: []
+                };
                 
-                // Adjust event timestamps to be relative to chunk start
-                filtered.events = filtered.events.map((event: any) => ({
-                  ...event,
-                  timestamp: (event.timestamp || event.time || 0) - chunkStartTimeMs,
-                  time: (event.time || event.timestamp || 0) - chunkStartTimeMs
-                }));
-              }
-              
-              // Also filter cursor, keyboard, clicks, scrolls arrays if they exist
-              if (Array.isArray(metadataObj.cursor)) {
-                filtered.cursor = metadataObj.cursor.filter((item: any) => 
-                  item.time >= chunkStartTimeMs && item.time <= chunkEndTimeMs
-                ).map((item: any) => ({
-                  ...item,
-                  time: item.time - chunkStartTimeMs
-                }));
-              }
-              
-              if (Array.isArray(metadataObj.keyboard)) {
-                filtered.keyboard = metadataObj.keyboard.filter((item: any) => 
-                  item.time >= chunkStartTimeMs && item.time <= chunkEndTimeMs
-                ).map((item: any) => ({
-                  ...item,
-                  time: item.time - chunkStartTimeMs
-                }));
-              }
-              
-              if (Array.isArray(metadataObj.clicks)) {
-                filtered.clicks = metadataObj.clicks.filter((item: any) => 
-                  item.time >= chunkStartTimeMs && item.time <= chunkEndTimeMs
-                ).map((item: any) => ({
-                  ...item,
-                  time: item.time - chunkStartTimeMs
-                }));
-              }
-              
-              if (Array.isArray(metadataObj.scrolls)) {
-                filtered.scrolls = metadataObj.scrolls.filter((item: any) => 
-                  item.time >= chunkStartTimeMs && item.time <= chunkEndTimeMs  
-                ).map((item: any) => ({
-                  ...item,
-                  time: item.time - chunkStartTimeMs
-                }));
-              }
-              
-              filteredMetadata[recordingId] = filtered;
-              
-              // Log how much metadata we filtered
-              const originalEventCount = (metadataObj.events?.length || 0) + 
-                                        (metadataObj.cursor?.length || 0) + 
-                                        (metadataObj.keyboard?.length || 0) + 
-                                        (metadataObj.clicks?.length || 0) + 
-                                        (metadataObj.scrolls?.length || 0);
-              const filteredEventCount = (filtered.events?.length || 0) + 
-                                        (filtered.cursor?.length || 0) + 
-                                        (filtered.keyboard?.length || 0) + 
-                                        (filtered.clicks?.length || 0) + 
-                                        (filtered.scrolls?.length || 0);
-              
-              if (originalEventCount > 0) {
-                console.log(`[ExportWorker] Chunk ${i + 1}: Filtered metadata for ${recordingId}: ${filteredEventCount}/${originalEventCount} events`);
+                // Simple time range filter for essential events only
+                const eventArrayKeys = ['events', 'cursor', 'keyboard', 'clicks', 'scrolls'];
+                for (const key of eventArrayKeys) {
+                  if (Array.isArray(metadataObj[key])) {
+                    filtered[key] = metadataObj[key]
+                      .filter((item: any) => {
+                        const eventTime = item.timestamp ?? item.time ?? 0;
+                        return eventTime >= chunkStartTimeMs && eventTime <= chunkEndTimeMs;
+                      })
+                      .map((item: any) => {
+                        const eventTime = item.timestamp ?? item.time ?? 0;
+                        return {
+                          ...item,
+                          timestamp: eventTime - chunkStartTimeMs,
+                          time: eventTime - chunkStartTimeMs
+                        };
+                      });
+                  }
+                }
+                
+                filteredMetadata[recordingId] = filtered;
               }
             }
           }
