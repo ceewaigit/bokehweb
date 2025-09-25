@@ -223,6 +223,16 @@ export const useExportStore = create<ExportStore>((set, get) => {
     },
 
     reset: () => {
+      const state = get()
+      // Clean up blob from memory
+      if (state.lastExport) {
+        // Force garbage collection by nullifying reference
+        state.lastExport = null
+      }
+      // Clean up any export-related blobs
+      if (typeof globalBlobManager !== 'undefined') {
+        globalBlobManager.cleanupByType('export')
+      }
       set({ isExporting: false, progress: null, lastExport: null })
     }
   }

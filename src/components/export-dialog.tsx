@@ -94,6 +94,8 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     try {
       await saveLastExport(filename)
       toast.success('File saved')
+      // Clean up memory after successful save
+      reset()
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save file')
     }

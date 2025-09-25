@@ -18,6 +18,93 @@ import fsSync from 'fs';
 import { normalizeCrossPlatform } from '../utils/path-normalizer';
 import { preFilterMetadataForChunks, getRecordingsInTimeRange } from '../utils/metadata-filter';
 
+// Bundle cache management
+interface BundleCache {
+  location: string;
+  timestamp: number;
+  sourceHash?: string;
+}
+
+let cachedBundle: BundleCache | null = null;
+let isBundling = false;
+
+// Get or create webpack bundle with caching
+async function getBundleLocation(forceRebuild = false): Promise<string> {
+  // If already bundling, wait for it to complete
+  if (isBundling) {
+    console.log('Bundle already in progress, waiting...');
+    while (isBundling) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (cachedBundle?.location && fsSync.existsSync(cachedBundle.location)) {
+      return cachedBundle.location;
+    }
+  }
+
+  // Check if we have a valid cached bundle
+  if (!forceRebuild && cachedBundle?.location) {
+    if (fsSync.existsSync(cachedBundle.location)) {
+      console.log('Using cached Remotion bundle from:', cachedBundle.location);
+      return cachedBundle.location;
+    } else {
+      console.log('Cached bundle no longer exists, rebuilding...');
+      cachedBundle = null;
+    }
+  }
+
+  try {
+    isBundling = true;
+    console.log('Building new Remotion bundle...');
+    
+    const { bundle } = await import('@remotion/bundler');
+    const entryPoint = path.join(process.cwd(), 'src/remotion/index.ts');
+    
+    const startTime = Date.now();
+    const bundleLocation = await bundle({
+      entryPoint,
+      publicDir: path.join(process.cwd(), 'public'),
+      webpackOverride: (config) => {
+        const resolvedPath = path.resolve(process.cwd(), 'src');
+        return {
+          ...config,
+          resolve: {
+            ...config.resolve,
+            alias: {
+              ...config.resolve?.alias,
+              '@': resolvedPath,
+              '@/types': path.join(resolvedPath, 'types'),
+              '@/lib': path.join(resolvedPath, 'lib'),
+              '@/remotion': path.join(resolvedPath, 'remotion'),
+            },
+            extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+          },
+        };
+      },
+    });
+    
+    const bundleTime = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`Bundle created in ${bundleTime}s at:`, bundleLocation);
+    
+    // Cache the bundle
+    cachedBundle = {
+      location: bundleLocation,
+      timestamp: Date.now()
+    };
+    
+    return bundleLocation;
+  } finally {
+    isBundling = false;
+  }
+}
+
+// Clean up cached bundle on app quit
+export function cleanupBundleCache() {
+  if (cachedBundle?.location) {
+    fs.rm(cachedBundle.location, { recursive: true, force: true }).catch(() => {});
+    cachedBundle = null;
+  }
+}
+
 // Dynamic chunk size based on available memory
 function getOptimalChunkSize(profile: MachineProfile): number {
   const availableGB = profile.availableMemoryGB || 2;
@@ -69,7 +156,7 @@ const buildChunkPlan = (totalFrames: number, chunkSize: number, fps: number): Ch
   return plan;
 };
 
-const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: number): number => {
+const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: number, videoSizeEstimateGB: number = 0): number => {
   if (chunkCount <= 1) {
     return 1;
   }
@@ -84,10 +171,19 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
     return Math.min(2, chunkCount);
   }
   
+  // Smart allocation based on video size
+  if (videoSizeEstimateGB < 0.5) {
+    // Small video: single worker is fine
+    return 1;
+  } else if (videoSizeEstimateGB < 2) {
+    // Medium video: 2-3 workers
+    return Math.min(3, chunkCount, cpuCores - 1);
+  }
+  
   const effectiveMemory = Math.max(availableMemoryGB, totalMem * 0.4);
 
-  // Conservative worker allocation for stability
-  let idealWorkers = Math.floor(cpuCores * 0.5); // Reduced from 0.7
+  // MORE AGGRESSIVE: Use 80% of CPU cores instead of 50%
+  let idealWorkers = Math.floor(cpuCores * 0.8);
   
   // Memory constraint: Each worker needs ~500MB-1GB
   const memoryBasedWorkers = Math.floor(effectiveMemory);
@@ -103,8 +199,8 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
   // Cap at chunk count (no point having more workers than chunks)
   maxWorkers = Math.min(maxWorkers, chunkCount);
   
-  // Reasonable upper limit to prevent system overload
-  maxWorkers = Math.min(maxWorkers, Math.max(1, cpuCores - 2)); // Leave 2 cores for system
+  // Reasonable upper limit to prevent system overload (but less conservative)
+  maxWorkers = Math.min(maxWorkers, Math.max(1, cpuCores - 1)); // Only leave 1 core for system
   
   return Math.max(1, maxWorkers);
 };
@@ -163,7 +259,6 @@ export function setupExportHandler() {
         // High memory: maximize cache for best performance
         dynamicSettings.offthreadVideoCacheSizeInBytes = 256 * 1024 * 1024; // 256MB
       }
-      // Remove jpegQuality since we're using imageFormat: 'none' now
       
       console.log('Export settings:', {
         jpegQuality: dynamicSettings.jpegQuality,
@@ -173,30 +268,8 @@ export function setupExportHandler() {
         concurrency: dynamicSettings.concurrency
       });
       
-      // Bundle Remotion project
-      const { bundle } = await import('@remotion/bundler');
-      const entryPoint = path.join(process.cwd(), 'src/remotion/index.ts');
-      const bundleLocation = await bundle({
-        entryPoint,
-        publicDir: path.join(process.cwd(), 'public'),
-        webpackOverride: (config) => {
-          const resolvedPath = path.resolve(process.cwd(), 'src');
-          return {
-            ...config,
-            resolve: {
-              ...config.resolve,
-              alias: {
-                ...config.resolve?.alias,
-                '@': resolvedPath,
-                '@/types': path.join(resolvedPath, 'types'),
-                '@/lib': path.join(resolvedPath, 'lib'),
-                '@/remotion': path.join(resolvedPath, 'remotion'),
-              },
-              extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
-            },
-          };
-        },
-      });
+      // Get bundled location (cached or new)
+      const bundleLocation = await getBundleLocation();
 
       // Select composition in main process to avoid OOM in worker
       const { selectComposition } = await import('@remotion/renderer');
@@ -313,23 +386,38 @@ export function setupExportHandler() {
         throw new Error(`Export worker not found at ${workerPath}`);
       }
 
-      const optimalChunkSize = getOptimalChunkSize(machineProfile);
+      // Estimate video size for smart chunking
+      const durationSeconds = totalDurationInFrames / (compositionMetadata.fps || 30);
+      const videoSizeEstimateGB = durationSeconds * 0.05; // Rough estimate: 50MB per minute
+      
+      // Smart chunking based on video size
+      let optimalChunkSize: number;
+      if (videoSizeEstimateGB < 0.5 || durationSeconds < 60) {
+        // Small video (<30s or <500MB): single pass, no chunking
+        optimalChunkSize = totalDurationInFrames;
+        console.log(`Small video detected (${durationSeconds.toFixed(1)}s), using single-pass rendering`);
+      } else if (videoSizeEstimateGB < 2) {
+        // Medium video: larger chunks
+        optimalChunkSize = 2500;
+      } else {
+        // Large video: standard chunks
+        optimalChunkSize = getOptimalChunkSize(machineProfile);
+      }
+      
       const chunkPlan = buildChunkPlan(
         totalDurationInFrames,
         optimalChunkSize,
         compositionMetadata.fps || settings.framerate || 30
       );
 
-      const recommendedWorkers = determineParallelWorkerCount(machineProfile, chunkPlan.length);
+      const recommendedWorkers = determineParallelWorkerCount(machineProfile, chunkPlan.length, videoSizeEstimateGB);
       const workerCount = Math.min(recommendedWorkers, Math.max(1, chunkPlan.length || 1));
       const useParallel = workerCount > 1;
       
-      // Adjust concurrency based on worker count to better utilize CPU
-      // If using multiple workers, give each worker more threads
-      // If using single worker, use all available concurrency
+      // OPTIMIZED: More aggressive CPU utilization
       const adjustedConcurrency = useParallel 
-        ? Math.max(2, Math.floor(machineProfile.cpuCores / workerCount))
-        : Math.max(dynamicSettings.concurrency, Math.floor(machineProfile.cpuCores * 0.8));
+        ? Math.max(3, Math.floor(machineProfile.cpuCores * 0.9 / workerCount))
+        : Math.max(dynamicSettings.concurrency, Math.floor(machineProfile.cpuCores * 0.9));
 
       console.log('[Export] Chunk plan metrics', {
         totalFrames: totalDurationInFrames,
@@ -664,9 +752,6 @@ export function setupExportHandler() {
       };
 
       const result = useParallel ? await runParallelExport() : await runSequentialExport();
-
-      // Clean up bundle
-      await fs.rm(bundleLocation, { recursive: true, force: true }).catch(() => {});
       
       if (result.success) {
         // Handle file response

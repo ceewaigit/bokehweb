@@ -16,7 +16,7 @@ import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 import { setupNativeRecorder } from './handlers/native-recorder'
-import { setupExportHandler } from './handlers/export-handler'
+import { setupExportHandler, cleanupBundleCache } from './handlers/export-handler'
 
 // Helper functions for MIME type detection
 const guessMimeType = (filePath: string): string => {
@@ -438,6 +438,7 @@ app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192')
 app.on('window-all-closed', () => {
   cleanupMouseTracking()
   cleanupKeyboardTracking()
+  cleanupBundleCache() // Clean up cached webpack bundle
   if (process.platform !== 'darwin') {
     app.quit()
   }

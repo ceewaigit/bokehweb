@@ -192,8 +192,8 @@ class ExportWorker extends BaseWorker {
       outputLocation: job.outputPath,
       codec: 'h264',
       videoBitrate: job.videoBitrate,
-      // Use high-quality JPEG for compatibility and performance
-      jpegQuality: Math.max(job.jpegQuality || 85, 85), // Minimum 85 quality
+      // OPTIMIZED: Lower JPEG quality for better performance
+      jpegQuality: job.jpegQuality || 75, // Reduced from 85
       imageFormat: 'jpeg',
       concurrency: renderConcurrency,
       enforceAudioTrack: false, // Don't require audio track
@@ -201,10 +201,11 @@ class ExportWorker extends BaseWorker {
       // Enable aggressive caching and preloading
       numberOfGifLoops: null,
       everyNthFrame: 1, // Process every frame
-      preferLossless: true, // Use lossless encoding when possible
+      preferLossless: false, // Prefer speed over lossless
       chromiumOptions: {
-        gl: 'swangle', // Use software angle for predictable performance
-        headless: true, // Run in true headless mode for better performance
+        // OPTIMIZED: Use GPU acceleration instead of software rendering
+        gl: undefined, // Remove swangle to use GPU
+        headless: true,
         enableMultiProcessOnLinux: true,
         disableWebSecurity: false,
         ignoreCertificateErrors: false
@@ -297,8 +298,7 @@ class ExportWorker extends BaseWorker {
         }
         
         // Create temp file for this chunk
-        // Use .mov extension when using imageFormat: 'none' with h264
-        const chunkPath = path.join(tmpdir(), `remotion-chunk-${i}-${Date.now()}.mov`);
+        const chunkPath = path.join(tmpdir(), `remotion-chunk-${i}-${Date.now()}.mp4`);
         chunks.push(chunkPath);
         if (combineChunksInWorker) {
           this.currentExport?.tempFiles.push(chunkPath);
@@ -499,8 +499,8 @@ class ExportWorker extends BaseWorker {
           outputLocation: chunkPath,
           codec: 'h264',
           videoBitrate: job.videoBitrate,
-          // Use high-quality JPEG for compatibility
-          jpegQuality: Math.max(job.jpegQuality || 85, 85),
+          // OPTIMIZED: Lower JPEG quality for better performance
+          jpegQuality: job.jpegQuality || 75,
           imageFormat: 'jpeg',
           frameRange: [0, chunkFrames - 1],
           concurrency: renderConcurrency,
@@ -509,9 +509,10 @@ class ExportWorker extends BaseWorker {
           // Enable aggressive caching
           numberOfGifLoops: null,
           everyNthFrame: 1,
-          preferLossless: true,
+          preferLossless: false, // Prefer speed
           chromiumOptions: {
-            gl: 'swangle', // Use software angle for predictable performance
+            // OPTIMIZED: Use GPU acceleration
+            gl: undefined, // Remove swangle to use GPU
             headless: true,
             enableMultiProcessOnLinux: true,
             disableWebSecurity: false,

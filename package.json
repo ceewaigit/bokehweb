@@ -5,7 +5,7 @@
   "author": "FlowCapture Team",
   "private": true,
   "main": "electron/dist/main/index.js",
-  "homepage": "./",
+  "homepage": "http://./",
   "config": {
     "forge": "./forge.config.js"
   },
@@ -33,8 +33,7 @@
     "test:integration": "jest --testPathPattern=integration",
     "test:debug": "jest --no-cache --detectOpenHandles",
     "test:quality": "npm run test:coverage && node scripts/test-quality-gate.js",
-    "rebuild": "node-gyp rebuild && npx electron-rebuild",
-    "postinstall": "node scripts/build-native.js"
+    "rebuild": "node-gyp rebuild && npx electron-rebuild"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -152,5 +151,11 @@
         "com.apple.security.device.camera": true
       }
     }
-  }
+  },
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "gypfile": true
 }
