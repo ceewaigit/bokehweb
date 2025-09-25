@@ -234,4 +234,94 @@ export class EffectsFactory {
     }
     return false
   }
+
+  static splitEffectsForClipSplit(
+    effects: Effect[],
+    originalClipId: string,
+    originalClipStart: number,
+    originalClipEnd: number,
+    splitTime: number,
+    firstClipId: string,
+    secondClipId: string
+  ): { toRemove: string[]; toAdd: Effect[] } {
+    const toRemove: string[] = []
+    const toAdd: Effect[] = []
+
+    for (const effect of effects) {
+      // Skip global effects (background, cursor)
+      if (effect.type === EffectType.Background || effect.type === EffectType.Cursor) {
+        continue
+      }
+
+      // Check if effect overlaps with the original clip
+      if (effect.startTime >= originalClipEnd || effect.endTime <= originalClipStart) {
+        continue
+      }
+
+      // Check if this effect is associated with the clip being split
+      if (effect.id.includes(originalClipId)) {
+        // Effect spans across the split point - needs to be split
+        if (effect.startTime < splitTime && effect.endTime > splitTime) {
+          // Remove original effect
+          toRemove.push(effect.id)
+
+          // Create effect for first clip
+          const firstEffect: Effect = {
+            ...effect,
+            id: effect.id.replace(originalClipId, firstClipId),
+            endTime: splitTime,
+            data: { ...effect.data }
+          }
+          toAdd.push(firstEffect)
+
+          // Create effect for second clip
+          const secondEffect: Effect = {
+            ...effect,
+            id: effect.id.replace(originalClipId, secondClipId),
+            startTime: splitTime,
+            data: { ...effect.data }
+          }
+          toAdd.push(secondEffect)
+        }
+        // Effect is entirely in the first clip
+        else if (effect.endTime <= splitTime) {
+          // Remove original and add with updated ID
+          toRemove.push(effect.id)
+          const updatedEffect: Effect = {
+            ...effect,
+            id: effect.id.replace(originalClipId, firstClipId),
+            data: { ...effect.data }
+          }
+          toAdd.push(updatedEffect)
+        }
+        // Effect is entirely in the second clip
+        else if (effect.startTime >= splitTime) {
+          // Remove original and add with updated ID
+          toRemove.push(effect.id)
+          const updatedEffect: Effect = {
+            ...effect,
+            id: effect.id.replace(originalClipId, secondClipId),
+            data: { ...effect.data }
+          }
+          toAdd.push(updatedEffect)
+        }
+      }
+    }
+
+    return { toRemove, toAdd }
+  }
+
+  static restoreEffectsForClipMerge(
+    originalEffects: Effect[],
+    firstClipId: string,
+    secondClipId: string,
+    originalClipId: string
+  ): { toRemove: string[]; toAdd: Effect[] } {
+    // This method is for future use when implementing clip merge functionality
+    // Currently not used but kept for completeness with split operation
+    return {
+      toRemove: [], // Would remove split clip effects
+      toAdd: originalEffects.filter(e => e.id.includes(originalClipId))
+    }
+  }
 }

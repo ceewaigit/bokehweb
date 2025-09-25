@@ -106,19 +106,26 @@ export function splitClipAtTime(
     duration: relativeSplitTime,
     sourceIn: clip.sourceIn,
     sourceOut: clip.sourceIn + sourceSplitPoint,
-    playbackRate: clip.playbackRate,
-    typingSpeedApplied: clip.typingSpeedApplied
+    playbackRate: clip.playbackRate
   }
 
-  // Copy timeRemapPeriods if they exist and adjust them for the first clip
-  if (clip.timeRemapPeriods) {
+  // Only copy typingSpeedApplied flag if it exists
+  if (clip.typingSpeedApplied) {
+    firstClip.typingSpeedApplied = true
+  }
+
+  // Only handle timeRemapPeriods if they exist (for backward compatibility)
+  if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
     const splitSourceTime = clip.sourceIn + sourceSplitPoint
-    firstClip.timeRemapPeriods = clip.timeRemapPeriods
+    const firstPeriods = clip.timeRemapPeriods
       .filter(p => p.sourceStartTime < splitSourceTime)
       .map(p => ({
         ...p,
         sourceEndTime: Math.min(p.sourceEndTime, splitSourceTime)
       }))
+    if (firstPeriods.length > 0) {
+      firstClip.timeRemapPeriods = firstPeriods
+    }
   }
 
   const secondClip: Clip = {
@@ -128,19 +135,26 @@ export function splitClipAtTime(
     duration: clip.duration - relativeSplitTime,
     sourceIn: clip.sourceIn + sourceSplitPoint,
     sourceOut: clip.sourceOut,
-    playbackRate: clip.playbackRate,
-    typingSpeedApplied: clip.typingSpeedApplied
+    playbackRate: clip.playbackRate
   }
 
-  // Copy and adjust timeRemapPeriods for the second clip
-  if (clip.timeRemapPeriods) {
+  // Only copy typingSpeedApplied flag if it exists
+  if (clip.typingSpeedApplied) {
+    secondClip.typingSpeedApplied = true
+  }
+
+  // Only handle timeRemapPeriods if they exist (for backward compatibility)
+  if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
     const splitSourceTime = clip.sourceIn + sourceSplitPoint
-    secondClip.timeRemapPeriods = clip.timeRemapPeriods
+    const secondPeriods = clip.timeRemapPeriods
       .filter(p => p.sourceEndTime > splitSourceTime)
       .map(p => ({
         ...p,
         sourceStartTime: Math.max(p.sourceStartTime, splitSourceTime)
       }))
+    if (secondPeriods.length > 0) {
+      secondClip.timeRemapPeriods = secondPeriods
+    }
   }
 
   return { firstClip, secondClip }
@@ -151,7 +165,7 @@ export function executeSplitClip(
   project: Project,
   clipId: string,
   splitTime: number  // This is in timeline space
-): { firstClip: Clip; secondClip: Clip } | null {
+): { firstClip: Clip; secondClip: Clip; splitEffects: { removed: string[]; added: Effect[] } } | null {
   const result = findClipById(project, clipId)
   if (!result) return null
 
@@ -166,8 +180,42 @@ export function executeSplitClip(
   const clipIndex = track.clips.findIndex(c => c.id === clipId)
   track.clips.splice(clipIndex, 1, splitResult.firstClip, splitResult.secondClip)
 
+  // Handle effects splitting
+  const splitEffects = { removed: [] as string[], added: [] as Effect[] }
+  if (project.timeline.effects) {
+    const { EffectsFactory } = require('../effects/effects-factory')
+    const effectSplit = EffectsFactory.splitEffectsForClipSplit(
+      project.timeline.effects,
+      clipId,
+      clip.startTime,
+      clip.startTime + clip.duration,
+      splitTime,
+      splitResult.firstClip.id,
+      splitResult.secondClip.id
+    )
+
+    // Remove old effects
+    for (const effectId of effectSplit.toRemove) {
+      const index = project.timeline.effects.findIndex(e => e.id === effectId)
+      if (index !== -1) {
+        splitEffects.removed.push(effectId)
+        project.timeline.effects.splice(index, 1)
+      }
+    }
+
+    // Add new split effects
+    for (const effect of effectSplit.toAdd) {
+      project.timeline.effects.push(effect)
+      splitEffects.added.push(effect)
+    }
+  }
+
   project.modifiedAt = new Date().toISOString()
-  return splitResult
+  return { 
+    firstClip: splitResult.firstClip, 
+    secondClip: splitResult.secondClip,
+    splitEffects
+  }
 }
 
 // Trim clip from start
@@ -458,7 +506,4 @@ export function addRecordingToProject(
   project.modifiedAt = new Date().toISOString()
   return clip
 }
-
-// Typing speed is now handled by TypingSpeedApplicationService
-// which uses playbackRate instead of timeRemapPeriods
 

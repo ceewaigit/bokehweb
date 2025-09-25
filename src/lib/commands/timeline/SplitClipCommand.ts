@@ -1,6 +1,6 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { Clip } from '@/types/project'
+import type { Clip, Effect } from '@/types/project'
 import { timelineToClipRelative } from '@/lib/timeline/time-space-converter'
 
 export interface SplitClipResult {
@@ -15,6 +15,8 @@ export class SplitClipCommand extends Command<SplitClipResult> {
   private rightClip?: Clip
   private trackId?: string
   private originalIndex?: number
+  private originalEffects: Effect[] = []
+  private splitEffects: Effect[] = []
 
   constructor(
     private context: CommandContext,
@@ -42,6 +44,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
 
   doExecute(): CommandResult<SplitClipResult> {
     const store = this.context.getStore()
+    const project = this.context.getProject()
     const result = this.context.findClip(this.clipId)
     
     if (!result) {
@@ -58,47 +61,30 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     // Store original clip
     this.originalClip = JSON.parse(JSON.stringify(clip))
     
-    // Convert timeline position to clip-relative time properly
-    const relativeTime = timelineToClipRelative(this.splitTime, clip)
-    
-    if (relativeTime <= 0 || relativeTime >= clip.duration) {
-      return {
-        success: false,
-        error: 'Split time must be within clip bounds'
-      }
-    }
-
-    // Use the proper split function from timeline-operations to handle time remapping
-    const { splitClipAtTime } = require('../../timeline/timeline-operations')
-    const splitResult = splitClipAtTime(clip, relativeTime)
-    
-    if (!splitResult) {
-      return {
-        success: false,
-        error: 'Failed to split clip'
-      }
+    // Store original effects associated with this clip
+    if (project?.timeline.effects) {
+      this.originalEffects = project.timeline.effects
+        .filter(e => e.id.includes(this.clipId))
+        .map(e => JSON.parse(JSON.stringify(e)))
     }
     
-    this.leftClip = splitResult.firstClip
-    this.rightClip = splitResult.secondClip
-
-    // Execute split using store method
-    // Effects are now handled independently by the store
+    // Execute split using store method - this now handles everything internally
     store.splitClip(this.clipId, this.splitTime)
     
     // Get the actual created clips from the project after split
-    const project = this.context.getProject()
     if (project && this.trackId) {
       const track = project.timeline.tracks.find(t => t.id === this.trackId)
       if (track) {
-        // Find the two clips that replaced the original
-        const clips = track.clips.filter(c => c.id.startsWith(`${this.clipId}-split`))
-        if (clips.length === 2) {
-          // Sort by start time to identify left and right
-          clips.sort((a, b) => a.startTime - b.startTime)
-          this.leftClip = clips[0]
-          this.rightClip = clips[1]
-        }
+        // The executeSplitClip now generates predictable IDs
+        this.leftClip = track.clips.find(c => c.id.includes(`${this.clipId}-split1`))
+        this.rightClip = track.clips.find(c => c.id.includes(`${this.clipId}-split2`))
+      }
+
+      // Store the new split effects  
+      if (project.timeline.effects && this.leftClip && this.rightClip) {
+        this.splitEffects = project.timeline.effects
+          .filter(e => e.id.includes(this.leftClip!.id) || e.id.includes(this.rightClip!.id))
+          .map(e => JSON.parse(JSON.stringify(e)))
       }
     }
 
@@ -135,6 +121,22 @@ export class SplitClipCommand extends Command<SplitClipResult> {
       return {
         success: false,
         error: 'Track no longer exists'
+      }
+    }
+
+    // Restore effects first
+    if (project.timeline.effects) {
+      // Remove split effects
+      for (const splitEffect of this.splitEffects) {
+        const index = project.timeline.effects.findIndex(e => e.id === splitEffect.id)
+        if (index !== -1) {
+          project.timeline.effects.splice(index, 1)
+        }
+      }
+      
+      // Restore original effects
+      for (const originalEffect of this.originalEffects) {
+        project.timeline.effects.push(originalEffect)
       }
     }
 
@@ -194,6 +196,22 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     }
 
     const store = this.context.getStore()
+
+    // Restore split effects first
+    if (project.timeline.effects) {
+      // Remove original effects
+      for (const originalEffect of this.originalEffects) {
+        const index = project.timeline.effects.findIndex(e => e.id === originalEffect.id)
+        if (index !== -1) {
+          project.timeline.effects.splice(index, 1)
+        }
+      }
+      
+      // Restore split effects
+      for (const splitEffect of this.splitEffects) {
+        project.timeline.effects.push(splitEffect)
+      }
+    }
 
     // Find where the original clip currently is and remove it
     const originalIndex = track.clips.findIndex(c => c.id === this.clipId)
