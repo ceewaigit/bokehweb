@@ -46,7 +46,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     const store = this.context.getStore()
     const project = this.context.getProject()
     const result = this.context.findClip(this.clipId)
-    
+
     if (!result) {
       return {
         success: false,
@@ -57,20 +57,20 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     const { clip, track } = result
     this.trackId = track.id
     this.originalIndex = track.clips.findIndex(c => c.id === this.clipId)
-    
+
     // Store original clip
     this.originalClip = JSON.parse(JSON.stringify(clip))
-    
+
     // Store original effects associated with this clip
     if (project?.timeline.effects) {
       this.originalEffects = project.timeline.effects
         .filter(e => e.id.includes(this.clipId))
         .map(e => JSON.parse(JSON.stringify(e)))
     }
-    
+
     // Execute split using store method - this now handles everything internally
     store.splitClip(this.clipId, this.splitTime)
-    
+
     // Get the actual created clips from the project after split
     if (project && this.trackId) {
       const track = project.timeline.tracks.find(t => t.id === this.trackId)
@@ -108,7 +108,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
 
     const store = this.context.getStore()
     const project = this.context.getProject()
-    
+
     if (!project) {
       return {
         success: false,
@@ -133,7 +133,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
           project.timeline.effects.splice(index, 1)
         }
       }
-      
+
       // Restore original effects
       for (const originalEffect of this.originalEffects) {
         project.timeline.effects.push(originalEffect)
@@ -206,7 +206,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
           project.timeline.effects.splice(index, 1)
         }
       }
-      
+
       // Restore split effects
       for (const splitEffect of this.splitEffects) {
         project.timeline.effects.push(splitEffect)

@@ -165,10 +165,9 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
   const availableMemoryGB = profile.availableMemoryGB ?? 0;
   const totalMem = profile.totalMemoryGB || 4;
   
-  // CRITICAL: If available memory is very low, limit workers severely
-  if (availableMemoryGB < 1) {
-    // With < 1GB available, use at most 2 workers to prevent thrashing
-    return Math.min(2, chunkCount);
+  // CRITICAL: If available memory is very low, avoid parallel workers entirely
+  if (availableMemoryGB < 1.25) {
+    return 1;
   }
   
   // Smart allocation based on video size
@@ -180,19 +179,19 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
     return Math.min(3, chunkCount, cpuCores - 1);
   }
   
-  const effectiveMemory = Math.max(availableMemoryGB, totalMem * 0.4);
+  const effectiveMemory = availableMemoryGB > 0 ? availableMemoryGB : totalMem * 0.4;
 
   // MORE AGGRESSIVE: Use 80% of CPU cores instead of 50%
   let idealWorkers = Math.floor(cpuCores * 0.8);
   
-  // Memory constraint: Each worker needs ~500MB-1GB
-  const memoryBasedWorkers = Math.floor(effectiveMemory);
-  
+  // Memory constraint: Require ~1.5GB per worker for safety
+  const memoryBasedWorkers = Math.max(1, Math.floor(effectiveMemory / 1.5));
+
   // Take the minimum of CPU-based and memory-based limits
   let maxWorkers = Math.min(idealWorkers, memoryBasedWorkers);
-  
+
   // Ensure at least 2 workers if we have 4+ cores AND enough memory
-  if (cpuCores >= 4 && availableMemoryGB >= 2) {
+  if (cpuCores >= 4 && availableMemoryGB >= 3) {
     maxWorkers = Math.max(maxWorkers, 2);
   }
   
@@ -208,9 +207,10 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
 const computePerWorkerMemoryMB = (profile: MachineProfile, workerCount: number): number => {
   const totalGB = profile.totalMemoryGB || 4;
   const availableGB = profile.availableMemoryGB ?? totalGB * 0.5;
-  const memoryBudget = Math.max(availableGB, totalGB * 0.4);
-  const baseline = Math.floor((memoryBudget * 1024) / Math.max(1, workerCount * 3));
-  return Math.max(512, Math.min(2048, baseline || 1024));
+  const effectiveAvailable = availableGB > 0 ? availableGB : totalGB * 0.3;
+  const memoryBudget = Math.max(effectiveAvailable, 0.5);
+  const baseline = Math.floor((memoryBudget * 1024) / Math.max(1, workerCount * 2));
+  return Math.max(512, Math.min(2048, baseline || 512));
 };
 
 const escapeForConcat = (filePath: string): string => {
@@ -234,6 +234,8 @@ export function setupExportHandler() {
       console.log('Machine profile:', {
         cpuCores: machineProfile.cpuCores,
         memoryGB: machineProfile.totalMemoryGB.toFixed(1),
+        availableMemoryGB: machineProfile.availableMemoryGB.toFixed(2),
+        rawAvailableMemoryGB: machineProfile.rawAvailableMemoryGB.toFixed(2),
         gpuAvailable: machineProfile.gpuAvailable
       });
       
@@ -404,30 +406,78 @@ export function setupExportHandler() {
         optimalChunkSize = getOptimalChunkSize(machineProfile);
       }
       
-      const chunkPlan = buildChunkPlan(
+      let chunkSizeFrames = optimalChunkSize;
+      let chunkPlan = buildChunkPlan(
         totalDurationInFrames,
-        optimalChunkSize,
+        chunkSizeFrames,
         compositionMetadata.fps || settings.framerate || 30
       );
 
       const recommendedWorkers = determineParallelWorkerCount(machineProfile, chunkPlan.length, videoSizeEstimateGB);
-      const workerCount = Math.min(recommendedWorkers, Math.max(1, chunkPlan.length || 1));
+      const normalizedAvailableMemoryGB = machineProfile.availableMemoryGB ?? 0;
+      const rawAvailableMemoryGB = machineProfile.rawAvailableMemoryGB ?? normalizedAvailableMemoryGB;
+      const memoryCriticallyLow = normalizedAvailableMemoryGB < 1.25 && rawAvailableMemoryGB < 0.75;
+      const memoryTight = normalizedAvailableMemoryGB < 2.5 || rawAvailableMemoryGB < 1.25;
+
+      let workerCount = Math.min(recommendedWorkers, Math.max(1, chunkPlan.length || 1));
+      if (memoryCriticallyLow) {
+        workerCount = 1;
+      }
+
       const useParallel = workerCount > 1;
-      
-      // OPTIMIZED: More aggressive CPU utilization
-      const adjustedConcurrency = useParallel 
-        ? Math.max(3, Math.floor(machineProfile.cpuCores * 0.9 / workerCount))
-        : Math.max(dynamicSettings.concurrency, Math.floor(machineProfile.cpuCores * 0.9));
+      const perWorkerMemoryGB = workerCount > 0
+        ? normalizedAvailableMemoryGB / workerCount
+        : normalizedAvailableMemoryGB;
+
+      let adjustedConcurrency: number;
+      if (memoryCriticallyLow) {
+        adjustedConcurrency = 1;
+      } else {
+        const cpuBudget = Math.max(1, Math.floor((machineProfile.cpuCores || 1) * 0.75 / Math.max(1, workerCount)));
+        const memoryBudget = Math.max(1, Math.floor(Math.max(perWorkerMemoryGB, 0.5) / 1.0));
+        const safeConcurrency = Math.max(1, Math.min(cpuBudget, memoryBudget));
+        const baseline = Math.max(1, dynamicSettings.concurrency || 1);
+        if (useParallel) {
+          const hardCap = memoryTight ? 2 : 4;
+          adjustedConcurrency = Math.min(safeConcurrency, hardCap);
+        } else {
+          const cpuCeiling = Math.max(1, Math.floor((machineProfile.cpuCores || 1) * 0.9));
+          const hardCap = memoryTight ? 2 : cpuCeiling;
+          adjustedConcurrency = Math.min(Math.max(baseline, safeConcurrency), hardCap);
+        }
+      }
+
+      adjustedConcurrency = Math.max(1, Math.min(adjustedConcurrency, Math.max(1, machineProfile.cpuCores || 1)));
+
+      if (memoryCriticallyLow) {
+        console.warn('[Export] Available memory below 1.25GB; forcing sequential render with concurrency=1');
+      } else if (memoryTight && useParallel) {
+        console.warn(
+          `[Export] Limited memory per worker (~${perWorkerMemoryGB.toFixed(2)} GB); capping concurrency to ${adjustedConcurrency}`
+        );
+      }
+
+      if (!useParallel) {
+        chunkSizeFrames = totalDurationInFrames;
+        chunkPlan = buildChunkPlan(
+          totalDurationInFrames,
+          chunkSizeFrames,
+          compositionMetadata.fps || settings.framerate || 30
+        );
+      }
 
       console.log('[Export] Chunk plan metrics', {
         totalFrames: totalDurationInFrames,
         chunkCount: chunkPlan.length,
-        chunkSize: optimalChunkSize,
+        chunkSize: chunkSizeFrames,
         recommendedWorkers,
         workerCount,
         availableMemoryGB: machineProfile.availableMemoryGB,
+        rawAvailableMemoryGB: machineProfile.rawAvailableMemoryGB,
         totalMemoryGB: machineProfile.totalMemoryGB,
-        cpuCores: machineProfile.cpuCores
+        cpuCores: machineProfile.cpuCores,
+        concurrency: adjustedConcurrency,
+        useParallel
       });
 
       // Pre-filter metadata for all chunks to avoid redundant processing
@@ -451,7 +501,7 @@ export function setupExportHandler() {
         concurrency: adjustedConcurrency,
         ffmpegPath,
         compositorDir,
-        chunkSizeFrames: optimalChunkSize,
+        chunkSizeFrames,
         preFilteredMetadata, // Pass pre-filtered metadata
         totalFrames: totalDurationInFrames,
         totalChunks: chunkPlan.length

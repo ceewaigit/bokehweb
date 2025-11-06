@@ -1,5 +1,10 @@
 import type { MouseEvent } from '@/types/project'
 
+const getEventTimestamp = (event: MouseEvent): number => {
+  const raw = typeof event.sourceTimestamp === 'number' ? event.sourceTimestamp : event.timestamp
+  return Number.isFinite(raw) ? raw : 0
+}
+
 /**
  * Catmull-Rom spline interpolation for smooth mouse movement
  * Falls back to a simple eased linear interpolation when data is sparse.
@@ -13,10 +18,10 @@ export function interpolateMousePosition(
   }
 
   // Edge cases
-  if (timeMs <= mouseEvents[0].timestamp) {
+  if (timeMs <= getEventTimestamp(mouseEvents[0])) {
     return { x: mouseEvents[0].x, y: mouseEvents[0].y }
   }
-  if (timeMs >= mouseEvents[mouseEvents.length - 1].timestamp) {
+  if (timeMs >= getEventTimestamp(mouseEvents[mouseEvents.length - 1])) {
     const last = mouseEvents[mouseEvents.length - 1]
     return { x: last.x, y: last.y }
   }
@@ -29,7 +34,7 @@ export function interpolateMousePosition(
   // Find segment where timeMs lies
   let i = 0
   for (; i < mouseEvents.length - 1; i++) {
-    if (mouseEvents[i].timestamp <= timeMs && mouseEvents[i + 1].timestamp > timeMs) {
+    if (getEventTimestamp(mouseEvents[i]) <= timeMs && getEventTimestamp(mouseEvents[i + 1]) > timeMs) {
       break
     }
   }
@@ -39,8 +44,8 @@ export function interpolateMousePosition(
   const p2 = mouseEvents[Math.min(mouseEvents.length - 1, i + 1)]
   const p3 = mouseEvents[Math.min(mouseEvents.length - 1, i + 2)]
 
-  const segmentDuration = p2.timestamp - p1.timestamp
-  const t = segmentDuration > 0 ? (timeMs - p1.timestamp) / segmentDuration : 0
+  const segmentDuration = getEventTimestamp(p2) - getEventTimestamp(p1)
+  const t = segmentDuration > 0 ? (timeMs - getEventTimestamp(p1)) / segmentDuration : 0
 
   // Catmull-Rom spline coefficients
   const t2 = t * t
@@ -84,7 +89,7 @@ function simpleInterpolate(
   let after: MouseEvent | null = null
 
   for (let i = 0; i < mouseEvents.length; i++) {
-    if (mouseEvents[i].timestamp <= timeMs) {
+    if (getEventTimestamp(mouseEvents[i]) <= timeMs) {
       before = mouseEvents[i]
     } else {
       after = mouseEvents[i]
@@ -100,12 +105,12 @@ function simpleInterpolate(
     return { x: before.x, y: before.y }
   }
 
-  const timeDiff = after.timestamp - before.timestamp
+  const timeDiff = getEventTimestamp(after) - getEventTimestamp(before)
   if (timeDiff === 0) {
     return { x: before.x, y: before.y }
   }
 
-  const t = (timeMs - before.timestamp) / timeDiff
+  const t = (timeMs - getEventTimestamp(before)) / timeDiff
   // Smoothstep easing for nicer motion
   const smoothT = t * t * (3 - 2 * t)
 

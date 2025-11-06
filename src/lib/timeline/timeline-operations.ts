@@ -1,5 +1,6 @@
 import type { Project, Track, Clip, Effect, Recording } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
+import { logger } from '@/lib/utils/logger'
 
 // Calculate total timeline duration
 export function calculateTimelineDuration(project: Project): number {
@@ -90,22 +91,33 @@ export function splitClipAtTime(
   }
 
   const timestamp = Date.now()
-  const playbackRate = clip.playbackRate || 1
-  
+  const playbackRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
+
+  // Normalize source bounds so math never produces NaN for older clips
+  const sourceIn = Number.isFinite(clip.sourceIn) ? (clip.sourceIn as number) : 0
+  const fallbackSourceOut = sourceIn + (clip.duration || 0) * playbackRate
+  const sourceOut = Number.isFinite(clip.sourceOut) ? (clip.sourceOut as number) : fallbackSourceOut
+  const safeClip: Clip = {
+    ...clip,
+    sourceIn,
+    sourceOut
+  }
+
   // Import the proper conversion function
   const { clipRelativeToSource } = require('../timeline/time-space-converter')
-  
+
   // Convert clip-relative split time to source space
-  const sourceSplitAbsolute = clipRelativeToSource(relativeSplitTime, clip)
-  const sourceSplitPoint = sourceSplitAbsolute - clip.sourceIn
+  const sourceSplitAbsoluteRaw = clipRelativeToSource(relativeSplitTime, safeClip)
+  const sourceSplitAbsolute = Math.max(sourceIn, Math.min(sourceOut, sourceSplitAbsoluteRaw))
+  const sourceSplitPoint = Math.max(0, sourceSplitAbsolute - sourceIn)
 
   const firstClip: Clip = {
     id: `${clip.id}-split1-${timestamp}`,
     recordingId: clip.recordingId,
     startTime: clip.startTime,
     duration: relativeSplitTime,
-    sourceIn: clip.sourceIn,
-    sourceOut: clip.sourceIn + sourceSplitPoint,
+    sourceIn,
+    sourceOut: sourceIn + sourceSplitPoint,
     playbackRate: clip.playbackRate
   }
 
@@ -116,7 +128,7 @@ export function splitClipAtTime(
 
   // Only handle timeRemapPeriods if they exist (for backward compatibility)
   if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
-    const splitSourceTime = clip.sourceIn + sourceSplitPoint
+    const splitSourceTime = sourceIn + sourceSplitPoint
     const firstPeriods = clip.timeRemapPeriods
       .filter(p => p.sourceStartTime < splitSourceTime)
       .map(p => ({
@@ -133,8 +145,8 @@ export function splitClipAtTime(
     recordingId: clip.recordingId,
     startTime: clip.startTime + relativeSplitTime,
     duration: clip.duration - relativeSplitTime,
-    sourceIn: clip.sourceIn + sourceSplitPoint,
-    sourceOut: clip.sourceOut,
+    sourceIn: sourceIn + sourceSplitPoint,
+    sourceOut,
     playbackRate: clip.playbackRate
   }
 
@@ -145,7 +157,7 @@ export function splitClipAtTime(
 
   // Only handle timeRemapPeriods if they exist (for backward compatibility)
   if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
-    const splitSourceTime = clip.sourceIn + sourceSplitPoint
+    const splitSourceTime = sourceIn + sourceSplitPoint
     const secondPeriods = clip.timeRemapPeriods
       .filter(p => p.sourceEndTime > splitSourceTime)
       .map(p => ({
@@ -156,6 +168,28 @@ export function splitClipAtTime(
       secondClip.timeRemapPeriods = secondPeriods
     }
   }
+
+  logger.debug('[SplitDebug] splitClipAtTime', {
+    clipId: clip.id,
+    relativeSplitTime,
+    sourceIn,
+    sourceOut,
+    sourceSplitPoint,
+    firstClip: {
+      id: firstClip.id,
+      startTime: firstClip.startTime,
+      duration: firstClip.duration,
+      sourceIn: firstClip.sourceIn,
+      sourceOut: firstClip.sourceOut
+    },
+    secondClip: {
+      id: secondClip.id,
+      startTime: secondClip.startTime,
+      duration: secondClip.duration,
+      sourceIn: secondClip.sourceIn,
+      sourceOut: secondClip.sourceOut
+    }
+  })
 
   return { firstClip, secondClip }
 }
@@ -170,10 +204,10 @@ export function executeSplitClip(
   if (!result) return null
 
   const { clip, track } = result
-  
+
   // Convert timeline position to clip-relative time
   const clipRelativeTime = splitTime - clip.startTime
-  
+
   const splitResult = splitClipAtTime(clip, clipRelativeTime)
   if (!splitResult) return null
 
@@ -211,8 +245,8 @@ export function executeSplitClip(
   }
 
   project.modifiedAt = new Date().toISOString()
-  return { 
-    firstClip: splitResult.firstClip, 
+  return {
+    firstClip: splitResult.firstClip,
     secondClip: splitResult.secondClip,
     splitEffects
   }
@@ -506,4 +540,3 @@ export function addRecordingToProject(
   project.modifiedAt = new Date().toISOString()
   return clip
 }
-

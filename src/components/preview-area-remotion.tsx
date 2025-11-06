@@ -6,7 +6,7 @@ import { MainComposition } from '@/remotion/compositions/MainComposition'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { useProjectStore } from '@/stores/project-store'
-import type { Clip, Recording, Effect } from '@/types/project'
+import type { Clip, Recording, Effect, RecordingMetadata } from '@/types/project'
 import { timelineToSource, sourceToClipRelative } from '@/lib/timeline/time-space-converter'
 
 interface PreviewAreaRemotionProps {
@@ -172,11 +172,14 @@ export function PreviewAreaRemotion({
   const videoWidth = previewRecording?.width || 1920
   const videoHeight = previewRecording?.height || 1080
 
+  const recordingMeta = useMemo(() => (previewRecording?.metadata ?? {}) as Partial<RecordingMetadata>, [previewRecording?.metadata])
+
+  const splitDebugLoggedRef = useRef<Set<string>>(new Set())
+
   const timelineEffects = useProjectStore(state => state.currentProject?.timeline.effects)
 
   // Build recording-time event streams (filtered to clip window)
   const adjustedEvents = useMemo(() => {
-    const recordingMeta: any = previewRecording?.metadata || {}
     const clip = previewClip
     if (!clip) {
       return {
@@ -224,7 +227,92 @@ export function PreviewAreaRemotion({
       scrollEvents,
       keyboardEvents
     }
-  }, [previewClip, previewRecording?.metadata])
+  }, [previewClip, recordingMeta])
+
+  useEffect(() => {
+    if (!previewClip) return
+
+    const rawEvents = Array.isArray(recordingMeta.mouseEvents) ? recordingMeta.mouseEvents : []
+    const mappedMouseEvents = adjustedEvents.mouseEvents || []
+
+    if (rawEvents.length === 0 && mappedMouseEvents.length === 0) {
+      return
+    }
+
+    const keyParts = [
+      previewClip.id,
+      previewClip.sourceIn ?? 0,
+      previewClip.sourceOut ?? 0,
+      rawEvents.length,
+      mappedMouseEvents.length,
+      rawEvents[0]?.timestamp ?? 0,
+      rawEvents[rawEvents.length - 1]?.timestamp ?? 0
+    ]
+    const key = keyParts.join(':')
+
+    if (splitDebugLoggedRef.current.has(key)) {
+      return
+    }
+    splitDebugLoggedRef.current.add(key)
+
+    const pickWindow = (events: any[], target: number, accessor: (evt: any) => number) => {
+      if (!events || events.length === 0) return []
+      const sorted = [...events].sort((a, b) => accessor(a) - accessor(b))
+      let index = sorted.findIndex(evt => accessor(evt) >= target)
+      if (index === -1) {
+        index = sorted.length - 1
+      }
+      const start = Math.max(0, index - 2)
+      const end = Math.min(sorted.length - 1, index + 2)
+      return sorted.slice(start, end + 1)
+    }
+
+    const summarizeRaw = (evt: any) => ({
+      ts: Math.round(evt?.timestamp ?? evt?.sourceTimestamp ?? 0),
+      x: Math.round((evt?.x ?? evt?.mouseX ?? 0) * 100) / 100,
+      y: Math.round((evt?.y ?? evt?.mouseY ?? 0) * 100) / 100
+    })
+
+    const summarizeMapped = (evt: any) => ({
+      clipTs: Math.round((evt?.timestamp ?? 0) * 100) / 100,
+      sourceTs: Math.round(evt?.sourceTimestamp ?? evt?.timestamp ?? 0),
+      x: Math.round((evt?.x ?? evt?.mouseX ?? 0) * 100) / 100,
+      y: Math.round((evt?.y ?? evt?.mouseY ?? 0) * 100) / 100
+    })
+
+    const sourceIn = previewClip.sourceIn ?? 0
+    const sourceOut = previewClip.sourceOut ?? (sourceIn + (previewClip.duration ?? 0))
+
+    const rawAroundStart = pickWindow(rawEvents, sourceIn, (evt: any) => evt?.timestamp ?? 0).map(summarizeRaw)
+    const rawAroundEnd = pickWindow(rawEvents, sourceOut, (evt: any) => evt?.timestamp ?? 0).map(summarizeRaw)
+    const mappedAroundStart = pickWindow(mappedMouseEvents, 0, (evt: any) => evt?.timestamp ?? 0).map(summarizeMapped)
+    const mappedAroundEnd = pickWindow(mappedMouseEvents, previewClip.duration ?? 0, (evt: any) => evt?.timestamp ?? 0).map(summarizeMapped)
+
+    const mappedFirst = mappedMouseEvents[0]
+    const mappedLast = mappedMouseEvents[mappedMouseEvents.length - 1]
+
+    console.groupCollapsed(`[SplitDebug] Clip ${previewClip.id} metadata window`)
+    console.log('clip bounds', {
+      clipId: previewClip.id,
+      timelineStart: previewClip.startTime,
+      duration: previewClip.duration,
+      sourceIn,
+      sourceOut
+    })
+    console.log('raw mouse near sourceIn', rawAroundStart)
+    console.log('raw mouse near sourceOut', rawAroundEnd)
+    console.log('mapped mouse near clip start (0ms)', mappedAroundStart)
+    console.log('mapped mouse near clip end', mappedAroundEnd)
+    if (mappedFirst || mappedLast) {
+      console.log('mapped range summary', {
+        firstClipTs: mappedFirst?.timestamp ?? null,
+        lastClipTs: mappedLast?.timestamp ?? null,
+        firstSourceTs: mappedFirst?.sourceTimestamp ?? mappedFirst?.timestamp ?? null,
+        lastSourceTs: mappedLast?.sourceTimestamp ?? mappedLast?.timestamp ?? null
+      })
+    }
+    console.groupEnd()
+  }, [previewClip, recordingMeta.mouseEvents, adjustedEvents.mouseEvents])
 
   // Keep effects in timeline space - MainComposition will filter them
   const activeTimelineEffects = useMemo(() => {

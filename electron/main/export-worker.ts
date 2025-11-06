@@ -4,6 +4,7 @@
  * Optimized for memory efficiency using Remotion best practices
  */
 
+import type { ChromiumOptions, RenderMediaOptions } from '@remotion/renderer';
 import { BaseWorker } from './utils/base-worker';
 import { spawn } from 'child_process';
 import path from 'path';
@@ -53,11 +54,14 @@ interface ExportJob {
   preFilteredMetadata?: Record<number, Record<string, any>> | Map<number, Map<string, any>>; // Pre-filtered metadata by chunk
 }
 
+type RenderMediaFn = typeof import('@remotion/renderer').renderMedia;
+
 class ExportWorker extends BaseWorker {
   private currentExport: {
     isActive: boolean;
     tempFiles: string[];
   } | null = null;
+  private forceSafeChromiumMode = false;
 
   protected onInit(): void {
     console.log('[ExportWorker] Initialized with MessagePort IPC');
@@ -93,6 +97,7 @@ class ExportWorker extends BaseWorker {
 
   private async performExport(job: ExportJob): Promise<{ success: boolean; outputPath?: string; error?: string }> {
     const startTime = Date.now();
+    this.forceSafeChromiumMode = false;
     
     try {
       // Initialize export state
@@ -170,11 +175,8 @@ class ExportWorker extends BaseWorker {
     totalFrames: number,
     startTime: number = Date.now()
   ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-    
     const { renderMedia } = await import('@remotion/renderer');
-    const renderConcurrency = Math.max(1, job.concurrency || 1);
 
-    // Send progress updates
     this.send('progress', {
       progress: 10,
       stage: 'rendering',
@@ -184,59 +186,55 @@ class ExportWorker extends BaseWorker {
     let lastReportedFrame = 0;
     let lastProgressUpdate = Date.now();
 
-    // Use renderMedia for memory-efficient single-pass rendering
-    await renderMedia({
-      serveUrl: job.bundleLocation,
-      composition,
-      inputProps: job.inputProps,
-      outputLocation: job.outputPath,
-      codec: 'h264',
-      videoBitrate: job.videoBitrate,
-      // OPTIMIZED: Lower JPEG quality for better performance
-      jpegQuality: job.jpegQuality || 75, // Reduced from 85
-      imageFormat: 'jpeg',
-      concurrency: renderConcurrency,
-      enforceAudioTrack: false, // Don't require audio track
-      offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
-      // Enable aggressive caching and preloading
-      numberOfGifLoops: null,
-      everyNthFrame: 1, // Process every frame
-      preferLossless: false, // Prefer speed over lossless
-      chromiumOptions: {
-        // OPTIMIZED: Use GPU acceleration instead of software rendering
-        gl: undefined, // Remove swangle to use GPU
-        headless: true,
-        enableMultiProcessOnLinux: true,
-        disableWebSecurity: false,
-        ignoreCertificateErrors: false
-      },
-      binariesDirectory: job.compositorDir,
-      // Allow parallel encoding for better performance when memory permits
-      disallowParallelEncoding: false,
-      logLevel: 'verbose',
-      onStart: ({ resolvedConcurrency, parallelEncoding }) => {
-        console.log(`[ExportWorker] Rendering with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding}`);
-      },
-      onProgress: ({ progress, renderedFrames, encodedFrames }) => {
-        const now = Date.now();
-        
-        // Update progress at most every 500ms
-        if (now - lastProgressUpdate > 500 || renderedFrames === totalFrames) {
-          lastProgressUpdate = now;
-          lastReportedFrame = renderedFrames;
-          
-          const progressPercent = 10 + Math.round((renderedFrames / totalFrames) * 85);
-          
-          this.send('progress', {
-            progress: progressPercent,
-            currentFrame: renderedFrames,
-            totalFrames,
-            stage: 'rendering',
-            message: `Rendering frame ${renderedFrames} of ${totalFrames}`
-          });
+    const buildRenderOptions = (useSafeMode: boolean): RenderMediaOptions => {
+      const concurrency = useSafeMode ? 1 : Math.max(1, job.concurrency || 1);
+      const chromiumOptions = this.createChromiumOptions(job, useSafeMode);
+      const modeLabel = useSafeMode ? 'safe mode' : 'performance mode';
+
+      return {
+        serveUrl: job.bundleLocation,
+        composition,
+        inputProps: job.inputProps,
+        outputLocation: job.outputPath,
+        codec: 'h264',
+        videoBitrate: job.videoBitrate,
+        jpegQuality: job.jpegQuality || 75,
+        imageFormat: 'jpeg',
+        concurrency,
+        enforceAudioTrack: false,
+        offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
+        numberOfGifLoops: null,
+        everyNthFrame: 1,
+        preferLossless: false,
+        chromiumOptions,
+        binariesDirectory: job.compositorDir,
+        disallowParallelEncoding: useSafeMode ? true : false,
+        logLevel: this.getRenderLogLevel(useSafeMode),
+        onStart: ({ resolvedConcurrency, parallelEncoding }) => {
+          console.log(`[ExportWorker] Rendering with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding} [${modeLabel}]`);
+        },
+        onProgress: ({ renderedFrames }) => {
+          const now = Date.now();
+
+          if (now - lastProgressUpdate > 500 || renderedFrames === totalFrames) {
+            lastProgressUpdate = now;
+            lastReportedFrame = renderedFrames;
+
+            const progressPercent = 10 + Math.round((renderedFrames / totalFrames) * 85);
+
+            this.send('progress', {
+              progress: progressPercent,
+              currentFrame: renderedFrames,
+              totalFrames,
+              stage: 'rendering',
+              message: `Rendering frame ${renderedFrames} of ${totalFrames}`
+            });
+          }
         }
-      }
-    });
+      };
+    };
+
+    await this.runRenderWithRecovery(renderMedia, buildRenderOptions, job.outputPath, 'single export');
 
     // Finalize
     this.send('progress', {
@@ -273,11 +271,10 @@ class ExportWorker extends BaseWorker {
     
     const chunks: string[] = [];
     const preservedChunkResults: Array<{ index: number; path: string }> = [];
-      const renderConcurrency = Math.max(1, job.concurrency || 1);
 
-      const chunkPlan: ChunkAssignment[] = providedChunks && providedChunks.length > 0
-        ? [...providedChunks].sort((a, b) => a.index - b.index)
-        : this.buildChunkPlan(totalFrames, chunkSize, job.settings.framerate || composition.fps || 30);
+    const chunkPlan: ChunkAssignment[] = providedChunks && providedChunks.length > 0
+      ? [...providedChunks].sort((a, b) => a.index - b.index)
+      : this.buildChunkPlan(totalFrames, chunkSize, job.settings.framerate || composition.fps || 30);
 
     const totalChunkCount = job.totalChunks ?? chunkPlan.length;
     const fps = job.settings.framerate || composition.fps || 30;
@@ -492,54 +489,65 @@ class ExportWorker extends BaseWorker {
           props: chunkInputProps,
         };
 
-        await renderMedia({
-          serveUrl: job.bundleLocation,
-          composition: chunkComposition,
-          inputProps: chunkInputProps,
-          outputLocation: chunkPath,
-          codec: 'h264',
-          videoBitrate: job.videoBitrate,
-          // OPTIMIZED: Lower JPEG quality for better performance
-          jpegQuality: job.jpegQuality || 75,
-          imageFormat: 'jpeg',
-          frameRange: [0, chunkFrames - 1],
-          concurrency: renderConcurrency,
-          enforceAudioTrack: false, // Don't require audio track
-          offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
-          // Enable aggressive caching
-          numberOfGifLoops: null,
-          everyNthFrame: 1,
-          preferLossless: false, // Prefer speed
-          chromiumOptions: {
-            // OPTIMIZED: Use GPU acceleration
-            gl: undefined, // Remove swangle to use GPU
-            headless: true,
-            enableMultiProcessOnLinux: true,
-            disableWebSecurity: false,
-            ignoreCertificateErrors: false
-          },
-          binariesDirectory: job.compositorDir,
-          disallowParallelEncoding: false,
-          logLevel: 'info',
-          onProgress: ({ renderedFrames }) => {
-            const chunkProgress = renderedFrames / chunkFrames;
-            const totalProgress = 10 + ((chunkInfo.index + chunkProgress) / Math.max(1, totalChunkCount)) * 80;
-            
-            this.send('progress', {
-              progress: Math.round(totalProgress),
-              currentFrame: startFrame + renderedFrames,
-              totalFrames,
-              stage: 'rendering',
-              message: `Rendering chunk ${chunkInfo.index + 1}/${totalChunkCount}: frame ${renderedFrames}/${chunkFrames}`,
-              chunkIndex: chunkInfo.index,
-              chunkCount: totalChunkCount,
-              chunkRenderedFrames: renderedFrames,
-              chunkTotalFrames: chunkFrames,
-              chunkStartFrame: startFrame,
-              chunkEndFrame: endFrame
-            });
-          }
-        });
+        const handleChunkProgress = ({ renderedFrames }: { renderedFrames: number }) => {
+          const chunkProgress = renderedFrames / chunkFrames;
+          const totalProgress = 10 + ((chunkInfo.index + chunkProgress) / Math.max(1, totalChunkCount)) * 80;
+
+          this.send('progress', {
+            progress: Math.round(totalProgress),
+            currentFrame: startFrame + renderedFrames,
+            totalFrames,
+            stage: 'rendering',
+            message: `Rendering chunk ${chunkInfo.index + 1}/${totalChunkCount}: frame ${renderedFrames}/${chunkFrames}`,
+            chunkIndex: chunkInfo.index,
+            chunkCount: totalChunkCount,
+            chunkRenderedFrames: renderedFrames,
+            chunkTotalFrames: chunkFrames,
+            chunkStartFrame: startFrame,
+            chunkEndFrame: endFrame
+          });
+        };
+
+        const buildChunkRenderOptions = (useSafeMode: boolean): RenderMediaOptions => {
+          const concurrency = useSafeMode ? 1 : Math.max(1, job.concurrency || 1);
+          const chromiumOptions = this.createChromiumOptions(job, useSafeMode);
+          const modeLabel = useSafeMode ? 'safe mode' : 'performance mode';
+
+          return {
+            serveUrl: job.bundleLocation,
+            composition: chunkComposition,
+            inputProps: chunkInputProps,
+            outputLocation: chunkPath,
+            codec: 'h264',
+            videoBitrate: job.videoBitrate,
+            jpegQuality: job.jpegQuality || 75,
+            imageFormat: 'jpeg',
+            frameRange: [0, chunkFrames - 1],
+            concurrency,
+            enforceAudioTrack: false,
+            offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,
+            numberOfGifLoops: null,
+            everyNthFrame: 1,
+            preferLossless: false,
+            chromiumOptions,
+            binariesDirectory: job.compositorDir,
+            disallowParallelEncoding: useSafeMode ? true : false,
+            logLevel: this.getRenderLogLevel(useSafeMode),
+            onStart: ({ resolvedConcurrency, parallelEncoding }) => {
+              console.log(
+                `[ExportWorker] Chunk ${chunkInfo.index + 1}/${totalChunkCount} using concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding} [${modeLabel}]`
+              );
+            },
+            onProgress: handleChunkProgress
+          };
+        };
+
+        await this.runRenderWithRecovery(
+          renderMedia,
+          buildChunkRenderOptions,
+          chunkPath,
+          `chunk ${chunkInfo.index + 1}`
+        );
 
         // Force garbage collection between chunks if available
         if (global.gc) {
@@ -641,6 +649,69 @@ class ExportWorker extends BaseWorker {
       }
       throw error;
     }
+  }
+
+  private createChromiumOptions(job: ExportJob, useSafeMode: boolean): ChromiumOptions {
+    const shouldUseGpu = job.useGPU && !useSafeMode;
+
+    return {
+      headless: true,
+      gl: shouldUseGpu ? 'angle' : 'swangle',
+      enableMultiProcessOnLinux: process.platform === 'linux' && !useSafeMode,
+      disableWebSecurity: false,
+      ignoreCertificateErrors: false
+    };
+  }
+
+  private async runRenderWithRecovery(
+    renderMedia: RenderMediaFn,
+    buildOptions: (useSafeMode: boolean) => RenderMediaOptions,
+    outputPath: string,
+    context: string
+  ): Promise<void> {
+    const initialSafeMode = this.forceSafeChromiumMode;
+
+    try {
+      await renderMedia(buildOptions(initialSafeMode));
+      return;
+    } catch (error) {
+      if (initialSafeMode) {
+        throw error;
+      }
+
+      if (!this.isRecoverableChromiumError(error)) {
+        throw error;
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[ExportWorker] ${context} crashed (${message}). Retrying with safe Chromium settings.`);
+
+      this.forceSafeChromiumMode = true;
+      await fs.unlink(outputPath).catch(() => {});
+
+      await renderMedia(buildOptions(true));
+    }
+  }
+
+  private isRecoverableChromiumError(error: unknown): boolean {
+    if (!error) {
+      return false;
+    }
+
+    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    const stack = error instanceof Error ? error.stack ?? '' : '';
+    const haystack = `${message}\n${stack}`.toLowerCase();
+
+    return haystack.includes('target closed')
+      || haystack.includes('runtime.callfunctionon')
+      || haystack.includes('browser has disconnected')
+      || haystack.includes('page crashed')
+      || haystack.includes('websocket was closed')
+      || haystack.includes('websocket closed with reason');
+  }
+
+  private getRenderLogLevel(useSafeMode: boolean): 'warn' | 'info' {
+    return useSafeMode ? 'info' : 'warn';
   }
 
   private buildChunkPlan(totalFrames: number, chunkSize: number, fps: number): ChunkAssignment[] {
