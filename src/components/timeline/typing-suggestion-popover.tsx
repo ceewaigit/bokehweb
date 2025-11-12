@@ -2,8 +2,6 @@ import React, { useEffect, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import type { TypingPeriod } from '@/lib/timeline/typing-detector'
 
-const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
-
 interface TypingSuggestionPopoverProps {
   x: number
   y: number
@@ -49,9 +47,6 @@ export function TypingSuggestionPopover({
           <button
             className="px-2 py-1 text-xs rounded bg-[#2a2f3a] hover:bg-[#343a46] text-gray-200"
             onClick={async () => {
-              if (DEBUG_TYPING) {
-                console.log('[TypingSuggestionPopover] Apply all clicked with periods:', allPeriods)
-              }
               await onApplyAll(allPeriods);
               onClose();
             }}
@@ -62,9 +57,6 @@ export function TypingSuggestionPopover({
         <button
           className="px-2 py-1 text-xs rounded bg-[#3b82f6] hover:bg-[#2563eb] text-white"
           onClick={async () => {
-            if (DEBUG_TYPING) {
-              console.log('[TypingSuggestionPopover] Apply suggestion clicked with period:', period)
-            }
             await onApply(period);
             onClose();
           }}

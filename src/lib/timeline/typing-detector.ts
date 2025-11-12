@@ -2,7 +2,7 @@
  * Typing detection and speed-up suggestion utility
  */
 
-import type { KeyboardEvent } from '@/types/project'
+import type { KeyboardEvent, Recording, TypingPeriod as ProjectTypingPeriod } from '@/types/project'
 
 export interface TypingPeriod {
   startTime: number
@@ -21,8 +21,6 @@ export interface TypingSuggestions {
   }
 }
 
-const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
-
 export class TypingDetector {
   private static readonly MIN_TYPING_DURATION = 2000 // 2 seconds minimum
   private static readonly MAX_GAP_BETWEEN_KEYS = 3000 // 3 seconds max gap
@@ -30,9 +28,28 @@ export class TypingDetector {
   private static readonly TYPING_CHARS = /^[a-zA-Z0-9\s.,;:!?\-_(){}[\]"'`~@#$%^&*+=<>/\\|]$/
 
   /**
-   * Analyze keyboard events to detect typing periods
+   * Analyze keyboard events to detect typing periods (with automatic caching)
+   * @param recording - Recording object to check cache and store results
+   * @returns Typing suggestions
    */
-  static analyzeTyping(keyboardEvents: KeyboardEvent[]): TypingSuggestions {
+  static analyzeTyping(recording: Recording): TypingSuggestions {
+    // Check if we have cached results
+    if (recording.metadata?.detectedTypingPeriods) {
+      // Convert cached periods back to TypingPeriod format
+      const periods: TypingPeriod[] = recording.metadata.detectedTypingPeriods.map(p => ({
+        ...p,
+        averageWpm: p.averageWPM,
+        confidence: 0.8 // Default confidence for cached results
+      }))
+
+      return {
+        periods,
+        overallSuggestion: this.calculateOverallSuggestion(periods)
+      }
+    }
+
+    // No cache, perform analysis
+    const keyboardEvents = recording.metadata?.keyboardEvents || []
     if (!keyboardEvents || keyboardEvents.length === 0) {
       return { periods: [] }
     }
@@ -49,21 +66,6 @@ export class TypingDetector {
 
     const periods = this.detectTypingPeriods(typingEvents)
     const overallSuggestion = this.calculateOverallSuggestion(periods)
-    
-    if (DEBUG_TYPING && periods.length > 0) {
-      console.log('[TypingDetector] Detected typing periods', {
-        totalKeyboardEvents: keyboardEvents.length,
-        typingEvents: typingEvents.length,
-        periodsDetected: periods.map(p => ({
-          startTime: p.startTime,
-          endTime: p.endTime,
-          duration: p.endTime - p.startTime,
-          keyCount: p.keyCount,
-          wpm: p.averageWpm,
-          speedMultiplier: p.suggestedSpeedMultiplier
-        }))
-      })
-    }
 
     return {
       periods,

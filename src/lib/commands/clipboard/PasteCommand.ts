@@ -38,26 +38,60 @@ export class PasteCommand extends Command<PasteResult> {
 
     // Paste effect if we have one
     if (clipboard.effect) {
-      // Zoom effects are timeline-global, don't need a clip
+      // Zoom effects are recording-scoped
       if (clipboard.effect.type === EffectType.Zoom) {
+        console.log('[PasteCommand] Pasting zoom effect')
         const zoomData = clipboard.effect.data as unknown as ZoomEffectData
+
+        // Determine target clip for the zoom effect
+        // Priority: targetClipId > selected clip > playhead clip > first clip
+        const project = this.context.getProject()
+        let targetClipId = this.targetClipId
+
+        console.log('[PasteCommand] Initial targetClipId:', targetClipId)
+
+        if (!targetClipId) {
+          const selectedClips = this.context.getSelectedClips()
+          targetClipId = selectedClips[0]
+          console.log('[PasteCommand] Selected clips:', selectedClips, 'using:', targetClipId)
+        }
+
+        if (!targetClipId && project) {
+          // Fallback to first clip in timeline
+          const firstClip = project.timeline.tracks[0]?.clips[0]
+          targetClipId = firstClip?.id
+          console.log('[PasteCommand] Using first clip:', targetClipId)
+        }
+
+        if (!targetClipId) {
+          console.error('[PasteCommand] No clip found to paste zoom effect')
+          return {
+            success: false,
+            error: 'No clip found to paste zoom effect. Create a clip first.'
+          }
+        }
+
+        console.log('[PasteCommand] Final targetClipId:', targetClipId)
+
         // For pasting, we need to determine duration - use a default of 5 seconds
         const blockDuration = 5000 // 5 seconds default for zoom effect
         const currentTime = this.pasteTime ?? this.context.getCurrentTime()
         let pasteStartTime = Math.max(0, currentTime) // Use absolute timeline position
-        
-        // Find non-overlapping position - check ALL zoom effects globally
-        const project = this.context.getProject()
-        const existingZoomEffects = (project?.timeline.effects || [])
-          .filter(e => e.type === EffectType.Zoom)
-          .sort((a, b) => a.startTime - b.startTime)
-        
+
+        // Find non-overlapping position - check ALL zoom effects in all recordings
+        const existingZoomEffects: Effect[] = []
+        for (const recording of project?.recordings || []) {
+          const zoomEffects = (recording.effects || []).filter(e => e.type === EffectType.Zoom)
+          existingZoomEffects.push(...zoomEffects)
+        }
+        existingZoomEffects.sort((a, b) => a.startTime - b.startTime)
+
         for (const effect of existingZoomEffects) {
           if (pasteStartTime < effect.endTime && (pasteStartTime + blockDuration) > effect.startTime) {
             pasteStartTime = effect.endTime + 100
           }
         }
-        
+
         const newBlock: ZoomBlock = {
           ...zoomData,
           id: `zoom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -65,11 +99,21 @@ export class PasteCommand extends Command<PasteResult> {
           endTime: pasteStartTime + blockDuration,
           scale: zoomData.scale || 2
         }
-        
-        // Pass empty string for clipId since zoom is timeline-global
-        this.pastedCommand = new AddZoomBlockCommand(this.context, '', newBlock)
+
+        console.log('[PasteCommand] Creating AddZoomBlockCommand with:', {
+          targetClipId,
+          blockId: newBlock.id,
+          startTime: newBlock.startTime,
+          endTime: newBlock.endTime,
+          scale: newBlock.scale
+        })
+
+        // Zoom effects stored in recording.effects
+        this.pastedCommand = new AddZoomBlockCommand(this.context, targetClipId, newBlock)
         const result = await this.pastedCommand.execute()
-        
+
+        console.log('[PasteCommand] AddZoomBlockCommand result:', result)
+
         if (result.success) {
           return {
             success: true,
@@ -77,7 +121,7 @@ export class PasteCommand extends Command<PasteResult> {
               type: 'effect',
               effectType: EffectType.Zoom,
               blockId: newBlock.id,
-              clipId: '' // Empty since zoom is timeline-global
+              clipId: '' // Zoom effects are recording-scoped
             }
           }
         }
@@ -118,7 +162,7 @@ export class PasteCommand extends Command<PasteResult> {
             data: effectData
           })
         } else {
-          // Create new effect if none exists (timeline-global)
+          // Create new effect if none exists
           store.addEffect({
             id: `${effectType}-global-${Date.now()}`,
             type: effectType as EffectType,

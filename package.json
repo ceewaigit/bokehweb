@@ -36,6 +36,7 @@
     "rebuild": "node-gyp rebuild && npx electron-rebuild"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -139,7 +140,8 @@
       }
     ],
     "asarUnpack": [
-      "node_modules/@remotion/compositor-*/**/*"
+      "node_modules/@remotion/compositor-*/**/*",
+      "node_modules/@ffmpeg-installer/**/*"
     ],
     "mac": {
       "hardenedRuntime": false,
@@ -151,9 +153,6 @@
         "com.apple.security.device.camera": true
       }
     }
-  },
-  "directories": {
-    "test": "tests"
   },
   "keywords": [],
   "license": "ISC",

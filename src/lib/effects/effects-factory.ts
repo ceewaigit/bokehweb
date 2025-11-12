@@ -2,10 +2,9 @@ import type { Effect, Recording, Clip, Project, ZoomEffectData, BackgroundEffect
 import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
 import { ZoomDetector } from './utils/zoom-detector'
 import { getDefaultWallpaper } from '@/lib/constants/default-effects'
-import { sourceToTimeline } from '@/lib/timeline/time-space-converter'
 
 export class EffectsFactory {
-  static createZoomEffectsFromRecording(recording: Recording, clip: Clip): Effect[] {
+  static createZoomEffectsFromRecording(recording: Recording): Effect[] {
     const effects: Effect[] = []
     const zoomDetector = new ZoomDetector()
     const zoomBlocks = zoomDetector.detectZoomBlocks(
@@ -16,16 +15,13 @@ export class EffectsFactory {
     )
 
     zoomBlocks.forEach((block, index) => {
-      // Convert zoom block times from source space to timeline space
-      // block.startTime and block.endTime are in source space (recording metadata)
-      const timelineStart = sourceToTimeline(block.startTime, clip)
-      const timelineEnd = sourceToTimeline(block.endTime, clip)
-      
+      // Store times in source space - no conversion needed
+      // block.startTime and block.endTime are already in source space (recording metadata)
       const zoomEffect: Effect = {
-        id: `zoom-${clip.id}-${index}`,
+        id: `zoom-${recording.id}-${index}`,
         type: EffectType.Zoom,
-        startTime: timelineStart,  // Now in timeline space
-        endTime: timelineEnd,      // Now in timeline space
+        startTime: block.startTime,  // Source space
+        endTime: block.endTime,      // Source space
         data: {
           scale: block.scale,
           targetX: block.targetX,
@@ -81,55 +77,40 @@ export class EffectsFactory {
   }
   static createInitialEffectsForRecording(
     recording: Recording,
-    clip: Clip,
-    existingEffects: Effect[] = []
-  ): Effect[] {
-    const newEffects: Effect[] = []
-    const zoomEffects = this.createZoomEffectsFromRecording(recording, clip)
-    newEffects.push(...zoomEffects)
+    existingGlobalEffects: Effect[] = []
+  ): void {
+    // Initialize effects array if not present
+    if (!recording.effects) {
+      recording.effects = []
+    }
 
-    const hasBackground = existingEffects.some(e => e.type === EffectType.Background)
+    // Create zoom effects from recording metadata and store on recording
+    const zoomEffects = this.createZoomEffectsFromRecording(recording)
+    recording.effects.push(...zoomEffects)
+  }
+
+  static ensureGlobalEffects(project: Project): void {
+    // Ensure global effects array exists
+    if (!project.timeline.effects) {
+      project.timeline.effects = []
+    }
+
+    // Add default background if not present
+    const hasBackground = project.timeline.effects.some(e => e.type === EffectType.Background)
     if (!hasBackground) {
-      newEffects.push(this.createDefaultBackgroundEffect())
+      project.timeline.effects.push(this.createDefaultBackgroundEffect())
     }
 
-    const hasCursor = existingEffects.some(e => e.type === EffectType.Cursor)
+    // Add default cursor if not present
+    const hasCursor = project.timeline.effects.some(e => e.type === EffectType.Cursor)
     if (!hasCursor) {
-      newEffects.push(this.createDefaultCursorEffect())
+      project.timeline.effects.push(this.createDefaultCursorEffect())
     }
-    return newEffects
   }
   static getEffectsInTimeRange(effects: Effect[], startTime: number, endTime: number): Effect[] {
     return effects.filter(effect =>
       effect.startTime < endTime && effect.endTime > startTime
     )
-  }
-  static shiftEffects(effects: Effect[], windowStart: number, windowEnd: number, delta: number): void {
-    if (delta === 0) return
-    for (const effect of effects) {
-      if (effect.type === EffectType.Background) continue
-      if (effect.startTime >= windowStart && effect.endTime <= windowEnd) {
-        effect.startTime += delta
-        effect.endTime += delta
-      }
-    }
-  }
-  static cloneEffect(effect: Effect, newIdSuffix: string): Effect {
-    return {
-      ...effect,
-      id: `${effect.id}-${newIdSuffix}`,
-      data: { ...effect.data }
-    }
-  }
-  static mergeEffectUpdates(effect: Effect, updates: Partial<Effect>): Effect {
-    const { type: _type, id: _id, ...safeUpdates } = updates
-    return {
-      ...effect,
-      ...safeUpdates,
-      data: updates.data ?
-        Object.assign({}, effect.data, updates.data) as typeof effect.data :
-        effect.data
-    }
   }
 
   static getZoomEffects(effects: Effect[]): Effect[] {
@@ -192,17 +173,25 @@ export class EffectsFactory {
     return effect.data as ScreenEffectData
   }
   static getEffectsForClip(project: Project, clipId: string): Effect[] {
-    if (!project?.timeline.effects) return []
+    // Find the clip
     let clip: Clip | null = null
     for (const track of project.timeline.tracks) {
       clip = track.clips.find(c => c.id === clipId) || null
       if (clip) break
     }
     if (!clip) return []
-    return project.timeline.effects.filter(e =>
-      e.startTime < clip.startTime + clip.duration &&
-      e.endTime > clip.startTime
-    )
+
+    // Find the recording
+    const recording = project.recordings.find(r => r.id === clip.recordingId)
+    if (!recording || !recording.effects) return []
+
+    // Filter effects to only those that overlap with clip's source range
+    // Effects are in source space (recording time), clip references source via sourceIn/sourceOut
+    return recording.effects.filter(effect => {
+      // Check if effect overlaps with clip's source range
+      // Effect is visible if: effect.startTime < clip.sourceOut AND effect.endTime > clip.sourceIn
+      return effect.startTime < clip.sourceOut && effect.endTime > clip.sourceIn
+    })
   }
   static ensureEffectsArray(project: Project): void {
     if (!project.timeline.effects) {
@@ -210,118 +199,90 @@ export class EffectsFactory {
     }
   }
   static addEffectToProject(project: Project, effect: Effect): void {
+    // CRITICAL: Zoom effects must ONLY be added to recording.effects, not timeline.effects
+    if (effect.type === EffectType.Zoom) {
+      throw new Error('Zoom effects cannot be added to timeline.effects. Use addEffectToRecording() instead.')
+    }
+
     this.ensureEffectsArray(project)
     project.timeline.effects!.push(effect)
     project.modifiedAt = new Date().toISOString()
   }
+
+  static addEffectToRecording(recording: Recording, effect: Effect): void {
+    if (!recording.effects) {
+      recording.effects = []
+    }
+    recording.effects.push(effect)
+  }
   static removeEffectFromProject(project: Project, effectId: string): boolean {
-    if (!project.timeline.effects) return false
-    const index = project.timeline.effects.findIndex(e => e.id === effectId)
-    if (index !== -1) {
-      project.timeline.effects.splice(index, 1)
-      project.modifiedAt = new Date().toISOString()
-      return true
+    const located = this.findEffectInProject(project, effectId)
+    if (!located) {
+      return false
     }
+
+    if (located.scope === 'timeline') {
+      const effects = project.timeline.effects || []
+      const index = effects.findIndex(e => e.id === effectId)
+      if (index !== -1) {
+        effects.splice(index, 1)
+        project.modifiedAt = new Date().toISOString()
+        return true
+      }
+    } else if (located.scope === 'recording' && located.recording) {
+      const effects = located.recording.effects || []
+      const index = effects.findIndex(e => e.id === effectId)
+      if (index !== -1) {
+        effects.splice(index, 1)
+        project.modifiedAt = new Date().toISOString()
+        return true
+      }
+    }
+
     return false
   }
+
   static updateEffectInProject(project: Project, effectId: string, updates: Partial<Effect>): boolean {
-    if (!project.timeline.effects) return false
-    const effect = project.timeline.effects.find(e => e.id === effectId)
-    if (effect) {
-      Object.assign(effect, updates)
-      project.modifiedAt = new Date().toISOString()
-      return true
+    const located = this.findEffectInProject(project, effectId)
+    if (!located) {
+      return false
     }
-    return false
+
+    // Apply updates to the effect
+    // CRITICAL: Deep merge the data object to preserve existing properties
+    if (updates.data && located.effect.data) {
+      Object.assign(located.effect, updates, {
+        data: { ...located.effect.data, ...updates.data }
+      })
+    } else {
+      Object.assign(located.effect, updates)
+    }
+
+    project.modifiedAt = new Date().toISOString()
+    return true
   }
 
-  static splitEffectsForClipSplit(
-    effects: Effect[],
-    originalClipId: string,
-    originalClipStart: number,
-    originalClipEnd: number,
-    splitTime: number,
-    firstClipId: string,
-    secondClipId: string
-  ): { toRemove: string[]; toAdd: Effect[] } {
-    const toRemove: string[] = []
-    const toAdd: Effect[] = []
-
-    for (const effect of effects) {
-      // Skip global effects (background, cursor)
-      if (effect.type === EffectType.Background || effect.type === EffectType.Cursor) {
-        continue
-      }
-
-      // Check if effect overlaps with the original clip
-      if (effect.startTime >= originalClipEnd || effect.endTime <= originalClipStart) {
-        continue
-      }
-
-      // Check if this effect is associated with the clip being split
-      if (effect.id.includes(originalClipId)) {
-        // Effect spans across the split point - needs to be split
-        if (effect.startTime < splitTime && effect.endTime > splitTime) {
-          // Remove original effect
-          toRemove.push(effect.id)
-
-          // Create effect for first clip
-          const firstEffect: Effect = {
-            ...effect,
-            id: effect.id.replace(originalClipId, firstClipId),
-            endTime: splitTime,
-            data: { ...effect.data }
-          }
-          toAdd.push(firstEffect)
-
-          // Create effect for second clip
-          const secondEffect: Effect = {
-            ...effect,
-            id: effect.id.replace(originalClipId, secondClipId),
-            startTime: splitTime,
-            data: { ...effect.data }
-          }
-          toAdd.push(secondEffect)
-        }
-        // Effect is entirely in the first clip
-        else if (effect.endTime <= splitTime) {
-          // Remove original and add with updated ID
-          toRemove.push(effect.id)
-          const updatedEffect: Effect = {
-            ...effect,
-            id: effect.id.replace(originalClipId, firstClipId),
-            data: { ...effect.data }
-          }
-          toAdd.push(updatedEffect)
-        }
-        // Effect is entirely in the second clip
-        else if (effect.startTime >= splitTime) {
-          // Remove original and add with updated ID
-          toRemove.push(effect.id)
-          const updatedEffect: Effect = {
-            ...effect,
-            id: effect.id.replace(originalClipId, secondClipId),
-            data: { ...effect.data }
-          }
-          toAdd.push(updatedEffect)
-        }
+  private static findEffectInProject(project: Project, effectId: string): { effect: Effect; scope: 'timeline' | 'recording'; recording?: Recording } | null {
+    // CRITICAL: Search recording.effects FIRST for zoom effects
+    // Zoom effects should only be in recording.effects, never in timeline.effects
+    // But legacy data may have duplicates, so we prioritize the recording copy
+    for (const recording of project.recordings) {
+      if (!recording.effects) continue
+      const effect = recording.effects.find(e => e.id === effectId)
+      if (effect) {
+        return { effect, scope: 'recording', recording }
       }
     }
 
-    return { toRemove, toAdd }
+    // Then check timeline-global effects (background, cursor, keystroke, etc.)
+    if (project.timeline.effects) {
+      const effect = project.timeline.effects.find(e => e.id === effectId)
+      if (effect) {
+        return { effect, scope: 'timeline' }
+      }
+    }
+
+    return null
   }
 
-  static restoreEffectsForClipMerge(
-    originalEffects: Effect[],
-    firstClipId: string,
-    secondClipId: string,
-    originalClipId: string
-  ): { toRemove: string[]; toAdd: Effect[] } {
-    // This method is for future use when implementing clip merge functionality
-    // Currently not used but kept for completeness with split operation
-    return {
-      toRemove: [], // Would remove split clip effects
-      toAdd: originalEffects.filter(e => e.id.includes(originalClipId))
-    }
-  }
 }

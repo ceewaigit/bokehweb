@@ -4,7 +4,7 @@ import React, { useCallback, useState, useRef, useEffect } from 'react'
 import { Stage, Layer, Rect, Group, Text } from 'react-konva'
 import { useProjectStore } from '@/stores/project-store'
 import { cn, clamp } from '@/lib/utils'
-import type { Project, ZoomBlock, ZoomEffectData } from '@/types/project'
+import type { Project, ZoomBlock, ZoomEffectData, Effect } from '@/types/project'
 import { EffectType, TrackType, TimelineTrackType } from '@/types/project'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 
@@ -108,10 +108,16 @@ export function TimelineCanvas({
   const pixelsPerMs = TimeConverter.calculatePixelsPerMs(stageSize.width, zoom)
   const timelineWidth = TimeConverter.calculateTimelineWidth(duration, pixelsPerMs, stageSize.width)
   // Show zoom track if ANY zoom effects exist (enabled or disabled)
-  const zoomTrackExists = (currentProject?.timeline.effects?.length ?? 0) > 0 &&
-    currentProject!.timeline.effects!.some(e => e.type === EffectType.Zoom)
+  // Check if ANY recording has zoom effects (effects are stored in source space on recordings)
+  const zoomTrackExists = currentProject?.recordings.some(r =>
+    r.effects?.some(e => e.type === EffectType.Zoom)
+  ) ?? false
+
   // Determine if any zoom block is enabled
-  const isZoomEnabled = EffectsFactory.hasActiveZoomEffects(currentProject?.timeline.effects || [])
+  const allZoomEffects = currentProject?.recordings.flatMap(r =>
+    EffectsFactory.getZoomEffects(r.effects || [])
+  ) || []
+  const isZoomEnabled = allZoomEffects.some(e => e.enabled)
   // Show keystroke track if ANY keystroke effects exist
   const hasKeystrokeTrack = EffectsFactory.hasKeystrokeTrack(currentProject?.timeline.effects || [])
 
@@ -495,13 +501,13 @@ export function TimelineCanvas({
               const videoTrack = currentProject.timeline.tracks.find(t => t.type === TrackType.Video)
               const videoClips = videoTrack?.clips || []
 
-              return videoClips.map(clip => {
+              return videoClips.map((clip, index) => {
                 const recording = currentProject.recordings.find(r => r.id === clip.recordingId)
-                // Get effects that overlap with this clip's time range
-                const clipEffects = currentProject.timeline.effects?.filter(e =>
-                  e.startTime < clip.startTime + clip.duration &&
-                  e.endTime > clip.startTime
-                ) || []
+                // Merge effects from recording (zoom) and timeline (global)
+                const recordingEffects = recording?.effects || []
+                const globalEffects = currentProject.timeline.effects || []
+                const clipEffects = [...recordingEffects, ...globalEffects]
+
                 return (
                   <TimelineClip
                     key={clip.id}
@@ -527,15 +533,19 @@ export function TimelineCanvas({
               })
             })()}
 
-            {/* Zoom blocks - timeline-global, not tied to clips */}
+            {/* Zoom blocks - recording-scoped, rendered per recording */}
             {zoomTrackExists && (() => {
               // Collect and sort zoom blocks to render selected ones on top
               const zoomBlocks: React.ReactElement[] = []
               const selectedZoomBlocks: React.ReactElement[] = []
 
-              // Get ALL zoom effects from timeline.effects (timeline-global)
-              const effectsSource = currentProject.timeline.effects || []
-              const zoomEffects = EffectsFactory.getZoomEffects(effectsSource)
+              // Get ALL zoom effects from all recordings (stored in source space)
+              const allZoomEffects: Effect[] = []
+              for (const recording of currentProject.recordings) {
+                const recordingZoomEffects = EffectsFactory.getZoomEffects(recording.effects || [])
+                allZoomEffects.push(...recordingZoomEffects)
+              }
+              const zoomEffects = allZoomEffects
 
 
               // Render each zoom effect as a block on the timeline
@@ -543,16 +553,36 @@ export function TimelineCanvas({
                 const isBlockSelected = selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id === effect.id
                 const zoomData = effect.data as ZoomEffectData
 
+                // Find which recording this effect belongs to
+                const recording = currentProject.recordings.find(r =>
+                  r.effects?.some(e => e.id === effect.id)
+                )
+                if (!recording) return
+
+                // Find the clip that contains this effect's source time
+                const clipForEffect = currentProject.timeline.tracks
+                  .flatMap(t => t.clips)
+                  .find(c =>
+                    c.recordingId === recording.id &&
+                    TimeConverter.isSourceTimeInClip(effect.startTime, c)
+                  )
+
+                if (!clipForEffect) return
+
+                // Convert source times to timeline times
+                const timelineStartTime = TimeConverter.sourceToTimeline(effect.startTime, clipForEffect)
+                const timelineEndTime = TimeConverter.sourceToTimeline(effect.endTime, clipForEffect)
+
                 const blockElement = (
                   <TimelineEffectBlock
                     key={effect.id}
                     blockId={effect.id}
-                    x={TimeConverter.msToPixels(effect.startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
+                    x={TimeConverter.msToPixels(timelineStartTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
                     y={rulerHeight + videoTrackHeight + TimelineConfig.TRACK_PADDING}
-                    width={TimeConverter.msToPixels(effect.endTime - effect.startTime, pixelsPerMs)}
+                    width={TimeConverter.msToPixels(timelineEndTime - timelineStartTime, pixelsPerMs)}
                     height={zoomTrackHeight - TimelineConfig.TRACK_PADDING * 2}
-                    startTime={effect.startTime}
-                    endTime={effect.endTime}
+                    startTime={timelineStartTime}
+                    endTime={timelineEndTime}
                     label={`${zoomData.scale.toFixed(1)}×`}
                     fillColor={colors.zoomBlock}
                     scale={zoomData.scale}
@@ -616,7 +646,7 @@ export function TimelineCanvas({
               )
             })()}
 
-            {/* Screen Effects blocks - timeline-global */}
+            {/* Screen Effects blocks - recording-scoped */}
             {(() => {
               const effectsSource = currentProject.timeline.effects || []
               const screenEffects = EffectsFactory.getScreenEffects(effectsSource)

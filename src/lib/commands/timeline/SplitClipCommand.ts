@@ -1,6 +1,6 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { Clip, Effect } from '@/types/project'
+import type { Clip } from '@/types/project'
 import { timelineToClipRelative } from '@/lib/timeline/time-space-converter'
 
 export interface SplitClipResult {
@@ -15,8 +15,6 @@ export class SplitClipCommand extends Command<SplitClipResult> {
   private rightClip?: Clip
   private trackId?: string
   private originalIndex?: number
-  private originalEffects: Effect[] = []
-  private splitEffects: Effect[] = []
 
   constructor(
     private context: CommandContext,
@@ -46,7 +44,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     const store = this.context.getStore()
     const project = this.context.getProject()
     const result = this.context.findClip(this.clipId)
-    
+
     if (!result) {
       return {
         success: false,
@@ -57,34 +55,25 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     const { clip, track } = result
     this.trackId = track.id
     this.originalIndex = track.clips.findIndex(c => c.id === this.clipId)
-    
+
     // Store original clip
     this.originalClip = JSON.parse(JSON.stringify(clip))
-    
-    // Store original effects associated with this clip
-    if (project?.timeline.effects) {
-      this.originalEffects = project.timeline.effects
-        .filter(e => e.id.includes(this.clipId))
-        .map(e => JSON.parse(JSON.stringify(e)))
-    }
-    
-    // Execute split using store method - this now handles everything internally
-    store.splitClip(this.clipId, this.splitTime)
-    
-    // Get the actual created clips from the project after split
-    if (project && this.trackId) {
-      const track = project.timeline.tracks.find(t => t.id === this.trackId)
-      if (track) {
-        // The executeSplitClip now generates predictable IDs
-        this.leftClip = track.clips.find(c => c.id.includes(`${this.clipId}-split1`))
-        this.rightClip = track.clips.find(c => c.id.includes(`${this.clipId}-split2`))
-      }
 
-      // Store the new split effects  
-      if (project.timeline.effects && this.leftClip && this.rightClip) {
-        this.splitEffects = project.timeline.effects
-          .filter(e => e.id.includes(this.leftClip!.id) || e.id.includes(this.rightClip!.id))
-          .map(e => JSON.parse(JSON.stringify(e)))
+    // Get the track before split to count clips
+    const trackBeforeSplit = project?.timeline.tracks.find(t => t.id === this.trackId)
+    const clipsBeforeSplit = trackBeforeSplit?.clips.length || 0
+
+    // Execute split using store method
+    store.splitClip(this.clipId, this.splitTime)
+
+    // Get the newly created clips from the track after split
+    // The split operation replaces 1 clip with 2, so we find the 2 newest clips at the original position
+    if (project && this.trackId && this.originalIndex !== undefined) {
+      const track = project.timeline.tracks.find(t => t.id === this.trackId)
+      if (track && track.clips.length === clipsBeforeSplit + 1) {
+        // Split succeeded - get the two clips at and after the original index
+        this.leftClip = track.clips[this.originalIndex]
+        this.rightClip = track.clips[this.originalIndex + 1]
       }
     }
 
@@ -124,21 +113,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
       }
     }
 
-    // Restore effects first
-    if (project.timeline.effects) {
-      // Remove split effects
-      for (const splitEffect of this.splitEffects) {
-        const index = project.timeline.effects.findIndex(e => e.id === splitEffect.id)
-        if (index !== -1) {
-          project.timeline.effects.splice(index, 1)
-        }
-      }
-      
-      // Restore original effects
-      for (const originalEffect of this.originalEffects) {
-        project.timeline.effects.push(originalEffect)
-      }
-    }
+    // Note: Effects are stored on Recording in source space, no effect restoration needed
 
     // Determine the insertion index based on current left split clip position
     let insertIndex = this.originalIndex ?? 0
@@ -197,21 +172,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
 
     const store = this.context.getStore()
 
-    // Restore split effects first
-    if (project.timeline.effects) {
-      // Remove original effects
-      for (const originalEffect of this.originalEffects) {
-        const index = project.timeline.effects.findIndex(e => e.id === originalEffect.id)
-        if (index !== -1) {
-          project.timeline.effects.splice(index, 1)
-        }
-      }
-      
-      // Restore split effects
-      for (const splitEffect of this.splitEffects) {
-        project.timeline.effects.push(splitEffect)
-      }
-    }
+    // Note: Effects are stored on Recording in source space, no effect restoration needed
 
     // Find where the original clip currently is and remove it
     const originalIndex = track.clips.findIndex(c => c.id === this.clipId)

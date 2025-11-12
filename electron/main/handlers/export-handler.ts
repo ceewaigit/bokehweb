@@ -55,10 +55,10 @@ async function getBundleLocation(forceRebuild = false): Promise<string> {
   try {
     isBundling = true;
     console.log('Building new Remotion bundle...');
-    
+
     const { bundle } = await import('@remotion/bundler');
     const entryPoint = path.join(process.cwd(), 'src/remotion/index.ts');
-    
+
     const startTime = Date.now();
     const bundleLocation = await bundle({
       entryPoint,
@@ -81,16 +81,16 @@ async function getBundleLocation(forceRebuild = false): Promise<string> {
         };
       },
     });
-    
+
     const bundleTime = ((Date.now() - startTime) / 1000).toFixed(2);
     console.log(`Bundle created in ${bundleTime}s at:`, bundleLocation);
-    
+
     // Cache the bundle
     cachedBundle = {
       location: bundleLocation,
       timestamp: Date.now()
     };
-    
+
     return bundleLocation;
   } finally {
     isBundling = false;
@@ -100,7 +100,7 @@ async function getBundleLocation(forceRebuild = false): Promise<string> {
 // Clean up cached bundle on app quit
 export function cleanupBundleCache() {
   if (cachedBundle?.location) {
-    fs.rm(cachedBundle.location, { recursive: true, force: true }).catch(() => {});
+    fs.rm(cachedBundle.location, { recursive: true, force: true }).catch(() => { });
     cachedBundle = null;
   }
 }
@@ -108,7 +108,7 @@ export function cleanupBundleCache() {
 // Dynamic chunk size based on available memory
 function getOptimalChunkSize(profile: MachineProfile): number {
   const availableGB = profile.availableMemoryGB || 2;
-  
+
   // Even with low memory, use larger chunks to reduce overhead
   // The bottleneck is worker count, not chunk size
   if (availableGB < 1) {
@@ -164,13 +164,13 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
   const cpuCores = Math.max(1, profile.cpuCores || 1);
   const availableMemoryGB = profile.availableMemoryGB ?? 0;
   const totalMem = profile.totalMemoryGB || 4;
-  
+
   // CRITICAL: If available memory is very low, limit workers severely
   if (availableMemoryGB < 1) {
     // With < 1GB available, use at most 2 workers to prevent thrashing
     return Math.min(2, chunkCount);
   }
-  
+
   // Smart allocation based on video size
   if (videoSizeEstimateGB < 0.5) {
     // Small video: single worker is fine
@@ -179,29 +179,29 @@ const determineParallelWorkerCount = (profile: MachineProfile, chunkCount: numbe
     // Medium video: 2-3 workers
     return Math.min(3, chunkCount, cpuCores - 1);
   }
-  
+
   const effectiveMemory = Math.max(availableMemoryGB, totalMem * 0.4);
 
   // MORE AGGRESSIVE: Use 80% of CPU cores instead of 50%
   let idealWorkers = Math.floor(cpuCores * 0.8);
-  
+
   // Memory constraint: Each worker needs ~500MB-1GB
   const memoryBasedWorkers = Math.floor(effectiveMemory);
-  
+
   // Take the minimum of CPU-based and memory-based limits
   let maxWorkers = Math.min(idealWorkers, memoryBasedWorkers);
-  
+
   // Ensure at least 2 workers if we have 4+ cores AND enough memory
   if (cpuCores >= 4 && availableMemoryGB >= 2) {
     maxWorkers = Math.max(maxWorkers, 2);
   }
-  
+
   // Cap at chunk count (no point having more workers than chunks)
   maxWorkers = Math.min(maxWorkers, chunkCount);
-  
+
   // Reasonable upper limit to prevent system overload (but less conservative)
   maxWorkers = Math.min(maxWorkers, Math.max(1, cpuCores - 1)); // Only leave 1 core for system
-  
+
   return Math.max(1, maxWorkers);
 };
 
@@ -221,45 +221,69 @@ let exportWorker: SupervisedWorker | null = null;
 
 export function setupExportHandler() {
   console.log('📦 Setting up export handler with supervised worker');
-  
+
   ipcMain.handle('export-video', async (event, { segments, recordings, metadata, settings, projectFolder }) => {
     console.log('📹 Export handler invoked with settings:', settings);
-    
+
     try {
       // Profile the machine
       const videoWidth = settings.resolution?.width || 1920;
       const videoHeight = settings.resolution?.height || 1080;
-      
+
       const machineProfile = await machineProfiler.profileSystem(videoWidth, videoHeight);
       console.log('Machine profile:', {
         cpuCores: machineProfile.cpuCores,
         memoryGB: machineProfile.totalMemoryGB.toFixed(1),
         gpuAvailable: machineProfile.gpuAvailable
       });
-      
+
       // Get export settings
-      const targetQuality = settings.quality === 'ultra' ? 'quality' : 
-                           settings.quality === 'low' ? 'fast' : 'balanced';
+      const targetQuality = settings.quality === 'ultra' ? 'quality' :
+        settings.quality === 'low' ? 'fast' : 'balanced';
       const dynamicSettings = machineProfiler.getDynamicExportSettings(
         machineProfile,
         videoWidth,
         videoHeight,
         targetQuality
       );
-      
-      // Optimize cache size based on available memory for better performance
+
+      // CRITICAL FIX: Dramatically increase video cache to prevent pruning and re-seeking
+      // Small cache causes constant pruning, each re-seek takes 100-700ms
+      const totalMemoryGB = machineProfile.totalMemoryGB || 16;
       const availableMemoryGB = machineProfile.availableMemoryGB || 2;
-      if (availableMemoryGB < 4) {
-        // Low memory: smaller cache but still usable
-        dynamicSettings.offthreadVideoCacheSizeInBytes = 64 * 1024 * 1024; // 64MB
-      } else if (availableMemoryGB < 8) {
-        // Medium memory: good cache size
-        dynamicSettings.offthreadVideoCacheSizeInBytes = 128 * 1024 * 1024; // 128MB
+
+      // Use total memory as basis when available memory is suspiciously low
+      // (macOS sometimes reports low available memory even with plenty free)
+      const effectiveMemoryGB = availableMemoryGB < 1 ? totalMemoryGB * 0.3 : availableMemoryGB;
+
+      // CRITICAL: Allocate generous video cache based on available memory
+      // Video decoding cache is THE MOST IMPORTANT performance factor
+      // Each cache miss = 100-700ms video seek penalty
+      let videoCacheSizeMB;
+      if (effectiveMemoryGB < 2) {
+        // Very low memory: minimum viable cache
+        videoCacheSizeMB = 512;
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 512 * 1024 * 1024;
+      } else if (effectiveMemoryGB < 4) {
+        // Low-medium memory: allocate ~40% for cache
+        videoCacheSizeMB = 1536;
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 1536 * 1024 * 1024;
+      } else if (effectiveMemoryGB < 6) {
+        // Medium memory: allocate generous cache (50% of effective memory)
+        videoCacheSizeMB = 4096;
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 4 * 1024 * 1024 * 1024;
+      } else if (effectiveMemoryGB < 10) {
+        // Good memory: large cache to eliminate most seeks
+        videoCacheSizeMB = 6144;
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 6 * 1024 * 1024 * 1024;
       } else {
-        // High memory: maximize cache for best performance
-        dynamicSettings.offthreadVideoCacheSizeInBytes = 256 * 1024 * 1024; // 256MB
+        // High memory: maximize cache to eliminate ALL pruning
+        videoCacheSizeMB = 8192;
+        dynamicSettings.offthreadVideoCacheSizeInBytes = 8 * 1024 * 1024 * 1024;
       }
-      
+
+      console.log(`[Export] Video cache: ${videoCacheSizeMB}MB (effective memory: ${effectiveMemoryGB.toFixed(2)}GB, available: ${availableMemoryGB.toFixed(2)}GB, total: ${totalMemoryGB.toFixed(1)}GB)`);
+
       console.log('Export settings:', {
         jpegQuality: dynamicSettings.jpegQuality,
         videoBitrate: dynamicSettings.videoBitrate,
@@ -267,13 +291,13 @@ export function setupExportHandler() {
         useGPU: dynamicSettings.useGPU,
         concurrency: dynamicSettings.concurrency
       });
-      
+
       // Get bundled location (cached or new)
       const bundleLocation = await getBundleLocation();
 
       // Select composition in main process to avoid OOM in worker
       const { selectComposition } = await import('@remotion/renderer');
-      
+
       // Use minimal props for composition selection
       const minimalProps = {
         segments: segments?.slice(0, 1) || [], // Just first segment for metadata
@@ -282,16 +306,16 @@ export function setupExportHandler() {
         videoUrls: {},
         ...settings
       };
-      
+
       const composition = await selectComposition({
         serveUrl: bundleLocation,
         id: segments && segments.length > 0 ? 'SegmentsComposition' : 'MainComposition',
         inputProps: minimalProps
       });
-      
+
       // Calculate actual total frames from all segments
       let totalDurationInFrames = composition.durationInFrames;
-      
+
       // If we have segments, calculate the real duration from all of them
       if (segments && segments.length > 0) {
         const lastSegment = segments[segments.length - 1];
@@ -301,7 +325,7 @@ export function setupExportHandler() {
         totalDurationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
         console.log(`Calculated total frames from segments: ${totalDurationInFrames} (${segments.length} segments)`);
       }
-      
+
       // Extract composition metadata with corrected frame count
       const compositionMetadata = {
         width: composition.width,
@@ -314,13 +338,13 @@ export function setupExportHandler() {
 
       // Start video server
       await getVideoServer();
-      
+
       // Convert recordings to video URLs
       const recordingsObj = Object.fromEntries(recordings);
       const videoUrls: Record<string, string> = {};
       const recordingsDir = getRecordingsDirectory();
       const normalizedRecordingsDir = normalizeCrossPlatform(recordingsDir);
-      
+
       for (const [recordingId, recording] of recordings) {
         if (recording.filePath) {
           let fullPath = normalizeCrossPlatform(recording.filePath);
@@ -362,7 +386,7 @@ export function setupExportHandler() {
           videoUrls[recordingId] = videoUrl;
         }
       }
-      
+
       // Prepare composition props
       const inputProps = {
         segments,
@@ -371,15 +395,15 @@ export function setupExportHandler() {
         videoUrls,
         ...settings,
       };
-      
+
       // Create output path
       const outputPath = path.join(
         app.getPath('temp'),
         `export-${Date.now()}.${settings.format || 'mp4'}`
       );
-      
+
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
-      
+
       const workerPath = path.join(__dirname, '..', 'export-worker.js');
 
       if (!fsSync.existsSync(workerPath)) {
@@ -389,21 +413,24 @@ export function setupExportHandler() {
       // Estimate video size for smart chunking
       const durationSeconds = totalDurationInFrames / (compositionMetadata.fps || 30);
       const videoSizeEstimateGB = durationSeconds * 0.05; // Rough estimate: 50MB per minute
-      
-      // Smart chunking based on video size
+
+      // Smart chunking based on video size - LARGER chunks reduce overhead
       let optimalChunkSize: number;
       if (videoSizeEstimateGB < 0.5 || durationSeconds < 60) {
-        // Small video (<30s or <500MB): single pass, no chunking
+        // Small video (<60s or <500MB): single pass, no chunking
         optimalChunkSize = totalDurationInFrames;
         console.log(`Small video detected (${durationSeconds.toFixed(1)}s), using single-pass rendering`);
-      } else if (videoSizeEstimateGB < 2) {
-        // Medium video: larger chunks
-        optimalChunkSize = 2500;
+      } else if (durationSeconds < 180) {
+        // Medium video (<3 min): use 2-3 large chunks to minimize overhead
+        optimalChunkSize = Math.ceil(totalDurationInFrames / 2);
+        console.log(`Medium video detected (${durationSeconds.toFixed(1)}s), using 2-chunk rendering`);
       } else {
-        // Large video: standard chunks
-        optimalChunkSize = getOptimalChunkSize(machineProfile);
+        // Large video: use larger chunks (2500-4000 frames = ~40-67s at 60fps)
+        // Fewer chunks = less overhead, less cache invalidation
+        optimalChunkSize = effectiveMemoryGB >= 4 ? 4000 : effectiveMemoryGB >= 2 ? 2500 : 1500;
+        console.log(`Large video detected (${durationSeconds.toFixed(1)}s), using ${optimalChunkSize}-frame chunks`);
       }
-      
+
       const chunkPlan = buildChunkPlan(
         totalDurationInFrames,
         optimalChunkSize,
@@ -411,13 +438,44 @@ export function setupExportHandler() {
       );
 
       const recommendedWorkers = determineParallelWorkerCount(machineProfile, chunkPlan.length, videoSizeEstimateGB);
-      const workerCount = Math.min(recommendedWorkers, Math.max(1, chunkPlan.length || 1));
+
+      // PERFORMANCE FIX: Limit workers aggressively for video workloads
+      // Video decoding is I/O-bound - multiple workers cause cache thrashing
+      // Single worker with large cache is often FASTER than 2-3 workers with cache contention
+      let maxWorkersForVideo: number;
+      if (durationSeconds < 180) {
+        // Short videos (<3 min): single worker is fastest
+        maxWorkersForVideo = 1;
+      } else if (effectiveMemoryGB < 4) {
+        // Low memory: single worker to maximize cache efficiency
+        maxWorkersForVideo = 1;
+      } else {
+        // Only use 2 workers for very long videos with plenty of memory
+        maxWorkersForVideo = durationSeconds > 300 && effectiveMemoryGB >= 6 ? 2 : 1;
+      }
+
+      const workerCount = Math.min(recommendedWorkers, maxWorkersForVideo, Math.max(1, chunkPlan.length || 1));
       const useParallel = workerCount > 1;
-      
-      // OPTIMIZED: More aggressive CPU utilization
-      const adjustedConcurrency = useParallel 
-        ? Math.max(3, Math.floor(machineProfile.cpuCores * 0.9 / workerCount))
-        : Math.max(dynamicSettings.concurrency, Math.floor(machineProfile.cpuCores * 0.9));
+
+      console.log(`[Export] Worker decision: ${workerCount} workers (duration: ${durationSeconds.toFixed(1)}s, memory: ${effectiveMemoryGB.toFixed(1)}GB, chunks: ${chunkPlan.length})`);
+
+      // OPTIMIZED: Balance concurrency with available resources
+      // - Low memory (<2GB): Use 1-2 concurrent tabs to avoid cache thrashing
+      // - Medium memory (2-6GB): Use 3-4 concurrent tabs for parallelism
+      // - High memory (>6GB): Use 4-5 concurrent tabs for maximum speed
+      // Each concurrent tab needs ~500MB-1GB cache, so scale accordingly
+      let adjustedConcurrency: number;
+      if (effectiveMemoryGB < 2) {
+        adjustedConcurrency = 1; // Minimal - avoid thrashing
+      } else if (effectiveMemoryGB < 4) {
+        adjustedConcurrency = 2; // Conservative for medium memory
+      } else if (effectiveMemoryGB < 6) {
+        adjustedConcurrency = 3; // Good balance
+      } else {
+        adjustedConcurrency = Math.min(4, Math.floor(machineProfile.cpuCores * 0.5)); // Scale with CPU
+      }
+
+      console.log(`[Export] Rendering concurrency: ${adjustedConcurrency} tabs (effective memory: ${effectiveMemoryGB.toFixed(1)}GB)`);
 
       console.log('[Export] Chunk plan metrics', {
         totalFrames: totalDurationInFrames,
@@ -430,9 +488,39 @@ export function setupExportHandler() {
         cpuCores: machineProfile.cpuCores
       });
 
-      // Pre-filter metadata for all chunks to avoid redundant processing
-      const metadataMapForFiltering = new Map(Object.entries(metadata)) as Map<string, any>;
-      const preFilteredMetadata = preFilterMetadataForChunks(metadataMapForFiltering, chunkPlan);
+      // IMPORTANT: For single-recording videos, metadata filtering by timeline time doesn't work
+      // because metadata timestamps are in recording time (0-duration), not timeline time
+      // Solution: Pass full metadata to all chunks - the worker will handle it correctly
+      // For multi-recording videos, we'd need more sophisticated mapping
+
+      // Convert metadata to Map if it's not already
+      const metadataMap = metadata instanceof Map ? metadata : new Map(metadata);
+
+      // Simple approach: Give each chunk the full metadata (it's already in memory)
+      // The worker will filter based on segments, which is more accurate anyway
+      const preFilteredMetadata = new Map<number, Map<string, any>>();
+
+      // For each chunk, pass the full metadata for recordings used in that chunk's segments
+      for (const chunk of chunkPlan) {
+        const chunkMetadata = new Map<string, any>();
+
+        // Get all recordings used in this chunk's time range
+        const recordingsInChunk = getRecordingsInTimeRange(
+          segments || [],
+          chunk.startTimeMs,
+          chunk.endTimeMs
+        );
+
+        // Pass full metadata for these recordings (don't filter by time)
+        for (const recordingId of recordingsInChunk) {
+          const recordingMetadata = metadataMap.get(recordingId);
+          if (recordingMetadata) {
+            chunkMetadata.set(recordingId, recordingMetadata);
+          }
+        }
+
+        preFilteredMetadata.set(chunk.index, chunkMetadata);
+      }
 
       const ffmpegPath = resolveFfmpegPath();
       const compositorDir = getCompositorDirectory();
@@ -648,7 +736,7 @@ export function setupExportHandler() {
                 workerPreFilteredMetadata[chunk.index] = Object.fromEntries(chunkMetadata);
               }
             }
-            
+
             const job = {
               ...commonJob,
               outputPath: path.join(app.getPath('temp'), `export-worker-${Date.now()}-${index}.mp4`),
@@ -721,8 +809,15 @@ export function setupExportHandler() {
             outputPath
           ];
 
+          // Set DYLD_LIBRARY_PATH for FFmpeg dynamic libraries
+          const ffmpegDir = path.dirname(ffmpegPath);
+          const env = {
+            ...process.env,
+            DYLD_LIBRARY_PATH: `${ffmpegDir}:${process.env.DYLD_LIBRARY_PATH || ''}`
+          };
+
           await new Promise<void>((resolve, reject) => {
-            const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs);
+            const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, { env });
             ffmpegProcess.on('exit', (code) => {
               if (code === 0) {
                 resolve();
@@ -742,52 +837,52 @@ export function setupExportHandler() {
           return { success: true };
         } finally {
           for (const chunkPath of pendingChunkPaths) {
-            await fs.unlink(chunkPath).catch(() => {});
+            await fs.unlink(chunkPath).catch(() => { });
           }
 
           for (const [name] of workerRefs) {
-            await workerPool.destroyWorker(name).catch(() => {});
+            await workerPool.destroyWorker(name).catch(() => { });
           }
         }
       };
 
       const result = useParallel ? await runParallelExport() : await runSequentialExport();
-      
+
       if (result.success) {
         // Handle file response
         const stats = await fs.stat(outputPath);
         const fileSize = stats.size;
-        
+
         if (fileSize < 50 * 1024 * 1024) {
           const buffer = await fs.readFile(outputPath);
           const base64 = buffer.toString('base64');
-          await fs.unlink(outputPath).catch(() => {});
+          await fs.unlink(outputPath).catch(() => { });
           return { success: true, data: base64, isStream: false };
         }
-        
-        return { 
-          success: true, 
+
+        return {
+          success: true,
           filePath: outputPath,
           fileSize,
-          isStream: true 
+          isStream: true
         };
       } else {
-        await fs.unlink(outputPath).catch(() => {});
-        return { 
-          success: false, 
-          error: result.error || 'Export failed' 
+        await fs.unlink(outputPath).catch(() => { });
+        return {
+          success: false,
+          error: result.error || 'Export failed'
         };
       }
-      
+
     } catch (error) {
       console.error('Export failed:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Export failed' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Export failed'
       };
     }
   });
-  
+
   // Handle export cancellation
   ipcMain.handle('export-cancel', async () => {
     try {
@@ -800,7 +895,7 @@ export function setupExportHandler() {
       return { success: false };
     }
   });
-  
+
   // Handle stream requests for large files
   ipcMain.handle('export-stream-chunk', async (_event, { filePath, offset, length }) => {
     try {
@@ -810,13 +905,13 @@ export function setupExportHandler() {
       await fd.close();
       return { success: true, data: buffer.toString('base64') };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Stream failed' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Stream failed'
       };
     }
   });
-  
+
   // Clean up streamed file
   ipcMain.handle('export-cleanup', async (_event, { filePath }) => {
     try {

@@ -16,12 +16,10 @@ import { TypingDetector, type TypingSuggestions, type TypingPeriod } from '@/lib
 import { TypingSuggestionsBar } from './typing-suggestions-bar'
 
 import { useProjectStore } from '@/stores/project-store'
-import { ApplyTypingSpeedCommand } from '@/lib/commands'
+import { ApplyTypingSpeedCommand, ApplyTypingSpeedToAllClipsCommand } from '@/lib/commands'
 import { DefaultCommandContext } from '@/lib/commands'
 import { CommandManager } from '@/lib/commands'
 import { toast } from 'sonner'
-
-const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
 
 // No global tracking needed - metadata is the source of truth
 
@@ -135,41 +133,28 @@ export const TimelineClip = React.memo(({
     }
 
     if (!recording?.metadata?.keyboardEvents || recording.metadata.keyboardEvents.length === 0) {
-      if (DEBUG_TYPING) {
-        console.log('[TimelineClip] No keyboard events for typing detection', {
-          clipId: clip.id,
-          recordingId: recording?.id,
-          hasMetadata: !!recording?.metadata,
-          keyboardEventsLength: recording?.metadata?.keyboardEvents?.length || 0
-        })
-      }
       setTypingSuggestions(null)
       return
     }
 
-    if (DEBUG_TYPING) {
-      console.log('[TimelineClip] Analyzing typing with keyboard events', {
-        clipId: clip.id,
-        recordingId: recording.id,
-        keyboardEventsCount: recording.metadata.keyboardEvents.length,
-        firstEvent: recording.metadata.keyboardEvents[0],
-        lastEvent: recording.metadata.keyboardEvents[recording.metadata.keyboardEvents.length - 1]
-      })
-    }
-
     try {
-      // Analyze keyboard events for typing patterns
-      const suggestions = TypingDetector.analyzeTyping(recording.metadata.keyboardEvents)
-      
+      // Use cached typing analysis for better performance
+      const suggestions = TypingDetector.analyzeTyping(recording)
+
+      // Cache results if not already cached (through store to handle Immer frozen objects)
+      if (suggestions.periods.length > 0 && !recording.metadata?.detectedTypingPeriods) {
+        useProjectStore.getState().cacheTypingPeriods(recording.id, suggestions.periods)
+      }
+
       // Only show suggestions for typing periods that fall within this clip's time range
       const clipStart = clip.sourceIn || 0
       const clipEnd = clip.sourceOut || (clipStart + clip.duration * (clip.playbackRate || 1))
-      
+
       const relevantPeriods = suggestions.periods.filter(period => {
         // Check if this typing period overlaps with this clip's source range
         return period.startTime < clipEnd && period.endTime > clipStart
       })
-      
+
       // Only show suggestions if we have relevant periods for this clip
       if (relevantPeriods.length > 0) {
         setTypingSuggestions({
@@ -276,31 +261,16 @@ export const TimelineClip = React.memo(({
 
   // Handle applying typing speed suggestions
   const handleApplyTypingSuggestion = async (period: TypingPeriod) => {
-    
-    if (DEBUG_TYPING) {
-      console.log('[TimelineClip] Applying single typing suggestion:', {
-        clipId: clip.id,
-        period: {
-          start: period.startTime,
-          end: period.endTime,
-          speedMultiplier: period.suggestedSpeedMultiplier
-        }
-      })
-    }
-    
     try {
       const store = useProjectStore.getState()
       const context = new DefaultCommandContext(store)
       const command = new ApplyTypingSpeedCommand(context, clip.id, [period])
-      
+
       // Execute through command manager for undo/redo support
       const manager = CommandManager.getInstance(context)
       const result = await manager.execute(command)
-      
+
       if (result.success) {
-        if (DEBUG_TYPING) {
-          console.log('[TimelineClip] Successfully applied typing suggestion:', result.data)
-        }
         setTypingSuggestions(null)
         toast.success('Applied typing suggestion')
       } else {
@@ -315,35 +285,21 @@ export const TimelineClip = React.memo(({
 
   const handleApplyAllTypingSuggestions = async (periods: TypingPeriod[]) => {
     if (!periods?.length) return
-    
-    if (DEBUG_TYPING) {
-      console.log('[TimelineClip] Applying all typing suggestions:', {
-        clipId: clip.id,
-        periodCount: periods.length,
-        periods: periods.map(p => ({
-          start: p.startTime,
-          end: p.endTime,
-          speedMultiplier: p.suggestedSpeedMultiplier
-        }))
-      })
-    }
-    
+
     try {
-      // Apply all periods in a single command for atomic operation
+      // Apply typing speed to ALL clips in the timeline (not just this one)
       const store = useProjectStore.getState()
       const context = new DefaultCommandContext(store)
-      const command = new ApplyTypingSpeedCommand(context, clip.id, periods)
-      
+      const command = new ApplyTypingSpeedToAllClipsCommand(context, 'Apply typing speed-up to all clips')
+
       // Execute through command manager for undo/redo support
       const manager = CommandManager.getInstance(context)
       const result = await manager.execute(command)
-      
+
       if (result.success) {
-        if (DEBUG_TYPING) {
-          console.log(`[TimelineClip] Successfully applied ${result.data?.applied || periods.length} typing suggestions`)
-        }
+        const clipsProcessed = (command as ApplyTypingSpeedToAllClipsCommand).getClipsProcessed()
         setTypingSuggestions(null)
-        toast.success(`Applied ${result.data?.applied || periods.length} typing suggestions`)
+        toast.success(`Applied typing speed-up to ${clipsProcessed} clip${clipsProcessed !== 1 ? 's' : ''}`)
       } else {
         console.error('[TimelineClip] Failed to apply typing suggestions:', result.error)
         toast.error(typeof result.error === 'string' ? result.error : 'Failed to apply typing suggestions')
@@ -358,7 +314,7 @@ export const TimelineClip = React.memo(({
     // Just hide this specific period from the UI
     setTypingSuggestions(current => {
       if (!current) return null
-      const filteredPeriods = current.periods.filter(p => 
+      const filteredPeriods = current.periods.filter(p =>
         !(p.startTime === period.startTime && p.endTime === period.endTime)
       )
       return filteredPeriods.length > 0 ? { ...current, periods: filteredPeriods } : null

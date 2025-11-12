@@ -26,7 +26,7 @@ export class CopyCommand extends Command<CopyResult> {
   canExecute(): boolean {
     const selectedEffectLayer = this.context.getSelectedEffectLayer()
     
-    // If a zoom effect is selected (timeline-global), we can copy it without a clip
+    // If a zoom effect is selected (recording-scoped), we can copy it without needing a specific clip
     if (selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer.id) {
       return true
     }
@@ -42,15 +42,26 @@ export class CopyCommand extends Command<CopyResult> {
   doExecute(): CommandResult<CopyResult> {
     const store = this.context.getStore()
     const selectedEffectLayer = this.context.getSelectedEffectLayer()
-    
-    // Handle zoom effect copy (timeline-global, no clip needed)
+
+    // Handle zoom effect copy (recording-scoped)
     if (selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer.id) {
+      console.log('[CopyCommand] Copying zoom effect:', selectedEffectLayer.id)
       const project = this.context.getProject()
-      const zoomEffect = project?.timeline.effects?.find(e => e.id === selectedEffectLayer.id && e.type === EffectType.Zoom)
-      
+
+      // Find zoom effect in recording.effects
+      let zoomEffect = null
+      for (const recording of project?.recordings || []) {
+        zoomEffect = recording.effects?.find(e => e.id === selectedEffectLayer.id && e.type === EffectType.Zoom)
+        if (zoomEffect) {
+          console.log('[CopyCommand] Found zoom effect in recording:', recording.id)
+          break
+        }
+      }
+
       if (zoomEffect) {
+        console.log('[CopyCommand] Zoom effect data:', zoomEffect.data)
         // Copy just the zoom effect data
-        store.copyEffect(EffectType.Zoom, zoomEffect.data as any, '') // Empty clipId since zoom is timeline-global
+        store.copyEffect(EffectType.Zoom, zoomEffect.data as any, '')
         
         return {
           success: true,

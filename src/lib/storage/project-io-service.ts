@@ -50,9 +50,17 @@ export class ProjectIOService {
    * Save a project to storage
    */
   static async saveProject(project: Project): Promise<void> {
-    // Update modification timestamp
-    const projectToSave = {
+    // CRITICAL: Enforce single source of truth - remove zoom effects from timeline.effects
+    // Zoom effects MUST only exist in recording.effects
+    // Deep copy to avoid mutating frozen Immer objects
+    const projectToSave: Project = {
       ...project,
+      timeline: {
+        ...project.timeline,
+        effects: project.timeline.effects
+          ? project.timeline.effects.filter(e => e.type !== 'zoom')
+          : []
+      },
       modifiedAt: new Date().toISOString()
     }
 
@@ -68,15 +76,13 @@ export class ProjectIOService {
     for (const track of project.timeline.tracks) {
       for (const clip of track.clips) {
         // If clip has non-default playback rate but no flag, it had typing speed applied
-        if (clip.playbackRate && 
-            clip.playbackRate !== 1.0 && 
-            !clip.typingSpeedApplied) {
+        if (clip.playbackRate &&
+          clip.playbackRate !== 1.0 &&
+          !clip.typingSpeedApplied) {
           clip.typingSpeedApplied = true
         }
       }
     }
-
-    // Future migrations can be added here
 
     return project
   }
@@ -85,6 +91,7 @@ export class ProjectIOService {
    * Load project assets (videos and metadata)
    */
   private static async loadProjectAssets(project: Project): Promise<void> {
+    const { EffectsFactory } = await import('../effects/effects-factory')
     // Load metadata from chunks if needed (new structure)
     for (const recording of project.recordings) {
       if (recording.folderPath && recording.metadataChunks) {
@@ -96,8 +103,16 @@ export class ProjectIOService {
           )
         }
       }
+
+      // Regenerate effects if metadata exists but effects are empty
+      if (recording.metadata && (!recording.effects || recording.effects.length === 0)) {
+        if (!recording.effects) {
+          recording.effects = []
+        }
+        EffectsFactory.createInitialEffectsForRecording(recording)
+      }
     }
-    
+
     // Load videos with folder path support
     await globalBlobManager.loadVideos(
       project.recordings.map((r: Recording) => ({
@@ -141,7 +156,7 @@ export class ProjectIOService {
     if (!project.id || !project.name) return false
     if (!project.timeline || !Array.isArray(project.timeline.tracks)) return false
     if (!Array.isArray(project.recordings)) return false
-    
+
     // Basic structure is valid
     return true
   }
@@ -170,7 +185,7 @@ export class ProjectIOService {
     recordingCount: number
   }> {
     const project = await this.loadProject(projectPath)
-    
+
     return {
       id: project.id,
       name: project.name,

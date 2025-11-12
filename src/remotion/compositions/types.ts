@@ -24,6 +24,7 @@ export interface VideoLayerProps {
   zoomCenter?: { x: number; y: number };
   cinematicScrollState?: any; // Cinematic scroll state from calculator
   computedScale?: number;
+  sourceTimeMs: number; // Source time for zoom detection and transforms
 }
 
 export interface BackgroundLayerProps {

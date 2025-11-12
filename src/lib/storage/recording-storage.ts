@@ -506,7 +506,9 @@ export class RecordingStorage {
           scrollEvents,
           screenEvents: [],
           captureArea: reconstructedCaptureArea
-        }
+        },
+        // Effects will be created below via createInitialEffectsForRecording
+        effects: []
       }
 
       project.recordings.push(recording)
@@ -528,23 +530,14 @@ export class RecordingStorage {
 
       project.timeline.duration = duration
 
-      // Initialize effects array if needed
-      if (!project.timeline.effects) {
-        project.timeline.effects = []
-      }
+      // Create effects on the recording itself (in source space)
+      EffectsFactory.createInitialEffectsForRecording(recording)
 
-      // Use EffectsFactory to create initial effects for the recording
-      const newEffects = EffectsFactory.createInitialEffectsForRecording(
-        recording,
-        clip,
-        project.timeline.effects
-      )
-      
-      // Add the new effects to the timeline
-      project.timeline.effects.push(...newEffects)
+      // Ensure global effects exist (background, cursor, keystroke)
+      EffectsFactory.ensureGlobalEffects(project)
 
       // Add global keystroke effect if keyboard events exist and not already present
-      const hasKeystroke = !!EffectsFactory.getKeystrokeEffect(project.timeline.effects)
+      const hasKeystroke = !!EffectsFactory.getKeystrokeEffect(project.timeline.effects || [])
       if (keyboardEvents.length > 0 && !hasKeystroke) {
         logger.info(`✅ Creating global keystroke effect for ${keyboardEvents.length} keyboard events`)
         project.timeline.effects!.push({

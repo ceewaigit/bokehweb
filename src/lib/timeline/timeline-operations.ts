@@ -21,23 +21,9 @@ export function findClipById(project: Project, clipId: string): { clip: Clip; tr
   return null
 }
 
-// Shift effects within a time window
-export function shiftEffectsInWindow(
-  project: Project,
-  windowStart: number,
-  windowEnd: number,
-  delta: number
-): void {
-  if (!project.timeline.effects || delta === 0) return
-
-  for (const effect of project.timeline.effects) {
-    if (effect.type === EffectType.Background) continue
-    if (effect.startTime >= windowStart && effect.endTime <= windowEnd) {
-      effect.startTime += delta
-      effect.endTime += delta
-    }
-  }
-}
+// ARCHITECTURE NOTE: Effects are stored in source space on Recording objects
+// When clips move/split on the timeline, effects do NOT need to be shifted or split
+// because they remain anchored to the source recording timestamps
 
 // Reflow clips to maintain contiguous layout
 export function reflowClips(
@@ -47,18 +33,39 @@ export function reflowClips(
 ): void {
   if (track.clips.length === 0) return
 
+  // Validate and fix any duration inconsistencies
+  // This ensures clip.duration matches the formula: (sourceOut - sourceIn) / playbackRate
+  const DEBUG_REFLOW = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
+
+  for (const clip of track.clips) {
+    const sourceIn = clip.sourceIn || 0
+    const sourceOut = clip.sourceOut || sourceIn
+    const sourceDuration = sourceOut - sourceIn
+    const playbackRate = clip.playbackRate || 1
+    const expectedDuration = sourceDuration / playbackRate
+
+    // Allow 1ms tolerance for rounding
+    if (Math.abs(clip.duration - expectedDuration) > 1) {
+      if (DEBUG_REFLOW) {
+        console.warn('[Reflow] Fixing inconsistent duration', {
+          clipId: clip.id,
+          storedDuration: clip.duration,
+          expectedDuration,
+          sourceIn,
+          sourceOut,
+          playbackRate
+        })
+      }
+      clip.duration = expectedDuration
+    }
+  }
+
   track.clips.sort((a, b) => a.startTime - b.startTime)
 
   if (startFromIndex === 0 && track.clips.length > 0) {
     const firstClip = track.clips[0]
-    const oldStart = firstClip.startTime
-    const oldEnd = firstClip.startTime + firstClip.duration
-
-    if (oldStart !== 0) {
+    if (firstClip.startTime !== 0) {
       firstClip.startTime = 0
-      if (project) {
-        shiftEffectsInWindow(project, oldStart, oldEnd, -oldStart)
-      }
     }
   }
 
@@ -66,16 +73,10 @@ export function reflowClips(
     const prevClip = track.clips[i - 1]
     const currentClip = track.clips[i]
     const prevEnd = prevClip.startTime + prevClip.duration
-    const oldStart = currentClip.startTime
-    const oldEnd = currentClip.startTime + currentClip.duration
     const newStart = prevEnd
 
     if (currentClip.startTime !== newStart) {
       currentClip.startTime = newStart
-      const delta = newStart - oldStart
-      if (project && delta !== 0) {
-        shiftEffectsInWindow(project, oldStart, oldEnd, delta)
-      }
     }
   }
 }
@@ -89,18 +90,17 @@ export function splitClipAtTime(
     return null
   }
 
-  const timestamp = Date.now()
   const playbackRate = clip.playbackRate || 1
-  
+
   // Import the proper conversion function
   const { clipRelativeToSource } = require('../timeline/time-space-converter')
-  
+
   // Convert clip-relative split time to source space
   const sourceSplitAbsolute = clipRelativeToSource(relativeSplitTime, clip)
   const sourceSplitPoint = sourceSplitAbsolute - clip.sourceIn
 
   const firstClip: Clip = {
-    id: `${clip.id}-split1-${timestamp}`,
+    id: crypto.randomUUID(),
     recordingId: clip.recordingId,
     startTime: clip.startTime,
     duration: relativeSplitTime,
@@ -129,7 +129,7 @@ export function splitClipAtTime(
   }
 
   const secondClip: Clip = {
-    id: `${clip.id}-split2-${timestamp}`,
+    id: crypto.randomUUID(),
     recordingId: clip.recordingId,
     startTime: clip.startTime + relativeSplitTime,
     duration: clip.duration - relativeSplitTime,
@@ -165,7 +165,7 @@ export function executeSplitClip(
   project: Project,
   clipId: string,
   splitTime: number  // This is in timeline space
-): { firstClip: Clip; secondClip: Clip; splitEffects: { removed: string[]; added: Effect[] } } | null {
+): { firstClip: Clip; secondClip: Clip } | null {
   const result = findClipById(project, clipId)
   if (!result) return null
 
@@ -180,41 +180,13 @@ export function executeSplitClip(
   const clipIndex = track.clips.findIndex(c => c.id === clipId)
   track.clips.splice(clipIndex, 1, splitResult.firstClip, splitResult.secondClip)
 
-  // Handle effects splitting
-  const splitEffects = { removed: [] as string[], added: [] as Effect[] }
-  if (project.timeline.effects) {
-    const { EffectsFactory } = require('../effects/effects-factory')
-    const effectSplit = EffectsFactory.splitEffectsForClipSplit(
-      project.timeline.effects,
-      clipId,
-      clip.startTime,
-      clip.startTime + clip.duration,
-      splitTime,
-      splitResult.firstClip.id,
-      splitResult.secondClip.id
-    )
-
-    // Remove old effects
-    for (const effectId of effectSplit.toRemove) {
-      const index = project.timeline.effects.findIndex(e => e.id === effectId)
-      if (index !== -1) {
-        splitEffects.removed.push(effectId)
-        project.timeline.effects.splice(index, 1)
-      }
-    }
-
-    // Add new split effects
-    for (const effect of effectSplit.toAdd) {
-      project.timeline.effects.push(effect)
-      splitEffects.added.push(effect)
-    }
-  }
+  // Note: Effects are now stored on Recording in source space
+  // Both split clips share the same recording's effects, no splitting needed
 
   project.modifiedAt = new Date().toISOString()
-  return { 
-    firstClip: splitResult.firstClip, 
-    secondClip: splitResult.secondClip,
-    splitEffects
+  return {
+    firstClip: splitResult.firstClip,
+    secondClip: splitResult.secondClip
   }
 }
 
@@ -288,17 +260,6 @@ export function executeTrimClipEnd(
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return true
-}
-
-// Get effects overlapping a time range
-export function getEffectsInTimeRange(
-  effects: Effect[],
-  startTime: number,
-  endTime: number
-): Effect[] {
-  return effects.filter(effect =>
-    effect.startTime < endTime && effect.endTime > startTime
-  )
 }
 
 // Check for clip overlaps (internal use only)
@@ -472,7 +433,7 @@ export function restoreClipToTrack(
 export function addRecordingToProject(
   project: Project,
   recording: Recording,
-  createEffects: (recording: Recording, clip: Clip, existingEffects: Effect[]) => Effect[]
+  createEffects: (recording: Recording) => void
 ): Clip | null {
   project.recordings.push(recording)
 
@@ -486,12 +447,12 @@ export function addRecordingToProject(
     sourceOut: recording.duration
   }
 
-  if (!project.timeline.effects) {
-    project.timeline.effects = []
-  }
+  // Create effects on the recording itself (in source space)
+  createEffects(recording)
 
-  const newEffects = createEffects(recording, clip, project.timeline.effects)
-  project.timeline.effects.push(...newEffects)
+  // Ensure global effects exist (background, cursor)
+  const { EffectsFactory } = require('../effects/effects-factory')
+  EffectsFactory.ensureGlobalEffects(project)
 
   const videoTrack = project.timeline.tracks.find(t => t.type === TrackType.Video)
   if (!videoTrack) return null

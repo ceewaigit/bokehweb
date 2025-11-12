@@ -15,7 +15,8 @@ export {
   UpdateClipCommand,
   TrimCommand,
   ChangePlaybackRateCommand,
-  ApplyTypingSpeedCommand
+  ApplyTypingSpeedCommand,
+  ApplyTypingSpeedToAllClipsCommand
 } from './timeline'
 
 // Effect commands

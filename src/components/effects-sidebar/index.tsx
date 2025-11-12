@@ -31,6 +31,7 @@ interface EffectsSidebarProps {
   effects: Effect[] | undefined
   selectedEffectLayer?: SelectedEffectLayer
   onEffectChange: (type: EffectType, data: any) => void
+  onZoomBlockUpdate?: (blockId: string, updates: any) => void
 }
 
 export function EffectsSidebar({
@@ -38,7 +39,8 @@ export function EffectsSidebar({
   selectedClip,
   effects,
   selectedEffectLayer,
-  onEffectChange
+  onEffectChange,
+  onZoomBlockUpdate
 }: EffectsSidebarProps) {
   const [activeTab, setActiveTab] = useState<'background' | 'cursor' | 'keystroke' | 'zoom' | 'shape' | 'screen' | 'clip'>('background')
 
@@ -257,6 +259,7 @@ export function EffectsSidebar({
               selectedClip={selectedClip}
               onUpdateZoom={(updates) => onEffectChange(EffectType.Zoom, updates)}
               onEffectChange={onEffectChange}
+              onZoomBlockUpdate={onZoomBlockUpdate}
             />
           )}
 

@@ -107,10 +107,6 @@ export class MemoryMonitor {
         return true;
       }
       
-      console.log(
-        `[MemoryMonitor] Waiting for memory recovery... ${stats.percentUsed}% used`
-      );
-      
       // Force GC if available
       if (typeof global !== 'undefined' && (global as any).gc) {
         (global as any).gc();

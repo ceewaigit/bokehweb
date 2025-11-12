@@ -140,7 +140,7 @@ export function sourceToClipRelative(sourceMs: number, clip: Clip): number {
 export function clipRelativeToSource(clipRelativeMs: number, clip: Clip): number {
   const sourceIn = clip.sourceIn || 0
   const baseRate = clip.playbackRate && clip.playbackRate > 0 ? clip.playbackRate : 1
-  
+
   // Handle time remapping if present
   const periods = clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0
     ? [...clip.timeRemapPeriods].sort((a, b) => a.sourceStartTime - b.sourceStartTime)
@@ -148,9 +148,32 @@ export function clipRelativeToSource(clipRelativeMs: number, clip: Clip): number
 
   // Fast path when no time remapping
   if (!periods) {
-    const result = sourceIn + clipRelativeMs * baseRate
     const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate)
-    return Math.max(sourceIn, Math.min(sourceOut, result))
+    const clipDuration = clip.duration || 0
+
+    // Use proportional mapping: map clip progress (0-1) to source range
+    // This correctly handles clips with any playbackRate
+    const sourceDuration = sourceOut - sourceIn
+    const progress = clipDuration > 0 ? clipRelativeMs / clipDuration : 0
+    const result = sourceIn + progress * sourceDuration
+    const clamped = Math.max(sourceIn, Math.min(sourceOut, result))
+
+    // DEBUG: Log time conversion calculation
+    if (typeof window !== 'undefined' && (window as any).__SCREEN_STUDIO_DEBUG__) {
+      console.log('🔍 [clipRelativeToSource] Fast Path (FIXED):', {
+        clipRelativeMs: clipRelativeMs.toFixed(2),
+        clipDuration,
+        sourceIn,
+        sourceOut,
+        sourceDuration,
+        progress: progress.toFixed(4),
+        calculation: `${sourceIn} + ${progress.toFixed(4)} * ${sourceDuration} = ${result.toFixed(2)}`,
+        clamped: clamped.toFixed(2),
+        clipId: clip.id
+      });
+    }
+
+    return clamped
   }
 
   // Complex path with time remapping

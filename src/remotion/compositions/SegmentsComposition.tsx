@@ -111,10 +111,13 @@ export const SegmentsComposition: React.FC<SegmentsCompositionProps> = ({
           .map(event => {
             const originalTimestamp = event.timestamp
             const mappedTimestamp = convertTimestamp(originalTimestamp)
+            // Convert to clip-relative time (0-based per segment) to match CursorLayer expectations
+            // CursorLayer uses useCurrentFrame() which resets to 0 for each <Sequence>
+            // Events must be in the same time space for binary search to work correctly
             return {
               ...event,
-              timestamp: mappedTimestamp,
-              sourceTimestamp: originalTimestamp
+              timestamp: mappedTimestamp,        // Clip-relative (0-based)
+              sourceTimestamp: originalTimestamp  // Preserve original for debugging
             }
           });
 

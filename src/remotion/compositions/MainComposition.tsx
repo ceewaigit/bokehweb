@@ -12,7 +12,7 @@ import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 import { calculateZoomScale } from './utils/zoom-transform';
 import { CinematicScrollCalculator } from '@/lib/effects/cinematic-scroll';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
-import { clipRelativeToSource } from '@/lib/timeline/time-space-converter';
+import { sourceToClipRelative } from '@/lib/timeline/time-space-converter';
 
 export const MainComposition: React.FC<MainCompositionProps> = ({
   videoUrl,
@@ -39,17 +39,23 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     scale?: number;
   }>>(new Map());
 
-  // Calculate current time in milliseconds (clip-relative for this composition)
-  const currentTimeMs = (frame / fps) * 1000;
-  // Also track timeline time for effect filtering
-  const timelineTimeMs = clip ? clip.startTime + currentTimeMs : currentTimeMs;
+  // Calculate current playback time in milliseconds (Remotion timeline tracks recording/source time)
+  const currentSourceTimeMs = (frame / fps) * 1000;
+
+  const sourceIn = clip?.sourceIn ?? 0;
+  const sourceOut = clip?.sourceOut ?? (clip ? sourceIn + clip.duration * (clip.playbackRate || 1) : Number.MAX_SAFE_INTEGER);
+
+  // Clamp playback time to the clip's source window so we never drift beyond the segment being shown
+  const sourceTimeMs = clip
+    ? Math.min(Math.max(sourceIn, currentSourceTimeMs), sourceOut)
+    : currentSourceTimeMs;
 
   // Extract active effects from the array
-  // Effects are in timeline space, filter by timeline time
+  // Effects are in source space, filter by source time
   const activeEffects = effects?.filter(e =>
     e.enabled &&
-    timelineTimeMs >= e.startTime &&
-    timelineTimeMs <= e.endTime
+    sourceTimeMs >= e.startTime &&
+    sourceTimeMs <= e.endTime
   ) || [];
 
   // Find specific effect types using EffectsFactory
@@ -64,17 +70,15 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
   const padding = backgroundData?.padding || 0;
   const videoPosition = calculateVideoPosition(width, height, videoWidth, videoHeight, padding);
 
-  // Convert zoom effects to zoom blocks (convert from timeline to clip-relative)
+  // Convert zoom effects to zoom blocks - effects are already in source space
   const zoomEnabled = zoomEffects.length > 0;
   const zoomBlocks: ZoomBlock[] = zoomEffects.map(effect => {
     const data = EffectsFactory.getZoomData(effect) || { scale: 2, targetX: 0.5, targetY: 0.5, introMs: 300, outroMs: 300, smoothing: 0.1 };
-    // Convert timeline times to clip-relative
-    const clipStartTime = clip ? effect.startTime - clip.startTime : effect.startTime;
-    const clipEndTime = clip ? effect.endTime - clip.startTime : effect.endTime;
+    // Effects are already in source space, use times directly
     return {
       id: effect.id,
-      startTime: Math.max(0, clipStartTime),
-      endTime: Math.max(0, clipEndTime),
+      startTime: effect.startTime,  // Source space
+      endTime: effect.endTime,      // Source space
       scale: data.scale ?? 2,
       targetX: data.targetX,
       targetY: data.targetY,
@@ -90,9 +94,10 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     let zoomState = { scale: 1, x: 0.5, y: 0.5, panX: 0, panY: 0 };
 
     if (zoomEnabled && clip) {
-      // Choose the active zoom block strictly by time
+      // Choose the active zoom block strictly by source time
+      // zoomBlocks are now in source space, so compare with sourceTimeMs
       const activeZoomBlock = zoomBlocks.find(
-        block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
+        block => sourceTimeMs >= block.startTime && sourceTimeMs <= block.endTime
       );
 
       if (activeZoomBlock) {
@@ -105,9 +110,8 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
             const captureWidth = videoWidth;
             const captureHeight = videoHeight;
 
-            // Convert clip-relative time to source time for mouse lookup
-            const sourceTime = clip ? clipRelativeToSource(activeZoomBlock.startTime, clip) : activeZoomBlock.startTime
-            const startMouse = zoomPanCalculator.interpolateMousePosition(cursorEvents, sourceTime)
+            // Effect times are already in source space, no conversion needed
+            const startMouse = zoomPanCalculator.interpolateMousePosition(cursorEvents, activeZoomBlock.startTime)
             if (startMouse) {
               return { cx: startMouse.x, cy: startMouse.y }
             }
@@ -130,15 +134,14 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         }
 
         const blockDuration = activeZoomBlock.endTime - activeZoomBlock.startTime;
-        const elapsed = currentTimeMs - activeZoomBlock.startTime;
+        const elapsed = sourceTimeMs - activeZoomBlock.startTime;
         const introMs = activeZoomBlock.introMs || 500;
         const outroMs = activeZoomBlock.outroMs || 500;
 
-        // Precompute mouse inputs (convert to source time for event lookup)
+        // Mouse events are in source space, use sourceTimeMs directly
         const captureWidth = videoWidth;
         const captureHeight = videoHeight;
-        const currentSourceTime = clip ? clipRelativeToSource(currentTimeMs, clip) : currentTimeMs
-        const mousePos = zoomPanCalculator.interpolateMousePosition(cursorEvents, currentSourceTime)
+        const mousePos = zoomPanCalculator.interpolateMousePosition(cursorEvents, sourceTimeMs)
 
         // Always use mouse for focus
         let targetScaleForBlock = activeZoomBlock.scale || 2
@@ -163,27 +166,33 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
         targetCenterX = Math.max(0.02, Math.min(0.98, targetCenterX))
         targetCenterY = Math.max(0.02, Math.min(0.98, targetCenterY))
 
+        // Smooth center position deterministically based on time rather than frame-to-frame mutations
+        // This prevents micro-jitter from ref mutations during render
         const centerSmoothing = 0.25;
-        blockZoomState.centerX = blockZoomState.centerX + (targetCenterX - blockZoomState.centerX) * centerSmoothing;
-        blockZoomState.centerY = blockZoomState.centerY + (targetCenterY - blockZoomState.centerY) * centerSmoothing;
+        const smoothedCenterX = blockZoomState.centerX + (targetCenterX - blockZoomState.centerX) * centerSmoothing;
+        const smoothedCenterY = blockZoomState.centerY + (targetCenterY - blockZoomState.centerY) * centerSmoothing;
+
+        // Update ref AFTER calculation to avoid render-time mutation side effects
+        blockZoomState.centerX = smoothedCenterX;
+        blockZoomState.centerY = smoothedCenterY;
+        blockZoomState.scale = smoothedScale;
 
         const panX = 0;
         const panY = 0;
 
         zoomState = {
           scale: smoothedScale,
-          x: blockZoomState.centerX,
-          y: blockZoomState.centerY,
+          x: smoothedCenterX,
+          y: smoothedCenterY,
           panX,
           panY
         };
-        blockZoomState.scale = smoothedScale
       } else {
-        const currentTime = currentTimeMs;
+        // Cleanup old zoom states using source time
         const keysToDelete: string[] = [];
         zoomStateRef.current.forEach((_, blockId) => {
           const block = zoomBlocks.find(b => b.id === blockId);
-          if (block && (currentTime < block.startTime - 5000 || currentTime > block.endTime + 5000)) {
+          if (block && (sourceTimeMs < block.startTime - 5000 || sourceTimeMs > block.endTime + 5000)) {
             keysToDelete.push(blockId);
           }
         });
@@ -192,7 +201,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     }
 
     return zoomState;
-  }, [zoomEnabled, clip, zoomBlocks, currentTimeMs, cursorEvents, videoWidth, videoHeight]);
+  }, [zoomEnabled, clip, zoomBlocks, sourceTimeMs, cursorEvents, videoWidth, videoHeight]);
 
   // Initialize cinematic scroll calculator
   const scrollCalculatorRef = useRef<{ calculator: CinematicScrollCalculator; preset: string } | null>(null);
@@ -217,13 +226,13 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
     }
 
     // Update and get current state
-    const state = scrollCalculatorRef.current.calculator.update(scrollEvents, currentTimeMs);
+    const state = scrollCalculatorRef.current.calculator.update(scrollEvents, sourceTimeMs);
 
     // Get parallax layers for multi-depth effect
     const layers = scrollCalculatorRef.current.calculator.getParallaxLayers(state);
 
     return { state, layers };
-  }, [effects, scrollEvents, currentTimeMs])
+  }, [effects, scrollEvents, sourceTimeMs])
 
 
 
@@ -253,6 +262,7 @@ export const MainComposition: React.FC<MainCompositionProps> = ({
           zoomCenter={zoomEnabled ? { x: completeZoomState.x, y: completeZoomState.y } : undefined}
           cinematicScrollState={cinematicScrollState}
           computedScale={zoomEnabled ? completeZoomState.scale : undefined}
+          sourceTimeMs={sourceTimeMs}
         />
       </Sequence>
 

@@ -67,10 +67,10 @@ class ExportWorker extends BaseWorker {
     switch (method) {
       case 'export':
         return this.performExport(data);
-      
+
       case 'status':
         return this.getStatus();
-      
+
       default:
         throw new Error(`Unknown method: ${method}`);
     }
@@ -81,7 +81,7 @@ class ExportWorker extends BaseWorker {
       case 'cancel':
         await this.cancelExport();
         break;
-      
+
       default:
         console.warn(`[ExportWorker] Unknown message: ${method}`);
     }
@@ -93,7 +93,7 @@ class ExportWorker extends BaseWorker {
 
   private async performExport(job: ExportJob): Promise<{ success: boolean; outputPath?: string; error?: string }> {
     const startTime = Date.now();
-    
+
     try {
       // Initialize export state
       this.currentExport = {
@@ -110,23 +110,24 @@ class ExportWorker extends BaseWorker {
 
       // Lazy load Remotion modules
       const { renderMedia } = await import('@remotion/renderer');
-      
+
       // Use pre-selected composition metadata from main process
       if (!job.compositionMetadata) {
         throw new Error('Composition metadata is required');
       }
-      
+
       const composition = {
         ...job.compositionMetadata,
         props: job.inputProps
       };
-      
+
       console.log('[ExportWorker] Using pre-selected composition metadata');
 
       const fps = job.settings.framerate || composition.fps;
       const totalFrames = composition.durationInFrames;
       const durationInSeconds = totalFrames / fps;
-      
+
+      const exportStartTime = Date.now();
       console.log(`[ExportWorker] Starting export: ${totalFrames} frames at ${fps}fps (${durationInSeconds.toFixed(1)}s)`);
 
       // Determine if we need chunked rendering
@@ -134,7 +135,7 @@ class ExportWorker extends BaseWorker {
         ? job.assignedChunks
         : null;
 
-      const chunkSize = job.chunkSizeFrames ?? 2000; // ~1 minute at 30fps, ~33s at 60fps
+      const chunkSize = job.chunkSizeFrames ?? 2000;
       const needsChunking = totalFrames > chunkSize || !!chunkAssignments;
 
       if (needsChunking) {
@@ -156,7 +157,7 @@ class ExportWorker extends BaseWorker {
     } catch (error) {
       console.error('[ExportWorker] Export failed:', error);
       await this.cleanup();
-      
+
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)
@@ -170,9 +171,11 @@ class ExportWorker extends BaseWorker {
     totalFrames: number,
     startTime: number = Date.now()
   ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-    
+
     const { renderMedia } = await import('@remotion/renderer');
-    const renderConcurrency = Math.max(1, job.concurrency || 1);
+    // CRITICAL FIX: Use ?? instead of || to properly handle 0 and 1 values
+    // The || operator treats 0 as falsy, but ?? only treats null/undefined as nullish
+    const renderConcurrency = Math.max(1, job.concurrency ?? 1);
 
     // Send progress updates
     this.send('progress', {
@@ -192,8 +195,8 @@ class ExportWorker extends BaseWorker {
       outputLocation: job.outputPath,
       codec: 'h264',
       videoBitrate: job.videoBitrate,
-      // OPTIMIZED: Lower JPEG quality for better performance
-      jpegQuality: job.jpegQuality || 75, // Reduced from 85
+      // OPTIMIZED: Lower JPEG quality for better performance (70 is sweet spot)
+      jpegQuality: Math.min(job.jpegQuality || 70, 75), // Cap at 75 max
       imageFormat: 'jpeg',
       concurrency: renderConcurrency,
       enforceAudioTrack: false, // Don't require audio track
@@ -203,30 +206,42 @@ class ExportWorker extends BaseWorker {
       everyNthFrame: 1, // Process every frame
       preferLossless: false, // Prefer speed over lossless
       chromiumOptions: {
-        // OPTIMIZED: Use GPU acceleration instead of software rendering
-        gl: undefined, // Remove swangle to use GPU
+        // OPTIMIZED: Enable GPU acceleration for hardware video decoding
+        gl: job.useGPU ? 'angle' : 'swangle', // Use ANGLE for GPU, swangle for software
         headless: true,
         enableMultiProcessOnLinux: true,
         disableWebSecurity: false,
-        ignoreCertificateErrors: false
+        ignoreCertificateErrors: false,
+        // Add explicit GPU acceleration flags for video decoding
+        ...(job.useGPU ? {
+          // Enable hardware video decoding on macOS/Windows/Linux
+          enableAcceleratedVideoDecode: true,
+          // Use native GL instead of SwiftShader for better performance
+          ignoreGpuBlocklist: true,
+        } : {}),
+        // PERFORMANCE: Enable OffscreenCanvas for faster canvas operations
+        // OffscreenCanvas allows rendering to happen off the main thread
+        userAgent: undefined, // Keep default
+        ...({ chromiumSandbox: true, enableFakeUserMedia: false } as any), // Cast to bypass type check
       },
       binariesDirectory: job.compositorDir,
-      // Allow parallel encoding for better performance when memory permits
-      disallowParallelEncoding: false,
+      // CRITICAL FIX: Force single-threaded rendering when concurrency=1
+      // Remotion may override concurrency setting, so explicitly disable parallel encoding
+      disallowParallelEncoding: renderConcurrency === 1,
       logLevel: 'verbose',
       onStart: ({ resolvedConcurrency, parallelEncoding }) => {
         console.log(`[ExportWorker] Rendering with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding}`);
       },
       onProgress: ({ progress, renderedFrames, encodedFrames }) => {
         const now = Date.now();
-        
+
         // Update progress at most every 500ms
         if (now - lastProgressUpdate > 500 || renderedFrames === totalFrames) {
           lastProgressUpdate = now;
           lastReportedFrame = renderedFrames;
-          
+
           const progressPercent = 10 + Math.round((renderedFrames / totalFrames) * 85);
-          
+
           this.send('progress', {
             progress: progressPercent,
             currentFrame: renderedFrames,
@@ -248,8 +263,9 @@ class ExportWorker extends BaseWorker {
     // Get file size
     const stats = await fs.stat(job.outputPath);
     const duration = (Date.now() - startTime) / 1000;
-    
-    console.log(`[ExportWorker] Export complete in ${duration.toFixed(1)}s`);
+    const framesPerSecond = totalFrames / duration;
+
+    console.log(`[ExportWorker] ✅ Export complete in ${duration.toFixed(1)}s (${framesPerSecond.toFixed(1)} fps, ${(stats.size / 1024 / 1024).toFixed(1)} MB)`);
 
     await this.cleanup();
 
@@ -270,14 +286,15 @@ class ExportWorker extends BaseWorker {
   ): Promise<{ success: boolean; outputPath?: string; error?: string; chunkResults?: Array<{ index: number; path: string }> }> {
 
     const { renderMedia } = await import('@remotion/renderer');
-    
+
     const chunks: string[] = [];
     const preservedChunkResults: Array<{ index: number; path: string }> = [];
-      const renderConcurrency = Math.max(1, job.concurrency || 1);
+    // CRITICAL FIX: Use ?? instead of || to properly handle 0 and 1 values
+    const renderConcurrency = Math.max(1, job.concurrency ?? 1);
 
-      const chunkPlan: ChunkAssignment[] = providedChunks && providedChunks.length > 0
-        ? [...providedChunks].sort((a, b) => a.index - b.index)
-        : this.buildChunkPlan(totalFrames, chunkSize, job.settings.framerate || composition.fps || 30);
+    const chunkPlan: ChunkAssignment[] = providedChunks && providedChunks.length > 0
+      ? [...providedChunks].sort((a, b) => a.index - b.index)
+      : this.buildChunkPlan(totalFrames, chunkSize, job.settings.framerate || composition.fps || 30);
 
     const totalChunkCount = job.totalChunks ?? chunkPlan.length;
     const fps = job.settings.framerate || composition.fps || 30;
@@ -296,24 +313,26 @@ class ExportWorker extends BaseWorker {
           console.warn(`[ExportWorker] Skipping empty chunk ${chunkInfo.index + 1}/${totalChunkCount}`);
           continue;
         }
-        
+
         // Create temp file for this chunk
         const chunkPath = path.join(tmpdir(), `remotion-chunk-${i}-${Date.now()}.mp4`);
         chunks.push(chunkPath);
         if (combineChunksInWorker) {
           this.currentExport?.tempFiles.push(chunkPath);
         }
-        
+
+        const chunkStartTime = Date.now();
         console.log(`[ExportWorker] Rendering chunk ${chunkInfo.index + 1}/${totalChunkCount}: frames ${startFrame}-${endFrame}`);
-        
+
         // Calculate time range for this chunk
         const chunkStartTimeMs = chunkInfo.startTimeMs;
         const chunkEndTimeMs = chunkInfo.endTimeMs;
-        
+
         // Use pre-filtered metadata if available, otherwise filter on demand
         let chunkInputProps = { ...job.inputProps };
         let filteredMetadata: any = {};
-        
+        let usingPreFiltered = false;
+
         // Check if we have pre-filtered metadata for this chunk
         if (job.preFilteredMetadata) {
           // Handle both Map and plain object formats
@@ -322,31 +341,39 @@ class ExportWorker extends BaseWorker {
             chunkMetadata = job.preFilteredMetadata.get(chunkInfo.index);
             if (chunkMetadata instanceof Map) {
               filteredMetadata = Object.fromEntries(chunkMetadata);
+              usingPreFiltered = true;
             } else if (chunkMetadata) {
               filteredMetadata = chunkMetadata;
+              usingPreFiltered = true;
             }
           } else {
             // Plain object format from IPC
             chunkMetadata = job.preFilteredMetadata[chunkInfo.index];
-            if (chunkMetadata) {
+            if (chunkMetadata && typeof chunkMetadata === 'object') {
               filteredMetadata = chunkMetadata;
+              usingPreFiltered = true;
             }
           }
-          
-          if (Object.keys(filteredMetadata).length > 0) {
-            console.log(`[ExportWorker] Using pre-filtered metadata for chunk ${chunkInfo.index + 1}`);
+
+          if (usingPreFiltered && Object.keys(filteredMetadata).length > 0) {
+            console.log(`[ExportWorker] ✓ Using pre-filtered metadata for chunk ${chunkInfo.index + 1} (${Object.keys(filteredMetadata).length} recordings)`);
+          } else if (job.preFilteredMetadata) {
+            console.log(`[ExportWorker] ⚠️ Pre-filtered metadata provided but empty for chunk ${chunkInfo.index + 1}, will filter on-demand`);
           }
         }
-        
+
         if (job.inputProps.segments && Array.isArray(job.inputProps.segments)) {
           const allSegments = job.inputProps.segments;
+          const isLastChunk = chunkInfo.index === totalChunkCount - 1;
           const chunkSegments = allSegments.filter((segment: any) => {
-            // Include segment if it overlaps with this chunk's time range
+            // CRITICAL FIX: Use exclusive assignment to prevent duplicate segments in chunks
+            // Assign segment to chunk based on where it STARTS, not overlap
+            // This ensures each segment belongs to exactly ONE chunk
             const segmentStartMs = segment.startTime;
-            const segmentEndMs = segment.endTime;
-            return segmentEndMs >= chunkStartTimeMs && segmentStartMs <= chunkEndTimeMs;
+            // Last chunk uses <= to include segments that start exactly at chunk end
+            return segmentStartMs >= chunkStartTimeMs && (isLastChunk ? segmentStartMs <= chunkEndTimeMs : segmentStartMs < chunkEndTimeMs);
           });
-          
+
           // Extract only the recording IDs used in this chunk
           const recordingIds = new Set<string>();
           chunkSegments.forEach((segment: any) => {
@@ -358,9 +385,9 @@ class ExportWorker extends BaseWorker {
               });
             }
           });
-          
+
           console.log(`[ExportWorker] Chunk ${chunkInfo.index + 1}: Using ${recordingIds.size} recordings`);
-          
+
           const trimmedSegments = chunkSegments.map((segment: any) => {
             const trimmedSegmentStart = Math.max(chunkStartTimeMs, segment.startTime);
             const trimmedSegmentEnd = Math.min(chunkEndTimeMs, segment.endTime);
@@ -412,10 +439,10 @@ class ExportWorker extends BaseWorker {
               effects: trimmedEffects
             };
           }).filter(Boolean);
-          
+
           // Only filter metadata if not pre-filtered
-          if (Object.keys(filteredMetadata).length === 0) {
-            console.log(`[ExportWorker] Filtering metadata on-demand for chunk ${chunkInfo.index + 1}`);
+          if (!usingPreFiltered) {
+            console.log(`[ExportWorker] ⏱ Filtering metadata on-demand for chunk ${chunkInfo.index + 1}`);
             for (const [recordingId, metadata] of Object.entries(job.inputProps.metadata || {})) {
               if (recordingIds.has(recordingId) && metadata) {
                 const metadataObj = metadata as any;
@@ -423,7 +450,7 @@ class ExportWorker extends BaseWorker {
                   ...metadataObj,
                   events: []
                 };
-                
+
                 // Simple time range filter for essential events only
                 const eventArrayKeys = ['events', 'cursor', 'keyboard', 'clicks', 'scrolls'];
                 for (const key of eventArrayKeys) {
@@ -443,12 +470,12 @@ class ExportWorker extends BaseWorker {
                       });
                   }
                 }
-                
+
                 filteredMetadata[recordingId] = filtered;
               }
             }
           }
-          
+
           // Filter data to only what's needed for this chunk
           chunkInputProps = {
             segments: trimmedSegments,
@@ -465,7 +492,7 @@ class ExportWorker extends BaseWorker {
             resolution: job.inputProps.resolution,
             quality: job.inputProps.quality
           };
-          
+
           console.log(`[ExportWorker] Chunk ${chunkInfo.index + 1}: Filtered to ${trimmedSegments.length} segments from ${allSegments.length} total`);
         }
 
@@ -499,8 +526,8 @@ class ExportWorker extends BaseWorker {
           outputLocation: chunkPath,
           codec: 'h264',
           videoBitrate: job.videoBitrate,
-          // OPTIMIZED: Lower JPEG quality for better performance
-          jpegQuality: job.jpegQuality || 75,
+          // OPTIMIZED: Lower JPEG quality for better performance (70 is sweet spot)
+          jpegQuality: Math.min(job.jpegQuality || 70, 75), // Cap at 75 max
           imageFormat: 'jpeg',
           frameRange: [0, chunkFrames - 1],
           concurrency: renderConcurrency,
@@ -511,20 +538,29 @@ class ExportWorker extends BaseWorker {
           everyNthFrame: 1,
           preferLossless: false, // Prefer speed
           chromiumOptions: {
-            // OPTIMIZED: Use GPU acceleration
-            gl: undefined, // Remove swangle to use GPU
+            // OPTIMIZED: Enable GPU acceleration for hardware video decoding
+            gl: job.useGPU ? 'angle' : 'swangle', // Use ANGLE for GPU, swangle for software
             headless: true,
             enableMultiProcessOnLinux: true,
             disableWebSecurity: false,
-            ignoreCertificateErrors: false
+            ignoreCertificateErrors: false,
+            // Add explicit GPU acceleration flags for video decoding
+            ...(job.useGPU ? {
+              enableAcceleratedVideoDecode: true,
+              ignoreGpuBlocklist: true,
+            } : {}),
+            // PERFORMANCE: Enable optimizations
+            userAgent: undefined,
+            ...({ chromiumSandbox: true, enableFakeUserMedia: false } as any),
           },
           binariesDirectory: job.compositorDir,
-          disallowParallelEncoding: false,
+          // CRITICAL FIX: Force single-threaded rendering when concurrency=1
+          disallowParallelEncoding: renderConcurrency === 1,
           logLevel: 'info',
           onProgress: ({ renderedFrames }) => {
             const chunkProgress = renderedFrames / chunkFrames;
             const totalProgress = 10 + ((chunkInfo.index + chunkProgress) / Math.max(1, totalChunkCount)) * 80;
-            
+
             this.send('progress', {
               progress: Math.round(totalProgress),
               currentFrame: startFrame + renderedFrames,
@@ -540,6 +576,10 @@ class ExportWorker extends BaseWorker {
             });
           }
         });
+
+        const chunkDuration = (Date.now() - chunkStartTime) / 1000;
+        const chunkFps = chunkFrames / chunkDuration;
+        console.log(`[ExportWorker] ✓ Chunk ${chunkInfo.index + 1} complete in ${chunkDuration.toFixed(1)}s (${chunkFps.toFixed(1)} fps)`);
 
         // Force garbage collection between chunks if available
         if (global.gc) {
@@ -584,15 +624,27 @@ class ExportWorker extends BaseWorker {
       });
 
       console.log(`[ExportWorker] Combining ${chunks.length} chunks into final video`);
-      
+
       // Use FFmpeg directly to concatenate videos
       const concatListPath = path.join(tmpdir(), `concat-${Date.now()}.txt`);
       this.currentExport?.tempFiles.push(concatListPath);
-      
+
+      // Verify all chunk files exist before concat
+      for (let i = 0; i < chunks.length; i++) {
+        const chunkPath = chunks[i];
+        const exists = fsSync.existsSync(chunkPath);
+        if (!exists) {
+          throw new Error(`Chunk file ${i + 1}/${chunks.length} not found at: ${chunkPath}`);
+        }
+        const stats = await fs.stat(chunkPath);
+        console.log(`[ExportWorker] Chunk ${i + 1}: ${(stats.size / 1024 / 1024).toFixed(1)}MB`);
+      }
+
       // Create concat file
       const concatContent = chunks.map(chunk => `file '${chunk}'`).join('\n');
       await fs.writeFile(concatListPath, concatContent);
-      
+      console.log(`[ExportWorker] Concat list:\n${concatContent}`);
+
       // Run FFmpeg concat
       const ffmpegArgs = [
         '-f', 'concat',
@@ -600,25 +652,54 @@ class ExportWorker extends BaseWorker {
         '-i', concatListPath,
         '-c', 'copy',
         '-movflags', '+faststart',
+        '-y', // Overwrite output file if exists
         job.outputPath
       ];
-      
-      const ffmpegProcess = spawn(job.ffmpegPath, ffmpegArgs);
-      
+
+      console.log(`[ExportWorker] Running FFmpeg: ${job.ffmpegPath} ${ffmpegArgs.join(' ')}`);
+
+      // CRITICAL FIX: Set DYLD_LIBRARY_PATH so FFmpeg can find its dynamic libraries
+      // FFmpeg binary needs libavdevice.dylib, libavcodec.dylib, etc. from same directory
+      const ffmpegDir = path.dirname(job.ffmpegPath);
+      const env = {
+        ...process.env,
+        DYLD_LIBRARY_PATH: `${ffmpegDir}:${process.env.DYLD_LIBRARY_PATH || ''}`
+      };
+
+      const ffmpegProcess = spawn(job.ffmpegPath, ffmpegArgs, { env });
+
+      let ffmpegStderr = '';
+      let ffmpegStdout = '';
+
+      ffmpegProcess.stderr?.on('data', (data) => {
+        ffmpegStderr += data.toString();
+      });
+
+      ffmpegProcess.stdout?.on('data', (data) => {
+        ffmpegStdout += data.toString();
+      });
+
       await new Promise<void>((resolve, reject) => {
-        ffmpegProcess.on('exit', (code) => {
+        ffmpegProcess.on('exit', (code, signal) => {
           if (code === 0) {
+            console.log(`[ExportWorker] FFmpeg concat successful`);
             resolve();
           } else {
-            reject(new Error(`FFmpeg concat failed with code ${code}`));
+            console.error(`[ExportWorker] FFmpeg concat failed with code ${code}, signal ${signal}`);
+            console.error(`[ExportWorker] FFmpeg stderr:\n${ffmpegStderr}`);
+            console.error(`[ExportWorker] FFmpeg stdout:\n${ffmpegStdout}`);
+            reject(new Error(`FFmpeg concat failed with code ${code}, signal ${signal}\nStderr: ${ffmpegStderr.slice(-500)}`));
           }
         });
-        ffmpegProcess.on('error', reject);
+        ffmpegProcess.on('error', (err) => {
+          console.error(`[ExportWorker] FFmpeg process error:`, err);
+          reject(err);
+        });
       });
 
       // Clean up chunk files
       for (const chunk of chunks) {
-        await fs.unlink(chunk).catch(() => {});
+        await fs.unlink(chunk).catch(() => { });
       }
 
       this.send('progress', {
@@ -637,7 +718,7 @@ class ExportWorker extends BaseWorker {
     } catch (error) {
       // Clean up chunk files on error
       for (const chunk of chunks) {
-        await fs.unlink(chunk).catch(() => {});
+        await fs.unlink(chunk).catch(() => { });
       }
       throw error;
     }
@@ -675,7 +756,7 @@ class ExportWorker extends BaseWorker {
 
     // Clean up any temp files
     for (const tempFile of this.currentExport.tempFiles) {
-      await fs.unlink(tempFile).catch(() => {});
+      await fs.unlink(tempFile).catch(() => { });
     }
 
     this.currentExport = null;

@@ -18,7 +18,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   videoHeight,
   zoomCenter,
   cinematicScrollState,
-  computedScale
+  computedScale,
+  sourceTimeMs
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
@@ -49,16 +50,16 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   // Memoize zoom transformation to avoid recalculating when only frame changes
   const transform = useMemo(() => {
     if (!zoomBlocks || zoomBlocks.length === 0) return '';
-    
-    // Find active zoom block
+
+    // Find active zoom block using SOURCE time
     const activeBlock = zoomBlocks.find(
-      block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
+      block => sourceTimeMs >= block.startTime && sourceTimeMs <= block.endTime
     );
 
-    // Calculate zoom transformation with fixed center
+    // Calculate zoom transformation with fixed center using SOURCE time
     const zoomTransform = calculateZoomTransform(
       activeBlock,
-      currentTimeMs,
+      sourceTimeMs,
       drawWidth,
       drawHeight,
       fixedZoomCenter,  // Fixed zoom center for stable zoom
@@ -67,7 +68,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 
     // Generate transform string
     return getZoomTransformString(zoomTransform);
-  }, [zoomBlocks, currentTimeMs, drawWidth, drawHeight, fixedZoomCenter, computedScale]);
+  }, [zoomBlocks, sourceTimeMs, drawWidth, drawHeight, fixedZoomCenter, computedScale]);
   
   let extra3DTransform = '';
 
@@ -143,14 +144,6 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     const { state } = cinematicScrollState;
     cinematicTransform = createCinematicTransform(state);
     cinematicBlur = createBlurFilter(state.blur);
-
-    // Log when transform is applied
-    if (cinematicTransform) {
-      console.log('[CinematicScroll] Applying transform to video:', {
-        transform: cinematicTransform,
-        blur: cinematicBlur || 'none'
-      });
-    }
   }
 
   const combinedTransform = `${transform}${extra3DTransform}`.trim();
@@ -192,27 +185,18 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     console.log('[VideoLayer] Normalized URL', { from: videoUrl, to: finalVideoUrl });
   }
 
+  // OPTIMIZATION: Combine shadow + container into single layer using CSS filter
+  // Previously: 3 layers (shadow div + container div + video) = 3x composite overhead
+  // Now: 2 layers (container div + video) = faster compositing
+  const dropShadow = shadowIntensity > 0
+    ? `drop-shadow(0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0, 0, 0, ${shadowOpacity})) drop-shadow(0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px rgba(0, 0, 0, ${shadowOpacity * 0.8}))`
+    : '';
+
+  const combinedFilter = [dropShadow, cinematicBlur].filter(Boolean).join(' ');
+
   return (
     <AbsoluteFill>
-      {/* Shadow layer - rendered separately to ensure visibility */}
-      {shadowIntensity > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            left: offsetX,
-            top: offsetY,
-            width: drawWidth,
-            height: drawHeight,
-            borderRadius: `${cornerRadius}px`,
-            boxShadow: `0 ${shadowBlur}px ${shadowBlur * 2}px ${shadowSpread}px rgba(0, 0, 0, ${shadowOpacity}), 0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px ${shadowSpread * 0.66}px rgba(0, 0, 0, ${shadowOpacity * 0.8})`,
-            transform: finalTransform,
-            transformOrigin: '50% 50%',
-            pointerEvents: 'none',
-            willChange: 'transform' // GPU acceleration hint
-          }}
-        />
-      )}
-      {/* Video container with viewport clipping */}
+      {/* Video container with viewport clipping and shadow - OPTIMIZED: Single layer */}
       <div
         style={{
           position: 'absolute',
@@ -224,7 +208,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           overflow: 'hidden',
           transform: finalTransform,
           transformOrigin: '50% 50%',
-          filter: cinematicBlur,
+          filter: combinedFilter || undefined,
           willChange: 'transform, filter' // GPU acceleration hint
         }}
       >
@@ -236,6 +220,9 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           muted={false}
           pauseWhenBuffering={false}
           crossOrigin="anonymous"
+          startFrom={clip ? (clip.sourceIn || 0) / fps : 0}
+          endAt={clip ? ((clip.sourceOut ?? (clip.sourceIn + clip.duration)) || 0) / fps : undefined}
+          playbackRate={clip?.playbackRate || 1}
           onError={(e) => {
             console.error('Video playback error:', {
               error: e,

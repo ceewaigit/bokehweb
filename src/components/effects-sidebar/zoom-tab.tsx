@@ -18,20 +18,26 @@ interface ZoomTabProps {
   selectedClip: Clip | null
   onUpdateZoom: (updates: any) => void
   onEffectChange: (type: EffectType.Zoom | EffectType.Annotation, data: any) => void
+  onZoomBlockUpdate?: (blockId: string, updates: any) => void
 }
 
-export function ZoomTab({ 
-  effects, 
-  selectedEffectLayer, 
+export function ZoomTab({
+  effects,
+  selectedEffectLayer,
   selectedClip,
-  onUpdateZoom, 
-  onEffectChange 
+  onUpdateZoom,
+  onEffectChange,
+  onZoomBlockUpdate
 }: ZoomTabProps) {
-  const { updateEffect: updateStoreEffect } = useProjectStore()
   const playheadRecording = useProjectStore(s => s.playheadRecording)
   const projectRecordings = useProjectStore(s => s.currentProject?.recordings)
-  
+
   const zoomEffects = effects ? EffectsFactory.getZoomEffects(effects) : []
+
+  // Local state for slider values during dragging to avoid fighting with store updates
+  const [localScale, setLocalScale] = React.useState<number | null>(null)
+  const [localIntroMs, setLocalIntroMs] = React.useState<number | null>(null)
+  const [localOutroMs, setLocalOutroMs] = React.useState<number | null>(null)
 
   return (
     <div className="space-y-4">
@@ -43,7 +49,13 @@ export function ZoomTab({
       {/* Show specific zoom block controls if one is selected */}
       {selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id && (() => {
         const selectedBlock = zoomEffects.find(e => e.id === selectedEffectLayer.id)
-        if (!selectedBlock) return null
+        if (!selectedBlock) {
+          console.warn('[ZoomTab] Selected block not found in zoomEffects!', {
+            lookingFor: selectedEffectLayer.id,
+            availableIds: zoomEffects.map(e => e.id)
+          })
+          return null
+        }
         const zoomData = selectedBlock.data as ZoomEffectData
         if (!zoomData) return null
 
@@ -56,10 +68,19 @@ export function ZoomTab({
                 <label className="text-[10px] text-muted-foreground">Scale</label>
                 <Slider
                   key={`scale-${selectedEffectLayer.id}`}
-                  value={[zoomData.scale ?? 2.0]}
+                  value={[localScale ?? zoomData.scale ?? 2.0]}
                   onValueChange={([value]) => {
-                    if (selectedEffectLayer.id) {
-                      updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), scale: value } })
+                    // Update local state immediately for smooth dragging
+                    setLocalScale(value)
+                    console.log('[Slider] onValueChange:', { value, selectedEffectLayerId: selectedEffectLayer.id, hasCallback: !!onZoomBlockUpdate })
+                  }}
+                  onValueCommit={([value]) => {
+                    // Commit to store when drag ends
+                    if (selectedEffectLayer.id && onZoomBlockUpdate) {
+                      console.log('[Slider] onValueCommit:', { value, selectedEffectLayerId: selectedEffectLayer.id })
+                      onZoomBlockUpdate(selectedEffectLayer.id, { scale: value })
+                      // Clear local state after commit - give more time for store to update
+                      setTimeout(() => setLocalScale(null), 300)
                     }
                   }}
                   min={1}
@@ -67,7 +88,7 @@ export function ZoomTab({
                   step={0.1}
                   className="w-full"
                 />
-                <span className="text-[9px] text-muted-foreground/70">{(zoomData.scale ?? 2.0).toFixed(1)}x</span>
+                <span className="text-[9px] text-muted-foreground/70">{(localScale ?? zoomData.scale ?? 2.0).toFixed(1)}x</span>
               </div>
 
               <div className="space-y-1">
@@ -77,10 +98,14 @@ export function ZoomTab({
                     <span className="text-[9px] text-muted-foreground/70">In</span>
                     <Slider
                       key={`intro-${selectedEffectLayer.id}`}
-                      value={[zoomData.introMs || 500]}
+                      value={[localIntroMs ?? (zoomData.introMs || 500)]}
                       onValueChange={([value]) => {
-                        if (selectedEffectLayer.id) {
-                          updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), introMs: value } })
+                        setLocalIntroMs(value)
+                      }}
+                      onValueCommit={([value]) => {
+                        if (selectedEffectLayer.id && onZoomBlockUpdate) {
+                          onZoomBlockUpdate(selectedEffectLayer.id, { introMs: value })
+                          setTimeout(() => setLocalIntroMs(null), 300)
                         }
                       }}
                       min={0}
@@ -88,16 +113,20 @@ export function ZoomTab({
                       step={50}
                       className="w-full"
                     />
-                    <span className="text-[9px] text-muted-foreground/70">{zoomData.introMs || 500}ms</span>
+                    <span className="text-[9px] text-muted-foreground/70">{localIntroMs ?? (zoomData.introMs || 500)}ms</span>
                   </div>
                   <div className="space-y-1">
                     <span className="text-[9px] text-muted-foreground/70">Out</span>
                     <Slider
                       key={`outro-${selectedEffectLayer.id}`}
-                      value={[zoomData.outroMs || 500]}
+                      value={[localOutroMs ?? (zoomData.outroMs || 500)]}
                       onValueChange={([value]) => {
-                        if (selectedEffectLayer.id) {
-                          updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), outroMs: value } })
+                        setLocalOutroMs(value)
+                      }}
+                      onValueCommit={([value]) => {
+                        if (selectedEffectLayer.id && onZoomBlockUpdate) {
+                          onZoomBlockUpdate(selectedEffectLayer.id, { outroMs: value })
+                          setTimeout(() => setLocalOutroMs(null), 300)
                         }
                       }}
                       min={0}
@@ -105,7 +134,7 @@ export function ZoomTab({
                       step={50}
                       className="w-full"
                     />
-                    <span className="text-[9px] text-muted-foreground/70">{zoomData.outroMs || 500}ms</span>
+                    <span className="text-[9px] text-muted-foreground/70">{localOutroMs ?? (zoomData.outroMs || 500)}ms</span>
                   </div>
                 </div>
               </div>
@@ -122,7 +151,11 @@ export function ZoomTab({
                   <Slider
                     key={`mouseidle-${selectedEffectLayer.id}`}
                     value={[zoomData.mouseIdlePx ?? 3]}
-                    onValueChange={([value]) => selectedEffectLayer.id && updateStoreEffect(selectedEffectLayer.id, { data: { ...(zoomData || {}), mouseIdlePx: value } })}
+                    onValueChange={([value]) => {
+                      if (selectedEffectLayer.id && onZoomBlockUpdate) {
+                        onZoomBlockUpdate(selectedEffectLayer.id, { mouseIdlePx: value })
+                      }
+                    }}
                     min={1}
                     max={20}
                     step={1}

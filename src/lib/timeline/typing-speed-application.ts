@@ -1,8 +1,6 @@
 import type { Project, Track, Clip } from '@/types/project'
 import { reflowClips, calculateTimelineDuration } from './timeline-operations'
 
-const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
-
 /**
  * Service for applying typing speed suggestions to clips by splitting them
  * This creates separate clips for typing sections with increased playback rates
@@ -27,7 +25,7 @@ export class TypingSpeedApplicationService {
     let sourceClip: Clip | null = null
     let track: Track | null = null
     let clipIndex = -1
-    
+
     for (const t of project.timeline.tracks) {
       const index = t.clips.findIndex(c => c.id === clipId)
       if (index !== -1) {
@@ -51,20 +49,6 @@ export class TypingSpeedApplicationService {
     const sourceOut = sourceClip.sourceOut || (sourceIn + sourceClip.duration * (sourceClip.playbackRate || 1))
     const baseRate = sourceClip.playbackRate || 1
 
-    if (DEBUG_TYPING) {
-      console.log('[TypingApply] Starting typing speed application', {
-        clipId,
-        clipSourceRange: { sourceIn, sourceOut },
-        clipDuration: sourceClip.duration,
-        clipPlaybackRate: baseRate,
-        periodsReceived: periods.map(p => ({
-          start: p.startTime,
-          end: p.endTime,
-          rate: p.suggestedSpeedMultiplier
-        }))
-      })
-    }
-
     // Filter and sort periods within the clip's source range
     const validPeriods = periods
       .filter(p => p.endTime > sourceIn && p.startTime < sourceOut)
@@ -76,24 +60,11 @@ export class TypingSpeedApplicationService {
       .sort((a, b) => a.start - b.start)
 
     if (validPeriods.length === 0) {
-      if (DEBUG_TYPING) {
-        console.log('[TypingApply] No valid periods within clip range', {
-          clipSourceRange: { sourceIn, sourceOut },
-          periodsFiltered: periods.filter(p => p.endTime > sourceIn && p.startTime < sourceOut)
-        })
-      }
       return { affectedClips: [clipId], originalClips }
-    }
-    
-    if (DEBUG_TYPING) {
-      console.log('[TypingApply] Valid periods after filtering', {
-        validPeriods,
-        clipSourceRange: { sourceIn, sourceOut }
-      })
     }
 
     // Create split points including typing periods and gaps
-    const splitPoints: Array<{start: number, end: number, speedMultiplier: number}> = []
+    const splitPoints: Array<{ start: number, end: number, speedMultiplier: number }> = []
     let currentPos = sourceIn
 
     for (const period of validPeriods) {
@@ -135,10 +106,10 @@ export class TypingSpeedApplicationService {
     for (let i = 0; i < splitPoints.length; i++) {
       const split = splitPoints[i]
       const sourceDuration = split.end - split.start
-      
+
       // Apply speed directly to playbackRate for consistency with manual speed changes
       const effectiveRate = baseRate * split.speedMultiplier
-      
+
       // Calculate duration based on combined speed
       const clipDuration = sourceDuration / effectiveRate
 
@@ -159,41 +130,16 @@ export class TypingSpeedApplicationService {
     }
 
     // Insert new clips at the original position
+    // Note: Effects are stored in source space on Recording, not affected by clip splits
     track.clips.splice(clipIndex, 0, ...newClips)
 
     // Sort clips by start time to maintain order
     track.clips.sort((a, b) => a.startTime - b.startTime)
 
-    // Reflow only clips after the inserted ones to preserve timeline position
-    // Find the index of the last new clip after sorting
-    const lastNewClipIndex = track.clips.findIndex(c => c.id === newClips[newClips.length - 1].id)
-    if (lastNewClipIndex !== -1 && lastNewClipIndex < track.clips.length - 1) {
-      reflowClips(track, lastNewClipIndex + 1, project)
-    }
-
-    if (DEBUG_TYPING) {
-      console.log('[TypingApply] Clip split complete', {
-        originalClip: {
-          id: sourceClip.id,
-          startTime: sourceClip.startTime,
-          duration: sourceClip.duration,
-          sourceIn: sourceClip.sourceIn,
-          sourceOut: sourceClip.sourceOut,
-          playbackRate: sourceClip.playbackRate
-        },
-        splitPoints,
-        newClips: newClips.map(c => ({
-          id: c.id,
-          startTime: c.startTime,
-          duration: c.duration,
-          sourceIn: c.sourceIn,
-          sourceOut: c.sourceOut,
-          playbackRate: c.playbackRate,
-          typingSpeedApplied: c.typingSpeedApplied
-        })),
-        totalNewDuration: newClips.reduce((sum, c) => sum + c.duration, 0)
-      })
-    }
+    // Always do full reflow to ensure all clips are contiguous
+    // This handles any rounding errors or duration mismatches automatically
+    // and ensures gaps close as expected when clips become shorter due to speed-up
+    reflowClips(track, 0, project)
 
     // Update timeline duration
     project.timeline.duration = calculateTimelineDuration(project)

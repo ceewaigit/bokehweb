@@ -60,4 +60,11 @@ export interface ProjectStore {
     endTime: number
     suggestedSpeedMultiplier: number
   }>) => { affectedClips: string[]; originalClips: Clip[] }
+  cacheTypingPeriods: (recordingId: string, periods: Array<{
+    startTime: number
+    endTime: number
+    keyCount: number
+    averageWpm: number
+    suggestedSpeedMultiplier: number
+  }>) => void
 }

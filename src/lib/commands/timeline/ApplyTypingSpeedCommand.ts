@@ -48,13 +48,6 @@ export class ApplyTypingSpeedCommand extends Command<{
       // Save state for undo
       this.originalClips = result.originalClips
       this.affectedClips = result.affectedClips
-
-      console.log('[ApplyTypingSpeedCommand] Applied typing speed:', {
-        clipId: this.sourceClipId,
-        periods: this.periods.length,
-        affectedClips: this.affectedClips.length
-      })
-
       return {
         success: true,
         data: { applied: this.affectedClips.length }
@@ -106,5 +99,9 @@ export class ApplyTypingSpeedCommand extends Command<{
   doRedo(): CommandResult<{ applied: number }> {
     // Re-execute with the same parameters
     return this.doExecute()
+  }
+
+  getAffectedClips(): string[] {
+    return this.affectedClips
   }
 }

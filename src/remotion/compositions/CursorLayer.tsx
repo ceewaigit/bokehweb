@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { AbsoluteFill, Img, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, useCurrentFrame, delayRender, continueRender, staticFile } from 'remotion';
 import type { CursorLayerProps } from './types';
 import type { Clip } from '@/types/project';
 import {
@@ -10,11 +10,83 @@ import {
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
 import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
-import { clipRelativeToSource } from '@/lib/timeline/time-space-converter';
+const clampToClipSourceRange = (timeMs: number, clip?: Clip | null) => {
+  if (!clip) return timeMs;
+  const sourceIn = clip.sourceIn ?? 0;
+  const sourceOut = clip.sourceOut ?? (sourceIn + clip.duration * (clip.playbackRate || 1));
+  return Math.min(Math.max(sourceIn, timeMs), sourceOut);
+};
 
 const getEventSourceTimestamp = (event: { sourceTimestamp?: number; timestamp: number }) =>
   typeof event.sourceTimestamp === 'number' ? event.sourceTimestamp : event.timestamp;
 
+// SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
+class CursorImagePreloader {
+  private static instance: CursorImagePreloader;
+  private isLoaded = false;
+  private loadingPromise: Promise<void> | null = null;
+
+  private constructor() {}
+
+  static getInstance(): CursorImagePreloader {
+    if (!CursorImagePreloader.instance) {
+      CursorImagePreloader.instance = new CursorImagePreloader();
+    }
+    return CursorImagePreloader.instance;
+  }
+
+  isPreloaded(): boolean {
+    return this.isLoaded;
+  }
+
+  preload(): Promise<void> {
+    // If already loaded, return immediately
+    if (this.isLoaded) {
+      return Promise.resolve();
+    }
+
+    // If currently loading, return the existing promise
+    if (this.loadingPromise) {
+      return this.loadingPromise;
+    }
+
+    // Start loading
+    const cursorTypesToPreload = [
+      CursorType.ARROW,
+      CursorType.IBEAM,
+      CursorType.POINTING_HAND,
+      CursorType.CLOSED_HAND,
+      CursorType.OPEN_HAND,
+      CursorType.CROSSHAIR
+    ];
+
+    const imagePromises = cursorTypesToPreload.map((type) => {
+      return new Promise<void>((resolve) => {
+        const src = getCursorImagePath(type);
+        const img = new Image();
+
+        // Also fetch to ensure browser cache (though Remotion may not use it)
+        fetch(src, { cache: 'force-cache' }).catch(() => {});
+
+        img.onload = () => {
+          img.decode().then(() => resolve()).catch(() => resolve());
+        };
+        img.onerror = () => {
+          console.warn(`Failed to preload cursor: ${type}`);
+          resolve();
+        };
+        img.src = src;
+      });
+    });
+
+    this.loadingPromise = Promise.all(imagePromises).then(() => {
+      this.isLoaded = true;
+      this.loadingPromise = null; // Clear the promise after loading
+    });
+
+    return this.loadingPromise;
+  }
+}
 
 export const CursorLayer: React.FC<CursorLayerProps> = ({
   cursorEvents,
@@ -29,8 +101,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   cursorData
 }) => {
   const frame = useCurrentFrame();
-  const currentTimeMs = (frame / fps) * 1000;
-  const currentSourceTime = useMemo(() => clip ? clipRelativeToSource(currentTimeMs, clip) : currentTimeMs, [clip, currentTimeMs]);
+  const playbackTimeMs = (frame / fps) * 1000;
+  const currentSourceTime = useMemo(
+    () => clampToClipSourceRange(playbackTimeMs, clip),
+    [clip, playbackTimeMs]
+  );
 
   // Store previous positions for motion trail and smoothing
   const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
@@ -46,6 +121,25 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   // Stabilize cursor type to avoid flicker (e.g., brief I-beam hovers)
   const stableCursorTypeRef = useRef<CursorType>(CursorType.ARROW);
   const pendingCursorTypeRef = useRef<{ type: CursorType; since: number } | null>(null);
+
+  // SINGLETON: Pre-cache all cursor images once across all CursorLayer instances
+  useEffect(() => {
+    const preloader = CursorImagePreloader.getInstance();
+
+    // Early return if already loaded (avoids unnecessary delayRender call)
+    if (preloader.isPreloaded()) return;
+
+    const handle = delayRender('Preloading cursor images (singleton)');
+
+    preloader.preload()
+      .then(() => {
+        continueRender(handle);
+      })
+      .catch((err) => {
+        console.error('Error preloading cursor images:', err);
+        continueRender(handle);
+      });
+  }, []);
 
   // Reset cached timeline index whenever event set changes
   useEffect(() => {
@@ -101,7 +195,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const desiredType = electronToCustomCursor(selectedEvent?.cursorType || 'default');
 
     // Hysteresis/debounce: only commit a type change if it persists for a small window
-    const now = currentTimeMs;
+    const now = currentSourceTime;
     const COMMIT_DELAY_MS = 150; // prevents split-second I-beam flashes
 
     if (desiredType === stableCursorTypeRef.current) {
@@ -122,7 +216,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     // Start pending window for the new desired type
     pendingCursorTypeRef.current = { type: desiredType, since: now };
     return stableCursorTypeRef.current;
-  }, [cursorEvents, currentSourceTime, currentTimeMs]);
+  }, [cursorEvents, currentSourceTime]);
 
   // Check if cursor is idle
   const isIdle = useMemo(() => {
@@ -132,10 +226,10 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     if (cursorEvents.length === 0) return false;
 
     const idleTimeout = cursorData?.idleTimeout ?? 3000; // Default 3 seconds
-    const timeSinceLastMovement = currentTimeMs - lastMovementTimeRef.current;
+    const timeSinceLastMovement = currentSourceTime - lastMovementTimeRef.current;
 
     return timeSinceLastMovement > idleTimeout;
-  }, [currentTimeMs, cursorData?.hideOnIdle, cursorData?.idleTimeout, cursorEvents.length]);
+  }, [currentSourceTime, cursorData?.hideOnIdle, cursorData?.idleTimeout, cursorEvents.length]);
 
   // Get interpolated cursor position with ultra-heavy smoothing
   const cursorPosition = useMemo(() => {
@@ -144,12 +238,22 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       return { x: videoWidth / 2, y: videoHeight / 2 };
     }
 
-    const targetTimelineTime = currentTimeMs;
+    const targetTimelineTime = currentSourceTime;
     const targetSourceTime = currentSourceTime;
 
     const idx = locateEventIndex(targetSourceTime);
     const currEvent = cursorEvents[idx];
     const nextEvent = idx < cursorEvents.length - 1 ? cursorEvents[idx + 1] : undefined;
+
+    // Validate that we have a valid current event
+    if (!currEvent || typeof currEvent.x !== 'number' || typeof currEvent.y !== 'number') {
+      // If no valid event found, hide cursor or use last known position
+      if (lastKnownPositionRef.current) {
+        return lastKnownPositionRef.current;
+      }
+      // No events available at this time, return center
+      return { x: videoWidth / 2, y: videoHeight / 2 };
+    }
 
     const currSourceTime = getEventSourceTimestamp(currEvent);
     const nextSourceTime = nextEvent ? getEventSourceTimestamp(nextEvent) : undefined;
@@ -171,6 +275,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       const firstEvent = cursorEvents[0];
       rawX = firstEvent.x;
       rawY = firstEvent.y;
+    }
+
+    // Validate interpolated values - if NaN, use last known position or fallback
+    if (!isFinite(rawX) || !isFinite(rawY)) {
+      if (lastKnownPositionRef.current) {
+        return lastKnownPositionRef.current;
+      }
+      return { x: videoWidth / 2, y: videoHeight / 2 };
     }
 
     // Initialize filtered position on first frame
@@ -247,11 +359,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
       // If cursor moved more than 2 pixels in raw position, update last movement time
       if (rawMovement > 2) {
-        lastMovementTimeRef.current = currentTimeMs;
+        lastMovementTimeRef.current = currentSourceTime;
       }
     } else {
       // Initialize on first frame
-      lastMovementTimeRef.current = currentTimeMs;
+      lastMovementTimeRef.current = currentSourceTime;
     }
 
     // Update references for next frame
@@ -266,7 +378,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       x: clampedX,
       y: clampedY
     };
-  }, [cursorEvents, currentTimeMs, currentSourceTime]);
+  }, [cursorEvents, currentSourceTime]);
 
   // Check for active click animation (only if click effects are enabled)
   const activeClick = useMemo(() => {
@@ -275,15 +387,16 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
     return clickEvents.find(click => {
       const clickDuration = 300; // ms for click animation
-      return currentTimeMs >= click.timestamp &&
-        currentTimeMs <= click.timestamp + clickDuration;
+      return currentSourceTime >= click.timestamp &&
+        currentSourceTime <= click.timestamp + clickDuration;
     });
-  }, [clickEvents, currentTimeMs, cursorData?.clickEffects]);
+  }, [clickEvents, currentSourceTime, cursorData?.clickEffects]);
 
   // Calculate click animation scale
   const clickScale = useMemo(() => {
     if (!activeClick) return 1;
-    const clickProgress = Math.min(1, (currentTimeMs - activeClick.timestamp) / 200);
+    // Use SOURCE time for calculation (both times must be in same space)
+    const clickProgress = Math.min(1, (currentSourceTime - activeClick.timestamp) / 200);
     // Click animation - shrinks to 0.8 then returns to normal
     if (clickProgress < 0.4) {
       // Quick shrink phase
@@ -293,7 +406,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       const returnProgress = (clickProgress - 0.4) / 0.6;
       return 0.8 + returnProgress * 0.2; // Grow from 0.8 back to 1.0
     }
-  }, [activeClick, currentTimeMs]);
+  }, [activeClick, currentSourceTime]);
 
   // Get capture dimensions from first event
   const firstEvent = cursorEvents[0];
@@ -324,16 +437,16 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       positionHistoryRef.current.push({
         x: cursorTipX,
         y: cursorTipY,
-        time: currentTimeMs
+        time: currentSourceTime
       });
 
       // Keep only recent positions (last 100ms for trail effect)
-      const cutoffTime = currentTimeMs - 100;
+      const cutoffTime = currentSourceTime - 100;
       positionHistoryRef.current = positionHistoryRef.current.filter(
         pos => pos.time > cutoffTime
       );
     }
-  }, [frame, cursorTipX, cursorTipY, currentTimeMs, cursorPosition]);
+  }, [frame, cursorTipX, cursorTipY, cursorPosition, currentSourceTime]);
 
   // Calculate motion velocity for blur effect
   const motionVelocity = useMemo(() => {
@@ -373,9 +486,9 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Apply zoom transformation EXACTLY like VideoLayer does
   if (zoomBlocks && zoomBlocks.length > 0) {
-    // Find active zoom block - same as VideoLayer
+    // Find active zoom block - compare SOURCE time against SOURCE timestamps
     const activeBlock = zoomBlocks.find(
-      block => currentTimeMs >= block.startTime && currentTimeMs <= block.endTime
+      block => currentSourceTime >= block.startTime && currentSourceTime <= block.endTime
     );
 
     if (activeBlock) {
@@ -383,7 +496,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       // Use zoomState's x,y which are the mouse position at zoom start
       const zoomTransform = calculateZoomTransform(
         activeBlock,
-        currentTimeMs,  // Use actual time, not fixed 500
+        currentSourceTime,  // Use SOURCE time to match activeBlock timestamps
         videoOffset.width,  // Use video dimensions, same as VideoLayer
         videoOffset.height,
         zoomState ? { x: zoomState.x, y: zoomState.y } : { x: 0.5, y: 0.5 },  // Use zoom center position

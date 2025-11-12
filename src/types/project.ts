@@ -90,6 +90,9 @@ export interface Recording {
   // Captured metadata during recording
   metadata?: RecordingMetadata
 
+  // Effects stored in source space (timestamps relative to recording start)
+  effects: Effect[]
+
   // Folder-based storage for this recording (absolute or project-relative)
   folderPath?: string
 
@@ -144,6 +147,18 @@ export interface RecordingMetadata {
 
   // Capture area information for cropping during export
   captureArea?: CaptureArea
+
+  // Cached typing detection results (computed once, reused across clips)
+  detectedTypingPeriods?: TypingPeriod[]
+}
+
+// Typing period detected in recording
+export interface TypingPeriod {
+  startTime: number  // Source timestamp
+  endTime: number    // Source timestamp
+  keyCount: number
+  averageWPM: number
+  suggestedSpeedMultiplier: number
 }
 
 export interface MouseEvent {
@@ -189,8 +204,9 @@ export interface ScreenEvent {
 export interface Timeline {
   tracks: Track[]
   duration: number
-  // Effects are stored independently
-  effects: Effect[]
+  // Global effects (backgrounds, etc.) that apply to entire timeline
+  // Note: Most effects now live on Recording in source space
+  effects?: Effect[]
 }
 
 export interface Track {
@@ -217,7 +233,7 @@ export interface Clip {
   // Playback control
   playbackRate?: number // Speed multiplier (1.0 = normal, 2.0 = 2x speed, 0.5 = half speed)
   typingSpeedApplied?: boolean // Flag to indicate typing speed has been applied to this clip
-  
+
   // Time remapping for variable speed (typing speed, etc)
   timeRemapPeriods?: TimeRemapPeriod[]
 
@@ -235,14 +251,16 @@ export interface TimeRemapPeriod {
   speedMultiplier: number
 }
 
-// New: Independent effect entity (timeline-global, not per-clip)
+// Effect entity - timing in source space (recording timestamps)
 export interface Effect {
   id: string
   type: EffectType
-  
-  // Timing on timeline (absolute, not relative to any clip)
-  startTime: number  // Start time on timeline (absolute)
-  endTime: number    // End time on timeline (absolute)
+
+  // Timing in source space (relative to recording start)
+  // For effects on recordings: timestamp in source recording
+  // For global effects on timeline: timeline timestamp
+  startTime: number
+  endTime: number
 
   // Effect-specific data
   data: ZoomEffectData | CursorEffectData | KeystrokeEffectData | BackgroundEffectData | AnnotationData | ScreenEffectData
@@ -252,15 +270,12 @@ export interface Effect {
   locked?: boolean
 }
 
-// ClipEffects removed - use Effect[] instead
-// Effects are stored independently in timeline.effects
-
 export interface ZoomBlock {
   id: string
   startTime: number
   endTime: number
   scale: number
-  targetX?: number  // Optional focus point
+  targetX?: number
   targetY?: number
   introMs?: number  // Duration of zoom in animation
   outroMs?: number  // Duration of zoom out animation

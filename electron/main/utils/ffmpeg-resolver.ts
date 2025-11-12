@@ -1,6 +1,6 @@
 /**
- * Simplified FFmpeg binary resolver using electron-builder's extraResources
- * Based on industry best practices - single lookup path with dev fallback
+ * FFmpeg binary resolver using @ffmpeg-installer/ffmpeg
+ * Uses bundled static FFmpeg binary that works reliably across all environments
  */
 
 import path from 'path';
@@ -9,31 +9,31 @@ import fs from 'fs';
 
 /**
  * Resolves the FFmpeg binary path for the current platform
- * In production: uses process.resourcesPath/bin/<platform>/ffmpeg
- * In development: uses Remotion's bundled FFmpeg from node_modules
+ * Priority order:
+ * 1. @ffmpeg-installer/ffmpeg (bundled static binary - works everywhere)
+ * 2. Remotion's bundled FFmpeg (fallback for dev if installer fails)
  */
 export function resolveFfmpegPath(): string {
-  const platform = process.platform; // 'darwin' | 'win32' | 'linux'
-  const exe = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-  
-  if (app.isPackaged) {
-    // Production: Use FFmpeg from extraResources
-    const ffmpegPath = path.join(process.resourcesPath, 'bin', platform, exe);
-    
+  // OPTION 1: Use @ffmpeg-installer/ffmpeg (reliable, static binary)
+  try {
+    const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
     if (fs.existsSync(ffmpegPath)) {
-      console.log(`[FFmpeg Resolver] Production FFmpeg found at: ${ffmpegPath}`);
+      console.log(`[FFmpeg Resolver] Using @ffmpeg-installer binary: ${ffmpegPath}`);
       return ffmpegPath;
     }
-    
-    throw new Error(`FFmpeg not found at expected production path: ${ffmpegPath}`);
+  } catch (error) {
+    console.warn('[FFmpeg Resolver] @ffmpeg-installer not available, trying fallbacks...');
   }
-  
-  // Development: Use Remotion's bundled FFmpeg
+
+  // OPTION 2: Fallback to Remotion's FFmpeg (dev only, has library issues)
+  const platform = process.platform;
   const arch = process.arch;
+  const exe = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+
   let compositorPackage = '';
-  
+
   if (platform === 'darwin') {
-    compositorPackage = arch === 'arm64' 
+    compositorPackage = arch === 'arm64'
       ? '@remotion/compositor-darwin-arm64'
       : '@remotion/compositor-darwin-x64';
   } else if (platform === 'win32') {
@@ -43,15 +43,20 @@ export function resolveFfmpegPath(): string {
       ? '@remotion/compositor-linux-arm64'
       : '@remotion/compositor-linux-x64';
   }
-  
-  const devPath = path.join(process.cwd(), 'node_modules', compositorPackage, exe);
-  
-  if (fs.existsSync(devPath)) {
-    console.log(`[FFmpeg Resolver] Development FFmpeg found at: ${devPath}`);
-    return devPath;
+
+  const remotionPath = path.join(
+    app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules') : path.join(process.cwd(), 'node_modules'),
+    compositorPackage,
+    exe
+  );
+
+  if (fs.existsSync(remotionPath)) {
+    console.log(`[FFmpeg Resolver] Fallback: Using Remotion FFmpeg at: ${remotionPath}`);
+    console.warn(`[FFmpeg Resolver] Warning: Remotion's FFmpeg may have library issues. Install @ffmpeg-installer/ffmpeg for best results.`);
+    return remotionPath;
   }
-  
-  throw new Error(`FFmpeg not found in development at: ${devPath}`);
+
+  throw new Error(`FFmpeg not found. Tried: @ffmpeg-installer/ffmpeg and ${remotionPath}`);
 }
 
 /**

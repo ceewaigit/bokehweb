@@ -6,8 +6,6 @@ import { useTimelineColors } from '@/lib/timeline/colors'
 import type { Clip } from '@/types/project'
 import { sourceToTimeline } from '@/lib/timeline/time-space-converter'
 
-const DEBUG_TYPING = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
-
 interface TypingSuggestionsBarProps {
   suggestions: TypingSuggestions
   clipStartTime: number
@@ -103,21 +101,12 @@ export const TypingSuggestionsBar: React.FC<TypingSuggestionsBarProps> = ({
               period: period,
               allPeriods: relevantPeriods,
               onApply: async (p) => {
-                if (DEBUG_TYPING) {
-                  console.log('[TypingSuggestionsBar] Applying single period:', p)
-                }
                 await onApplySuggestion(p)
               },
               onApplyAll: onApplyAllSuggestions ? async (ps) => {
-                if (DEBUG_TYPING) {
-                  console.log('[TypingSuggestionsBar] Applying all periods:', ps)
-                }
                 await onApplyAllSuggestions(ps)
               } : undefined,
               onRemove: onRemoveSuggestion ? (p) => {
-                if (DEBUG_TYPING) {
-                  console.log('[TypingSuggestionsBar] Removing period:', p)
-                }
                 onRemoveSuggestion(p)
               } : undefined
             })

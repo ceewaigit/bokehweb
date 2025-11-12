@@ -57,11 +57,19 @@ export class TimelineProcessor {
     // Check for gaps
     const hasGaps = this.detectGaps(videoClips)
 
+    // Merge all effects: recording effects (zoom) + timeline effects (global)
+    const allEffects: Effect[] = [...(timeline.effects || [])]
+    for (const recording of recordings.values()) {
+      if (recording.effects) {
+        allEffects.push(...recording.effects)
+      }
+    }
+
     // Split timeline into segments
     const segments = this.createSegments(
       videoClips,
       recordings,
-      timeline.effects || [],
+      allEffects,
       timeline.duration,
       segmentDuration
     )

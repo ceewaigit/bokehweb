@@ -133,6 +133,14 @@ async function loadProjectRecording(
           }
         }
 
+        // Regenerate effects if metadata exists but effects are empty
+        if (rec.metadata && (!rec.effects || rec.effects.length === 0)) {
+          if (!rec.effects) {
+            rec.effects = []
+          }
+          EffectsFactory.createInitialEffectsForRecording(rec)
+        }
+
         // Load video and metadata together
         if (rec.filePath || rec.metadata) {
           setLoadingMessage(`Loading video ${i + 1}...`)
@@ -217,6 +225,9 @@ async function loadProjectRecording(
   // Set the project ONCE after all recordings are processed
   useProjectStore.getState().setProject(project)
 
+  // Verify after setting
+  const storedProject = useProjectStore.getState().currentProject
+
   // Calculate and set optimal zoom for the timeline
   const viewportWidth = window.innerWidth
   const optimalZoom = TimeConverter.calculateOptimalZoom(project.timeline.duration, viewportWidth)
@@ -252,7 +263,8 @@ export function WorkspaceManager() {
     saveCurrentProject,
     openProject,
     setZoom,
-    zoom
+    zoom,
+    setProject
   } = useProjectStore()
 
   // Initialize default wallpaper once on mount
@@ -272,8 +284,6 @@ export function WorkspaceManager() {
 
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState('Loading...')
-  // Local effects state - tracks unsaved changes as Effect[]
-  const [localEffects, setLocalEffects] = useState<Effect[] | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   // Command manager for undo/redo support
@@ -291,6 +301,28 @@ export function WorkspaceManager() {
   const selectedClip = currentProject?.timeline.tracks
     .flatMap(t => t.clips)
     .find(c => c.id === selectedClipId) || null
+
+  // SINGLE SOURCE OF TRUTH: Get all effects for the current context
+  // Merges recording-scoped effects (zoom, screen) + timeline-global effects (background, cursor, etc.)
+  const getEffectsForContext = useCallback((): Effect[] => {
+    if (!currentProject) return []
+
+    const effects: Effect[] = []
+
+    // Add timeline-global effects (background, cursor, keystroke, etc.)
+    // Zoom effects are recording-scoped and added separately below
+    if (currentProject.timeline.effects) {
+      effects.push(...currentProject.timeline.effects)
+    }
+
+    // Add recording-scoped effects (zoom blocks) from the playhead recording or selected clip's recording
+    const targetRecording = playheadRecording || (selectedClip && currentProject.recordings.find(r => r.id === selectedClip.recordingId))
+    if (targetRecording?.effects) {
+      effects.push(...targetRecording.effects)
+    }
+
+    return effects
+  }, [currentProject, playheadRecording, selectedClip])
 
   // Effects for preview are derived per-clip inside PreviewAreaRemotion
   const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
@@ -317,42 +349,8 @@ export function WorkspaceManager() {
 
   // Consolidated save function
   const handleSaveProject = useCallback(async () => {
-    // If there are local unsaved effect changes, merge them into the project store
-    if (localEffects) {
-      // Get current project effects
-      const projectEffects = currentProject?.timeline?.effects || []
-
-      // For each local effect, update or add it to the project store
-      localEffects.forEach(localEffect => {
-        const existingInProject = projectEffects.find(e => e.id === localEffect.id)
-
-        if (existingInProject) {
-          // Update existing effect in the store (only mutable fields to avoid clobbering timing)
-          updateEffect(localEffect.id, { data: (localEffect as any).data, enabled: localEffect.enabled })
-        } else {
-          // Add new effect to the store
-          addEffect(localEffect)
-        }
-      })
-
-      // Clear local effects after merging
-      setLocalEffects(null)
-    }
-
-    // Extra safety: ensure any selected new screen block changes are flushed
-    if (selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id) {
-      const baseEffects = currentProject?.timeline?.effects || []
-      const local = (localEffects || [])
-        .find(e => e.id === selectedEffectLayer.id)
-      if (local) {
-        const exists = baseEffects.find(e => e.id === local.id)
-        if (exists) {
-          updateEffect(local.id, { data: (local as any).data, enabled: local.enabled })
-        } else {
-          addEffect(local)
-        }
-      }
-    }
+    // All changes are now stored directly in Zustand store
+    // No need to sync local effects since we removed that state
 
     await saveCurrentProject()
 
@@ -362,7 +360,7 @@ export function WorkspaceManager() {
       setLastSavedAt(savedProject.modifiedAt)
     }
     setHasUnsavedChanges(false)
-  }, [localEffects, playheadClip, updateEffect, addEffect, saveCurrentProject, selectedEffectLayer, currentProject])
+  }, [saveCurrentProject])
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -427,8 +425,8 @@ export function WorkspaceManager() {
   }, [selectClip])
 
   const handleEffectChange = useCallback((type: EffectType, data: any) => {
-    // Always operate on the full effect list for correctness
-    const baseEffects = localEffects || currentProject?.timeline.effects || []
+    // Get effects from single source of truth
+    const baseEffects = getEffectsForContext()
 
     let newEffects: Effect[]
 
@@ -436,16 +434,39 @@ export function WorkspaceManager() {
     if (type === EffectType.Zoom && (data.enabled !== undefined || data.regenerate)) {
       // Global zoom operations regardless of selection
       if (data.enabled !== undefined) {
-        newEffects = baseEffects.map(effect => (
-          effect.type === EffectType.Zoom ? { ...effect, enabled: data.enabled } : effect
-        ))
+        const existingZoomEffects = baseEffects.filter(e => e.type === EffectType.Zoom)
 
-        // Also update store so timeline reflects the state immediately
-        baseEffects.forEach(effect => {
-          if (effect.type === EffectType.Zoom) {
-            updateEffect(effect.id, { enabled: data.enabled })
+        // If enabling zoom but no zoom effects exist, generate them
+        if (data.enabled && existingZoomEffects.length === 0) {
+          // Generate zoom effects from recording's mouse events
+          const recording = playheadRecording || currentProject?.recordings[0]
+          if (recording) {
+            const zoomEffects = EffectsFactory.createZoomEffectsFromRecording(recording)
+            newEffects = [...baseEffects, ...zoomEffects]
+
+            // Add directly to recording.effects
+            if (!recording.effects) recording.effects = []
+            recording.effects.push(...zoomEffects)
+            // Force store update
+            if (currentProject) {
+              setProject({ ...currentProject })
+            }
+          } else {
+            newEffects = [...baseEffects]
           }
-        })
+        } else {
+          // Update existing zoom effects
+          newEffects = baseEffects.map(effect => (
+            effect.type === EffectType.Zoom ? { ...effect, enabled: data.enabled } : effect
+          ))
+
+          // Also update store so timeline reflects the state immediately
+          baseEffects.forEach(effect => {
+            if (effect.type === EffectType.Zoom) {
+              updateEffect(effect.id, { enabled: data.enabled })
+            }
+          })
+        }
       } else {
         newEffects = [...baseEffects]
       }
@@ -453,45 +474,47 @@ export function WorkspaceManager() {
       // Update a specific zoom block
       const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {
-        newEffects = [...baseEffects]
-        newEffects[existingEffectIndex] = {
-          ...newEffects[existingEffectIndex],
+        const effect = baseEffects[existingEffectIndex]
+        // Persist directly to store
+        updateEffect(effect.id, {
           data: {
-            ...newEffects[existingEffectIndex].data,
+            ...effect.data,
             ...data
           }
-        }
-      } else {
-        return
+        })
       }
+      return
     } else if (type === EffectType.Zoom) {
       newEffects = [...baseEffects]
     } else if (type === EffectType.Screen && selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id) {
       // Update a specific screen block
       const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {
-        newEffects = [...baseEffects]
-        newEffects[existingEffectIndex] = {
-          ...newEffects[existingEffectIndex],
+        const effect = baseEffects[existingEffectIndex]
+        // Persist directly to store
+        updateEffect(effect.id, {
           data: {
-            ...newEffects[existingEffectIndex].data,
+            ...effect.data,
             ...data
           }
-        }
-      } else {
-        return
+        })
       }
+      return
     } else if (type === EffectType.Annotation) {
       // Screen effects and cinematic scroll as annotations
       const kind = data?.kind
       if (!kind) return
       const existsIndex = baseEffects.findIndex(e => e.type === EffectType.Annotation && (e as any).data?.kind === kind)
-      let newEffectsArr = [...baseEffects]
+
       if (existsIndex >= 0) {
-        const prev = newEffectsArr[existsIndex]
+        const prev = baseEffects[existsIndex]
         const enabled = data.enabled !== undefined ? data.enabled : prev.enabled
         const mergedData = { ...(prev as any).data, ...(data.data || {}), kind }
-        newEffectsArr[existsIndex] = { ...prev, enabled, data: mergedData }
+        // Persist directly to store
+        updateEffect(prev.id, {
+          enabled,
+          data: mergedData
+        })
       } else {
         // Create new annotation spanning current clip or entire timeline fallback
         const clip = selectedClip
@@ -505,26 +528,27 @@ export function WorkspaceManager() {
           enabled: data.enabled !== undefined ? data.enabled : true,
           data: { kind, ...(data.data || {}) }
         }
-        newEffectsArr.push(newEffect)
+        // Persist directly to store
+        addEffect(newEffect)
       }
-      newEffects = newEffectsArr
+      return
     } else {
       // Background, cursor, and keystroke are global effects
       const existingEffectIndex = baseEffects.findIndex(e => e.type === type)
 
       if (existingEffectIndex >= 0) {
-        const enabled = data.enabled !== undefined ? data.enabled : baseEffects[existingEffectIndex].enabled
+        const effect = baseEffects[existingEffectIndex]
+        const enabled = data.enabled !== undefined ? data.enabled : effect.enabled
         const { enabled: _dataEnabled, ...effectData } = data
 
-        newEffects = [...baseEffects]
-        newEffects[existingEffectIndex] = {
-          ...newEffects[existingEffectIndex],
+        // Persist directly to store
+        updateEffect(effect.id, {
+          enabled,
           data: {
-            ...newEffects[existingEffectIndex].data,
+            ...effect.data,
             ...effectData
-          },
-          enabled
-        }
+          }
+        })
       } else {
         const { enabled: dataEnabled, ...effectData } = data
         const newEffect: Effect = {
@@ -535,15 +559,11 @@ export function WorkspaceManager() {
           data: effectData,
           enabled: dataEnabled !== undefined ? dataEnabled : true
         }
-        newEffects = [...baseEffects, newEffect]
+        // Persist directly to store
+        addEffect(newEffect)
       }
     }
-
-    startTransition(() => {
-      setLocalEffects(newEffects)
-      setHasUnsavedChanges(true)
-    })
-  }, [localEffects, currentProject, selectedEffectLayer])
+  }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, getEffectsForContext, updateEffect, addEffect])
 
 
 
@@ -630,7 +650,6 @@ export function WorkspaceManager() {
               // Clean up resources and navigate back to library
               const cleanupAndReturn = () => {
                 // Clean up local state
-                setLocalEffects(null)
                 setHasUnsavedChanges(false)
 
                 // Clean up stores
@@ -667,7 +686,7 @@ export function WorkspaceManager() {
                 playheadRecording={playheadRecording}
                 currentTime={currentTime}
                 isPlaying={isPlaying}
-                localEffects={localEffects}
+                localEffects={null}
               />
             </div>
 
@@ -680,9 +699,10 @@ export function WorkspaceManager() {
                 <EffectsSidebar
                   className="h-full w-full"
                   selectedClip={selectedClip}
-                  effects={localEffects || currentProject?.timeline.effects || []}
+                  effects={getEffectsForContext()}
                   selectedEffectLayer={selectedEffectLayer}
                   onEffectChange={handleEffectChange}
+                  onZoomBlockUpdate={handleZoomBlockUpdate}
                 />
               </div>
             )}

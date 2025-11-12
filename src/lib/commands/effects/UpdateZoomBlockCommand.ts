@@ -1,7 +1,26 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { ZoomBlock } from '@/types/project'
+import type { Effect, Project, Recording, ZoomBlock } from '@/types/project'
 import { EffectType } from '@/types/project'
+
+interface LocatedZoomEffect {
+  effect: Effect
+  recording?: Recording
+}
+
+function findZoomEffect(project: Project | null, effectId: string): LocatedZoomEffect | null {
+  if (!project) return null
+
+  // Zoom effects are ONLY in recording.effects, never in timeline.effects
+  for (const recording of project.recordings) {
+    const effect = recording.effects?.find(e => e.id === effectId && e.type === EffectType.Zoom)
+    if (effect) {
+      return { effect, recording }
+    }
+  }
+
+  return null
+}
 
 export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
   private originalBlock?: ZoomBlock
@@ -23,23 +42,22 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
   }
 
   canExecute(): boolean {
-    // Zoom effects are timeline-global
     const project = this.context.getProject()
-    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === EffectType.Zoom)
-    return effect !== undefined
+    return findZoomEffect(project, this.blockId) !== null
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
     const project = this.context.getProject()
-    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === EffectType.Zoom)
-
-    if (!effect) {
+    const located = findZoomEffect(project, this.blockId)
+    if (!located) {
       return {
         success: false,
         error: `Zoom effect ${this.blockId} not found`
       }
     }
+
+    const effect = located.effect
 
     // Store original state
     const zoomData = effect.data as any
@@ -115,8 +133,8 @@ export class UpdateZoomBlockCommand extends Command<{ blockId: string }> {
     const store = this.context.getStore()
     const project = this.context.getProject()
 
-    // Re-apply updates  
-    const effect = project?.timeline.effects?.find(e => e.id === this.blockId && e.type === EffectType.Zoom)
+    const located = findZoomEffect(project, this.blockId)
+    const effect = located?.effect
 
     if (effect) {
       const zoomData = effect.data as any

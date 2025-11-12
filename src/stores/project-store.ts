@@ -108,6 +108,13 @@ interface ProjectStore {
     endTime: number
     suggestedSpeedMultiplier: number
   }>) => { affectedClips: string[]; originalClips: Clip[] }
+  cacheTypingPeriods: (recordingId: string, periods: Array<{
+    startTime: number
+    endTime: number
+    keyCount: number
+    averageWpm: number
+    suggestedSpeedMultiplier: number
+  }>) => void
 }
 
 // Helper to update playhead state using the new PlayheadService
@@ -219,7 +226,6 @@ export const useProjectStore = create<ProjectStore>()(
     addRecording: async (recording, videoBlob) => {
       // Load metadata from chunks if needed
       if (recording.folderPath && recording.metadataChunks && (!recording.metadata || Object.keys(recording.metadata).length === 0)) {
-        console.log('[ProjectStore] Loading metadata chunks for new recording', recording.id)
         recording.metadata = await RecordingStorage.loadMetadataChunks(
           recording.folderPath,
           recording.metadataChunks
@@ -557,6 +563,8 @@ export const useProjectStore = create<ProjectStore>()(
       set((state) => {
         if (!state.currentProject) return
         EffectsFactory.addEffectToProject(state.currentProject, effect)
+        // Update playhead state to refresh recording references
+        updatePlayheadState(state)
       })
     },
 
@@ -564,13 +572,21 @@ export const useProjectStore = create<ProjectStore>()(
       set((state) => {
         if (!state.currentProject) return
         EffectsFactory.removeEffectFromProject(state.currentProject, effectId)
+        // Update playhead state to refresh recording references
+        updatePlayheadState(state)
       })
     },
 
     updateEffect: (effectId, updates) => {
       set((state) => {
         if (!state.currentProject) return
+
+        // With Immer middleware, we can directly mutate the draft state
+        // Immer will handle creating the immutable copy for us
         EffectsFactory.updateEffectInProject(state.currentProject, effectId, updates)
+
+        // Update playhead state to refresh recording references
+        updatePlayheadState(state)
       })
     },
 
@@ -636,6 +652,39 @@ export const useProjectStore = create<ProjectStore>()(
       })
 
       return result
+    },
+
+    // Cache typing periods for a recording
+    cacheTypingPeriods: (recordingId, periods) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        // Find the recording in the project
+        const recording = state.currentProject.recordings.find(r => r.id === recordingId)
+        if (!recording) {
+          console.warn('[ProjectStore] cacheTypingPeriods: Recording not found:', recordingId)
+          return
+        }
+
+        // Ensure metadata exists
+        if (!recording.metadata) {
+          recording.metadata = {
+            mouseEvents: [],
+            keyboardEvents: [],
+            clickEvents: [],
+            screenEvents: []
+          }
+        }
+
+        // Cache the typing periods (convert from TypingPeriod to ProjectTypingPeriod format)
+        recording.metadata.detectedTypingPeriods = periods.map(p => ({
+          startTime: p.startTime,
+          endTime: p.endTime,
+          keyCount: p.keyCount,
+          averageWPM: p.averageWpm,
+          suggestedSpeedMultiplier: p.suggestedSpeedMultiplier
+        }))
+      })
     }
   }))
 )
