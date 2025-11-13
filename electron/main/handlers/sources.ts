@@ -28,11 +28,11 @@ export function registerSourceHandlers(): void {
       // For desktop audio capture, explicitly request 'desktop' as chromeMediaSource
       const audioConstraints = hasAudio
         ? {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: sourceId
-            }
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: sourceId
           }
+        }
         : false
 
       const constraints: MediaConstraints = {
@@ -103,13 +103,13 @@ export function registerSourceHandlers(): void {
         // Get all displays for enhanced information
         const displays = screen.getAllDisplays()
         const primaryDisplay = screen.getPrimaryDisplay()
-        
+
         // Map the sources to our format with bounds information
         const mappedSources = await Promise.all(sources.map(async source => {
           // Get window bounds for window sources
           let bounds = undefined
           let displayInfo = undefined
-          
+
           if (source.id.startsWith('screen:')) {
             // For screen sources, get display information
             const screenIdMatch = source.id.match(/screen:(\d+):/)
@@ -126,7 +126,7 @@ export function registerSourceHandlers(): void {
                   workArea: display.workArea,
                   scaleFactor: display.scaleFactor
                 }
-                
+
                 // Create better display names
                 if (display.id === primaryDisplay.id) {
                   source.name = 'Primary Display'

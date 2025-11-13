@@ -52,6 +52,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     { id: 'youtube-4k', name: 'YouTube 4K', desc: '3840×2160, 60fps, MP4' },
     { id: 'cinema-4k', name: 'Cinema 4K', desc: '4096×2160, 24fps, MP4' },
     { id: 'youtube-1080p', name: 'YouTube 1080p', desc: '1920×1080, 60fps, MP4' },
+    { id: 'youtube-1080p-30', name: '1080p 30fps (Medium)', desc: '1920×1080, 30fps, MP4' },
     { id: 'youtube-720p', name: 'YouTube 720p', desc: '1280×720, 60fps, MP4' },
     { id: 'twitter', name: 'Twitter', desc: '1280×720, 30fps, MP4' },
     { id: 'instagram', name: 'Instagram', desc: '1080×1080, 30fps, MP4' },
@@ -87,9 +88,9 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
     const mime = lastExport.type || ''
     const extension =
       mime === 'video/mp4' ? 'mp4' :
-      mime === 'video/webm' ? 'webm' :
-      mime === 'image/gif' ? 'gif' :
-      (exportSettings.format === 'gif' ? 'gif' : exportSettings.format)
+        mime === 'video/webm' ? 'webm' :
+          mime === 'image/gif' ? 'gif' :
+            (exportSettings.format === 'gif' ? 'gif' : exportSettings.format)
     const filename = `${currentProject?.name || 'export'}.${extension}`
     try {
       await saveLastExport(filename)

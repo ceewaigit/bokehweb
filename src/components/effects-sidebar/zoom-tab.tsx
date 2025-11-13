@@ -72,12 +72,10 @@ export function ZoomTab({
                   onValueChange={([value]) => {
                     // Update local state immediately for smooth dragging
                     setLocalScale(value)
-                    console.log('[Slider] onValueChange:', { value, selectedEffectLayerId: selectedEffectLayer.id, hasCallback: !!onZoomBlockUpdate })
                   }}
                   onValueCommit={([value]) => {
                     // Commit to store when drag ends
                     if (selectedEffectLayer.id && onZoomBlockUpdate) {
-                      console.log('[Slider] onValueCommit:', { value, selectedEffectLayerId: selectedEffectLayer.id })
                       onZoomBlockUpdate(selectedEffectLayer.id, { scale: value })
                       // Clear local state after commit - give more time for store to update
                       setTimeout(() => setLocalScale(null), 300)
@@ -207,7 +205,7 @@ export function ZoomTab({
               }}
             />
           </div>
-          
+
           {/* Preset selector when enabled */}
           {effects?.some(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled) && (
             <div className="grid grid-cols-3 gap-1">
@@ -219,8 +217,8 @@ export function ZoomTab({
                     key={preset}
                     className={cn(
                       "px-2 py-1 text-xs rounded transition-all",
-                      currentPreset === preset 
-                        ? "bg-primary text-primary-foreground" 
+                      currentPreset === preset
+                        ? "bg-primary text-primary-foreground"
                         : "bg-background/50 hover:bg-background/70"
                     )}
                     onClick={() => {

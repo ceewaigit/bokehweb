@@ -362,139 +362,14 @@ class ExportWorker extends BaseWorker {
           }
         }
 
-        if (job.inputProps.segments && Array.isArray(job.inputProps.segments)) {
-          const allSegments = job.inputProps.segments;
-          const isLastChunk = chunkInfo.index === totalChunkCount - 1;
-          const chunkSegments = allSegments.filter((segment: any) => {
-            // CRITICAL FIX: Use exclusive assignment to prevent duplicate segments in chunks
-            // Assign segment to chunk based on where it STARTS, not overlap
-            // This ensures each segment belongs to exactly ONE chunk
-            const segmentStartMs = segment.startTime;
-            // Last chunk uses <= to include segments that start exactly at chunk end
-            return segmentStartMs >= chunkStartTimeMs && (isLastChunk ? segmentStartMs <= chunkEndTimeMs : segmentStartMs < chunkEndTimeMs);
-          });
-
-          // Extract only the recording IDs used in this chunk
-          const recordingIds = new Set<string>();
-          chunkSegments.forEach((segment: any) => {
-            if (segment.clips && Array.isArray(segment.clips)) {
-              segment.clips.forEach((clipData: any) => {
-                if (clipData.recording?.id) {
-                  recordingIds.add(clipData.recording.id);
-                }
-              });
-            }
-          });
-
-          console.log(`[ExportWorker] Chunk ${chunkInfo.index + 1}: Using ${recordingIds.size} recordings`);
-
-          const trimmedSegments = chunkSegments.map((segment: any) => {
-            const trimmedSegmentStart = Math.max(chunkStartTimeMs, segment.startTime);
-            const trimmedSegmentEnd = Math.min(chunkEndTimeMs, segment.endTime);
-
-            if (!Number.isFinite(trimmedSegmentStart) || !Number.isFinite(trimmedSegmentEnd) || trimmedSegmentEnd <= trimmedSegmentStart) {
-              return null;
-            }
-
-            const trimmedClips = (segment.clips || [])
-              .map((clipData: any) => {
-                if (!clipData?.clip) {
-                  return null;
-                }
-
-                const clipStartAbs = clipData.clip.startTime + (clipData.segmentStartTime || 0);
-                const clipEndAbs = clipData.clip.startTime + (clipData.segmentEndTime || 0);
-
-                const clippedStart = Math.max(chunkStartTimeMs, clipStartAbs);
-                const clippedEnd = Math.min(chunkEndTimeMs, clipEndAbs);
-
-                if (!Number.isFinite(clippedStart) || !Number.isFinite(clippedEnd) || clippedEnd <= clippedStart) {
-                  return null;
-                }
-
-                const clipRelativeStart = Math.max(0, clippedStart - clipData.clip.startTime);
-                const clipRelativeEnd = Math.max(0, clippedEnd - clipData.clip.startTime);
-
-                return {
-                  ...clipData,
-                  segmentStartTime: clipRelativeStart,
-                  segmentEndTime: clipRelativeEnd
-                };
-              })
-              .filter(Boolean);
-
-            if (trimmedClips.length === 0) {
-              return null;
-            }
-
-            const trimmedEffects = (segment.effects || [])
-              .filter((effect: any) => effect && effect.endTime > chunkStartTimeMs && effect.startTime < chunkEndTimeMs)
-              .map((effect: any) => ({ ...effect }));
-
-            return {
-              ...segment,
-              startTime: trimmedSegmentStart - chunkStartTimeMs,
-              endTime: trimmedSegmentEnd - chunkStartTimeMs,
-              clips: trimmedClips,
-              effects: trimmedEffects
-            };
-          }).filter(Boolean);
-
-          // Only filter metadata if not pre-filtered
-          if (!usingPreFiltered) {
-            console.log(`[ExportWorker] ⏱ Filtering metadata on-demand for chunk ${chunkInfo.index + 1}`);
-            for (const [recordingId, metadata] of Object.entries(job.inputProps.metadata || {})) {
-              if (recordingIds.has(recordingId) && metadata) {
-                const metadataObj = metadata as any;
-                const filtered: any = {
-                  ...metadataObj,
-                  events: []
-                };
-
-                // Simple time range filter for essential events only
-                const eventArrayKeys = ['events', 'cursor', 'keyboard', 'clicks', 'scrolls'];
-                for (const key of eventArrayKeys) {
-                  if (Array.isArray(metadataObj[key])) {
-                    filtered[key] = metadataObj[key]
-                      .filter((item: any) => {
-                        const eventTime = item.timestamp ?? item.time ?? 0;
-                        return eventTime >= chunkStartTimeMs && eventTime <= chunkEndTimeMs;
-                      })
-                      .map((item: any) => {
-                        const eventTime = item.timestamp ?? item.time ?? 0;
-                        return {
-                          ...item,
-                          timestamp: eventTime - chunkStartTimeMs,
-                          time: eventTime - chunkStartTimeMs
-                        };
-                      });
-                  }
-                }
-
-                filteredMetadata[recordingId] = filtered;
-              }
-            }
-          }
-
-          // Filter data to only what's needed for this chunk
-          chunkInputProps = {
-            segments: trimmedSegments,
-            recordings: Object.fromEntries(
-              Object.entries(job.inputProps.recordings || {})
-                .filter(([id]) => recordingIds.has(id))
-            ),
-            metadata: filteredMetadata,
-            videoUrls: Object.fromEntries(
-              Object.entries(job.inputProps.videoUrls || {})
-                .filter(([id]) => recordingIds.has(id))
-            ),
-            framerate: job.inputProps.framerate,
-            resolution: job.inputProps.resolution,
-            quality: job.inputProps.quality
-          };
-
-          console.log(`[ExportWorker] Chunk ${chunkInfo.index + 1}: Filtered to ${trimmedSegments.length} segments from ${allSegments.length} total`);
-        }
+        // MainComposition doesn't need segment filtering - pass props through directly
+        // Remotion's chunking handles memory management, we just render the full composition
+        chunkInputProps = {
+          ...job.inputProps,
+          // Keep the full metadata (already filtered by export-handler if needed)
+          metadata: usingPreFiltered ? filteredMetadata : job.inputProps.metadata,
+          frameOffset: startFrame
+        };
 
         // Update progress
         const baseProgress = (chunkInfo.index / Math.max(1, totalChunkCount)) * 80;
@@ -515,9 +390,12 @@ class ExportWorker extends BaseWorker {
         // Render this chunk with filtered segments
         const chunkComposition = {
           ...composition,
-          durationInFrames: chunkFrames,
+          // Keep full duration so frameRange maps to absolute frames
+          durationInFrames: composition.durationInFrames,
           props: chunkInputProps,
         };
+
+        const chunkFrameRange: [number, number] = [startFrame, endFrame];
 
         await renderMedia({
           serveUrl: job.bundleLocation,
@@ -529,7 +407,7 @@ class ExportWorker extends BaseWorker {
           // OPTIMIZED: Lower JPEG quality for better performance (70 is sweet spot)
           jpegQuality: Math.min(job.jpegQuality || 70, 75), // Cap at 75 max
           imageFormat: 'jpeg',
-          frameRange: [0, chunkFrames - 1],
+          frameRange: chunkFrameRange,
           concurrency: renderConcurrency,
           enforceAudioTrack: false, // Don't require audio track
           offthreadVideoCacheSizeInBytes: job.offthreadVideoCacheSizeInBytes,

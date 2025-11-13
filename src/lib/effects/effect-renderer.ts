@@ -17,7 +17,7 @@ import { EffectType, BackgroundType, AnnotationType, CursorStyle, KeystrokePosit
 import { KeystrokeRenderer } from './keystroke-renderer'
 import { CursorType, electronToCustomCursor, getCursorImagePath } from './cursor-types'
 import { calculateBackgroundStyle, applyGradientToCanvas } from './utils/background-calculator'
-import { calculateCursorState, getCursorPath } from './utils/cursor-calculator'
+import { calculateCursorState, getCursorPath, type CursorState } from './utils/cursor-calculator'
 
 export interface EffectRenderContext {
   canvas: HTMLCanvasElement | OffscreenCanvas
@@ -27,6 +27,7 @@ export interface EffectRenderContext {
   height: number
   videoWidth: number
   videoHeight: number
+  fps?: number
   effects: Effect[]
   mouseEvents?: MouseEvent[]
   keyboardEvents?: KeyboardEvent[]
@@ -41,6 +42,7 @@ export class EffectRenderer {
   private keystrokeRenderer: KeystrokeRenderer
   private cursorImage: HTMLImageElement | null = null
   private cursorType: CursorType = CursorType.ARROW
+  private cursorStateCache = new Map<string, CursorState>()
 
   constructor() {
     // Initialize renderers with defaults
@@ -66,10 +68,10 @@ export class EffectRenderer {
     if (!data?.type) return
 
     const { ctx, width, height } = context
-    
+
     // Use background calculator for consistent rendering
     const backgroundStyle = calculateBackgroundStyle(data, width, height)
-    
+
     if (backgroundStyle.canvasDrawing) {
       if (backgroundStyle.canvasDrawing.type === 'fill') {
         ctx.fillStyle = backgroundStyle.canvasDrawing.color || '#000000'
@@ -94,27 +96,33 @@ export class EffectRenderer {
     if (!context.mouseEvents || context.mouseEvents.length === 0) return
 
     const { ctx, timestamp } = context
-    
+    const cacheKey = effect.id || 'default'
+    const previousState = this.getPreviousCursorState(cacheKey, timestamp)
+
     // Use cursor calculator for state calculation
     const cursorState = calculateCursorState(
       data,
       context.mouseEvents,
       context.clickEvents || [],
-      timestamp
+      timestamp,
+      previousState,
+      context.fps
     )
-    
+
+    this.cursorStateCache.set(cacheKey, cursorState)
+
     if (!cursorState.visible) return
-    
+
     // Draw cursor using calculated state
     ctx.save()
     ctx.globalAlpha = cursorState.opacity
-    
+
     // Apply shadow
     ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
     ctx.shadowBlur = 4 * cursorState.scale
     ctx.shadowOffsetX = 1 * cursorState.scale
     ctx.shadowOffsetY = 2 * cursorState.scale
-    
+
     // Draw cursor using path from calculator
     const cursorPath = getCursorPath(cursorState.x, cursorState.y, cursorState.type, cursorState.scale)
     ctx.fillStyle = data.style === CursorStyle.Custom && data.color ? data.color : '#ffffff'
@@ -122,7 +130,7 @@ export class EffectRenderer {
     ctx.lineWidth = 1 * cursorState.scale
     ctx.fill(cursorPath)
     ctx.stroke(cursorPath)
-    
+
     // Draw click effects from calculated state
     if (cursorState.clickEffects.length > 0) {
       ctx.shadowColor = 'transparent'
@@ -135,7 +143,7 @@ export class EffectRenderer {
         ctx.stroke()
       }
     }
-    
+
     ctx.restore()
   }
 
@@ -341,5 +349,17 @@ export class EffectRenderer {
    */
   dispose(): void {
     this.keystrokeRenderer?.reset()
+  }
+
+  private getPreviousCursorState(cacheKey: string, timestamp: number): CursorState | undefined {
+    const prev = this.cursorStateCache.get(cacheKey)
+    if (!prev) return undefined
+
+    if (!Number.isFinite(prev.timestamp) || timestamp <= prev.timestamp) {
+      this.cursorStateCache.delete(cacheKey)
+      return undefined
+    }
+
+    return prev
   }
 }

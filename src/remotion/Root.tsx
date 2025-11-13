@@ -1,7 +1,6 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { MainComposition } from './compositions/MainComposition';
-import { SegmentsComposition } from './compositions/SegmentsComposition';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -14,79 +13,42 @@ export const RemotionRoot: React.FC = () => {
         width={1920}
         height={1080}
         calculateMetadata={({ props }: { props: any }) => {
-          // Calculate duration from segments if available
-          if (props.segments && Array.isArray(props.segments) && props.segments.length > 0) {
-            const firstSegment = props.segments[0] as any;
-            const lastSegment = props.segments[props.segments.length - 1] as any;
-            
-            if (firstSegment?.startTime !== undefined && lastSegment?.endTime !== undefined) {
-              const totalDurationMs = lastSegment.endTime - firstSegment.startTime;
-              const fps = props.framerate || 30;
-              const durationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
-              
-              return {
-                durationInFrames,
-                fps,
-                width: props.resolution?.width || 1920,
-                height: props.resolution?.height || 1080,
-              };
-            }
+          // Calculate duration from clip
+          const clip = props.clip;
+          const fps = props.framerate || 30;
+
+          if (clip && typeof clip.duration === 'number' && clip.duration > 0) {
+            const durationInFrames = Math.ceil((clip.duration / 1000) * fps);
+
+            return {
+              durationInFrames,
+              fps,
+              width: props.videoWidth || props.resolution?.width || 1920,
+              height: props.videoHeight || props.resolution?.height || 1080,
+            };
           }
-          
-          // No defaults - require valid data
-          throw new Error('Invalid composition props: missing required segment or recording data');
+
+          // Fallback for minimal props during composition selection
+          const defaultWidth = props.videoWidth || props.resolution?.width || 1920;
+          const defaultHeight = props.videoHeight || props.resolution?.height || 1080;
+
+          return {
+            durationInFrames: 900, // Default fallback
+            fps,
+            width: defaultWidth,
+            height: defaultHeight,
+          };
         }}
         defaultProps={{
           videoUrl: '',
           clip: null,
-          effects: null, // Effects come from timeline.effects now
+          effects: [],
           cursorEvents: [],
           clickEvents: [],
           keystrokeEvents: [],
-          videoWidth: 0, // Always overridden by actual recording
-          videoHeight: 0, // Always overridden by actual recording
-          segments: [],
-          framerate: 30,
-          resolution: { width: 1920, height: 1080 }
-        }}
-      />
-      
-      {/* New composition for handling segments with proper video URL resolution */}
-      <Composition
-        id="SegmentsComposition"
-        component={SegmentsComposition as any}
-        durationInFrames={900} // Default, will be overridden by calculateMetadata
-        fps={30}
-        width={1920}
-        height={1080}
-        calculateMetadata={({ props }: { props: any }) => {
-          // Calculate duration from segments if available
-          if (props.segments && Array.isArray(props.segments) && props.segments.length > 0) {
-            const firstSegment = props.segments[0] as any;
-            const lastSegment = props.segments[props.segments.length - 1] as any;
-            
-            if (firstSegment?.startTime !== undefined && lastSegment?.endTime !== undefined) {
-              const totalDurationMs = lastSegment.endTime - firstSegment.startTime;
-              const fps = props.framerate || 30;
-              const durationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
-              
-              return {
-                durationInFrames,
-                fps,
-                width: props.resolution?.width || 1920,
-                height: props.resolution?.height || 1080,
-              };
-            }
-          }
-          
-          // No defaults - require valid data
-          throw new Error('Invalid composition props: missing required segment or recording data');
-        }}
-        defaultProps={{
-          segments: [],
-          recordings: {},
-          metadata: {},
-          videoUrls: {},
+          scrollEvents: [],
+          videoWidth: 1920,
+          videoHeight: 1080,
           framerate: 30,
           resolution: { width: 1920, height: 1080 }
         }}

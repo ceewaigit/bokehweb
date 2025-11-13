@@ -209,6 +209,7 @@ export const useExportStore = create<ExportStore>((set, get) => {
         'youtube-4k': { resolution: { width: 3840, height: 2160 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.Ultra },
         'cinema-4k': { resolution: { width: 4096, height: 2160 }, framerate: 24, format: ExportFormat.MP4, quality: QualityLevel.Ultra },
         'youtube-1080p': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.High },
+        'youtube-1080p-30': { resolution: { width: 1920, height: 1080 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
         'youtube-720p': { resolution: { width: 1280, height: 720 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.High },
         'twitter': { resolution: { width: 1280, height: 720 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
         'instagram': { resolution: { width: 1080, height: 1080 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },

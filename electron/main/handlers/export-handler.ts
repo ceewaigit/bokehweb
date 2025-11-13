@@ -16,7 +16,6 @@ import { resolveFfmpegPath, getCompositorDirectory } from '../utils/ffmpeg-resol
 import { workerPool, SupervisedWorker } from '../utils/worker-manager';
 import fsSync from 'fs';
 import { normalizeCrossPlatform } from '../utils/path-normalizer';
-import { preFilterMetadataForChunks, getRecordingsInTimeRange } from '../utils/metadata-filter';
 
 // Bundle cache management
 interface BundleCache {
@@ -213,6 +212,26 @@ const computePerWorkerMemoryMB = (profile: MachineProfile, workerCount: number):
   return Math.max(512, Math.min(2048, baseline || 1024));
 };
 
+const computeWorkerTimeoutMs = (
+  totalFrames: number,
+  fps: number | undefined,
+  chunkCount: number,
+  workerCount: number
+): number => {
+  const safeFrames = Math.max(1, totalFrames || 1);
+  const effectiveFps = Math.max(1, Math.floor(fps || 30));
+  const baseSeconds = safeFrames / effectiveFps;
+
+  // Chunk pressure grows when we have to serialize large chunk batches through few workers.
+  const chunkPressure = Math.max(1, chunkCount / Math.max(1, workerCount));
+  const safetyMultiplier = Math.min(20, Math.max(8, chunkPressure * 4));
+  const estimatedSeconds = baseSeconds * safetyMultiplier;
+
+  const minTimeoutMs = 15 * 60 * 1000; // never less than 15 minutes
+  const maxTimeoutMs = 2 * 60 * 60 * 1000; // cap at 2 hours
+  return Math.min(maxTimeoutMs, Math.max(minTimeoutMs, Math.round(estimatedSeconds * 1000)));
+};
+
 const escapeForConcat = (filePath: string): string => {
   return filePath.replace(/'/g, "'\\''");
 };
@@ -250,11 +269,24 @@ export function setupExportHandler() {
       // CRITICAL FIX: Dramatically increase video cache to prevent pruning and re-seeking
       // Small cache causes constant pruning, each re-seek takes 100-700ms
       const totalMemoryGB = machineProfile.totalMemoryGB || 16;
-      const availableMemoryGB = machineProfile.availableMemoryGB || 2;
+      const reportedAvailableGB = machineProfile.availableMemoryGB ?? 0;
 
-      // Use total memory as basis when available memory is suspiciously low
-      // (macOS sometimes reports low available memory even with plenty free)
-      const effectiveMemoryGB = availableMemoryGB < 1 ? totalMemoryGB * 0.3 : availableMemoryGB;
+      // macOS frequently reports <2GB "available" even when plenty is free.
+      // Derive a safer floor from total RAM to avoid under-utilising hardware.
+      const baselineFromTotal = totalMemoryGB * 0.4; // Keep ~60% reserved for system
+      const minimumOperationalGB = 2;
+      const effectiveMemoryGB = Math.min(
+        totalMemoryGB,
+        Math.max(reportedAvailableGB, baselineFromTotal, minimumOperationalGB)
+      );
+
+      if (effectiveMemoryGB - reportedAvailableGB > 0.5) {
+        console.log('[Export] Adjusted effective memory up from low OS reading', {
+          reportedAvailableGB: reportedAvailableGB.toFixed(2),
+          derivedBaselineGB: baselineFromTotal.toFixed(2),
+          effectiveMemoryGB: effectiveMemoryGB.toFixed(2)
+        });
+      }
 
       // CRITICAL: Allocate generous video cache based on available memory
       // Video decoding cache is THE MOST IMPORTANT performance factor
@@ -282,7 +314,7 @@ export function setupExportHandler() {
         dynamicSettings.offthreadVideoCacheSizeInBytes = 8 * 1024 * 1024 * 1024;
       }
 
-      console.log(`[Export] Video cache: ${videoCacheSizeMB}MB (effective memory: ${effectiveMemoryGB.toFixed(2)}GB, available: ${availableMemoryGB.toFixed(2)}GB, total: ${totalMemoryGB.toFixed(1)}GB)`);
+      console.log(`[Export] Video cache: ${videoCacheSizeMB}MB (effective memory: ${effectiveMemoryGB.toFixed(2)}GB, available: ${reportedAvailableGB.toFixed(2)}GB, total: ${totalMemoryGB.toFixed(1)}GB)`);
 
       console.log('Export settings:', {
         jpegQuality: dynamicSettings.jpegQuality,
@@ -298,33 +330,40 @@ export function setupExportHandler() {
       // Select composition in main process to avoid OOM in worker
       const { selectComposition } = await import('@remotion/renderer');
 
-      // Use minimal props for composition selection
+      // Use minimal props for composition selection (MainComposition format)
+      const firstSegmentForMeta = segments && segments.length > 0 ? segments[0] : null;
+      const firstClipForMeta = firstSegmentForMeta?.clips?.[0]?.clip;
+
+      // Ensure clip has duration for calculateMetadata
+      const clipForSelection = firstClipForMeta ? {
+        ...firstClipForMeta,
+        duration: firstClipForMeta.duration || 30000 // Fallback to 30s for composition selection
+      } : { duration: 30000 };
+
       const minimalProps = {
-        segments: segments?.slice(0, 1) || [], // Just first segment for metadata
-        recordings: {},
-        metadata: {},
-        videoUrls: {},
+        videoUrl: '',
+        clip: clipForSelection,
+        effects: [],
+        cursorEvents: [],
+        clickEvents: [],
+        keystrokeEvents: [],
+        scrollEvents: [],
+        videoWidth: settings.resolution?.width || 1920,
+        videoHeight: settings.resolution?.height || 1080,
+        framerate: settings.framerate || 30,
+        resolution: settings.resolution,
         ...settings
       };
 
       const composition = await selectComposition({
         serveUrl: bundleLocation,
-        id: segments && segments.length > 0 ? 'SegmentsComposition' : 'MainComposition',
+        id: 'MainComposition', // Always use MainComposition (same as preview)
         inputProps: minimalProps
       });
 
-      // Calculate actual total frames from all segments
+      // Duration is calculated from clip in MainComposition's calculateMetadata
+      // Use the composition's calculated duration
       let totalDurationInFrames = composition.durationInFrames;
-
-      // If we have segments, calculate the real duration from all of them
-      if (segments && segments.length > 0) {
-        const lastSegment = segments[segments.length - 1];
-        const firstSegment = segments[0];
-        const totalDurationMs = lastSegment.endTime - firstSegment.startTime;
-        const fps = settings.framerate || composition.fps || 30;
-        totalDurationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
-        console.log(`Calculated total frames from segments: ${totalDurationInFrames} (${segments.length} segments)`);
-      }
 
       // Extract composition metadata with corrected frame count
       const compositionMetadata = {
@@ -387,9 +426,51 @@ export function setupExportHandler() {
         }
       }
 
-      // Prepare composition props
+      // Prepare composition props for MainComposition (like preview does)
+      // Extract first clip and its recording from segments
+      const firstSegment = segments && segments.length > 0 ? segments[0] : null;
+      const firstClipData = firstSegment?.clips?.[0];
+      const mainClip = firstClipData?.clip;
+      const mainRecording = firstClipData?.recording;
+
+      // Convert metadata to Map if needed
+      const metadataMap = metadata instanceof Map ? metadata : new Map(metadata);
+
+      // Collect all effects from all segments (they're in source space)
+      const allEffects: any[] = [];
+      if (segments) {
+        for (const segment of segments) {
+          if (segment.effects) {
+            allEffects.push(...segment.effects);
+          }
+        }
+      }
+
+      // Get events from main recording metadata (in source space, unfiltered)
+      const mainRecordingMetadata = mainRecording ? metadataMap.get(mainRecording.id) : {};
+      const cursorEvents = mainRecordingMetadata?.mouseEvents || [];
+      const clickEvents = mainRecordingMetadata?.clickEvents || [];
+      const keystrokeEvents = mainRecordingMetadata?.keyboardEvents || [];
+      const scrollEvents = mainRecordingMetadata?.scrollEvents || [];
+
+      // Get video URL for main recording
+      const videoUrl = mainRecording ? videoUrls[mainRecording.id] : '';
+
+      // Build MainComposition props (same format as preview)
       const inputProps = {
-        segments,
+        videoUrl,
+        clip: mainClip,
+        nextClip: undefined,
+        effects: allEffects,
+        cursorEvents,
+        clickEvents,
+        keystrokeEvents,
+        scrollEvents,
+        videoWidth: mainRecording?.width || settings.resolution?.width || 1920,
+        videoHeight: mainRecording?.height || settings.resolution?.height || 1080,
+        frameOffset: 0,
+        isSplitTransition: false,
+        // Include for compatibility
         recordings: recordingsObj,
         metadata: Object.fromEntries(metadata),
         videoUrls,
@@ -488,38 +569,12 @@ export function setupExportHandler() {
         cpuCores: machineProfile.cpuCores
       });
 
-      // IMPORTANT: For single-recording videos, metadata filtering by timeline time doesn't work
-      // because metadata timestamps are in recording time (0-duration), not timeline time
-      // Solution: Pass full metadata to all chunks - the worker will handle it correctly
-      // For multi-recording videos, we'd need more sophisticated mapping
-
-      // Convert metadata to Map if it's not already
-      const metadataMap = metadata instanceof Map ? metadata : new Map(metadata);
-
-      // Simple approach: Give each chunk the full metadata (it's already in memory)
-      // The worker will filter based on segments, which is more accurate anyway
+      // MainComposition renders the full clip with all metadata
+      // Pass complete metadata to all chunks (no filtering needed)
       const preFilteredMetadata = new Map<number, Map<string, any>>();
 
-      // For each chunk, pass the full metadata for recordings used in that chunk's segments
       for (const chunk of chunkPlan) {
-        const chunkMetadata = new Map<string, any>();
-
-        // Get all recordings used in this chunk's time range
-        const recordingsInChunk = getRecordingsInTimeRange(
-          segments || [],
-          chunk.startTimeMs,
-          chunk.endTimeMs
-        );
-
-        // Pass full metadata for these recordings (don't filter by time)
-        for (const recordingId of recordingsInChunk) {
-          const recordingMetadata = metadataMap.get(recordingId);
-          if (recordingMetadata) {
-            chunkMetadata.set(recordingId, recordingMetadata);
-          }
-        }
-
-        preFilteredMetadata.set(chunk.index, chunkMetadata);
+        preFilteredMetadata.set(chunk.index, metadataMap);
       }
 
       const ffmpegPath = resolveFfmpegPath();
@@ -550,6 +605,15 @@ export function setupExportHandler() {
       const chunkProgress = new Map<number, { rendered: number; total: number }>();
       const totalFrameCount = Math.max(1, commonJob.totalFrames || totalDurationInFrames || 0);
       let lastForwardedProgress = 0;
+      const fpsForTimeout = compositionMetadata?.fps ?? settings.framerate ?? 30;
+      const workerTimeoutMs = computeWorkerTimeoutMs(totalDurationInFrames, fpsForTimeout, chunkPlan.length, workerCount);
+      console.log('[Export] Worker timeout configuration', {
+        minutes: Number((workerTimeoutMs / 60000).toFixed(1)),
+        totalFrames: totalDurationInFrames,
+        fps: fpsForTimeout,
+        chunkCount: chunkPlan.length,
+        workerCount
+      });
 
       const clampProgress = (value: number | undefined): number => {
         if (!Number.isFinite(value ?? NaN)) {
@@ -649,6 +713,7 @@ export function setupExportHandler() {
         return () => worker.off('message', forward);
       };
 
+      const availableMemoryGB = machineProfile.availableMemoryGB ?? effectiveMemoryGB;
       const primaryWorkerMemoryMB = Math.min(4096, Math.floor((availableMemoryGB || 2) * 1024 / 4));
 
       const ensurePrimaryWorker = async (): Promise<SupervisedWorker> => {
@@ -666,7 +731,7 @@ export function setupExportHandler() {
       const executeWorkerRequest = async (worker: SupervisedWorker, job: any) => {
         const detach = attachProgressForwarder(worker);
         try {
-          return await worker.request('export', job, 10 * 60 * 1000);
+          return await worker.request('export', job, workerTimeoutMs);
         } finally {
           detach();
         }
@@ -745,7 +810,7 @@ export function setupExportHandler() {
               preFilteredMetadata: workerPreFilteredMetadata
             };
 
-            const result = await worker.request('export', job, 10 * 60 * 1000);
+            const result = await worker.request('export', job, workerTimeoutMs);
             if (!result.success) {
               throw new Error(result.error || `Worker ${workerName} failed to export`);
             }

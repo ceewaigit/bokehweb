@@ -112,7 +112,13 @@ async function loadProjectRecording(
           for (const clip of track.clips) {
             if (clip.recordingId === rec.id && rec.duration && rec.duration > 0) {
               clip.duration = Math.min(clip.duration, rec.duration)
-              clip.sourceOut = Math.min(clip.sourceOut, rec.duration)
+              // Prevent NaN corruption: only update sourceOut if it exists and is valid
+              if (clip.sourceOut != null && isFinite(clip.sourceOut)) {
+                clip.sourceOut = Math.min(clip.sourceOut, rec.duration)
+              } else {
+                // Initialize sourceOut if missing or invalid
+                clip.sourceOut = rec.duration
+              }
             }
           }
         }

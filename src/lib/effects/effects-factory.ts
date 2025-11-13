@@ -1,7 +1,11 @@
 import type { Effect, Recording, Clip, Project, ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ScreenEffectData } from '@/types/project'
 import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
 import { ZoomDetector } from './utils/zoom-detector'
-import { getDefaultWallpaper } from '@/lib/constants/default-effects'
+import {
+  DEFAULT_BACKGROUND_DATA,
+  DEFAULT_CURSOR_DATA,
+  getDefaultWallpaper
+} from '@/lib/constants/default-effects'
 
 export class EffectsFactory {
   static createZoomEffectsFromRecording(recording: Recording): Effect[] {
@@ -44,13 +48,8 @@ export class EffectsFactory {
       startTime: 0,
       endTime: Number.MAX_SAFE_INTEGER,
       data: {
-        type: BackgroundType.Wallpaper,
-        gradient: {
-          colors: ['#2D3748', '#1A202C'],
-          angle: 135
-        },
+        ...DEFAULT_BACKGROUND_DATA,
         wallpaper: defaultWallpaper,
-        padding: 40,
         cornerRadius: 15,
         shadowIntensity: 85
       } as BackgroundEffectData,
@@ -64,13 +63,14 @@ export class EffectsFactory {
       startTime: 0,
       endTime: Number.MAX_SAFE_INTEGER,
       data: {
+        ...DEFAULT_CURSOR_DATA,
         style: CursorStyle.MacOS,
         size: 4.0,
-        color: '#ffffff',
         clickEffects: true,
         motionBlur: true,
-        hideOnIdle: true,
-        idleTimeout: 3000
+        gliding: true,
+        speed: 0.2,
+        smoothness: 0.85,
       } as CursorEffectData,
       enabled: true
     }

@@ -24,14 +24,6 @@ export const DISPLAY = {
   DEFAULT_SCALE_FACTOR: 1,
 } as const
 
-// Key codes for keyboard tracking
-export const KEY_CODES: Record<number, string> = {
-  36: 'Return',
-  49: 'Space',
-  51: 'Backspace',
-  53: 'Escape',
-} as const
-
 // Button mappings
 export const MOUSE_BUTTONS = {
   LEFT: 1,

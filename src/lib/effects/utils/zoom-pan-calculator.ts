@@ -61,6 +61,43 @@ export class ZoomPanCalculator {
   ): { x: number; y: number } | null {
     return interpolateMousePosition(mouseEvents, timeMs)
   }
+
+  /**
+   * Predict where the mouse is heading shortly in the future.
+   * Uses a lightweight look-ahead sample plus velocity fallback so
+   * camera pans can anticipate motion without mirroring every wiggle.
+   */
+  predictMousePosition(
+    mouseEvents: MouseEvent[] | undefined,
+    timeMs: number,
+    lookaheadMs: number = 180
+  ): { x: number; y: number } | null {
+    if (!mouseEvents || mouseEvents.length === 0) return null
+
+    const current = this.interpolateMousePosition(mouseEvents, timeMs)
+    if (!current) return null
+
+    const futureSample = this.interpolateMousePosition(mouseEvents, timeMs + lookaheadMs)
+    if (futureSample && (futureSample.x !== current.x || futureSample.y !== current.y)) {
+      const anticipationBias = 0.65
+      return {
+        x: current.x + (futureSample.x - current.x) * anticipationBias,
+        y: current.y + (futureSample.y - current.y) * anticipationBias
+      }
+    }
+
+    const pastSample = this.interpolateMousePosition(mouseEvents, timeMs - lookaheadMs)
+    if (pastSample) {
+      const vx = current.x - pastSample.x
+      const vy = current.y - pastSample.y
+      return {
+        x: current.x + vx,
+        y: current.y + vy
+      }
+    }
+
+    return current
+  }
 }
 
 export const zoomPanCalculator = new ZoomPanCalculator()

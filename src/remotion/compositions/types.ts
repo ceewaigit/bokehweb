@@ -11,6 +11,7 @@ export interface MainCompositionProps {
   scrollEvents?: ScrollEvent[];
   videoWidth: number;
   videoHeight: number;
+  frameOffset?: number;
 }
 
 export interface VideoLayerProps {
@@ -25,6 +26,7 @@ export interface VideoLayerProps {
   cinematicScrollState?: any; // Cinematic scroll state from calculator
   computedScale?: number;
   sourceTimeMs: number; // Source time for zoom detection and transforms
+  frameOffset?: number;
 }
 
 export interface BackgroundLayerProps {
@@ -55,4 +57,5 @@ export interface CursorLayerProps {
   videoWidth: number;
   videoHeight: number;
   cursorData?: CursorEffectData;
+  frameOffset?: number;
 }

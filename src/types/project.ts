@@ -359,6 +359,9 @@ export interface CursorEffectData {
   motionBlur: boolean
   hideOnIdle: boolean
   idleTimeout: number
+  gliding: boolean
+  speed: number
+  smoothness: number
 }
 
 export interface KeystrokeEffectData {

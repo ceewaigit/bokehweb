@@ -12,17 +12,6 @@ export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
   padding: 40
 }
 
-// Screen Studio style background effect data
-export const SCREEN_STUDIO_BACKGROUND_DATA: BackgroundEffectData = {
-  type: BackgroundType.Wallpaper,
-  gradient: {
-    colors: ['#2D3748', '#1A202C'],
-    angle: 135
-  },
-  wallpaper: undefined,
-  padding: 40
-}
-
 // Default cursor effect data
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   style: CursorStyle.Default,
@@ -31,7 +20,10 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   clickEffects: false,
   motionBlur: false,
   hideOnIdle: true,
-  idleTimeout: 3000
+  idleTimeout: 3000,
+  gliding: true,
+  speed: 0.2,
+  smoothness: 0.85
 }
 
 // Store for default wallpaper once loaded
@@ -41,7 +33,6 @@ let wallpaperInitialized = false
 export function setDefaultWallpaper(wallpaper: string) {
   defaultWallpaper = wallpaper
   DEFAULT_BACKGROUND_DATA.wallpaper = wallpaper
-  SCREEN_STUDIO_BACKGROUND_DATA.wallpaper = wallpaper
 }
 
 export function getDefaultWallpaper(): string | undefined {

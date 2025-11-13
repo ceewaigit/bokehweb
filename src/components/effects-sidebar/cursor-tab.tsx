@@ -117,6 +117,46 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               <span className="text-[10px] text-muted-foreground/70 font-mono">{((cursorData?.idleTimeout ?? 3000) / 1000).toFixed(1)}s</span>
             </div>
           )}
+
+          {/* Advanced Section */}
+          <details className="space-y-2 pt-2">
+            <summary className="text-xs font-medium text-muted-foreground cursor-pointer">Advanced</summary>
+            <div className="p-1 bg-background/30 rounded-lg">
+              <label className="flex items-center justify-between">
+                <span className="text-xs">Gliding</span>
+                <Switch
+                  checked={cursorData?.gliding ?? true}
+                  onCheckedChange={(checked) =>
+                    onUpdateCursor({ gliding: checked })
+                  }
+                />
+              </label>
+            </div>
+            <div className="p-1 bg-background/30 rounded-lg space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Speed</label>
+              <Slider
+                value={[cursorData?.speed ?? 0.5]}
+                onValueChange={([value]) => onUpdateCursor({ speed: value })}
+                min={0.1}
+                max={1}
+                step={0.05}
+                className="w-full"
+              />
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.speed ?? 0.5).toFixed(2)}</span>
+            </div>
+            <div className="p-1 bg-background/30 rounded-lg space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Smoothness</label>
+              <Slider
+                value={[cursorData?.smoothness ?? 0.5]}
+                onValueChange={([value]) => onUpdateCursor({ smoothness: value })}
+                min={0.1}
+                max={1}
+                step={0.05}
+                className="w-full"
+              />
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.smoothness ?? 0.5).toFixed(2)}</span>
+            </div>
+          </details>
         </div>
       )}
     </div>

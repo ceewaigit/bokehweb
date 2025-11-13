@@ -253,10 +253,9 @@ export function clipRelativeToTimeline(clipRelativeMs: number, clip: Clip): numb
  */
 export function getSourceDuration(clip: Clip): number {
   const sourceIn = clip.sourceIn || 0
-  const sourceOut = clip.sourceOut || 0
   
-  if (sourceOut >= sourceIn) {
-    return sourceOut - sourceIn
+  if (clip.sourceOut != null && clip.sourceOut >= sourceIn) {
+    return clip.sourceOut - sourceIn
   }
   
   // Fallback: If sourceOut not set, assume current clip duration represents source

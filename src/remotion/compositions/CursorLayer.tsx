@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useEffect } from 'react';
-import { AbsoluteFill, Img, useCurrentFrame, delayRender, continueRender, staticFile } from 'remotion';
+import React, { useMemo, useRef, useEffect, useCallback } from 'react';
+import { AbsoluteFill, Img, useCurrentFrame, delayRender, continueRender } from 'remotion';
 import type { CursorLayerProps } from './types';
 import type { Clip } from '@/types/project';
 import {
@@ -10,15 +10,9 @@ import {
   electronToCustomCursor
 } from '../../lib/effects/cursor-types';
 import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
-const clampToClipSourceRange = (timeMs: number, clip?: Clip | null) => {
-  if (!clip) return timeMs;
-  const sourceIn = clip.sourceIn ?? 0;
-  const sourceOut = clip.sourceOut ?? (sourceIn + clip.duration * (clip.playbackRate || 1));
-  return Math.min(Math.max(sourceIn, timeMs), sourceOut);
-};
-
-const getEventSourceTimestamp = (event: { sourceTimestamp?: number; timestamp: number }) =>
-  typeof event.sourceTimestamp === 'number' ? event.sourceTimestamp : event.timestamp;
+import { calculateCursorState, type CursorState } from '../../lib/effects/utils/cursor-calculator';
+import { normalizeClickEvents, normalizeMouseEvents } from './utils/event-normalizer';
+import { getSourceTimeForFrame } from './utils/source-time';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -26,7 +20,7 @@ class CursorImagePreloader {
   private isLoaded = false;
   private loadingPromise: Promise<void> | null = null;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): CursorImagePreloader {
     if (!CursorImagePreloader.instance) {
@@ -66,7 +60,7 @@ class CursorImagePreloader {
         const img = new Image();
 
         // Also fetch to ensure browser cache (though Remotion may not use it)
-        fetch(src, { cache: 'force-cache' }).catch(() => {});
+        fetch(src, { cache: 'force-cache' }).catch(() => { });
 
         img.onload = () => {
           img.decode().then(() => resolve()).catch(() => resolve());
@@ -89,8 +83,8 @@ class CursorImagePreloader {
 }
 
 export const CursorLayer: React.FC<CursorLayerProps> = ({
-  cursorEvents,
-  clickEvents,
+  cursorEvents: rawCursorEvents,
+  clickEvents: rawClickEvents,
   clip,
   fps,
   videoOffset,
@@ -98,29 +92,25 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   zoomState,
   videoWidth,
   videoHeight,
-  cursorData
+  cursorData,
+  frameOffset = 0
 }) => {
+  const cursorEvents = useMemo(() => normalizeMouseEvents(rawCursorEvents), [rawCursorEvents]);
+  const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents), [rawClickEvents]);
+
   const frame = useCurrentFrame();
-  const playbackTimeMs = (frame / fps) * 1000;
+  const absoluteFrame = frameOffset > 0 && frame < frameOffset
+    ? frame + frameOffset
+    : frame;
   const currentSourceTime = useMemo(
-    () => clampToClipSourceRange(playbackTimeMs, clip),
-    [clip, playbackTimeMs]
+    () => getSourceTimeForFrame(absoluteFrame, fps, clip),
+    [absoluteFrame, fps, clip]
   );
 
-  // Store previous positions for motion trail and smoothing
+  // Store previous cursor state for motion effects
+  const frameStateCacheRef = useRef<Map<number, CursorState>>(new Map());
   const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
   const lastFrameRef = useRef<number>(-1);
-  const lastMovementTimeRef = useRef<number>(0);
-  const lastKnownPositionRef = useRef<{ x: number, y: number } | null>(null);
-  const timelineIndexRef = useRef<{ index: number; time: number }>({ index: 0, time: Number.NEGATIVE_INFINITY });
-
-  // Heavy smoothing buffers for butter-smooth movement
-  const smoothingBufferRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
-  const filteredPositionRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
-  const lastRawPositionRef = useRef<{ x: number, y: number } | null>(null);
-  // Stabilize cursor type to avoid flicker (e.g., brief I-beam hovers)
-  const stableCursorTypeRef = useRef<CursorType>(CursorType.ARROW);
-  const pendingCursorTypeRef = useRef<{ type: CursorType; since: number } | null>(null);
 
   // SINGLETON: Pre-cache all cursor images once across all CursorLayer instances
   useEffect(() => {
@@ -141,262 +131,64 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       });
   }, []);
 
-  // Reset cached timeline index whenever event set changes
+  const resolveSourceTimeForFrame = useCallback((frameIndex: number) => {
+    return getSourceTimeForFrame(frameIndex, fps, clip);
+  }, [clip, fps]);
+
+  const cursorState = useMemo(() => {
+    const cache = frameStateCacheRef.current;
+    const targetFrame = Math.max(0, Math.floor(absoluteFrame));
+
+    const cached = cache.get(targetFrame);
+    if (cached) {
+      return cached;
+    }
+
+    let startFrame = targetFrame;
+    while (startFrame > 0 && !cache.has(startFrame - 1)) {
+      startFrame -= 1;
+    }
+
+    let previousState: CursorState | undefined = startFrame > 0 ? cache.get(startFrame - 1) : cache.get(startFrame);
+
+    for (let frameIdx = startFrame; frameIdx <= targetFrame; frameIdx++) {
+      const existingState = cache.get(frameIdx);
+      if (existingState) {
+        previousState = existingState;
+        continue;
+      }
+
+      const sourceTime = resolveSourceTimeForFrame(frameIdx);
+      const newState = calculateCursorState(
+        cursorData,
+        cursorEvents,
+        clickEvents,
+        sourceTime,
+        previousState,
+        fps
+      );
+      cache.set(frameIdx, newState);
+      previousState = newState;
+    }
+
+    return cache.get(targetFrame) as CursorState;
+  }, [absoluteFrame, cursorData, cursorEvents, clickEvents, fps, resolveSourceTimeForFrame]);
+
   useEffect(() => {
-    timelineIndexRef.current = {
-      index: 0,
-      time: cursorEvents.length > 0 ? getEventSourceTimestamp(cursorEvents[0]) : Number.NEGATIVE_INFINITY
-    };
-  }, [cursorEvents]);
+    frameStateCacheRef.current.clear();
+  }, [cursorData, cursorEvents, clickEvents, clip?.id, fps]);
 
-  const locateEventIndex = (sourceTime: number) => {
-    const events = cursorEvents;
-    if (events.length === 0) return 0;
+  // Extract values from cursor state
+  const cursorType = cursorState.type;
+  const cursorPosition = cursorState.visible ? { x: cursorState.x, y: cursorState.y } : null;
 
-    let { index, time: lastTime } = timelineIndexRef.current;
-    index = Math.min(Math.max(index, 0), events.length - 1);
-
-    const eventSourceTime = (eventIndex: number) => getEventSourceTimestamp(events[eventIndex]);
-
-    if (sourceTime >= lastTime) {
-      while (index < events.length - 1 && eventSourceTime(index + 1) <= sourceTime) {
-        index++;
-      }
-    } else {
-      while (index > 0 && eventSourceTime(index) > sourceTime) {
-        index--;
-      }
-
-      if (eventSourceTime(index) > sourceTime) {
-        let low = 0;
-        let high = events.length - 1;
-        while (low <= high) {
-          const mid = (low + high) >> 1;
-          if (eventSourceTime(mid) <= sourceTime) {
-            low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
-        }
-        index = Math.max(0, Math.min(events.length - 1, low - 1));
-      }
-    }
-
-    timelineIndexRef.current = { index, time: sourceTime };
-    return index;
-  };
-
-  // Determine current cursor type from events
-  const cursorType = useMemo(() => {
-    if (!cursorEvents || cursorEvents.length === 0) return stableCursorTypeRef.current;
-
-    const selectedEvent = cursorEvents[locateEventIndex(currentSourceTime)] || cursorEvents[0];
-
-    const desiredType = electronToCustomCursor(selectedEvent?.cursorType || 'default');
-
-    // Hysteresis/debounce: only commit a type change if it persists for a small window
-    const now = currentSourceTime;
-    const COMMIT_DELAY_MS = 150; // prevents split-second I-beam flashes
-
-    if (desiredType === stableCursorTypeRef.current) {
-      // Same as current; clear any pending change
-      pendingCursorTypeRef.current = null;
-      return stableCursorTypeRef.current;
-    }
-
-    // If a different type is pending and matches, check if it's old enough to commit
-    if (pendingCursorTypeRef.current && pendingCursorTypeRef.current.type === desiredType) {
-      if (now - pendingCursorTypeRef.current.since >= COMMIT_DELAY_MS) {
-        stableCursorTypeRef.current = desiredType;
-        pendingCursorTypeRef.current = null;
-      }
-      return stableCursorTypeRef.current;
-    }
-
-    // Start pending window for the new desired type
-    pendingCursorTypeRef.current = { type: desiredType, since: now };
-    return stableCursorTypeRef.current;
-  }, [cursorEvents, currentSourceTime]);
-
-  // Check if cursor is idle
-  const isIdle = useMemo(() => {
-    if (!cursorData?.hideOnIdle) return false;
-
-    // If no cursor events, never hide for idle
-    if (cursorEvents.length === 0) return false;
-
-    const idleTimeout = cursorData?.idleTimeout ?? 3000; // Default 3 seconds
-    const timeSinceLastMovement = currentSourceTime - lastMovementTimeRef.current;
-
-    return timeSinceLastMovement > idleTimeout;
-  }, [currentSourceTime, cursorData?.hideOnIdle, cursorData?.idleTimeout, cursorEvents.length]);
-
-  // Get interpolated cursor position with ultra-heavy smoothing
-  const cursorPosition = useMemo(() => {
-    // If no cursor events, return a default position (center of screen)
-    if (cursorEvents.length === 0) {
-      return { x: videoWidth / 2, y: videoHeight / 2 };
-    }
-
-    const targetTimelineTime = currentSourceTime;
-    const targetSourceTime = currentSourceTime;
-
-    const idx = locateEventIndex(targetSourceTime);
-    const currEvent = cursorEvents[idx];
-    const nextEvent = idx < cursorEvents.length - 1 ? cursorEvents[idx + 1] : undefined;
-
-    // Validate that we have a valid current event
-    if (!currEvent || typeof currEvent.x !== 'number' || typeof currEvent.y !== 'number') {
-      // If no valid event found, hide cursor or use last known position
-      if (lastKnownPositionRef.current) {
-        return lastKnownPositionRef.current;
-      }
-      // No events available at this time, return center
-      return { x: videoWidth / 2, y: videoHeight / 2 };
-    }
-
-    const currSourceTime = getEventSourceTimestamp(currEvent);
-    const nextSourceTime = nextEvent ? getEventSourceTimestamp(nextEvent) : undefined;
-
-    let rawX = currEvent.x;
-    let rawY = currEvent.y;
-
-    if (
-      nextEvent &&
-      typeof nextSourceTime === 'number' &&
-      nextSourceTime > currSourceTime &&
-      targetSourceTime >= currSourceTime &&
-      targetSourceTime <= nextSourceTime
-    ) {
-      const t = (targetSourceTime - currSourceTime) / (nextSourceTime - currSourceTime);
-      rawX = currEvent.x + (nextEvent.x - currEvent.x) * t;
-      rawY = currEvent.y + (nextEvent.y - currEvent.y) * t;
-    } else if (targetSourceTime < currSourceTime && cursorEvents.length > 0) {
-      const firstEvent = cursorEvents[0];
-      rawX = firstEvent.x;
-      rawY = firstEvent.y;
-    }
-
-    // Validate interpolated values - if NaN, use last known position or fallback
-    if (!isFinite(rawX) || !isFinite(rawY)) {
-      if (lastKnownPositionRef.current) {
-        return lastKnownPositionRef.current;
-      }
-      return { x: videoWidth / 2, y: videoHeight / 2 };
-    }
-
-    // Initialize filtered position on first frame
-    if (!lastRawPositionRef.current) {
-      lastRawPositionRef.current = { x: rawX, y: rawY };
-      filteredPositionRef.current = { x: rawX, y: rawY };
-      smoothingBufferRef.current = [];
-    }
-
-    // Detect large jumps (teleports)
-    const lastRaw = lastRawPositionRef.current;
-    const jumpDistance = Math.sqrt(
-      Math.pow(rawX - lastRaw.x, 2) + Math.pow(rawY - lastRaw.y, 2)
-    );
-
-    if (jumpDistance > 300) {
-      // Reset on large jumps
-      filteredPositionRef.current = { x: rawX, y: rawY };
-      smoothingBufferRef.current = [];
-    } else {
-      // Add to smoothing buffer
-      smoothingBufferRef.current.push({ x: rawX, y: rawY, time: targetTimelineTime });
-
-      // Keep buffer size limited (last 150ms of data)
-      const cutoffTime = targetTimelineTime - 150;
-      smoothingBufferRef.current = smoothingBufferRef.current.filter(
-        pos => pos.time > cutoffTime
-      );
-
-      if (smoothingBufferRef.current.length > 0) {
-        // Apply moving average with moderate buffer for smooth but responsive movement
-        const bufferSize = Math.min(smoothingBufferRef.current.length, 8); // Average over last 8 frames
-        const recentBuffer = smoothingBufferRef.current.slice(-bufferSize);
-
-        // Weighted moving average (more recent = higher weight)
-        let weightedX = 0;
-        let weightedY = 0;
-        let totalWeight = 0;
-
-        recentBuffer.forEach((pos, index) => {
-          const weight = Math.pow(2.0, index); // Stronger exponential weights for more recent positions
-          weightedX += pos.x * weight;
-          weightedY += pos.y * weight;
-          totalWeight += weight;
-        });
-
-        const avgX = weightedX / totalWeight;
-        const avgY = weightedY / totalWeight;
-
-        // Exponential smoothing with adaptive alpha based on movement speed
-        const movementDelta = Math.sqrt(
-          Math.pow(avgX - filteredPositionRef.current.x, 2) +
-          Math.pow(avgY - filteredPositionRef.current.y, 2)
-        );
-
-        // Adaptive smoothing: faster response for large movements, smoother for small movements
-        let smoothingAlpha = 0.12; // Base smoothing for normal movement
-        if (movementDelta < 10) {
-          smoothingAlpha = 0.08; // Heavy smoothing for tiny movements (removes jitter)
-        } else if (movementDelta > 100) {
-          smoothingAlpha = 0.25; // Faster response for large movements
-        }
-        filteredPositionRef.current.x = filteredPositionRef.current.x + (avgX - filteredPositionRef.current.x) * smoothingAlpha;
-        filteredPositionRef.current.y = filteredPositionRef.current.y + (avgY - filteredPositionRef.current.y) * smoothingAlpha;
-      }
-    }
-
-    // Check for movement to update idle tracking
-    if (lastKnownPositionRef.current) {
-      const rawMovement = Math.sqrt(
-        Math.pow(rawX - lastKnownPositionRef.current.x, 2) +
-        Math.pow(rawY - lastKnownPositionRef.current.y, 2)
-      );
-
-      // If cursor moved more than 2 pixels in raw position, update last movement time
-      if (rawMovement > 2) {
-        lastMovementTimeRef.current = currentSourceTime;
-      }
-    } else {
-      // Initialize on first frame
-      lastMovementTimeRef.current = currentSourceTime;
-    }
-
-    // Update references for next frame
-    lastRawPositionRef.current = { x: rawX, y: rawY };
-    lastKnownPositionRef.current = { x: rawX, y: rawY };
-
-    // Clamp the final position to stay within capture bounds
-    const clampedX = Math.max(0, Math.min(videoWidth, filteredPositionRef.current.x));
-    const clampedY = Math.max(0, Math.min(videoHeight, filteredPositionRef.current.y));
-
-    return {
-      x: clampedX,
-      y: clampedY
-    };
-  }, [cursorEvents, currentSourceTime]);
-
-  // Check for active click animation (only if click effects are enabled)
-  const activeClick = useMemo(() => {
-    // Check if click effects are enabled
-    if (!cursorData?.clickEffects) return null;
-
-    return clickEvents.find(click => {
-      const clickDuration = 300; // ms for click animation
-      return currentSourceTime >= click.timestamp &&
-        currentSourceTime <= click.timestamp + clickDuration;
-    });
-  }, [clickEvents, currentSourceTime, cursorData?.clickEffects]);
-
-  // Calculate click animation scale
+  // Calculate click animation scale from cursor state
   const clickScale = useMemo(() => {
-    if (!activeClick) return 1;
-    // Use SOURCE time for calculation (both times must be in same space)
-    const clickProgress = Math.min(1, (currentSourceTime - activeClick.timestamp) / 200);
+    // Find most recent active click effect
+    const recentClick = cursorState.clickEffects[0];
+    if (!recentClick) return 1;
+
+    const clickProgress = recentClick.progress;
     // Click animation - shrinks to 0.8 then returns to normal
     if (clickProgress < 0.4) {
       // Quick shrink phase
@@ -406,7 +198,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       const returnProgress = (clickProgress - 0.4) / 0.6;
       return 0.8 + returnProgress * 0.2; // Grow from 0.8 back to 1.0
     }
-  }, [activeClick, currentSourceTime]);
+  }, [cursorState.clickEffects]);
 
   // Get capture dimensions from first event
   const firstEvent = cursorEvents[0];
@@ -468,8 +260,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return { speed: Math.min(speed * 50, 20), angle }; // Cap max blur
   }, [frame]);
 
-  // Apply cursor size from effects (default to 4.0 to match UI)
-  const cursorSize = cursorData?.size ?? 4.0;
+  // Apply cursor size from cursor state
+  const cursorSize = cursorState.scale;
 
   // Get cursor hotspot and dimensions
   const hotspot = CURSOR_HOTSPOTS[cursorType];
@@ -526,6 +318,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Generate motion trail for smooth gliding effect (optimized for performance)
   const motionTrail = useMemo(() => {
+    if (!cursorData || cursorData.gliding) return null;
     if (motionVelocity.speed < 4) return null; // Higher threshold to reduce renders
 
     const trailCount = Math.min(Math.floor(motionVelocity.speed / 3), 3); // Fewer trails for better performance
@@ -562,8 +355,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return trails;
   }, [motionVelocity, cursorX, cursorY, cursorType, renderedWidth, renderedHeight, hotspot, clickScale]);
 
-  // Early return if cursor is hidden or idle (after all hooks)
-  if (!cursorPosition || isIdle) return null;
+  // Early return if cursor is hidden (after all hooks)
+  if (!cursorState.visible || !cursorPosition) return null;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>

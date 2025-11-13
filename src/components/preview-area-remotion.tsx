@@ -168,7 +168,12 @@ export function PreviewAreaRemotion({
     const recSeconds = getRecordingSeconds(previewClip, currentTime)
     const frameRate = 30
     const targetFrame = Math.floor(recSeconds * frameRate)
-    playerRef.current.seekTo(targetFrame);
+
+    // Clamp to composition bounds
+    const maxFrame = Math.ceil((previewClip.duration / 1000) * frameRate) - 1
+    const clampedFrame = Math.max(0, Math.min(targetFrame, maxFrame))
+
+    playerRef.current.seekTo(clampedFrame);
   }, [currentTime, previewClip, videoState.url, isPlaying, getRecordingSeconds])
 
   useEffect(() => {
@@ -249,7 +254,8 @@ export function PreviewAreaRemotion({
       scrollEvents: adjustedEvents.scrollEvents,
       videoWidth,
       videoHeight,
-      isSplitTransition: isNextClipSplit
+      isSplitTransition: isNextClipSplit,
+      frameOffset: 0
     }
   }, [previewClip, nextClip, videoState.url, activeEffects, adjustedEvents, videoWidth, videoHeight, isNextClipSplit])
 
@@ -277,23 +283,27 @@ export function PreviewAreaRemotion({
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
   const durationInFrames = useMemo(() => {
-    if (previewRecording) {
-      return Math.ceil((previewRecording.duration / 1000) * 30)
-    }
+    // IMPORTANT: Use clip duration first (for split clips with modified speeds)
+    // Only fall back to recording duration if no clip is available
     if (previewClip) {
       return Math.ceil((previewClip.duration / 1000) * 30)
     }
+    if (previewRecording) {
+      return Math.ceil((previewRecording.duration / 1000) * 30)
+    }
     return 900
-  }, [previewRecording?.duration, previewClip?.duration]);
+  }, [previewClip?.duration, previewRecording?.duration]);
 
   // Compute initial frame at mount to avoid first-frame flash
   const initialFrame = useMemo(() => {
     if (previewClip) {
       const recSeconds = getRecordingSeconds(previewClip, currentTime)
-      return Math.floor(recSeconds * 30)
+      const calculatedFrame = Math.floor(recSeconds * 30)
+      // Clamp to composition bounds (must be < durationInFrames)
+      return Math.max(0, Math.min(calculatedFrame, durationInFrames - 1))
     }
     return 0
-  }, [previewClip?.id, videoState.recording?.id])
+  }, [previewClip?.id, videoState.recording?.id, currentTime, durationInFrames, getRecordingSeconds])
 
   const playerKey = useMemo(() => {
     const recordingId = videoState.recording?.id || 'none'

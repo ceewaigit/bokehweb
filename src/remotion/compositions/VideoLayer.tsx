@@ -19,12 +19,16 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
   zoomCenter,
   cinematicScrollState,
   computedScale,
-  sourceTimeMs
+  sourceTimeMs,
+  frameOffset = 0
 }) => {
   const { width, height, fps } = useVideoConfig();
   const frame = useCurrentFrame();
-  // Calculate current time in milliseconds (clip-relative)
-  const currentTimeMs = (frame / fps) * 1000;
+  // Calculate current time in milliseconds (clip-relative) using absolute frame offset
+  const effectiveFrame = frameOffset > 0 && frame < frameOffset
+    ? frame + frameOffset
+    : frame;
+  const currentTimeMs = (effectiveFrame / fps) * 1000;
 
   // Use fixed zoom center from MainComposition
   const fixedZoomCenter = zoomCenter || { x: 0.5, y: 0.5 };
@@ -69,7 +73,7 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     // Generate transform string
     return getZoomTransformString(zoomTransform);
   }, [zoomBlocks, sourceTimeMs, drawWidth, drawHeight, fixedZoomCenter, computedScale]);
-  
+
   let extra3DTransform = '';
 
   // Optional 3D screen effect: prefer screen blocks
@@ -194,6 +198,13 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
 
   const combinedFilter = [dropShadow, cinematicBlur].filter(Boolean).join(' ');
 
+  // Calculate video component props for debugging
+  const startFrom = clip ? ((clip.sourceIn || 0) * fps) / 1000 : 0;
+  const calculatedSourceOut = clip?.sourceOut != null && isFinite(clip.sourceOut)
+    ? clip.sourceOut
+    : (clip ? (clip.sourceIn || 0) + clip.duration * (clip.playbackRate || 1) : 0);
+  const endAt = clip ? ((calculatedSourceOut || 0) * fps) / 1000 : undefined;
+
   return (
     <AbsoluteFill>
       {/* Video container with viewport clipping and shadow - OPTIMIZED: Single layer */}
@@ -220,8 +231,8 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           muted={false}
           pauseWhenBuffering={false}
           crossOrigin="anonymous"
-          startFrom={clip ? (clip.sourceIn || 0) / fps : 0}
-          endAt={clip ? ((clip.sourceOut ?? (clip.sourceIn + clip.duration)) || 0) / fps : undefined}
+          startFrom={startFrom}
+          endAt={endAt}
           playbackRate={clip?.playbackRate || 1}
           onError={(e) => {
             console.error('Video playback error:', {

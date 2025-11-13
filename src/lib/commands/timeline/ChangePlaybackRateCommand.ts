@@ -7,6 +7,7 @@ export class ChangePlaybackRateCommand extends Command<{ clipId: string; playbac
   private originalClip?: Clip
   private originalPlaybackRate?: number
   private originalDuration?: number
+  private originalSourceOut?: number
 
   constructor(
     private context: CommandContext,
@@ -41,14 +42,22 @@ export class ChangePlaybackRateCommand extends Command<{ clipId: string; playbac
     this.originalClip = { ...result.clip }
     this.originalPlaybackRate = result.clip.playbackRate || 1.0
     this.originalDuration = result.clip.duration
+    this.originalSourceOut = result.clip.sourceOut
 
     // Use utility to compute new effective duration
     const newDuration = computeEffectiveDuration(result.clip, this.playbackRate)
 
+    // Calculate sourceOut if missing or invalid (NaN)
+    // sourceOut should remain constant when playback rate changes (same source range, different speed)
+    const validSourceOut = (result.clip.sourceOut != null && isFinite(result.clip.sourceOut))
+      ? result.clip.sourceOut
+      : (result.clip.sourceIn || 0) + (result.clip.duration * (result.clip.playbackRate || 1))
+
     const store = this.context.getStore()
-    store.updateClip(this.clipId, { 
+    store.updateClip(this.clipId, {
       playbackRate: this.playbackRate,
-      duration: newDuration
+      duration: newDuration,
+      sourceOut: validSourceOut
     })
 
     return {
@@ -66,9 +75,10 @@ export class ChangePlaybackRateCommand extends Command<{ clipId: string; playbac
     }
 
     const store = this.context.getStore()
-    store.updateClip(this.clipId, { 
+    store.updateClip(this.clipId, {
       playbackRate: this.originalPlaybackRate,
-      duration: this.originalDuration
+      duration: this.originalDuration,
+      sourceOut: this.originalSourceOut
     })
 
     return {

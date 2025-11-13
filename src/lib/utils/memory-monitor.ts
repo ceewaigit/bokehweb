@@ -7,14 +7,14 @@ export class MemoryMonitor {
   private memoryThreshold = 0.8; // 80% heap usage threshold
   private checkInterval: NodeJS.Timeout | null = null;
   private onHighMemory?: () => void;
-  
+
   static getInstance(): MemoryMonitor {
     if (!MemoryMonitor.instance) {
       MemoryMonitor.instance = new MemoryMonitor();
     }
     return MemoryMonitor.instance;
   }
-  
+
   /**
    * Get current memory metrics
    */
@@ -31,7 +31,7 @@ export class MemoryMonitor {
         percentUsed: ((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100).toFixed(1)
       };
     }
-    
+
     // Fallback for non-browser environments
     if (typeof process !== 'undefined' && process.memoryUsage) {
       const usage = process.memoryUsage();
@@ -45,10 +45,10 @@ export class MemoryMonitor {
         percentUsed: ((usage.heapUsed / usage.heapTotal) * 100).toFixed(1)
       };
     }
-    
+
     return null;
   }
-  
+
   /**
    * Check if memory pressure is high
    */
@@ -56,14 +56,14 @@ export class MemoryMonitor {
     const stats = this.getMemoryStats();
     return stats ? stats.pressure > this.memoryThreshold : false;
   }
-  
+
   /**
    * Start monitoring memory with a callback for high memory
    */
   startMonitoring(intervalMs = 5000, onHighMemory?: () => void) {
     this.stopMonitoring();
     this.onHighMemory = onHighMemory;
-    
+
     this.checkInterval = setInterval(() => {
       const stats = this.getMemoryStats();
       if (stats) {
@@ -73,7 +73,7 @@ export class MemoryMonitor {
             `[MemoryMonitor] High memory usage: ${stats.usedMB}MB / ${stats.limitMB}MB (${stats.percentUsed}%)`
           );
         }
-        
+
         // Trigger callback if over threshold
         if (stats.pressure > this.memoryThreshold && this.onHighMemory) {
           console.error(
@@ -84,7 +84,7 @@ export class MemoryMonitor {
       }
     }, intervalMs);
   }
-  
+
   /**
    * Stop monitoring
    */
@@ -94,37 +94,37 @@ export class MemoryMonitor {
       this.checkInterval = null;
     }
   }
-  
+
   /**
    * Wait for memory to drop below threshold
    */
   async waitForMemoryRecovery(maxWaitMs = 10000): Promise<boolean> {
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < maxWaitMs) {
       const stats = this.getMemoryStats();
       if (!stats || stats.pressure < this.memoryThreshold) {
         return true;
       }
-      
+
       // Force GC if available
       if (typeof global !== 'undefined' && (global as any).gc) {
         (global as any).gc();
       }
-      
+
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    
+
     return false;
   }
-  
+
   /**
    * Get a formatted memory report
    */
   getMemoryReport(): string {
     const stats = this.getMemoryStats();
     if (!stats) return 'Memory stats unavailable';
-    
+
     return [
       `Memory Usage: ${stats.usedMB}MB / ${stats.limitMB}MB`,
       `Heap Usage: ${stats.percentUsed}%`,
