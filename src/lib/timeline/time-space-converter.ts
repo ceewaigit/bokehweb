@@ -39,7 +39,7 @@ import type { Clip } from '@/types/project'
 export function sourceToTimeline(sourceMs: number, clip: Clip): number {
   // First convert source to clip-relative
   const clipRelativeMs = sourceToClipRelative(sourceMs, clip)
-  
+
   // Then add clip's position on timeline
   return clip.startTime + clipRelativeMs
 }
@@ -53,7 +53,7 @@ export function sourceToTimeline(sourceMs: number, clip: Clip): number {
 export function timelineToSource(timelineMs: number, clip: Clip): number {
   // First get clip-relative time
   const clipRelativeMs = timelineMs - clip.startTime
-  
+
   // Then convert to source
   return clipRelativeToSource(clipRelativeMs, clip)
 }
@@ -228,11 +228,11 @@ export function clipRelativeToSource(clipRelativeMs: number, clip: Clip): number
  */
 export function timelineToClipRelative(timelineMs: number, clip: Clip): number {
   const clipRelativeMs = timelineMs - clip.startTime
-  
+
   // Clamp to clip bounds
   if (clipRelativeMs < 0) return 0
   if (clipRelativeMs > clip.duration) return clip.duration
-  
+
   return clipRelativeMs
 }
 
@@ -253,11 +253,11 @@ export function clipRelativeToTimeline(clipRelativeMs: number, clip: Clip): numb
  */
 export function getSourceDuration(clip: Clip): number {
   const sourceIn = clip.sourceIn || 0
-  
+
   if (clip.sourceOut != null && clip.sourceOut >= sourceIn) {
     return clip.sourceOut - sourceIn
   }
-  
+
   // Fallback: If sourceOut not set, assume current clip duration represents source
   const playbackRate = clip.playbackRate || 1
   return clip.duration * playbackRate
@@ -353,15 +353,15 @@ export function pixelsToMs(pixels: number, pixelsPerMs: number): number {
  */
 export function calculateOptimalZoom(duration: number, viewportWidth: number): number {
   if (duration === 0) return 1
-  
+
   // We want the timeline to fit comfortably in the viewport
   // Leave some padding (80% of viewport)
   const targetWidth = viewportWidth * 0.8
   const basePixelsPerMs = 0.1
-  
+
   // Calculate zoom needed to fit duration in target width
   const requiredZoom = targetWidth / (duration * basePixelsPerMs)
-  
+
   // Clamp between reasonable zoom levels
   return Math.max(0.1, Math.min(10, requiredZoom))
 }
@@ -402,7 +402,7 @@ export const TimeConverter = {
   computeEffectiveDuration,
   isTimelinePositionInClip,
   isSourceTimeInClip,
-  
+
   // Pixel conversions
   calculatePixelsPerMs,
   calculateTimelineWidth,

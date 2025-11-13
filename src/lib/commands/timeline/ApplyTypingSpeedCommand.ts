@@ -7,7 +7,7 @@ import type { TypingPeriod } from '@/lib/timeline/typing-detector'
  * Command to apply typing speed suggestions to clips.
  * Uses the store's applyTypingSpeedToClip method for atomic operations.
  */
-export class ApplyTypingSpeedCommand extends Command<{ 
+export class ApplyTypingSpeedCommand extends Command<{
   applied: number // number of clips affected
 }> {
   private originalClips: Clip[] = []
@@ -33,7 +33,7 @@ export class ApplyTypingSpeedCommand extends Command<{
 
   doExecute(): CommandResult<{ applied: number }> {
     const store = this.context.getStore()
-    
+
     // Find and save track ID for undo
     const sourceResult = this.context.findClip(this.sourceClipId)
     if (!sourceResult) {
@@ -44,7 +44,7 @@ export class ApplyTypingSpeedCommand extends Command<{
     try {
       // Use the new atomic store method
       const result = store.applyTypingSpeedToClip(this.sourceClipId, this.periods)
-      
+
       // Save state for undo
       this.originalClips = result.originalClips
       this.affectedClips = result.affectedClips
@@ -77,10 +77,10 @@ export class ApplyTypingSpeedCommand extends Command<{
     const recordingId = this.originalClips[0].recordingId
 
     // Remove all split clips from this recording
-    const clipsToRemove = track.clips.filter(c => 
+    const clipsToRemove = track.clips.filter(c =>
       c.recordingId === recordingId && this.affectedClips.includes(c.id)
     )
-    
+
     for (const clip of clipsToRemove) {
       store.removeClip(clip.id)
     }

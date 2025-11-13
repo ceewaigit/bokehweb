@@ -41,12 +41,12 @@ export function PreviewAreaRemotion({
     clip: Clip | null
     recording: Recording | null
   }>({ url: null, clip: null, recording: null })
-  
+
   const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
-  
+
   const nextClip = useProjectStore(state => state.nextClip)
   const nextRecording = useProjectStore(state => state.nextRecording)
-  
+
   // Helper: compute recording-seconds from global timeline time and current clip
   // Remotion composition duration is in source space, so we seek to source time
   const getRecordingSeconds = useCallback((clip: Clip, nowMs: number) => {
@@ -54,7 +54,7 @@ export function PreviewAreaRemotion({
     const sourceMs = timelineToSource(nowMs, clip)
     return sourceMs / 1000
   }, [])
-  
+
   // Handle clip transitions
   useEffect(() => {
     if (playheadClip && playheadRecording) {
@@ -116,7 +116,7 @@ export function PreviewAreaRemotion({
     playheadRecording,
     videoState.recording?.id
   ])
-  
+
   // Preload next recording if different
   useEffect(() => {
     if (nextClip && nextRecording && videoState.recording) {
@@ -127,12 +127,12 @@ export function PreviewAreaRemotion({
             nextRecording.id,
             nextRecording.filePath,
             nextRecording.folderPath
-          ).catch(() => {})
+          ).catch(() => { })
         }
       }
     }
   }, [nextClip?.id, nextRecording?.id, nextRecording?.filePath, nextRecording?.folderPath, videoState.recording?.id])
-  
+
   const previewClip = playheadClip || videoState.clip
   const previewRecording = playheadRecording || videoState.recording
 
@@ -183,7 +183,7 @@ export function PreviewAreaRemotion({
           playerRef.current.pause()
           playerRef.current.seekTo(0)
         }
-      } catch {}
+      } catch { }
     }
   }, [])
 
@@ -279,7 +279,7 @@ export function PreviewAreaRemotion({
 
     return { compositionWidth, compositionHeight }
   }, [videoWidth, videoHeight])
-  
+
   const { compositionWidth, compositionHeight } = calculateOptimalCompositionSize()
 
   const durationInFrames = useMemo(() => {
