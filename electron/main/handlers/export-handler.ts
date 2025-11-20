@@ -16,6 +16,7 @@ import { resolveFfmpegPath, getCompositorDirectory } from '../utils/ffmpeg-resol
 import { workerPool, SupervisedWorker } from '../utils/worker-manager';
 import fsSync from 'fs';
 import { normalizeCrossPlatform } from '../utils/path-normalizer';
+import { pathToFileURL } from 'url';
 
 // Bundle cache management
 interface BundleCache {
@@ -421,7 +422,13 @@ export function setupExportHandler() {
           }
 
           const normalizedPath = path.resolve(fullPath);
-          const videoUrl = await makeVideoSrc(normalizedPath, 'export');
+          let videoUrl: string;
+
+          if (fsSync.existsSync(normalizedPath)) {
+            videoUrl = pathToFileURL(normalizedPath).href;
+          } else {
+            videoUrl = await makeVideoSrc(normalizedPath, 'export');
+          }
           videoUrls[recordingId] = videoUrl;
         }
       }
@@ -475,6 +482,7 @@ export function setupExportHandler() {
         metadata: Object.fromEntries(metadata),
         videoUrls,
         ...settings,
+        projectFolder,
       };
 
       // Create output path
@@ -520,19 +528,22 @@ export function setupExportHandler() {
 
       const recommendedWorkers = determineParallelWorkerCount(machineProfile, chunkPlan.length, videoSizeEstimateGB);
 
-      // PERFORMANCE FIX: Limit workers aggressively for video workloads
-      // Video decoding is I/O-bound - multiple workers cause cache thrashing
-      // Single worker with large cache is often FASTER than 2-3 workers with cache contention
+      // PERFORMANCE FIX: Allow more workers on capable machines
+      // Modern CPUs/GPUs can handle parallel video decoding efficiently
+      // Only limit workers aggressively on low-memory systems
       let maxWorkersForVideo: number;
-      if (durationSeconds < 180) {
-        // Short videos (<3 min): single worker is fastest
+      if (effectiveMemoryGB < 2) {
+        // Very low memory: single worker to avoid thrashing
         maxWorkersForVideo = 1;
       } else if (effectiveMemoryGB < 4) {
-        // Low memory: single worker to maximize cache efficiency
-        maxWorkersForVideo = 1;
+        // Low memory: allow 2 workers for parallelism
+        maxWorkersForVideo = 2;
+      } else if (effectiveMemoryGB < 8) {
+        // Medium memory: allow up to 3 workers
+        maxWorkersForVideo = Math.min(3, Math.floor(machineProfile.cpuCores / 2));
       } else {
-        // Only use 2 workers for very long videos with plenty of memory
-        maxWorkersForVideo = durationSeconds > 300 && effectiveMemoryGB >= 6 ? 2 : 1;
+        // High memory: use up to 50% of CPU cores
+        maxWorkersForVideo = Math.max(2, Math.floor(machineProfile.cpuCores / 2));
       }
 
       const workerCount = Math.min(recommendedWorkers, maxWorkersForVideo, Math.max(1, chunkPlan.length || 1));
@@ -540,20 +551,19 @@ export function setupExportHandler() {
 
       console.log(`[Export] Worker decision: ${workerCount} workers (duration: ${durationSeconds.toFixed(1)}s, memory: ${effectiveMemoryGB.toFixed(1)}GB, chunks: ${chunkPlan.length})`);
 
-      // OPTIMIZED: Balance concurrency with available resources
-      // - Low memory (<2GB): Use 1-2 concurrent tabs to avoid cache thrashing
-      // - Medium memory (2-6GB): Use 3-4 concurrent tabs for parallelism
-      // - High memory (>6GB): Use 4-5 concurrent tabs for maximum speed
-      // Each concurrent tab needs ~500MB-1GB cache, so scale accordingly
+      // OPTIMIZED: More aggressive concurrency for better parallelism
+      // Remotion's "concurrency" controls how many browser tabs render in parallel
+      // Higher concurrency = more CPU/GPU utilization = faster exports
       let adjustedConcurrency: number;
       if (effectiveMemoryGB < 2) {
-        adjustedConcurrency = 1; // Minimal - avoid thrashing
+        adjustedConcurrency = 2; // Minimum viable parallelism
       } else if (effectiveMemoryGB < 4) {
-        adjustedConcurrency = 2; // Conservative for medium memory
-      } else if (effectiveMemoryGB < 6) {
-        adjustedConcurrency = 3; // Good balance
+        adjustedConcurrency = 3; // Good for medium memory
+      } else if (effectiveMemoryGB < 8) {
+        adjustedConcurrency = 4; // Better parallelism
       } else {
-        adjustedConcurrency = Math.min(4, Math.floor(machineProfile.cpuCores * 0.5)); // Scale with CPU
+        // Scale with CPU cores for high-end machines
+        adjustedConcurrency = Math.max(4, Math.min(8, Math.floor(machineProfile.cpuCores * 0.6)));
       }
 
       console.log(`[Export] Rendering concurrency: ${adjustedConcurrency} tabs (effective memory: ${effectiveMemoryGB.toFixed(1)}GB)`);

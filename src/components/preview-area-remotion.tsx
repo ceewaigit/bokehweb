@@ -42,7 +42,7 @@ export function PreviewAreaRemotion({
     recording: Recording | null
   }>({ url: null, clip: null, recording: null })
 
-  const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'auto'
+  const DEFAULT_PREVIEW_QUALITY: PreviewQuality = 'high'
 
   const nextClip = useProjectStore(state => state.nextClip)
   const nextRecording = useProjectStore(state => state.nextRecording)

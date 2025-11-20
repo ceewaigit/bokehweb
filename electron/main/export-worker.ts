@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import { tmpdir } from 'os';
+import { pathToFileURL } from 'url';
 
 interface ChunkAssignment {
   index: number;
@@ -121,6 +122,8 @@ class ExportWorker extends BaseWorker {
         props: job.inputProps
       };
 
+      this.ensureFileVideoUrls(job);
+
       console.log('[ExportWorker] Using pre-selected composition metadata');
 
       const fps = job.settings.framerate || composition.fps;
@@ -187,6 +190,9 @@ class ExportWorker extends BaseWorker {
     let lastReportedFrame = 0;
     let lastProgressUpdate = Date.now();
 
+    this.normalizeVideoProps(job.inputProps);
+    console.log('[ExportWorker] inputProps.videoUrl:', job.inputProps?.videoUrl);
+
     // Use renderMedia for memory-efficient single-pass rendering
     await renderMedia({
       serveUrl: job.bundleLocation,
@@ -208,7 +214,20 @@ class ExportWorker extends BaseWorker {
       chromiumOptions: {
         // OPTIMIZED: Enable GPU acceleration for hardware video decoding
         gl: job.useGPU ? 'angle' : 'swangle', // Use ANGLE for GPU, swangle for software
-        headless: true,
+        headless: false,
+        args: [
+          '--allow-file-access',
+          '--allow-file-access-from-files',
+          // CRITICAL: Enable hardware acceleration flags for video decoding
+          '--ignore-gpu-blocklist',
+          '--enable-gpu-rasterization',
+          '--enable-zero-copy',
+          '--enable-features=VaapiVideoDecoder', // Linux hardware decode
+          '--disable-software-rasterizer', // Force hardware
+          '--enable-accelerated-video-decode',
+          '--enable-accelerated-2d-canvas',
+          '--num-raster-threads=4' // Parallel rasterization
+        ],
         enableMultiProcessOnLinux: true,
         disableWebSecurity: false,
         ignoreCertificateErrors: false,
@@ -228,7 +247,7 @@ class ExportWorker extends BaseWorker {
       // CRITICAL FIX: Force single-threaded rendering when concurrency=1
       // Remotion may override concurrency setting, so explicitly disable parallel encoding
       disallowParallelEncoding: renderConcurrency === 1,
-      logLevel: 'verbose',
+      logLevel: 'trace',
       onStart: ({ resolvedConcurrency, parallelEncoding }) => {
         console.log(`[ExportWorker] Rendering with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding}`);
       },
@@ -395,7 +414,11 @@ class ExportWorker extends BaseWorker {
           props: chunkInputProps,
         };
 
+        this.normalizeVideoProps(chunkInputProps);
+
         const chunkFrameRange: [number, number] = [startFrame, endFrame];
+
+        console.log('[ExportWorker] chunk inputProps.videoUrl:', chunkInputProps?.videoUrl);
 
         await renderMedia({
           serveUrl: job.bundleLocation,
@@ -419,6 +442,19 @@ class ExportWorker extends BaseWorker {
             // OPTIMIZED: Enable GPU acceleration for hardware video decoding
             gl: job.useGPU ? 'angle' : 'swangle', // Use ANGLE for GPU, swangle for software
             headless: true,
+            args: [
+              '--allow-file-access',
+              '--allow-file-access-from-files',
+              // CRITICAL: Enable hardware acceleration flags for video decoding
+              '--ignore-gpu-blocklist',
+              '--enable-gpu-rasterization',
+              '--enable-zero-copy',
+              '--enable-features=VaapiVideoDecoder', // Linux hardware decode
+              '--disable-software-rasterizer', // Force hardware
+              '--enable-accelerated-video-decode',
+              '--enable-accelerated-2d-canvas',
+              '--num-raster-threads=4' // Parallel rasterization
+            ],
             enableMultiProcessOnLinux: true,
             disableWebSecurity: false,
             ignoreCertificateErrors: false,
@@ -600,6 +636,201 @@ class ExportWorker extends BaseWorker {
       }
       throw error;
     }
+  }
+
+  private ensureFileVideoUrls(job: ExportJob): void {
+    if (!job.inputProps) {
+      return;
+    }
+
+    this.normalizeVideoProps(job.inputProps);
+  }
+
+  private normalizeVideoProps(inputProps: any): void {
+    if (!inputProps || typeof inputProps !== 'object') {
+      return;
+    }
+
+    const clipRecordingId =
+      inputProps?.clip?.recordingId ||
+      inputProps?.clip?.recording?.id;
+
+    const normalizedPrimary = this.resolveVideoUrlToFile(
+      inputProps.videoUrl,
+      clipRecordingId,
+      inputProps
+    );
+
+    if (normalizedPrimary && normalizedPrimary !== inputProps.videoUrl) {
+      console.log('[ExportWorker] Normalized videoUrl to file://', {
+        from: inputProps.videoUrl,
+        to: normalizedPrimary
+      });
+      inputProps.videoUrl = normalizedPrimary;
+    }
+
+    const videoUrls = inputProps.videoUrls;
+    if (!videoUrls) {
+      return;
+    }
+
+    if (videoUrls instanceof Map) {
+      videoUrls.forEach((url: unknown, recId: string) => {
+        if (typeof url !== 'string') {
+          return;
+        }
+        const normalized = this.resolveVideoUrlToFile(url, recId, inputProps);
+        if (normalized && normalized !== url) {
+          videoUrls.set(recId, normalized);
+        }
+      });
+      return;
+    }
+
+    if (typeof videoUrls === 'object') {
+      Object.entries(videoUrls as Record<string, string | undefined>).forEach(([recId, url]) => {
+        if (typeof url !== 'string') {
+          return;
+        }
+        const normalized = this.resolveVideoUrlToFile(url, recId, inputProps);
+        if (normalized && normalized !== url) {
+          inputProps.videoUrls[recId] = normalized;
+        }
+      });
+    }
+  }
+
+  private resolveVideoUrlToFile(
+    url: string | undefined,
+    recordingId: string | undefined,
+    inputProps: any
+  ): string | undefined {
+    if (!url || typeof url !== 'string') {
+      return url;
+    }
+
+    const trimmed = url.trim();
+    if (!trimmed) {
+      return url;
+    }
+
+    if (
+      trimmed.startsWith('file://') ||
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('https://')
+    ) {
+      return trimmed;
+    }
+
+    let normalizedPath = this.normalizeVideoPath(trimmed);
+
+    const recording =
+      recordingId && inputProps?.recordings
+        ? inputProps.recordings[recordingId]
+        : null;
+
+    const folderPath =
+      typeof recording?.folderPath === 'string'
+        ? this.normalizeVideoPath(recording.folderPath)
+        : null;
+
+    const projectFolder =
+      typeof inputProps?.projectFolder === 'string'
+        ? this.normalizeVideoPath(inputProps.projectFolder)
+        : null;
+
+    const candidates = new Set<string>();
+
+    if (recording?.filePath && typeof recording.filePath === 'string') {
+      candidates.add(this.normalizeVideoPath(recording.filePath));
+    }
+
+    if (normalizedPath) {
+      candidates.add(normalizedPath);
+    }
+
+    if (folderPath) {
+      const basename = normalizedPath ? path.basename(normalizedPath) : null;
+      if (basename) {
+        candidates.add(path.join(folderPath, basename));
+      }
+
+      if (recording?.filePath) {
+        candidates.add(path.join(folderPath, path.basename(recording.filePath)));
+      }
+    }
+
+    if (projectFolder && normalizedPath && !path.isAbsolute(normalizedPath)) {
+      candidates.add(path.join(projectFolder, normalizedPath));
+    }
+
+    for (const candidate of candidates) {
+      if (!candidate) {
+        continue;
+      }
+
+      const absoluteCandidate = path.isAbsolute(candidate)
+        ? candidate
+        : folderPath && path.isAbsolute(folderPath)
+          ? path.join(folderPath, candidate)
+          : projectFolder && path.isAbsolute(projectFolder)
+            ? path.join(projectFolder, candidate)
+            : path.resolve(candidate);
+
+      if (fsSync.existsSync(absoluteCandidate)) {
+        return pathToFileURL(absoluteCandidate).href;
+      }
+    }
+
+    return url;
+  }
+
+  private normalizeVideoPath(inputPath: string): string {
+    if (!inputPath) {
+      return '';
+    }
+
+    let normalized = inputPath.trim();
+
+    normalized = normalized.replace(/^(file|video-stream):\/+/i, '');
+
+    if (normalized.startsWith('local/')) {
+      normalized = normalized.slice(6);
+    } else if (normalized.startsWith('file/')) {
+      normalized = normalized.slice(5);
+    }
+
+    const queryIndex = normalized.indexOf('?');
+    if (queryIndex >= 0) {
+      normalized = normalized.slice(0, queryIndex);
+    }
+
+    const hashIndex = normalized.indexOf('#');
+    if (hashIndex >= 0) {
+      normalized = normalized.slice(0, hashIndex);
+    }
+
+    try {
+      normalized = decodeURIComponent(normalized);
+    } catch {
+      // ignore decode errors
+    }
+
+    normalized = normalized.replace(/^([A-Za-z])%3A/i, '$1:');
+
+    if (process.platform === 'win32') {
+      normalized = normalized.replace(/\//g, '\\');
+      if (normalized.match(/^[a-z]:/)) {
+        normalized = normalized[0].toUpperCase() + normalized.slice(1);
+      }
+    } else {
+      normalized = normalized.replace(/\\/g, '/');
+      if (!normalized.startsWith('/') && normalized.match(/^(Users|home|var|tmp|opt|Volumes)/i)) {
+        normalized = '/' + normalized;
+      }
+    }
+
+    return normalized;
   }
 
   private buildChunkPlan(totalFrames: number, chunkSize: number, fps: number): ChunkAssignment[] {

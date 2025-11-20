@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Video, AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Video, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import type { VideoLayerProps } from './types';
 import { calculateVideoPosition } from './utils/video-position';
 import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-transform';
@@ -171,22 +171,20 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
     return <AbsoluteFill />
   }
 
-  // Simple URL normalization - let the protocol handler do the heavy lifting
+  const { isRendering } = getRemotionEnvironment();
+
+  // Simple URL normalization - prefer file:// when already provided
   let finalVideoUrl = videoUrl;
-
-  // Only convert if not already video-stream:// or http://
-  if (!videoUrl.startsWith('video-stream://') && !videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
-    // It's either file:// or a bare path - convert to video-stream://
+  if (videoUrl.startsWith('file://')) {
+    finalVideoUrl = videoUrl;
+  } else if (!videoUrl.startsWith('video-stream://') && !videoUrl.startsWith('http://') && !videoUrl.startsWith('https://')) {
     let pathToEncode = videoUrl;
-
-    // Remove file:// prefix if present
-    if (videoUrl.startsWith('file://')) {
-      pathToEncode = videoUrl.replace('file://', '');
-    }
-
-    // The protocol handler will figure out the rest
     finalVideoUrl = `video-stream://local/${encodeURIComponent(pathToEncode)}`;
     console.log('[VideoLayer] Normalized URL', { from: videoUrl, to: finalVideoUrl });
+  }
+
+  if (isRendering) {
+    console.log('[VideoLayer] Rendering video src', finalVideoUrl);
   }
 
   // OPTIMIZATION: Combine shadow + container into single layer using CSS filter
@@ -217,10 +215,11 @@ export const VideoLayer: React.FC<VideoLayerProps> = ({
           height: drawHeight,
           borderRadius: `${cornerRadius}px`,
           overflow: 'hidden',
-          transform: finalTransform,
+          transform: `translate3d(0,0,0) ${finalTransform}`, // Force GPU layer with translate3d
           transformOrigin: '50% 50%',
           filter: combinedFilter || undefined,
-          willChange: 'transform, filter' // GPU acceleration hint
+          willChange: 'transform, filter', // GPU acceleration hint
+          backfaceVisibility: 'hidden' as const // Force GPU compositing
         }}
       >
         {/* Use Video component - more efficient with limited memory */}
