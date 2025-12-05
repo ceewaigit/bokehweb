@@ -33,16 +33,16 @@ export class RemotionExportService {
   ): Promise<Blob> {
     this.abortSignal = abortSignal || null;
     this.isAborting = false;
-    
+
     // Set up abort handler - use direct invoke instead of ipcRenderer property
     if (this.abortSignal) {
       this.abortSignal.addEventListener('abort', () => {
         this.isAborting = true;
         logger.info('Export aborted by user');
-        
+
         // Cancel export in main process - use direct invoke method if available
         if (window.electronAPI?.ipcRenderer?.invoke) {
-          window.electronAPI.ipcRenderer.invoke('export-cancel').catch(() => {});
+          window.electronAPI.ipcRenderer.invoke('export-cancel').catch(() => { });
         }
       });
     }
@@ -55,12 +55,12 @@ export class RemotionExportService {
 
       // Log what's available for debugging
       logger.info('Available electronAPI methods:', Object.keys(window.electronAPI));
-      
+
       // Deep check for nested properties
-      const hasIpcRenderer = window.electronAPI.ipcRenderer && 
-                             typeof window.electronAPI.ipcRenderer.invoke === 'function' &&
-                             typeof window.electronAPI.ipcRenderer.on === 'function' &&
-                             typeof window.electronAPI.ipcRenderer.removeListener === 'function';
+      const hasIpcRenderer = window.electronAPI.ipcRenderer &&
+        typeof window.electronAPI.ipcRenderer.invoke === 'function' &&
+        typeof window.electronAPI.ipcRenderer.on === 'function' &&
+        typeof window.electronAPI.ipcRenderer.removeListener === 'function';
 
       if (!hasIpcRenderer) {
         // Log detailed debugging info
@@ -70,10 +70,10 @@ export class RemotionExportService {
           ipcRendererKeys: window.electronAPI.ipcRenderer ? Object.keys(window.electronAPI.ipcRenderer) : 'undefined',
           electronAPIKeys: Object.keys(window.electronAPI)
         });
-        
+
         throw new Error('IPC renderer not properly initialized. Export cannot proceed.');
       }
-      
+
       logger.info('IPC renderer verified and ready')
 
       const totalDuration = this.calculateTotalDuration(segments);
@@ -140,37 +140,37 @@ export class RemotionExportService {
       }
 
       let blob: Blob;
-      
+
       if (result.isStream) {
         // Handle streaming for large files
         logger.info(`Streaming large file: ${result.fileSize} bytes`);
-        
+
         const chunks: Uint8Array[] = [];
         const chunkSize = 5 * 1024 * 1024; // 5MB chunks
         let offset = 0;
-        
+
         while (offset < result.fileSize) {
           // Check for abort
           if (this.abortSignal?.aborted || this.isAborting) {
             // Clean up temp file
             await window.electronAPI!.ipcRenderer.invoke('export-cleanup', {
               filePath: result.filePath
-            }).catch(() => {});
+            }).catch(() => { });
             throw new Error('Export aborted during streaming');
           }
-          
+
           const length = Math.min(chunkSize, result.fileSize - offset);
-          
+
           const chunkResult = await window.electronAPI!.ipcRenderer.invoke('export-stream-chunk', {
             filePath: result.filePath,
             offset,
             length
           });
-          
+
           if (!chunkResult.success) {
             throw new Error('Failed to stream file chunk');
           }
-          
+
           // Decode chunk
           const binaryString = atob(chunkResult.data);
           const bytes = new Uint8Array(binaryString.length);
@@ -178,9 +178,9 @@ export class RemotionExportService {
             bytes[i] = binaryString.charCodeAt(i);
           }
           chunks.push(bytes);
-          
+
           offset += length;
-          
+
           // Update progress
           const streamProgress = 95 + (offset / result.fileSize) * 5;
           onProgress?.({
@@ -189,12 +189,12 @@ export class RemotionExportService {
             message: `Processing: ${Math.round(offset / 1024 / 1024)}MB / ${Math.round(result.fileSize / 1024 / 1024)}MB`
           });
         }
-        
+
         // Combine chunks into blob
         blob = new Blob(chunks as BlobPart[], {
           type: settings.format === 'webm' ? 'video/webm' : 'video/mp4'
         });
-        
+
         // Clean up temp file
         await window.electronAPI!.ipcRenderer.invoke('export-cleanup', {
           filePath: result.filePath
@@ -206,7 +206,7 @@ export class RemotionExportService {
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-        
+
         blob = new Blob([bytes], {
           type: settings.format === 'webm' ? 'video/webm' : 'video/mp4'
         });
@@ -223,17 +223,17 @@ export class RemotionExportService {
 
     } catch (error) {
       logger.error('Remotion export failed:', error);
-      
+
       // Check if it was an abort
-      const isAbort = this.isAborting || this.abortSignal?.aborted || 
-                      (error instanceof Error && error.message.includes('abort'));
-      
+      const isAbort = this.isAborting || this.abortSignal?.aborted ||
+        (error instanceof Error && error.message.includes('abort'));
+
       onProgress?.({
         progress: 0,
         stage: 'error',
         message: isAbort ? 'Export canceled' : `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
-      
+
       throw error;
     } finally {
       // Clean up
@@ -247,10 +247,10 @@ export class RemotionExportService {
    */
   private calculateTotalDuration(segments: TimelineSegment[]): number {
     if (segments.length === 0) return 0;
-    
+
     const firstSegment = segments[0];
     const lastSegment = segments[segments.length - 1];
-    
+
     return lastSegment.endTime - firstSegment.startTime;
   }
 }

@@ -275,10 +275,12 @@ export interface ZoomBlock {
   startTime: number
   endTime: number
   scale: number
-  targetX?: number
-  targetY?: number
-  introMs?: number  // Duration of zoom in animation
-  outroMs?: number  // Duration of zoom out animation
+  targetX?: number        // Screen pixel coordinates
+  targetY?: number        // Screen pixel coordinates
+  screenWidth?: number    // Screen dimensions for normalization (fixes Retina display issues)
+  screenHeight?: number   // Screen dimensions for normalization (fixes Retina display issues)
+  introMs?: number        // Duration of zoom in animation
+  outroMs?: number        // Duration of zoom out animation
 }
 
 // Background type enum
@@ -340,8 +342,10 @@ export enum MouseButton {
 // New: Effect-specific data types for independent effects
 export interface ZoomEffectData {
   scale: number
-  targetX?: number
-  targetY?: number
+  targetX?: number          // Screen pixel coordinates
+  targetY?: number          // Screen pixel coordinates
+  screenWidth?: number      // Screen dimensions for normalization (fixes Retina display issues)
+  screenHeight?: number     // Screen dimensions for normalization (fixes Retina display issues)
   introMs: number
   outroMs: number
   smoothing: number

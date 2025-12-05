@@ -94,7 +94,12 @@ export class ZoomDetector {
           introMs: 400,
           outroMs: 500,
           scale: zoomScale,
-          // Note: zoom target is dynamically calculated from mouse position
+          // Zoom target set to cluster center (screen pixels, normalized downstream)
+          targetX: cluster.center.x,
+          targetY: cluster.center.y,
+          // Store screen dimensions for proper normalization (fixes Retina display issues)
+          screenWidth: screenWidth,
+          screenHeight: screenHeight,
         })
       }
     })

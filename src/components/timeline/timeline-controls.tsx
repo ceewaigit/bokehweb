@@ -24,6 +24,8 @@ interface TimelineControlsProps {
   currentTime: number
   maxDuration: number
   zoom: number
+  minZoom?: number // Dynamic minimum zoom (default: 0.05)
+  maxZoom?: number // Dynamic maximum zoom (default: 5)
   selectedClips: string[]
   copiedClip?: any
   onPlay: () => void
@@ -44,6 +46,8 @@ export const TimelineControls = React.memo(({
   currentTime,
   maxDuration,
   zoom,
+  minZoom = 0.05,
+  maxZoom = 5,
   selectedClips,
   copiedClip,
   onPlay,
@@ -61,6 +65,10 @@ export const TimelineControls = React.memo(({
   const hasSelection = selectedClips.length > 0
   const hasSingleSelection = selectedClips.length === 1
   const { settings, updateSettings } = useProjectStore()
+
+  // Ensure zoom limits are valid
+  const effectiveMinZoom = Math.max(0.01, minZoom)
+  const effectiveMaxZoom = Math.min(10, maxZoom)
 
   return (
     <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50 bg-background/95">
@@ -191,9 +199,10 @@ export const TimelineControls = React.memo(({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => onZoomChange(Math.max(0.05, zoom - 0.1))}
+          onClick={() => onZoomChange(Math.max(effectiveMinZoom, zoom - 0.1))}
           className="h-7 w-7 p-0"
           title="Zoom Out"
+          disabled={zoom <= effectiveMinZoom}
         >
           <ZoomOut className="w-3.5 h-3.5" />
         </Button>
@@ -201,8 +210,8 @@ export const TimelineControls = React.memo(({
         <Slider
           value={[zoom]}
           onValueChange={([value]) => onZoomChange(value)}
-          min={0.05}
-          max={5}
+          min={effectiveMinZoom}
+          max={effectiveMaxZoom}
           step={0.05}
           className="w-24"
           title={`Zoom: ${(zoom * 100).toFixed(0)}%`}
@@ -211,9 +220,10 @@ export const TimelineControls = React.memo(({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => onZoomChange(Math.min(5, zoom + 0.1))}
+          onClick={() => onZoomChange(Math.min(effectiveMaxZoom, zoom + 0.1))}
           className="h-7 w-7 p-0"
           title="Zoom In"
+          disabled={zoom >= effectiveMaxZoom}
         >
           <ZoomIn className="w-3.5 h-3.5" />
         </Button>

@@ -20,6 +20,7 @@ import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { TimelineConfig } from '@/lib/timeline/config'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
@@ -101,6 +102,10 @@ async function loadProjectRecording(
               tempVideo.load()
             })
 
+            // Properly release video resources before removing
+            tempVideo.pause()
+            tempVideo.src = ''
+            tempVideo.load()
             tempVideo.remove()
           } else {
             console.error('Failed to load video for property detection')
@@ -234,10 +239,26 @@ async function loadProjectRecording(
   // Verify after setting
   const storedProject = useProjectStore.getState().currentProject
 
-  // Calculate and set optimal zoom for the timeline
+  // Calculate adaptive zoom limits based on zoom blocks
   const viewportWidth = window.innerWidth
+  const allZoomEffects = project.recordings.flatMap((r: any) =>
+    EffectsFactory.getZoomEffects(r.effects || [])
+  )
+  const zoomBlocks = allZoomEffects.map((e: any) => ({
+    startTime: e.startTime,
+    endTime: e.endTime
+  }))
+  const adaptiveLimits = TimeConverter.calculateAdaptiveZoomLimits(
+    project.timeline.duration,
+    viewportWidth,
+    zoomBlocks,
+    TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX
+  )
+
+  // Calculate optimal zoom and clamp to adaptive limits
   const optimalZoom = TimeConverter.calculateOptimalZoom(project.timeline.duration, viewportWidth)
-  useProjectStore.getState().setAutoZoom(optimalZoom)
+  const clampedZoom = Math.max(adaptiveLimits.min, Math.min(adaptiveLimits.max, optimalZoom))
+  useProjectStore.getState().setAutoZoom(clampedZoom)
 
   const firstClip = project.timeline.tracks
     .flatMap((t: any) => t.clips)
@@ -376,6 +397,23 @@ export function WorkspaceManager() {
         e.preventDefault()
         await handleSaveProject()
       }
+
+      // Cmd+Z or Ctrl+Z for Undo
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        if (commandManagerRef.current?.canUndo()) {
+          await commandManagerRef.current.undo()
+        }
+      }
+
+      // Cmd+Shift+Z or Ctrl+Shift+Z (or Ctrl+Y) for Redo
+      if (((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') ||
+        ((e.metaKey || e.ctrlKey) && e.key === 'y')) {
+        e.preventDefault()
+        if (commandManagerRef.current?.canRedo()) {
+          await commandManagerRef.current.redo()
+        }
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -433,8 +471,14 @@ export function WorkspaceManager() {
   const handleEffectChange = useCallback((type: EffectType, data: any) => {
     // Get effects from single source of truth
     const baseEffects = getEffectsForContext()
+    const commandManager = commandManagerRef.current
 
-    let newEffects: Effect[]
+    if (!commandManager) return
+
+    // Helper to execute commands
+    const executeCommand = (commandName: string, ...args: any[]) => {
+      commandManager.executeByName(commandName, ...args)
+    }
 
     // Zoom-specific handling
     if (type === EffectType.Zoom && (data.enabled !== undefined || data.regenerate)) {
@@ -448,41 +492,31 @@ export function WorkspaceManager() {
           const recording = playheadRecording || currentProject?.recordings[0]
           if (recording) {
             const zoomEffects = EffectsFactory.createZoomEffectsFromRecording(recording)
-            newEffects = [...baseEffects, ...zoomEffects]
 
             // Add directly to recording.effects
-            if (!recording.effects) recording.effects = []
-            recording.effects.push(...zoomEffects)
-            // Force store update
-            if (currentProject) {
-              setProject({ ...currentProject })
-            }
-          } else {
-            newEffects = [...baseEffects]
+            // We'll use a composite command or just multiple add commands if we want undo support for this generation
+            // For now, let's just add them one by one or use a specialized command if needed
+            // But wait, the original code modified the recording object directly.
+            // Let's use AddEffectCommand for each generated effect
+            zoomEffects.forEach(effect => {
+              executeCommand('AddEffect', effect)
+            })
           }
         } else {
           // Update existing zoom effects
-          newEffects = baseEffects.map(effect => (
-            effect.type === EffectType.Zoom ? { ...effect, enabled: data.enabled } : effect
-          ))
-
-          // Also update store so timeline reflects the state immediately
           baseEffects.forEach(effect => {
             if (effect.type === EffectType.Zoom) {
-              updateEffect(effect.id, { enabled: data.enabled })
+              executeCommand('UpdateEffect', effect.id, { enabled: data.enabled })
             }
           })
         }
-      } else {
-        newEffects = [...baseEffects]
       }
     } else if (type === EffectType.Zoom && selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id) {
       // Update a specific zoom block
       const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {
         const effect = baseEffects[existingEffectIndex]
-        // Persist directly to store
-        updateEffect(effect.id, {
+        executeCommand('UpdateEffect', effect.id, {
           data: {
             ...effect.data,
             ...data
@@ -491,14 +525,14 @@ export function WorkspaceManager() {
       }
       return
     } else if (type === EffectType.Zoom) {
-      newEffects = [...baseEffects]
+      // No specific zoom block selected, maybe just toggling?
+      // Original code did nothing here: newEffects = [...baseEffects]
     } else if (type === EffectType.Screen && selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id) {
       // Update a specific screen block
       const existingEffectIndex = baseEffects.findIndex(e => e.id === selectedEffectLayer.id)
       if (existingEffectIndex >= 0) {
         const effect = baseEffects[existingEffectIndex]
-        // Persist directly to store
-        updateEffect(effect.id, {
+        executeCommand('UpdateEffect', effect.id, {
           data: {
             ...effect.data,
             ...data
@@ -516,8 +550,8 @@ export function WorkspaceManager() {
         const prev = baseEffects[existsIndex]
         const enabled = data.enabled !== undefined ? data.enabled : prev.enabled
         const mergedData = { ...(prev as any).data, ...(data.data || {}), kind }
-        // Persist directly to store
-        updateEffect(prev.id, {
+
+        executeCommand('UpdateEffect', prev.id, {
           enabled,
           data: mergedData
         })
@@ -534,8 +568,7 @@ export function WorkspaceManager() {
           enabled: data.enabled !== undefined ? data.enabled : true,
           data: { kind, ...(data.data || {}) }
         }
-        // Persist directly to store
-        addEffect(newEffect)
+        executeCommand('AddEffect', newEffect)
       }
       return
     } else {
@@ -547,8 +580,7 @@ export function WorkspaceManager() {
         const enabled = data.enabled !== undefined ? data.enabled : effect.enabled
         const { enabled: _dataEnabled, ...effectData } = data
 
-        // Persist directly to store
-        updateEffect(effect.id, {
+        executeCommand('UpdateEffect', effect.id, {
           enabled,
           data: {
             ...effect.data,
@@ -565,11 +597,10 @@ export function WorkspaceManager() {
           data: effectData,
           enabled: dataEnabled !== undefined ? dataEnabled : true
         }
-        // Persist directly to store
-        addEffect(newEffect)
+        executeCommand('AddEffect', newEffect)
       }
     }
-  }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, getEffectsForContext, updateEffect, addEffect])
+  }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, getEffectsForContext])
 
 
 
@@ -688,11 +719,8 @@ export function WorkspaceManager() {
             {/* Preview Area */}
             <div className="overflow-hidden" style={{ width: isPropertiesOpen ? `calc(100vw - ${propertiesPanelWidth}px)` : '100vw' }}>
               <PreviewAreaRemotion
-                playheadClip={playheadClip}
-                playheadRecording={playheadRecording}
                 currentTime={currentTime}
                 isPlaying={isPlaying}
-                localEffects={null}
               />
             </div>
 

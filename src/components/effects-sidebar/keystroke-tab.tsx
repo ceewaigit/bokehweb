@@ -19,10 +19,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-medium flex items-center gap-2">
-        <Keyboard className="w-4 h-4" />
-        <span>Keystrokes</span>
-      </h3>
+
 
       {/* Master keystroke visibility toggle */}
       <div className="p-3 bg-background/30 rounded-lg">
@@ -58,7 +55,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
           <div className="p-3 bg-background/30 rounded-lg space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Position</label>
             <div className="grid grid-cols-3 gap-1">
-              {(['bottom-center', 'bottom-right', 'top-center'] as const).map((pos) => (
+              {([KeystrokePosition.BottomCenter, KeystrokePosition.BottomRight, KeystrokePosition.TopCenter] as const).map((pos) => (
                 <button
                   key={pos}
                   onClick={() => onUpdateKeystroke({ position: pos })}

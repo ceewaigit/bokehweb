@@ -87,16 +87,22 @@ export class ThumbnailGenerator {
       video.muted = true
 
       let resolved = false
+      let cleaned = false
 
-      const cleanup = () => {
-        if (!resolved) {
-          resolved = true
-          video.remove()
-        }
+      const cleanupVideo = () => {
+        if (cleaned) return
+        cleaned = true
+        // Properly release video resources before removing
+        video.pause()
+        video.src = ''
+        video.load()
+        video.remove()
       }
 
       const handleError = () => {
-        cleanup()
+        if (resolved) return
+        resolved = true
+        cleanupVideo()
         resolve(null)
       }
 
@@ -146,7 +152,7 @@ export class ThumbnailGenerator {
           const dataUrl = canvas.toDataURL('image/jpeg', quality)
 
           resolved = true
-          cleanup()
+          cleanupVideo()
           resolve(dataUrl)
         } catch (error) {
           handleError()

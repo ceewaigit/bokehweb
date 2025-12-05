@@ -18,10 +18,7 @@ interface ScreenTabProps {
 export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }: ScreenTabProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-medium flex items-center gap-2">
-        <Monitor className="w-4 h-4" />
-        <span>3D Screen Effects</span>
-      </h3>
+
 
       {/* Add Screen Block */}
       <div className="p-3 bg-background/30 rounded-lg">
@@ -53,9 +50,9 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
           <label className="text-xs font-medium text-muted-foreground mb-2 block">3D Preset</label>
           <div className="grid grid-cols-2 gap-1">
             {([
-              'subtle', 'medium', 'dramatic', 'window', 
-              'cinematic', 'hero', 'isometric', 'flat', 
-              'tilt-left', 'tilt-right'
+              ScreenEffectPreset.Subtle, ScreenEffectPreset.Medium, ScreenEffectPreset.Dramatic, ScreenEffectPreset.Window,
+              ScreenEffectPreset.Cinematic, ScreenEffectPreset.Hero, ScreenEffectPreset.Isometric, ScreenEffectPreset.Flat,
+              ScreenEffectPreset.TiltLeft, ScreenEffectPreset.TiltRight
             ] as const).map(preset => (
               <button
                 key={preset}

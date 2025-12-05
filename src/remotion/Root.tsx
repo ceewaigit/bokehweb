@@ -1,56 +1,50 @@
 import React from 'react';
 import { Composition } from 'remotion';
-import { MainComposition } from './compositions/MainComposition';
+import { TimelineComposition } from './compositions/TimelineComposition';
+import type { TimelineCompositionProps } from './compositions/TimelineComposition';
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
-        id="MainComposition"
-        component={MainComposition as any}
+        id="TimelineComposition"
+        component={TimelineComposition as any}
         durationInFrames={900} // Default, will be overridden by calculateMetadata
         fps={30}
         width={1920}
         height={1080}
-        calculateMetadata={({ props }: { props: any }) => {
-          // Calculate duration from clip
-          const clip = props.clip;
-          const fps = props.framerate || 30;
+        calculateMetadata={({ props }: any) => {
+          // Calculate duration from all clips (timeline duration)
+          const { clips, fps, videoWidth, videoHeight } = props;
 
-          if (clip && typeof clip.duration === 'number' && clip.duration > 0) {
-            const durationInFrames = Math.ceil((clip.duration / 1000) * fps);
+          if (clips && clips.length > 0) {
+            // Calculate total timeline duration (max end time of any clip)
+            const totalDurationMs = Math.max(...clips.map((c: any) => c.startTime + c.duration));
+            const durationInFrames = Math.ceil((totalDurationMs / 1000) * fps);
 
             return {
               durationInFrames,
               fps,
-              width: props.videoWidth || props.resolution?.width || 1920,
-              height: props.videoHeight || props.resolution?.height || 1080,
+              width: videoWidth || 1920,
+              height: videoHeight || 1080,
             };
           }
 
-          // Fallback for minimal props during composition selection
-          const defaultWidth = props.videoWidth || props.resolution?.width || 1920;
-          const defaultHeight = props.videoHeight || props.resolution?.height || 1080;
-
+          // Fallback for empty timeline
           return {
-            durationInFrames: 900, // Default fallback
-            fps,
-            width: defaultWidth,
-            height: defaultHeight,
+            durationInFrames: 900,
+            fps: fps || 30,
+            width: videoWidth || 1920,
+            height: videoHeight || 1080,
           };
         }}
         defaultProps={{
-          videoUrl: '',
-          clip: null,
+          clips: [],
+          recordings: [],
           effects: [],
-          cursorEvents: [],
-          clickEvents: [],
-          keystrokeEvents: [],
-          scrollEvents: [],
           videoWidth: 1920,
           videoHeight: 1080,
-          framerate: 30,
-          resolution: { width: 1920, height: 1080 }
+          fps: 30,
         }}
       />
     </>

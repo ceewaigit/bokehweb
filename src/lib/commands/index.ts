@@ -23,7 +23,10 @@ export {
 export {
   AddZoomBlockCommand,
   RemoveZoomBlockCommand,
-  UpdateZoomBlockCommand
+  UpdateZoomBlockCommand,
+  AddEffectCommand,
+  RemoveEffectCommand,
+  UpdateEffectCommand
 } from './effects'
 
 // Clipboard commands
@@ -45,6 +48,9 @@ import { ChangePlaybackRateCommand } from './timeline/ChangePlaybackRateCommand'
 import { AddZoomBlockCommand } from './effects/AddZoomBlockCommand'
 import { RemoveZoomBlockCommand } from './effects/RemoveZoomBlockCommand'
 import { UpdateZoomBlockCommand } from './effects/UpdateZoomBlockCommand'
+import { AddEffectCommand } from './effects/AddEffectCommand'
+import { RemoveEffectCommand } from './effects/RemoveEffectCommand'
+import { UpdateEffectCommand } from './effects/UpdateEffectCommand'
 import { CopyCommand } from './clipboard/CopyCommand'
 import { CutCommand } from './clipboard/CutCommand'
 import { PasteCommand } from './clipboard/PasteCommand'
@@ -58,17 +64,20 @@ export function registerAllCommands(manager: CommandManager): void {
   manager.registerCommand('UpdateClip', UpdateClipCommand as any)
   manager.registerCommand('Trim', TrimCommand as any)
   manager.registerCommand('ChangePlaybackRate', ChangePlaybackRateCommand as any)
-  
+
   // Effect commands
   manager.registerCommand('AddZoomBlock', AddZoomBlockCommand as any)
   manager.registerCommand('RemoveZoomBlock', RemoveZoomBlockCommand as any)
   manager.registerCommand('UpdateZoomBlock', UpdateZoomBlockCommand as any)
-  
+  manager.registerCommand('AddEffect', AddEffectCommand as any)
+  manager.registerCommand('RemoveEffect', RemoveEffectCommand as any)
+  manager.registerCommand('UpdateEffect', UpdateEffectCommand as any)
+
   // Clipboard commands
   manager.registerCommand('Copy', CopyCommand as any)
   manager.registerCommand('Cut', CutCommand as any)
   manager.registerCommand('Paste', PasteCommand as any)
-  
+
   // Register shortcuts
   manager.registerShortcut('cmd+c', 'Copy')
   manager.registerShortcut('cmd+x', 'Cut')

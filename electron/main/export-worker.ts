@@ -10,7 +10,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import { tmpdir } from 'os';
-import { pathToFileURL } from 'url';
 
 interface ChunkAssignment {
   index: number;
@@ -191,7 +190,8 @@ class ExportWorker extends BaseWorker {
     let lastProgressUpdate = Date.now();
 
     this.normalizeVideoProps(job.inputProps);
-    console.log('[ExportWorker] inputProps.videoUrl:', job.inputProps?.videoUrl);
+    console.log('[ExportWorker] inputProps.videoUrls:', job.inputProps?.videoUrls);
+    console.log('[ExportWorker] recording IDs:', Object.keys(job.inputProps?.videoUrls || {}));
 
     // Use renderMedia for memory-efficient single-pass rendering
     await renderMedia({
@@ -212,42 +212,38 @@ class ExportWorker extends BaseWorker {
       everyNthFrame: 1, // Process every frame
       preferLossless: false, // Prefer speed over lossless
       chromiumOptions: {
-        // OPTIMIZED: Enable GPU acceleration for hardware video decoding
-        gl: job.useGPU ? 'angle' : 'swangle', // Use ANGLE for GPU, swangle for software
-        headless: false,
+        // STABILITY FIX: Use conservative GPU settings to prevent crashes
+        // Previous aggressive GPU flags caused "Target closed" errors from driver issues
+        gl: job.useGPU ? 'angle' : 'swangle',
+        headless: true,
         args: [
           '--allow-file-access',
           '--allow-file-access-from-files',
-          // CRITICAL: Enable hardware acceleration flags for video decoding
-          '--ignore-gpu-blocklist',
+          // STABILITY: Removed aggressive GPU flags that caused crashes:
+          // - --ignore-gpu-blocklist (can use unstable GPU features)
+          // - --disable-software-rasterizer (prevents fallback to CPU)
+          // - --enable-zero-copy (can cause memory issues)
           '--enable-gpu-rasterization',
-          '--enable-zero-copy',
-          '--enable-features=VaapiVideoDecoder', // Linux hardware decode
-          '--disable-software-rasterizer', // Force hardware
           '--enable-accelerated-video-decode',
           '--enable-accelerated-2d-canvas',
-          '--num-raster-threads=4' // Parallel rasterization
+          '--num-raster-threads=2' // Reduced from 4 to prevent resource contention
         ],
         enableMultiProcessOnLinux: true,
         disableWebSecurity: false,
         ignoreCertificateErrors: false,
-        // Add explicit GPU acceleration flags for video decoding
+        // STABILITY: Only enable GPU acceleration if requested, and with safer options
         ...(job.useGPU ? {
-          // Enable hardware video decoding on macOS/Windows/Linux
           enableAcceleratedVideoDecode: true,
-          // Use native GL instead of SwiftShader for better performance
-          ignoreGpuBlocklist: true,
+          // Removed ignoreGpuBlocklist to respect system GPU blocklist for stability
         } : {}),
-        // PERFORMANCE: Enable OffscreenCanvas for faster canvas operations
-        // OffscreenCanvas allows rendering to happen off the main thread
-        userAgent: undefined, // Keep default
-        ...({ chromiumSandbox: true, enableFakeUserMedia: false } as any), // Cast to bypass type check
+        userAgent: undefined,
+        ...({ chromiumSandbox: true, enableFakeUserMedia: false } as any),
       },
       binariesDirectory: job.compositorDir,
       // CRITICAL FIX: Force single-threaded rendering when concurrency=1
       // Remotion may override concurrency setting, so explicitly disable parallel encoding
       disallowParallelEncoding: renderConcurrency === 1,
-      logLevel: 'trace',
+      logLevel: 'warn',  // Reduced from 'trace' to avoid console spam
       onStart: ({ resolvedConcurrency, parallelEncoding }) => {
         console.log(`[ExportWorker] Rendering with concurrency=${resolvedConcurrency}, parallelEncoding=${parallelEncoding}`);
       },
@@ -418,7 +414,8 @@ class ExportWorker extends BaseWorker {
 
         const chunkFrameRange: [number, number] = [startFrame, endFrame];
 
-        console.log('[ExportWorker] chunk inputProps.videoUrl:', chunkInputProps?.videoUrl);
+        console.log('[ExportWorker] chunk inputProps.videoUrls:', chunkInputProps?.videoUrls);
+        console.log('[ExportWorker] chunk recording IDs:', Object.keys(chunkInputProps?.videoUrls || {}));
 
         await renderMedia({
           serveUrl: job.bundleLocation,
@@ -439,38 +436,31 @@ class ExportWorker extends BaseWorker {
           everyNthFrame: 1,
           preferLossless: false, // Prefer speed
           chromiumOptions: {
-            // OPTIMIZED: Enable GPU acceleration for hardware video decoding
-            gl: job.useGPU ? 'angle' : 'swangle', // Use ANGLE for GPU, swangle for software
+            // STABILITY FIX: Use conservative GPU settings to prevent crashes
+            gl: job.useGPU ? 'angle' : 'swangle',
             headless: true,
             args: [
               '--allow-file-access',
               '--allow-file-access-from-files',
-              // CRITICAL: Enable hardware acceleration flags for video decoding
-              '--ignore-gpu-blocklist',
+              // STABILITY: Removed aggressive GPU flags that caused crashes
               '--enable-gpu-rasterization',
-              '--enable-zero-copy',
-              '--enable-features=VaapiVideoDecoder', // Linux hardware decode
-              '--disable-software-rasterizer', // Force hardware
               '--enable-accelerated-video-decode',
               '--enable-accelerated-2d-canvas',
-              '--num-raster-threads=4' // Parallel rasterization
+              '--num-raster-threads=2' // Reduced from 4 to prevent resource contention
             ],
             enableMultiProcessOnLinux: true,
             disableWebSecurity: false,
             ignoreCertificateErrors: false,
-            // Add explicit GPU acceleration flags for video decoding
             ...(job.useGPU ? {
               enableAcceleratedVideoDecode: true,
-              ignoreGpuBlocklist: true,
             } : {}),
-            // PERFORMANCE: Enable optimizations
             userAgent: undefined,
             ...({ chromiumSandbox: true, enableFakeUserMedia: false } as any),
           },
           binariesDirectory: job.compositorDir,
           // CRITICAL FIX: Force single-threaded rendering when concurrency=1
           disallowParallelEncoding: renderConcurrency === 1,
-          logLevel: 'info',
+          logLevel: 'warn',  // Reduced from 'info' to avoid console spam
           onProgress: ({ renderedFrames }) => {
             const chunkProgress = renderedFrames / chunkFrames;
             const totalProgress = 10 + ((chunkInfo.index + chunkProgress) / Math.max(1, totalChunkCount)) * 80;
@@ -498,6 +488,12 @@ class ExportWorker extends BaseWorker {
         // Force garbage collection between chunks if available
         if (global.gc) {
           global.gc();
+        }
+
+        // STABILITY FIX: Add delay between chunks to allow browser resources to be released
+        // This prevents "Target closed" errors from memory pressure
+        if (i < numChunks - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
@@ -651,23 +647,10 @@ class ExportWorker extends BaseWorker {
       return;
     }
 
-    const clipRecordingId =
-      inputProps?.clip?.recordingId ||
-      inputProps?.clip?.recording?.id;
-
-    const normalizedPrimary = this.resolveVideoUrlToFile(
-      inputProps.videoUrl,
-      clipRecordingId,
-      inputProps
-    );
-
-    if (normalizedPrimary && normalizedPrimary !== inputProps.videoUrl) {
-      console.log('[ExportWorker] Normalized videoUrl to file://', {
-        from: inputProps.videoUrl,
-        to: normalizedPrimary
-      });
-      inputProps.videoUrl = normalizedPrimary;
-    }
+    // REMOVED: Obsolete singular videoUrl normalization code
+    // After refactor from MainComposition to TimelineComposition,
+    // we now use inputProps.videoUrls (plural) instead of inputProps.videoUrl (singular)
+    // The code below handles the correct plural videoUrls property
 
     const videoUrls = inputProps.videoUrls;
     if (!videoUrls) {
@@ -778,7 +761,10 @@ class ExportWorker extends BaseWorker {
             : path.resolve(candidate);
 
       if (fsSync.existsSync(absoluteCandidate)) {
-        return pathToFileURL(absoluteCandidate).href;
+        // STABILITY: Don't convert to file:// - Chromium blocks these URLs
+        // The export handler already provides HTTP URLs via makeVideoSrc()
+        // Just return the original URL if we can't find a better one
+        console.log(`[ExportWorker] Found file at ${absoluteCandidate}, but keeping original URL to avoid file:// security issues`);
       }
     }
 
@@ -857,11 +843,30 @@ class ExportWorker extends BaseWorker {
 
   private async cancelExport(): Promise<void> {
     console.log('[ExportWorker] Cancelling export...');
+
+    if (this.currentExport) {
+      this.currentExport.isActive = false;
+    }
+
     await this.cleanup();
+
+    // STABILITY FIX: Wait for browser resources to be released
+    // This prevents memory from staying allocated after cancel
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
+
+    console.log('[ExportWorker] Cancel cleanup complete');
   }
 
   private async cleanup(): Promise<void> {
     if (!this.currentExport) return;
+
+    // Mark as inactive first
+    this.currentExport.isActive = false;
 
     // Clean up any temp files
     for (const tempFile of this.currentExport.tempFiles) {
@@ -869,6 +874,11 @@ class ExportWorker extends BaseWorker {
     }
 
     this.currentExport = null;
+
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
   }
 
   private getStatus(): { isExporting: boolean } {

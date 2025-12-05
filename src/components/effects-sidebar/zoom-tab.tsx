@@ -7,7 +7,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect, ZoomEffectData } from '@/types/project'
-import { EffectType } from '@/types/project'
+import { EffectType, ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
@@ -41,10 +41,7 @@ export function ZoomTab({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-medium flex items-center gap-2">
-        <Camera className="w-4 h-4" />
-        <span>Zoom & Motion</span>
-      </h3>
+
 
       {/* Show specific zoom block controls if one is selected */}
       {selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id && (() => {
@@ -209,7 +206,7 @@ export function ZoomTab({
           {/* Preset selector when enabled */}
           {effects?.some(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled) && (
             <div className="grid grid-cols-3 gap-1">
-              {(['subtle', 'medium', 'dramatic'] as const).map(preset => {
+              {([ScreenEffectPreset.Subtle, ScreenEffectPreset.Medium, ScreenEffectPreset.Dramatic] as const).map(preset => {
                 const scrollEffect = effects?.find(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic');
                 const currentPreset = (scrollEffect?.data as any)?.preset || 'medium';
                 return (

@@ -26,7 +26,22 @@ export class ApplyTypingSpeedToAllClipsCommand extends Command<{ affectedClips: 
   }
 
   canExecute(): boolean {
-    return true
+    const project = this.context.getProject()
+    if (!project) return false
+
+    // Check if there are any clips that could have typing suggestions
+    for (const track of project.timeline.tracks) {
+      for (const clip of track.clips) {
+        // Skip clips that already have typing speed applied
+        if (clip.typingSpeedApplied) continue
+
+        const recording = project.recordings.find(r => r.id === clip.recordingId)
+        if (recording?.metadata?.keyboardEvents?.length) {
+          return true // At least one clip has potential typing data
+        }
+      }
+    }
+    return false
   }
 
   async doExecute(): Promise<{ success: boolean; data?: { affectedClips: string[] }; error?: string }> {
@@ -91,19 +106,31 @@ export class ApplyTypingSpeedToAllClipsCommand extends Command<{ affectedClips: 
     }
   }
 
-  doUndo(): { success: boolean; error?: string } {
-    // Undo in reverse order (LIFO)
+  async doUndo(): Promise<{ success: boolean; error?: string }> {
+    // Undo in reverse order (LIFO) for proper state restoration
     for (let i = this.subCommands.length - 1; i >= 0; i--) {
-      this.subCommands[i].undo()
+      const result = await this.subCommands[i].undo()
+      if (!result.success) {
+        return {
+          success: false,
+          error: `Failed to undo sub-command ${i}: ${result.error}`
+        }
+      }
     }
 
     return { success: true }
   }
 
-  doRedo(): { success: boolean; error?: string } {
+  async doRedo(): Promise<{ success: boolean; error?: string }> {
     // Redo in original order
-    for (const command of this.subCommands) {
-      command.redo()
+    for (let i = 0; i < this.subCommands.length; i++) {
+      const result = await this.subCommands[i].redo()
+      if (!result.success) {
+        return {
+          success: false,
+          error: `Failed to redo sub-command ${i}: ${result.error}`
+        }
+      }
     }
 
     return { success: true }

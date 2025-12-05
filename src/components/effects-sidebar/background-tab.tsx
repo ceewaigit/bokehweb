@@ -15,7 +15,7 @@ interface BackgroundTabProps {
 }
 
 export function BackgroundTab({ backgroundEffect, onUpdateBackground }: BackgroundTabProps) {
-  const [backgroundType, setBackgroundType] = useState<'wallpaper' | 'gradient' | 'color' | 'image'>('gradient')
+  const [backgroundType, setBackgroundType] = useState<BackgroundType>(BackgroundType.Gradient)
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
@@ -25,14 +25,14 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
     if (backgroundEffect?.data) {
       const bgData = backgroundEffect.data as BackgroundEffectData
       if (bgData.type) {
-        setBackgroundType(bgData.type as any)
+        setBackgroundType(bgData.type)
       }
     }
   }, [backgroundEffect])
 
   // Load macOS wallpapers when wallpaper tab is selected
   useEffect(() => {
-    if (backgroundType === 'wallpaper' && macOSWallpapers.wallpapers.length === 0 && !loadingWallpapers) {
+    if (backgroundType === BackgroundType.Wallpaper && macOSWallpapers.wallpapers.length === 0 && !loadingWallpapers) {
       setLoadingWallpapers(true)
 
       if (window.electronAPI?.getMacOSWallpapers) {
@@ -61,34 +61,28 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium flex items-center gap-2">
-          <Palette className="w-4 h-4" />
-          <span>Background</span>
-        </h3>
 
-        {/* Horizontal Background Type Tabs */}
-        <div className="flex gap-1 p-0.5 bg-background/50 rounded-md">
-          {(['wallpaper', 'gradient', 'color', 'image'] as const).map(type => (
-            <button
-              key={type}
-              onClick={() => setBackgroundType(type)}
-              className={cn(
-                "flex-1 py-1.5 px-2 rounded-sm text-xs font-medium transition-all capitalize",
-                backgroundType === type
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
+      {/* Horizontal Background Type Tabs */}
+      <div className="flex p-1 bg-muted/50 rounded-lg">
+        {([BackgroundType.Wallpaper, BackgroundType.Gradient, BackgroundType.Color, BackgroundType.Image] as const).map(type => (
+          <button
+            key={type}
+            onClick={() => setBackgroundType(type)}
+            className={cn(
+              "flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all capitalize",
+              backgroundType === type
+                ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            )}
+          >
+            {type}
+          </button>
+        ))}
       </div>
 
-      <div className="border-t border-border/30 pt-4">
+      <div className="border-t border-border/30 pt-2">
         {/* macOS Wallpapers */}
-        {backgroundType === 'wallpaper' && (
+        {backgroundType === BackgroundType.Wallpaper && (
           <div className="space-y-3">
             <h4 className="text-xs font-medium text-muted-foreground">Select Wallpaper</h4>
             {loadingWallpapers ? (
@@ -152,7 +146,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         )}
 
         {/* Gradient Presets */}
-        {backgroundType === 'gradient' && (
+        {backgroundType === BackgroundType.Gradient && (
           <div className="space-y-3">
             <h4 className="text-xs font-medium text-muted-foreground">Select Gradient</h4>
             <div className="grid grid-cols-5 gap-2">
@@ -180,7 +174,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         )}
 
         {/* Solid Color */}
-        {backgroundType === 'color' && (
+        {backgroundType === BackgroundType.Color && (
           <div className="space-y-3">
             <h4 className="text-xs font-medium text-muted-foreground">Select Color</h4>
 
@@ -252,7 +246,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         )}
 
         {/* Custom Image */}
-        {backgroundType === 'image' && (
+        {backgroundType === BackgroundType.Image && (
           <div className="space-y-3">
             <h4 className="text-xs font-medium text-muted-foreground">Custom Image</h4>
             <button
@@ -298,7 +292,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         )}
 
         {/* Background Blur - Only show for image-based backgrounds */}
-        {(backgroundType === 'wallpaper' || backgroundType === 'image') && (
+        {(backgroundType === BackgroundType.Wallpaper || backgroundType === BackgroundType.Image) && (
           <div className="space-y-3 mt-4 pt-4 border-t border-border/30">
             <h4 className="text-xs font-medium text-muted-foreground">Background Blur</h4>
             <div className="p-3 bg-background/30 rounded-lg space-y-3">

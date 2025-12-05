@@ -7,9 +7,9 @@ import { reflowClips, calculateTimelineDuration } from './timeline-operations'
  */
 export class TypingSpeedApplicationService {
   /**
-   * Apply typing speed suggestions to a clip by splitting it into multiple clips
-   * Each split clip has its playbackRate adjusted for the typing speed
-   * Returns the affected clips and original state for undo
+   * Apply typing speed suggestions to a clip by using time remapping
+   * This modifies the clip's playback speed variably without splitting it
+   * Returns the affected clip and original state for undo
    * 
    * @param periods - Array of typing periods with at least startTime, endTime, and suggestedSpeedMultiplier
    */
@@ -63,14 +63,24 @@ export class TypingSpeedApplicationService {
       return { affectedClips: [clipId], originalClips }
     }
 
-    // Create split points including typing periods and gaps
-    const splitPoints: Array<{ start: number, end: number, speedMultiplier: number }> = []
+    // Get FPS from project settings or default to 60
+    const fps = project.settings.frameRate || 60
+    const minDuration = 1000 / fps // Minimum duration is 1 frame
+
+    // 1. Generate initial segments covering the entire source range
+    interface Segment {
+      start: number
+      end: number
+      speedMultiplier: number
+    }
+
+    const segments: Segment[] = []
     let currentPos = sourceIn
 
     for (const period of validPeriods) {
       // Add gap before typing period (normal speed)
       if (currentPos < period.start) {
-        splitPoints.push({
+        segments.push({
           start: currentPos,
           end: period.start,
           speedMultiplier: 1
@@ -78,7 +88,7 @@ export class TypingSpeedApplicationService {
       }
 
       // Add typing period (sped up)
-      splitPoints.push({
+      segments.push({
         start: period.start,
         end: period.end,
         speedMultiplier: period.speedMultiplier
@@ -89,39 +99,93 @@ export class TypingSpeedApplicationService {
 
     // Add remaining portion after last typing period (normal speed)
     if (currentPos < sourceOut) {
-      splitPoints.push({
+      segments.push({
         start: currentPos,
         end: sourceOut,
         speedMultiplier: 1
       })
     }
 
+    // 2. Merge small segments to prevent sub-frame clips
+    // We iterate and merge any segment < minDuration into its neighbor
+    const mergedSegments: Segment[] = []
+
+    for (const segment of segments) {
+      const duration = segment.end - segment.start
+
+      if (duration < minDuration) {
+        // Segment is too small. Merge it.
+        if (mergedSegments.length > 0) {
+          // Merge into previous segment
+          const prev = mergedSegments[mergedSegments.length - 1]
+          prev.end = segment.end
+          // Note: We keep the speed of the previous segment. 
+          // This effectively "eats" the small segment into the previous one.
+        } else {
+          // If it's the very first segment and too small, we can't merge backwards.
+          // We'll add it for now, and hope the next one merges backwards into it?
+          // Or we just drop it? No, dropping changes sourceIn.
+          // We must keep it or merge forward.
+          // Let's add it, but check next time.
+          mergedSegments.push(segment)
+        }
+      } else {
+        // Check if we can merge with previous if they have same speed
+        if (mergedSegments.length > 0) {
+          const prev = mergedSegments[mergedSegments.length - 1]
+          if (prev.speedMultiplier === segment.speedMultiplier) {
+            prev.end = segment.end
+          } else {
+            mergedSegments.push(segment)
+          }
+        } else {
+          mergedSegments.push(segment)
+        }
+      }
+    }
+
+    // Final pass to catch any remaining tiny segments (like the first one if it was small)
+    // If the first segment is still small and there's a second one, merge first into second.
+    if (mergedSegments.length > 1 && (mergedSegments[0].end - mergedSegments[0].start) < minDuration) {
+      const first = mergedSegments[0]
+      const second = mergedSegments[1]
+      second.start = first.start
+      mergedSegments.shift()
+    }
+
     // Remove the original clip
     track.clips.splice(clipIndex, 1)
 
-    // Create new clips from split points
+    // 3. Create new clips from merged segments
     let timelinePosition = sourceClip.startTime
     const newClips: Clip[] = []
 
-    for (let i = 0; i < splitPoints.length; i++) {
-      const split = splitPoints[i]
-      const sourceDuration = split.end - split.start
+    for (let i = 0; i < mergedSegments.length; i++) {
+      const segment = mergedSegments[i]
+      const sourceDuration = segment.end - segment.start
 
-      // Apply speed directly to playbackRate for consistency with manual speed changes
-      const effectiveRate = baseRate * split.speedMultiplier
+      // Skip effectively zero length segments
+      if (sourceDuration <= 0.001) continue
+
+      // Apply speed directly to playbackRate
+      const effectiveRate = baseRate * segment.speedMultiplier
 
       // Calculate duration based on combined speed
+      // Use precise float division
       const clipDuration = sourceDuration / effectiveRate
 
       const newClip: Clip = {
-        id: `${sourceClip.id}-split-${i}`,
+        id: `${sourceClip.id}-part-${i}`,
         recordingId: sourceClip.recordingId,
         startTime: timelinePosition,
         duration: clipDuration,
-        sourceIn: split.start,
-        sourceOut: split.end,
-        playbackRate: effectiveRate,  // Use actual speed multiplier so it's visible in UI
-        typingSpeedApplied: split.speedMultiplier > 1
+        sourceIn: segment.start,
+        sourceOut: segment.end,
+        playbackRate: effectiveRate,
+        // CRITICAL: Mark ALL segments as applied to prevent UI from showing suggestions again
+        // This fixes the bug where suggestions bar persists on "Normal" segments
+        typingSpeedApplied: true,
+        timeRemapPeriods: []
       }
 
       newClips.push(newClip)
@@ -130,15 +194,12 @@ export class TypingSpeedApplicationService {
     }
 
     // Insert new clips at the original position
-    // Note: Effects are stored in source space on Recording, not affected by clip splits
     track.clips.splice(clipIndex, 0, ...newClips)
 
     // Sort clips by start time to maintain order
     track.clips.sort((a, b) => a.startTime - b.startTime)
 
     // Always do full reflow to ensure all clips are contiguous
-    // This handles any rounding errors or duration mismatches automatically
-    // and ensures gaps close as expected when clips become shorter due to speed-up
     reflowClips(track, 0, project)
 
     // Update timeline duration

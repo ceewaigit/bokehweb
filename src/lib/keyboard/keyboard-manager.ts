@@ -45,6 +45,11 @@ class KeyboardManager extends EventEmitter {
   private enabled: boolean = true
   private pressedKeys: Set<string> = new Set()
 
+  // Store bound listener references for cleanup
+  private boundHandleKeyDown: ((e: KeyboardEvent) => void) | null = null
+  private boundHandleKeyUp: ((e: KeyboardEvent) => void) | null = null
+  private boundHandleBlur: (() => void) | null = null
+
   constructor() {
     super()
     this.registerDefaultShortcuts()
@@ -480,9 +485,36 @@ class KeyboardManager extends EventEmitter {
   private initializeListeners() {
     if (typeof window === 'undefined') return
 
-    window.addEventListener('keydown', this.handleKeyDown.bind(this))
-    window.addEventListener('keyup', this.handleKeyUp.bind(this))
-    window.addEventListener('blur', this.handleBlur.bind(this))
+    // Store bound references so they can be removed later
+    this.boundHandleKeyDown = this.handleKeyDown.bind(this)
+    this.boundHandleKeyUp = this.handleKeyUp.bind(this)
+    this.boundHandleBlur = this.handleBlur.bind(this)
+
+    window.addEventListener('keydown', this.boundHandleKeyDown)
+    window.addEventListener('keyup', this.boundHandleKeyUp)
+    window.addEventListener('blur', this.boundHandleBlur)
+  }
+
+  public destroy() {
+    if (typeof window === 'undefined') return
+
+    // Remove event listeners to prevent memory leaks
+    if (this.boundHandleKeyDown) {
+      window.removeEventListener('keydown', this.boundHandleKeyDown)
+      this.boundHandleKeyDown = null
+    }
+    if (this.boundHandleKeyUp) {
+      window.removeEventListener('keyup', this.boundHandleKeyUp)
+      this.boundHandleKeyUp = null
+    }
+    if (this.boundHandleBlur) {
+      window.removeEventListener('blur', this.boundHandleBlur)
+      this.boundHandleBlur = null
+    }
+
+    // Clear shortcuts and pressed keys
+    this.shortcuts.clear()
+    this.pressedKeys.clear()
   }
 
   private handleKeyDown(event: KeyboardEvent) {

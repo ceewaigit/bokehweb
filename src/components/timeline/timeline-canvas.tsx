@@ -118,6 +118,21 @@ export function TimelineCanvas({
     EffectsFactory.getZoomEffects(r.effects || [])
   ) || []
   const isZoomEnabled = allZoomEffects.some(e => e.enabled)
+
+  // Calculate adaptive zoom limits based on zoom blocks and timeline duration
+  const adaptiveZoomLimits = React.useMemo(() => {
+    const zoomBlocks = allZoomEffects.map(e => ({
+      startTime: e.startTime,
+      endTime: e.endTime
+    }))
+    return TimeConverter.calculateAdaptiveZoomLimits(
+      duration,
+      stageSize.width,
+      zoomBlocks,
+      TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX
+    )
+  }, [allZoomEffects, duration, stageSize.width])
+
   // Show keystroke track if ANY keystroke effects exist
   const hasKeystrokeTrack = EffectsFactory.hasKeystrokeTrack(currentProject?.timeline.effects || [])
 
@@ -391,6 +406,8 @@ export function TimelineCanvas({
         zoom={zoom}
         currentTime={currentTime}
         maxDuration={currentProject.timeline.duration}
+        minZoom={adaptiveZoomLimits.min}
+        maxZoom={adaptiveZoomLimits.max}
         selectedClips={selectedClips}
         onPlay={onPlay}
         onPause={onPause}
@@ -559,19 +576,35 @@ export function TimelineCanvas({
                 )
                 if (!recording) return
 
-                // Find the clip that contains this effect's source time
-                const clipForEffect = currentProject.timeline.tracks
+                // Find ALL clips that intersect with this effect's source range
+                // This is critical because a single effect might span across multiple split clips
+                // (e.g. a Normal speed clip followed by a Fast speed clip)
+                const intersectingClips = currentProject.timeline.tracks
                   .flatMap(t => t.clips)
-                  .find(c =>
+                  .filter(c =>
                     c.recordingId === recording.id &&
-                    TimeConverter.isSourceTimeInClip(effect.startTime, c)
+                    // Check for intersection: clip.sourceIn < effect.endTime && clip.sourceOut > effect.startTime
+                    (c.sourceIn || 0) < effect.endTime &&
+                    ((c.sourceOut || (c.sourceIn || 0) + c.duration * (c.playbackRate || 1))) > effect.startTime
                   )
+                  .sort((a, b) => a.startTime - b.startTime)
 
-                if (!clipForEffect) return
+                if (intersectingClips.length === 0) return
 
-                // Convert source times to timeline times
-                const timelineStartTime = TimeConverter.sourceToTimeline(effect.startTime, clipForEffect)
-                const timelineEndTime = TimeConverter.sourceToTimeline(effect.endTime, clipForEffect)
+                const firstClip = intersectingClips[0]
+                const lastClip = intersectingClips[intersectingClips.length - 1]
+
+                // Calculate start time using the first clip
+                // If effect starts before this clip (shouldn't happen if we found all), clamp to clip start
+                const timelineStartTime = TimeConverter.sourceToTimeline(Math.max(effect.startTime, firstClip.sourceIn || 0), firstClip)
+
+                // Calculate end time using the last clip
+                const timelineEndTime = TimeConverter.sourceToTimeline(Math.min(effect.endTime, lastClip.sourceOut || Infinity), lastClip)
+
+                // Calculate width with minimum visual constraint
+                const calculatedWidth = TimeConverter.msToPixels(timelineEndTime - timelineStartTime, pixelsPerMs)
+                const visualWidth = Math.max(TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX, calculatedWidth)
+                const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
 
                 const blockElement = (
                   <TimelineEffectBlock
@@ -579,8 +612,9 @@ export function TimelineCanvas({
                     blockId={effect.id}
                     x={TimeConverter.msToPixels(timelineStartTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
                     y={rulerHeight + videoTrackHeight + TimelineConfig.TRACK_PADDING}
-                    width={TimeConverter.msToPixels(timelineEndTime - timelineStartTime, pixelsPerMs)}
+                    width={visualWidth}
                     height={zoomTrackHeight - TimelineConfig.TRACK_PADDING * 2}
+                    isCompact={isCompact}
                     startTime={timelineStartTime}
                     endTime={timelineEndTime}
                     label={`${zoomData.scale.toFixed(1)}×`}
@@ -601,14 +635,28 @@ export function TimelineCanvas({
                       }, 0)
                     }}
                     onDragEnd={(newX: number) => {
-                      const newStartTime = TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+                      const newTimelineStartTime = TimeConverter.pixelsToMs(newX - TimelineConfig.TRACK_LABEL_WIDTH, pixelsPerMs)
+
+                      // Find the clip at the new timeline position to convert back to source
+                      // We need to find which clip the new start time falls into
+                      const targetClip = currentProject.timeline.tracks
+                        .flatMap(t => t.clips)
+                        .find(c =>
+                          c.recordingId === recording.id &&
+                          TimeConverter.isTimelinePositionInClip(newTimelineStartTime, c)
+                        )
+
+                      // If we dragged into a valid clip, use it. Otherwise fall back to the first clip we rendered with.
+                      const conversionClip = targetClip || firstClip
+
+                      const newSourceStartTime = TimeConverter.timelineToSource(newTimelineStartTime, conversionClip)
                       const duration = effect.endTime - effect.startTime
 
                       // Check for overlaps with other zoom effects (mutual exclusivity)
                       const otherZooms = zoomEffects.filter(e => e.id !== effect.id)
-                      let finalStartTime = Math.max(0, newStartTime)
+                      let finalStartTime = Math.max(0, newSourceStartTime)
 
-                      // Prevent overlaps
+                      // Prevent overlaps (in Source Space)
                       const overlap = otherZooms.some(z => finalStartTime < z.endTime && finalStartTime + duration > z.startTime)
                       if (overlap) {
                         const sorted = [...otherZooms].sort((a, b) => a.startTime - b.startTime)

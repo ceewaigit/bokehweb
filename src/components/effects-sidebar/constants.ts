@@ -20,3 +20,33 @@ export const COLOR_PRESETS = [
   '#000000', '#FFFFFF', '#EF4444', '#10B981', '#3B82F6', '#F59E0B',
   '#8B5CF6', '#EC4899', '#14B8A6', '#64748B', '#1E293B', '#F1F5F9'
 ]
+
+import {
+  Camera,
+  Palette,
+  MousePointer,
+  Square,
+  Keyboard,
+  Monitor,
+  Settings,
+} from 'lucide-react'
+
+export enum SidebarTabId {
+  Background = 'background',
+  Cursor = 'cursor',
+  Keystroke = 'keystroke',
+  Zoom = 'zoom',
+  Shape = 'shape',
+  Screen = 'screen',
+  Clip = 'clip'
+}
+
+export const SIDEBAR_TABS = [
+  { id: SidebarTabId.Background, icon: Palette, label: 'Background' },
+  { id: SidebarTabId.Cursor, icon: MousePointer, label: 'Cursor' },
+  { id: SidebarTabId.Keystroke, icon: Keyboard, label: 'Keystroke' },
+  { id: SidebarTabId.Zoom, icon: Camera, label: 'Zoom' },
+  { id: SidebarTabId.Shape, icon: Square, label: 'Shape' },
+  { id: SidebarTabId.Screen, icon: Monitor, label: 'Screen' },
+  { id: SidebarTabId.Clip, icon: Settings, label: 'Clip' },
+] as const

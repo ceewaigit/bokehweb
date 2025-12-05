@@ -18,11 +18,6 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-medium flex items-center gap-2">
-        <MousePointer className="w-4 h-4" />
-        <span>Cursor</span>
-      </h3>
-
       {/* Master cursor visibility toggle */}
       <div className="p-3 bg-background/30 rounded-lg">
         <label className="flex items-center justify-between">

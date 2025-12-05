@@ -1,31 +1,28 @@
 import React, { useEffect, useRef, useMemo } from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, useVideoConfig } from 'remotion';
 import { KeystrokeRenderer } from '@/lib/effects/keystroke-renderer';
-import type { KeyboardEvent } from '@/types/project';
+import type { Effect, KeystrokeEffectData } from '@/types/project';
 import { KeystrokePosition } from '@/types/project';
+import { useClipContext } from '../context/ClipContext';
+import { useSourceTime } from '../hooks/useTimeCoordinates';
 
-interface KeystrokeLayerProps {
-  keyboardEvents: KeyboardEvent[];
-  settings?: {
-    position?: KeystrokePosition;
-    fontSize?: number;
-    fontFamily?: string;
-    backgroundColor?: string;
-    textColor?: string;
-    borderColor?: string;
-    borderRadius?: number;
-    padding?: number;
-    fadeOutDuration?: number;
-    maxWidth?: number;
-  };
+export interface KeystrokeLayerProps {
+  keystrokeEffect?: Effect;
+  videoWidth: number;
+  videoHeight: number;
 }
 
 export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
-  keyboardEvents = [],
-  settings = {}
+  keystrokeEffect,
+  videoWidth,
+  videoHeight
 }) => {
-  const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  const sourceTimeMs = useSourceTime();
+  const { keystrokeEvents } = useClipContext();
+  const { width, height } = useVideoConfig();
+
+  // Extract settings from effect data
+  const settings = (keystrokeEffect?.data as KeystrokeEffectData | undefined) || {};
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<KeystrokeRenderer | null>(null);
   
@@ -65,13 +62,13 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
     }
     
     // Set keyboard events
-    rendererRef.current.setKeyboardEvents(keyboardEvents);
-    
+    rendererRef.current.setKeyboardEvents(keystrokeEvents);
+
     // Cleanup only on unmount
     return () => {
       rendererRef.current?.reset();
     };
-  }, [settings, keyboardEvents]);
+  }, [settings, keystrokeEvents]);
   
   // Update canvas when ref changes
   useEffect(() => {
@@ -79,34 +76,29 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
       rendererRef.current.setCanvas(canvasRef.current);
     }
   }, [canvasRef.current]);
-  
-  // Calculate current time in milliseconds
-  const currentTimeMs = useMemo(() => {
-    return (frame / fps) * 1000;
-  }, [frame, fps]);
-  
+
   // Render keystrokes
   useEffect(() => {
-    if (!canvasRef.current || !rendererRef.current || keyboardEvents.length === 0) return;
-    
+    if (!canvasRef.current || !rendererRef.current || keystrokeEvents.length === 0) return;
+
     const ctx = canvasRef.current.getContext('2d');
     if (!ctx) return;
-    
+
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
-    
+
     // Render keystrokes at current time
-    rendererRef.current.render(currentTimeMs, width, height);
-  }, [currentTimeMs, width, height, keyboardEvents]);
+    rendererRef.current.render(sourceTimeMs, width, height);
+  }, [sourceTimeMs, width, height, keystrokeEvents]);
   
   // Check if there are keystrokes to render at this time
   const hasKeystrokes = useMemo(() => {
-    if (!rendererRef.current || keyboardEvents.length === 0) return false;
-    return rendererRef.current.hasKeystrokesAtTime(currentTimeMs);
-  }, [currentTimeMs, keyboardEvents]);
-  
+    if (!rendererRef.current || keystrokeEvents.length === 0) return false;
+    return rendererRef.current.hasKeystrokesAtTime(sourceTimeMs);
+  }, [sourceTimeMs, keystrokeEvents]);
+
   // Only render if there are keystrokes to show
-  if (!hasKeystrokes && frame > 0) {
+  if (!hasKeystrokes && sourceTimeMs > 0) {
     return null;
   }
   

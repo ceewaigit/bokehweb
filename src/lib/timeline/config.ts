@@ -6,7 +6,7 @@ export const TimelineConfig = {
   RULER_HEIGHT: 32,
   TRACK_LABEL_WIDTH: 42,
   TRACK_PADDING: 4,
-  MIN_CLIP_WIDTH: 40,
+  MIN_CLIP_WIDTH: 1, // Reduced from 40 to prevent visual overlap at low zoom levels
 
   // Snapping behavior
   SNAP_THRESHOLD_MS: 200,  // Increased for better snapping
@@ -32,6 +32,8 @@ export const TimelineConfig = {
   ZOOM_EFFECT_DEFAULT_INTRO_MS: 500,
   ZOOM_EFFECT_DEFAULT_OUTRO_MS: 500,
   ZOOM_EFFECT_MIN_DURATION_MS: 100,
+  ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX: 1, // Reduced from 24 to prevent visual overlap at low zoom levels
+  ZOOM_EFFECT_COMPACT_THRESHOLD_PX: 50, // Below this width, show compact mode
 
   CURSOR_EFFECT_DEFAULT_SIZE: 4.0,
   CURSOR_EFFECT_DEFAULT_COLOR: '#ffffff',

@@ -30,6 +30,8 @@ export class EffectsFactory {
           scale: block.scale,
           targetX: block.targetX,
           targetY: block.targetY,
+          screenWidth: block.screenWidth,   // Store for proper normalization
+          screenHeight: block.screenHeight, // Store for proper normalization
           introMs: block.introMs || 300,
           outroMs: block.outroMs || 300,
           smoothing: 0.1
@@ -49,9 +51,7 @@ export class EffectsFactory {
       endTime: Number.MAX_SAFE_INTEGER,
       data: {
         ...DEFAULT_BACKGROUND_DATA,
-        wallpaper: defaultWallpaper,
-        cornerRadius: 15,
-        shadowIntensity: 85
+        wallpaper: defaultWallpaper
       } as BackgroundEffectData,
       enabled: true
     }

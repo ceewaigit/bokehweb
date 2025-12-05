@@ -15,10 +15,7 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
 
   return (
     <div className="space-y-2">
-      <h3 className="text-sm font-medium flex items-center gap-2">
-        <Square className="w-4 h-4" />
-        <span>Shape & Frame</span>
-      </h3>
+
 
       <p className="text-[10px] text-muted-foreground">
         Controls the frame padding, corner radius, and shadow.

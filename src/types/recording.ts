@@ -14,8 +14,10 @@ export interface ElectronMetadata {
   keyEventType?: 'keydown' | 'keyup'
   velocity?: { x: number; y: number }
   scrollDelta?: { x: number; y: number }
-  captureWidth?: number  // Physical pixels
-  captureHeight?: number // Physical pixels
+  captureWidth?: number   // Physical pixels - capture area dimensions
+  captureHeight?: number  // Physical pixels - capture area dimensions
+  screenWidth?: number    // Physical pixels - full screen dimensions (for zoom coordinate normalization)
+  screenHeight?: number   // Physical pixels - full screen dimensions (for zoom coordinate normalization)
   scaleFactor?: number
   cursorType?: string
   sourceBounds?: { x: number; y: number; width: number; height: number }

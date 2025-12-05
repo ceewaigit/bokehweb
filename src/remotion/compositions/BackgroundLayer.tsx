@@ -1,13 +1,21 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
-import type { BackgroundLayerProps } from './types';
+import type { Effect, BackgroundEffectData } from '@/types/project';
 import { BackgroundType } from '@/types/project';
 
+export interface BackgroundLayerProps {
+  backgroundEffect?: Effect;
+  videoWidth: number;
+  videoHeight: number;
+}
+
 export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
-  backgroundData,
+  backgroundEffect,
   videoWidth,
   videoHeight
 }) => {
+  const backgroundData = backgroundEffect?.data as BackgroundEffectData | undefined;
+
   if (!backgroundData?.type) {
     return null;
   }
@@ -79,5 +87,5 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
     backgroundStyle.filter = `blur(${backgroundData.blur}px)`;
   }
 
-  return <AbsoluteFill style={backgroundStyle} />;
+  return <AbsoluteFill style={{ ...backgroundStyle, zIndex: 5, pointerEvents: 'none' }} />;
 };

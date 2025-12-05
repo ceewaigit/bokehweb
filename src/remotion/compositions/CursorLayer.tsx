@@ -1,18 +1,21 @@
-import React, { useMemo, useRef, useEffect, useCallback } from 'react';
-import { AbsoluteFill, Img, useCurrentFrame, delayRender, continueRender } from 'remotion';
-import type { CursorLayerProps } from './types';
-import type { Clip } from '@/types/project';
+import React, { useMemo, useRef, useEffect } from 'react';
+import { AbsoluteFill, Img, useCurrentFrame, delayRender, continueRender, useVideoConfig } from 'remotion';
+import type { Effect, CursorEffectData } from '@/types/project';
 import {
   CursorType,
   CURSOR_DIMENSIONS,
   CURSOR_HOTSPOTS,
-  getCursorImagePath,
-  electronToCustomCursor
+  getCursorImagePath
 } from '../../lib/effects/cursor-types';
-import { calculateZoomTransform, applyZoomToPoint } from './utils/zoom-transform';
+import { applyZoomToPoint } from './utils/zoom-transform';
 import { calculateCursorState, type CursorState } from '../../lib/effects/utils/cursor-calculator';
 import { normalizeClickEvents, normalizeMouseEvents } from './utils/event-normalizer';
-import { getSourceTimeForFrame } from './utils/source-time';
+import { useClipContext } from '../context/ClipContext';
+import { useVideoPosition } from '../context/VideoPositionContext';
+import { useSourceTime, usePreviousSourceTime } from '../hooks/useTimeCoordinates';
+import { useTimeContext } from '../context/TimeContext';
+import { EffectsFactory } from '@/lib/effects/effects-factory';
+import { EffectType } from '@/types/project';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -82,32 +85,36 @@ class CursorImagePreloader {
   }
 }
 
+export interface CursorLayerProps {
+  cursorEffect?: Effect;
+  videoWidth: number;
+  videoHeight: number;
+}
+
 export const CursorLayer: React.FC<CursorLayerProps> = ({
-  cursorEvents: rawCursorEvents,
-  clickEvents: rawClickEvents,
-  clip,
-  fps,
-  videoOffset,
-  zoomBlocks,
-  zoomState,
+  cursorEffect,
   videoWidth,
-  videoHeight,
-  cursorData,
-  frameOffset = 0
+  videoHeight
 }) => {
+  // Get context data (eliminates prop drilling)
+  const { clip, cursorEvents: rawCursorEvents, clickEvents: rawClickEvents, effects } = useClipContext();
+  const { fps } = useTimeContext();
+  const sourceTimeMs = useSourceTime();
+  const prevSourceTimeMs = usePreviousSourceTime();
+
+  const { width, height } = useVideoConfig();
+
+  // Get ACTUAL video position from SharedVideoController (fixes coordinate mismatch!)
+  const videoPositionContext = useVideoPosition();
+
   const cursorEvents = useMemo(() => normalizeMouseEvents(rawCursorEvents), [rawCursorEvents]);
   const clickEvents = useMemo(() => normalizeClickEvents(rawClickEvents), [rawClickEvents]);
 
   const frame = useCurrentFrame();
-  const absoluteFrame = frameOffset > 0 && frame < frameOffset
-    ? frame + frameOffset
-    : frame;
-  const currentSourceTime = useMemo(
-    () => getSourceTimeForFrame(absoluteFrame, fps, clip),
-    [absoluteFrame, fps, clip]
-  );
+  const currentSourceTime = sourceTimeMs;
 
-  // Store previous cursor state for motion effects
+  // Cache cursor states by SOURCE TIME (milliseconds, not frame numbers)
+  // This prevents cursor blinking during sped-up playback
   const frameStateCacheRef = useRef<Map<number, CursorState>>(new Map());
   const positionHistoryRef = useRef<Array<{ x: number, y: number, time: number }>>([]);
   const lastFrameRef = useRef<number>(-1);
@@ -131,52 +138,55 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       });
   }, []);
 
-  const resolveSourceTimeForFrame = useCallback((frameIndex: number) => {
-    return getSourceTimeForFrame(frameIndex, fps, clip);
-  }, [clip, fps]);
+  // Extract cursor data from effect
+  const cursorData = (cursorEffect?.data as CursorEffectData | undefined);
+
+  // Extract zoom blocks from effects
+  const zoomBlocks = useMemo(() => {
+    const zoomEffects = effects.filter(e => e.type === EffectType.Zoom);
+    return zoomEffects.flatMap(e => {
+      const data = EffectsFactory.getZoomData(e);
+      return (data as any)?.blocks || [];
+    });
+  }, [effects]);
+
+
 
   const cursorState = useMemo(() => {
     const cache = frameStateCacheRef.current;
-    const targetFrame = Math.max(0, Math.floor(absoluteFrame));
 
-    const cached = cache.get(targetFrame);
+    // DETERMINISTIC CACHING: Use SOURCE TIME (ms) as cache key
+    // Use Math.round() for consistent rounding (matches lookup below)
+    const cacheKey = Math.round(currentSourceTime);
+
+    // Check if already cached
+    const cached = cache.get(cacheKey);
     if (cached) {
       return cached;
     }
 
-    let startFrame = targetFrame;
-    while (startFrame > 0 && !cache.has(startFrame - 1)) {
-      startFrame -= 1;
-    }
+    // CLEAN: Use usePreviousSourceTime() hook - handles cross-clip boundaries automatically!
+    const prevCacheKey = Math.round(prevSourceTimeMs);
+    const previousState = cache.get(prevCacheKey);
 
-    let previousState: CursorState | undefined = startFrame > 0 ? cache.get(startFrame - 1) : cache.get(startFrame);
+    // Compute with previousState if available (fast path, ~90% faster)
+    // Falls back to simulateSmoothingWithHistory only on true cache misses
+    const newState = calculateCursorState(
+      cursorData,
+      cursorEvents,
+      clickEvents,
+      currentSourceTime,
+      previousState, // Use cached state when available
+      fps
+    );
 
-    for (let frameIdx = startFrame; frameIdx <= targetFrame; frameIdx++) {
-      const existingState = cache.get(frameIdx);
-      if (existingState) {
-        previousState = existingState;
-        continue;
-      }
-
-      const sourceTime = resolveSourceTimeForFrame(frameIdx);
-      const newState = calculateCursorState(
-        cursorData,
-        cursorEvents,
-        clickEvents,
-        sourceTime,
-        previousState,
-        fps
-      );
-      cache.set(frameIdx, newState);
-      previousState = newState;
-    }
-
-    return cache.get(targetFrame) as CursorState;
-  }, [absoluteFrame, cursorData, cursorEvents, clickEvents, fps, resolveSourceTimeForFrame]);
+    cache.set(cacheKey, newState);
+    return newState;
+  }, [currentSourceTime, prevSourceTimeMs, cursorData, cursorEvents, clickEvents, fps]);
 
   useEffect(() => {
     frameStateCacheRef.current.clear();
-  }, [cursorData, cursorEvents, clickEvents, clip?.id, fps]);
+  }, [cursorData, cursorEvents, clickEvents, fps]); // Removed clip?.id to prevent cache clear on split clips
 
   // Extract values from cursor state
   const cursorType = cursorState.type;
@@ -200,10 +210,21 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
   }, [cursorState.clickEffects]);
 
-  // Get capture dimensions from first event
+  // Use SHARED video offset from SharedVideoController (fixes coordinate mismatch!)
+  // This ensures cursor uses the EXACT SAME position as the video element
+  const videoOffset = useMemo(() => {
+    return {
+      x: videoPositionContext.offsetX,
+      y: videoPositionContext.offsetY,
+      width: videoPositionContext.drawWidth,
+      height: videoPositionContext.drawHeight,
+    };
+  }, [videoPositionContext.offsetX, videoPositionContext.offsetY, videoPositionContext.drawWidth, videoPositionContext.drawHeight]);
+
+  // Get capture dimensions from first event (use actual video dimensions from context)
   const firstEvent = cursorEvents[0];
-  const captureWidth = firstEvent?.captureWidth || videoWidth;
-  const captureHeight = firstEvent?.captureHeight || videoHeight;
+  const captureWidth = firstEvent?.captureWidth || videoPositionContext.videoWidth;
+  const captureHeight = firstEvent?.captureHeight || videoPositionContext.videoHeight;
 
   // Normalize cursor position (0-1 range within the capture area)
   // Both cursorPosition.x/y and captureWidth/captureHeight are in physical pixels for consistency
@@ -276,30 +297,17 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorX = cursorTipX;
   let cursorY = cursorTipY;
 
-  // Apply zoom transformation EXACTLY like VideoLayer does
-  if (zoomBlocks && zoomBlocks.length > 0) {
-    // Find active zoom block - compare SOURCE time against SOURCE timestamps
-    const activeBlock = zoomBlocks.find(
-      block => currentSourceTime >= block.startTime && currentSourceTime <= block.endTime
+  // Apply SHARED zoom transformation from SharedVideoController (fixes zoom mismatch!)
+  // Use the exact same zoomTransform that was applied to the video element
+  if (videoPositionContext.zoomTransform && videoPositionContext.zoomTransform.scale > 1) {
+    const transformedPos = applyZoomToPoint(
+      cursorTipX,
+      cursorTipY,
+      videoOffset,
+      videoPositionContext.zoomTransform
     );
-
-    if (activeBlock) {
-      // Calculate zoom transformation using the EXACT same parameters as VideoLayer
-      // Use zoomState's x,y which are the mouse position at zoom start
-      const zoomTransform = calculateZoomTransform(
-        activeBlock,
-        currentSourceTime,  // Use SOURCE time to match activeBlock timestamps
-        videoOffset.width,  // Use video dimensions, same as VideoLayer
-        videoOffset.height,
-        zoomState ? { x: zoomState.x, y: zoomState.y } : { x: 0.5, y: 0.5 },  // Use zoom center position
-        zoomState ? zoomState.scale : undefined
-      );
-
-      // Apply the zoom to the cursor position
-      const transformedPos = applyZoomToPoint(cursorTipX, cursorTipY, videoOffset, zoomTransform);
-      cursorX = transformedPos.x;
-      cursorY = transformedPos.y;
-    }
+    cursorX = transformedPos.x;
+    cursorY = transformedPos.y;
   }
 
 
@@ -355,8 +363,14 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     return trails;
   }, [motionVelocity, cursorX, cursorY, cursorType, renderedWidth, renderedHeight, hotspot, clickScale]);
 
-  // Early return if cursor is hidden (after all hooks)
-  if (!cursorState.visible || !cursorPosition) return null;
+  // Don't unmount when hidden - keep component mounted to prevent blinking
+  // Instead, return transparent AbsoluteFill
+  // Check if effect is enabled AND if cursor should be visible based on idle/position
+  const shouldShowCursor = cursorEffect?.enabled !== false && cursorData && cursorState.visible && cursorPosition;
+
+  if (!shouldShowCursor) {
+    return <AbsoluteFill style={{ opacity: 0, pointerEvents: 'none' }} />;
+  }
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>

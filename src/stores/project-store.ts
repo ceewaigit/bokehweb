@@ -17,7 +17,8 @@ import {
   removeClipFromTrack,
   duplicateClipInTrack,
   addRecordingToProject,
-  restoreClipToTrack
+  restoreClipToTrack,
+  calculateTimelineDuration
 } from '@/lib/timeline/timeline-operations'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { TypingSpeedApplicationService } from '@/lib/timeline/typing-speed-application'
@@ -633,22 +634,17 @@ export const useProjectStore = create<ProjectStore>()(
         // Update modified timestamp to trigger save button
         state.currentProject.modifiedAt = new Date().toISOString()
 
-        // Update playhead state
-        updatePlayheadState(state)
+        // After typing speed application, ensure playhead is within valid range
+        // The original clip was replaced with new clips (different IDs), so we can't use findClipById
+        const newTimelineDuration = calculateTimelineDuration(state.currentProject)
 
-        // Maintain playhead position if it was inside the clip
-        const clipAfter = findClipById(state.currentProject, clipId)
-        if (clipAfter && clipBefore) {
-          const newTime = PlayheadService.trackPlayheadDuringClipEdit(
-            state.currentTime,
-            clipBefore.clip,
-            clipAfter.clip
-          )
-          if (newTime !== null) {
-            state.currentTime = newTime
-            updatePlayheadState(state)
-          }
+        // If playhead is past the new timeline end, move it to the last valid position
+        if (state.currentTime >= newTimelineDuration) {
+          state.currentTime = Math.max(0, newTimelineDuration - 1)
         }
+
+        // Always update playhead state to find the clip at current position
+        updatePlayheadState(state)
       })
 
       return result

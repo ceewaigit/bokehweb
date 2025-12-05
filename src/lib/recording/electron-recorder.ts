@@ -521,7 +521,15 @@ export class ElectronRecorder {
     }
 
     // Set up event listeners for mouse data from main process
-    const handleMouseMove = (_event: unknown, data: { x: number; y: number; velocity?: { x: number; y: number }; cursorType?: string; logicalX?: number; logicalY?: number }) => {
+    const handleMouseMove = (_event: unknown, data: {
+      x: number;
+      y: number;
+      velocity?: { x: number; y: number };
+      cursorType?: string;
+      logicalX?: number;
+      logicalY?: number;
+      displayBounds?: { x: number; y: number; width: number; height: number }  // Screen dimensions
+    }) => {
       const timestamp = this.getAdjustedTimestamp()
       const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
       if (!inside) return
@@ -536,13 +544,24 @@ export class ElectronRecorder {
         // Always include capture dimensions with mouse events (in physical pixels)
         captureWidth: this.captureWidth,
         captureHeight: this.captureHeight,
+        // Include full screen dimensions for proper zoom coordinate normalization
+        screenWidth: data.displayBounds?.width,
+        screenHeight: data.displayBounds?.height,
         // Store logical coordinates for debugging if available
         logicalX: data.logicalX,
         logicalY: data.logicalY
       })
     }
 
-    const handleMouseClick = (_event: unknown, data: { x: number; y: number; button: string; cursorType?: string; logicalX?: number; logicalY?: number }) => {
+    const handleMouseClick = (_event: unknown, data: {
+      x: number;
+      y: number;
+      button: string;
+      cursorType?: string;
+      logicalX?: number;
+      logicalY?: number;
+      displayBounds?: { x: number; y: number; width: number; height: number }  // Screen dimensions
+    }) => {
       const timestamp = this.getAdjustedTimestamp()
       const { rx, ry, inside } = toCaptureRelative(Number(data.x), Number(data.y))
       if (!inside) return
@@ -554,6 +573,12 @@ export class ElectronRecorder {
         key: data.button,
         cursorType: data.cursorType,
         scaleFactor: this.captureArea?.scaleFactor,
+        // Always include capture dimensions with click events (in physical pixels)
+        captureWidth: this.captureWidth,
+        captureHeight: this.captureHeight,
+        // Include full screen dimensions for proper zoom coordinate normalization
+        screenWidth: data.displayBounds?.width,
+        screenHeight: data.displayBounds?.height,
         // Store logical coordinates for debugging if available
         logicalX: data.logicalX,
         logicalY: data.logicalY

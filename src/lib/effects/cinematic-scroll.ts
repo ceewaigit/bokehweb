@@ -84,19 +84,11 @@ export class CinematicScrollCalculator {
 
     // Process new scroll events
     const newEvents = scrollEvents.filter(e => e.timestamp > this.lastTimestamp && e.timestamp <= currentTimeMs)
-    
+
     for (const event of newEvents) {
       this.scrollHistory.push({
         timestamp: event.timestamp,
         delta: { x: event.deltaX, y: event.deltaY }
-      })
-      
-      // Log scroll detection
-      console.log('[CinematicScroll] Detected scroll event:', {
-        timestamp: event.timestamp,
-        deltaX: event.deltaX,
-        deltaY: event.deltaY,
-        preset: this.config.preset
       })
     }
 
@@ -112,11 +104,11 @@ export class CinematicScrollCalculator {
         { x: 0, y: 0 }
       )
       const timeSpan = Math.max(1, currentTimeMs - recentHistory[0].timestamp)
-      
+
       // Update velocity with smoothing
       const newVelX = (totalDelta.x / timeSpan) * 10
       const newVelY = (totalDelta.y / timeSpan) * 10
-      
+
       this.state.velocity.x = this.lerp(this.state.velocity.x, newVelX, 0.3)
       this.state.velocity.y = this.lerp(this.state.velocity.y, newVelY, 0.3)
     } else {
@@ -213,19 +205,19 @@ export class CinematicScrollCalculator {
 
 export function createCinematicTransform(state: CinematicScrollState): string {
   const transforms: string[] = []
-  
+
   if (state.position.x !== 0 || state.position.y !== 0) {
     transforms.push(`translate3d(${state.position.x * 100}px, ${state.position.y * 100}px, 0)`)
   }
-  
+
   if (state.tilt.x !== 0 || state.tilt.y !== 0) {
     transforms.push(`rotateX(${state.tilt.x}deg) rotateY(${state.tilt.y}deg)`)
   }
-  
+
   if (state.scale !== 1) {
     transforms.push(`scale(${state.scale})`)
   }
-  
+
   return transforms.join(' ')
 }
 

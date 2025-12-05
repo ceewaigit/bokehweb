@@ -148,32 +148,15 @@ export function clipRelativeToSource(clipRelativeMs: number, clip: Clip): number
 
   // Fast path when no time remapping
   if (!periods) {
-    const sourceOut = clip.sourceOut ?? (sourceIn + (clip.duration || 0) * baseRate)
-    const clipDuration = clip.duration || 0
+    // Use SIMPLE multiplication by playback rate (matches old working behavior)
+    // This correctly maps timeline time to source time accounting for speed changes
+    const sourceTime = sourceIn + (clipRelativeMs * baseRate);
 
-    // Use proportional mapping: map clip progress (0-1) to source range
-    // This correctly handles clips with any playbackRate
-    const sourceDuration = sourceOut - sourceIn
-    const progress = clipDuration > 0 ? clipRelativeMs / clipDuration : 0
-    const result = sourceIn + progress * sourceDuration
-    const clamped = Math.max(sourceIn, Math.min(sourceOut, result))
+    // Calculate sourceOut for clamping
+    const sourceOut = clip.sourceOut ?? (sourceIn + getSourceDuration(clip));
 
-    // DEBUG: Log time conversion calculation
-    if (typeof window !== 'undefined' && (window as any).__SCREEN_STUDIO_DEBUG__) {
-      console.log('🔍 [clipRelativeToSource] Fast Path (FIXED):', {
-        clipRelativeMs: clipRelativeMs.toFixed(2),
-        clipDuration,
-        sourceIn,
-        sourceOut,
-        sourceDuration,
-        progress: progress.toFixed(4),
-        calculation: `${sourceIn} + ${progress.toFixed(4)} * ${sourceDuration} = ${result.toFixed(2)}`,
-        clamped: clamped.toFixed(2),
-        clipId: clip.id
-      });
-    }
-
-    return clamped
+    // Clamp to source range
+    return Math.max(sourceIn, Math.min(sourceOut, sourceTime));
   }
 
   // Complex path with time remapping
@@ -270,10 +253,54 @@ export function getSourceDuration(clip: Clip): number {
  * @returns Effective duration in milliseconds
  */
 export function computeEffectiveDuration(clip: Clip, rate?: number): number {
-  const playback = (rate != null ? rate : (clip.playbackRate ?? 1)) || 1
+  // If explicit rate provided, use simple calculation (legacy/preview behavior)
+  if (rate != null) {
+    const base = getSourceDuration(clip)
+    return Math.max(0, base / rate)
+  }
+
+  // If time remapping exists, calculate exact duration using the periods
+  if (clip.timeRemapPeriods && clip.timeRemapPeriods.length > 0) {
+    const sourceIn = clip.sourceIn || 0
+    const sourceDuration = getSourceDuration(clip)
+    const sourceOut = sourceIn + sourceDuration
+    const baseRate = clip.playbackRate || 1
+
+    const periods = [...clip.timeRemapPeriods].sort((a, b) => a.sourceStartTime - b.sourceStartTime)
+    let duration = 0
+    let currentSource = sourceIn
+
+    for (const period of periods) {
+      const periodStart = Math.max(period.sourceStartTime, sourceIn)
+      const periodEnd = Math.min(Math.max(periodStart, period.sourceEndTime), sourceOut)
+
+      // Skip if period is outside our range
+      if (periodEnd <= periodStart) continue
+
+      // Gap before this period
+      if (currentSource < periodStart) {
+        duration += (periodStart - currentSource) / baseRate
+        currentSource = periodStart
+      }
+
+      // Period duration
+      duration += (periodEnd - currentSource) / Math.max(0.0001, period.speedMultiplier)
+      currentSource = periodEnd
+    }
+
+    // Remaining tail
+    if (currentSource < sourceOut) {
+      duration += (sourceOut - currentSource) / baseRate
+    }
+
+    return Math.max(0, duration)
+  }
+
+  const playback = (clip.playbackRate ?? 1) || 1
   const base = getSourceDuration(clip)
   const effective = base / playback
-  return Math.max(1, Math.round(effective))
+  // Return precise float duration - rounding causes gaps/overlaps in frame-based rendering
+  return Math.max(0, effective)
 }
 
 /**
@@ -296,6 +323,45 @@ export function isSourceTimeInClip(sourceMs: number, clip: Clip): boolean {
   const sourceIn = clip.sourceIn || 0
   const sourceOut = clip.sourceOut || (sourceIn + getSourceDuration(clip))
   return sourceMs >= sourceIn && sourceMs <= sourceOut
+}
+
+/**
+ * Find the clip that contains a given timeline position
+ * CRITICAL for cross-clip lookups: When calculating previous frame state,
+ * the previous timeline position might fall in a different clip than the current one.
+ *
+ * At exact boundaries, this function prioritizes the NEXT clip (the one starting at that position)
+ * rather than the ending clip, which matches typical frame rendering expectations.
+ *
+ * @param timelineMs - Position on timeline in milliseconds
+ * @param clips - Array of clips to search (should be sorted by startTime)
+ * @returns The clip containing this timeline position, or null if not found
+ */
+export function findClipAtTimelinePosition(timelineMs: number, clips: Clip[]): Clip | null {
+  if (!clips || clips.length === 0) return null
+
+  // Use minimal epsilon for floating-point precision only (not to expand boundaries)
+  const EPSILON = 0.001 // 1 microsecond - handles rounding, not timeline expansion
+
+  // First pass: Check if we're exactly at (or within floating-point error of) any clip's start
+  // This handles exact boundaries correctly by prioritizing the starting clip
+  for (const clip of clips) {
+    if (Math.abs(timelineMs - clip.startTime) < EPSILON) {
+      return clip
+    }
+  }
+
+  // Second pass: Normal range check [startTime, startTime + duration)
+  for (const clip of clips) {
+    const clipEnd = clip.startTime + clip.duration
+
+    // Use inclusive start, exclusive end (standard interval notation)
+    if (timelineMs >= clip.startTime && timelineMs < clipEnd) {
+      return clip
+    }
+  }
+
+  return null
 }
 
 /**
@@ -387,6 +453,107 @@ export function getRulerIntervals(zoom: number): { major: number; minor: number 
 }
 
 /**
+ * Calculate adaptive zoom limits based on video duration and zoom blocks
+ * This ensures all zoom blocks remain visible and usable at any zoom level
+ *
+ * @param duration - Total timeline duration in milliseconds
+ * @param viewportWidth - Width of the viewport in pixels
+ * @param zoomBlocks - Array of zoom blocks with startTime and endTime
+ * @param minBlockWidthPx - Minimum visual width for blocks in pixels (default: 24)
+ * @returns Object with min and max zoom levels
+ */
+export function calculateAdaptiveZoomLimits(
+  duration: number,
+  viewportWidth: number,
+  zoomBlocks: { startTime: number; endTime: number }[],
+  minBlockWidthPx: number = 24
+): { min: number; max: number } {
+  const basePixelsPerMs = 0.1
+  const trackLabelWidth = 42 // TimelineConfig.TRACK_LABEL_WIDTH
+  const effectiveViewportWidth = viewportWidth - trackLabelWidth
+
+  // Default limits
+  let minZoom = 0.05
+  let maxZoom = 10
+
+  if (duration <= 0 || effectiveViewportWidth <= 0) {
+    return { min: minZoom, max: maxZoom }
+  }
+
+  // Calculate minimum zoom to fit entire timeline in viewport
+  const fitToViewZoom = effectiveViewportWidth / (duration * basePixelsPerMs)
+
+  // If we have zoom blocks, calculate minimum zoom to keep them from overlapping
+  if (zoomBlocks.length > 0) {
+    // Sort blocks by start time
+    const sortedBlocks = [...zoomBlocks].sort((a, b) => a.startTime - b.startTime)
+
+    // Find the densest region (smallest gap between blocks)
+    // The minimum zoom must ensure blocks don't visually overlap
+    let minRequiredZoom = 0
+
+    for (let i = 0; i < sortedBlocks.length; i++) {
+      const block = sortedBlocks[i]
+      const blockDuration = block.endTime - block.startTime
+
+      // Calculate zoom needed to display this block at minimum width
+      // At this zoom, blockDuration * basePixelsPerMs * zoom = minBlockWidthPx
+      const zoomForThisBlock = minBlockWidthPx / (blockDuration * basePixelsPerMs)
+
+      // Check gap to next block if exists
+      if (i < sortedBlocks.length - 1) {
+        const nextBlock = sortedBlocks[i + 1]
+        const gap = nextBlock.startTime - block.endTime
+
+        // If gap is too small, we need higher zoom to keep blocks separate
+        if (gap > 0 && gap < 500) { // Only consider small gaps
+          // At minimum zoom, both blocks need minimum width + some separation
+          const totalNeeded = minBlockWidthPx * 2 + 4 // 4px gap between blocks
+          const totalDuration = (nextBlock.endTime - block.startTime)
+          const zoomForGap = totalNeeded / (totalDuration * basePixelsPerMs)
+          minRequiredZoom = Math.max(minRequiredZoom, zoomForGap)
+        }
+      }
+
+      minRequiredZoom = Math.max(minRequiredZoom, zoomForThisBlock)
+    }
+
+    // The minimum zoom should be the greater of:
+    // 1. Zoom needed to display all blocks at minimum width
+    // 2. Zoom needed to fit timeline in viewport (but not smaller than blocks allow)
+    minZoom = Math.max(0.01, Math.min(fitToViewZoom, minRequiredZoom))
+
+    // If even fit-to-view is too small for blocks, use block requirement
+    if (fitToViewZoom < minRequiredZoom) {
+      minZoom = Math.max(0.01, fitToViewZoom * 0.8) // Allow some zoom out
+    }
+  } else {
+    // No blocks, just fit to view
+    minZoom = Math.max(0.01, fitToViewZoom * 0.5)
+  }
+
+  // Calculate max zoom based on shortest block (don't zoom in too much)
+  if (zoomBlocks.length > 0) {
+    const shortestBlockDuration = Math.min(
+      ...zoomBlocks.map(b => b.endTime - b.startTime)
+    )
+    // At max zoom, shortest block should take about 1/4 of viewport
+    const maxZoomForBlock = (effectiveViewportWidth * 0.25) / (shortestBlockDuration * basePixelsPerMs)
+    maxZoom = Math.min(10, Math.max(2, maxZoomForBlock))
+  }
+
+  // Ensure min < max
+  if (minZoom >= maxZoom) {
+    minZoom = maxZoom * 0.1
+  }
+
+  return {
+    min: Math.max(0.01, minZoom),
+    max: Math.min(10, maxZoom)
+  }
+}
+
+/**
  * TimeConverter namespace - groups all time conversion functions
  * Used for backward compatibility with existing imports
  */
@@ -402,6 +569,7 @@ export const TimeConverter = {
   computeEffectiveDuration,
   isTimelinePositionInClip,
   isSourceTimeInClip,
+  findClipAtTimelinePosition,
 
   // Pixel conversions
   calculatePixelsPerMs,
@@ -409,7 +577,8 @@ export const TimeConverter = {
   msToPixels,
   pixelsToMs,
   calculateOptimalZoom,
-  getRulerIntervals
+  getRulerIntervals,
+  calculateAdaptiveZoomLimits
 }
 
 // Alias for backward compatibility

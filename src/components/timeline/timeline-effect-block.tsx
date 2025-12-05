@@ -23,6 +23,7 @@ interface TimelineEffectBlockProps {
   // State
   isSelected: boolean
   isEnabled?: boolean
+  isCompact?: boolean // When true, show simplified view (no curve, just label)
   allBlocks: ZoomBlock[]
   blockId: string
   pixelsPerMs: number
@@ -46,6 +47,7 @@ export const TimelineEffectBlock = React.memo(({
   outroMs = 500,
   isSelected,
   isEnabled = true,
+  isCompact = false,
   allBlocks,
   blockId,
   pixelsPerMs,
@@ -56,9 +58,14 @@ export const TimelineEffectBlock = React.memo(({
   const colors = useTimelineColors()
   const [isDragging, setIsDragging] = useState(false)
   const [isTransforming, setIsTransforming] = useState(false)
+  const [currentWidth, setCurrentWidth] = useState(width)
   const groupRef = useRef<Konva.Group>(null)
   const rectRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
+
+  useEffect(() => {
+    setCurrentWidth(width)
+  }, [width])
 
   useEffect(() => {
     if (isSelected && rectRef.current && trRef.current) {
@@ -122,13 +129,14 @@ export const TimelineEffectBlock = React.memo(({
     if (!scale) return [] as number[]
 
     const points: number[] = []
-    const w = width
+    // Use currentWidth for real-time updates during transform
+    const w = currentWidth
 
     if (!w || !height || isNaN(w) || isNaN(height)) {
       return points
     }
 
-    const curveHeight = height - 20
+    const curveHeight = height - 16 // Slightly more padding
     const curveY = height / 2
 
     const introWidth = Math.min(TimeConverter.msToPixels(introMs, pixelsPerMs), w * 0.4)
@@ -140,28 +148,39 @@ export const TimelineEffectBlock = React.memo(({
     }
 
     const scaleHeight = Math.min((scale - 1) * 0.3, 0.8)
-    const steps = 20
 
-    for (let i = 0; i <= steps * 0.3; i++) {
-      const t = i / (steps * 0.3)
-      const easeT = t * t * (3 - 2 * t)
-      points.push(introWidth * t)
-      points.push(curveY - (curveHeight / 2) * easeT * scaleHeight)
+    // Generate smoother curve using more points and a better easing function
+    // Intro
+    const steps = 40 // Increased steps for smoothness
+
+    // Start point
+    points.push(0, curveY)
+
+    // Intro curve (ease-in-out)
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps
+      // Cubic ease in-out
+      const easeT = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+
+      const px = introWidth * t
+      const py = curveY - (curveHeight / 2) * easeT * scaleHeight
+      points.push(px, py)
     }
 
+    // Plateau
     if (plateauWidth > 0) {
-      for (let i = 0; i <= steps * 0.4; i++) {
-        const t = i / (steps * 0.4)
-        points.push(introWidth + plateauWidth * t)
-        points.push(curveY - (curveHeight / 2) * scaleHeight)
-      }
+      points.push(introWidth + plateauWidth, curveY - (curveHeight / 2) * scaleHeight)
     }
 
-    for (let i = 0; i <= steps * 0.3; i++) {
-      const t = i / (steps * 0.3)
-      const easeT = 1 - (1 - t) * (1 - t) * (3 - 2 * (1 - t))
-      points.push(introWidth + plateauWidth + outroWidth * t)
-      points.push(curveY - (curveHeight / 2) * (1 - easeT) * scaleHeight)
+    // Outro curve
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps
+      // Cubic ease in-out reversed
+      const easeT = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+
+      const px = introWidth + plateauWidth + outroWidth * t
+      const py = curveY - (curveHeight / 2) * (1 - easeT) * scaleHeight
+      points.push(px, py)
     }
 
     return points
@@ -232,56 +251,49 @@ export const TimelineEffectBlock = React.memo(({
           ref={rectRef}
           x={0}
           y={0}
-          width={width}
+          width={width} // Keep this as width prop, transformer handles visual scaling
           height={height}
           fill={fillColor || colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
-          cornerRadius={4}
+          cornerRadius={6}
           opacity={!isEnabled ? 0.3 : (isDragging ? 0.7 : (isSelected ? 0.95 : 0.85))}
           stroke={isSelected ? colors.primary : undefined}
-          strokeWidth={isSelected ? 1.5 : 0}
-          shadowColor="black"
-          shadowBlur={isSelected ? 6 : 2}
-          shadowOpacity={0.2}
-          shadowOffsetY={1}
+          strokeWidth={isSelected ? 2 : 0}
+          shadowColor={colors.zoomBlock}
+          shadowBlur={isSelected ? 12 : 4}
+          shadowOpacity={0.3}
+          shadowOffsetY={2}
           listening={true}
         />
 
-        {curvePoints.length > 0 && (
+        {/* Only show curve in non-compact mode */}
+        {!isCompact && curvePoints.length > 0 && (
           <>
             <Line
               points={curvePoints}
-              stroke={!isEnabled ? "rgba(255, 255, 255, 0.2)" : "rgba(255, 255, 255, 0.6)"}
-              strokeWidth={2}
+              stroke={!isEnabled ? "rgba(255, 255, 255, 0.4)" : "white"}
+              strokeWidth={2.5}
               lineCap="round"
               lineJoin="round"
-              listening={false}
-            />
-
-            <Line
-              points={[
-                ...curvePoints,
-                width, height / 2,
-                0, height / 2
-              ]}
-              fill={!isEnabled ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.15)"}
-              closed={true}
               listening={false}
             />
           </>
         )}
 
+        {/* Label - centered in compact mode, top-left otherwise */}
         {label && (
           <Text
-            x={8}
-            y={6}
+            x={isCompact ? width / 2 : 10}
+            y={isCompact ? height / 2 - 5 : 8}
             text={label}
-            fontSize={11}
-            fill={!isEnabled ? "rgba(255, 255, 255, 0.4)" : "white"}
+            fontSize={isCompact ? 10 : 11}
+            fill={!isEnabled ? "rgba(255, 255, 255, 0.5)" : "white"}
             fontFamily="-apple-system, BlinkMacSystemFont, 'SF Pro Display'"
-            fontStyle={isSelected ? "500" : "normal"}
+            fontStyle="600"
+            align={isCompact ? "center" : "left"}
+            offsetX={isCompact ? (label.length * 3) : 0}
             shadowColor="black"
-            shadowBlur={2}
-            shadowOpacity={0.3}
+            shadowBlur={4}
+            shadowOpacity={0.4}
             listening={false}
           />
         )}
@@ -313,7 +325,7 @@ export const TimelineEffectBlock = React.memo(({
           anchorStroke={colors.primary || '#6366f1'}
           anchorStrokeWidth={1}
           anchorSize={10}
-          anchorCornerRadius={2}
+          anchorCornerRadius={5}
           keepRatio={false}
           ignoreStroke={true}
           onTransformStart={() => {
@@ -324,7 +336,12 @@ export const TimelineEffectBlock = React.memo(({
               const rect = rectRef.current
               const scaleX = rect.scaleX()
               const scaleY = rect.scaleY()
-              rect.width(rect.width() * scaleX)
+
+              // Update local state for real-time curve updates
+              const newWidth = rect.width() * scaleX
+              setCurrentWidth(newWidth)
+
+              rect.width(newWidth)
               rect.height(rect.height() * scaleY)
               rect.scaleX(1)
               rect.scaleY(1)
@@ -359,11 +376,13 @@ export const TimelineEffectBlock = React.memo(({
               rect.height(height)
               group.x(x)
               group.getLayer()?.batchDraw()
+              setCurrentWidth(width) // Reset on cancel
             } else {
               rect.x(0)
               rect.y(0)
               rect.width(finalWidth)
               group.x(finalX)
+              setCurrentWidth(finalWidth) // Ensure sync
               onUpdate({
                 startTime: newStartTime,
                 endTime: newEndTime

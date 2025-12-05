@@ -18,15 +18,15 @@ interface ClipTabProps {
 export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTabProps) {
   const [playbackRate, setPlaybackRate] = useState(1.0)
   const commandManager = useCommandManager()
-  
+
   // Get the actual selected clip from the store to ensure reactivity
   const { selectedClips, currentProject } = useProjectStore()
   const selectedClipId = selectedClips[0]
-  
+
   // Find the current clip in the project to get the latest data
   const selectedClip = React.useMemo(() => {
     if (!selectedClipId || !currentProject) return propSelectedClip
-    
+
     for (const track of currentProject.timeline.tracks) {
       const clip = track.clips.find(c => c.id === selectedClipId)
       if (clip) return clip
@@ -103,7 +103,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">Clip Properties</h3>
+
         <div className="space-y-1">
           <div className="text-xs text-muted-foreground">Clip ID: {selectedClip.id.slice(0, 8)}...</div>
           <div className="text-xs text-muted-foreground">
@@ -144,7 +144,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
             step={0.25}
             className="w-full"
           />
-          
+
           <div className="relative w-full h-4 mt-1">
             {/* Min label */}
             <span className="absolute text-xs text-muted-foreground" style={{ left: `${pct(MIN_RATE)}%`, transform: 'translateX(-50%)' }}>0.25x</span>

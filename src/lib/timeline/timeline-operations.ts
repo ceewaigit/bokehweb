@@ -1,5 +1,6 @@
 import type { Project, Track, Clip, Effect, Recording } from '@/types/project'
 import { TrackType, EffectType } from '@/types/project'
+import { TimeConverter } from '@/lib/timeline/time-space-converter'
 
 // Calculate total timeline duration
 export function calculateTimelineDuration(project: Project): number {
@@ -42,7 +43,7 @@ export function reflowClips(
     const sourceOut = clip.sourceOut || sourceIn
     const sourceDuration = sourceOut - sourceIn
     const playbackRate = clip.playbackRate || 1
-    const expectedDuration = sourceDuration / playbackRate
+    const expectedDuration = TimeConverter.computeEffectiveDuration(clip)
 
     // Allow 1ms tolerance for rounding
     if (Math.abs(clip.duration - expectedDuration) > 1) {
@@ -170,10 +171,10 @@ export function executeSplitClip(
   if (!result) return null
 
   const { clip, track } = result
-  
+
   // Convert timeline position to clip-relative time
   const clipRelativeTime = splitTime - clip.startTime
-  
+
   const splitResult = splitClipAtTime(clip, clipRelativeTime)
   if (!splitResult) return null
 
