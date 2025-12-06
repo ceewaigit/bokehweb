@@ -115,6 +115,8 @@ export interface ElectronAPI {
     cancelled?: boolean
     area?: { x: number; y: number; width: number; height: number; displayId: number }
   }>
+  sendAreaSelection?: (bounds: { x: number; y: number; width: number; height: number }) => void
+  cancelAreaSelection?: () => void
 
   // Window controls
   minimize: () => void
@@ -143,8 +145,11 @@ export interface ElectronAPI {
   // Native recorder API (macOS 12.3+ with ScreenCaptureKit)
   nativeRecorder?: {
     isAvailable: () => Promise<boolean>
-    startDisplay: (displayId: number) => Promise<{ outputPath: string }>
+    startDisplay: (displayId: number, bounds?: { x: number; y: number; width: number; height: number }) => Promise<{ outputPath: string }>
+    startWindow: (windowId: number) => Promise<{ outputPath: string }>
     stop: () => Promise<{ outputPath: string }>
+    pause: () => Promise<{ success: boolean }>
+    resume: () => Promise<{ success: boolean }>
     isRecording: () => Promise<boolean>
     readVideo: (filePath: string) => Promise<ArrayBuffer>
   }

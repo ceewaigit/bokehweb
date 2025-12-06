@@ -2,11 +2,11 @@
  * Store interface types - centralized to avoid circular dependencies
  */
 
-import type { 
-  Project, 
-  Clip, 
-  Track, 
-  Recording, 
+import type {
+  Project,
+  Clip,
+  Track,
+  Recording,
   Effect,
   ZoomEffectData,
   CursorEffectData,
@@ -32,7 +32,7 @@ export interface ProjectStore {
     clip?: Clip
     effect?: ClipboardEffect
   }
-  
+
   // Store methods used by commands
   addClip: (clip: Clip | string, startTime?: number) => void
   removeClip: (clipId: string) => void
@@ -47,13 +47,13 @@ export interface ProjectStore {
   copyClip: (clip: Clip) => void
   copyEffect: (type: EffectType.Zoom | EffectType.Cursor | EffectType.Background, data: ZoomEffectData | CursorEffectData | BackgroundEffectData, sourceClipId: string) => void
   clearClipboard: () => void
-  
+
   // Effects Management (timeline-global)
   addEffect: (effect: Effect) => void
   removeEffect: (effectId: string) => void
   updateEffect: (effectId: string, updates: Partial<Effect>) => void
   getEffectsAtTimeRange: (clipId: string) => Effect[]
-  
+
   // Typing Speed
   applyTypingSpeedToClip: (clipId: string, periods: Array<{
     startTime: number
@@ -67,4 +67,7 @@ export interface ProjectStore {
     averageWpm: number
     suggestedSpeedMultiplier: number
   }>) => void
+
+  // Atomic undo for typing speed - removes affected clips and restores originals in ONE update
+  restoreClipsFromUndo: (trackId: string, clipIdsToRemove: string[], clipsToRestore: Clip[]) => void
 }

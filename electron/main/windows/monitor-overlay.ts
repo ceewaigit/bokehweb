@@ -55,6 +55,149 @@ export function createMonitorOverlay(displayId?: number): BrowserWindow {
   return overlayWindow
 }
 
+/**
+ * Create an overlay that matches specific window bounds
+ */
+export function showWindowBoundsOverlay(
+  bounds: { x: number; y: number; width: number; height: number },
+  windowName: string
+): void {
+  // Destroy existing overlay if any
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close()
+    overlayWindow = null
+  }
+
+  // Create overlay window matching the window bounds
+  overlayWindow = new BrowserWindow({
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y),
+    width: Math.round(bounds.width),
+    height: Math.round(bounds.height),
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    hasShadow: false,
+    focusable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js')
+    }
+  })
+
+  // Make it ignore mouse events so user can still interact
+  overlayWindow.setIgnoreMouseEvents(true)
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1000)
+
+  // Window-specific overlay HTML
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+          background: transparent;
+          height: 100vh;
+          width: 100vw;
+          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+          user-select: none;
+          overflow: hidden;
+        }
+        
+        .border-overlay {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          animation: fadeIn 0.3s ease-out;
+        }
+        
+        .border-overlay::before {
+          content: '';
+          position: absolute;
+          inset: 4px;
+          border: 2px solid rgba(99, 102, 241, 0.8);
+          border-radius: 8px;
+          background: rgba(99, 102, 241, 0.05);
+          box-shadow: 
+            0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+            0 4px 20px rgba(99, 102, 241, 0.2);
+        }
+        
+        .status-indicator {
+          position: absolute;
+          top: 12px;
+          left: 12px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: rgba(0, 0, 0, 0.85);
+          padding: 6px 12px;
+          border-radius: 16px;
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          animation: slideDown 0.4s ease-out;
+        }
+        
+        .status-dot {
+          width: 5px;
+          height: 5px;
+          background: #10b981;
+          border-radius: 50%;
+          animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .status-text {
+          color: rgba(255, 255, 255, 0.95);
+          font-size: 11px;
+          font-weight: 500;
+        }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        .fade-out {
+          animation: fadeOut 0.5s ease-out forwards;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="border-overlay"></div>
+      <div class="status-indicator">
+        <div class="status-dot"></div>
+        <div class="status-text">${windowName}</div>
+      </div>
+      <script>
+        // Auto-hide after 2 seconds
+        setTimeout(() => {
+          document.body.classList.add('fade-out');
+        }, 2000);
+      </script>
+    </body>
+    </html>
+  `
+
+  overlayWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+  overlayWindow.show()
+
+  // Auto-close the overlay after 2.5 seconds (after fade animation)
+  setTimeout(() => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.close()
+      overlayWindow = null
+    }
+  }, 2500)
+}
+
 export function showMonitorOverlay(displayId?: number, customLabel?: string): void {
   const overlay = createMonitorOverlay(displayId)
 

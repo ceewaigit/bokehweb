@@ -18,7 +18,8 @@ import {
   duplicateClipInTrack,
   addRecordingToProject,
   restoreClipToTrack,
-  calculateTimelineDuration
+  calculateTimelineDuration,
+  reflowClips
 } from '@/lib/timeline/timeline-operations'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { TypingSpeedApplicationService } from '@/lib/timeline/typing-speed-application'
@@ -116,6 +117,9 @@ interface ProjectStore {
     averageWpm: number
     suggestedSpeedMultiplier: number
   }>) => void
+
+  // Atomic undo for typing speed - restores clips without intermediate reflows
+  restoreClipsFromUndo: (trackId: string, clipIdsToRemove: string[], clipsToRestore: Clip[]) => void
 }
 
 // Helper to update playhead state using the new PlayheadService
@@ -680,6 +684,38 @@ export const useProjectStore = create<ProjectStore>()(
           averageWPM: p.averageWpm,
           suggestedSpeedMultiplier: p.suggestedSpeedMultiplier
         }))
+      })
+    },
+
+    // Atomic undo for typing speed - removes affected clips and restores originals in ONE update
+    // This prevents intermediate reflows that cause incorrect clip positions
+    restoreClipsFromUndo: (trackId, clipIdsToRemove, clipsToRestore) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        const track = state.currentProject.timeline.tracks.find(t => t.id === trackId)
+        if (!track) return
+
+        // Step 1: Remove all affected clips (the split/sped-up ones) in one pass
+        track.clips = track.clips.filter(c => !clipIdsToRemove.includes(c.id))
+
+        // Step 2: Add back original clips
+        for (const clip of clipsToRestore) {
+          track.clips.push({ ...clip })
+        }
+
+        // Step 3: Sort by startTime
+        track.clips.sort((a, b) => a.startTime - b.startTime)
+
+        // Step 4: Single reflow at the end
+        reflowClips(track, 0, state.currentProject)
+
+        // Step 5: Update timeline duration
+        state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+        state.currentProject.modifiedAt = new Date().toISOString()
+
+        // Step 6: Update playhead state
+        updatePlayheadState(state)
       })
     }
   }))

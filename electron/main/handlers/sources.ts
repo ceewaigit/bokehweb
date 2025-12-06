@@ -98,14 +98,45 @@ export function registerSourceHandlers(): void {
 
 
         // Import window bounds helper dynamically
-        const { getWindowBoundsForSource } = await import('../native/window-bounds')
+        const { getWindowBoundsForSource, getAllWindowBounds } = await import('../native/window-bounds')
+
+        // Get all visible windows from native API (uses .optionOnScreenOnly)
+        const visibleWindows = await getAllWindowBounds()
+        const visibleWindowNames = new Set(visibleWindows.map(w => w.name))
+        const visibleOwnerNames = new Set(visibleWindows.map(w => w.ownerName))
 
         // Get all displays for enhanced information
         const displays = screen.getAllDisplays()
         const primaryDisplay = screen.getPrimaryDisplay()
 
+        // Filter and map the sources
+        const filteredSources = sources.filter(source => {
+          // Always keep screen sources
+          if (source.id.startsWith('screen:')) {
+            return true
+          }
+
+          // For window sources, only keep if the window is visible on screen
+          // Check if window name or app name matches any visible window
+          const appName = source.name.split(' - ')[0].split(' — ')[0].trim()
+
+          // Check for exact name match or app name match in visible windows
+          const isVisible = visibleWindowNames.has(source.name) ||
+            visibleWindows.some(w =>
+              w.name === source.name ||
+              w.ownerName === appName ||
+              source.name.includes(w.ownerName)
+            )
+
+          if (!isVisible) {
+            console.log(`[Sources] Filtering out hidden window: ${source.name}`)
+          }
+
+          return isVisible
+        })
+
         // Map the sources to our format with bounds information
-        const mappedSources = await Promise.all(sources.map(async source => {
+        const mappedSources = await Promise.all(filteredSources.map(async source => {
           // Get window bounds for window sources
           let bounds = undefined
           let displayInfo = undefined
@@ -368,12 +399,110 @@ export function registerSourceHandlers(): void {
     }
   })
 
-  // Area selection - disabled until ScreenCaptureKit implementation
-  ipcMain.handle('select-screen-area', async () => {
-    // TODO: Implement with ScreenCaptureKit (macOS 12.3+) for proper coordinates
-    return {
-      success: false,
-      cancelled: true
+  // Area selection - creates transparent overlay for user to select screen region
+  ipcMain.handle('select-screen-area', async (event: IpcMainInvokeEvent) => {
+    // Check macOS version for ScreenCaptureKit support (12.3+)
+    const systemVersion = process.getSystemVersion?.() || '0.0.0'
+    const [major, minor] = systemVersion.split('.').map(Number)
+    if (process.platform === 'darwin' && (major < 12 || (major === 12 && minor < 3))) {
+      console.warn('Area selection requires macOS 12.3+ for ScreenCaptureKit')
+      return { success: false, error: 'macOS 12.3+ required' }
     }
+
+    return new Promise((resolve) => {
+      // Get the primary display for the overlay
+      const primaryDisplay = screen.getPrimaryDisplay()
+
+      // Get the correct preload path
+      const preloadPath = process.env.MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY || path.join(__dirname, '../../preload.js')
+      console.log('[AreaSelection] Using preload path:', preloadPath)
+
+      // Create transparent fullscreen overlay window
+      const overlayWindow = new BrowserWindow({
+        x: primaryDisplay.bounds.x,
+        y: primaryDisplay.bounds.y,
+        width: primaryDisplay.bounds.width,
+        height: primaryDisplay.bounds.height,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        resizable: false,
+        movable: false,
+        focusable: true,
+        hasShadow: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: preloadPath
+        }
+      })
+
+      // Ensure window is visible on all workspaces and above everything
+      overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1000)
+
+      // Load the area selection page using the getAppURL helper
+      const isDev = process.env.NODE_ENV === 'development' ||
+        process.env.npm_lifecycle_event === 'forge:start' ||
+        !!process.env.MAIN_WINDOW_WEBPACK_ENTRY
+
+      let url: string
+      if (isDev && process.env.DEV_SERVER_URL) {
+        url = `${process.env.DEV_SERVER_URL}#/area-selection`
+      } else if (process.env.MAIN_WINDOW_WEBPACK_ENTRY) {
+        url = `${process.env.MAIN_WINDOW_WEBPACK_ENTRY}#/area-selection`
+      } else {
+        url = `file://${path.join(__dirname, '../../out/area-selection.html')}`
+      }
+
+      console.log('[AreaSelection] Loading URL:', url)
+      overlayWindow.loadURL(url)
+
+      // Show and focus the window after loading
+      overlayWindow.once('ready-to-show', () => {
+        overlayWindow.show()
+        overlayWindow.focus()
+      })
+
+      overlayWindow.show()
+      overlayWindow.focus()
+
+      // Handle area selection complete
+      const handleComplete = (_event: any, bounds: { x: number; y: number; width: number; height: number }) => {
+        ipcMain.removeListener('area-selection-complete', handleComplete)
+        ipcMain.removeListener('area-selection-cancelled', handleCancel)
+        overlayWindow.close()
+
+        resolve({
+          success: true,
+          area: {
+            ...bounds,
+            displayId: primaryDisplay.id
+          }
+        })
+      }
+
+      // Handle cancellation
+      const handleCancel = () => {
+        ipcMain.removeListener('area-selection-complete', handleComplete)
+        ipcMain.removeListener('area-selection-cancelled', handleCancel)
+        overlayWindow.close()
+
+        resolve({
+          success: false,
+          cancelled: true
+        })
+      }
+
+      ipcMain.on('area-selection-complete', handleComplete)
+      ipcMain.on('area-selection-cancelled', handleCancel)
+
+      // Also handle window close
+      overlayWindow.on('closed', () => {
+        ipcMain.removeListener('area-selection-complete', handleComplete)
+        ipcMain.removeListener('area-selection-cancelled', handleCancel)
+      })
+    })
   })
 }

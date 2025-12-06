@@ -564,6 +564,61 @@ export function TimelineCanvas({
               }
               const zoomEffects = allZoomEffects
 
+              // Convert all zoom effects to TIMELINE space for snapping/overlap detection
+              // TimelineEffectBlock needs timeline-space times for consistent comparisons
+              const allBlocksInTimelineSpace: ZoomBlock[] = zoomEffects.map((effect) => {
+                const recording = currentProject.recordings.find(r =>
+                  r.effects?.some(e => e.id === effect.id)
+                )
+                if (!recording) {
+                  // Fallback: return effect times unchanged (shouldn't happen)
+                  return {
+                    id: effect.id,
+                    startTime: effect.startTime,
+                    endTime: effect.endTime,
+                    scale: (effect.data as ZoomEffectData).scale
+                  }
+                }
+
+                // Find intersecting clips for this effect
+                const clips = currentProject.timeline.tracks
+                  .flatMap(t => t.clips)
+                  .filter(c =>
+                    c.recordingId === recording.id &&
+                    (c.sourceIn || 0) < effect.endTime &&
+                    ((c.sourceOut || (c.sourceIn || 0) + c.duration * (c.playbackRate || 1))) > effect.startTime
+                  )
+                  .sort((a, b) => a.startTime - b.startTime)
+
+                if (clips.length === 0) {
+                  return {
+                    id: effect.id,
+                    startTime: effect.startTime,
+                    endTime: effect.endTime,
+                    scale: (effect.data as ZoomEffectData).scale
+                  }
+                }
+
+                const firstClip = clips[0]
+                const lastClip = clips[clips.length - 1]
+
+                // Convert source times to timeline times
+                const timelineStart = TimeConverter.sourceToTimeline(
+                  Math.max(effect.startTime, firstClip.sourceIn || 0),
+                  firstClip
+                )
+                const timelineEnd = TimeConverter.sourceToTimeline(
+                  Math.min(effect.endTime, lastClip.sourceOut || Infinity),
+                  lastClip
+                )
+
+                return {
+                  id: effect.id,
+                  startTime: timelineStart,
+                  endTime: timelineEnd,
+                  scale: (effect.data as ZoomEffectData).scale
+                }
+              })
 
               // Render each zoom effect as a block on the timeline
               zoomEffects.forEach((effect) => {
@@ -624,7 +679,7 @@ export function TimelineCanvas({
                     outroMs={zoomData.outroMs}
                     isSelected={isBlockSelected}
                     isEnabled={effect.enabled}
-                    allBlocks={zoomEffects as any}
+                    allBlocks={allBlocksInTimelineSpace}
                     pixelsPerMs={pixelsPerMs}
                     onSelect={() => {
                       // Just select the zoom effect, no clip association needed
@@ -674,7 +729,40 @@ export function TimelineCanvas({
                       })
                     }}
                     onUpdate={(updates: Partial<ZoomBlock>) => {
-                      onZoomBlockUpdate?.(effect.id, updates)
+                      // Convert timeline times to source times if timing updates provided
+                      // This matches the conversion done in onDragEnd
+                      if (updates.startTime !== undefined || updates.endTime !== undefined) {
+                        // Find the clip at the new timeline position for conversion
+                        const newTimelineStartTime = updates.startTime ?? timelineStartTime
+                        const targetClip = currentProject.timeline.tracks
+                          .flatMap(t => t.clips)
+                          .find(c =>
+                            c.recordingId === recording.id &&
+                            TimeConverter.isTimelinePositionInClip(newTimelineStartTime, c)
+                          ) || firstClip
+
+                        const sourceUpdates: Partial<ZoomBlock> = { ...updates }
+
+                        if (updates.startTime !== undefined) {
+                          sourceUpdates.startTime = TimeConverter.timelineToSource(updates.startTime, targetClip)
+                        }
+                        if (updates.endTime !== undefined) {
+                          // For endTime, use the clip that contains the end position
+                          const endTimelinePos = updates.endTime
+                          const endClip = currentProject.timeline.tracks
+                            .flatMap(t => t.clips)
+                            .find(c =>
+                              c.recordingId === recording.id &&
+                              TimeConverter.isTimelinePositionInClip(endTimelinePos, c)
+                            ) || lastClip
+                          sourceUpdates.endTime = TimeConverter.timelineToSource(updates.endTime, endClip)
+                        }
+
+                        onZoomBlockUpdate?.(effect.id, sourceUpdates)
+                      } else {
+                        // Non-timing updates (scale, introMs, etc.) can pass through directly
+                        onZoomBlockUpdate?.(effect.id, updates)
+                      }
                     }}
                   />
                 )

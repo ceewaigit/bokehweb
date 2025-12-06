@@ -6,9 +6,16 @@
 
 import type { BackgroundEffectData } from '@/types/project'
 import { BackgroundType } from '@/types/project'
+import {
+  MAX_SHADOW_BLUR,
+  SHADOW_INTENSITY_TO_OPACITY_DIVISOR,
+  SHADOW_OFFSET_DIVISOR,
+  DEFAULT_IMAGE_POSITION,
+  DEFAULT_BACKGROUND_COLOR
+} from '@/lib/constants/calculator-constants'
 
 export interface BackgroundStyle {
-  type: 'gradient' | 'color' | 'image' | 'wallpaper' | 'none'
+  type: BackgroundType
   cssStyle?: React.CSSProperties
   canvasDrawing?: {
     type: 'fill' | 'gradient' | 'image'
@@ -37,25 +44,25 @@ export function calculateBackgroundStyle(
   height: number
 ): BackgroundStyle {
   if (!backgroundData?.type) {
-    return { type: 'none' }
+    return { type: BackgroundType.None }
   }
 
   switch (backgroundData.type) {
     case BackgroundType.Color:
       return {
-        type: 'color',
+        type: BackgroundType.Color,
         cssStyle: {
-          backgroundColor: backgroundData.color || '#000000'
+          backgroundColor: backgroundData.color || DEFAULT_BACKGROUND_COLOR
         },
         canvasDrawing: {
           type: 'fill',
-          color: backgroundData.color || '#000000'
+          color: backgroundData.color || DEFAULT_BACKGROUND_COLOR
         }
       }
 
     case BackgroundType.Gradient:
       if (!backgroundData.gradient?.colors?.length) {
-        return { type: 'none' }
+        return { type: BackgroundType.None }
       }
       return createGradientStyle(backgroundData.gradient, width, height)
 
@@ -63,11 +70,11 @@ export function calculateBackgroundStyle(
       // Wallpaper is gradient + optional image overlay
       const baseGradient = backgroundData.gradient?.colors?.length
         ? createGradientStyle(backgroundData.gradient, width, height)
-        : { type: 'none' as const }
+        : { type: BackgroundType.None as const }
 
       if (backgroundData.wallpaper) {
         return {
-          type: 'wallpaper',
+          type: BackgroundType.Wallpaper,
           cssStyle: {
             backgroundImage: `url(${backgroundData.wallpaper})`,
             backgroundSize: 'cover',
@@ -78,7 +85,7 @@ export function calculateBackgroundStyle(
             image: {
               url: backgroundData.wallpaper,
               size: 'cover',
-              position: { x: 0.5, y: 0.5 }
+              position: DEFAULT_IMAGE_POSITION
             }
           },
           blur: backgroundData.blur
@@ -88,10 +95,10 @@ export function calculateBackgroundStyle(
 
     case BackgroundType.Image:
       if (!backgroundData.image) {
-        return { type: 'none' }
+        return { type: BackgroundType.None }
       }
       return {
-        type: 'image',
+        type: BackgroundType.Image,
         cssStyle: {
           backgroundImage: `url(${backgroundData.image})`,
           backgroundSize: 'cover',
@@ -103,7 +110,7 @@ export function calculateBackgroundStyle(
           image: {
             url: backgroundData.image,
             size: 'cover',
-            position: { x: 0.5, y: 0.5 }
+            position: DEFAULT_IMAGE_POSITION
           }
         },
         blur: backgroundData.blur
@@ -111,7 +118,7 @@ export function calculateBackgroundStyle(
 
     case BackgroundType.None:
     default:
-      return { type: 'none' }
+      return { type: BackgroundType.None }
   }
 }
 
@@ -124,19 +131,19 @@ function createGradientStyle(
   height: number
 ): BackgroundStyle {
   const { colors, angle = 135 } = gradient
-  
+
   // Calculate color stops for even distribution
-  const stops = colors.map((_, index) => 
+  const stops = colors.map((_, index) =>
     index / (colors.length - 1)
   )
-  
+
   // Create CSS gradient string
-  const gradientColors = colors.map((color, index) => 
+  const gradientColors = colors.map((color, index) =>
     `${color} ${stops[index] * 100}%`
   ).join(', ')
-  
+
   return {
-    type: 'gradient',
+    type: BackgroundType.Gradient,
     cssStyle: {
       background: `linear-gradient(${angle}deg, ${gradientColors})`
     },
@@ -163,13 +170,13 @@ export function calculateGradientCoordinates(
   const angleRad = (angle * Math.PI) / 180
   const centerX = width / 2
   const centerY = height / 2
-  
+
   // Calculate gradient line endpoints
   const x1 = centerX - Math.cos(angleRad) * width / 2
   const y1 = centerY - Math.sin(angleRad) * height / 2
   const x2 = centerX + Math.cos(angleRad) * width / 2
   const y2 = centerY + Math.sin(angleRad) * height / 2
-  
+
   return { x1, y1, x2, y2 }
 }
 
@@ -184,11 +191,11 @@ export function applyGradientToCanvas(
 ): void {
   const coords = calculateGradientCoordinates(gradient.angle, width, height)
   const canvasGradient = ctx.createLinearGradient(coords.x1, coords.y1, coords.x2, coords.y2)
-  
+
   gradient.colors.forEach((color, index) => {
     canvasGradient.addColorStop(gradient.stops[index], color)
   })
-  
+
   ctx.fillStyle = canvasGradient
   ctx.fillRect(0, 0, width, height)
 }
@@ -221,24 +228,24 @@ export function calculateVideoFrame(
       cornerRadius: 0
     }
   }
-  
+
   // Calculate available space after padding
   const availableWidth = containerWidth - (padding * 2)
   const availableHeight = containerHeight - (padding * 2)
-  
+
   // Calculate scale to fit video in available space
   const scaleX = availableWidth / videoWidth
   const scaleY = availableHeight / videoHeight
   const scale = Math.min(scaleX, scaleY)
-  
+
   // Calculate final dimensions
   const finalWidth = videoWidth * scale
   const finalHeight = videoHeight * scale
-  
+
   // Center the video
   const x = (containerWidth - finalWidth) / 2
   const y = (containerHeight - finalHeight) / 2
-  
+
   return {
     x,
     y,
@@ -257,12 +264,12 @@ export function applyShadowToCanvas(
   shadowIntensity: number = 0
 ): void {
   if (shadowIntensity <= 0) return
-  
-  const blur = Math.max(0, Math.min(50, shadowIntensity / 2))
-  const opacity = Math.max(0, Math.min(1, shadowIntensity / 100))
-  
+
+  const blur = Math.max(0, Math.min(MAX_SHADOW_BLUR, shadowIntensity / 2))
+  const opacity = Math.max(0, Math.min(1, shadowIntensity / SHADOW_INTENSITY_TO_OPACITY_DIVISOR))
+
   ctx.shadowColor = `rgba(0, 0, 0, ${opacity})`
   ctx.shadowBlur = blur
   ctx.shadowOffsetX = 0
-  ctx.shadowOffsetY = blur / 4
+  ctx.shadowOffsetY = blur / SHADOW_OFFSET_DIVISOR
 }

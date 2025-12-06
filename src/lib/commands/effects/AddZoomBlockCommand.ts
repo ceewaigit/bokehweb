@@ -1,70 +1,58 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { ZoomBlock, Effect, ZoomEffectData, Clip } from '@/types/project'
+import type { ZoomBlock, Effect, ZoomEffectData } from '@/types/project'
 import { EffectType } from '@/types/project'
-import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { useProjectStore } from '@/stores/project-store'
 
 export class AddZoomBlockCommand extends Command<{ blockId: string }> {
   private block: ZoomBlock
-  private clipId: string
+  private recordingId: string
 
   constructor(
     private context: CommandContext,
-    clipId: string,
+    recordingId: string,  // Now takes recordingId directly, not clipId
     block: ZoomBlock
   ) {
     super({
       name: 'AddZoomBlock',
-      description: `Add zoom block to clip ${clipId}`,
+      description: `Add zoom block to recording ${recordingId}`,
       category: 'effects'
     })
-    this.clipId = clipId
+    this.recordingId = recordingId
     this.block = block
   }
 
   canExecute(): boolean {
-    // Zoom effects are recording-scoped, must have a clip to find the recording
     const project = this.context.getProject()
-    return !!this.findClipAndRecording(project).recording
-  }
+    if (!project) return false
 
-  private findClipAndRecording(project: any) {
-    if (!project) return { clip: null, recording: null }
-
-    let targetClip: Clip | null = null
-    for (const track of project.timeline.tracks) {
-      const clip = track.clips.find((c: Clip) => c.id === this.clipId)
-      if (clip) {
-        targetClip = clip
-        break
-      }
-    }
-
-    if (!targetClip) return { clip: null, recording: null }
-
-    const recording = project.recordings.find((r: any) => r.id === targetClip!.recordingId)
-    return { clip: targetClip, recording }
+    // Check if the recording exists
+    return project.recordings.some(r => r.id === this.recordingId)
   }
 
   doExecute(): CommandResult<{ blockId: string }> {
     const project = this.context.getProject()
-    console.log('[AddZoomBlockCommand] doExecute called, clipId:', this.clipId)
+    console.log('[AddZoomBlockCommand] doExecute called, recordingId:', this.recordingId)
 
-    const { clip, recording } = this.findClipAndRecording(project)
-    console.log('[AddZoomBlockCommand] Found clip:', !!clip, 'recording:', !!recording, 'recordingId:', recording?.id)
-
-    if (!recording) {
-      console.error('[AddZoomBlockCommand] Recording not found for clip:', this.clipId)
+    if (!project) {
       return {
         success: false,
-        error: 'Recording not found for clip'
+        error: 'No project found'
+      }
+    }
+
+    const recording = project.recordings.find(r => r.id === this.recordingId)
+    if (!recording) {
+      console.error('[AddZoomBlockCommand] Recording not found:', this.recordingId)
+      return {
+        success: false,
+        error: `Recording ${this.recordingId} not found`
       }
     }
 
     // Ensure block has an ID
     if (!this.block.id) {
-      this.block.id = `zoom-${recording.id}-${Date.now()}`
+      this.block.id = `zoom-${this.recordingId}-${Date.now()}`
     }
 
     console.log('[AddZoomBlockCommand] Block ID:', this.block.id)
@@ -87,22 +75,13 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
       enabled: true
     }
 
-    // Add zoom effect directly to recording.effects
-    // We need to use the store to properly update because we're outside Immer context
-    if (!project) {
-      return {
-        success: false,
-        error: 'No project found'
-      }
-    }
-
     console.log('[AddZoomBlockCommand] Adding effect to recording.effects, current count:', recording.effects?.length || 0)
 
     // Use global store's setProject to work within Immer context
     useProjectStore.getState().setProject({
       ...project,
       recordings: project.recordings.map(r => {
-        if (r.id === recording.id) {
+        if (r.id === this.recordingId) {
           return {
             ...r,
             effects: [...(r.effects || []), zoomEffect]
@@ -123,7 +102,7 @@ export class AddZoomBlockCommand extends Command<{ blockId: string }> {
 
   doUndo(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
-    
+
     // Remove the zoom effect
     store.removeEffect(this.block.id)
 

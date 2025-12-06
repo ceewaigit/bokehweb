@@ -2,6 +2,11 @@ import { useMemo, useRef } from 'react';
 import { EffectType, type Effect, type ZoomBlock, type Recording } from '@/types/project';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
+import {
+    SEEK_THRESHOLD_MS,
+    SPRING_TENSION,
+    SPRING_FRICTION
+} from '@/lib/constants/calculator-constants';
 
 interface UseZoomStateProps {
     effects: Effect[];
@@ -103,7 +108,7 @@ export function useZoomState({ effects, sourceTimeMs, recording }: UseZoomStateP
 
         // Detect seeking or large jumps (e.g. > 100ms or negative time)
         // If seeking, we snap to the target to avoid wild physics artifacts
-        const isSeek = Math.abs(dt) > 100 || dt < 0;
+        const isSeek = Math.abs(dt) > SEEK_THRESHOLD_MS || dt < 0;
 
         if (isSeek) {
             physicsState.current = {
@@ -117,8 +122,8 @@ export function useZoomState({ effects, sourceTimeMs, recording }: UseZoomStateP
             // Spring Parameters (Critically Damped-ish)
             // Tension: Speed of response (higher = faster)
             // Friction: Damping (higher = less oscillation)
-            const tension = 120;
-            const friction = 25;
+            const tension = SPRING_TENSION;
+            const friction = SPRING_FRICTION;
 
             // Physics Step (Euler Integration)
             // Force = (Target - Current) * Tension - Velocity * Friction

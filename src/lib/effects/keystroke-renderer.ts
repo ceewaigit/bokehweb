@@ -305,21 +305,29 @@ export class KeystrokeRenderer {
 
 
   private formatSingleKey(key: string, modifiers: string[]): string {
+    // Normalize key for display - convert KeyA→A, Digit1→1
+    let displayKey = key
+    if (key.startsWith('Key') && key.length === 4) {
+      displayKey = key.charAt(3).toUpperCase()
+    } else if (key.startsWith('Digit') && key.length === 6) {
+      displayKey = key.charAt(5)
+    }
+
     // Handle modifier combos (e.g., Cmd+C)
-    if (modifiers.length > 0 && key.length === 1) {
+    if (modifiers.length > 0 && displayKey.length === 1) {
       const parts: string[] = []
       // Add modifiers with Mac-style symbols
       if (modifiers.includes('cmd') || modifiers.includes('meta')) parts.push('⌘')
       if (modifiers.includes('ctrl')) parts.push('⌃')
       if (modifiers.includes('alt') || modifiers.includes('option')) parts.push('⌥')
       if (modifiers.includes('shift')) parts.push('⇧')
-      parts.push(key.toUpperCase())
+      parts.push(displayKey.toUpperCase())
       return parts.join('')
     }
 
     // For regular typing, just show the character
-    if (key.length === 1) {
-      return key
+    if (displayKey.length === 1) {
+      return displayKey
     }
 
     // For special keys, show them with formatting
@@ -330,6 +338,7 @@ export class KeystrokeRenderer {
     // Special key mappings for better display
     const keyMap: Record<string, string> = {
       ' ': 'Space',
+      'Space': 'Space',
       'Enter': '↵',
       'Return': '↵',
       'Tab': '⇥',
@@ -346,7 +355,57 @@ export class KeystrokeRenderer {
       'PageDown': '⇟',
     }
 
-    return keyMap[key] || key.toUpperCase()
+    // Direct mapping first
+    if (keyMap[key]) {
+      return keyMap[key]
+    }
+
+    // Handle KeyA-KeyZ format → A-Z
+    if (key.startsWith('Key') && key.length === 4) {
+      return key.charAt(3).toUpperCase()
+    }
+
+    // Handle Digit0-Digit9 format → 0-9
+    if (key.startsWith('Digit') && key.length === 6) {
+      return key.charAt(5)
+    }
+
+    // Handle Numpad keys → show with prefix
+    if (key.startsWith('Numpad')) {
+      const numpadKey = key.slice(6)
+      if (numpadKey.length === 1) {
+        return numpadKey // Just the digit
+      }
+      // Numpad operators
+      const numpadMap: Record<string, string> = {
+        'Multiply': '×',
+        'Add': '+',
+        'Subtract': '-',
+        'Decimal': '.',
+        'Divide': '÷',
+        'Enter': '↵',
+      }
+      return numpadMap[numpadKey] || numpadKey
+    }
+
+    // Handle modifier keys - strip Left/Right suffix
+    if (key.endsWith('Left') || key.endsWith('Right')) {
+      const base = key.replace(/(Left|Right)$/, '')
+      const modifierMap: Record<string, string> = {
+        'Shift': '⇧',
+        'Control': '⌃',
+        'Alt': '⌥',
+        'Meta': '⌘',
+      }
+      return modifierMap[base] || base
+    }
+
+    // F-keys are already fine (F1, F2, etc.)
+    if (key.match(/^F\d{1,2}$/)) {
+      return key
+    }
+
+    return key.toUpperCase()
   }
 
   private calculatePosition(

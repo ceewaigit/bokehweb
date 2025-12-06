@@ -155,13 +155,54 @@ export class ElectronRecorder {
         logger.info('🎯 Using native ScreenCaptureKit recorder - cursor will be HIDDEN!')
         logger.info(`Audio setting: ${recordingSettings.audioInput} (native recorder always captures system audio)`)
 
+        // Check if this is a window source (window:xxxxx:0 format)
+        const isWindowSource = primarySource.id.startsWith('window:')
+
+        if (isWindowSource) {
+          // Parse window ID from source ID (window:12345:0 format)
+          const windowIdMatch = primarySource.id.match(/window:(\d+)/)
+          const windowId = windowIdMatch ? parseInt(windowIdMatch[1]) : 0
+
+          if (windowId > 0) {
+            logger.info(`Recording specific window ID: ${windowId} (${primarySource.name})`)
+
+            try {
+              const result = await window.electronAPI.nativeRecorder.startWindow(windowId)
+
+              this.nativeRecorderPath = result.outputPath
+              this.isRecording = true
+              this.startTime = Date.now()
+              this.hasAudio = true
+
+              await this.startMouseTracking(primarySource.id)
+
+              logger.info('Window recording started successfully - NO cursor in video!')
+              return
+            } catch (err) {
+              logger.warn('Failed to start window recording, falling back to display capture:', err)
+              // Fall through to display capture
+            }
+          }
+        }
+
+        // Display/Screen capture (or fallback from window capture failure)
         // Parse source ID to get display ID (screen:0:0 format)
         const parts = primarySource.id.split(':')
         const displayId = parseInt(parts[1]) || 0
 
+        // Check for area: prefix to get crop bounds for region capture
+        let cropBounds: { x: number; y: number; width: number; height: number } | undefined
+        if (recordingSettings.sourceId?.startsWith('area:')) {
+          const [x, y, w, h] = recordingSettings.sourceId.slice(5).split(',').map(Number)
+          if (!isNaN(x) && !isNaN(y) && !isNaN(w) && !isNaN(h)) {
+            cropBounds = { x, y, width: w, height: h }
+            logger.info(`Region capture: ${x},${y} ${w}x${h}`)
+          }
+        }
+
         try {
-          // Start native recording with cursor hidden
-          const result = await window.electronAPI.nativeRecorder.startDisplay(displayId)
+          // Start native recording with cursor hidden (and optional crop bounds)
+          const result = await window.electronAPI.nativeRecorder.startDisplay(displayId, cropBounds)
 
           this.nativeRecorderPath = result.outputPath
           this.isRecording = true
@@ -185,7 +226,7 @@ export class ElectronRecorder {
 
       // Get proper constraints from IPC for desktop audio
       let constraints: any
-      
+
       if (window.electronAPI?.getDesktopStream) {
         // Use IPC to get constraints that include desktop audio
         constraints = await window.electronAPI.getDesktopStream(primarySource.id, this.hasAudio)
@@ -207,7 +248,7 @@ export class ElectronRecorder {
       try {
         this.stream = await navigator.mediaDevices.getUserMedia(constraints)
         logger.info('Desktop capture stream acquired with system audio')
-        
+
         // Log audio tracks
         const audioTracks = this.stream.getAudioTracks()
         if (audioTracks.length > 0) {
@@ -268,23 +309,23 @@ export class ElectronRecorder {
         videoBitsPerSecond: 5000000,
         ...(this.hasAudio ? { audioBitsPerSecond: 128000 } : {})
       })
-      
+
       logger.info(`MediaRecorder using: ${this.mediaRecorder.mimeType}`)
 
       // Set up streaming handlers
       if (!window.electronAPI?.createTempRecordingFile) {
         throw new Error('Streaming API not available')
       }
-      
+
       // Create temp file for streaming
       const fileResult = await window.electronAPI.createTempRecordingFile('webm')
       if (!fileResult?.success || !fileResult.data) {
         throw new Error('Failed to create temp recording file')
       }
-      
+
       this.recordingPath = fileResult.data
       logger.info(`Streaming to temp file: ${this.recordingPath}`)
-      
+
       // Create metadata file
       if (window.electronAPI.createMetadataFile) {
         const metaResult = await window.electronAPI.createMetadataFile()
@@ -404,17 +445,17 @@ export class ElectronRecorder {
       // Handle already stopped recorder
       if (this.mediaRecorder!.state === 'inactive') {
         const duration = (Date.now() - this.startTime) - this.totalPausedDuration
-        
+
         if (!this.recordingPath) {
           throw new Error('Recording path not available')
         }
-        
+
         // Finalize streaming files
         if (window.electronAPI?.finalizeRecording) {
           await window.electronAPI.finalizeRecording(this.recordingPath)
         }
         await this.flushMetadata(true)
-        
+
         let metadata = this.metadata
         if (this.metadataPath && window.electronAPI?.readMetadataFile) {
           const metaResult = await window.electronAPI.readMetadataFile(this.metadataPath)
@@ -422,7 +463,7 @@ export class ElectronRecorder {
             metadata = metaResult.data
           }
         }
-        
+
         this.isRecording = false
         await this.cleanup()
 
@@ -438,19 +479,19 @@ export class ElectronRecorder {
 
       this.mediaRecorder!.onstop = async () => {
         const duration = (Date.now() - this.startTime) - this.totalPausedDuration
-        
+
         if (!this.recordingPath) {
           throw new Error('Recording path not available')
         }
-        
+
         // Finalize video file
         if (window.electronAPI?.finalizeRecording) {
           await window.electronAPI.finalizeRecording(this.recordingPath)
         }
-        
+
         // Flush and finalize metadata
         await this.flushMetadata(true)
-        
+
         // Read metadata from file if needed
         let metadata = this.metadata
         if (this.metadataPath && window.electronAPI?.readMetadataFile) {
@@ -459,9 +500,9 @@ export class ElectronRecorder {
             metadata = metaResult.data
           }
         }
-        
+
         logger.info(`Recording complete: ${duration}ms, path: ${this.recordingPath}`)
-        
+
         const result: ElectronRecordingResult = {
           videoPath: this.recordingPath,
           duration,
@@ -469,7 +510,7 @@ export class ElectronRecorder {
           captureArea: this.captureArea,
           hasAudio: this.hasAudio
         }
-        
+
         this.isRecording = false
         await this.cleanup()
         resolve(result)
@@ -658,16 +699,16 @@ export class ElectronRecorder {
     if (this.isPaused) {
       return
     }
-    
+
     // Metadata already has adjusted timestamp from getAdjustedTimestamp()
     const adjustedMetadata = metadata
-    
+
     // Add to queue for batch writing
     this.metadataWriteQueue.push(adjustedMetadata)
-    
+
     // Also keep in memory for immediate access
     this.metadata.push(adjustedMetadata)
-    
+
     // Flush every 100 events or after 1 second
     if (this.metadataWriteQueue.length >= 100) {
       this.flushMetadata()
@@ -739,22 +780,31 @@ export class ElectronRecorder {
       return
     }
 
-    // Native recorder doesn't support pause
-    if (this.useNativeRecorder) {
-      logger.warn('Native recorder does not support pause/resume')
+    if (this.isPaused) {
+      logger.warn('Already paused')
       return
     }
 
+    // Handle native recorder pause
+    if (this.useNativeRecorder && window.electronAPI?.nativeRecorder?.pause) {
+      window.electronAPI.nativeRecorder.pause()
+      this.isPaused = true
+      this.pauseStartTime = Date.now()
+      logger.info('Native recording paused')
+      return
+    }
+
+    // Handle MediaRecorder pause
     if (!this.mediaRecorder) {
       logger.warn('Cannot pause: MediaRecorder not initialized')
       return
     }
 
-    if (this.mediaRecorder.state === 'recording' && !this.isPaused) {
+    if (this.mediaRecorder.state === 'recording') {
       this.mediaRecorder.pause()
       this.isPaused = true
       this.pauseStartTime = Date.now()
-      logger.info('Recording paused')
+      logger.info('MediaRecorder paused')
     }
   }
 
@@ -764,37 +814,46 @@ export class ElectronRecorder {
       return
     }
 
-    // Native recorder doesn't support pause
-    if (this.useNativeRecorder) {
-      logger.warn('Native recorder does not support pause/resume')
+    if (!this.isPaused) {
+      logger.warn('Not paused')
       return
     }
 
+    // Calculate how long we were paused
+    const pausedDuration = Date.now() - this.pauseStartTime
+    this.totalPausedDuration += pausedDuration
+
+    // Handle native recorder resume
+    if (this.useNativeRecorder && window.electronAPI?.nativeRecorder?.resume) {
+      window.electronAPI.nativeRecorder.resume()
+      this.isPaused = false
+      this.pauseStartTime = 0
+      logger.info(`Native recording resumed. Was paused for ${pausedDuration}ms`)
+      return
+    }
+
+    // Handle MediaRecorder resume
     if (!this.mediaRecorder) {
       logger.warn('Cannot resume: MediaRecorder not initialized')
       return
     }
 
-    if (this.mediaRecorder.state === 'paused' && this.isPaused) {
-      // Calculate how long we were paused
-      const pausedDuration = Date.now() - this.pauseStartTime
-      this.totalPausedDuration += pausedDuration
-      
+    if (this.mediaRecorder.state === 'paused') {
       this.mediaRecorder.resume()
       this.isPaused = false
       this.pauseStartTime = 0
-      logger.info(`Recording resumed. Was paused for ${pausedDuration}ms`)
+      logger.info(`MediaRecorder resumed. Was paused for ${pausedDuration}ms`)
     }
   }
 
   getDuration(): number {
     let duration = Date.now() - this.startTime - this.totalPausedDuration
-    
+
     // If currently paused, subtract the current pause duration
     if (this.isPaused && this.pauseStartTime > 0) {
       duration -= (Date.now() - this.pauseStartTime)
     }
-    
+
     return Math.max(0, duration)
   }
 
@@ -805,23 +864,21 @@ export class ElectronRecorder {
   }
 
   canPause(): boolean {
-    // Native recorder doesn't support pause
-    return !this.useNativeRecorder && this.isRecording && !this.isPaused
+    return this.isRecording && !this.isPaused
   }
 
   canResume(): boolean {
-    // Native recorder doesn't support resume
-    return !this.useNativeRecorder && this.isRecording && this.isPaused
+    return this.isRecording && this.isPaused
   }
 
   private getAdjustedTimestamp(): number {
     let timestamp = Date.now() - this.startTime - this.totalPausedDuration
-    
+
     // If currently paused, use the pause start time
     if (this.isPaused && this.pauseStartTime > 0) {
       timestamp = this.pauseStartTime - this.startTime - this.totalPausedDuration
     }
-    
+
     return Math.max(0, timestamp)
   }
 

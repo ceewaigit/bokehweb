@@ -182,9 +182,9 @@ export class TypingSpeedApplicationService {
         sourceIn: segment.start,
         sourceOut: segment.end,
         playbackRate: effectiveRate,
-        // CRITICAL: Mark ALL segments as applied to prevent UI from showing suggestions again
-        // This fixes the bug where suggestions bar persists on "Normal" segments
-        typingSpeedApplied: true,
+        // Only mark segments as applied if they actually have speed applied
+        // Normal-speed segments should still show remaining typing suggestions
+        typingSpeedApplied: segment.speedMultiplier !== 1,
         timeRemapPeriods: []
       }
 

@@ -1,5 +1,5 @@
-import type { BackgroundEffectData, CursorEffectData, ZoomEffectData } from '@/types/project'
-import { BackgroundType, CursorStyle, ScreenEffectPreset } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ZoomEffectData } from '@/types/project'
+import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset } from '@/types/project'
 
 // Default background effect data
 export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
@@ -40,6 +40,20 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   gliding: true,
   speed: 0.2,
   smoothness: 0.85
+}
+
+// Default keystroke effect data
+export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
+  fontSize: 16,
+  fontFamily: 'SF Pro Display, system-ui, -apple-system, sans-serif',
+  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  textColor: '#ffffff',
+  borderColor: 'rgba(255, 255, 255, 0.2)',
+  borderRadius: 6,
+  padding: 12,
+  fadeOutDuration: 300,
+  position: KeystrokePosition.BottomCenter,
+  maxWidth: 300
 }
 
 // Store for default wallpaper once loaded

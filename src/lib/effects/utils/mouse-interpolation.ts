@@ -1,8 +1,29 @@
 import type { MouseEvent } from '@/types/project'
 
 /**
+ * Binary search to find the index of the last event with timestamp <= timeMs
+ * Returns -1 if all events are after timeMs
+ */
+function binarySearchEvents(mouseEvents: MouseEvent[], timeMs: number): number {
+  let low = 0
+  let high = mouseEvents.length - 1
+  let result = -1
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (mouseEvents[mid].timestamp <= timeMs) {
+      result = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+  return result
+}
+
+/**
  * Catmull-Rom spline interpolation for smooth mouse movement
- * Falls back to a simple eased linear interpolation when data is sparse.
+ * Uses O(log n) binary search for performance with large event arrays
  */
 export function interpolateMousePosition(
   mouseEvents: MouseEvent[],
@@ -26,12 +47,13 @@ export function interpolateMousePosition(
     return simpleInterpolate(mouseEvents, timeMs)
   }
 
-  // Find segment where timeMs lies
-  let i = 0
-  for (; i < mouseEvents.length - 1; i++) {
-    if (mouseEvents[i].timestamp <= timeMs && mouseEvents[i + 1].timestamp > timeMs) {
-      break
-    }
+  // PERFORMANCE FIX: Use binary search instead of linear scan
+  // O(log n) instead of O(n) - critical for 13,000+ events
+  const i = binarySearchEvents(mouseEvents, timeMs)
+
+  // Ensure we have a valid segment (i should point to event before timeMs)
+  if (i < 0 || i >= mouseEvents.length - 1) {
+    return simpleInterpolate(mouseEvents, timeMs)
   }
 
   const p0 = mouseEvents[Math.max(0, i - 1)]

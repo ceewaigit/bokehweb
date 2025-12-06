@@ -19,18 +19,35 @@
 @property (nonatomic, assign) BOOL hasStartedSession;
 @property (nonatomic, assign) BOOL hasAudio;
 @property (nonatomic, assign) BOOL receivedFirstAudio;
+@property (nonatomic, assign) CGRect sourceRect;  // Region capture support
+@property (nonatomic, assign) BOOL isPaused;  // Pause state
+@property (nonatomic, assign) CMTime pauseStartTime;  // When pause began
+@property (nonatomic, assign) CMTime totalPausedDuration;  // Accumulated pause time
 
 - (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path completion:(void (^)(NSError *))completion;
+- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path sourceRect:(CGRect)rect completion:(void (^)(NSError *))completion;
+- (void)startRecordingWindow:(CGWindowID)windowID outputPath:(NSString *)path completion:(void (^)(NSError *))completion;
 - (void)stopRecording:(void (^)(NSString *, NSError *))completion;
+- (void)pauseRecording;
+- (void)resumeRecording;
 @end
 
 @implementation ScreenRecorder
 
 - (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path completion:(void (^)(NSError *))completion {
+    // Default to null rect (full screen)
+    [self startRecordingDisplay:displayID outputPath:path sourceRect:CGRectNull completion:completion];
+}
+
+- (void)startRecordingDisplay:(CGDirectDisplayID)displayID outputPath:(NSString *)path sourceRect:(CGRect)rect completion:(void (^)(NSError *))completion {
     if (@available(macOS 12.3, *)) {
         self.outputPath = path;
         self.hasStartedSession = NO;
         self.receivedFirstAudio = NO;
+        self.sourceRect = rect;
+        self.isPaused = NO;
+        self.pauseStartTime = kCMTimeInvalid;
+        self.totalPausedDuration = kCMTimeZero;
         
         // Get shareable content
         [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
@@ -88,8 +105,16 @@
                 pixelHeight = (size_t)targetDisplay.height;
             }
             
-            config.width = pixelWidth;
-            config.height = pixelHeight;
+            // Apply source rect if specified (for region capture)
+            if (!CGRectIsNull(self.sourceRect)) {
+                config.width = (size_t)self.sourceRect.size.width;
+                config.height = (size_t)self.sourceRect.size.height;
+                config.sourceRect = self.sourceRect;
+                NSLog(@"Region capture: %@", NSStringFromRect(NSRectFromCGRect(self.sourceRect)));
+            } else {
+                config.width = pixelWidth;
+                config.height = pixelHeight;
+            }
             config.minimumFrameInterval = CMTimeMake(1, 60); // 60 fps
             config.pixelFormat = kCVPixelFormatType_32BGRA;
             config.showsCursor = NO;  // THIS IS THE KEY - Hide cursor!
@@ -216,7 +241,181 @@
     }
 }
 
+- (void)startRecordingWindow:(CGWindowID)windowID outputPath:(NSString *)path completion:(void (^)(NSError *))completion {
+    if (@available(macOS 12.3, *)) {
+        self.outputPath = path;
+        self.hasStartedSession = NO;
+        self.receivedFirstAudio = NO;
+        self.sourceRect = CGRectNull;
+        self.isPaused = NO;
+        self.pauseStartTime = kCMTimeInvalid;
+        self.totalPausedDuration = kCMTimeZero;
+        
+        // Get shareable content to find the window
+        [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
+            if (error) {
+                completion(error);
+                return;
+            }
+            
+            // Find the target window by ID
+            SCWindow *targetWindow = nil;
+            for (SCWindow *window in content.windows) {
+                if (window.windowID == windowID) {
+                    targetWindow = window;
+                    break;
+                }
+            }
+            
+            if (!targetWindow) {
+                completion([NSError errorWithDomain:@"ScreenRecorder" code:1 userInfo:@{NSLocalizedDescriptionKey: @"Window not found"}]);
+                return;
+            }
+            
+            NSLog(@"Recording window: %@ (ID: %u, size: %.0fx%.0f)", targetWindow.title, windowID, targetWindow.frame.size.width, targetWindow.frame.size.height);
+            
+            // Create content filter for the specific window
+            // This allows recording even when window moves or is partially covered
+            SCContentFilter *filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:targetWindow];
+            
+            // Create stream configuration
+            SCStreamConfiguration *config = [[SCStreamConfiguration alloc] init];
+            
+            // Use the window's frame size
+            CGFloat windowWidth = targetWindow.frame.size.width;
+            CGFloat windowHeight = targetWindow.frame.size.height;
+            
+            // Ensure minimum size
+            if (windowWidth < 100) windowWidth = 100;
+            if (windowHeight < 100) windowHeight = 100;
+            
+            config.width = (size_t)windowWidth;
+            config.height = (size_t)windowHeight;
+            config.minimumFrameInterval = CMTimeMake(1, 60); // 60 fps
+            config.pixelFormat = kCVPixelFormatType_32BGRA;
+            config.showsCursor = NO;  // Hide cursor
+            config.backgroundColor = NSColor.clearColor.CGColor;
+            config.scalesToFit = YES;  // Scale to fit window
+            config.queueDepth = 5;
+            
+            // Configure audio capture (macOS 13.0+)
+            if (@available(macOS 13.0, *)) {
+                config.capturesAudio = YES;
+                config.sampleRate = 48000;
+                config.channelCount = 2;
+            }
+            
+            NSLog(@"Window recording configured: %.0fx%.0f", windowWidth, windowHeight);
+            
+            // Setup asset writer (reuse the same setup as display recording)
+            NSError *writerError = nil;
+            self.assetWriter = [[AVAssetWriter alloc] initWithURL:[NSURL fileURLWithPath:path] fileType:AVFileTypeQuickTimeMovie error:&writerError];
+            
+            if (writerError) {
+                completion(writerError);
+                return;
+            }
+            
+            NSDictionary *videoSettings = @{
+                AVVideoCodecKey: AVVideoCodecTypeH264,
+                AVVideoWidthKey: @(config.width),
+                AVVideoHeightKey: @(config.height),
+                AVVideoCompressionPropertiesKey: @{
+                    AVVideoAverageBitRateKey: @(5000000),
+                    AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+                }
+            };
+            
+            self.videoInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo outputSettings:videoSettings];
+            self.videoInput.expectsMediaDataInRealTime = YES;
+            
+            NSDictionary *sourcePixelBufferAttributes = @{
+                (NSString *)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
+                (NSString *)kCVPixelBufferWidthKey: @(config.width),
+                (NSString *)kCVPixelBufferHeightKey: @(config.height)
+            };
+            
+            self.adaptor = [[AVAssetWriterInputPixelBufferAdaptor alloc] initWithAssetWriterInput:self.videoInput sourcePixelBufferAttributes:sourcePixelBufferAttributes];
+            
+            [self.assetWriter addInput:self.videoInput];
+            
+            // Setup audio input
+            AudioChannelLayout stereoChannelLayout = {
+                .mChannelLayoutTag = kAudioChannelLayoutTag_Stereo,
+                .mChannelBitmap = kAudioChannelBit_Left | kAudioChannelBit_Right,
+                .mNumberChannelDescriptions = 0
+            };
+            
+            NSData *channelLayoutAsData = [NSData dataWithBytes:&stereoChannelLayout length:offsetof(AudioChannelLayout, mChannelDescriptions)];
+            
+            NSDictionary *audioSettings = @{
+                AVFormatIDKey: @(kAudioFormatMPEG4AAC),
+                AVNumberOfChannelsKey: @2,
+                AVSampleRateKey: @48000,
+                AVChannelLayoutKey: channelLayoutAsData,
+                AVEncoderBitRateKey: @128000
+            };
+            
+            self.audioInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeAudio outputSettings:audioSettings];
+            self.audioInput.expectsMediaDataInRealTime = YES;
+            
+            if ([self.assetWriter canAddInput:self.audioInput]) {
+                [self.assetWriter addInput:self.audioInput];
+                self.hasAudio = YES;
+            } else {
+                self.hasAudio = NO;
+            }
+            
+            if (![self.assetWriter startWriting]) {
+                completion([NSError errorWithDomain:@"ScreenRecorder" code:2 userInfo:@{NSLocalizedDescriptionKey: @"Failed to start writing"}]);
+                return;
+            }
+            
+            // Create and start stream
+            self.stream = [[SCStream alloc] initWithFilter:filter configuration:config delegate:self];
+            
+            NSError *addOutputError = nil;
+            [self.stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&addOutputError];
+            
+            if (!addOutputError && self.hasAudio) {
+                if (@available(macOS 13.0, *)) {
+                    NSError *audioOutputError = nil;
+                    [self.stream addStreamOutput:self type:SCStreamOutputTypeAudio sampleHandlerQueue:dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0) error:&audioOutputError];
+                    if (audioOutputError) {
+                        self.hasAudio = NO;
+                    }
+                } else {
+                    self.hasAudio = NO;
+                }
+            }
+            
+            if (addOutputError) {
+                completion(addOutputError);
+                return;
+            }
+            
+            // Start capture
+            [self.stream startCaptureWithCompletionHandler:^(NSError *error) {
+                if (error) {
+                    completion(error);
+                } else {
+                    self.isRecording = YES;
+                    NSLog(@"Window recording started successfully");
+                    completion(nil);
+                }
+            }];
+        }];
+    } else {
+        completion([NSError errorWithDomain:@"ScreenRecorder" code:3 userInfo:@{NSLocalizedDescriptionKey: @"ScreenCaptureKit requires macOS 12.3 or later"}]);
+    }
+}
+
 - (void)stream:(SCStream *)stream didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer ofType:(SCStreamOutputType)type {
+    // Skip all frames while paused
+    if (self.isPaused) {
+        return;
+    }
+    
     if (type == SCStreamOutputTypeScreen && self.videoInput.isReadyForMoreMediaData) {
         CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
         if (!pixelBuffer) {
@@ -231,6 +430,11 @@
                 NSLog(@"Received first audio sample");
             }
             CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+            
+            // Adjust time by subtracting total paused duration
+            if (CMTIME_IS_VALID(self.totalPausedDuration) && CMTimeGetSeconds(self.totalPausedDuration) > 0) {
+                presentationTime = CMTimeSubtract(presentationTime, self.totalPausedDuration);
+            }
             
             if (!self.hasStartedSession) {
                 [self.assetWriter startSessionAtSourceTime:presentationTime];
@@ -255,6 +459,11 @@
     }
     
     CMTime presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
+    
+    // Adjust time by subtracting total paused duration
+    if (CMTIME_IS_VALID(self.totalPausedDuration) && CMTimeGetSeconds(self.totalPausedDuration) > 0) {
+        presentationTime = CMTimeSubtract(presentationTime, self.totalPausedDuration);
+    }
     
     if (!self.hasStartedSession) {
         [self.assetWriter startSessionAtSourceTime:presentationTime];
@@ -303,6 +512,39 @@
     }
 }
 
+- (void)pauseRecording {
+    if (!self.isRecording || self.isPaused) {
+        return;
+    }
+    
+    self.isPaused = YES;
+    self.pauseStartTime = CMClockGetTime(CMClockGetHostTimeClock());
+    NSLog(@"Recording paused at %f", CMTimeGetSeconds(self.pauseStartTime));
+}
+
+- (void)resumeRecording {
+    if (!self.isRecording || !self.isPaused) {
+        return;
+    }
+    
+    // Calculate pause duration and add to total
+    CMTime now = CMClockGetTime(CMClockGetHostTimeClock());
+    if (CMTIME_IS_VALID(self.pauseStartTime)) {
+        CMTime pauseDuration = CMTimeSubtract(now, self.pauseStartTime);
+        if (CMTIME_IS_VALID(self.totalPausedDuration)) {
+            self.totalPausedDuration = CMTimeAdd(self.totalPausedDuration, pauseDuration);
+        } else {
+            self.totalPausedDuration = pauseDuration;
+        }
+        NSLog(@"Resumed after %f seconds pause, total paused: %f", 
+              CMTimeGetSeconds(pauseDuration), 
+              CMTimeGetSeconds(self.totalPausedDuration));
+    }
+    
+    self.isPaused = NO;
+    self.pauseStartTime = kCMTimeInvalid;
+}
+
 @end
 
 // NAPI wrapper
@@ -311,7 +553,11 @@ public:
     static Napi::Object Init(Napi::Env env, Napi::Object exports) {
         Napi::Function func = DefineClass(env, "NativeScreenRecorder", {
             InstanceMethod("startRecording", &NativeScreenRecorder::StartRecording),
+            InstanceMethod("startRecordingWithRect", &NativeScreenRecorder::StartRecordingWithRect),
+            InstanceMethod("startRecordingWindow", &NativeScreenRecorder::StartRecordingWindow),
             InstanceMethod("stopRecording", &NativeScreenRecorder::StopRecording),
+            InstanceMethod("pauseRecording", &NativeScreenRecorder::PauseRecording),
+            InstanceMethod("resumeRecording", &NativeScreenRecorder::ResumeRecording),
             InstanceMethod("isRecording", &NativeScreenRecorder::IsRecording),
             InstanceMethod("isAvailable", &NativeScreenRecorder::IsAvailable)
         });
@@ -375,6 +621,102 @@ private:
         return env.Undefined();
     }
     
+    Napi::Value StartRecordingWithRect(const Napi::CallbackInfo& info) {
+        Napi::Env env = info.Env();
+        
+        if (!recorder) {
+            Napi::Error::New(env, "ScreenCaptureKit requires macOS 12.3 or later").ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+        
+        // Args: displayID, outputPath, x, y, width, height, callback
+        if (info.Length() < 7 || !info[0].IsNumber() || !info[1].IsString() || 
+            !info[2].IsNumber() || !info[3].IsNumber() || !info[4].IsNumber() || 
+            !info[5].IsNumber() || !info[6].IsFunction()) {
+            Napi::TypeError::New(env, "Expected (displayID: number, outputPath: string, x: number, y: number, width: number, height: number, callback: function)")
+                .ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+        
+        CGDirectDisplayID displayID = info[0].As<Napi::Number>().Uint32Value();
+        std::string outputPath = info[1].As<Napi::String>().Utf8Value();
+        CGFloat x = info[2].As<Napi::Number>().DoubleValue();
+        CGFloat y = info[3].As<Napi::Number>().DoubleValue();
+        CGFloat width = info[4].As<Napi::Number>().DoubleValue();
+        CGFloat height = info[5].As<Napi::Number>().DoubleValue();
+        
+        Napi::ThreadSafeFunction tsfn = Napi::ThreadSafeFunction::New(
+            env,
+            info[6].As<Napi::Function>(),
+            "StartRecordingWithRectCallback",
+            0,
+            1
+        );
+        
+        NSString* path = [NSString stringWithUTF8String:outputPath.c_str()];
+        CGRect sourceRect = CGRectMake(x, y, width, height);
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [recorder startRecordingDisplay:displayID outputPath:path sourceRect:sourceRect completion:^(NSError *error) {
+                auto callback = [error](Napi::Env env, Napi::Function jsCallback) {
+                    if (error) {
+                        jsCallback.Call({Napi::Error::New(env, [[error localizedDescription] UTF8String]).Value()});
+                    } else {
+                        jsCallback.Call({env.Null()});
+                    }
+                };
+                tsfn.BlockingCall(callback);
+                tsfn.Release();
+            }];
+        });
+        
+        return env.Undefined();
+    }
+    
+    Napi::Value StartRecordingWindow(const Napi::CallbackInfo& info) {
+        Napi::Env env = info.Env();
+        
+        if (!recorder) {
+            Napi::Error::New(env, "ScreenCaptureKit requires macOS 12.3 or later").ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+        
+        // Args: windowID, outputPath, callback
+        if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsString() || !info[2].IsFunction()) {
+            Napi::TypeError::New(env, "Expected (windowID: number, outputPath: string, callback: function)")
+                .ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+        
+        CGWindowID windowID = info[0].As<Napi::Number>().Uint32Value();
+        std::string outputPath = info[1].As<Napi::String>().Utf8Value();
+        Napi::ThreadSafeFunction tsfn = Napi::ThreadSafeFunction::New(
+            env,
+            info[2].As<Napi::Function>(),
+            "StartRecordingWindowCallback",
+            0,
+            1
+        );
+        
+        NSString* path = [NSString stringWithUTF8String:outputPath.c_str()];
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [recorder startRecordingWindow:windowID outputPath:path completion:^(NSError *error) {
+                auto callback = [error](Napi::Env env, Napi::Function jsCallback) {
+                    if (error) {
+                        jsCallback.Call({Napi::Error::New(env, [[error localizedDescription] UTF8String]).Value()});
+                    } else {
+                        jsCallback.Call({env.Null()});
+                    }
+                };
+                tsfn.BlockingCall(callback);
+                tsfn.Release();
+            }];
+        });
+        
+        return env.Undefined();
+    }
+    
     Napi::Value StopRecording(const Napi::CallbackInfo& info) {
         Napi::Env env = info.Env();
         
@@ -410,6 +752,36 @@ private:
                 tsfn.BlockingCall(callback);
                 tsfn.Release();
             }];
+        });
+        
+        return env.Undefined();
+    }
+    
+    Napi::Value PauseRecording(const Napi::CallbackInfo& info) {
+        Napi::Env env = info.Env();
+        
+        if (!recorder) {
+            Napi::Error::New(env, "Native recorder not available").ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [recorder pauseRecording];
+        });
+        
+        return env.Undefined();
+    }
+    
+    Napi::Value ResumeRecording(const Napi::CallbackInfo& info) {
+        Napi::Env env = info.Env();
+        
+        if (!recorder) {
+            Napi::Error::New(env, "Native recorder not available").ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [recorder resumeRecording];
         });
         
         return env.Undefined();

@@ -125,17 +125,10 @@ Napi::String GetCurrentCursorType(const Napi::CallbackInfo& info) {
             currentCursor = [NSCursor arrowCursor];
         }
         std::string nsCursorType = NSCursorToString(currentCursor);
-        if (nsCursorType != "default") {
-            return Napi::String::New(env, nsCursorType);
-        }
-        
-        // Fall back to Accessibility-based detection when the cursor appears as arrow
-        if (HasAccessibilityPermissions()) {
-            std::string axType = GetCursorTypeFromAccessibility();
-            return Napi::String::New(env, axType);
-        }
-        
-        return Napi::String::New(env, "default");
+        // Trust NSCursor - it reflects what macOS is actually displaying
+        // Don't use accessibility API fallback as it guesses based on element role,
+        // not actual cursor appearance (causes false IBEAM over unclicked text fields)
+        return Napi::String::New(env, nsCursorType);
     }
 }
 

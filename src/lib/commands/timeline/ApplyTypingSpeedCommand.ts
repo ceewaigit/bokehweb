@@ -68,27 +68,17 @@ export class ApplyTypingSpeedCommand extends Command<{
       return { success: false, error: 'No project found' }
     }
 
-    const track = project.timeline.tracks.find(t => t.id === this.trackId)
-    if (!track || this.originalClips.length === 0) {
-      return { success: false, error: 'Cannot undo: missing track or original state' }
+    if (this.originalClips.length === 0 || !this.trackId) {
+      return { success: false, error: 'Cannot undo: missing original state or trackId' }
     }
 
-    // Get the recording ID from the first original clip
-    const recordingId = this.originalClips[0].recordingId
-
-    // Remove all split clips from this recording
-    const clipsToRemove = track.clips.filter(c =>
-      c.recordingId === recordingId && this.affectedClips.includes(c.id)
+    // Use atomic restore to avoid intermediate reflow issues
+    // This removes affected clips and restores originals in ONE state update
+    store.restoreClipsFromUndo(
+      this.trackId,
+      this.affectedClips,
+      this.originalClips
     )
-
-    for (const clip of clipsToRemove) {
-      store.removeClip(clip.id)
-    }
-
-    // Restore original clips
-    for (const clip of this.originalClips) {
-      store.addClip(clip, clip.startTime)
-    }
 
     return {
       success: true,

@@ -16,7 +16,7 @@ import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
 import { setupNativeRecorder } from './handlers/native-recorder'
-import { setupExportHandler, cleanupBundleCache } from './handlers/export-handler'
+import { setupExportHandler, cleanupBundleCache } from './handlers/export'
 
 // Helper functions for MIME type detection
 const guessMimeType = (filePath: string): string => {

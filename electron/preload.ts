@@ -166,6 +166,13 @@ const electronAPI = {
     area?: { x: number; y: number; width: number; height: number; displayId: number }
   }> => ipcRenderer.invoke('select-screen-area'),
 
+  // Area selection IPC (from overlay window)
+  sendAreaSelection: (bounds: { x: number; y: number; width: number; height: number }) =>
+    ipcRenderer.send('area-selection-complete', bounds),
+
+  cancelAreaSelection: () =>
+    ipcRenderer.send('area-selection-cancelled'),
+
   // Recording and workspace control
   openWorkspace: () =>
     ipcRenderer.send('open-workspace'),
@@ -293,8 +300,13 @@ const electronAPI = {
   // Native recorder API (macOS 12.3+ with ScreenCaptureKit)
   nativeRecorder: {
     isAvailable: () => ipcRenderer.invoke('native-recorder:available'),
-    startDisplay: (displayId: number) => ipcRenderer.invoke('native-recorder:start-display', displayId),
+    startDisplay: (displayId: number, bounds?: { x: number; y: number; width: number; height: number }) =>
+      ipcRenderer.invoke('native-recorder:start-display', displayId, bounds),
+    startWindow: (windowId: number) =>
+      ipcRenderer.invoke('native-recorder:start-window', windowId),
     stop: () => ipcRenderer.invoke('native-recorder:stop'),
+    pause: () => ipcRenderer.invoke('native-recorder:pause'),
+    resume: () => ipcRenderer.invoke('native-recorder:resume'),
     isRecording: () => ipcRenderer.invoke('native-recorder:is-recording'),
     readVideo: (filePath: string) => ipcRenderer.invoke('native-recorder:read-video', filePath)
   },

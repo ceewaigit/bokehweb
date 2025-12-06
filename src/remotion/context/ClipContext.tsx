@@ -7,6 +7,7 @@
 
 import React, { createContext, useContext, useMemo } from 'react';
 import type { Clip, Recording, Effect, MouseEvent, ClickEvent, ScrollEvent } from '@/types/project';
+import { EffectType } from '@/types/project';
 import { useTimeContext } from './TimeContext';
 import { useVideoUrl } from '../hooks/useVideoUrl';
 
@@ -64,13 +65,29 @@ export function ClipProvider({ clip, effects, videoUrls, children }: ClipProvide
       (e: any) => e.timestamp >= sourceIn && e.timestamp <= sourceOut
     );
 
-    // Filter effects to only those that overlap with this clip's timeline range
+    // Filter effects to only those that overlap with this clip
+    // CRITICAL FIX: Zoom effects are in SOURCE space (recording.effects)
+    // Global effects (cursor, background) are in TIMELINE space
+
+    // Get zoom effects from recording (stored in SOURCE space)
+    const recordingZoomEffects = (recording.effects || []).filter(effect =>
+      effect.type === EffectType.Zoom &&
+      effect.enabled !== false &&
+      effect.startTime < sourceOut &&
+      effect.endTime > sourceIn
+    );
+
+    // Get global effects from passed effects (stored in TIMELINE space)
     const clipStart = clip.startTime;
     const clipEnd = clip.startTime + clip.duration;
-    const filteredEffects = effects.filter(effect => {
-      // Effect overlaps if: effect.startTime < clipEnd AND effect.endTime > clipStart
-      return effect.startTime < clipEnd && effect.endTime > clipStart;
-    });
+    const globalEffects = effects.filter(effect =>
+      effect.type !== EffectType.Zoom &&
+      effect.startTime < clipEnd &&
+      effect.endTime > clipStart
+    );
+
+    // Combine both sets of effects
+    const filteredEffects = [...recordingZoomEffects, ...globalEffects];
 
     return {
       clip,
@@ -83,6 +100,7 @@ export function ClipProvider({ clip, effects, videoUrls, children }: ClipProvide
       effects: filteredEffects,
     };
   }, [clip, effects, getRecording]);
+
 
   // Use hook to resolve video URL based on environment
   const videoUrl = useVideoUrl({ recording: value.recording, videoUrls }) || '';

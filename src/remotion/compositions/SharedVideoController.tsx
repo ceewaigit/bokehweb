@@ -12,7 +12,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { Video, OffthreadVideo, AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
+import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import { useTimeContext } from '../context/TimeContext';
 import { VideoPositionProvider } from '../context/VideoPositionContext';
 import { calculateVideoPosition } from './utils/video-position';
@@ -76,7 +76,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     };
   }, [currentTimeMs, getClipAtTimelinePosition, getRecording, effects, fps]);
 
-  // Use custom hook for video URL resolution (SRP)
   const videoUrl = useVideoUrl({
     recording: activeClipData?.recording,
     videoUrls
@@ -84,22 +83,20 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   // Use custom hook for zoom state calculation (SRP)
   // Must be called unconditionally at top level
+  // CRITICAL: Use recording.effects (SOURCE space) not activeClipData.effects (TIMELINE space)
+  // This decouples zoom rendering from clip-based filtering, fixing zoom display after drag
   const { activeZoomBlock: calculatedZoomBlock, zoomCenter: calculatedZoomCenter } = useZoomState({
-    effects: activeClipData?.effects || [],
+    effects: activeClipData?.recording?.effects || [],
     sourceTimeMs: activeClipData?.sourceTimeMs || 0,
     recording: activeClipData?.recording
   });
 
-  // All hooks must be called before any conditional returns
-  // Calculate all values with proper null handling
   const renderData = useMemo(() => {
     if (!activeClipData || !videoUrl) {
       return null;
     }
 
     const { clip, recording, sourceTimeMs, effects: clipEffects } = activeClipData;
-
-    // Get background effect for padding and styling
     const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
     const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
     const padding = backgroundData?.padding || 0;
@@ -151,19 +148,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     };
   }, [activeClipData, videoUrl, width, height, videoWidth, videoHeight, calculatedZoomBlock, calculatedZoomCenter]);
 
-  // Debug logging to understand video rendering issues
-  console.log('[SharedVideoController] Debug:', {
-    currentFrame,
-    currentTimeMs,
-    clipFound: !!activeClipData?.clip,
-    clipId: activeClipData?.clip?.id,
-    sourceIn: activeClipData?.clip?.sourceIn,
-    sourceOut: activeClipData?.clip?.sourceOut,
-    playbackRate: activeClipData?.clip?.playbackRate,
-    videoUrl,
-    renderDataExists: !!renderData,
-  });
-
   // If no active clip, render empty frame
   if (!renderData) {
     console.warn('[SharedVideoController] No renderData - returning black frame', {
@@ -176,6 +160,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   const {
     clip,
     videoUrl: finalVideoUrl,
+    sourceTimeMs,
     padding,
     cornerRadius,
     shadowIntensity,
@@ -212,37 +197,16 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       ? `drop-shadow(0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0, 0, 0, ${shadowOpacity})) drop-shadow(0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px rgba(0, 0, 0, ${shadowOpacity * 0.8}))`
       : '';
 
-  // Calculate video start/end positions based on clip source range
-  // Convert from milliseconds to FRAMES (Remotion Video expects frames)
-  const startFrom = ((clip.sourceIn || 0) * fps) / 1000;
-  const calculatedSourceOut =
-    clip.sourceOut != null && isFinite(clip.sourceOut)
-      ? clip.sourceOut
-      : (clip.sourceIn || 0) + clip.duration * (clip.playbackRate || 1);
-  const endAt = (calculatedSourceOut * fps) / 1000;
-
-  // Calculate clip timing for Sequence wrapper
-  // This fixes the startFrom/endAt calculation when Video is not inside a per-clip Sequence
-  const clipStartFrame = Math.round((clip.startTime / 1000) * fps);
-  const clipDurationFrames = Math.max(1, Math.round((clip.duration / 1000) * fps));
-
-  // Debug: Log video playback parameters
-  console.log('[SharedVideoController] Video params:', {
-    clipId: clip.id,
-    startFrom,
-    endAt,
-    playbackRate: clip.playbackRate,
-    sourceIn: clip.sourceIn,
-    sourceOut: clip.sourceOut,
-    calculatedSourceOut,
-    clipStartFrame,
-    clipDurationFrames,
-    drawWidth,
-    drawHeight,
-    offsetX,
-    offsetY,
-    fps,
-  });
+  // Calculate the exact source frame that should be displayed at this composition frame
+  // Remotion's Video displays: videoFrame = startFrom + currentFrame
+  // We want: videoFrame = sourceFrame (the frame from the original recording)
+  // Therefore: startFrom = sourceFrame - currentFrame
+  //
+  // This allows the video to "seek" to the correct position without remounting
+  const sourceFrame = (sourceTimeMs * fps) / 1000;
+  // PRECISION FIX: Math.max(0, ...) prevents tiny negative values from floating point errors
+  // (e.g., -1.77e-15) which would fail Remotion's startFrom >= 0 validation
+  const dynamicStartFrom = Math.max(0, sourceFrame - currentFrame);
 
   // Simple video style
   const videoStyle: React.CSSProperties = {
@@ -274,34 +238,28 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             backfaceVisibility: 'hidden' as const,
           }}
         >
-          {/* Sequence wrapper fixes startFrom/endAt calculation for split clips */}
-          {/* Without this, Video at composition level uses absolute frame, causing seek past EOF */}
-          <Sequence from={clipStartFrame} durationInFrames={clipDurationFrames} name={`Video-${clip.id}`}>
-            <VideoComponent
-              // Preview: Video (smooth scrubbing), Rendering: OffthreadVideo (FFmpeg, no Chrome buffer overflow)
-              src={finalVideoUrl}
-              style={videoStyle}
-              volume={1}
-              muted={false}
-              pauseWhenBuffering={false}
-              crossOrigin="anonymous"
-              startFrom={startFrom}
-              endAt={endAt}
-              playbackRate={clip.playbackRate || 1}
-              onError={(e) => {
-                const errorMsg = `Video failed to load: ${finalVideoUrl}`;
-                console.error('[SharedVideoController] Video playback error:', {
-                  error: e,
-                  videoUrl: finalVideoUrl,
-                  clipId: clip.id,
-                  message: e instanceof Error ? e.message : 'Unknown error',
-                });
-                // STABILITY FIX: Throw error to stop rendering with corrupt video
-                // This prevents silent export failures with black frames
-                throw new Error(errorMsg);
-              }}
-            />
-          </Sequence>
+          {/* NO Sequence wrapper - prevents remount/blink on clip transitions */}
+          {/* Dynamic startFrom calculation handles seeking to correct source frame */}
+          <VideoComponent
+            src={finalVideoUrl}
+            style={videoStyle}
+            volume={1}
+            muted={false}
+            pauseWhenBuffering={false}
+            crossOrigin="anonymous"
+            startFrom={dynamicStartFrom}
+            playbackRate={clip.playbackRate || 1}
+            onError={(e) => {
+              const errorMsg = `Video failed to load: ${finalVideoUrl}`;
+              console.error('[SharedVideoController] Video playback error:', {
+                error: e,
+                videoUrl: finalVideoUrl,
+                clipId: clip.id,
+                message: e instanceof Error ? e.message : 'Unknown error',
+              });
+              throw new Error(errorMsg);
+            }}
+          />
         </div>
       </AbsoluteFill>
       {/* Render overlay children (ClipSequences with cursor, keystrokes, etc.) */}

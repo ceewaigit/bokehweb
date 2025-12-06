@@ -16,7 +16,7 @@ async function updateSourceCache() {
       types: ['screen', 'window'],
       thumbnailSize: { width: 1, height: 1 }
     })
-    
+
     sourceCache.clear()
     sources.forEach(source => {
       sourceCache.set(source.id, {
@@ -34,18 +34,18 @@ export function registerWindowControlHandlers(): void {
   ipcMain.on('open-workspace', () => {
     try {
       console.log('[WindowControls] Opening workspace...')
-      
+
       // Hide any overlay when opening workspace
       hideMonitorOverlay()
-      
+
       if (!global.mainWindow) {
         console.log('[WindowControls] Creating new main window')
         global.mainWindow = createMainWindow()
-        
+
         const url = getAppURL()
         console.log('[WindowControls] Loading URL:', url)
         global.mainWindow.loadURL(url)
-        
+
         global.mainWindow.once('ready-to-show', () => {
           console.log('[WindowControls] Main window ready to show')
           if (global.mainWindow) {
@@ -57,7 +57,7 @@ export function registerWindowControlHandlers(): void {
             }
           }
         })
-        
+
         global.mainWindow.on('closed', () => {
           console.log('[WindowControls] Main window closed')
           global.mainWindow = null
@@ -111,22 +111,22 @@ export function registerWindowControlHandlers(): void {
     if (window && dimensions.width > 0 && dimensions.height > 0) {
       const { screen } = require('electron')
       const display = screen.getPrimaryDisplay()
-      
+
       // Set size constraints
       window.setMinimumSize(dimensions.width, dimensions.height)
       window.setMaximumSize(dimensions.width, dimensions.height)
-      
+
       // Set bounds with centered X position
       const newX = Math.floor(display.workAreaSize.width / 2 - dimensions.width / 2)
       const currentY = window.getPosition()[1]
-      
+
       window.setBounds({
         x: newX,
         y: currentY,
         width: Math.round(dimensions.width),
         height: Math.round(dimensions.height)
       }, true)
-      
+
       window.setResizable(false)
       return { success: true }
     }
@@ -136,7 +136,7 @@ export function registerWindowControlHandlers(): void {
   ipcMain.handle('show-countdown', async (event: IpcMainInvokeEvent, number: number, displayId?: number) => {
     // Hide any overlay when countdown starts
     hideMonitorOverlay()
-    
+
     if (countdownWindow) {
       countdownWindow.close()
       countdownWindow = null
@@ -170,19 +170,52 @@ export function registerWindowControlHandlers(): void {
     try {
       // Update source cache to get latest window information
       await updateSourceCache()
-      
+
       // Get the window source information
       const sourceInfo = sourceCache.get(windowId)
-      
-      if (sourceInfo && sourceInfo.type === 'window') {
-        // Show overlay with application name
-        const appName = sourceInfo.name.split(' - ')[0] // Get app name without window title
-        showMonitorOverlay(undefined, `Recording ${appName}`)
-      } else {
-        // Fallback to showing overlay on primary display
-        showMonitorOverlay(undefined, 'Recording Application')
+
+      if (sourceInfo && sourceInfo.name) {
+        try {
+          const { getWindowBoundsForSource, bringAppToFront, isWindowAvailable } = await import('../native/window-bounds')
+          const { showWindowBoundsOverlay } = await import('../windows/monitor-overlay')
+
+          // Extract app name from source name (e.g., "Spotify - Song Title" -> "Spotify")
+          const appName = sourceInfo.name.split(' - ')[0].split(' — ')[0].trim()
+
+          // Check if window is still available (not closed)
+          const available = await isWindowAvailable(sourceInfo.name)
+          if (!available) {
+            console.warn('[WindowControls] Window not available (may be closed or minimized)')
+            // Still show overlay on primary display as fallback
+            showMonitorOverlay(undefined, `${appName} (Window unavailable)`)
+            return { success: true, warning: 'Window not available' }
+          }
+
+          // Bring the app to front FIRST
+          await bringAppToFront(appName)
+
+          // Wait a brief moment for the window to come to front
+          await new Promise(resolve => setTimeout(resolve, 100))
+
+          // Now get the updated window bounds
+          const windowBounds = await getWindowBoundsForSource(sourceInfo.name)
+
+          if (windowBounds) {
+            // Show overlay positioned exactly on the window
+            showWindowBoundsOverlay(
+              { x: windowBounds.x, y: windowBounds.y, width: windowBounds.width, height: windowBounds.height },
+              appName
+            )
+            return { success: true }
+          }
+        } catch (err) {
+          console.warn('[WindowControls] Failed to get window bounds:', err)
+        }
       }
-      
+
+      // Fallback to showing overlay on primary display if window bounds not available
+      showMonitorOverlay(undefined, sourceInfo?.name || 'Application')
+
       return { success: true }
     } catch (error) {
       console.error('[WindowControls] Failed to show window overlay:', error)

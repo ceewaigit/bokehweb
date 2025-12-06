@@ -5,6 +5,15 @@
 
 import type { MouseEvent } from '@/types/project'
 import { interpolateMousePosition } from './mouse-interpolation'
+import {
+  CAMERA_FOLLOW_STRENGTH,
+  CAMERA_SMOOTHING,
+  CLUSTER_RADIUS_RATIO,
+  MIN_CLUSTER_DURATION_MS,
+  CLUSTER_HOLD_BUFFER_MS,
+  CINEMATIC_WINDOW_MS,
+  CINEMATIC_SAMPLES
+} from '@/lib/constants/calculator-constants'
 
 export class ZoomPanCalculator {
   // Cache for pre-calculated clusters to avoid re-processing every frame
@@ -32,7 +41,7 @@ export class ZoomPanCalculator {
 
     // Target viewport center = mouse position (for full following)
     // But we'll soften it a bit for cinematic effect
-    const followStrength = 0.7; // How much the viewport follows (0=none, 1=perfect center)
+    const followStrength = CAMERA_FOLLOW_STRENGTH;
 
     // Blend between center (0.5) and mouse position
     const targetViewportCenterX = 0.5 + (mouseNormX - 0.5) * followStrength;
@@ -45,7 +54,7 @@ export class ZoomPanCalculator {
     const targetPanY = -(targetViewportCenterY - 0.5);
 
     // Smooth interpolation for cinematic movement
-    const smoothing = 0.08; // Lower = smoother, higher = more responsive
+    const smoothing = CAMERA_SMOOTHING;
     const newPanX = currentPanX + (targetPanX - currentPanX) * smoothing;
     const newPanY = currentPanY + (targetPanY - currentPanY) * smoothing;
 
@@ -82,8 +91,8 @@ export class ZoomPanCalculator {
     if (mouseEvents.length === 0) return clusters;
 
     const screenDiag = Math.sqrt(videoWidth * videoWidth + videoHeight * videoHeight);
-    const maxClusterRadius = screenDiag * 0.15; // Max radius to consider part of same cluster
-    const minClusterDuration = 400; // Min duration to be considered a valid dwell
+    const maxClusterRadius = screenDiag * CLUSTER_RADIUS_RATIO;
+    const minClusterDuration = MIN_CLUSTER_DURATION_MS;
 
     let currentCluster: {
       events: MouseEvent[];
@@ -192,7 +201,7 @@ export class ZoomPanCalculator {
 
     // 2. Check if we are inside a cluster
     // We add a small "hold" buffer after the cluster ends to prevent snapping out too early
-    const holdBuffer = 0; // ms - set to 0 for now as physics will handle smoothing
+    const holdBuffer = CLUSTER_HOLD_BUFFER_MS;
 
     const activeCluster = clusters.find(c =>
       timeMs >= c.startTime && timeMs <= (c.endTime + holdBuffer)
@@ -244,9 +253,8 @@ export class ZoomPanCalculator {
     mouseEvents: MouseEvent[],
     timeMs: number
   ): { x: number; y: number } | null {
-    // Window size for smoothing (e.g. 200ms average)
-    const windowSize = 200;
-    const samples = 5; // Number of samples to take within the window
+    const windowSize = CINEMATIC_WINDOW_MS;
+    const samples = CINEMATIC_SAMPLES;
 
     let sumX = 0;
     let sumY = 0;
