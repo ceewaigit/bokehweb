@@ -1,13 +1,13 @@
 'use client'
 
 import React from 'react'
-import { Camera, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect } from '@/types/project'
 import { ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType, EffectType } from '@/types/effects'
+import { AddEffectCommand, DefaultCommandContext, CommandManager } from '@/lib/commands'
 
 interface ScreenTabProps {
   selectedClip: Clip | null
@@ -24,7 +24,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
       <div className="p-3 bg-background/30 rounded-lg">
         <button
           className="w-full px-3 py-2 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-all"
-          onClick={() => {
+          onClick={async () => {
             if (!selectedClip) return
             const newEffect: Effect = {
               id: `screen-${Date.now()}`,
@@ -34,7 +34,10 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
               enabled: true,
               data: { preset: ScreenEffectPreset.Subtle }
             }
-            useProjectStore.getState().addEffect(newEffect)
+            // Use command pattern for undo/redo support
+            const context = new DefaultCommandContext(useProjectStore.getState())
+            const command = new AddEffectCommand(context, newEffect)
+            await CommandManager.getInstance().execute(command)
           }}
         >
           Add 3D Screen Block

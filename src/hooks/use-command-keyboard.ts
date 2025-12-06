@@ -1,14 +1,15 @@
 import { useEffect, useRef } from 'react'
 import { useProjectStore } from '@/stores/project-store'
 import { keyboardManager } from '@/lib/keyboard/keyboard-manager'
-import { 
-  CommandManager, 
-  DefaultCommandContext, 
+import {
+  CommandManager,
+  DefaultCommandContext,
   registerAllCommands,
   SplitClipCommand,
   DuplicateClipCommand,
   RemoveClipCommand,
   RemoveZoomBlockCommand,
+  RemoveEffectCommand,
   CopyCommand,
   CutCommand,
   PasteCommand
@@ -142,12 +143,19 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
         return
       }
 
-      // Remove selected screen block via store
+      // Remove selected screen block via command (enables undo/redo)
       if (effectLayer && effectLayer.type === EffectLayerType.Screen && effectLayer.id) {
+        const command = new RemoveEffectCommand(freshContext, effectLayer.id)
+
         try {
-          useProjectStore.getState().removeEffect(effectLayer.id)
-          useProjectStore.getState().clearEffectSelection()
-          toast('Screen block deleted')
+          const result = await manager.execute(command)
+          if (result.success) {
+            useProjectStore.getState().clearEffectSelection()
+            toast('Screen block deleted')
+          } else {
+            console.error('[Keyboard] Delete screen block failed:', result.error)
+            toast.error(result.error as string)
+          }
         } catch (err) {
           console.error('[Keyboard] Delete screen block failed:', err)
           toast.error('Failed to delete screen block')
