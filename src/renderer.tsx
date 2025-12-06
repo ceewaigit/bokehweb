@@ -4,6 +4,7 @@ import { RecordButtonDock } from './components/record-button-dock';
 import { WorkspaceManager } from './components/workspace/workspace-manager';
 import { ThemeProvider } from './contexts/theme-context';
 import { ErrorBoundary } from './components/error-boundary';
+import { PermissionGuard } from './components/permission-guard';
 import './app/globals.css';
 
 // Check if we're loading the record button based on the URL hash
@@ -23,7 +24,9 @@ const App = () => {
   return (
     <ThemeProvider>
       <ErrorBoundary>
-        <WorkspaceManager />
+        <PermissionGuard>
+          <WorkspaceManager />
+        </PermissionGuard>
       </ErrorBoundary>
     </ThemeProvider>
   );

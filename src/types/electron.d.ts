@@ -28,9 +28,15 @@ export interface ElectronAPI {
   // Permission checking
   checkScreenRecordingPermission: () => Promise<{ status: string; granted: boolean }>
   requestScreenRecordingPermission: () => Promise<{ opened: boolean; status: string; granted: boolean }>
+  checkMicrophonePermission: () => Promise<{ status: string; granted: boolean }>
+  requestMicrophonePermission: () => Promise<{ status: string; granted: boolean }>
+  setMockPermissions: (permissions: { screen?: boolean; microphone?: boolean }) => Promise<void>
   startPermissionMonitoring?: () => Promise<void>
   stopPermissionMonitoring?: () => Promise<void>
-  onPermissionStatusChanged?: (callback: (event: any, data: { status: string; granted: boolean }) => void) => () => void
+  onPermissionStatusChanged?: (callback: (event: any, data: {
+    screen: { status: string; granted: boolean };
+    microphone: { status: string; granted: boolean };
+  } | { status: string; granted: boolean }) => void) => () => void
 
   // Mouse tracking
   startMouseTracking: (options: any) => Promise<any>
@@ -40,7 +46,7 @@ export interface ElectronAPI {
   onMouseClick: (callback: any) => () => void
   onScroll?: (callback: any) => () => void
   removeAllMouseListeners: () => void
-  
+
   // Keyboard tracking
   startKeyboardTracking?: () => Promise<any>
   stopKeyboardTracking?: () => Promise<any>
@@ -63,7 +69,7 @@ export interface ElectronAPI {
   getFileSize?: (filePath: string) => Promise<{ success: boolean; data?: { size: number }; error?: string }>
   getVideoUrl?: (filePath: string) => Promise<string | null>
   onToggleRecording?: (callback: () => void) => void
-  
+
   // Streaming recording handlers
   createTempRecordingFile?: (extension?: string) => Promise<{ success: boolean; data?: string; error?: string }>
   appendToRecording?: (filePath: string, chunk: ArrayBuffer | Blob) => Promise<{ success: boolean; error?: string }>
@@ -73,7 +79,7 @@ export interface ElectronAPI {
   appendMetadataBatch?: (filePath: string, metadata: any[], isLast?: boolean) => Promise<{ success: boolean; error?: string }>
   readMetadata?: (filePath: string) => Promise<{ success: boolean; data?: any[]; error?: string }>
   readMetadataFile?: (filePath: string) => Promise<{ success: boolean; data?: any[]; error?: string }>
-  
+
   // File operations
   moveFile?: (source: string, destination: string) => Promise<{ success: boolean; error?: string }>
 

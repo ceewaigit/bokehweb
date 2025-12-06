@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecording } from '@/hooks/use-recording'
+import { usePermissions } from '@/hooks/use-permissions'
 import { useRecordingSessionStore } from '@/stores/recording-session-store'
 import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -46,7 +47,10 @@ export function RecordButtonDock() {
   const [sources, setSources] = useState<Source[]>([])
   const [showSourcePicker, setShowSourcePicker] = useState(false)
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
-  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'unknown'>('unknown')
+
+  // Use centralized permission hook
+  const { screenRecording, requestScreenRecording } = usePermissions()
+  const permissionStatus = screenRecording ? 'granted' : 'denied'
 
   // Use the centralized recording hook and store
   const {
@@ -93,17 +97,9 @@ export function RecordButtonDock() {
     initializeDefaultWallpaper()
   }, [])
 
-  // Check screen recording permission on mount
-  useEffect(() => {
-    const checkPermission = async () => {
-      if (window.electronAPI?.checkScreenRecordingPermission) {
-        const result = await window.electronAPI.checkScreenRecordingPermission()
-        setPermissionStatus(result.granted ? 'granted' : 'denied')
-        logger.info('Screen recording permission:', result)
-      }
-    }
-    checkPermission()
-  }, [])
+  // Check screen recording permission on mount handled by usePermissions
+  // We can remove the local effect
+
 
   // Load sources when picker opens
   const loadSources = useCallback(async () => {
@@ -346,8 +342,7 @@ export function RecordButtonDock() {
         {permissionStatus === 'denied' && (
           <div className="bg-orange-500/10 border border-orange-500/30 rounded-t-lg px-2 py-1">
             <div className="flex items-center gap-1">
-              <AlertCircle className="w-3 h-3 text-orange-500" />
-              <span className="text-[10px] text-orange-500 font-medium">
+              <span className="text-[8px] text-orange-500 font-medium">
                 Screen recording permission required
               </span>
             </div>
@@ -415,20 +410,11 @@ export function RecordButtonDock() {
                   "active:scale-95"
                 )}
                 onClick={permissionStatus === 'denied' ? async () => {
-                  // Request permission
-                  if (window.electronAPI?.requestScreenRecordingPermission) {
-                    await window.electronAPI.requestScreenRecordingPermission()
-                    // Re-check permission after user potentially grants it
-                    setTimeout(async () => {
-                      if (window.electronAPI?.checkScreenRecordingPermission) {
-                        const result = await window.electronAPI.checkScreenRecordingPermission()
-                        setPermissionStatus(result.granted ? 'granted' : 'denied')
-                      }
-                    }, 1000)
-                  }
+                  // Request permission via hook
+                  await requestScreenRecording()
                 } : handleStartRecording}
                 title={permissionStatus === 'denied'
-                  ? "Screen Recording Permission Required - Click to Open Settings"
+                  ? "Screen Recording Permission Required"
                   : "Start Recording"}
               >
                 {permissionStatus === 'denied' ? (

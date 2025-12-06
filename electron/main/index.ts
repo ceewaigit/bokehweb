@@ -6,7 +6,7 @@ import { isDev, getRecordingsDirectory } from './config'
 import { findVideoFile, normalizeCrossPlatform } from './utils/path-normalizer'
 import { makeVideoSrc } from './utils/video-url-factory'
 import { createRecordButton, setupRecordButton } from './windows/record-button'
-import { checkMediaPermissions } from './services/permissions'
+import { PermissionService } from './services/permission-service'
 import { registerRecordingHandlers } from './handlers/recording'
 import { registerSourceHandlers } from './handlers/sources'
 import { registerPermissionHandlers } from './handlers/permissions'
@@ -68,7 +68,7 @@ function registerProtocol(): void {
         const stat = fs.statSync(filePath)
         const stream = fs.createReadStream(filePath)
         const body = Readable.toWeb(stream as any)
-        
+
         return new Response(body as any, {
           status: 200,
           headers: {
@@ -89,26 +89,26 @@ function registerProtocol(): void {
       // Parse URL - handle ALL possible formats
       const url = new URL(request.url)
       let filePath: string = ''
-      
+
       // Handle static assets (cursors, images, etc.)
       if (url.host === 'assets') {
         const assetPath = url.pathname.slice(1) // Remove leading slash
-        const publicPath = isDev 
+        const publicPath = isDev
           ? path.join(__dirname, '../../../public', assetPath)
           : path.join(process.resourcesPath, 'public', assetPath)
-        
+
         if (!fs.existsSync(publicPath)) {
           console.error('[Protocol] Asset not found:', publicPath)
           return new Response('Asset not found', { status: 404 })
         }
-        
+
         // Serve the asset file
         const buffer = fs.readFileSync(publicPath)
-        const mimeType = assetPath.endsWith('.png') ? 'image/png' : 
-                         assetPath.endsWith('.jpg') ? 'image/jpeg' :
-                         assetPath.endsWith('.svg') ? 'image/svg+xml' :
-                         'application/octet-stream'
-        
+        const mimeType = assetPath.endsWith('.png') ? 'image/png' :
+          assetPath.endsWith('.jpg') ? 'image/jpeg' :
+            assetPath.endsWith('.svg') ? 'image/svg+xml' :
+              'application/octet-stream'
+
         return new Response(buffer, {
           status: 200,
           headers: {
@@ -117,7 +117,7 @@ function registerProtocol(): void {
           }
         })
       }
-      
+
       // Format 1: video-stream://local/<encoded-path>
       if (url.host === 'local' || url.host === 'localhost') {
         const encodedPath = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname
@@ -126,13 +126,13 @@ function registerProtocol(): void {
         } catch {
           filePath = encodedPath // Use as-is if decode fails
         }
-      } 
+      }
       // Format 2: video-stream://Users/... or video-stream://users/... (malformed)
       else if (url.host) {
         // Try to reconstruct the path
         const hostPart = url.host
         const pathPart = url.pathname
-        
+
         // Handle Windows paths (e.g., host="c", pathname="/Users/...")
         if (hostPart.length === 1 && /[a-zA-Z]/.test(hostPart)) {
           filePath = `${hostPart.toUpperCase()}:${pathPart}`
@@ -140,12 +140,12 @@ function registerProtocol(): void {
         // Handle Unix paths (e.g., host="users", pathname="/name/...")
         else {
           // Capitalize first letter for common directories
-          const capitalizedHost = ['users', 'home', 'var', 'tmp', 'opt'].includes(hostPart.toLowerCase()) 
+          const capitalizedHost = ['users', 'home', 'var', 'tmp', 'opt'].includes(hostPart.toLowerCase())
             ? hostPart.charAt(0).toUpperCase() + hostPart.slice(1).toLowerCase()
             : hostPart
           filePath = `/${capitalizedHost}${pathPart}`
         }
-        
+
         try {
           filePath = decodeURIComponent(filePath)
         } catch {
@@ -160,7 +160,7 @@ function registerProtocol(): void {
           filePath = url.pathname
         }
       }
-      
+
       // Format 4: Extract from full URL string if above failed
       if (!filePath || filePath === '/') {
         // Try to extract path from the original URL
@@ -178,10 +178,10 @@ function registerProtocol(): void {
           }
         }
       }
-      
+
       // Use cross-platform normalizer
       filePath = normalizeCrossPlatform(filePath)
-      
+
       // Try to find the file using multiple strategies
       const foundPath = findVideoFile(filePath)
       if (foundPath) {
@@ -228,11 +228,11 @@ function registerProtocol(): void {
         const match = /bytes=(\d*)-(\d*)/.exec(rangeHeader)
         let start = match?.[1] ? parseInt(match[1], 10) : 0
         let end = match?.[2] ? parseInt(match[2], 10) : total - 1
-        
+
         // Validate range
         if (Number.isNaN(start) || start < 0) start = 0
         if (Number.isNaN(end) || end >= total) end = total - 1
-        
+
         if (start >= total || end < start) {
           return new Response(null, {
             status: 416, // Range Not Satisfiable
@@ -304,7 +304,7 @@ function registerAllHandlers(): void {
   registerWindowControlHandlers()
   setupNativeRecorder()
   setupExportHandler()
-  
+
   // Path resolution handler - replaces path-resolver.ts functionality
   ipcMain.handle('resolve-recording-path', async (_, filePath: string, folderPath?: string) => {
     try {
@@ -313,7 +313,7 @@ function registerAllHandlers(): void {
         const videoUrl = await makeVideoSrc(filePath, 'preview')
         return videoUrl
       }
-      
+
       // Handle relative paths with folder context
       if (folderPath) {
         const recordingsDir = getRecordingsDirectory()
@@ -357,7 +357,7 @@ function registerAllHandlers(): void {
         const videoUrl = await makeVideoSrc(foundPath, 'preview')
         return videoUrl
       }
-      
+
       // Fallback: use recordings directory
       const recordingsDir = getRecordingsDirectory()
       const defaultPath = path.join(recordingsDir, filePath)
@@ -382,15 +382,16 @@ global.recordingsDirectory = getRecordingsDirectory()
 async function initializeApp(): Promise<void> {
   console.log(`🚀 App ready - Electron version: ${process.versions.electron}`)
   console.log(`🌐 Chrome version: ${process.versions.chrome}`)
-  
+
   registerProtocol()
-  await checkMediaPermissions()
+  // Initialize permission service
+  PermissionService.getInstance()
   registerAllHandlers()
-  
+
   // Add request logging for debugging video URLs
   const { session } = await import('electron')
   const ses = session.defaultSession
-  
+
   ses.webRequest.onBeforeRequest((details, callback) => {
     if (details.url.startsWith('file:') || details.url.startsWith('video-stream:')) {
       console.log('[MEDIA-REQUEST]', {

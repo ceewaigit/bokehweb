@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
-import type { 
-  DesktopSourceOptions, 
-  DesktopSource, 
-  MousePosition, 
+import type {
+  DesktopSourceOptions,
+  DesktopSource,
+  MousePosition,
   MouseTrackingOptions,
   MessageBoxOptions,
   SaveDialogOptions,
@@ -41,6 +41,15 @@ const electronAPI = {
 
   requestScreenRecordingPermission: () =>
     ipcRenderer.invoke('request-screen-recording-permission'),
+
+  checkMicrophonePermission: () =>
+    ipcRenderer.invoke('check-microphone-permission'),
+
+  requestMicrophonePermission: () =>
+    ipcRenderer.invoke('request-microphone-permission'),
+
+  setMockPermissions: (permissions: { screen?: boolean; microphone?: boolean }) =>
+    ipcRenderer.invoke('set-mock-permissions', permissions),
 
   startPermissionMonitoring: () =>
     ipcRenderer.invoke('start-permission-monitoring'),
@@ -97,7 +106,7 @@ const electronAPI = {
     ipcRenderer.on('mouse-click', wrappedCallback)
     return () => ipcRenderer.removeListener('mouse-click', wrappedCallback)
   },
-  
+
   // Keyboard tracking
   startKeyboardTracking: () => ipcRenderer.invoke('start-keyboard-tracking'),
   stopKeyboardTracking: () => ipcRenderer.invoke('stop-keyboard-tracking'),
@@ -217,7 +226,7 @@ const electronAPI = {
   // Recording file helpers
   getRecordingsDirectory: () =>
     ipcRenderer.invoke('get-recordings-directory'),
-  
+
   resolveRecordingPath: (filePath: string, folderPath?: string) =>
     ipcRenderer.invoke('resolve-recording-path', filePath, folderPath),
 
@@ -226,28 +235,28 @@ const electronAPI = {
 
   loadRecordings: () =>
     ipcRenderer.invoke('load-recordings'),
-  
+
   // Streaming recording handlers
-  createTempRecordingFile: (extension?: string) => 
+  createTempRecordingFile: (extension?: string) =>
     ipcRenderer.invoke('create-temp-recording-file', extension),
   appendToRecording: (filePath: string, chunk: ArrayBuffer | Blob) => {
     // Convert Blob to ArrayBuffer if needed
     if (chunk instanceof Blob) {
-      return chunk.arrayBuffer().then(buffer => 
+      return chunk.arrayBuffer().then(buffer =>
         ipcRenderer.invoke('append-to-recording', filePath, buffer)
       )
     }
     return ipcRenderer.invoke('append-to-recording', filePath, chunk)
   },
-  finalizeRecording: (filePath: string) => 
+  finalizeRecording: (filePath: string) =>
     ipcRenderer.invoke('finalize-recording', filePath),
-  moveFile: (sourcePath: string, destPath: string) => 
+  moveFile: (sourcePath: string, destPath: string) =>
     ipcRenderer.invoke('move-file', sourcePath, destPath),
-  createMetadataFile: () => 
+  createMetadataFile: () =>
     ipcRenderer.invoke('create-metadata-file'),
-  appendMetadataBatch: (filePath: string, batch: any[], isLast?: boolean) => 
+  appendMetadataBatch: (filePath: string, batch: any[], isLast?: boolean) =>
     ipcRenderer.invoke('append-metadata-batch', filePath, batch, isLast),
-  readMetadataFile: (filePath: string) => 
+  readMetadataFile: (filePath: string) =>
     ipcRenderer.invoke('read-metadata-file', filePath),
 
   readLocalFile: (absolutePath: string) =>
