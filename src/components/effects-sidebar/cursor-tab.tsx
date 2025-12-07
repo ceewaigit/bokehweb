@@ -75,6 +75,18 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
 
           <div className="p-1 bg-background/30 rounded-lg">
             <label className="flex items-center justify-between">
+              <span className="text-xs">Smooth Movement</span>
+              <Switch
+                checked={cursorData?.gliding ?? true}
+                onCheckedChange={(checked) =>
+                  onUpdateCursor({ gliding: checked })
+                }
+              />
+            </label>
+          </div>
+
+          <div className="p-1 bg-background/30 rounded-lg">
+            <label className="flex items-center justify-between">
               <span className="text-xs">Motion Blur</span>
               <Switch
                 checked={cursorData?.motionBlur ?? false}
@@ -116,17 +128,6 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           {/* Advanced Section */}
           <details className="space-y-2 pt-2">
             <summary className="text-xs font-medium text-muted-foreground cursor-pointer">Advanced</summary>
-            <div className="p-1 bg-background/30 rounded-lg">
-              <label className="flex items-center justify-between">
-                <span className="text-xs">Gliding</span>
-                <Switch
-                  checked={cursorData?.gliding ?? true}
-                  onCheckedChange={(checked) =>
-                    onUpdateCursor({ gliding: checked })
-                  }
-                />
-              </label>
-            </div>
             <div className="p-1 bg-background/30 rounded-lg space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Speed</label>
               <Slider
