@@ -198,14 +198,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       : '';
 
   // Calculate the exact source frame that should be displayed at this composition frame
-  // Remotion's Video displays: videoFrame = startFrom + currentFrame
-  // We want: videoFrame = sourceFrame (the frame from the original recording)
-  // Therefore: startFrom = sourceFrame - currentFrame
-  //
-  // This allows the video to "seek" to the correct position without remounting
-  const sourceFrame = (sourceTimeMs * fps) / 1000;
-  // PRECISION FIX: Math.max(0, ...) prevents tiny negative values from floating point errors
-  // (e.g., -1.77e-15) which would fail Remotion's startFrom >= 0 validation
+  // The sourceTimeMs already accounts for playbackRate in the calculation above:
+  //   sourceTimeMs = sourceIn + clipElapsedMs * playbackRate
+  // So we just need to seek to that exact source frame, WITHOUT using playbackRate on the video
+  // (playbackRate would cause double-application of the speed factor)
+  const sourceFrame = Math.round((sourceTimeMs * fps) / 1000);
+  // startFrom tells Remotion which frame of source video to display at currentFrame
+  // Formula: displayedFrame = startFrom + currentFrame, so startFrom = sourceFrame - currentFrame
   const dynamicStartFrom = Math.max(0, sourceFrame - currentFrame);
 
   // Simple video style
@@ -239,7 +238,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
           }}
         >
           {/* NO Sequence wrapper - prevents remount/blink on clip transitions */}
-          {/* Dynamic startFrom calculation handles seeking to correct source frame */}
+          {/* startFrom seeks to correct source frame - NO playbackRate to avoid double application */}
           <VideoComponent
             src={finalVideoUrl}
             style={videoStyle}
@@ -248,7 +247,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             pauseWhenBuffering={false}
             crossOrigin="anonymous"
             startFrom={dynamicStartFrom}
-            playbackRate={clip.playbackRate || 1}
+            playbackRate={1}
             onError={(e) => {
               const errorMsg = `Video failed to load: ${finalVideoUrl}`;
               console.error('[SharedVideoController] Video playback error:', {

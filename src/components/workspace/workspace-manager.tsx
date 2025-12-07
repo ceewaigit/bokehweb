@@ -15,7 +15,6 @@ import { RecordingsLibrary } from '../recordings-library'
 import { useProjectStore } from '@/stores/project-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
-import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
@@ -42,7 +41,8 @@ async function loadProjectRecording(
   // Initialize wallpaper if not already done
   await initializeDefaultWallpaper()
 
-  const project = recording.project
+  // Deep clone the project to allow mutations (JSON objects are frozen/read-only)
+  const project = JSON.parse(JSON.stringify(recording.project))
 
   setLoadingMessage('Creating project...')
   newProject(project.name)

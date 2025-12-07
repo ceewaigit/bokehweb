@@ -7,6 +7,7 @@ import { formatTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/utils/logger'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
+import { createAreaSourceId } from '@/lib/recording/utils/area-source-parser'
 import { RecordingSourceType } from '@/types/project'
 import { AudioInput } from '@/types'
 import {
@@ -287,7 +288,7 @@ export function RecordButtonDock() {
         try {
           const result = await window.electronAPI.selectScreenArea()
           if (result?.success && result.area) {
-            const areaSourceId = `area:${result.area.x},${result.area.y},${result.area.width},${result.area.height}`
+            const areaSourceId = createAreaSourceId(result.area)
             prepareRecording(areaSourceId, displayId)
             setTimeout(() => startCountdown(startRecording, displayId), 100)
           }

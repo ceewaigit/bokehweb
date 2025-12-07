@@ -78,8 +78,19 @@ export function calculateCursorState(
   // This matches the original CursorLayer behavior for buttery-smooth movement
   const position = applySmoothingFilter(mouseEvents, timestamp, rawPosition, previousState, cursorData, renderFps)
 
-  // Determine cursor type
-  const currentEvent = mouseEvents.find(e => e.timestamp <= timestamp) || mouseEvents[0]
+  // Determine cursor type - use binary search for most recent event
+  let cursorEventIndex = -1
+  let low = 0, high = mouseEvents.length - 1
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (mouseEvents[mid].timestamp <= timestamp) {
+      cursorEventIndex = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+  const currentEvent = cursorEventIndex >= 0 ? mouseEvents[cursorEventIndex] : mouseEvents[0]
   const cursorType = electronToCustomCursor(currentEvent?.cursorType || 'default')
 
   // Calculate visibility based on idle timeout

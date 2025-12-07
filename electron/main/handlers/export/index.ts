@@ -170,6 +170,104 @@ function extractEffectsFromSegments(segments: any[]): any[] {
 }
 
 /**
+ * Binary search to find the closest event to a target timestamp
+ */
+function findClosestEvent<T extends { timestamp: number }>(events: T[], targetTimeMs: number): T | null {
+  if (!events || events.length === 0) return null
+
+  let low = 0
+  let high = events.length - 1
+
+  // Edge cases
+  if (targetTimeMs <= events[0].timestamp) return events[0]
+  if (targetTimeMs >= events[high].timestamp) return events[high]
+
+  // Binary search for closest
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (events[mid].timestamp === targetTimeMs) {
+      return events[mid]
+    } else if (events[mid].timestamp < targetTimeMs) {
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+
+  // Return the closer of the two surrounding events
+  if (high < 0) return events[0]
+  if (low >= events.length) return events[events.length - 1]
+
+  const lowDiff = Math.abs(events[low].timestamp - targetTimeMs)
+  const highDiff = Math.abs(events[high].timestamp - targetTimeMs)
+  return lowDiff < highDiff ? events[low] : events[high]
+}
+
+/**
+ * Downsample mouse events to one per frame for efficient rendering
+ * Reduces ~87 events/sec to fps events/sec (typically 30)
+ */
+function downsampleMouseEvents(
+  events: any[],
+  fps: number,
+  durationMs: number
+): any[] {
+  if (!events || events.length === 0) return []
+
+  // If already sparse enough, don't downsample
+  const eventsPerSecond = (events.length / durationMs) * 1000
+  if (eventsPerSecond <= fps * 1.5) {
+    return events
+  }
+
+  const frameCount = Math.ceil((durationMs / 1000) * fps)
+  const sampledEvents: any[] = []
+  const frameDurationMs = 1000 / fps
+
+  for (let frame = 0; frame < frameCount; frame++) {
+    const targetTimeMs = frame * frameDurationMs
+    const event = findClosestEvent(events, targetTimeMs)
+    if (event) {
+      // Create a new event with adjusted timestamp for frame alignment
+      sampledEvents.push({ ...event, timestamp: targetTimeMs })
+    }
+  }
+
+  console.log(`[Export] Downsampled mouseEvents: ${events.length} → ${sampledEvents.length} (${fps}fps)`)
+  return sampledEvents
+}
+
+/**
+ * Downsample recording metadata for efficient export rendering
+ * Reduces mouse events to one per frame while keeping other events intact
+ */
+function downsampleRecordingMetadata(recording: any, fps: number): any {
+  const metadata = recording.metadata
+  if (!metadata) return recording
+
+  const durationMs = recording.duration
+  if (!durationMs || durationMs <= 0) return recording
+
+  const originalMouseCount = metadata.mouseEvents?.length || 0
+
+  return {
+    ...recording,
+    metadata: {
+      ...metadata,
+      // Downsample mouse events (biggest contributor to size)
+      mouseEvents: downsampleMouseEvents(metadata.mouseEvents || [], fps, durationMs),
+      // Keep other events as-is (they're small)
+      clickEvents: metadata.clickEvents,
+      keyboardEvents: metadata.keyboardEvents,
+      scrollEvents: metadata.scrollEvents,
+      screenEvents: metadata.screenEvents,
+      captureArea: metadata.captureArea,
+      detectedTypingPeriods: metadata.detectedTypingPeriods,
+    }
+  }
+}
+
+/**
  * Setup export IPC handlers
  */
 export function setupExportHandler(): void {
@@ -274,7 +372,7 @@ export function setupExportHandler(): void {
       for (const [recordingId, recording] of recordings) {
         const meta = recording.metadata
         if (meta) {
-          console.log(`[Export] Recording ${recordingId} metadata:`, {
+          console.log(`[Export] Recording ${recordingId} metadata (before downsample):`, {
             mouseEvents: meta.mouseEvents?.length || 0,
             clickEvents: meta.clickEvents?.length || 0,
             keyboardEvents: meta.keyboardEvents?.length || 0,
@@ -283,14 +381,20 @@ export function setupExportHandler(): void {
         }
       }
 
-      // Build input props
+      // PERFORMANCE FIX: Downsample recordings for efficient rendering
+      // Reduces ~87 mouse events/sec to 30/sec (one per frame)
+      const fps = settings.framerate || 30
+      const downsampledRecordings = Array.from(new Map(recordings).values())
+        .map(r => downsampleRecordingMetadata(r, fps))
+
+      // Build input props with downsampled recordings
       const inputProps = {
         clips: allClips,
-        recordings: Array.from(new Map(recordings).values()),
+        recordings: downsampledRecordings,
         effects: allEffects,
         videoWidth: settings.resolution?.width || 1920,
         videoHeight: settings.resolution?.height || 1080,
-        fps: settings.framerate || 30,
+        fps,
         metadata: Object.fromEntries(metadata),
         videoUrls,
         ...settings,

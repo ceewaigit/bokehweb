@@ -10,8 +10,6 @@ import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 export class RecordingStorage {
   private static readonly BLOB_PREFIX = 'recording-blob-'
-  // Deprecated: metadata in localStorage caused quota issues; use filesystem chunks instead
-  private static readonly METADATA_PREFIX = 'recording-metadata-'
   private static readonly PROJECT_PREFIX = 'project-'
   private static readonly PROJECT_PATH_PREFIX = 'project-path-'
 
@@ -62,7 +60,7 @@ export class RecordingStorage {
       return null
     }
 
-    const kinds: Array<{ key: keyof NonNullable<import('@/types/project').Recording['metadata']>, filePrefix: string }>= [
+    const kinds: Array<{ key: keyof NonNullable<import('@/types/project').Recording['metadata']>, filePrefix: string }> = [
       { key: 'mouseEvents', filePrefix: 'mouse' },
       { key: 'keyboardEvents', filePrefix: 'keyboard' },
       { key: 'clickEvents', filePrefix: 'click' },
@@ -393,12 +391,12 @@ export class RecordingStorage {
       if (!window.electronAPI?.moveFile) {
         throw new Error('moveFile API not available')
       }
-      
-      const ext = videoPath.toLowerCase().endsWith('.mov') ? 'mov' : 
-                  videoPath.toLowerCase().endsWith('.mp4') ? 'mp4' : 'webm'
+
+      const ext = videoPath.toLowerCase().endsWith('.mov') ? 'mov' :
+        videoPath.toLowerCase().endsWith('.mp4') ? 'mp4' : 'webm'
       const videoFileName = `${recordingId}.${ext}`
       const videoFilePath = `${recordingFolder}/${videoFileName}`
-      
+
       const moveResult = await window.electronAPI.moveFile(videoPath, videoFilePath)
       if (!moveResult?.success) {
         throw new Error('Failed to move video file')
@@ -461,7 +459,7 @@ export class RecordingStorage {
           deltaX: m.scrollDelta!.x || 0,
           deltaY: m.scrollDelta!.y || 0
         }))
-      
+
       console.log('[Recording Storage] Scroll events found:', scrollEvents.length, scrollEvents.slice(0, 5))
 
       // Filter out standalone modifier keys (CapsLock, Shift, etc.) but keep them when combined with other keys

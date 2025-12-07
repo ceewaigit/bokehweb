@@ -192,12 +192,49 @@ export const useProjectStore = create<ProjectStore>()(
         // Update playhead state based on current time
         updatePlayheadState(state)
       })
+
+      // Cache video URLs for all recordings to prevent repeated video-stream requests
+      if (project.recordings && window.electronAPI?.getVideoUrl) {
+        const electronAPI = window.electronAPI // capture reference
+        project.recordings.forEach(async (recording) => {
+          // Skip if already cached
+          if (RecordingStorage.getBlobUrl(recording.id)) return
+
+          try {
+            const videoUrl = await electronAPI.getVideoUrl!(recording.filePath)
+            if (videoUrl) {
+              RecordingStorage.setBlobUrl(recording.id, videoUrl)
+            }
+          } catch (e) {
+            console.warn('Failed to cache video URL for recording:', recording.id)
+          }
+        })
+      }
     },
 
     openProject: async (projectPath) => {
       try {
         // Use ProjectIOService to load the project
         const project = await ProjectIOService.loadProject(projectPath)
+
+        // Cache video URLs for all recordings BEFORE setting project
+        // This prevents multiple video-stream requests during initial render
+        if (project.recordings && window.electronAPI?.getVideoUrl) {
+          const electronAPI = window.electronAPI // capture reference
+          await Promise.all(project.recordings.map(async (recording) => {
+            // Skip if already cached
+            if (RecordingStorage.getBlobUrl(recording.id)) return
+
+            try {
+              const videoUrl = await electronAPI.getVideoUrl!(recording.filePath)
+              if (videoUrl) {
+                RecordingStorage.setBlobUrl(recording.id, videoUrl)
+              }
+            } catch (e) {
+              console.warn('Failed to cache video URL for recording:', recording.id)
+            }
+          }))
+        }
 
         set((state) => {
           state.currentProject = project

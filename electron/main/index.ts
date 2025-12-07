@@ -9,6 +9,7 @@ import { createRecordButton, setupRecordButton } from './windows/record-button'
 import { PermissionService } from './services/permission-service'
 import { registerRecordingHandlers } from './handlers/recording'
 import { registerSourceHandlers } from './handlers/sources'
+import { registerAreaSelectionHandlers } from './handlers/area-selection-handler'
 import { registerPermissionHandlers } from './handlers/permissions'
 import { registerMouseTrackingHandlers, cleanupMouseTracking } from './handlers/mouse-tracking'
 import { registerKeyboardTrackingHandlers, cleanupKeyboardTracking } from './handlers/keyboard-tracking'
@@ -296,6 +297,7 @@ function registerProtocol(): void {
 function registerAllHandlers(): void {
   registerRecordingHandlers()
   registerSourceHandlers()
+  registerAreaSelectionHandlers()
   registerPermissionHandlers()
   registerMouseTrackingHandlers()
   registerKeyboardTrackingHandlers()
@@ -392,16 +394,14 @@ async function initializeApp(): Promise<void> {
   const { session } = await import('electron')
   const ses = session.defaultSession
 
-  ses.webRequest.onBeforeRequest((details, callback) => {
-    if (details.url.startsWith('file:') || details.url.startsWith('video-stream:')) {
-      console.log('[MEDIA-REQUEST]', {
-        url: details.url,
-        resourceType: details.resourceType,
-        method: details.method
-      })
-    }
-    callback({})
-  })
+  // Media request logging removed - was causing console spam
+  // Uncomment for debugging media loading issues:
+  // ses.webRequest.onBeforeRequest((details, callback) => {
+  //   if (details.url.startsWith('video-stream:')) {
+  //     console.log('[MEDIA-REQUEST]', details.url)
+  //   }
+  //   callback({})
+  // })
 
   global.mainWindow = null
 

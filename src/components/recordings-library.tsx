@@ -69,6 +69,11 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     }
 
     const processItem = async (item: LibraryRecording) => {
+      // Skip if already fully hydrated (has project and thumbnail)
+      if (item.project && item.thumbnailUrl) {
+        return
+      }
+
       try {
         if (window.electronAPI?.readLocalFile) {
           const result = await window.electronAPI.readLocalFile(item.path)
@@ -100,8 +105,12 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 }
               }
 
-              // Duration from the video file (only if missing)
-              if ((!project?.timeline?.duration || project.timeline.duration <= 0) && window.electronAPI?.getVideoUrl) {
+              // Duration from the video file (only if truly missing from recording AND project)
+              const recordingDuration = project.recordings[0]?.duration
+              const timelineDuration = project.timeline?.duration
+              const hasDuration = (recordingDuration && recordingDuration > 0) || (timelineDuration && timelineDuration > 0)
+
+              if (!hasDuration && window.electronAPI?.getVideoUrl) {
                 try {
                   const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
                   if (videoUrl) {

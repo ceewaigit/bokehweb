@@ -17,7 +17,9 @@ import {
 
 export class ZoomPanCalculator {
   // Cache for pre-calculated clusters to avoid re-processing every frame
-  private clusterCache = new WeakMap<MouseEvent[], Cluster[]>();
+  // PERF FIX: Use Map with string key instead of WeakMap with object reference
+  // WeakMap doesn't persist across Remotion frame renders since each render gets a new array reference
+  private clusterCache = new Map<string, Cluster[]>();
 
   /**
    * Calculate cinematic pan for zoom - follows mouse directly
@@ -83,8 +85,11 @@ export class ZoomPanCalculator {
     videoWidth: number,
     videoHeight: number
   ): Cluster[] {
-    if (this.clusterCache.has(mouseEvents)) {
-      return this.clusterCache.get(mouseEvents)!;
+    // Create a cache key based on event count and dimensions
+    // This allows caching to work across Remotion frame renders
+    const cacheKey = `${mouseEvents.length}-${videoWidth}-${videoHeight}`;
+    if (this.clusterCache.has(cacheKey)) {
+      return this.clusterCache.get(cacheKey)!;
     }
 
     const clusters: Cluster[] = [];
@@ -165,7 +170,7 @@ export class ZoomPanCalculator {
       }
     }
 
-    this.clusterCache.set(mouseEvents, clusters);
+    this.clusterCache.set(cacheKey, clusters);
     return clusters;
   }
 
