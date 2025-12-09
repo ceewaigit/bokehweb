@@ -3,11 +3,12 @@
  *
  * This context provides clip-specific data without prop drilling.
  * Each ClipSequence provides its own ClipContext.
+ * 
+ * SIMPLIFIED: All effects are now in timeline-space, no dual-space filtering needed.
  */
 
 import React, { createContext, useContext, useMemo } from 'react';
 import type { Clip, Recording, Effect, MouseEvent, ClickEvent, ScrollEvent } from '@/types/project';
-import { EffectType } from '@/types/project';
 import { useTimeContext } from './TimeContext';
 import { useVideoUrl } from '../hooks/useVideoUrl';
 
@@ -22,7 +23,7 @@ export interface ClipContextValue {
   keystrokeEvents: any[];
   scrollEvents: ScrollEvent[];
 
-  // Filtered effects (only effects that overlap this clip)
+  // Filtered effects (only effects that overlap this clip's timeline range)
   effects: Effect[];
 }
 
@@ -65,29 +66,12 @@ export function ClipProvider({ clip, effects, videoUrls, children }: ClipProvide
       (e: any) => e.timestamp >= sourceIn && e.timestamp <= sourceOut
     );
 
-    // Filter effects to only those that overlap with this clip
-    // CRITICAL FIX: Zoom effects are in SOURCE space (recording.effects)
-    // Global effects (cursor, background) are in TIMELINE space
-
-    // Get zoom effects from recording (stored in SOURCE space)
-    const recordingZoomEffects = (recording.effects || []).filter(effect =>
-      effect.type === EffectType.Zoom &&
-      effect.enabled !== false &&
-      effect.startTime < sourceOut &&
-      effect.endTime > sourceIn
-    );
-
-    // Get global effects from passed effects (stored in TIMELINE space)
+    // Filter effects by timeline range (all effects are now in timeline-space)
     const clipStart = clip.startTime;
     const clipEnd = clip.startTime + clip.duration;
-    const globalEffects = effects.filter(effect =>
-      effect.type !== EffectType.Zoom &&
-      effect.startTime < clipEnd &&
-      effect.endTime > clipStart
+    const filteredEffects = effects.filter(effect =>
+      effect.startTime < clipEnd && effect.endTime > clipStart
     );
-
-    // Combine both sets of effects
-    const filteredEffects = [...recordingZoomEffects, ...globalEffects];
 
     return {
       clip,

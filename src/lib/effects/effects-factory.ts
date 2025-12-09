@@ -1,6 +1,5 @@
 import type { Effect, Recording, Clip, Project, ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ScreenEffectData } from '@/types/project'
 import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
-import { ZoomDetector } from './utils/zoom-detector'
 import {
   DEFAULT_BACKGROUND_DATA,
   DEFAULT_CURSOR_DATA,
@@ -8,40 +7,8 @@ import {
 } from '@/lib/constants/default-effects'
 
 export class EffectsFactory {
-  static createZoomEffectsFromRecording(recording: Recording): Effect[] {
-    const effects: Effect[] = []
-    const zoomDetector = new ZoomDetector()
-    const zoomBlocks = zoomDetector.detectZoomBlocks(
-      recording.metadata?.mouseEvents || [],
-      recording.width || 1920,
-      recording.height || 1080,
-      recording.duration
-    )
-
-    zoomBlocks.forEach((block, index) => {
-      // Store times in source space - no conversion needed
-      // block.startTime and block.endTime are already in source space (recording metadata)
-      const zoomEffect: Effect = {
-        id: `zoom-${recording.id}-${index}`,
-        type: EffectType.Zoom,
-        startTime: block.startTime,  // Source space
-        endTime: block.endTime,      // Source space
-        data: {
-          scale: block.scale,
-          targetX: block.targetX,
-          targetY: block.targetY,
-          screenWidth: block.screenWidth,   // Store for proper normalization
-          screenHeight: block.screenHeight, // Store for proper normalization
-          introMs: block.introMs || 300,
-          outroMs: block.outroMs || 300,
-          smoothing: 0.1
-        } as ZoomEffectData,
-        enabled: true
-      }
-      effects.push(zoomEffect)
-    })
-    return effects
-  }
+  // NOTE: createZoomEffectsFromRecording removed - zoom effects are created on-demand
+  // via the sidebar and stored in timeline.effects (timeline-space), not recording.effects
   static createDefaultBackgroundEffect(): Effect {
     const defaultWallpaper = getDefaultWallpaper()
     return {
@@ -84,9 +51,10 @@ export class EffectsFactory {
       recording.effects = []
     }
 
-    // Create zoom effects from recording metadata and store on recording
-    const zoomEffects = this.createZoomEffectsFromRecording(recording)
-    recording.effects.push(...zoomEffects)
+    // NOTE: Zoom effects are NOT auto-created here anymore.
+    // They are created on-demand via the zoom toggle in the sidebar.
+    // This ensures zoom effects are stored in timeline.effects (timeline-space)
+    // rather than recording.effects (source-space), which decouples them from clips.
   }
 
   static ensureGlobalEffects(project: Project): void {
@@ -199,22 +167,16 @@ export class EffectsFactory {
     }
   }
   static addEffectToProject(project: Project, effect: Effect): void {
-    // CRITICAL: Zoom effects must ONLY be added to recording.effects, not timeline.effects
-    if (effect.type === EffectType.Zoom) {
-      throw new Error('Zoom effects cannot be added to timeline.effects. Use addEffectToRecording() instead.')
-    }
-
+    // Zoom effects can now be added to timeline.effects (timeline-space)
+    // This enables zoom effects to apply to any clip at that timeline position,
+    // regardless of which recording the clip comes from
     this.ensureEffectsArray(project)
     project.timeline.effects!.push(effect)
     project.modifiedAt = new Date().toISOString()
   }
 
-  static addEffectToRecording(recording: Recording, effect: Effect): void {
-    if (!recording.effects) {
-      recording.effects = []
-    }
-    recording.effects.push(effect)
-  }
+  // NOTE: addEffectToRecording removed - all effects should go to timeline.effects now
+  // Use addEffectToProject instead
   static removeEffectFromProject(project: Project, effectId: string): boolean {
     const located = this.findEffectInProject(project, effectId)
     if (!located) {
@@ -263,22 +225,21 @@ export class EffectsFactory {
   }
 
   private static findEffectInProject(project: Project, effectId: string): { effect: Effect; scope: 'timeline' | 'recording'; recording?: Recording } | null {
-    // CRITICAL: Search recording.effects FIRST for zoom effects
-    // Zoom effects should only be in recording.effects, never in timeline.effects
-    // But legacy data may have duplicates, so we prioritize the recording copy
+    // Check timeline effects FIRST for zoom effects (new architecture)
+    // Zoom effects should be in timeline.effects (timeline-space)
+    if (project.timeline.effects) {
+      const effect = project.timeline.effects.find(e => e.id === effectId)
+      if (effect) {
+        return { effect, scope: 'timeline' }
+      }
+    }
+
+    // Then check recording-level effects (legacy or non-zoom effects)
     for (const recording of project.recordings) {
       if (!recording.effects) continue
       const effect = recording.effects.find(e => e.id === effectId)
       if (effect) {
         return { effect, scope: 'recording', recording }
-      }
-    }
-
-    // Then check timeline-global effects (background, cursor, keystroke, etc.)
-    if (project.timeline.effects) {
-      const effect = project.timeline.effects.find(e => e.id === effectId)
-      if (effect) {
-        return { effect, scope: 'timeline' }
       }
     }
 

@@ -1,6 +1,7 @@
 import type { Project, Recording } from '@/types/project'
 import { RecordingStorage } from './recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
+import { migrationRunner } from '@/lib/migrations'
 
 /**
  * Service for project file I/O operations
@@ -50,16 +51,14 @@ export class ProjectIOService {
    * Save a project to storage
    */
   static async saveProject(project: Project): Promise<void> {
-    // CRITICAL: Enforce single source of truth - remove zoom effects from timeline.effects
-    // Zoom effects MUST only exist in recording.effects
     // Deep copy to avoid mutating frozen Immer objects
+    // Note: Zoom effects can now exist in timeline.effects (timeline-space architecture)
+    // as well as recording.effects (legacy source-space)
     const projectToSave: Project = {
       ...project,
       timeline: {
         ...project.timeline,
-        effects: project.timeline.effects
-          ? project.timeline.effects.filter(e => e.type !== 'zoom')
-          : []
+        effects: project.timeline.effects || []
       },
       modifiedAt: new Date().toISOString()
     }
@@ -71,11 +70,13 @@ export class ProjectIOService {
    * Apply migrations to older project formats
    */
   private static async migrateProject(project: Project): Promise<Project> {
-    // Migration: Mark clips with typing speed applied
-    // For existing projects that had speed applied before the flag was added
-    for (const track of project.timeline.tracks) {
+    // Run versioned migrations using MigrationRunner
+    let migratedProject = migrationRunner.migrateProject(project)
+
+    // Legacy migration: Mark clips with typing speed applied
+    // (this is a one-off migration that doesn't need versioning)
+    for (const track of migratedProject.timeline.tracks) {
       for (const clip of track.clips) {
-        // If clip has non-default playback rate but no flag, it had typing speed applied
         if (clip.playbackRate &&
           clip.playbackRate !== 1.0 &&
           !clip.typingSpeedApplied) {
@@ -84,7 +85,7 @@ export class ProjectIOService {
       }
     }
 
-    return project
+    return migratedProject
   }
 
   /**

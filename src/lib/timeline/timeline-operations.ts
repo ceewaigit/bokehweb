@@ -26,23 +26,45 @@ export function findClipById(project: Project, clipId: string): { clip: Clip; tr
 // When clips move/split on the timeline, effects do NOT need to be shifted or split
 // because they remain anchored to the source recording timestamps
 
-// Reflow clips to maintain contiguous layout
+/**
+ * Sort clips by their current startTime.
+ * Use this before reflowClips when the clip order might have changed
+ * (e.g., after paste, duplicate, or add operations).
+ */
+export function sortClipsByTime(track: Track): void {
+  track.clips.sort((a, b) => a.startTime - b.startTime)
+}
+
+/**
+ * Reflow clips to maintain contiguous layout.
+ *
+ * DESIGN PRINCIPLE: Array order IS the source of truth.
+ * This function computes startTime values from array indices.
+ * - Clip at index 0 starts at time 0
+ * - Each subsequent clip starts where the previous one ends
+ *
+ * @param track - The track containing clips to reflow
+ * @param startFromIndex - Start reflowing from this index (optimization)
+ * @param project - Optional project reference (unused, kept for API compatibility)
+ * @param options.skipSort - If true, preserves current array order.
+ *                           Use this when you've manually set array order (e.g., reorderClip).
+ *                           Default behavior (false) sorts by startTime first.
+ */
 export function reflowClips(
   track: Track,
   startFromIndex: number = 0,
-  project?: Project
+  project?: Project,
+  options?: { skipSort?: boolean }
 ): void {
   if (track.clips.length === 0) return
 
   // Validate and fix any duration inconsistencies
   // This ensures clip.duration matches the formula: (sourceOut - sourceIn) / playbackRate
+  // IMPORTANT: Create NEW clip objects when fixing to break stale references
   const DEBUG_REFLOW = process.env.NEXT_PUBLIC_ENABLE_TYPING_DEBUG === '1'
 
-  for (const clip of track.clips) {
-    const sourceIn = clip.sourceIn || 0
-    const sourceOut = clip.sourceOut || sourceIn
-    const sourceDuration = sourceOut - sourceIn
-    const playbackRate = clip.playbackRate || 1
+  for (let i = 0; i < track.clips.length; i++) {
+    const clip = track.clips[i]
     const expectedDuration = TimeConverter.computeEffectiveDuration(clip)
 
     // Allow 1ms tolerance for rounding
@@ -52,32 +74,38 @@ export function reflowClips(
           clipId: clip.id,
           storedDuration: clip.duration,
           expectedDuration,
-          sourceIn,
-          sourceOut,
-          playbackRate
+          sourceIn: clip.sourceIn,
+          sourceOut: clip.sourceOut,
+          playbackRate: clip.playbackRate
         })
       }
-      clip.duration = expectedDuration
+      // Create NEW clip object to ensure React/Zustand detects the change
+      track.clips[i] = { ...clip, duration: expectedDuration }
     }
   }
 
-  track.clips.sort((a, b) => a.startTime - b.startTime)
+  // Sort by startTime unless explicitly skipped
+  // skipSort=true is used by reorderClip to preserve the manually-set array order
+  if (!options?.skipSort) {
+    sortClipsByTime(track)
+  }
 
+  // First clip always starts at 0
+  // IMPORTANT: Create NEW clip object to break stale references in memoized contexts
   if (startFromIndex === 0 && track.clips.length > 0) {
-    const firstClip = track.clips[0]
-    if (firstClip.startTime !== 0) {
-      firstClip.startTime = 0
+    if (track.clips[0].startTime !== 0) {
+      track.clips[0] = { ...track.clips[0], startTime: 0 }
     }
   }
 
+  // Chain clips contiguously: each clip starts where previous ends
+  // IMPORTANT: Create NEW clip objects to ensure React/Zustand detects changes
   for (let i = Math.max(1, startFromIndex); i < track.clips.length; i++) {
     const prevClip = track.clips[i - 1]
-    const currentClip = track.clips[i]
-    const prevEnd = prevClip.startTime + prevClip.duration
-    const newStart = prevEnd
+    const newStart = prevClip.startTime + prevClip.duration
 
-    if (currentClip.startTime !== newStart) {
-      currentClip.startTime = newStart
+    if (track.clips[i].startTime !== newStart) {
+      track.clips[i] = { ...track.clips[i], startTime: newStart }
     }
   }
 }

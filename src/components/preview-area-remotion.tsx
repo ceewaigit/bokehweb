@@ -112,6 +112,14 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
     return Math.max(0, Math.min(frame, timelineMetadata.durationInFrames - 1));
   }, [currentTime, timelineMetadata]);
 
+  // Generate a key that changes when clip positions change to force Player re-render
+  // MUST include startTime - without it, Player won't remount after reorder
+  // and the Remotion composition will use stale clip data
+  const playerKey = useMemo(() => {
+    const clips = project?.timeline.tracks.flatMap(t => t.clips) || [];
+    return clips.map(c => `${c.id}:${c.startTime}:${c.duration}:${c.sourceIn}:${c.sourceOut}`).join('|');
+  }, [project?.timeline.tracks]);
+
   // Show loading state if no data
   if (!timelineMetadata || !playerConfig) {
     return (
@@ -131,6 +139,7 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="relative w-full h-full flex items-center justify-center">
           <Player
+            key={playerKey}
             ref={playerRef}
             component={TimelineComposition as any}
             inputProps={playerConfig as any}

@@ -31,6 +31,13 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
           labelText: 'Z',
           labelColor: colors.info
         }
+      case TimelineTrackType.Screen:
+        return {
+          bgFill: colors.muted,
+          bgOpacity: 0.05,
+          labelText: 'S',
+          labelColor: colors.accent
+        }
       case TimelineTrackType.Keystroke:
         return {
           bgFill: colors.muted,

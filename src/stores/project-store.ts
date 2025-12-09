@@ -61,6 +61,7 @@ interface ProjectStore {
   openProject: (projectPath: string) => Promise<void>
   saveCurrentProject: () => Promise<void>
   setProject: (project: Project) => void
+  updateProjectData: (updater: (project: Project) => Project) => void
 
   // Recording
   addRecording: (recording: Recording, videoBlob: Blob) => Promise<void>
@@ -79,6 +80,7 @@ interface ProjectStore {
   trimClipStart: (clipId: string, newStartTime: number) => void
   trimClipEnd: (clipId: string, newEndTime: number) => void
   duplicateClip: (clipId: string) => string | null
+  reorderClip: (clipId: string, newIndex: number) => void
 
   // Clipboard
   copyClip: (clip: Clip) => void
@@ -210,6 +212,15 @@ export const useProjectStore = create<ProjectStore>()(
           }
         })
       }
+    },
+
+    updateProjectData: (updater) => {
+      set((state) => {
+        if (state.currentProject) {
+          state.currentProject = updater(state.currentProject)
+          state.currentProject.modifiedAt = new Date().toISOString()
+        }
+      })
     },
 
     openProject: async (projectPath) => {
@@ -503,6 +514,40 @@ export const useProjectStore = create<ProjectStore>()(
       }
 
       return null
+    },
+
+    reorderClip: (clipId, newIndex) => {
+      set((state) => {
+        if (!state.currentProject) return
+
+        for (const track of state.currentProject.timeline.tracks) {
+          const clipIndex = track.clips.findIndex(c => c.id === clipId)
+          if (clipIndex !== -1 && clipIndex !== newIndex) {
+            // Remove clip from current position
+            const [clip] = track.clips.splice(clipIndex, 1)
+            // No index adjustment needed - newIndex is already the absolute insertion point
+            const adjustedIndex = newIndex
+            // Insert at new position
+            track.clips.splice(adjustedIndex, 0, clip)
+
+            // Reflow all clips to ensure contiguity from time 0
+            // Use skipSort: true to preserve the manual reorder we just performed
+            reflowClips(track, 0, state.currentProject, { skipSort: true })
+
+            // Force new array reference to ensure all consumers get fresh data
+            // This breaks any stale references in memoized contexts
+            track.clips = [...track.clips]
+
+            // Update timeline duration
+            state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
+            state.currentProject.modifiedAt = new Date().toISOString()
+
+            // Update playhead state to reflect new clip positions
+            updatePlayheadState(state)
+            break
+          }
+        }
+      })
     },
 
     copyClip: (clip) => {

@@ -25,6 +25,9 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
   const settings = (keystrokeEffect?.data as KeystrokeEffectData | undefined) || {};
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<KeystrokeRenderer | null>(null);
+
+  // Check if effect is enabled (must be after all hooks)
+  const isEffectEnabled = keystrokeEffect && keystrokeEffect.enabled !== false;
   
   // Initialize renderer once
   useEffect(() => {
@@ -97,8 +100,8 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
     return rendererRef.current.hasKeystrokesAtTime(sourceTimeMs);
   }, [sourceTimeMs, keystrokeEvents]);
 
-  // Only render if there are keystrokes to show
-  if (!hasKeystrokes && sourceTimeMs > 0) {
+  // Don't render if effect is disabled or no keystrokes to show
+  if (!isEffectEnabled || (!hasKeystrokes && sourceTimeMs > 0)) {
     return null;
   }
   

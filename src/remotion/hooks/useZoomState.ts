@@ -1,6 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { EffectType, type Effect, type ZoomBlock, type Recording } from '@/types/project';
-import { EffectsFactory } from '@/lib/effects/effects-factory';
+import { EffectType, type Effect, type ZoomBlock, type Recording, type ZoomEffectData } from '@/types/project';
 import { zoomPanCalculator } from '@/lib/effects/utils/zoom-pan-calculator';
 import {
     SEEK_THRESHOLD_MS,
@@ -9,8 +8,13 @@ import {
 } from '@/lib/constants/calculator-constants';
 
 interface UseZoomStateProps {
+    /** Timeline effects array - zoom effects are now always in timeline-space */
     effects: Effect[];
-    sourceTimeMs: number;
+    /** Current timeline position in milliseconds (for zoom block matching) */
+    timelineMs: number;
+    /** Current source time in milliseconds (for mouse event lookup) */
+    sourceTimeMs?: number;
+    /** Current recording context for mouse events */
     recording?: Recording | null;
 }
 
@@ -20,33 +24,50 @@ interface ZoomState {
     zoomScale: number;
 }
 
-export function useZoomState({ effects, sourceTimeMs, recording }: UseZoomStateProps): ZoomState {
-    // Extract zoom blocks from effects
+/**
+ * Extract zoom data from an effect
+ */
+function getZoomData(effect: Effect): ZoomEffectData | null {
+    if (effect.type !== EffectType.Zoom) return null;
+    return effect.data as ZoomEffectData;
+}
+
+/**
+ * useZoomState - Calculates zoom state based on current timeline position
+ * 
+ * SIMPLIFIED ARCHITECTURE: All zoom effects are now stored in timeline-space.
+ * No more source-space conversion needed - direct lookup by timeline time.
+ */
+export function useZoomState({ effects, timelineMs, sourceTimeMs, recording }: UseZoomStateProps): ZoomState {
+    // Extract zoom blocks from effects - all are already in timeline-space
     const zoomBlocks = useMemo(() => {
         const zoomEffects = effects.filter(e => e.type === EffectType.Zoom && e.enabled);
-        return zoomEffects.flatMap(e => {
-            const data = EffectsFactory.getZoomData(e);
+        return zoomEffects.map(e => {
+            const data = getZoomData(e);
             return {
                 id: e.id,
-                startTime: e.startTime,
-                endTime: e.endTime,
-                scale: data?.scale || 2,
+                startTime: e.startTime,  // Already timeline-space
+                endTime: e.endTime,      // Already timeline-space
+                scale: data?.scale ?? 2,
                 targetX: data?.targetX,
                 targetY: data?.targetY,
                 screenWidth: data?.screenWidth,
                 screenHeight: data?.screenHeight,
-                introMs: data?.introMs || 300,
-                outroMs: data?.outroMs || 300,
-            };
+                introMs: data?.introMs ?? 300,
+                outroMs: data?.outroMs ?? 300,
+            } as ZoomBlock;
         });
     }, [effects]);
 
-    // Find active zoom block using SOURCE time
+    // Find active zoom block at current TIMELINE time
     const activeZoomBlock = useMemo(() => {
         return zoomBlocks.find(
-            (block) => sourceTimeMs >= block.startTime && sourceTimeMs <= block.endTime
+            (block) => timelineMs >= block.startTime && timelineMs <= block.endTime
         );
-    }, [zoomBlocks, sourceTimeMs]);
+    }, [zoomBlocks, timelineMs]);
+
+    // Source time for mouse event lookup (fallback to timeline time if not provided)
+    const mouseEventTimeMs = sourceTimeMs ?? timelineMs;
 
     // Physics state for smooth camera movement
     const physicsState = useRef({
@@ -87,10 +108,10 @@ export function useZoomState({ effects, sourceTimeMs, recording }: UseZoomStateP
         const screenWidth = recording?.width || 1920;
         const screenHeight = recording?.height || 1080;
 
-        // Use the new Attractor logic (Cluster or Mouse)
+        // Use the Attractor logic (Cluster or Mouse) with SOURCE time
         const attractor = zoomPanCalculator.calculateAttractor(
             mouseEvents,
-            sourceTimeMs,
+            mouseEventTimeMs,  // Use source time for mouse event lookup
             screenWidth,
             screenHeight
         );
@@ -104,10 +125,9 @@ export function useZoomState({ effects, sourceTimeMs, recording }: UseZoomStateP
         }
 
         // Physics Simulation (Spring/Damper)
-        const dt = sourceTimeMs - physicsState.current.lastTime;
+        const dt = mouseEventTimeMs - (physicsState.current.lastTime ?? mouseEventTimeMs);
 
         // Detect seeking or large jumps (e.g. > 100ms or negative time)
-        // If seeking, we snap to the target to avoid wild physics artifacts
         const isSeek = Math.abs(dt) > SEEK_THRESHOLD_MS || dt < 0;
 
         if (isSeek) {
@@ -116,19 +136,14 @@ export function useZoomState({ effects, sourceTimeMs, recording }: UseZoomStateP
                 y: targetY,
                 vx: 0,
                 vy: 0,
-                lastTime: sourceTimeMs
+                lastTime: mouseEventTimeMs
             };
         } else {
             // Spring Parameters (Critically Damped-ish)
-            // Tension: Speed of response (higher = faster)
-            // Friction: Damping (higher = less oscillation)
             const tension = SPRING_TENSION;
             const friction = SPRING_FRICTION;
 
             // Physics Step (Euler Integration)
-            // Force = (Target - Current) * Tension - Velocity * Friction
-            // Acceleration = Force (assuming mass = 1)
-
             const dtSeconds = dt / 1000;
 
             // X Axis
@@ -141,14 +156,14 @@ export function useZoomState({ effects, sourceTimeMs, recording }: UseZoomStateP
             physicsState.current.vy += ay * dtSeconds;
             physicsState.current.y += physicsState.current.vy * dtSeconds;
 
-            physicsState.current.lastTime = sourceTimeMs;
+            physicsState.current.lastTime = mouseEventTimeMs;
         }
 
         return {
             x: physicsState.current.x,
             y: physicsState.current.y
         };
-    }, [activeZoomBlock, recording, sourceTimeMs]);
+    }, [activeZoomBlock, recording, mouseEventTimeMs]);
 
     const zoomScale = activeZoomBlock ? activeZoomBlock.scale : 1;
 

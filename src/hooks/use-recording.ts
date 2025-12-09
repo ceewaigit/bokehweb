@@ -122,6 +122,10 @@ export function useRecording() {
       // Ensure timer is stopped on any error
       timer.stop()
       setDuration(0)
+      // Clear global recording flag on error
+      if (typeof window !== 'undefined') {
+        (window as any).__screenRecorderActive = false
+      }
     }
   }, [isRecording, setRecording, setStatus, handleRecordingError, timer, setDuration])
 

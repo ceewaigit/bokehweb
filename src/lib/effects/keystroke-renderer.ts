@@ -414,11 +414,13 @@ export class KeystrokeRenderer {
     videoHeight: number
   ): { x: number; y: number } {
     const margin = 40
+    // Use half of maxWidth as offset since box is centered around X position
+    const rightAlignOffset = (this.options.maxWidth || 300) / 2 + this.options.padding!
 
     switch (this.options.position) {
       case KeystrokePosition.BottomRight:
         return {
-          x: videoWidth - margin - 150, // Estimate for right alignment
+          x: videoWidth - margin - rightAlignOffset,
           y: videoHeight - margin
         }
       case KeystrokePosition.TopCenter:
@@ -444,8 +446,8 @@ export class KeystrokeRenderer {
     // Set opacity
     ctx.globalAlpha = keystroke.opacity
 
-    // Set font
-    ctx.font = `${this.options.fontSize}px ${this.options.fontFamily}`
+    // Set font with weight for better readability
+    ctx.font = `500 ${this.options.fontSize}px ${this.options.fontFamily}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
@@ -459,6 +461,12 @@ export class KeystrokeRenderer {
     const boxX = keystroke.x - boxWidth / 2
     const boxY = keystroke.y - boxHeight / 2
 
+    // Draw shadow for depth
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
+    ctx.shadowBlur = 12
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 4
+
     // Draw background with rounded corners
     this.drawRoundedRect(
       ctx,
@@ -469,17 +477,37 @@ export class KeystrokeRenderer {
       this.options.borderRadius!
     )
 
-    // Fill background
-    ctx.fillStyle = this.options.backgroundColor!
+    // Fill background with gradient for depth
+    const gradient = ctx.createLinearGradient(boxX, boxY, boxX, boxY + boxHeight)
+    gradient.addColorStop(0, 'rgba(40, 40, 40, 0.95)')
+    gradient.addColorStop(1, 'rgba(20, 20, 20, 0.95)')
+    ctx.fillStyle = gradient
     ctx.fill()
 
-    // Draw border
-    ctx.strokeStyle = this.options.borderColor!
+    // Reset shadow before drawing border and text
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
+
+    // Draw subtle border with highlight at top
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
     ctx.lineWidth = 1
     ctx.stroke()
 
-    // Draw text
-    ctx.fillStyle = this.options.textColor!
+    // Draw inner highlight line at top for 3D effect
+    ctx.beginPath()
+    ctx.moveTo(boxX + this.options.borderRadius!, boxY + 1)
+    ctx.lineTo(boxX + boxWidth - this.options.borderRadius!, boxY + 1)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+
+    // Draw text with slight text shadow for readability
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+    ctx.shadowBlur = 2
+    ctx.shadowOffsetY = 1
+    ctx.fillStyle = '#ffffff'
     ctx.fillText(
       keystroke.text,
       keystroke.x,

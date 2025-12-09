@@ -41,49 +41,38 @@ export class PasteCommand extends Command<PasteResult> {
     if (clipboard.effect) {
       // Zoom effects are recording-scoped and playhead-based
       if (clipboard.effect.type === EffectType.Zoom) {
-        console.log('[PasteCommand] Pasting zoom effect (playhead-based)')
+        console.log('[PasteCommand] Pasting zoom effect (timeline-based)')
         const zoomData = clipboard.effect.data as unknown as ZoomEffectData
 
         if (!project) {
           return { success: false, error: 'No project found' }
         }
 
-        // Get current playhead position (this is what determines where the effect goes)
+        // Get current playhead position - this IS the timeline position for the new effect
         const currentTimelineTime = this.pasteTime ?? this.context.getCurrentTime()
-        console.log('[PasteCommand] Playhead position:', currentTimelineTime)
+        console.log('[PasteCommand] Playhead position (timeline-space):', currentTimelineTime)
 
-        // Find clip at playhead position - we need it for:
-        // 1. Getting the recordingId (which recording to add the effect to)
-        // 2. Converting timeline time to source time
+        // Find clip at playhead for recording reference (optional, for mouse event access)
         const allClips = project.timeline.tracks.flatMap(t => t.clips)
         const clipAtPlayhead = TimeConverter.findClipAtTimelinePosition(currentTimelineTime, allClips)
 
         if (!clipAtPlayhead) {
-          // If playhead is not on a clip, find the nearest clip or first clip
           if (allClips.length === 0) {
             return { success: false, error: 'No clips in timeline. Create a clip first.' }
           }
 
-          // Use first clip as fallback
+          // Use first clip's recording as fallback, but paste at timeline position
           const firstClip = allClips.sort((a, b) => a.startTime - b.startTime)[0]
-          console.log('[PasteCommand] Playhead not on clip, using first clip:', firstClip.id)
+          console.log('[PasteCommand] Playhead not on clip, using first clip for recording:', firstClip.id)
 
-          // Convert timeline time to source time using the first clip
-          const sourceTime = TimeConverter.timelineToSource(
-            Math.max(firstClip.startTime, currentTimelineTime),
-            firstClip
-          )
-
-          return this.createZoomBlock(zoomData, firstClip.recordingId, sourceTime, project)
+          // Paste at timeline position directly (no source conversion)
+          return this.createZoomBlock(zoomData, firstClip.recordingId, currentTimelineTime, project)
         }
 
         console.log('[PasteCommand] Clip at playhead:', clipAtPlayhead.id, 'recordingId:', clipAtPlayhead.recordingId)
 
-        // Convert timeline time to source time for storage
-        const pasteStartTimeSource = TimeConverter.timelineToSource(currentTimelineTime, clipAtPlayhead)
-        console.log('[PasteCommand] Timeline time:', currentTimelineTime, '-> Source time:', pasteStartTimeSource)
-
-        return this.createZoomBlock(zoomData, clipAtPlayhead.recordingId, pasteStartTimeSource, project)
+        // Paste at timeline position directly (no source conversion)
+        return this.createZoomBlock(zoomData, clipAtPlayhead.recordingId, currentTimelineTime, project)
       } else {
         // For other effect types (cursor/background), use playhead-based approach too
         const currentTime = this.pasteTime ?? this.context.getCurrentTime()
@@ -151,46 +140,45 @@ export class PasteCommand extends Command<PasteResult> {
   private async createZoomBlock(
     zoomData: ZoomEffectData,
     recordingId: string,
-    pasteStartTimeSource: number,
+    pasteTimelinePosition: number,  // Now we use timeline position directly
     project: any
   ): Promise<CommandResult<PasteResult>> {
-    // Default duration in SOURCE space
-    const blockDurationSource = 5000 // 5 seconds
+    // Default duration in TIMELINE space
+    const blockDuration = 5000 // 5 seconds
 
-    // Find non-overlapping position - check ALL zoom effects in the target recording
-    const recording = project.recordings.find((r: any) => r.id === recordingId)
-    const existingZoomEffects: Effect[] = (recording?.effects || []).filter(
+    // Find non-overlapping position - check ALL zoom effects in timeline.effects
+    const existingZoomEffects: Effect[] = (project.timeline.effects || []).filter(
       (e: Effect) => e.type === EffectType.Zoom
     )
     existingZoomEffects.sort((a, b) => a.startTime - b.startTime)
 
-    let finalStartTime = Math.max(0, pasteStartTimeSource)
+    let finalStartTime = Math.max(0, pasteTimelinePosition)
 
-    // Check for overlaps in SOURCE space
+    // Check for overlaps in TIMELINE space
     for (const effect of existingZoomEffects) {
-      if (finalStartTime < effect.endTime && (finalStartTime + blockDurationSource) > effect.startTime) {
+      if (finalStartTime < effect.endTime && (finalStartTime + blockDuration) > effect.startTime) {
         finalStartTime = effect.endTime + 100
       }
     }
 
+    // Create block in TIMELINE space (not source space)
     const newBlock: ZoomBlock = {
       ...zoomData,
-      id: `zoom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      startTime: finalStartTime,
-      endTime: finalStartTime + blockDurationSource,
+      id: `zoom-timeline-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      startTime: finalStartTime,  // Timeline position
+      endTime: finalStartTime + blockDuration,  // Timeline position
       scale: zoomData.scale || 2
     }
 
-    console.log('[PasteCommand] Creating zoom block:', {
-      recordingId,
+    console.log('[PasteCommand] Creating zoom block in TIMELINE space:', {
       blockId: newBlock.id,
       startTime: newBlock.startTime,
       endTime: newBlock.endTime,
       scale: newBlock.scale
     })
 
-    // Add zoom effect directly to recording using recordingId
-    this.pastedCommand = new AddZoomBlockCommand(this.context, recordingId, newBlock)
+    // Add zoom effect to timeline.effects using new signature (no recordingId)
+    this.pastedCommand = new AddZoomBlockCommand(this.context, newBlock)
     const result = await this.pastedCommand.execute()
 
     console.log('[PasteCommand] AddZoomBlockCommand result:', result)

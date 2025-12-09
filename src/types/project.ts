@@ -21,6 +21,7 @@ export enum TimelineTrackType {
   Video = 'video',
   Audio = 'audio',
   Zoom = 'zoom',
+  Screen = 'screen',
   Keystroke = 'keystroke'
 }
 
@@ -60,6 +61,9 @@ export interface Project {
   createdAt: string
   modifiedAt: string
 
+  /** Schema version for migrations. undefined = legacy (version 0) */
+  schemaVersion?: number
+
   // Raw recording references
   recordings: Recording[]
 
@@ -91,6 +95,9 @@ export interface Recording {
   metadata?: RecordingMetadata
 
   // Effects stored in source space (timestamps relative to recording start)
+  // @deprecated for zoom effects - use timeline.effects[] instead (timeline-space)
+  // TODO: refactor this
+  // Only cursor/background effects should remain here
   effects: Effect[]
 
   // Folder-based storage for this recording (absolute or project-relative)

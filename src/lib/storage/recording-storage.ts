@@ -13,7 +13,10 @@ export class RecordingStorage {
   private static readonly PROJECT_PREFIX = 'project-'
   private static readonly PROJECT_PATH_PREFIX = 'project-path-'
 
-  // In-memory metadata cache to avoid localStorage quota
+  // In-memory metadata cache with LRU eviction
+  // PERF: Limit to 5 recordings since metadata can be 1-10MB+ each
+  private static readonly MAX_METADATA_CACHE_SIZE = 5
+  private static metadataCacheOrder: string[] = []
   private static metadataCache = new Map<string, any>()
 
   // Helper: join paths safely in renderer without path import
@@ -33,24 +36,51 @@ export class RecordingStorage {
     return name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
   }
 
-  // Public: store metadata in memory (no persistence here)
+  // Public: store metadata in memory with LRU eviction
   static setMetadata(recordingId: string, metadata: any): void {
     try {
+      // LRU management
+      if (this.metadataCache.has(recordingId)) {
+        // Move to end (most recently used)
+        this.metadataCacheOrder = this.metadataCacheOrder.filter(id => id !== recordingId)
+      } else if (this.metadataCacheOrder.length >= this.MAX_METADATA_CACHE_SIZE) {
+        // Evict oldest (least recently used)
+        const oldest = this.metadataCacheOrder.shift()
+        if (oldest) {
+          this.metadataCache.delete(oldest)
+          logger.debug(`Evicted metadata for recording ${oldest} (LRU)`)
+        }
+      }
+      this.metadataCacheOrder.push(recordingId)
       this.metadataCache.set(recordingId, metadata)
-      logger.debug(`Cached metadata for recording ${recordingId}`)
+      logger.debug(`Cached metadata for recording ${recordingId} (${this.metadataCacheOrder.length}/${this.MAX_METADATA_CACHE_SIZE})`)
     } catch (error) {
       logger.error(`Failed to cache metadata for recording ${recordingId}:`, error)
     }
   }
 
-  // Public: get metadata from memory cache
+  // Public: get metadata from memory cache (updates LRU order)
   static getMetadata(recordingId: string): any | null {
     try {
-      return this.metadataCache.get(recordingId) || null
+      const metadata = this.metadataCache.get(recordingId)
+      if (metadata) {
+        // Move to end (most recently used)
+        this.metadataCacheOrder = this.metadataCacheOrder.filter(id => id !== recordingId)
+        this.metadataCacheOrder.push(recordingId)
+      }
+      return metadata || null
     } catch (error) {
       logger.error(`Failed to get cached metadata for recording ${recordingId}:`, error)
       return null
     }
+  }
+
+  // Public: clear metadata cache (useful for memory management)
+  static clearMetadataCache(): void {
+    const size = this.metadataCache.size
+    this.metadataCache.clear()
+    this.metadataCacheOrder = []
+    logger.info(`Cleared ${size} items from metadata cache`)
   }
 
   // Filesystem: save metadata as chunked JSON files under recording folder
@@ -150,11 +180,15 @@ export class RecordingStorage {
     }
   }
 
+  // In-memory blob URL cache to avoid localStorage hits
+  private static blobUrlCache = new Map<string, string>()
+
   /**
    * Store a recording blob URL
    */
   static setBlobUrl(recordingId: string, url: string): void {
     try {
+      this.blobUrlCache.set(recordingId, url)
       localStorage.setItem(`${this.BLOB_PREFIX}${recordingId}`, url)
       logger.debug(`Stored blob URL for recording ${recordingId}`)
     } catch (error) {
@@ -166,13 +200,21 @@ export class RecordingStorage {
    * Get a recording blob URL
    */
   static getBlobUrl(recordingId: string): string | null {
-    return localStorage.getItem(`${this.BLOB_PREFIX}${recordingId}`)
+    if (this.blobUrlCache.has(recordingId)) {
+      return this.blobUrlCache.get(recordingId)!
+    }
+    const url = localStorage.getItem(`${this.BLOB_PREFIX}${recordingId}`)
+    if (url) {
+      this.blobUrlCache.set(recordingId, url)
+    }
+    return url
   }
 
   /**
    * Clear a recording blob URL
    */
   static clearBlobUrl(recordingId: string): void {
+    this.blobUrlCache.delete(recordingId)
     localStorage.removeItem(`${this.BLOB_PREFIX}${recordingId}`)
     logger.debug(`Cleared blob URL for recording ${recordingId}`)
   }
@@ -225,6 +267,7 @@ export class RecordingStorage {
    * Since blob URLs are session-specific and become invalid after restart
    */
   static clearAllBlobUrls(): void {
+    this.blobUrlCache.clear()
     const keysToRemove: string[] = []
 
     // Find all blob URL keys
@@ -467,10 +510,11 @@ export class RecordingStorage {
 
       const keyboardEvents = metadata
         .filter(m => m.eventType === 'keypress' && m.keyEventType === 'keydown')
+        .filter(m => m.key && m.key.length > 0)  // Filter out empty keys
         .filter(m => !modifierKeys.includes(m.key))  // Filter out standalone modifier keys
         .map(m => ({
           timestamp: m.timestamp,
-          key: m.key || '',
+          key: m.key,
           modifiers: m.modifiers || []
         }))
 
@@ -554,7 +598,7 @@ export class RecordingStorage {
             fadeOutDuration: 300,
             maxWidth: 300
           },
-          enabled: false  // Default to hidden
+          enabled: true  // Show keystrokes by default when there are keyboard events
         })
       } else {
         logger.info('⚠️ No keyboard events detected - skipping keystroke effect')

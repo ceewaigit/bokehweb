@@ -14,6 +14,7 @@ interface ThumbnailOptions {
 export class ThumbnailGenerator {
   private static cache = new Map<string, string>()
   private static generating = new Set<string>()
+  private static readonly MAX_CACHE_SIZE = 50
 
   /**
    * Generate thumbnail from video file without loading entire video into memory
@@ -33,7 +34,11 @@ export class ThumbnailGenerator {
 
     // Check cache first
     if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey)!
+      // Refresh LRU order
+      const data = this.cache.get(cacheKey)!
+      this.cache.delete(cacheKey)
+      this.cache.set(cacheKey, data)
+      return data
     }
 
     // Prevent duplicate generation
@@ -59,6 +64,12 @@ export class ThumbnailGenerator {
       )
 
       if (thumbnail) {
+        // Enforce cache limit
+        if (this.cache.size >= this.MAX_CACHE_SIZE) {
+          // Remove oldest entry (first in Map)
+          const firstKey = this.cache.keys().next().value
+          if (firstKey) this.cache.delete(firstKey)
+        }
         this.cache.set(cacheKey, thumbnail)
       }
 
@@ -150,6 +161,10 @@ export class ThumbnailGenerator {
 
           ctx.drawImage(video, 0, 0, width, height)
           const dataUrl = canvas.toDataURL('image/jpeg', quality)
+
+          // Release canvas memory immediately
+          canvas.width = 0
+          canvas.height = 0
 
           resolved = true
           cleanupVideo()

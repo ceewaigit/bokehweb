@@ -4,12 +4,18 @@
 
 :root {
   /* Spacing System */
-  --spacing-xs: 0.25rem;    /* 4px */
-  --spacing-sm: 0.5rem;     /* 8px */
-  --spacing-md: 1rem;       /* 16px */
-  --spacing-lg: 1.5rem;     /* 24px */
-  --spacing-xl: 2rem;       /* 32px */
-  --spacing-2xl: 3rem;      /* 48px */
+  --spacing-xs: 0.25rem;
+  /* 4px */
+  --spacing-sm: 0.5rem;
+  /* 8px */
+  --spacing-md: 1rem;
+  /* 16px */
+  --spacing-lg: 1.5rem;
+  /* 24px */
+  --spacing-xl: 2rem;
+  /* 32px */
+  --spacing-2xl: 3rem;
+  /* 48px */
 
   /* Radius System */
   --radius: 0.5rem;
@@ -18,13 +24,20 @@
   --radius-full: 9999px;
 
   /* Typography Scale */
-  --font-size-xs: 0.75rem;   /* 12px */
-  --font-size-sm: 0.875rem;  /* 14px */
-  --font-size-base: 1rem;    /* 16px */
-  --font-size-lg: 1.125rem;  /* 18px */
-  --font-size-xl: 1.25rem;   /* 20px */
-  --font-size-2xl: 1.5rem;   /* 24px */
-  --font-size-3xl: 1.875rem; /* 30px */
+  --font-size-xs: 0.75rem;
+  /* 12px */
+  --font-size-sm: 0.875rem;
+  /* 14px */
+  --font-size-base: 1rem;
+  /* 16px */
+  --font-size-lg: 1.125rem;
+  /* 18px */
+  --font-size-xl: 1.25rem;
+  /* 20px */
+  --font-size-2xl: 1.5rem;
+  /* 24px */
+  --font-size-3xl: 1.875rem;
+  /* 30px */
 
   /* Timeline specific variables */
   --timeline-height: 200px;
@@ -46,14 +59,18 @@
   --card-foreground: 222.2 84% 4.9%;
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
-  --primary: 263 70% 65%;             /* Purple accent like Screen Studio */
-  --primary-foreground: 0 0% 100%;    /* Pure white on purple */
+  --primary: 263 70% 65%;
+  /* Purple accent like Screen Studio */
+  --primary-foreground: 0 0% 100%;
+  /* Pure white on purple */
   --secondary: 210 40% 96%;
   --secondary-foreground: 222.2 84% 4.9%;
   --muted: 210 40% 96%;
   --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 263 70% 65%;              /* Purple accent matching primary */
-  --accent-foreground: 0 0% 100%;     /* White on accent */
+  --accent: 263 70% 65%;
+  /* Purple accent matching primary */
+  --accent-foreground: 0 0% 100%;
+  /* White on accent */
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
@@ -71,45 +88,70 @@
 
 .dark {
   /* Screen Studio Dark Theme - Pure black with purple accents */
-  --background: 0 0% 0%;              /* Pure black background like Screen Studio */
-  --foreground: 0 0% 95%;             /* Almost white text */
-  --card: 0 0% 8%;                    /* Very dark gray cards */
-  --card-foreground: 0 0% 95%;        /* White text on cards */
-  --popover: 0 0% 12%;                /* Slightly lighter gray for popovers */
-  --popover-foreground: 0 0% 95%;     /* White text */
-  --primary: 263 70% 65%;             /* Purple accent like Screen Studio */
-  --primary-foreground: 0 0% 100%;    /* Pure white on purple */
-  --secondary: 0 0% 15%;              /* Dark gray secondary */
-  --secondary-foreground: 0 0% 90%;   /* Light gray text */
-  --muted: 0 0% 20%;                  /* Muted dark gray */
-  --muted-foreground: 0 0% 60%;       /* Medium gray text */
-  --accent: 263 70% 65%;              /* Purple accent matching primary */
-  --accent-foreground: 0 0% 100%;     /* White on accent */
-  --destructive: 0 84% 60%;           /* Red for errors/recording */
-  --destructive-foreground: 0 0% 98%; /* White on red */
-  --border: 0 0% 18%;                 /* Subtle borders */
-  --input: 0 0% 12%;                  /* Dark input backgrounds */
-  --ring: 263 70% 65%;                /* Purple focus ring */
+  --background: 0 0% 0%;
+  /* Pure black background like Screen Studio */
+  --foreground: 0 0% 95%;
+  /* Almost white text */
+  --card: 0 0% 8%;
+  /* Very dark gray cards */
+  --card-foreground: 0 0% 95%;
+  /* White text on cards */
+  --popover: 0 0% 12%;
+  /* Slightly lighter gray for popovers */
+  --popover-foreground: 0 0% 95%;
+  /* White text */
+  --primary: 263 70% 65%;
+  /* Purple accent like Screen Studio */
+  --primary-foreground: 0 0% 100%;
+  /* Pure white on purple */
+  --secondary: 0 0% 15%;
+  /* Dark gray secondary */
+  --secondary-foreground: 0 0% 90%;
+  /* Light gray text */
+  --muted: 0 0% 20%;
+  /* Muted dark gray */
+  --muted-foreground: 0 0% 60%;
+  /* Medium gray text */
+  --accent: 263 70% 65%;
+  /* Purple accent matching primary */
+  --accent-foreground: 0 0% 100%;
+  /* White on accent */
+  --destructive: 0 84% 60%;
+  /* Red for errors/recording */
+  --destructive-foreground: 0 0% 98%;
+  /* White on red */
+  --border: 0 0% 18%;
+  /* Subtle borders */
+  --input: 0 0% 12%;
+  /* Dark input backgrounds */
+  --ring: 263 70% 65%;
+  /* Purple focus ring */
 
   /* Dark theme timeline - matching Screen Studio */
-  --timeline-bg: 0 0% 5%;             /* Nearly black timeline area */
-  --timeline-track: 0 0% 10%;         /* Very dark track */
-  --timeline-ruler: 0 0% 8%;          /* Dark ruler background */
-  --timeline-playhead: 263 70% 65%;   /* Purple playhead */
-  --recording-active: 0 84% 60%;      /* Red recording */
-  --recording-inactive: 0 0% 40%;     /* Gray when not recording */
+  --timeline-bg: 0 0% 5%;
+  /* Nearly black timeline area */
+  --timeline-track: 0 0% 10%;
+  /* Very dark track */
+  --timeline-ruler: 0 0% 8%;
+  /* Dark ruler background */
+  --timeline-playhead: 263 70% 65%;
+  /* Purple playhead */
+  --recording-active: 0 84% 60%;
+  /* Red recording */
+  --recording-inactive: 0 0% 40%;
+  /* Gray when not recording */
 }
 
 @layer base {
   * {
     @apply border-border;
   }
-  
+
   html {
     height: 100vh;
     overflow: hidden;
   }
-  
+
   body {
     @apply text-foreground;
     background: transparent;
@@ -121,84 +163,145 @@
     margin: 0;
     padding: 0;
   }
-  
+
   #__next {
     height: 100vh;
     width: 100vw;
   }
 
-  /* Custom scrollbars */
+  /* Apple-style scrollbars - thin, rounded, auto-hiding */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-muted;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-md;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Hide scrollbar by default, show on hover - macOS behavior */
+  .hide-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Alternative class for auto-hiding scrollbars */
+  .scrollbar-auto {
+    scrollbar-gutter: stable;
+  }
+
+  .scrollbar-auto::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0);
+    transition: background 0.3s ease;
+  }
+
+  .scrollbar-auto:hover::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .scrollbar-auto:hover::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
   }
 }
 
 @layer components {
+
   /* Electron title bar */
   .drag-region {
     -webkit-app-region: drag;
   }
-  
+
   .no-drag {
     -webkit-app-region: no-drag;
   }
 
   /* Utility classes for consistent spacing */
-  .space-xs { gap: var(--spacing-xs); }
-  .space-sm { gap: var(--spacing-sm); }
-  .space-md { gap: var(--spacing-md); }
-  .space-lg { gap: var(--spacing-lg); }
-  .space-xl { gap: var(--spacing-xl); }
-  .space-2xl { gap: var(--spacing-2xl); }
+  .space-xs {
+    gap: var(--spacing-xs);
+  }
+
+  .space-sm {
+    gap: var(--spacing-sm);
+  }
+
+  .space-md {
+    gap: var(--spacing-md);
+  }
+
+  .space-lg {
+    gap: var(--spacing-lg);
+  }
+
+  .space-xl {
+    gap: var(--spacing-xl);
+  }
+
+  .space-2xl {
+    gap: var(--spacing-2xl);
+  }
 
   /* Animation utilities */
-  .animate-smooth { transition: all var(--transition-normal) var(--ease-smooth); }
-  .animate-bounce-in { transition: all var(--transition-normal) var(--ease-bounce); }
-  
+  .animate-smooth {
+    transition: all var(--transition-normal) var(--ease-smooth);
+  }
+
+  .animate-bounce-in {
+    transition: all var(--transition-normal) var(--ease-bounce);
+  }
+
   /* Shimmer animation for loading states */
   @keyframes shimmer {
     0% {
       transform: translateX(-100%);
     }
+
     100% {
       transform: translateX(200%);
     }
   }
-  
+
   .animate-shimmer {
     animation: shimmer 2s infinite;
   }
-  
+
   /* Timeline specific styles */
   .timeline-container {
     background: hsl(var(--timeline-bg));
     border: 1px solid hsl(var(--border));
   }
-  
+
   .timeline-track {
     background: hsl(var(--timeline-track));
     height: var(--timeline-track-height);
     border-radius: var(--radius-sm);
   }
-  
+
   .timeline-ruler {
     background: hsl(var(--timeline-ruler));
     height: var(--timeline-ruler-height);
   }
-  
+
   .timeline-playhead {
     background: hsl(var(--timeline-playhead));
     width: 2px;
@@ -209,7 +312,7 @@
   .recording-active {
     color: hsl(var(--recording-active));
   }
-  
+
   .recording-inactive {
     color: hsl(var(--recording-inactive));
   }

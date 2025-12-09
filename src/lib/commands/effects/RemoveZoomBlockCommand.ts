@@ -1,25 +1,14 @@
 import { Command, CommandResult } from '../base/Command'
 import { CommandContext } from '../base/CommandContext'
-import type { Effect, Project, Recording } from '@/types/project'
+import type { Effect, Project } from '@/types/project'
 import { EffectType } from '@/types/project'
 
-interface LocatedZoomEffect {
-  effect: Effect
-  recording?: Recording
-}
-
-function findZoomEffect(project: Project | null, effectId: string): LocatedZoomEffect | null {
+/**
+ * Find zoom effect in timeline.effects ONLY (simplified - no dual-search)
+ */
+function findZoomEffect(project: Project | null, effectId: string): Effect | null {
   if (!project) return null
-
-  // Zoom effects are ONLY in recording.effects, never in timeline.effects
-  for (const recording of project.recordings) {
-    const effect = recording.effects?.find(e => e.id === effectId && e.type === EffectType.Zoom)
-    if (effect) {
-      return { effect, recording }
-    }
-  }
-
-  return null
+  return project.timeline.effects?.find(e => e.id === effectId && e.type === EffectType.Zoom) ?? null
 }
 
 export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
@@ -45,9 +34,9 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
 
   doExecute(): CommandResult<{ blockId: string }> {
     const project = this.context.getProject()
-    const located = findZoomEffect(project, this.blockId)
+    const effect = findZoomEffect(project, this.blockId)
 
-    if (!located) {
+    if (!effect) {
       return {
         success: false,
         error: `Zoom effect ${this.blockId} not found`
@@ -55,7 +44,7 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
     }
 
     // Store effect for undo
-    this.effect = JSON.parse(JSON.stringify(located.effect))
+    this.effect = JSON.parse(JSON.stringify(effect))
 
     // Remove effect using store method
     const store = this.context.getStore()
@@ -76,8 +65,6 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
     }
 
     const store = this.context.getStore()
-    
-    // Re-add the effect
     store.addEffect(this.effect)
 
     return {
@@ -88,8 +75,6 @@ export class RemoveZoomBlockCommand extends Command<{ blockId: string }> {
 
   doRedo(): CommandResult<{ blockId: string }> {
     const store = this.context.getStore()
-    
-    // Re-remove the effect
     store.removeEffect(this.blockId)
 
     return {

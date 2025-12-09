@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Group, Rect, Text, Image } from 'react-konva'
-import Konva from 'konva'
 import type { Clip, Recording } from '@/types/project'
 import { TrackType } from '@/types/project'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
-import { ClipPositioning } from '@/lib/timeline/clip-positioning'
+import { ClipReorderService } from '@/lib/timeline/clip-reorder-service'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
 import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { useTimelineColors } from '@/lib/timeline/colors'
@@ -14,6 +13,7 @@ import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { TypingDetector, type TypingSuggestions, type TypingPeriod } from '@/lib/timeline/typing-detector'
 import { TypingSuggestionsBar } from './typing-suggestions-bar'
+import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 
 import { useProjectStore } from '@/stores/project-store'
 import { ApplyTypingSpeedCommand, ApplyTypingSpeedToAllClipsCommand } from '@/lib/commands'
@@ -66,13 +66,13 @@ export const TimelineClip = React.memo(({
   onContextMenu,
   onOpenTypingSuggestion
 }: TimelineClipProps) => {
-  const [thumbnails, setThumbnails] = useState<HTMLCanvasElement[]>([])
+  const [thumbnail, setThumbnail] = useState<HTMLImageElement | null>(null)
   const [waveformData, setWaveformData] = useState<WaveformData | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isValidPosition, setIsValidPosition] = useState(true)
   const [originalPosition, setOriginalPosition] = useState<number>(0)
   const [typingSuggestions, setTypingSuggestions] = useState<TypingSuggestions | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [cachedSnapPositions, setCachedSnapPositions] = useState<number[]>([])
   const colors = useTimelineColors()
   const { settings } = useProjectStore()
 
@@ -81,8 +81,6 @@ export const TimelineClip = React.memo(({
     TimelineConfig.MIN_CLIP_WIDTH,
     TimeConverter.msToPixels(clip.duration, pixelsPerMs)
   )
-
-  // No need for dismiss tracking - removing from metadata is permanent
 
   // Track height is now passed as a prop
 
@@ -170,93 +168,55 @@ export const TimelineClip = React.memo(({
     }
   }, [recording?.metadata?.keyboardEvents, clip.id, clip.sourceIn, clip.sourceOut, clip.duration, clip.playbackRate, clip.typingSpeedApplied])
 
-  // Load video and generate thumbnails for video clips
+  // Load single cached thumbnail for video clips - optimized for performance
   useEffect(() => {
     if (trackType !== 'video' || !recording?.filePath) return
 
-    const loadVideoThumbnails = async () => {
+    let cancelled = false
+
+    const loadThumbnail = async () => {
       try {
-        // Get or load video URL
-        let blobUrl = RecordingStorage.getBlobUrl(recording.id)
-        if (!blobUrl && recording.filePath) {
-          blobUrl = await globalBlobManager.ensureVideoLoaded(
-            recording.id,
-            recording.filePath,
-            recording.folderPath
-          )
-        }
+        // Use ThumbnailGenerator for cached, efficient thumbnail generation
+        const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+        const thumbWidth = Math.floor(thumbHeight * (16 / 9)) // Assume 16:9 aspect ratio
 
-        if (!blobUrl) return
+        // Cache key includes recording ID and source position to allow re-use
+        const cacheKey = `${recording.id}_${clip.sourceIn}_${thumbWidth}x${thumbHeight}`
 
-        // Create video element
-        const video = document.createElement('video')
-        video.src = blobUrl
-        // Don't set crossOrigin for video-stream:// URLs
-        if (!blobUrl.startsWith('video-stream://')) {
-          video.crossOrigin = 'anonymous'
-        }
-        video.muted = true
+        const dataUrl = await ThumbnailGenerator.generateThumbnail(
+          recording.filePath,
+          cacheKey,
+          {
+            width: thumbWidth,
+            height: thumbHeight,
+            timestamp: clip.sourceIn / 1000 / (recording.duration || 1) // Convert to percentage
+          }
+        )
 
-        // Wait for metadata
-        await new Promise((resolve, reject) => {
-          video.onloadedmetadata = resolve
-          video.onerror = reject
-          video.load()
+        if (cancelled || !dataUrl) return
+
+        // Create image element from data URL
+        const img = document.createElement('img')
+        img.src = dataUrl
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve()
+          img.onerror = reject
         })
 
-        videoRef.current = video
-
-        // Calculate thumbnail dimensions
-        const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
-        const aspectRatio = video.videoWidth / video.videoHeight
-        const thumbWidth = Math.floor(thumbHeight * aspectRatio)
-
-        // Calculate how many thumbnails we need based on clip width
-        const thumbnailCount = Math.max(1, Math.ceil(clipWidth / thumbWidth))
-        const newThumbnails: HTMLCanvasElement[] = []
-
-        // Generate frames at different timestamps
-        for (let i = 0; i < thumbnailCount; i++) {
-          // Calculate which frame to show based on position in clip
-          const progress = i / Math.max(1, thumbnailCount - 1)
-          const timeInSeconds = (clip.sourceIn + progress * (clip.sourceOut - clip.sourceIn)) / 1000
-
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          if (!ctx) continue
-
-          canvas.width = thumbWidth
-          canvas.height = thumbHeight
-
-          // Seek to the specific time and draw frame
-          await new Promise<void>((resolve) => {
-            const seekHandler = () => {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-              video.removeEventListener('seeked', seekHandler)
-              resolve()
-            }
-            video.addEventListener('seeked', seekHandler)
-            video.currentTime = timeInSeconds
-          })
-
-          newThumbnails.push(canvas)
+        if (!cancelled) {
+          setThumbnail(img)
         }
-
-        setThumbnails(newThumbnails)
       } catch (error) {
-        // Failed to load thumbnails - will show placeholder
+        // Failed to load thumbnail - will show placeholder
       }
     }
 
-    loadVideoThumbnails()
+    loadThumbnail()
 
     return () => {
-      if (videoRef.current) {
-        videoRef.current.src = ''
-        videoRef.current = null
-      }
+      cancelled = true
     }
-  }, [recording?.id, recording?.filePath, recording?.folderPath, clip.duration, clipWidth, trackHeight, trackType])
+  }, [recording?.id, recording?.filePath, clip.sourceIn, trackHeight, trackType, recording?.duration])
 
 
   // Handle applying typing speed suggestions
@@ -327,34 +287,27 @@ export const TimelineClip = React.memo(({
       y={trackY + TimelineConfig.TRACK_PADDING}
       draggable
       dragBoundFunc={(pos) => {
-        // Convert position to time
+        // Convert drag position to time
         const proposedTime = TimeConverter.pixelsToMs(
           pos.x - TimelineConfig.TRACK_LABEL_WIDTH,
           pixelsPerMs
         )
 
-        // Apply magnetic snapping to nearby clips and playhead
-        const { currentTime } = useProjectStore.getState()
-        const snapResult = ClipPositioning.applyMagneticSnap(
+        // Use cached snap positions (computed at drag start)
+        const snapPositions = cachedSnapPositions.length > 0
+          ? cachedSnapPositions
+          : ClipReorderService.computeSnapPositions(otherClipsInTrack || [], clip.id)
+
+        // Find nearest snap position using the service
+        const { position: nearestSnap } = ClipReorderService.findNearestSnapPosition(
           proposedTime,
-          clip.duration,
-          otherClipsInTrack,
-          clip.id,
-          currentTime
+          snapPositions
         )
 
-        // Check if the snapped position would cause overlap
-        const overlapCheck = ClipPositioning.checkOverlap(
-          snapResult.time,
-          clip.duration,
-          otherClipsInTrack,
-          clip.id
-        )
+        setIsValidPosition(true)
 
-        setIsValidPosition(!overlapCheck.hasOverlap)
-
-        // Convert snapped time back to pixels
-        const snappedX = TimeConverter.msToPixels(snapResult.time, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+        // Convert snapped time to pixels
+        const snappedX = TimeConverter.msToPixels(nearestSnap, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
 
         return {
           x: snappedX,
@@ -365,49 +318,36 @@ export const TimelineClip = React.memo(({
         setIsDragging(true)
         setOriginalPosition(clip.startTime)
         setIsValidPosition(true)
+        // Cache snap positions at drag start for performance
+        setCachedSnapPositions(
+          ClipReorderService.computeSnapPositions(otherClipsInTrack || [], clip.id)
+        )
       }}
       onDragEnd={(e) => {
         setIsDragging(false)
 
-        // Get the final position from the drag
+        // Get the final snapped position
         const finalX = e.target.x()
-        const proposedTime = TimeConverter.pixelsToMs(
+        const snappedTime = TimeConverter.pixelsToMs(
           finalX - TimelineConfig.TRACK_LABEL_WIDTH,
           pixelsPerMs
         )
 
-        // Apply magnetic snapping for final position
-        const { currentTime } = useProjectStore.getState()
-        const snapResult = ClipPositioning.applyMagneticSnap(
-          proposedTime,
-          clip.duration,
-          otherClipsInTrack,
-          clip.id,
-          currentTime
+        // Find which snap position we're at to determine insert index
+        const { index: newIndex } = ClipReorderService.findNearestSnapPosition(
+          snappedTime,
+          cachedSnapPositions
         )
 
-        // Check if the snapped position would cause overlap
-        const overlapCheck = ClipPositioning.checkOverlap(
-          snapResult.time,
-          clip.duration,
-          otherClipsInTrack,
-          clip.id
-        )
-
-        if (overlapCheck.hasOverlap) {
-          // If there's an overlap, return to original position
-          const originalX = TimeConverter.msToPixels(originalPosition, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
-          e.target.to({
-            x: originalX,
-            duration: 0.2,
-            easing: Konva.Easings.EaseOut
-          })
-          setIsValidPosition(true)
-          return
+        // Check if reorder would change anything
+        const allClips = otherClipsInTrack ? [...otherClipsInTrack, clip] : [clip]
+        if (ClipReorderService.wouldChangeOrder(allClips, clip.id, newIndex)) {
+          useProjectStore.getState().reorderClip(clip.id, newIndex)
         }
 
-        // Update clip position to the snapped location
-        onDragEnd(clip.id, snapResult.time)
+        // Clear cached snap positions
+        setCachedSnapPositions([])
+        setIsValidPosition(true)
       }}
       onClick={() => {
         // Simple click handler - just select the clip
@@ -427,7 +367,7 @@ export const TimelineClip = React.memo(({
         width={clipWidth}
         height={trackHeight - TimelineConfig.TRACK_PADDING * 2}
         fill={
-          trackType === TrackType.Video && thumbnails.length > 0
+          trackType === TrackType.Video && thumbnail
             ? 'transparent'
             : trackType === TrackType.Video
               ? colors.info
@@ -449,33 +389,34 @@ export const TimelineClip = React.memo(({
         shadowOffsetY={2}
       />
 
-      {/* Video thumbnails */}
-      {trackType === TrackType.Video && thumbnails.length > 0 && (
+      {/* Video thumbnail - single frame tiled across clip */}
+      {trackType === TrackType.Video && thumbnail && (
         <Group clipFunc={(ctx) => {
           // Clip to rounded rectangle
           ctx.beginPath()
           ctx.roundRect(0, 0, clipWidth, trackHeight - TimelineConfig.TRACK_PADDING * 2, 6)
           ctx.closePath()
         }}>
-          {/* Render each thumbnail frame */}
-          {thumbnails.map((canvas, i) => {
+          {/* Tile the single thumbnail across the clip width */}
+          {(() => {
             const thumbHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
-            const aspectRatio = canvas.width / canvas.height
+            const aspectRatio = thumbnail.width / thumbnail.height
             const thumbWidth = Math.floor(thumbHeight * aspectRatio)
+            const tileCount = Math.max(1, Math.ceil(clipWidth / thumbWidth))
 
-            return (
+            return Array.from({ length: tileCount }, (_, i) => (
               // eslint-disable-next-line jsx-a11y/alt-text
               <Image
                 key={i}
-                image={canvas}
+                image={thumbnail}
                 x={i * thumbWidth}
                 y={0}
                 width={thumbWidth}
                 height={thumbHeight}
                 opacity={0.95}
               />
-            )
-          })}
+            ))
+          })()}
           {/* Gradient overlay for text visibility */}
           <Rect
             width={clipWidth}
@@ -567,140 +508,32 @@ export const TimelineClip = React.memo(({
         </Group>
       )}
 
-      {/* Effect badges for video clips - clickable indicators */}
-      {trackType === TrackType.Video && (() => {
-        const badges = []
-        let xOffset = 0
-
-        const handleBadgeClick = (e: any, type: EffectLayerType) => {
-          e.cancelBubble = true
-          onSelect(clip.id)
-          onSelectEffect?.(type)
-        }
-
-        const hasZoomEffect = EffectsFactory.hasActiveZoomEffects(clipEffects)
-        if (hasZoomEffect) {
-          badges.push(
-            <Group
-              key="zoom"
-              x={xOffset}
-              y={0}
-              onClick={(e) => handleBadgeClick(e, EffectLayerType.Zoom)}
-              onTap={(e) => handleBadgeClick(e, EffectLayerType.Zoom)}
-            >
-              <Rect
-                width={32}
-                height={14}
-                fill={selectedEffectType === EffectLayerType.Zoom ? colors.info : colors.muted}
-                cornerRadius={2}
-                opacity={selectedEffectType === EffectLayerType.Zoom ? 1 : 0.7}
-              />
-              <Text x={5} y={3} text="Z" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
-            </Group>
-          )
-          xOffset += 36
-        }
-
-        // Only show cursor badge when cursor is enabled
-        const hasCursorEffect = !!EffectsFactory.getCursorEffect(clipEffects)
-        if (hasCursorEffect) {
-          badges.push(
-            <Group
-              key="cursor"
-              x={xOffset}
-              y={0}
-              onClick={(e) => handleBadgeClick(e, EffectLayerType.Cursor)}
-              onTap={(e) => handleBadgeClick(e, EffectLayerType.Cursor)}
-            >
-              <Rect
-                width={32}
-                height={14}
-                fill={selectedEffectType === EffectLayerType.Cursor ? colors.success : colors.muted}
-                cornerRadius={2}
-                opacity={selectedEffectType === EffectLayerType.Cursor ? 1 : 0.7}
-              />
-              <Text x={5} y={3} text="C" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
-            </Group>
-          )
-          xOffset += 36
-        }
-
-        const backgroundEffect = EffectsFactory.getBackgroundEffect(clipEffects)
-        const bgData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null
-        if (bgData?.type && bgData.type !== 'none') {
-          badges.push(
-            <Group
-              key="bg"
-              x={xOffset}
-              y={0}
-              onClick={(e) => handleBadgeClick(e, EffectLayerType.Background)}
-              onTap={(e) => handleBadgeClick(e, EffectLayerType.Background)}
-            >
-              <Rect
-                width={32}
-                height={14}
-                fill={selectedEffectType === EffectLayerType.Background ? colors.zoomBlock : colors.muted}
-                cornerRadius={2}
-                opacity={selectedEffectType === EffectLayerType.Background ? 1 : 0.7}
-              />
-              <Text x={5} y={3} text="B" fontSize={9} fill={colors.foreground} fontFamily="system-ui" fontStyle="bold" />
-            </Group>
-          )
-          xOffset += 36
-        }
-
-        // Playback rate badge
-        if (clip.playbackRate && clip.playbackRate !== 1.0) {
-          badges.push(
-            <Group
-              key="speed"
-              x={xOffset}
-              y={0}
-            >
-              <Rect
-                width={40}
-                height={14}
-                fill={colors.warning || '#f59e0b'}
-                cornerRadius={2}
-                opacity={0.8}
-              />
-              <Text
-                x={3}
-                y={3}
-                text={`${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`}
-                fontSize={8}
-                fill={colors.foreground}
-                fontFamily="system-ui"
-                fontStyle="bold"
-              />
-            </Group>
-          )
-          xOffset += 44
-        }
-
-        // Audio badge is now optional since we have waveform visualization
-        // Only show it if the clip is very small
-        if (recording?.hasAudio && clipWidth < 100) {
-          badges.push(
-            <Group
-              key="audio"
-              x={xOffset}
-              y={0}
-            >
-              <Rect
-                width={20}
-                height={14}
-                fill={colors.success || '#10b981'}
-                cornerRadius={2}
-                opacity={0.7}
-              />
-              <Text x={5} y={3} text="♫" fontSize={9} fill={colors.foreground} fontFamily="system-ui" />
-            </Group>
-          )
-          xOffset += 24
-        }
-
-        return badges.length > 0 ? <Group x={6} y={trackHeight - TimelineConfig.TRACK_PADDING * 2 - 20}>{badges}</Group> : null
+      {/* Speed indicator badge - only shown when playback rate is modified */}
+      {trackType === TrackType.Video && clip.playbackRate && clip.playbackRate !== 1.0 && (() => {
+        const rateText = `${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`
+        return (
+          <Group x={6} y={trackHeight - TimelineConfig.TRACK_PADDING * 2 - 14}>
+            <Rect
+              width={22}
+              height={10}
+              fill={colors.warning || '#f59e0b'}
+              cornerRadius={5}
+              opacity={0.9}
+            />
+            <Text
+              x={11}
+              y={5}
+              text={rateText}
+              fontSize={7}
+              fill={colors.foreground}
+              fontFamily="system-ui"
+              fontStyle="bold"
+              align="center"
+              offsetX={rateText.length * 2}
+              offsetY={3}
+            />
+          </Group>
+        )
       })()}
 
       {/* Typing suggestions bar - only show for video clips with typing detected and enabled in settings */}

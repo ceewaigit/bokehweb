@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, useRef, startTransition } from 'react'
+import { useCallback, useEffect, useState, useRef, startTransition, useMemo } from 'react'
 import { Toolbar } from '../toolbar'
 import { PreviewAreaRemotion } from '../preview-area-remotion'
 import dynamic from 'next/dynamic'
@@ -24,6 +24,7 @@ import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { RecordingStorage } from '@/lib/storage/recording-storage'
+import { migrationRunner } from '@/lib/migrations'
 
 // Extract project loading logic to reduce component complexity
 async function loadProjectRecording(
@@ -42,7 +43,10 @@ async function loadProjectRecording(
   await initializeDefaultWallpaper()
 
   // Deep clone the project to allow mutations (JSON objects are frozen/read-only)
-  const project = JSON.parse(JSON.stringify(recording.project))
+  let project = structuredClone(recording.project)
+
+  // Run migrations to convert old source-space zoom effects to timeline-space
+  project = migrationRunner.migrateProject(project)
 
   setLoadingMessage('Creating project...')
   newProject(project.name)
@@ -172,6 +176,10 @@ async function loadProjectRecording(
   if (!project.timeline.effects) {
     project.timeline.effects = []
   }
+
+  // NOTE: Zoom effects are now stored in timeline.effects[] (timeline-space).
+  // They are migrated from recording.effects[] on project load.
+  // This preserves backward compatibility via the migration system.
 
   // Ensure global background and cursor effects exist
   const hasGlobalBackground = !!EffectsFactory.getBackgroundEffect(project.timeline.effects)
@@ -330,19 +338,18 @@ export function WorkspaceManager() {
     .find(c => c.id === selectedClipId) || null
 
   // SINGLE SOURCE OF TRUTH: Get all effects for the current context
-  // Merges recording-scoped effects (zoom, screen) + timeline-global effects (background, cursor, etc.)
-  const getEffectsForContext = useCallback((): Effect[] => {
+  // Merges timeline.effects (background, cursor) + recording.effects (zoom, screen)
+  const contextEffects = useMemo((): Effect[] => {
     if (!currentProject) return []
 
     const effects: Effect[] = []
 
-    // Add timeline-global effects (background, cursor, keystroke, etc.)
-    // Zoom effects are recording-scoped and added separately below
+    // Add timeline effects (background, cursor, keystroke)
     if (currentProject.timeline.effects) {
       effects.push(...currentProject.timeline.effects)
     }
 
-    // Add recording-scoped effects (zoom blocks) from the playhead recording or selected clip's recording
+    // Add recording-scoped effects (zoom) from playhead recording or selected clip's recording
     const targetRecording = playheadRecording || (selectedClip && currentProject.recordings.find(r => r.id === selectedClip.recordingId))
     if (targetRecording?.effects) {
       effects.push(...targetRecording.effects)
@@ -470,7 +477,7 @@ export function WorkspaceManager() {
 
   const handleEffectChange = useCallback((type: EffectType, data: any) => {
     // Get effects from single source of truth
-    const baseEffects = getEffectsForContext()
+    const baseEffects = contextEffects
     const commandManager = commandManagerRef.current
 
     if (!commandManager) return
@@ -490,16 +497,53 @@ export function WorkspaceManager() {
         if (data.enabled && existingZoomEffects.length === 0) {
           // Generate zoom effects from recording's mouse events
           const recording = playheadRecording || currentProject?.recordings[0]
-          if (recording) {
-            const zoomEffects = EffectsFactory.createZoomEffectsFromRecording(recording)
+          if (recording && currentProject) {
+            // Import zoom detector dynamically to generate zoom blocks
+            import('@/lib/effects/utils/zoom-detector').then(({ ZoomDetector }) => {
+              const zoomDetector = new ZoomDetector()
+              const zoomBlocks = zoomDetector.detectZoomBlocks(
+                recording.metadata?.mouseEvents || [],
+                recording.width || 1920,
+                recording.height || 1080,
+                recording.duration
+              )
 
-            // Add directly to recording.effects
-            // We'll use a composite command or just multiple add commands if we want undo support for this generation
-            // For now, let's just add them one by one or use a specialized command if needed
-            // But wait, the original code modified the recording object directly.
-            // Let's use AddEffectCommand for each generated effect
-            zoomEffects.forEach(effect => {
-              executeCommand('AddEffect', effect)
+              // Find the first clip that uses this recording for timeline conversion
+              const allClips = currentProject.timeline.tracks.flatMap(t => t.clips)
+              const clipForRecording = allClips.find(c => c.recordingId === recording.id)
+
+              if (clipForRecording) {
+                // Convert each zoom block from source-space to timeline-space
+                zoomBlocks.forEach((block, index) => {
+                  const sourceIn = clipForRecording.sourceIn || 0
+                  const playbackRate = clipForRecording.playbackRate || 1
+                  const clipStart = clipForRecording.startTime
+
+                  const timelineStart = clipStart + (block.startTime - sourceIn) / playbackRate
+                  const timelineEnd = clipStart + (block.endTime - sourceIn) / playbackRate
+
+                  // Create timeline-space effect
+                  const timelineEffect: Effect = {
+                    id: `zoom-timeline-${Date.now()}-${index}`,
+                    type: EffectType.Zoom,
+                    startTime: Math.max(0, timelineStart),
+                    endTime: Math.max(timelineStart + 100, timelineEnd),
+                    data: {
+                      scale: block.scale,
+                      targetX: block.targetX,
+                      targetY: block.targetY,
+                      screenWidth: block.screenWidth,
+                      screenHeight: block.screenHeight,
+                      introMs: block.introMs || 300,
+                      outroMs: block.outroMs || 300,
+                      smoothing: 0.1
+                    } as ZoomEffectData,
+                    enabled: true
+                  }
+
+                  executeCommand('AddEffect', timelineEffect)
+                })
+              }
             })
           }
         } else {
@@ -600,9 +644,7 @@ export function WorkspaceManager() {
         executeCommand('AddEffect', newEffect)
       }
     }
-  }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, getEffectsForContext])
-
-
+  }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, contextEffects])
 
   // Show loading screen when processing
   if (isLoading) {
@@ -733,7 +775,7 @@ export function WorkspaceManager() {
                 <EffectsSidebar
                   className="h-full w-full"
                   selectedClip={selectedClip}
-                  effects={getEffectsForContext()}
+                  effects={contextEffects}
                   selectedEffectLayer={selectedEffectLayer}
                   onEffectChange={handleEffectChange}
                   onZoomBlockUpdate={handleZoomBlockUpdate}

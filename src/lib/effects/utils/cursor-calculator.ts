@@ -9,6 +9,17 @@ import { CursorStyle } from '@/types/project'
 import { interpolateMousePosition } from './mouse-interpolation'
 import { CursorType, electronToCustomCursor } from '../cursor-types'
 
+// PERF: Memoization cache for smoothing results to avoid re-simulation
+const smoothingCache = new Map<string, { x: number; y: number }>()
+const MAX_SMOOTHING_CACHE_SIZE = 1000
+
+/**
+ * Clear the smoothing cache - call when switching projects or recordings
+ */
+export function clearCursorCalculatorCache(): void {
+  smoothingCache.clear()
+}
+
 export interface CursorState {
   visible: boolean
   x: number
@@ -184,6 +195,13 @@ function simulateSmoothingWithHistory(
   cursorData: CursorEffectData,
   renderFps?: number
 ): { x: number; y: number } {
+  // PERF: Check cache first - key includes timestamp and smoothing params
+  const cacheKey = `${timestamp.toFixed(0)}-${(cursorData.smoothness ?? 0.5).toFixed(2)}-${(cursorData.speed ?? 0.5).toFixed(2)}`
+  const cached = smoothingCache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+
   const historyWindowMs = computeHistoryWindowMs(cursorData)
   const firstEventTime = mouseEvents[0]?.timestamp ?? timestamp
   const availableHistory = Math.max(0, timestamp - firstEventTime)
@@ -211,6 +229,13 @@ function simulateSmoothingWithHistory(
     smoothed = smoothTowardsTarget(smoothed, samplePos, cursorData)
     sampleTime = nextTime
   }
+
+  // PERF: Cache result with LRU eviction
+  if (smoothingCache.size >= MAX_SMOOTHING_CACHE_SIZE) {
+    const firstKey = smoothingCache.keys().next().value
+    if (firstKey) smoothingCache.delete(firstKey)
+  }
+  smoothingCache.set(cacheKey, smoothed)
 
   return smoothed
 }
@@ -302,34 +327,45 @@ function smoothTowardsTarget(
 
 /**
  * Find the last mouse movement before a timestamp
+ * PERF: Uses binary search O(log n) instead of filter+sort O(n log n)
  */
 function findLastMovement(
   mouseEvents: MouseEvent[],
   timestamp: number
 ): MouseEvent | null {
-  // Find events before timestamp
-  const pastEvents = mouseEvents.filter(e => e.timestamp <= timestamp)
-  if (pastEvents.length === 0) return null
+  if (!mouseEvents || mouseEvents.length === 0) return null
 
-  // Sort by timestamp descending
-  pastEvents.sort((a, b) => b.timestamp - a.timestamp)
+  // Binary search for the last event at or before timestamp
+  let low = 0, high = mouseEvents.length - 1
+  let startIdx = -1
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (mouseEvents[mid].timestamp <= timestamp) {
+      startIdx = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
 
-  // Find last actual movement (position change)
-  for (let i = 0; i < pastEvents.length - 1; i++) {
-    const current = pastEvents[i]
-    const previous = pastEvents[i + 1]
+  if (startIdx < 0) return null
 
+  // Scan backwards for last actual movement (position change)
+  for (let i = startIdx; i > 0; i--) {
+    const current = mouseEvents[i]
+    const previous = mouseEvents[i - 1]
     if (current.x !== previous.x || current.y !== previous.y) {
       return current
     }
   }
 
-  return pastEvents[0]
+  return mouseEvents[0]
 }
 
 /**
  * Calculate active click effects
  * Matches original CursorLayer timing: 300ms duration, 200ms animation
+ * PERF: Uses binary search to find relevant window instead of filtering entire array
  */
 function calculateClickEffects(
   clickEvents: ClickEvent[],
@@ -339,27 +375,45 @@ function calculateClickEffects(
   const ANIMATION_DURATION = 200 // ms - for scale calculation
   const MAX_RADIUS = 50
 
-  return clickEvents
-    .filter(click => {
-      const age = timestamp - click.timestamp
-      return age >= 0 && age < EFFECT_DURATION
-    })
-    .map(click => {
-      const age = timestamp - click.timestamp
-      const progress = Math.min(1, age / ANIMATION_DURATION) // Use 200ms for animation
+  if (!clickEvents || clickEvents.length === 0) return []
 
-      // Easing for smooth animation
+  // Binary search for first potentially active click (timestamp >= minTime)
+  const minTime = timestamp - EFFECT_DURATION
+  let low = 0, high = clickEvents.length - 1
+  let startIdx = clickEvents.length
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2)
+    if (clickEvents[mid].timestamp >= minTime) {
+      startIdx = mid
+      high = mid - 1
+    } else {
+      low = mid + 1
+    }
+  }
+
+  // Only process clicks in the active window
+  const activeClicks: ClickEffect[] = []
+  for (let i = startIdx; i < clickEvents.length; i++) {
+    const click = clickEvents[i]
+    if (click.timestamp > timestamp) break // Future clicks
+
+    const age = timestamp - click.timestamp
+    if (age >= 0 && age < EFFECT_DURATION) {
+      const progress = Math.min(1, age / ANIMATION_DURATION)
       const easedProgress = 1 - Math.pow(1 - progress, 3)
 
-      return {
+      activeClicks.push({
         x: click.x,
         y: click.y,
         timestamp: click.timestamp,
         progress,
         radius: 10 + easedProgress * MAX_RADIUS,
         opacity: Math.max(0, 1 - progress) * 0.5
-      }
-    })
+      })
+    }
+  }
+
+  return activeClicks
 }
 
 /**

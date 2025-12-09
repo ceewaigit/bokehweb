@@ -224,16 +224,11 @@ export const useExportStore = create<ExportStore>((set, get) => {
     },
 
     reset: () => {
-      const state = get()
-      // Clean up blob from memory
-      if (state.lastExport) {
-        // Force garbage collection by nullifying reference
-        state.lastExport = null
-      }
-      // Clean up any export-related blobs
+      // Clean up any export-related blobs from blob manager
       if (typeof globalBlobManager !== 'undefined') {
         globalBlobManager.cleanupByType('export')
       }
+      // Reset state - this will release the lastExport blob reference
       set({ isExporting: false, progress: null, lastExport: null })
     }
   }

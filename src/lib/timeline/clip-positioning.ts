@@ -154,7 +154,34 @@ export class ClipPositioning {
   }
 
   /**
-   * Apply magnetic snapping to a position with adjacency clamping
+   * Get reorder target - determines where a clip should be inserted based on drag position
+   * Used for contiguous timeline where clips cannot have gaps
+   */
+  static getReorderTarget(
+    proposedTime: number,
+    clips: Clip[],
+    excludeClipId?: string
+  ): { insertBeforeClipId: string | null; insertIndex: number } {
+    const sorted = clips
+      .filter(c => c.id !== excludeClipId)
+      .sort((a, b) => a.startTime - b.startTime)
+
+    // Find insertion point based on where the clip center would be
+    for (let i = 0; i < sorted.length; i++) {
+      const clip = sorted[i]
+      const clipMidpoint = clip.startTime + clip.duration / 2
+      if (proposedTime < clipMidpoint) {
+        return { insertBeforeClipId: clip.id, insertIndex: i }
+      }
+    }
+
+    // Insert at end
+    return { insertBeforeClipId: null, insertIndex: sorted.length }
+  }
+
+  /**
+   * Apply magnetic snapping to a position
+   * In contiguous mode, clips snap to adjacent positions and cannot create gaps
    */
   static applyMagneticSnap(
     proposedTime: number,
@@ -167,8 +194,12 @@ export class ClipPositioning {
       .filter(c => !excludeClipId || c.id !== excludeClipId)
       .sort((a, b) => a.startTime - b.startTime)
 
-    // For contiguous layout, always snap to adjacent clips
-    // Find the clip that would be immediately before and after this position
+    // If there are no other clips, must start at 0
+    if (sorted.length === 0) {
+      return { time: 0 }
+    }
+
+    // Find the clip immediately before and after the proposed position
     let prevClip: Clip | undefined
     let nextClip: Clip | undefined
 
@@ -182,23 +213,19 @@ export class ClipPositioning {
       }
     }
 
-    // Always snap to the previous clip's end if there is one
-    if (prevClip) {
-      const prevEnd = prevClip.startTime + prevClip.duration
-      return { time: prevEnd }
+    // In contiguous mode: clips must be adjacent, no gaps allowed
+    // The first clip must always start at 0
+    // If no prevClip found, this clip must go to position 0
+    if (!prevClip) {
+      return { time: 0, snappedTo: { type: 'start', time: 0 } }
     }
 
-    // If no previous clip, snap to timeline start
-    if (!prevClip && sorted.length > 0) {
-      return { time: 0 }
+    // Snap to end of previous clip (contiguous)
+    const prevEnd = prevClip.startTime + prevClip.duration
+    return {
+      time: prevEnd,
+      snappedTo: { type: 'end', time: prevEnd, clipId: prevClip.id }
     }
-
-    // If there are no other clips, allow free positioning
-    if (sorted.length === 0) {
-      return { time: Math.max(0, proposedTime) }
-    }
-
-    return { time: Math.max(0, proposedTime) }
   }
 
   /**

@@ -170,6 +170,11 @@ export class ZoomPanCalculator {
       }
     }
 
+    // Limit cache size to prevent memory leaks
+    if (this.clusterCache.size > 100) {
+      this.clusterCache.clear();
+    }
+
     this.clusterCache.set(cacheKey, clusters);
     return clusters;
   }
