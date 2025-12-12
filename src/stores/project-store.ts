@@ -532,7 +532,7 @@ export const useProjectStore = create<ProjectStore>()(
 
             // Reflow all clips to ensure contiguity from time 0
             // Use skipSort: true to preserve the manual reorder we just performed
-            reflowClips(track, 0, state.currentProject, { skipSort: true })
+            reflowClips(track, 0, { skipSort: true })
 
             // Force new array reference to ensure all consumers get fresh data
             // This breaks any stale references in memoized contexts
@@ -790,7 +790,7 @@ export const useProjectStore = create<ProjectStore>()(
         track.clips.sort((a, b) => a.startTime - b.startTime)
 
         // Step 4: Single reflow at the end
-        reflowClips(track, 0, state.currentProject)
+        reflowClips(track, 0)
 
         // Step 5: Update timeline duration
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)

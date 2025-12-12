@@ -61,8 +61,8 @@ export interface Project {
   createdAt: string
   modifiedAt: string
 
-  /** Schema version for migrations. undefined = legacy (version 0) */
-  schemaVersion?: number
+  /** Schema version for migrations. */
+  schemaVersion: number
 
   // Raw recording references
   recordings: Recording[]
@@ -94,10 +94,8 @@ export interface Recording {
   // Captured metadata during recording
   metadata?: RecordingMetadata
 
-  // Effects stored in source space (timestamps relative to recording start)
-  // @deprecated for zoom effects - use timeline.effects[] instead (timeline-space)
-  // TODO: refactor this
-  // Only cursor/background effects should remain here
+  // Effects stored in source space (timestamps relative to recording start).
+  // Non-zoom, recording-scoped effects only (cursor/background/screen/etc).
   effects: Effect[]
 
   // Folder-based storage for this recording (absolute or project-relative)

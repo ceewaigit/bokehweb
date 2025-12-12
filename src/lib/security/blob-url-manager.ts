@@ -422,12 +422,11 @@ export class BlobURLManager {
   }
 
   /**
-   * Ensure a video is loaded (loads if necessary)
-   */
-  /**
    * Unified video loading - handles single or multiple videos
    * @param recordings - Single recording or array of recordings
    */
+  async loadVideos(recording: { id: string; filePath?: string; folderPath?: string; metadata?: any; metadataChunks?: any }): Promise<string | null>
+  async loadVideos(recordings: Array<{ id: string; filePath?: string; folderPath?: string; metadata?: any; metadataChunks?: any }>): Promise<void>
   async loadVideos(recordings: { id: string; filePath?: string; folderPath?: string; metadata?: any; metadataChunks?: any } | Array<{ id: string; filePath?: string; folderPath?: string; metadata?: any; metadataChunks?: any }>): Promise<string | null | void> {
     const recordingArray = Array.isArray(recordings) ? recordings : [recordings]
     const isSingle = !Array.isArray(recordings)
@@ -454,11 +453,6 @@ export class BlobURLManager {
 
     // For single recording, return the URL directly
     return isSingle ? results[0] : undefined
-  }
-
-  // Alias for backward compatibility
-  async ensureVideoLoaded(recordingId: string, filePath?: string, folderPath?: string): Promise<string | null> {
-    return this.loadVideos({ id: recordingId, filePath, folderPath }) as Promise<string | null>
   }
 
   /**

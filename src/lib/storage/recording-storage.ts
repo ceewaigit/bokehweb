@@ -296,6 +296,7 @@ export class RecordingStorage {
       version: '1.0.0',
       id: `project-${Date.now()}`,
       name,
+      schemaVersion: 1,
       createdAt: new Date().toISOString(),
       modifiedAt: new Date().toISOString(),
       recordings: [],

@@ -93,11 +93,11 @@ export const TimelineClip = React.memo(({
         // Get or load video URL
         let blobUrl = RecordingStorage.getBlobUrl(recording.id)
         if (!blobUrl && recording.filePath) {
-          blobUrl = await globalBlobManager.ensureVideoLoaded(
-            recording.id,
-            recording.filePath,
-            recording.folderPath
-          )
+          blobUrl = await globalBlobManager.loadVideos({
+            id: recording.id,
+            filePath: recording.filePath,
+            folderPath: recording.folderPath
+          })
         }
 
         if (!blobUrl) return

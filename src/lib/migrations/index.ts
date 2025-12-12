@@ -38,11 +38,15 @@ export class MigrationRunner {
     }
 
     /**
-     * Get current schema version of a project
-     * undefined/missing = version 0 (legacy)
+     * Get current schema version of a project.
+     * schemaVersion must be present on all projects.
      */
     getCurrentVersion(project: Project): number {
-        return (project as any).schemaVersion ?? 0
+        const version = (project as any).schemaVersion
+        if (typeof version !== 'number') {
+            throw new Error('Project schemaVersion is missing or invalid')
+        }
+        return version
     }
 
     /**

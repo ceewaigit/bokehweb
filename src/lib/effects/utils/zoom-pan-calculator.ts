@@ -239,23 +239,6 @@ export class ZoomPanCalculator {
   }
 
   /**
-   * Calculate a "Smart Target" for the camera.
-   * @deprecated Use calculateAttractor with physics in useZoomState instead.
-   */
-  calculateSmartTarget(
-    mouseEvents: MouseEvent[] | undefined,
-    timeMs: number,
-    videoWidth: number,
-    videoHeight: number
-  ): { x: number; y: number } | null {
-    const attractor = this.calculateAttractor(mouseEvents, timeMs, videoWidth, videoHeight);
-    if (attractor) {
-      return { x: attractor.x, y: attractor.y };
-    }
-    return null;
-  }
-
-  /**
    * Calculate a "Cinematic" mouse position by averaging recent history.
    * This creates a smooth, weighted feel instead of raw snapping.
    */

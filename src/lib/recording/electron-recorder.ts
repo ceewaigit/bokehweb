@@ -36,11 +36,6 @@ export class ElectronRecorder {
     return this.service.isRecording()
   }
 
-  getDuration(): number {
-    // RecordingService tracks this internally via strategies
-    return 0 // Duration is returned in stop result
-  }
-
   getState(): 'idle' | 'recording' | 'paused' {
     if (!this.service.isRecording()) return 'idle'
     if (this.service.isPaused()) return 'paused'

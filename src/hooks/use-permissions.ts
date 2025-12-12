@@ -71,18 +71,8 @@ export function usePermissions() {
         // Listen for updates from backend (e.g. mock changes or polling results)
         if (window.electronAPI?.onPermissionStatusChanged) {
             const cleanup = window.electronAPI.onPermissionStatusChanged((event, data) => {
-                // Handle both consolidated format and legacy format
-                let screenGranted = false
-                let micGranted = false
-
-                if ('screen' in data) {
-                    screenGranted = data.screen.granted
-                    micGranted = data.microphone.granted
-                } else {
-                    screenGranted = data.granted
-                    // Legacy fallback
-                    micGranted = true
-                }
+                const screenGranted = data.screen.granted
+                const micGranted = data.microphone.granted
 
                 setStatus(prev => ({
                     ...prev,

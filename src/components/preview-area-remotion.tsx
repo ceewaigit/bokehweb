@@ -44,11 +44,11 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
       for (const recording of project.recordings) {
         if (recording.filePath) {
           try {
-            await globalBlobManager.ensureVideoLoaded(
-              recording.id,
-              recording.filePath,
-              recording.folderPath
-            );
+            await globalBlobManager.loadVideos({
+              id: recording.id,
+              filePath: recording.filePath,
+              folderPath: recording.folderPath
+            });
           } catch (error) {
             console.warn(`Failed to load video for recording ${recording.id}:`, error);
           }

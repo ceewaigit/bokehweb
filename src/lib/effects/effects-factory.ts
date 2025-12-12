@@ -234,7 +234,7 @@ export class EffectsFactory {
       }
     }
 
-    // Then check recording-level effects (legacy or non-zoom effects)
+    // Then check recording-level effects (recording-scoped non-zoom effects)
     for (const recording of project.recordings) {
       if (!recording.effects) continue
       const effect = recording.effects.find(e => e.id === effectId)

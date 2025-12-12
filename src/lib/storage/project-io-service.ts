@@ -51,11 +51,14 @@ export class ProjectIOService {
    * Save a project to storage
    */
   static async saveProject(project: Project): Promise<void> {
-    // Deep copy to avoid mutating frozen Immer objects
-    // Note: Zoom effects can now exist in timeline.effects (timeline-space architecture)
-    // as well as recording.effects (legacy source-space)
+    // Deep copy to avoid mutating frozen Immer objects.
+    // Zoom effects live only in timeline.effects; recording.effects are non-zoom.
     const projectToSave: Project = {
       ...project,
+      recordings: project.recordings.map(r => ({
+        ...r,
+        effects: (r.effects || []).filter(e => e.type !== 'zoom')
+      })),
       timeline: {
         ...project.timeline,
         effects: project.timeline.effects || []
@@ -70,20 +73,15 @@ export class ProjectIOService {
    * Apply migrations to older project formats
    */
   private static async migrateProject(project: Project): Promise<Project> {
+    // Temporary shim for pre-schemaVersion projects created during early dev.
+    // Sets schemaVersion to 0 so versioned migrations can run.
+    if ((project as any).schemaVersion == null) {
+      console.warn('[ProjectIOService] schemaVersion missing; assuming v0 and migrating')
+      ;(project as any).schemaVersion = 0
+    }
+
     // Run versioned migrations using MigrationRunner
     let migratedProject = migrationRunner.migrateProject(project)
-
-    // Legacy migration: Mark clips with typing speed applied
-    // (this is a one-off migration that doesn't need versioning)
-    for (const track of migratedProject.timeline.tracks) {
-      for (const clip of track.clips) {
-        if (clip.playbackRate &&
-          clip.playbackRate !== 1.0 &&
-          !clip.typingSpeedApplied) {
-          clip.typingSpeedApplied = true
-        }
-      }
-    }
 
     return migratedProject
   }

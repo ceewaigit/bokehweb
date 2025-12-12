@@ -3,7 +3,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { Readable } from 'stream'
 import { isDev, getRecordingsDirectory } from './config'
-import { findVideoFile, normalizeCrossPlatform } from './utils/path-normalizer'
+import { normalizeCrossPlatform } from './utils/path-normalizer'
 import { makeVideoSrc } from './utils/video-url-factory'
 import { createRecordButton, setupRecordButton } from './windows/record-button'
 import { PermissionService } from './services/permission-service'
@@ -183,22 +183,20 @@ function registerProtocol(): void {
       // Use cross-platform normalizer
       filePath = normalizeCrossPlatform(filePath)
 
-      // Try to find the file using multiple strategies
-      const foundPath = findVideoFile(filePath)
-      if (foundPath) {
-        filePath = foundPath
-      } else {
-        // Last resort: try with recordings directory
-        const recordingsDir = getRecordingsDirectory()
-        const inRecordings = path.join(recordingsDir, path.basename(filePath))
-        if (fs.existsSync(inRecordings)) {
-          filePath = inRecordings
-        } else {
-          console.error('[Protocol] File not found after all attempts:', filePath)
-          console.log('[Protocol] Searched in recordings dir:', recordingsDir)
-          return new Response('Not found', { status: 404 })
-        }
+      // Resolve only within known locations to avoid masking path bugs.
+      const recordingsDir = getRecordingsDirectory()
+      const candidates: string[] = []
+      if (path.isAbsolute(filePath)) candidates.push(filePath)
+      candidates.push(path.join(recordingsDir, filePath))
+      candidates.push(path.join(recordingsDir, path.basename(filePath)))
+
+      const resolved = candidates.find(p => fs.existsSync(p))
+      if (!resolved) {
+        console.error('[Protocol] File not found:', filePath)
+        console.log('[Protocol] Tried:', candidates)
+        return new Response('Not found', { status: 404 })
       }
+      filePath = resolved
 
       const stat = fs.statSync(filePath)
       const total = stat.size
@@ -334,15 +332,7 @@ function registerAllHandlers(): void {
           // New structure: media lives inside the recording folder
           candidates.add(path.join(resolvedFolder, fileName))
 
-          // Handle relative paths that already include the recording folder name
-          if (!path.isAbsolute(normalizedFile) && parentDir && parentDir !== resolvedFolder) {
-            candidates.add(path.join(parentDir, normalizedFile))
-          }
-
-          // Legacy structure: media sits alongside the recording folder
-          if (parentDir && parentDir !== resolvedFolder) {
-            candidates.add(path.join(parentDir, fileName))
-          }
+          // Legacy parent-directory layouts removed; media is expected inside folder.
         }
 
         for (const candidate of candidates) {
@@ -353,18 +343,19 @@ function registerAllHandlers(): void {
         }
       }
 
-      // Try to find the video file
-      const foundPath = findVideoFile(filePath)
-      if (foundPath) {
-        const videoUrl = await makeVideoSrc(foundPath, 'preview')
-        return videoUrl
-      }
-
-      // Fallback: use recordings directory
       const recordingsDir = getRecordingsDirectory()
-      const defaultPath = path.join(recordingsDir, filePath)
-      const videoUrl = await makeVideoSrc(defaultPath, 'preview')
-      return videoUrl
+      const normalizedFile = normalizeCrossPlatform(filePath)
+      const ipcCandidates = [
+        path.isAbsolute(normalizedFile) ? normalizedFile : null,
+        path.join(recordingsDir, normalizedFile),
+        path.join(recordingsDir, path.basename(normalizedFile))
+      ].filter(Boolean) as string[]
+
+      const resolvedPath = ipcCandidates.find(p => fs.existsSync(p))
+      if (!resolvedPath) {
+        throw new Error(`Recording file not found: ${filePath}`)
+      }
+      return await makeVideoSrc(resolvedPath, 'preview')
     } catch (error) {
       console.error('[IPC] Error resolving recording path:', error)
       throw error

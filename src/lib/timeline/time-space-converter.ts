@@ -554,8 +554,7 @@ export function calculateAdaptiveZoomLimits(
 }
 
 /**
- * TimeConverter namespace - groups all time conversion functions
- * Used for backward compatibility with existing imports
+ * TimeConverter namespace - groups all time conversion functions.
  */
 export const TimeConverter = {
   // Time coordinate conversions
@@ -580,6 +579,3 @@ export const TimeConverter = {
   getRulerIntervals,
   calculateAdaptiveZoomLimits
 }
-
-// Alias for backward compatibility
-export const TimeSpaceConverter = TimeConverter

@@ -43,20 +43,14 @@ export class CopyCommand extends Command<CopyResult> {
     const store = this.context.getStore()
     const selectedEffectLayer = this.context.getSelectedEffectLayer()
 
-    // Handle zoom effect copy (recording-scoped)
+    // Handle zoom effect copy (timeline-scoped)
     if (selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer.id) {
       console.log('[CopyCommand] Copying zoom effect:', selectedEffectLayer.id)
       const project = this.context.getProject()
 
-      // Find zoom effect in recording.effects
-      let zoomEffect = null
-      for (const recording of project?.recordings || []) {
-        zoomEffect = recording.effects?.find(e => e.id === selectedEffectLayer.id && e.type === EffectType.Zoom)
-        if (zoomEffect) {
-          console.log('[CopyCommand] Found zoom effect in recording:', recording.id)
-          break
-        }
-      }
+      const zoomEffect = project?.timeline.effects?.find(
+        e => e.id === selectedEffectLayer.id && e.type === EffectType.Zoom
+      ) ?? null
 
       if (zoomEffect) {
         console.log('[CopyCommand] Zoom effect data:', zoomEffect.data)

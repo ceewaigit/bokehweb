@@ -200,7 +200,7 @@ export class TypingSpeedApplicationService {
     track.clips.sort((a, b) => a.startTime - b.startTime)
 
     // Always do full reflow to ensure all clips are contiguous
-    reflowClips(track, 0, project)
+    reflowClips(track, 0)
 
     // Update timeline duration
     project.timeline.duration = calculateTimelineDuration(project)

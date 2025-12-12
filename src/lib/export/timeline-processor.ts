@@ -57,7 +57,7 @@ export class TimelineProcessor {
     // Check for gaps
     const hasGaps = this.detectGaps(videoClips)
 
-    // Merge all effects: recording effects (zoom) + timeline effects (global)
+    // Merge all effects: timeline effects + recording-scoped non-zoom effects
     const allEffects: Effect[] = [...(timeline.effects || [])]
     for (const recording of recordings.values()) {
       if (recording.effects) {

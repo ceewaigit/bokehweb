@@ -46,6 +46,10 @@ async function loadProjectRecording(
   let project = structuredClone(recording.project)
 
   // Run migrations to convert old source-space zoom effects to timeline-space
+  if ((project as any).schemaVersion == null) {
+    console.warn('[WorkspaceManager] schemaVersion missing; assuming v0 and migrating')
+    ;(project as any).schemaVersion = 0
+  }
   project = migrationRunner.migrateProject(project)
 
   setLoadingMessage('Creating project...')
@@ -338,7 +342,7 @@ export function WorkspaceManager() {
     .find(c => c.id === selectedClipId) || null
 
   // SINGLE SOURCE OF TRUTH: Get all effects for the current context
-  // Merges timeline.effects (background, cursor) + recording.effects (zoom, screen)
+  // Merges timeline.effects (zoom, background, cursor) + recording.effects (recording-scoped non-zoom)
   const contextEffects = useMemo((): Effect[] => {
     if (!currentProject) return []
 
@@ -349,7 +353,7 @@ export function WorkspaceManager() {
       effects.push(...currentProject.timeline.effects)
     }
 
-    // Add recording-scoped effects (zoom) from playhead recording or selected clip's recording
+    // Add recording-scoped non-zoom effects from playhead recording or selected clip's recording
     const targetRecording = playheadRecording || (selectedClip && currentProject.recordings.find(r => r.id === selectedClip.recordingId))
     if (targetRecording?.effects) {
       effects.push(...targetRecording.effects)

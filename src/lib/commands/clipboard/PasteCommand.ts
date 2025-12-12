@@ -18,7 +18,6 @@ export class PasteCommand extends Command<PasteResult> {
 
   constructor(
     private context: CommandContext,
-    private targetClipId?: string,  // Optional - for backwards compatibility
     private pasteTime?: number
   ) {
     super({

@@ -36,7 +36,7 @@ export interface ElectronAPI {
   onPermissionStatusChanged?: (callback: (event: any, data: {
     screen: { status: string; granted: boolean };
     microphone: { status: string; granted: boolean };
-  } | { status: string; granted: boolean }) => void) => () => void
+  }) => void) => () => void
 
   // Mouse tracking
   startMouseTracking: (options: any) => Promise<any>

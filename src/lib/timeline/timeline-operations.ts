@@ -45,7 +45,6 @@ export function sortClipsByTime(track: Track): void {
  *
  * @param track - The track containing clips to reflow
  * @param startFromIndex - Start reflowing from this index (optimization)
- * @param project - Optional project reference (unused, kept for API compatibility)
  * @param options.skipSort - If true, preserves current array order.
  *                           Use this when you've manually set array order (e.g., reorderClip).
  *                           Default behavior (false) sorts by startTime first.
@@ -53,7 +52,6 @@ export function sortClipsByTime(track: Track): void {
 export function reflowClips(
   track: Track,
   startFromIndex: number = 0,
-  project?: Project,
   options?: { skipSort?: boolean }
 ): void {
   if (track.clips.length === 0) return
@@ -250,7 +248,7 @@ export function executeTrimClipStart(
   if (!trimResult) return false
 
   Object.assign(clip, trimResult)
-  reflowClips(track, 0, project)
+  reflowClips(track, 0)
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return true
@@ -325,7 +323,7 @@ export function updateClipInTrack(
 
   // Always reflow clips to maintain contiguous layout unless explicitly disabled
   if (options?.maintainContiguous !== false) {
-    reflowClips(track, 0, project)
+    reflowClips(track, 0)
   }
 
   project.timeline.duration = calculateTimelineDuration(project)
@@ -371,7 +369,7 @@ export function addClipToTrack(
   }
 
   videoTrack.clips.push(clip)
-  reflowClips(videoTrack, 0, project)
+  reflowClips(videoTrack, 0)
 
   project.timeline.duration = Math.max(
     project.timeline.duration,
@@ -390,7 +388,7 @@ export function removeClipFromTrack(
     const index = track.clips.findIndex(c => c.id === clipId)
     if (index !== -1) {
       track.clips.splice(index, 1)
-      reflowClips(track, 0, project)
+      reflowClips(track, 0)
       project.timeline.duration = calculateTimelineDuration(project)
       project.modifiedAt = new Date().toISOString()
       return true
@@ -496,4 +494,3 @@ export function addRecordingToProject(
   project.modifiedAt = new Date().toISOString()
   return clip
 }
-

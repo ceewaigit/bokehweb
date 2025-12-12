@@ -8,13 +8,11 @@ import { app } from 'electron';
 import fs from 'fs';
 
 /**
- * Resolves the FFmpeg binary path for the current platform
- * Priority order:
- * 1. @ffmpeg-installer/ffmpeg (bundled static binary - works everywhere)
- * 2. Remotion's bundled FFmpeg (fallback for dev if installer fails)
+ * Resolves the FFmpeg binary path for the current platform.
+ * We require @ffmpeg-installer/ffmpeg to avoid broad fallbacks masking issues.
  */
 export function resolveFfmpegPath(): string {
-  // OPTION 1: Use @ffmpeg-installer/ffmpeg (reliable, static binary)
+  // Use @ffmpeg-installer/ffmpeg (reliable, static binary)
   try {
     const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
     if (fs.existsSync(ffmpegPath)) {
@@ -22,41 +20,10 @@ export function resolveFfmpegPath(): string {
       return ffmpegPath;
     }
   } catch (error) {
-    console.warn('[FFmpeg Resolver] @ffmpeg-installer not available, trying fallbacks...');
+    // fall through to error below
   }
 
-  // OPTION 2: Fallback to Remotion's FFmpeg (dev only, has library issues)
-  const platform = process.platform;
-  const arch = process.arch;
-  const exe = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-
-  let compositorPackage = '';
-
-  if (platform === 'darwin') {
-    compositorPackage = arch === 'arm64'
-      ? '@remotion/compositor-darwin-arm64'
-      : '@remotion/compositor-darwin-x64';
-  } else if (platform === 'win32') {
-    compositorPackage = '@remotion/compositor-win32-x64';
-  } else if (platform === 'linux') {
-    compositorPackage = arch === 'arm64'
-      ? '@remotion/compositor-linux-arm64'
-      : '@remotion/compositor-linux-x64';
-  }
-
-  const remotionPath = path.join(
-    app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules') : path.join(process.cwd(), 'node_modules'),
-    compositorPackage,
-    exe
-  );
-
-  if (fs.existsSync(remotionPath)) {
-    console.log(`[FFmpeg Resolver] Fallback: Using Remotion FFmpeg at: ${remotionPath}`);
-    console.warn(`[FFmpeg Resolver] Warning: Remotion's FFmpeg may have library issues. Install @ffmpeg-installer/ffmpeg for best results.`);
-    return remotionPath;
-  }
-
-  throw new Error(`FFmpeg not found. Tried: @ffmpeg-installer/ffmpeg and ${remotionPath}`);
+  throw new Error('FFmpeg not found. Ensure @ffmpeg-installer/ffmpeg is installed and bundled.');
 }
 
 /**
