@@ -218,7 +218,7 @@ function applySmoothingFilter(
 
   const canUsePreviousState = shouldUsePreviousState(previousState, timestamp)
   if (canUsePreviousState && previousState) {
-    return smoothTowardsTarget(previousState, rawPosition, cursorData)
+    return smoothTowardsTarget(previousState, rawPosition, cursorData, timestamp - previousState.timestamp)
   }
 
   if (disableHistorySmoothing) {
@@ -268,7 +268,7 @@ function simulateSmoothingWithHistory(
       ? rawPosition
       : (interpolateMousePosition(mouseEvents, nextTime) || rawPosition)
 
-    smoothed = smoothTowardsTarget(smoothed, samplePos, cursorData)
+    smoothed = smoothTowardsTarget(smoothed, samplePos, cursorData, nextTime - sampleTime)
     sampleTime = nextTime
   }
 
@@ -335,7 +335,8 @@ function clampRenderFps(renderFps?: number): number {
 function smoothTowardsTarget(
   previous: { x: number; y: number },
   target: { x: number; y: number },
-  cursorData: CursorEffectData
+  cursorData: CursorEffectData,
+  dtMs?: number
 ): { x: number; y: number } {
   const deltaX = target.x - previous.x
   const deltaY = target.y - previous.y
@@ -345,21 +346,28 @@ function smoothTowardsTarget(
     return target
   }
 
-  const MIN_ALPHA = 0.02
-  const MAX_ALPHA = 0.3
-  const ADAPTABILITY_FACTOR = 0.15
+  const speed = clamp01(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)
+  const smoothness = clamp01(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
 
-  const baseAlpha = MIN_ALPHA + ((cursorData.speed ?? DEFAULT_CURSOR_DATA.speed) * (MAX_ALPHA - MIN_ALPHA))
-  const adaptability = (cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness) * ADAPTABILITY_FACTOR
-
-  let smoothingAlpha = baseAlpha
-  if (movementDelta < 20) {
-    smoothingAlpha = baseAlpha - adaptability
-  } else if (movementDelta > 80) {
-    smoothingAlpha = baseAlpha + adaptability
+  // Deadband to prevent micro-shake when the cursor is "stopped" but input is noisy/quantized.
+  // Calibrated in physical pixels; keep small so normal slow movement still shows.
+  const jitterRadiusPx = Math.min(2.5, 0.9 + (1 - speed) * 1.4)
+  if (movementDelta < jitterRadiusPx) {
+    return previous
   }
 
-  smoothingAlpha = Math.max(0.01, Math.min(0.99, smoothingAlpha))
+  // Time-constant based smoothing produces consistent results across FPS and event rates.
+  // Higher smoothness => larger tau (smoother/slower); higher speed => smaller tau (snappier).
+  const dt = Math.max(1, Math.min(100, Number.isFinite(dtMs as number) ? (dtMs as number) : 16.67))
+  const minTau = 14
+  const maxTau = 160
+  const baseTau = minTau + (maxTau - minTau) * smoothness
+  const tau = Math.max(6, baseTau * (1.35 - speed))
+
+  // Convert to per-step alpha, then boost slightly when far from target to avoid visible lag.
+  const baseAlpha = 1 - Math.exp(-dt / tau)
+  const distanceBoost = Math.min(3, movementDelta / 80)
+  const smoothingAlpha = Math.max(0.01, Math.min(0.99, 1 - Math.pow(1 - baseAlpha, 1 + distanceBoost)))
 
   return {
     x: previous.x + deltaX * smoothingAlpha,

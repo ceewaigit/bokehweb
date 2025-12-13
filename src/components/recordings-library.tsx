@@ -1,17 +1,25 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Play, Trash2, Layers, Download, RefreshCw, Loader2, Video, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { motion } from 'framer-motion'
+import { Film, Play, Trash2, Layers, RefreshCw, Loader2, Video, Sparkles, ChevronLeft, ChevronRight, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { cn, formatTime } from '@/lib/utils'
-import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { getVideoDuration } from '@/lib/utils/video-metadata'
 import { type Recording as ProjectRecording, type Project } from '@/types'
 import { useRecordingsLibraryStore, type LibraryRecording } from '@/stores/recordings-library-store'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface RecordingsLibraryProps {
   onSelectRecording: (recording: LibraryRecording) => void | Promise<void>
@@ -28,13 +36,47 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     setAllRecordings,
     setCurrentPage,
     updateRecording,
+    updateRecordingOnPage,
+    removeRecording,
     setHydrated
   } = useRecordingsLibraryStore()
 
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [isPageHydrating, setIsPageHydrating] = useState(false)
-  const PAGE_SIZE = 24
+  const DEFAULT_PAGE_SIZE = 24
+  const MAX_PAGE_SIZE = 200
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const prevPageSizeRef = useRef(pageSize)
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
+  const [headerEl, setHeaderEl] = useState<HTMLDivElement | null>(null)
+  const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null)
+  const loadTokenRef = useRef(0)
+  const [pendingDelete, setPendingDelete] = useState<LibraryRecording | null>(null)
+
+  const recomputePageSize = useCallback(() => {
+    if (!scrollEl || !gridEl) return
+
+    const gridStyle = getComputedStyle(gridEl)
+    const columns = Math.max(
+      1,
+      gridStyle.gridTemplateColumns.split(' ').filter(Boolean).length
+    )
+
+    const firstCard = gridEl.querySelector<HTMLElement>('[data-library-card="true"]')
+    const cardHeight = firstCard?.offsetHeight ?? 240
+    const rowGap = Number.parseFloat(gridStyle.rowGap || gridStyle.gap || '0') || 16
+    const headerHeight = headerEl?.offsetHeight ?? 0
+
+    // `p-6` padding on the grid container: 24px top + 24px bottom.
+    const availableHeight = Math.max(0, scrollEl.clientHeight - headerHeight - 48)
+    const visibleRows = Math.max(1, Math.floor((availableHeight + rowGap) / (cardHeight + rowGap)))
+
+    // Fill the viewport (+1 row buffer) to avoid large empty regions.
+    const desired = columns * (visibleRows + 1)
+    const nextSize = Math.max(DEFAULT_PAGE_SIZE, Math.min(desired, MAX_PAGE_SIZE))
+
+    setPageSize(prev => (prev === nextSize ? prev : nextSize))
+  }, [gridEl, headerEl, scrollEl])
 
   const generateThumbnail = useCallback(async (recording: LibraryRecording, videoPath: string) => {
     return await ThumbnailGenerator.generateThumbnail(
@@ -50,18 +92,25 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   }, [])
 
   const loadPage = useCallback(async (page: number, sourceList?: LibraryRecording[]) => {
+    const token = ++loadTokenRef.current
     const list = sourceList ?? allRecordings
-    const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE))
+    const totalPages = Math.max(1, Math.ceil(list.length / pageSize))
     const normalizedPage = Math.min(Math.max(page, 1), totalPages)
 
     setCurrentPage(normalizedPage)
 
-    const start = (normalizedPage - 1) * PAGE_SIZE
-    const end = Math.min(list.length, start + PAGE_SIZE)
+    const start = (normalizedPage - 1) * pageSize
+    const end = Math.min(list.length, start + pageSize)
 
     const pageItems = list.slice(start, end)
 
-    setRecordings(pageItems)
+    // Hydrate thumbnails from the generator's small LRU cache only (avoid retaining across the whole library).
+    setRecordings(
+      pageItems.map(item => ({
+        ...item,
+        thumbnailUrl: ThumbnailGenerator.getCachedThumbnail(item.path) ?? undefined
+      }))
+    )
     setIsPageHydrating(true)
 
     // Helper to update a single item by path - now uses store
@@ -70,8 +119,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     }
 
     const processItem = async (item: LibraryRecording) => {
-      // Skip if already fully hydrated (has project and thumbnail)
-      if (item.project && item.thumbnailUrl) {
+      if (loadTokenRef.current !== token) return
+      // Skip if already hydrated
+      if (item.project) {
         return
       }
 
@@ -98,6 +148,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               if (window.electronAPI?.getFileSize) {
                 try {
                   const sizeRes = await window.electronAPI.getFileSize(videoPath)
+                  if (loadTokenRef.current !== token) return
                   if (sizeRes?.success && sizeRes.data?.size && sizeRes.data.size > 0) {
                     updateItemByPath(item.path, { size: sizeRes.data.size })
                   }
@@ -116,6 +167,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   const videoUrl = await window.electronAPI.getVideoUrl(videoPath)
                   if (videoUrl) {
                     const videoDuration = await getVideoDuration(videoUrl)
+                    if (loadTokenRef.current !== token) return
                     if (videoDuration > 0) {
                       // Update project duration values using store
                       const updatedProject = { ...item.project! }
@@ -137,8 +189,10 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
               // Thumbnail generation
               try {
                 const thumbnailUrl = await generateThumbnail(item, videoPath)
+                if (loadTokenRef.current !== token) return
                 if (thumbnailUrl) {
-                  updateItemByPath(item.path, { thumbnailUrl })
+                  // Store thumbnail only in current page UI state to avoid library-wide memory growth.
+                  updateRecordingOnPage(item.path, { thumbnailUrl })
                 }
               } catch (error) {
                 console.error('Failed to generate thumbnail for', item.name, error)
@@ -154,12 +208,15 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     // Process in small chunks to limit concurrency
     const chunkSize = 4
     for (let i = 0; i < pageItems.length; i += chunkSize) {
+      if (loadTokenRef.current !== token) break
       const chunk = pageItems.slice(i, i + chunkSize)
       await Promise.all(chunk.map(processItem))
     }
 
-    setIsPageHydrating(false)
-  }, [allRecordings, generateThumbnail])
+    if (loadTokenRef.current === token) {
+      setIsPageHydrating(false)
+    }
+  }, [allRecordings, generateThumbnail, pageSize, updateRecording, updateRecordingOnPage])
 
   const loadRecordings = async (forceReload = false) => {
     // Skip if already loaded and not forcing reload
@@ -223,9 +280,40 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     window.electronAPI?.minimizeRecordButton?.()
   }, [])
 
+  useEffect(() => {
+    if (!scrollEl || !gridEl) return
+
+    let rafId: number | null = null
+    const schedule = () => {
+      if (rafId != null) cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        recomputePageSize()
+      })
+    }
+
+    schedule()
+
+    const ro = new ResizeObserver(schedule)
+    ro.observe(scrollEl)
+    ro.observe(gridEl)
+
+    return () => {
+      if (rafId != null) cancelAnimationFrame(rafId)
+      ro.disconnect()
+    }
+  }, [gridEl, recomputePageSize, scrollEl, recordings.length])
+
+  useEffect(() => {
+    if (prevPageSizeRef.current === pageSize) return
+    prevPageSizeRef.current = pageSize
+    if (!isHydrated || allRecordings.length === 0) return
+    loadPage(currentPage, allRecordings)
+  }, [allRecordings, currentPage, isHydrated, loadPage, pageSize])
+
   // No cleanup on unmount - keep cache for fast navigation
 
-  const totalPages = Math.max(1, Math.ceil(allRecordings.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(allRecordings.length / pageSize))
   const canPrev = currentPage > 1
   const canNext = currentPage < totalPages
 
@@ -261,6 +349,25 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     onSelectRecording(rec)
   }
 
+  const handleDeleteRecording = async (rec: LibraryRecording) => {
+    try {
+      if (!window.electronAPI?.deleteRecordingProject) return
+      const res = await window.electronAPI.deleteRecordingProject(rec.path)
+      if (!res?.success) return
+
+      // Drop from store immediately to release memory and update UI.
+      removeRecording(rec.path)
+
+      // Reload current page slice (keeps pagination consistent).
+      const nextAll = allRecordings.filter(r => r.path !== rec.path)
+      const nextTotalPages = Math.max(1, Math.ceil(nextAll.length / pageSize))
+      const nextPage = Math.min(currentPage, nextTotalPages)
+      loadPage(nextPage, nextAll)
+    } catch (e) {
+      console.error('Failed to delete recording:', e)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex-1 overflow-hidden bg-transparent">
@@ -280,7 +387,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
         {/* Grid skeleton with animated cards */}
         <div className="p-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
             {Array.from({ length: 12 }).map((_, i) => (
               <div
                 key={i}
@@ -399,9 +506,15 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   return (
     <div className="flex-1 overflow-hidden bg-transparent">
-      <div className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
+      <div
+        ref={setScrollEl}
+        className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent"
+      >
         {/* header */}
-        <div className="sticky top-0 z-30 bg-transparent border-b border-border/40 drag-region">
+        <div
+          ref={setHeaderEl}
+          className="sticky top-0 z-30 bg-transparent border-b border-border/40 drag-region"
+        >
           <div className="px-6 py-3 ml-20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -466,32 +579,26 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
         {/* Enhanced grid with better spacing */}
         <div className="p-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4">
-            <AnimatePresence mode="popLayout">
-              {recordings.map((recording: LibraryRecording, index: number) => {
-                const isHovered = hoveredIndex === index
-
-                return (
-                  <motion.div
-                    key={recording.path}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.2 }}
-                    className="group relative"
-                    onMouseEnter={() => setHoveredIndex(index)}
-                    onMouseLeave={() => setHoveredIndex(null)}
+          <div
+            ref={setGridEl}
+            className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4"
+          >
+            <TooltipProvider delayDuration={250}>
+              {recordings.map((recording: LibraryRecording) => (
+                <div
+                  key={recording.path}
+                  className="group relative animate-in fade-in duration-150"
+                  data-library-card="true"
+                >
+                  <div
+                    className={cn(
+                      "relative rounded-xl overflow-hidden cursor-pointer",
+                      "bg-muted/10 border border-border/40 shadow-sm",
+                      "transition-transform transition-shadow duration-150 ease-out",
+                      "hover:shadow-xl hover:ring-1 hover:ring-primary/20 hover:-translate-y-1"
+                    )}
+                    onClick={() => handleSelect(recording)}
                   >
-                    <div
-                      className={cn(
-                        "relative rounded-xl overflow-hidden cursor-pointer",
-                        "bg-muted/10 transition-all duration-300 border border-border/40",
-                        isHovered
-                          ? "shadow-xl ring-1 ring-primary/20 -translate-y-1"
-                          : "shadow-sm hover:shadow-md"
-                      )}
-                      onClick={() => handleSelect(recording)}
-                    >
                       {/* Enhanced thumbnail with loading state */}
                       <div className="aspect-video relative bg-muted/10 overflow-hidden">
                         {recording.thumbnailUrl ? (
@@ -499,11 +606,11 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                             <img
                               src={recording.thumbnailUrl}
                               alt={recording.name}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              className="w-full h-full object-cover transition-transform duration-200 ease-out group-hover:scale-105"
                               loading="lazy"
                             />
                             {/* Subtle gradient overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
                           </>
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
@@ -514,11 +621,14 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         )}
 
                         {/* Enhanced play button on hover */}
-                        <div className={cn(
-                          "absolute inset-0 flex items-center justify-center transition-all duration-300",
-                          isHovered ? "opacity-100 bg-black/10 backdrop-blur-[1px]" : "opacity-0"
-                        )}>
-                          <div className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform duration-300">
+                        <div
+                          className={cn(
+                            "absolute inset-0 flex items-center justify-center",
+                            "opacity-0 bg-black/10 backdrop-blur-[1px] transition-opacity duration-150",
+                            "group-hover:opacity-100"
+                          )}
+                        >
+                          <div className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-150 ease-out">
                             <Play className="w-5 h-5 text-black ml-0.5" fill="currentColor" />
                           </div>
                         </div>
@@ -538,46 +648,74 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         <h3 className="font-medium text-xs text-foreground truncate mb-1">
                           {recording.project?.name || recording.name.replace(/^Recording_/, '').replace(/\.ssproj$/, '')}
                         </h3>
-                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground gap-2">
                           <span className="truncate">
                             {formatDistanceToNow(recording.timestamp, { addSuffix: true })
                               .replace('about ', '')
                               .replace('less than ', '<')}
                           </span>
-                          {recording.size && (
-                            <span className="font-mono ml-2 opacity-70">
-                              {(recording.size / 1024 / 1024).toFixed(1)} MB
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {recording.size && (
+                              <span className="font-mono opacity-70 whitespace-nowrap">
+                                {(recording.size / 1024 / 1024).toFixed(1)} MB
+                              </span>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  className={cn(
+                                    "inline-flex items-center justify-center rounded-sm p-0.5",
+                                    "text-muted-foreground/70 transition-colors hover:text-foreground",
+                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                  )}
+                                  aria-label="Recording details"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Info className="h-3.5 w-3.5" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" align="end" className="text-xs">
+                                <div className="space-y-1">
+                                  <div className="font-medium text-foreground">
+                                    {recording.project?.name || recording.name.replace(/\.ssproj$/, '')}
+                                  </div>
+                                  <div className="text-muted-foreground">
+                                    Created: {recording.timestamp.toLocaleString()}
+                                  </div>
+                                  {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
+                                    <div className="text-muted-foreground">
+                                      Duration: <span className="font-mono">{formatTime(recording.project.timeline.duration)}</span>
+                                    </div>
+                                  )}
+                                  {recording.size && (
+                                    <div className="text-muted-foreground">
+                                      Size: <span className="font-mono">{(recording.size / 1024 / 1024).toFixed(1)} MB</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
                         </div>
                       </div>
 
                       {/* Enhanced action buttons */}
-                      <div className={cn(
-                        "absolute top-2 right-2 transition-all duration-200",
-                        isHovered ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"
-                      )}>
+                      <div
+                        className={cn(
+                          "absolute top-2 right-2",
+                          "opacity-0 -translate-y-1 transition-all duration-150 ease-out",
+                          "group-hover:opacity-100 group-hover:translate-y-0"
+                        )}
+                      >
                         <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-lg p-1 shadow-lg border border-white/10">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="w-6 h-6 p-0 hover:bg-white/20 hover:text-white text-white/80 rounded-md"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              // Handle export
-                            }}
-                            title="Export"
-                          >
-                            <Download className="w-3 h-3" />
-                          </Button>
-                          <div className="w-px h-3 bg-white/20" />
                           <Button
                             size="sm"
                             variant="ghost"
                             className="w-6 h-6 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded-md"
                             onClick={(e) => {
                               e.stopPropagation()
-                              // Handle delete
+                              setPendingDelete(recording)
                             }}
                             title="Delete"
                           >
@@ -586,10 +724,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                         </div>
                       </div>
                     </div>
-                  </motion.div>
-                )
-              })}
-            </AnimatePresence>
+                  </div>
+              ))}
+            </TooltipProvider>
           </div>
 
           {isPageHydrating && (
@@ -602,6 +739,47 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           )}
         </div>
       </div>
+
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-destructive" />
+              Delete recording
+            </DialogTitle>
+            <DialogDescription>
+              This can’t be undone. The project and its media will be removed from disk.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingDelete && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <div className="text-sm font-medium text-foreground truncate">
+                {pendingDelete.project?.name || pendingDelete.name.replace(/\.ssproj$/, '')}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground font-mono break-all max-h-10 overflow-hidden">
+                {pendingDelete.path.split(/[\\/]/).slice(-3).join('/')}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)} autoFocus>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!pendingDelete) return
+                const rec = pendingDelete
+                setPendingDelete(null)
+                await handleDeleteRecording(rec)
+              }}
+              disabled={!window.electronAPI?.deleteRecordingProject}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

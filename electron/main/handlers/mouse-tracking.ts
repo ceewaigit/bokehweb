@@ -121,10 +121,12 @@ export function registerMouseTrackingHandlers(): void {
           const display = screen.getDisplayNearestPoint(currentPosition)
           const scaleFactor = display.scaleFactor || 1
 
-          // Convert to physical pixels for consistency
+          // Keep coordinates in Electron's global screen space (DIP / points).
+          // Conversion to capture-relative physical pixels happens in the renderer-side tracking service
+          // using the capture area's fixed scaleFactor to avoid jitter on high-DPI / mixed-DPI setups.
           const positionData = {
-            x: currentPosition.x * scaleFactor,
-            y: currentPosition.y * scaleFactor,
+            x: currentPosition.x,
+            y: currentPosition.y,
             displayBounds: display.bounds,
             scaleFactor
           }
@@ -286,13 +288,9 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       const currentDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y })
       const scaleFactor = currentDisplay.scaleFactor || 1
 
-      // Send click event with coordinates in physical pixels to match capture dimensions
-      const physicalClickX = event.x * scaleFactor
-      const physicalClickY = event.y * scaleFactor
-
       // Track mouse down state for cursor detection
       isMouseDown = true
-      lastClickPosition = { x: physicalClickX, y: physicalClickY }
+      lastClickPosition = { x: event.x, y: event.y }
 
       // Get cursor type at click position
       let clickCursorType = 'pointer' // Default for clicks
@@ -305,8 +303,8 @@ function startClickDetection(sourceType?: 'screen' | 'window', sourceId?: string
       }
 
       mouseEventSender.send('mouse-click', {
-        x: physicalClickX,
-        y: physicalClickY,
+        x: event.x,
+        y: event.y,
         timestamp: Date.now(),
         button: event.button === MOUSE_BUTTONS.LEFT ? 'left' : event.button === MOUSE_BUTTONS.RIGHT ? 'right' : 'middle',
         displayBounds: currentDisplay.bounds,

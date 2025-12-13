@@ -26,13 +26,16 @@ export function buildFrameLayout(clips: Clip[], fps: number): FrameLayoutItem[] 
     const clip = sorted[i];
     const startFrame = startFrames[i];
     const nextStartFrame = i < sorted.length - 1 ? startFrames[i + 1] : null;
+    const isLastClip = i === sorted.length - 1;
 
     const durationFramesRaw =
       nextStartFrame != null
         ? nextStartFrame - startFrame
         : Math.round((clip.duration / 1000) * fps);
 
-    const durationFrames = Math.max(1, durationFramesRaw);
+    // For the last clip, add +1 frame to ensure the final frame is visible
+    // This prevents the video from disappearing at the very last frame of the timeline
+    const durationFrames = Math.max(1, durationFramesRaw) + (isLastClip ? 1 : 0);
     const endFrame = startFrame + durationFrames;
 
     items.push({ clip, startFrame, durationFrames, endFrame });

@@ -13,7 +13,6 @@
 import React from 'react';
 import { BackgroundLayer } from './BackgroundLayer';
 import { KeystrokeLayer } from './KeystrokeLayer';
-import { CursorLayer } from './CursorLayer';
 import { useClipContext } from '../context/ClipContext';
 
 export interface LayerStackProps {
@@ -34,11 +33,6 @@ export const LayerStack: React.FC<LayerStackProps> = ({ videoWidth, videoHeight 
   const backgroundEffect = React.useMemo(() => {
     return effects.find((e) => e.type === 'background');
   }, [effects]);
-
-  const cursorEffect = React.useMemo(() => {
-    return effects.find((e) => e.type === 'cursor');
-  }, [effects]);
-
   const keystrokeEffect = React.useMemo(() => {
     return effects.find((e) => e.type === 'keystroke');
   }, [effects]);
@@ -57,9 +51,6 @@ export const LayerStack: React.FC<LayerStackProps> = ({ videoWidth, videoHeight 
 
       {/* Layer 2: Keystrokes (above video) */}
       <KeystrokeLayer keystrokeEffect={keystrokeEffect} videoWidth={videoWidth} videoHeight={videoHeight} />
-
-      {/* Layer 3: Cursor (top) */}
-      <CursorLayer cursorEffect={cursorEffect} videoWidth={videoWidth} videoHeight={videoHeight} />
     </>
   );
 };

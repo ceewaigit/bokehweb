@@ -117,6 +117,36 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     }
   }, [isRendering]);
 
+  // Enhanced handler that ensures the video frame is actually painted before continuing render.
+  // onLoadedData/onCanPlay/onCanPlayThrough can fire before the frame is visible on screen.
+  // We wait for onSeeked (which fires after seeking to startFrom) and use requestAnimationFrame
+  // to ensure the browser has actually painted the frame.
+  const handleVideoReady = useCallback((event: React.SyntheticEvent<HTMLVideoElement>) => {
+    if (!isRendering || renderReadyRef.current) return;
+
+    const video = event.currentTarget;
+
+    // Check video readyState - should be at least HAVE_CURRENT_DATA (2) to have a frame
+    if (video.readyState < 2) {
+      return; // Wait for more data
+    }
+
+    // Use requestVideoFrameCallback if available (Chrome/Edge) for precise frame timing
+    // Otherwise fall back to double requestAnimationFrame to ensure paint
+    if ('requestVideoFrameCallback' in video) {
+      (video as any).requestVideoFrameCallback(() => {
+        markRenderReady();
+      });
+    } else {
+      // Double rAF ensures the browser has actually painted the frame
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          markRenderReady();
+        });
+      });
+    }
+  }, [isRendering, markRenderReady]);
+
   useEffect(() => {
     if (!isRendering) return;
     if (renderReadyRef.current) return;
@@ -153,10 +183,12 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
     const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
     const padding = backgroundData?.padding || 0;
-    // Padding is authored in project pixel space (videoWidth/videoHeight). Preview compositions can be
-    // scaled (e.g. 1280x720) so we scale padding to keep the same relative layout as export.
-    const scaleFactor =
-      videoWidth > 0 && videoHeight > 0 ? Math.min(width / videoWidth, height / videoHeight) : 1;
+    // RESOLUTION-AGNOSTIC: Use fixed 1080p reference (1920x1080) for scale factor.
+    // This ensures padding appears the same regardless of source resolution (720p, 1080p, 4K, etc.)
+    // The padding is authored at 1080p reference scale.
+    const REFERENCE_WIDTH = 1920;
+    const REFERENCE_HEIGHT = 1080;
+    const scaleFactor = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
     const paddingScaled = padding * scaleFactor;
     return calculateVideoPosition(
       width,
@@ -211,10 +243,12 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
     const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
     const padding = backgroundData?.padding || 0;
-    const scaleFactor =
-      videoWidth > 0 && videoHeight > 0 ? Math.min(width / videoWidth, height / videoHeight) : 1;
+    // RESOLUTION-AGNOSTIC: Use fixed 1080p reference for consistent padding across all source resolutions
+    const REFERENCE_WIDTH = 1920;
+    const REFERENCE_HEIGHT = 1080;
+    const scaleFactor = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
     const paddingScaled = padding * scaleFactor;
-    const cornerRadius = backgroundData?.cornerRadius || 0;
+    const cornerRadius = (backgroundData?.cornerRadius || 0) * scaleFactor;
     const shadowIntensity = backgroundData?.shadowIntensity || 0;
 
     const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
@@ -247,6 +281,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       padding,
       cornerRadius,
       shadowIntensity,
+      scaleFactor,
       drawWidth,
       drawHeight,
       offsetX,
@@ -267,6 +302,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     padding,
     cornerRadius,
     shadowIntensity,
+    scaleFactor,
     drawWidth,
     drawHeight,
     offsetX,
@@ -292,7 +328,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   };
 
   const shadowOpacity = (shadowIntensity / 100) * 0.5;
-  const shadowBlur = 25 + (shadowIntensity / 100) * 25;
+  // Scale shadow blur for resolution-agnostic sizing
+  const baseShadowBlur = 25 + (shadowIntensity / 100) * 25;
+  const shadowBlur = baseShadowBlur * scaleFactor;
   const dropShadow =
     shadowIntensity > 0
       ? `drop-shadow(0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0, 0, 0, ${shadowOpacity})) drop-shadow(0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px rgba(0, 0, 0, ${shadowOpacity * 0.8}))`
@@ -338,30 +376,31 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             const sourceOutFrame = Math.round((sourceOutMs * fps) / 1000);
 
             const originalStartFrom = Math.max(0, sourceInFrame);
-            const endAt = Math.max(originalStartFrom + 1, sourceOutFrame);
+            // Ensure the video segment is long enough for the timeline duration (after rounding).
+            // If `durationFrames` (timeline) slightly exceeds the source frame span due to rounding,
+            // the video can end early and appear to "disappear" for the remaining frames.
+            const expectedSourceFrames = Math.max(1, Math.ceil(durationFrames * playbackRate));
+            const computedEndAt = originalStartFrom + expectedSourceFrames;
+            const endAt = Math.max(originalStartFrom + 1, sourceOutFrame, computedEndAt);
 
             // Calculate preload window
             // We clamp to 0 to avoid negative start frames for the sequence
             const actualPreloadStart = Math.max(0, startFrame - PRELOAD_FRAMES);
             const actualPreloadDuration = startFrame - actualPreloadStart;
-            const totalDuration = actualPreloadDuration + durationFrames;
-
             const isPreloading = currentFrame < startFrame;
+            const overlapFrames = Math.min(2, durationFrames);
+            const preloadDurationWithOverlap = actualPreloadDuration + overlapFrames;
+            const shouldRenderPreload = currentFrame < startFrame + overlapFrames;
 
             const shouldMarkReady = isRendering && currentFrame === 0 && startFrame === 0;
 
             return (
               <React.Fragment key={`clip-video-fragment-${clipForVideo.id}`}>
-                {/* Two-phase rendering:
-                    1. Preload phase: Use Freeze to mount video early without playing (muted, hidden)
-                    2. Active phase: Render video normally without Freeze so audio works
-                    
-                    Note: Freeze mutes audio by design, so we MUST NOT use Freeze during active playback.
-                */}
-
-                {/* Preload phase - hidden, muted, frozen at first frame */}
-                {isPreloading && (
-                  <Sequence from={startFrame - actualPreloadDuration} durationInFrames={actualPreloadDuration}>
+                {/* Preload phase - hidden, muted, frozen at first frame.
+                    Keep it around for a couple frames into the clip to cover decode/keyframe hiccups
+                    that otherwise show up as a flash/blink at clip boundaries. */}
+                {shouldRenderPreload && actualPreloadDuration > 0 && (
+                  <Sequence from={actualPreloadStart} durationInFrames={preloadDurationWithOverlap}>
                     <Freeze frame={0}>
                       <VideoComponent
                         src={videoUrl || ''}
@@ -374,7 +413,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                           left: 0,
                           borderRadius: `${cornerRadius}px`,
                           pointerEvents: 'none',
-                          opacity: 0, // Hidden during preload
+                          opacity: isPreloading ? 0 : 1,
                         }}
                         volume={0}
                         muted={true}
@@ -410,9 +449,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                     endAt={endAt}
                     playbackRate={playbackRate}
                     {...(shouldMarkReady ? ({
-                      onLoadedData: markRenderReady,
-                      onCanPlay: markRenderReady,
-                      onCanPlayThrough: markRenderReady,
+                      onLoadedData: handleVideoReady,
+                      onCanPlay: handleVideoReady,
+                      onSeeked: handleVideoReady,
                     } as any) : {})}
                     onError={(e) => {
                       console.error('[SharedVideoController] Per-clip video playback error:', {

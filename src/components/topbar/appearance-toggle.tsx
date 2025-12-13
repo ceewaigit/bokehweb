@@ -121,11 +121,11 @@ export function AppearanceToggle({
                         <DropdownMenuRadioItem value="solid" className="text-xs">
                             Solid
                         </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="glass" className="text-xs">
-                            Glass
-                        </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="clear" className="text-xs">
                             Clear
+                        </DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="glass" className="text-xs">
+                            Glass
                         </DropdownMenuRadioItem>
                     </DropdownMenuRadioGroup>
 

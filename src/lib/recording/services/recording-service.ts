@@ -165,6 +165,18 @@ export class RecordingService {
     // Find the requested source
     let primarySource = sources.find(s => s.id === settings.sourceId)
 
+    // Area selections are encoded as "area:x,y,w,h[,displayId]" and won't exist in desktopCapturer sources.
+    // Prefer the screen source matching the encoded displayId when possible.
+    if (isAreaSource(settings.sourceId)) {
+      const area = parseAreaSourceId(settings.sourceId!)
+      if (area?.displayId) {
+        const matchingScreen = sources.find(s => s.id.startsWith(`screen:${area.displayId}:`))
+        if (matchingScreen) {
+          primarySource = matchingScreen
+        }
+      }
+    }
+
     if (!primarySource) {
       // Auto-select screen for fullscreen/region recording
       if (settings.area !== 'window') {
@@ -178,10 +190,11 @@ export class RecordingService {
 
     logger.info(`[RecordingService] Using source: ${primarySource.name} (${primarySource.id})`)
 
-    // Get source bounds
+    // Get source bounds (in Electron display coordinates)
     if (window.electronAPI?.getSourceBounds) {
-      const bounds = await window.electronAPI.getSourceBounds(primarySource.id)
-      if (bounds) {
+      const rawBounds = await window.electronAPI.getSourceBounds(primarySource.id)
+      if (rawBounds) {
+        let bounds = rawBounds
         let scaleFactor = 1
 
         // Get display scale factor for screen sources
@@ -199,27 +212,82 @@ export class RecordingService {
           }
         }
 
-        // Window sources use scaleFactor 1
-        if (!primarySource.id.startsWith('screen:')) {
-          scaleFactor = 1
+        // For window sources, infer scale factor from the display containing the window bounds.
+        // Some native window-bounds implementations may return physical pixels; normalize back to
+        // Electron display coordinates (DIP) so downstream math can consistently apply scaleFactor.
+        if (!primarySource.id.startsWith('screen:') && window.electronAPI?.getScreens) {
+          try {
+            const screens = await window.electronAPI.getScreens()
+            const centerX = bounds.x + bounds.width / 2
+            const centerY = bounds.y + bounds.height / 2
+
+            const containsPoint = (b: { x: number; y: number; width: number; height: number }, x: number, y: number) =>
+              x >= b.x && y >= b.y && x < b.x + b.width && y < b.y + b.height
+
+            // Pass 1: assume bounds are in DIP
+            const dipDisplay = screens?.find((d: { bounds: any }) => d?.bounds && containsPoint(d.bounds, centerX, centerY))
+            if (dipDisplay?.scaleFactor && dipDisplay.scaleFactor > 0) {
+              scaleFactor = dipDisplay.scaleFactor
+            } else {
+              // Pass 2: assume bounds are in physical pixels; try per-display de-scaling
+              const physicalDisplay = screens?.find((d: { bounds: any; scaleFactor?: number }) => {
+                const sf = d?.scaleFactor && d.scaleFactor > 0 ? d.scaleFactor : 1
+                return d?.bounds && containsPoint(d.bounds, centerX / sf, centerY / sf)
+              })
+              const sf = physicalDisplay?.scaleFactor && physicalDisplay.scaleFactor > 0 ? physicalDisplay.scaleFactor : 1
+              if (physicalDisplay?.bounds) {
+                scaleFactor = sf
+                bounds = {
+                  x: bounds.x / sf,
+                  y: bounds.y / sf,
+                  width: bounds.width / sf,
+                  height: bounds.height / sf
+                }
+              }
+            }
+          } catch (_) {
+            // Keep defaults
+          }
+        }
+
+        let effectiveBounds = bounds
+        let sourceType = primarySource.id.startsWith('screen:') ? RecordingSourceType.Screen : RecordingSourceType.Window
+        let sourceId = primarySource.id
+
+        // For area selections, set capture bounds to the selected region (in global display coordinates).
+        if (isAreaSource(settings.sourceId)) {
+          const area = parseAreaSourceId(settings.sourceId!)
+          if (area) {
+            effectiveBounds = {
+              x: bounds.x + area.x,
+              y: bounds.y + area.y,
+              width: area.width,
+              height: area.height
+            }
+            sourceType = RecordingSourceType.Area
+            sourceId = settings.sourceId!
+          }
         }
 
         this.captureArea = {
-          fullBounds: bounds,
-          workArea: bounds,
+          fullBounds: effectiveBounds,
+          workArea: effectiveBounds,
           scaleFactor,
-          sourceType: primarySource.id.startsWith('screen:') ? RecordingSourceType.Screen : RecordingSourceType.Window,
-          sourceId: primarySource.id
+          sourceType,
+          sourceId
         }
 
-        this.captureWidth = Math.round(bounds.width * scaleFactor)
-        this.captureHeight = Math.round(bounds.height * scaleFactor)
+        this.captureWidth = Math.round(effectiveBounds.width * scaleFactor)
+        this.captureHeight = Math.round(effectiveBounds.height * scaleFactor)
       }
     }
 
+    const parsedDisplayId =
+      typeof (primarySource as any).display_id === 'string' ? Number((primarySource as any).display_id) : undefined
+
     return {
       sourceId: primarySource.id,
-      displayId: primarySource.display_id
+      displayId: Number.isFinite(parsedDisplayId) ? parsedDisplayId : undefined
     }
   }
 

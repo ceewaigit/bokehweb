@@ -106,6 +106,15 @@ export function calculateZoomTransform(
       activeBlock.outroMs
     );
 
+  // When zoom scale is near 1, tiny variations in `zoomCenter` (from follow logic) can cause
+  // visible “cut” / snap at the beginning or end of a zoom. Blend the center back to 0.5
+  // as we approach 1x so pan smoothly goes to 0.
+  const zoomStrength = Math.max(0, Math.min(1, (scale - 1) / 0.08));
+  const blendedCenter = {
+    x: 0.5 + (zoomCenter.x - 0.5) * zoomStrength,
+    y: 0.5 + (zoomCenter.y - 0.5) * zoomStrength,
+  };
+
   // IMPORTANT:
   // `zoomCenter` is a CAMERA CENTER (view center) in normalized source space.
   // It can go outside 0-1 when overscan/padding should be revealed.
@@ -114,8 +123,8 @@ export function calculateZoomTransform(
   // so to center the visible window on `zoomCenter`, we translate by:
   //   T = (0.5 - zoomCenter) * size * scale
   // Derived from: x_view_center = 0.5 - T/(size*scale)
-  const panX = Math.abs(scale - 1) < 0.001 ? 0 : (0.5 - zoomCenter.x) * videoWidth * scale;
-  const panY = Math.abs(scale - 1) < 0.001 ? 0 : (0.5 - zoomCenter.y) * videoHeight * scale;
+  const panX = (0.5 - blendedCenter.x) * videoWidth * scale;
+  const panY = (0.5 - blendedCenter.y) * videoHeight * scale;
 
   return {
     scale,
@@ -135,10 +144,6 @@ export function calculateZoomTransform(
  * Now with sub-pixel rounding to prevent jitter
  */
 export function getZoomTransformString(zoomTransform: ZoomState): string {
-  if (Math.abs(zoomTransform.scale - 1) < 0.001) {
-    return '';
-  }
-
   // Round translations to 2 decimal places to prevent sub-pixel jitter
   const translateX = Math.round((zoomTransform.scaleCompensationX + zoomTransform.panX) * 100) / 100;
   const translateY = Math.round((zoomTransform.scaleCompensationY + zoomTransform.panY) * 100) / 100;

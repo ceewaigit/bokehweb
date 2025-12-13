@@ -20,6 +20,7 @@ interface MouseEventData {
   logicalX?: number
   logicalY?: number
   displayBounds?: { x: number; y: number; width: number; height: number }
+  scaleFactor?: number
 }
 
 interface ClickEventData extends MouseEventData {
@@ -51,6 +52,7 @@ export class TrackingService {
   private captureHeight = 0
   private pauseStartTime = 0
   private totalPausedDuration = 0
+  private lastEventTimestamp = -1
 
   // Event listener cleanup functions
   private mouseCleanup: (() => void) | null = null
@@ -84,6 +86,7 @@ export class TrackingService {
     this.metadata = []
     this.writeQueue = []
     this.totalPausedDuration = 0
+    this.lastEventTimestamp = -1
     this.captureArea = captureArea || null
     this.captureWidth = captureWidth || 0
     this.captureHeight = captureHeight || 0
@@ -177,20 +180,22 @@ export class TrackingService {
    * Converts absolute screen coordinates to capture-relative coordinates.
    */
   private toCaptureRelative(x: number, y: number): { rx: number; ry: number; inside: boolean } {
+    // Electron's cursor coordinates are in DIP ("points") in a global coordinate space.
+    // Convert to capture-relative physical pixels using the capture area's fixed scale factor,
+    // which matches the captured video resolution on high-DPI displays.
     const scale = this.captureArea?.scaleFactor || 1
     const bounds = this.captureArea?.fullBounds
 
     if (!bounds) {
-      return { rx: x, ry: y, inside: true }
+      return { rx: x * scale, ry: y * scale, inside: true }
     }
 
-    const originX = bounds.x * scale
-    const originY = bounds.y * scale
-    const rx = x - originX
-    const ry = y - originY
-    const w = this.captureWidth || Math.round(bounds.width * scale)
-    const h = this.captureHeight || Math.round(bounds.height * scale)
-    const inside = rx >= 0 && ry >= 0 && rx < w && ry < h
+    const rxDip = x - bounds.x
+    const ryDip = y - bounds.y
+    const inside = rxDip >= 0 && ryDip >= 0 && rxDip < bounds.width && ryDip < bounds.height
+
+    const rx = rxDip * scale
+    const ry = ryDip * scale
 
     return { rx, ry, inside }
   }
@@ -201,8 +206,16 @@ export class TrackingService {
   private addEvent(event: Partial<ElectronMetadata>): void {
     if (!this.isActive || this.isPaused) return
 
+    // Ensure timestamps are monotonic (Date.now() can repeat within the same ms),
+    // which prevents interpolation glitches and cursor "jitter" on high-frequency sampling.
+    const rawTimestamp = this.getAdjustedTimestamp()
+    const timestamp = rawTimestamp <= this.lastEventTimestamp
+      ? this.lastEventTimestamp + 1
+      : rawTimestamp
+    this.lastEventTimestamp = timestamp
+
     const fullEvent: ElectronMetadata = {
-      timestamp: this.getAdjustedTimestamp(),
+      timestamp,
       ...event
     } as ElectronMetadata
 
@@ -268,8 +281,8 @@ export class TrackingService {
         scaleFactor: this.captureArea?.scaleFactor,
         captureWidth: this.captureWidth,
         captureHeight: this.captureHeight,
-        screenWidth: d.displayBounds?.width,
-        screenHeight: d.displayBounds?.height,
+        screenWidth: d.displayBounds?.width && d.scaleFactor ? d.displayBounds.width * d.scaleFactor : undefined,
+        screenHeight: d.displayBounds?.height && d.scaleFactor ? d.displayBounds.height * d.scaleFactor : undefined,
         logicalX: d.logicalX,
         logicalY: d.logicalY
       })
@@ -290,8 +303,8 @@ export class TrackingService {
         scaleFactor: this.captureArea?.scaleFactor,
         captureWidth: this.captureWidth,
         captureHeight: this.captureHeight,
-        screenWidth: d.displayBounds?.width,
-        screenHeight: d.displayBounds?.height,
+        screenWidth: d.displayBounds?.width && d.scaleFactor ? d.displayBounds.width * d.scaleFactor : undefined,
+        screenHeight: d.displayBounds?.height && d.scaleFactor ? d.displayBounds.height * d.scaleFactor : undefined,
         logicalX: d.logicalX,
         logicalY: d.logicalY
       })
@@ -309,9 +322,10 @@ export class TrackingService {
     })
 
     // Start tracking in main process
-    const sourceType = sourceId.startsWith('screen:') ? 'screen' : 'window'
+    const sourceType = sourceId.startsWith('screen:') ? 'screen' : sourceId.startsWith('area:') ? 'area' : 'window'
     const result = await this.bridge.startMouseTracking({
-      intervalMs: 16,
+      // Higher sampling reduces visible cursor stepping/jitter, especially on high-DPI displays.
+      intervalMs: 8,
       sourceId,
       sourceType
     })
@@ -341,4 +355,3 @@ export class TrackingService {
     logger.info('[TrackingService] Keyboard tracking started')
   }
 }
-

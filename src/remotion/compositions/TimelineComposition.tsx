@@ -18,6 +18,7 @@ import { TimeProvider } from '../context/TimeContext';
 import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
 import { buildFrameLayout } from '@/lib/timeline/frame-layout';
+import { CursorLayer } from './CursorLayer';
 
 export interface TimelineCompositionProps {
   // Timeline data
@@ -104,6 +105,9 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
               />
             );
           })}
+
+          {/* Single, timeline-scoped cursor overlay to prevent clip-boundary flicker/idle reset */}
+          <CursorLayer effects={effects} videoWidth={videoWidth} videoHeight={videoHeight} />
         </SharedVideoController>
       </AbsoluteFill>
     </TimeProvider>

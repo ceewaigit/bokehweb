@@ -73,6 +73,51 @@ export function registerRecordingHandlers(): void {
     }
   })
 
+  ipcMain.handle('delete-recording-project', async (_event: IpcMainInvokeEvent, projectFilePath: string) => {
+    try {
+      if (!projectFilePath || typeof projectFilePath !== 'string') {
+        return { success: false, error: 'Invalid path' }
+      }
+
+      const recordingsDir = path.resolve(getRecordingsDirectory())
+      const resolvedProjectFile = path.resolve(projectFilePath)
+
+      if (!resolvedProjectFile.endsWith('.ssproj')) {
+        return { success: false, error: 'Not a project file' }
+      }
+
+      // Ensure the target is within the recordings directory.
+      const within = (candidate: string, base: string) => {
+        const rel = path.relative(base, candidate)
+        return rel && !rel.startsWith('..') && !path.isAbsolute(rel)
+      }
+
+      if (!within(resolvedProjectFile, recordingsDir)) {
+        return { success: false, error: 'Path outside recordings directory' }
+      }
+
+      // Folder-based project layout: delete the project folder, but never the recordings root.
+      const projectFolder = path.dirname(resolvedProjectFile)
+
+      if (projectFolder === recordingsDir) {
+        // Safety fallback: only remove the .ssproj file if it lives at the root.
+        await fs.unlink(resolvedProjectFile)
+        return { success: true }
+      }
+
+      if (!within(projectFolder, recordingsDir)) {
+        return { success: false, error: 'Invalid project folder' }
+      }
+
+      await fs.rm(projectFolder, { recursive: true, force: true })
+      return { success: true }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('[Recording] Failed to delete project:', errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  })
+
   // ========== NEW STREAMING HANDLERS ==========
   
   // Create a temporary recording file and return its path

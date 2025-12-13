@@ -276,8 +276,8 @@ function downsampleMouseEvents(
   const eventsPerSecond = (events.length / durationMs) * 1000
   // Export jitter can appear if we over-downsample mouse input while zoom-following.
   // Keep raw events unless they're extremely dense/large.
-  const maxAllowedEps = Math.max(fps * 4, 120) // allow typical ~80-90Hz captures
-  const maxAllowedTotal = 8000               // avoid memory blowups on long recordings
+  const maxAllowedEps = Math.max(fps * 8, 240) // allow 120-144Hz+ captures
+  const maxAllowedTotal = 50000                // avoid memory blowups on very long recordings
   if (eventsPerSecond <= maxAllowedEps || events.length <= maxAllowedTotal) {
     return events
   }

@@ -261,6 +261,9 @@ const electronAPI = {
   loadRecordings: () =>
     ipcRenderer.invoke('load-recordings'),
 
+  deleteRecordingProject: (projectFilePath: string) =>
+    ipcRenderer.invoke('delete-recording-project', projectFilePath),
+
   // Streaming recording handlers
   createTempRecordingFile: (extension?: string) =>
     ipcRenderer.invoke('create-temp-recording-file', extension),

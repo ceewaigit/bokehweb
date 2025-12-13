@@ -148,13 +148,22 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
 
     setLoadingParallaxPresets(true)
     const maybeElectron = window.electronAPI?.listParallaxPresets
-    const loader = maybeElectron ? maybeElectron() : Promise.resolve(buildFallbackPresets())
+    const electronLoader = maybeElectron ? maybeElectron() : Promise.resolve(buildFallbackPresets())
+
+    // Add timeout to prevent infinite loading - fallback to defaults after 3s
+    const timeoutPromise = new Promise<ParallaxPreset[]>((resolve) => {
+      setTimeout(() => resolve(buildFallbackPresets()), 3000)
+    })
+
+    const loader = Promise.race([electronLoader, timeoutPromise])
 
     loader
       .then((presets) => {
         const sanitized = (presets || []).filter(p => p.files?.length)
-        setParallaxPresets(sanitized)
-        setSelectedParallaxPresetId(prev => prev ?? pickDefaultPresetId(sanitized))
+        // If we got empty results or timed out, use fallback
+        const finalPresets = sanitized.length > 0 ? sanitized : buildFallbackPresets()
+        setParallaxPresets(finalPresets)
+        setSelectedParallaxPresetId(prev => prev ?? pickDefaultPresetId(finalPresets))
       })
       .catch(() => {
         const fallback = buildFallbackPresets()
@@ -439,7 +448,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   : "bg-primary/10 hover:bg-primary/20 text-primary"
               )}
             >
-              {loadingParallaxPresets ? 'Loading…' : bgData?.type === BackgroundType.Parallax ? 'Parallax Active' : 'Apply Parallax'}
+              {bgData?.type === BackgroundType.Parallax ? 'Parallax Active' : 'Apply Parallax'}
             </button>
 
             {/* Intensity Slider - only show when parallax is active */}
@@ -641,9 +650,9 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     onValueCommit={([value]) => onUpdateBackground({ blur: value })}
                     min={1}
                     max={50}
-                  step={1}
-                  className="w-full"
-                />
+                    step={1}
+                    className="w-full"
+                  />
                   <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{bgData.blur}px</span>
                 </div>
               )}

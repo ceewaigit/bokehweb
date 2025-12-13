@@ -65,6 +65,7 @@ export interface ElectronAPI {
     timestamp: string | Date
     size?: number
   }>>
+  deleteRecordingProject?: (projectFilePath: string) => Promise<{ success: boolean; error?: string }>
   readLocalFile?: (absolutePath: string) => Promise<{ success: boolean; data?: ArrayBuffer; error?: string }>
   getFileSize?: (filePath: string) => Promise<{ success: boolean; data?: { size: number }; error?: string }>
   getVideoUrl?: (filePath: string) => Promise<string | null>

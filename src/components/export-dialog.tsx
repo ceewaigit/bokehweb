@@ -240,7 +240,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
           `}</style>
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+          <div className="flex items-center justify-between px-5 py-2 border-b border-border/50">
             <h2 className="text-sm font-semibold text-foreground">Export</h2>
             <button
               onClick={onClose}
@@ -317,6 +317,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
               // Fun loading messages that rotate based on progress
               const funMessages = [
                 'Brewing your pixels...',
+                'Cooking up some bytes...',
                 'Convincing frames to cooperate...',
                 'Teaching bytes to dance...',
                 'Polishing each frame...',
@@ -326,6 +327,8 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
                 'Compressing with care...',
                 'Frame by frame...',
                 'Working on it...',
+                'Finishing touches...',
+                'Finishing...',
               ]
               const messageIndex = Math.floor((progress.progress / 100) * (funMessages.length - 1))
               const funMessage = funMessages[Math.min(messageIndex, funMessages.length - 1)]
@@ -409,7 +412,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-4 border-t border-border/50 flex justify-end gap-2">
+          <div className="px-5 py-2 border-t border-border/50 flex justify-end gap-2">
             <Button
               variant="ghost"
               size="sm"

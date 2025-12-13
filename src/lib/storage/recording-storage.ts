@@ -5,7 +5,7 @@
 
 import { logger } from '@/lib/utils/logger'
 import type { Project, Recording, Clip, CaptureArea, Effect, ZoomEffectData, BackgroundEffectData, CursorEffectData } from '@/types/project'
-import { TrackType, EffectType, ExportFormat, QualityLevel, RecordingSourceType } from '@/types/project'
+import { TrackType, EffectType, ExportFormat, QualityLevel, RecordingSourceType, ZoomFollowStrategy } from '@/types/project'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 export class RecordingStorage {
@@ -591,6 +591,47 @@ export class RecordingStorage {
           logger.info('⚠️ No keyboard events detected - skipping keystroke effect')
         } else {
           logger.info('ℹ️ Keystroke effect already exists - skipping creation')
+        }
+      }
+
+      // Auto-generate zoom effects from mouse events (enabled by default)
+      if (mouseEvents.length > 0) {
+        const { ZoomDetector } = await import('@/lib/effects/utils/zoom-detector')
+        const zoomDetector = new ZoomDetector()
+        const zoomBlocks = zoomDetector.detectZoomBlocks(
+          mouseEvents,
+          width,
+          height,
+          duration
+        )
+
+        if (zoomBlocks.length > 0) {
+          logger.info(`✅ Auto-generating ${zoomBlocks.length} zoom effects from mouse activity`)
+
+          zoomBlocks.forEach((block, index) => {
+            const zoomEffect: Effect = {
+              id: `zoom-auto-${Date.now()}-${index}`,
+              type: EffectType.Zoom,
+              // For a new recording, clip starts at 0, so timeline time = source time
+              startTime: block.startTime,
+              endTime: block.endTime,
+              enabled: true,
+              data: {
+                scale: block.scale,
+                targetX: block.targetX,
+                targetY: block.targetY,
+                screenWidth: block.screenWidth,
+                screenHeight: block.screenHeight,
+                introMs: block.introMs || 400,
+                outroMs: block.outroMs || 500,
+                smoothing: 0.85,
+                followStrategy: ZoomFollowStrategy.Mouse
+              } as ZoomEffectData
+            }
+            project.timeline.effects!.push(zoomEffect)
+          })
+        } else {
+          logger.info('ℹ️ No zoom blocks detected from mouse activity')
         }
       }
 

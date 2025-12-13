@@ -39,7 +39,7 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
     // Calculate total timeline duration (max end time of any clip)
     const totalDurationMs = Math.max(...clips.map((c) => c.startTime + c.duration));
 
-    // Get fps from first recording (assume all recordings have same fps)
+    // Get fps from project settings (preferred) or first recording.
     const firstClip = clips[0];
     const firstRecording = project.recordings.find((r) => r.id === firstClip.recordingId);
 
@@ -47,7 +47,10 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
       return null;
     }
 
-    const fps = 30; // Default fps
+    const fps =
+      project.settings?.frameRate ||
+      firstRecording.frameRate ||
+      60;
 
     // Calculate duration in frames using frame layout to avoid rounding gaps.
     const frameLayout = buildFrameLayout(clips, fps);

@@ -19,9 +19,12 @@ export function getActiveClipDataAtFrame(args: {
   if (!frameLayout || frameLayout.length === 0) return null
 
   // Boundary preference: if frame equals a clip start, return that clip.
+  // For the last clip, include the endFrame to avoid black frame at the very end.
   let layoutItem =
     frameLayout.find(item => frame === item.startFrame) ??
     frameLayout.find(item => frame >= item.startFrame && frame < item.endFrame) ??
+    // Include exact endFrame match for last clip to show final frame
+    frameLayout.find(item => frame === item.endFrame && item === frameLayout[frameLayout.length - 1]) ??
     null
 
   // If no clip at current position, find the nearest one to prevent black frame
@@ -58,7 +61,9 @@ export function getActiveClipDataAtFrame(args: {
 
   const clipStartFrame = layoutItem.startFrame ?? Math.round((clip.startTime / 1000) * fps)
   const clipDurationFrames = layoutItem.durationFrames ?? Math.max(1, Math.round((clip.duration / 1000) * fps))
-  const clipElapsedFrames = Math.max(0, Math.min(frame - clipStartFrame, clipDurationFrames))
+  // Clamp elapsed frames: for the last frame, allow reaching the full duration
+  // This ensures the video shows its final frame at the end of the timeline
+  const clipElapsedFrames = Math.max(0, Math.min(frame - clipStartFrame, clipDurationFrames - 1))
   const clipElapsedMs = (clipElapsedFrames / fps) * 1000
   const sourceTimeMs = (clip.sourceIn || 0) + clipElapsedMs * (clip.playbackRate || 1)
 

@@ -92,11 +92,24 @@
             // Set full pixel resolution for the target display
             size_t pixelWidth = 0;
             size_t pixelHeight = 0;
+            size_t pointWidth = 0;
+            size_t pointHeight = 0;
             CGDisplayModeRef mode = CGDisplayCopyDisplayMode(displayID);
             if (mode) {
+                pointWidth = CGDisplayModeGetWidth(mode);
+                pointHeight = CGDisplayModeGetHeight(mode);
                 pixelWidth = CGDisplayModeGetPixelWidth(mode);
                 pixelHeight = CGDisplayModeGetPixelHeight(mode);
                 CFRelease(mode);
+            }
+
+            // Compute backing scale (pixel / point) for HiDPI displays.
+            CGFloat backingScale = 1.0;
+            if (pointWidth > 0 && pointHeight > 0 && pixelWidth > 0 && pixelHeight > 0) {
+                const CGFloat sx = (CGFloat)pixelWidth / (CGFloat)pointWidth;
+                const CGFloat sy = (CGFloat)pixelHeight / (CGFloat)pointHeight;
+                // Prefer symmetric scaling; fall back to X if they differ.
+                backingScale = (fabs(sx - sy) < 0.01) ? sx : sx;
             }
             
             if (pixelWidth == 0 || pixelHeight == 0) {
@@ -107,10 +120,17 @@
             
             // Apply source rect if specified (for region capture)
             if (!CGRectIsNull(self.sourceRect)) {
-                config.width = (size_t)self.sourceRect.size.width;
-                config.height = (size_t)self.sourceRect.size.height;
-                config.sourceRect = self.sourceRect;
-                NSLog(@"Region capture: %@", NSStringFromRect(NSRectFromCGRect(self.sourceRect)));
+                CGRect sourceRectPx = CGRectMake(
+                    self.sourceRect.origin.x * backingScale,
+                    self.sourceRect.origin.y * backingScale,
+                    self.sourceRect.size.width * backingScale,
+                    self.sourceRect.size.height * backingScale
+                );
+
+                config.width = (size_t)sourceRectPx.size.width;
+                config.height = (size_t)sourceRectPx.size.height;
+                config.sourceRect = sourceRectPx;
+                NSLog(@"Region capture (points): %@ -> (pixels): %@", NSStringFromRect(NSRectFromCGRect(self.sourceRect)), NSStringFromRect(NSRectFromCGRect(sourceRectPx)));
             } else {
                 config.width = pixelWidth;
                 config.height = pixelHeight;
@@ -284,18 +304,66 @@
             // Use the window's frame size
             CGFloat windowWidth = targetWindow.frame.size.width;
             CGFloat windowHeight = targetWindow.frame.size.height;
-            
+
             // Ensure minimum size
             if (windowWidth < 100) windowWidth = 100;
             if (windowHeight < 100) windowHeight = 100;
+
+            // Derive backing scale for the window so cursor coordinates (tracked in physical pixels)
+            // align with the recorded video dimensions.
+            CGFloat backingScale = 1.0;
+            CGRect windowBounds = CGRectNull;
+            CFArrayRef windowInfoArray = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, windowID);
+            if (windowInfoArray) {
+                NSArray *infoArray = (__bridge_transfer NSArray *)windowInfoArray;
+                NSDictionary *info = infoArray.firstObject;
+                NSDictionary *boundsDict = info[(id)kCGWindowBounds];
+                if (boundsDict) {
+                    CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)boundsDict, &windowBounds);
+                }
+            }
+
+            if (!CGRectIsNull(windowBounds) && windowWidth > 0 && windowHeight > 0) {
+                const CGFloat sx = windowBounds.size.width / windowWidth;
+                const CGFloat sy = windowBounds.size.height / windowHeight;
+                if (sx > 0.5 && sx < 4.0 && sy > 0.5 && sy < 4.0) {
+                    backingScale = (fabs(sx - sy) < 0.05) ? sx : sx;
+                }
+            } else {
+                // Fallback: infer from the display mode.
+                CGPoint center = CGPointMake(CGRectGetMidX(targetWindow.frame), CGRectGetMidY(targetWindow.frame));
+                CGDirectDisplayID displayID = CGMainDisplayID();
+                uint32_t displayCount = 0;
+                CGDirectDisplayID displays[8];
+                if (CGGetDisplaysWithPoint(center, 8, displays, &displayCount) == kCGErrorSuccess && displayCount > 0) {
+                    displayID = displays[0];
+                }
+
+                CGDisplayModeRef mode = CGDisplayCopyDisplayMode(displayID);
+                if (mode) {
+                    const size_t ptW = CGDisplayModeGetWidth(mode);
+                    const size_t ptH = CGDisplayModeGetHeight(mode);
+                    const size_t pxW = CGDisplayModeGetPixelWidth(mode);
+                    const size_t pxH = CGDisplayModeGetPixelHeight(mode);
+                    if (ptW > 0 && ptH > 0 && pxW > 0 && pxH > 0) {
+                        const CGFloat sx = (CGFloat)pxW / (CGFloat)ptW;
+                        const CGFloat sy = (CGFloat)pxH / (CGFloat)ptH;
+                        backingScale = (fabs(sx - sy) < 0.01) ? sx : sx;
+                    }
+                    CFRelease(mode);
+                }
+            }
+
+            const size_t windowPixelWidth = (size_t)llround(windowWidth * backingScale);
+            const size_t windowPixelHeight = (size_t)llround(windowHeight * backingScale);
             
-            config.width = (size_t)windowWidth;
-            config.height = (size_t)windowHeight;
+            config.width = windowPixelWidth;
+            config.height = windowPixelHeight;
             config.minimumFrameInterval = CMTimeMake(1, 60); // 60 fps
             config.pixelFormat = kCVPixelFormatType_32BGRA;
             config.showsCursor = NO;  // Hide cursor
             config.backgroundColor = NSColor.clearColor.CGColor;
-            config.scalesToFit = YES;  // Scale to fit window
+            config.scalesToFit = NO;
             config.queueDepth = 5;
             
             // Configure audio capture (macOS 13.0+)
@@ -305,7 +373,7 @@
                 config.channelCount = 2;
             }
             
-            NSLog(@"Window recording configured: %.0fx%.0f", windowWidth, windowHeight);
+            NSLog(@"Window recording configured: %.0fx%.0f pts -> %zux%zu px (scale: %.2f)", windowWidth, windowHeight, windowPixelWidth, windowPixelHeight, backingScale);
             
             // Setup asset writer (reuse the same setup as display recording)
             NSError *writerError = nil;

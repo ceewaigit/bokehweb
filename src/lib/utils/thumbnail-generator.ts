@@ -215,6 +215,19 @@ export class ThumbnailGenerator {
   }
 
   /**
+   * Read from cache without generating (for fast UI hydration).
+   */
+  static getCachedThumbnail(cacheKey: string): string | null {
+    const data = this.cache.get(cacheKey) ?? null
+    if (!data) return null
+
+    // Refresh LRU order
+    this.cache.delete(cacheKey)
+    this.cache.set(cacheKey, data)
+    return data
+  }
+
+  /**
    * Get cache statistics
    */
   static getCacheStats() {

@@ -62,7 +62,32 @@ export function interpolateMousePosition(
   const p3 = mouseEvents[Math.min(mouseEvents.length - 1, i + 2)]
 
   const segmentDuration = p2.timestamp - p1.timestamp
-  const t = segmentDuration > 0 ? (timeMs - p1.timestamp) / segmentDuration : 0
+  // Extremely small/zero segment durations can cause splines to behave poorly.
+  if (segmentDuration < 1) {
+    return simpleInterpolate(mouseEvents, timeMs)
+  }
+
+  // For very small movements (common when the cursor "stops" on high-DPI displays),
+  // Catmull-Rom can introduce visible wiggle due to noise/quantization. Prefer simple interpolation.
+  const segDx = p2.x - p1.x
+  const segDy = p2.y - p1.y
+  const segDist = Math.sqrt(segDx * segDx + segDy * segDy)
+  if (segDist < 3) {
+    return simpleInterpolate(mouseEvents, timeMs)
+  }
+
+  // If local direction reverses (noisy samples), splines can overshoot/oscillate.
+  // Fall back to simple interpolation for stability.
+  const v01x = p1.x - p0.x
+  const v01y = p1.y - p0.y
+  const v12x = p2.x - p1.x
+  const v12y = p2.y - p1.y
+  const dot = v01x * v12x + v01y * v12y
+  if (dot < 0) {
+    return simpleInterpolate(mouseEvents, timeMs)
+  }
+
+  const t = (timeMs - p1.timestamp) / segmentDuration
 
   // Catmull-Rom spline coefficients
   const t2 = t * t
@@ -70,11 +95,21 @@ export function interpolateMousePosition(
 
   const v0x = (p2.x - p0.x) * 0.5
   const v1x = (p3.x - p1.x) * 0.5
-  const x = p1.x + v0x * t + (3 * (p2.x - p1.x) - 2 * v0x - v1x) * t2 + (2 * (p1.x - p2.x) + v0x + v1x) * t3
+  const xRaw = p1.x + v0x * t + (3 * (p2.x - p1.x) - 2 * v0x - v1x) * t2 + (2 * (p1.x - p2.x) + v0x + v1x) * t3
 
   const v0y = (p2.y - p0.y) * 0.5
   const v1y = (p3.y - p1.y) * 0.5
-  const y = p1.y + v0y * t + (3 * (p2.y - p1.y) - 2 * v0y - v1y) * t2 + (2 * (p1.y - p2.y) + v0y + v1y) * t3
+  const yRaw = p1.y + v0y * t + (3 * (p2.y - p1.y) - 2 * v0y - v1y) * t2 + (2 * (p1.y - p2.y) + v0y + v1y) * t3
+
+  // Prevent overshoot that can manifest as visible "jitter" on quantized/noisy inputs.
+  // Clamp to the segment bounding box between p1 and p2.
+  const minX = Math.min(p1.x, p2.x)
+  const maxX = Math.max(p1.x, p2.x)
+  const minY = Math.min(p1.y, p2.y)
+  const maxY = Math.max(p1.y, p2.y)
+
+  const x = Math.max(minX, Math.min(maxX, xRaw))
+  const y = Math.max(minY, Math.min(maxY, yRaw))
 
   return { x, y }
 }
