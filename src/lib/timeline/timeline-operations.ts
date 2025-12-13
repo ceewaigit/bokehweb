@@ -413,35 +413,23 @@ export function duplicateClipInTrack(
   if (!result) return null
 
   const { clip, track } = result
-  let desiredStartTime = clip.startTime + clip.duration
-
-  const wouldOverlap = track.clips.some(otherClip => {
-    const otherEnd = otherClip.startTime + otherClip.duration
-    const newEnd = desiredStartTime + clip.duration
-    return (desiredStartTime < otherEnd && newEnd > otherClip.startTime)
-  })
-
-  if (wouldOverlap) {
-    const sortedClips = [...track.clips].sort((a, b) =>
-      (a.startTime + a.duration) - (b.startTime + b.duration)
-    )
-    const lastClip = sortedClips[sortedClips.length - 1]
-    if (lastClip) {
-      desiredStartTime = lastClip.startTime + lastClip.duration
-    }
-  }
+  const sourceIndex = track.clips.findIndex(c => c.id === clipId)
+  if (sourceIndex === -1) return null
 
   const newClip: Clip = {
     ...clip,
     id: `${clip.id}-copy-${Date.now()}`,
-    startTime: desiredStartTime
+    // Reflow will compute final startTimes based on array order.
+    startTime: clip.startTime + clip.duration
   }
 
-  track.clips.push(newClip)
-  project.timeline.duration = Math.max(
-    project.timeline.duration,
-    newClip.startTime + newClip.duration
-  )
+  // Insert directly after the source clip (array order is the source of truth).
+  track.clips.splice(sourceIndex + 1, 0, newClip)
+
+  // Reflow from the insertion point to keep clips contiguous and visible.
+  reflowClips(track, sourceIndex + 1, { skipSort: true })
+
+  project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return newClip
 }
@@ -458,6 +446,10 @@ export function restoreClipToTrack(
 
   const insertIndex = Math.max(0, Math.min(index, track.clips.length))
   track.clips.splice(insertIndex, 0, clip)
+
+  // Restoring a clip changes array order; reflow to maintain contiguous layout.
+  reflowClips(track, insertIndex, { skipSort: true })
+
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return true

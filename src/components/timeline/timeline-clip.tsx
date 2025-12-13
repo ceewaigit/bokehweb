@@ -226,8 +226,7 @@ export const TimelineClip = React.memo(({
   // Handle applying typing speed suggestions
   const handleApplyTypingSuggestion = async (period: TypingPeriod) => {
     try {
-      const store = useProjectStore.getState()
-      const context = new DefaultCommandContext(store)
+      const context = new DefaultCommandContext(useProjectStore)
       const command = new ApplyTypingSpeedCommand(context, clip.id, [period])
 
       // Execute through command manager for undo/redo support
@@ -252,8 +251,7 @@ export const TimelineClip = React.memo(({
 
     try {
       // Apply typing speed to ALL clips in the timeline (not just this one)
-      const store = useProjectStore.getState()
-      const context = new DefaultCommandContext(store)
+      const context = new DefaultCommandContext(useProjectStore)
       const command = new ApplyTypingSpeedToAllClipsCommand(context, 'Apply typing speed-up to all clips')
 
       // Execute through command manager for undo/redo support

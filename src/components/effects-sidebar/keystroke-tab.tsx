@@ -19,11 +19,9 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
 
   return (
     <div className="space-y-4">
-
-
       {/* Master keystroke visibility toggle */}
-      <div className="p-3 bg-background/30 rounded-lg">
-        <label className="flex items-center justify-between">
+      <div className="p-4 bg-background/40 rounded-xl">
+        <label className="flex items-center justify-between cursor-pointer">
           <span className="text-xs">Show Keystrokes</span>
           <Switch
             checked={keystrokeEffect?.enabled ?? false}
@@ -44,7 +42,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
       {/* Keystroke settings */}
       {keystrokeEffect?.enabled && (
         <div className="space-y-3">
-          <div className="p-3 bg-background/30 rounded-lg space-y-2">
+          <div className="p-4 bg-background/40 rounded-xl space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Position</label>
             <div className="grid grid-cols-3 gap-1">
               {([KeystrokePosition.BottomCenter, KeystrokePosition.BottomRight, KeystrokePosition.TopCenter] as const).map((pos) => (
@@ -64,7 +62,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             </div>
           </div>
 
-          <div className="p-3 bg-background/30 rounded-lg space-y-2">
+          <div className="p-4 bg-background/40 rounded-xl space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Font Size</label>
             <Slider
               value={[keystrokeData?.fontSize ?? DEFAULT_KEYSTROKE_DATA.fontSize!]}
@@ -78,7 +76,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
             <span className="text-[10px] text-muted-foreground/70 font-mono">{keystrokeData?.fontSize ?? DEFAULT_KEYSTROKE_DATA.fontSize!}px</span>
           </div>
 
-          <div className="p-3 bg-background/30 rounded-lg space-y-2">
+          <div className="p-4 bg-background/40 rounded-xl space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Fade Duration</label>
             <Slider
               value={[(keystrokeData?.fadeOutDuration ?? DEFAULT_KEYSTROKE_DATA.fadeOutDuration!) / 100]}

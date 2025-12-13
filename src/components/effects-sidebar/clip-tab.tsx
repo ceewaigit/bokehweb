@@ -102,20 +102,17 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
 
   return (
     <div className="space-y-6">
-      <div>
-
-        <div className="space-y-1">
-          <div className="text-xs text-muted-foreground">Clip ID: {selectedClip.id.slice(0, 8)}...</div>
-          <div className="text-xs text-muted-foreground">
-            Duration: {effectiveDuration.toFixed(2)}s
-            {selectedClip.playbackRate && selectedClip.playbackRate !== 1.0 && (
-              <span className="ml-1 text-orange-500">({selectedClip.playbackRate}x speed)</span>
-            )}
-          </div>
+      <div className="p-4 bg-background/40 rounded-xl space-y-1">
+        <div className="text-xs text-muted-foreground">Clip ID: {selectedClip.id.slice(0, 8)}...</div>
+        <div className="text-xs text-muted-foreground">
+          Duration: {effectiveDuration.toFixed(2)}s
+          {selectedClip.playbackRate && selectedClip.playbackRate !== 1.0 && (
+            <span className="ml-1 text-orange-500">({selectedClip.playbackRate}x speed)</span>
+          )}
         </div>
       </div>
 
-      <div className="space-y-4">
+      <div className="p-4 bg-background/40 rounded-xl space-y-4">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-medium text-foreground">Playback Speed</h4>
           <div className="flex items-center gap-2">

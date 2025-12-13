@@ -503,7 +503,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             <h4 className="text-xs font-medium text-muted-foreground">Select Color</h4>
 
             {/* Color picker - streamlined single section */}
-            <div className="flex gap-2 items-center p-3 bg-background/30 rounded-lg">
+            <div className="flex gap-2 items-center p-4 bg-background/40 rounded-xl">
               <input
                 type="color"
                 value={bgData?.type === BackgroundType.Color ? (bgData?.color || '#000000') : '#000000'}
@@ -619,8 +619,8 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {(backgroundType === BackgroundType.Wallpaper || backgroundType === BackgroundType.Image) && (
           <div className="space-y-3 mt-4 pt-4 border-t border-border/30">
             <h4 className="text-xs font-medium text-muted-foreground">Background Blur</h4>
-            <div className="p-3 bg-background/30 rounded-lg space-y-3">
-              <label className="flex items-center justify-between">
+            <div className="p-4 bg-background/40 rounded-xl space-y-3">
+              <label className="flex items-center justify-between cursor-pointer">
                 <span className="text-xs">Enable Blur</span>
                 <Switch
                   checked={bgData?.blur ? bgData.blur > 0 : false}

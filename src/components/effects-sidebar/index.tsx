@@ -136,7 +136,7 @@ export function EffectsSidebar({
       {/* Right content area */}
       <div className="flex-1 min-w-0 flex flex-col bg-transparent">
         {/* Header */}
-        <div className="h-14 flex items-center px-6 border-b border-border/40 bg-transparent sticky top-0 z-10">
+        <div className="h-14 flex items-center px-5 border-b border-border/40 bg-transparent sticky top-0 z-10">
           <h2 className="text-sm font-semibold tracking-tight">
             {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
           </h2>
@@ -153,8 +153,8 @@ export function EffectsSidebar({
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 custom-scrollbar">
-          <div className="max-w-md mx-auto w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-6 custom-scrollbar">
+          <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {activeTab === SidebarTabId.Background && (
               <BackgroundTab
                 backgroundEffect={backgroundEffect}

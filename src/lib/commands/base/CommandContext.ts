@@ -18,27 +18,36 @@ export interface CommandContext {
   getStore(): ProjectStore
 }
 
+type ProjectStoreAccessor = { getState: () => ProjectStore }
+
 export class DefaultCommandContext implements CommandContext {
-  constructor(private store: ProjectStore) {}
+  constructor(private storeOrAccessor: ProjectStore | ProjectStoreAccessor) {}
+
+  private getState(): ProjectStore {
+    if (typeof (this.storeOrAccessor as ProjectStoreAccessor).getState === 'function') {
+      return (this.storeOrAccessor as ProjectStoreAccessor).getState()
+    }
+    return this.storeOrAccessor as ProjectStore
+  }
 
   getProject(): Project | null {
-    return this.store.currentProject
+    return this.getState().currentProject
   }
 
   getCurrentTime(): number {
-    return this.store.currentTime
+    return this.getState().currentTime
   }
 
   getSelectedClips(): string[] {
-    return this.store.selectedClips
+    return this.getState().selectedClips
   }
 
   getSelectedEffectLayer() {
-    return this.store.selectedEffectLayer
+    return this.getState().selectedEffectLayer
   }
 
   getClipboard() {
-    return this.store.clipboard
+    return this.getState().clipboard
   }
 
   findClip(clipId: string): { clip: Clip; track: Track } | null {
@@ -60,7 +69,7 @@ export class DefaultCommandContext implements CommandContext {
   }
 
   getStore(): ProjectStore {
-    return this.store
+    return this.getState()
   }
 }
 

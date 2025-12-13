@@ -192,7 +192,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
 
   // Extract values from cursor state
   const cursorType = cursorState.type;
-  const cursorPosition = cursorState.visible ? { x: cursorState.x, y: cursorState.y } : null;
+  const cursorPosition = cursorState.opacity > 0 ? { x: cursorState.x, y: cursorState.y } : null;
 
   // Calculate click animation scale from cursor state
   const clickScale = useMemo(() => {
@@ -350,7 +350,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     const trails = [];
 
     for (let i = 1; i <= trailCount; i++) {
-      const opacity = 0.08 * (1 - i / (trailCount + 1)); // Subtler opacity
+      const opacity = cursorState.opacity * (0.08 * (1 - i / (trailCount + 1))); // Subtler opacity
       const offset = i * 4; // Slightly larger spacing
       const offsetX = -Math.cos(motionVelocity.angle * Math.PI / 180) * offset;
       const offsetY = -Math.sin(motionVelocity.angle * Math.PI / 180) * offset;
@@ -378,12 +378,12 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     }
 
     return trails;
-  }, [motionVelocity, cursorX, cursorY, cursorType, renderedWidth, renderedHeight, hotspot, clickScale]);
+  }, [motionVelocity, cursorX, cursorY, cursorType, renderedWidth, renderedHeight, hotspot, clickScale, cursorData, cursorState.opacity]);
 
   // Don't unmount when hidden - keep component mounted to prevent blinking
   // Instead, return transparent AbsoluteFill
   // Check if effect is enabled AND if cursor should be visible based on idle/position
-  const shouldShowCursor = cursorEffect?.enabled !== false && cursorData && cursorState.visible && cursorPosition;
+  const shouldShowCursor = cursorEffect?.enabled !== false && cursorData && cursorPosition;
 
   if (!shouldShowCursor) {
     return <AbsoluteFill style={{ opacity: 0, pointerEvents: 'none' }} />;
@@ -405,6 +405,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
           height: renderedHeight,
           transform: `scale(${clickScale})`,
           transformOrigin: `${hotspot.x * renderedWidth}px ${hotspot.y * renderedHeight}px`,
+          opacity: cursorState.opacity,
           zIndex: 100,
           pointerEvents: 'none',
           filter: motionBlurFilter,

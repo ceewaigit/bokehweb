@@ -269,8 +269,7 @@ export function WorkspaceManager() {
 
   // Initialize command manager
   useEffect(() => {
-    const store = useProjectStore.getState()
-    commandContextRef.current = new DefaultCommandContext(store)
+    commandContextRef.current = new DefaultCommandContext(useProjectStore)
     commandManagerRef.current = CommandManager.getInstance(commandContextRef.current)
   }, [])
 
@@ -303,8 +302,7 @@ export function WorkspaceManager() {
   // Effects for preview are derived per-clip inside PreviewAreaRemotion
   const handleZoomBlockUpdate = useCallback((blockId: string, updates: Partial<ZoomBlock>) => {
     if (commandManagerRef.current) {
-      const currentStore = useProjectStore.getState()
-      const freshContext = new DefaultCommandContext(currentStore)
+      const freshContext = new DefaultCommandContext(useProjectStore)
       const command = new UpdateZoomBlockCommand(freshContext, blockId, updates)
       commandManagerRef.current.execute(command)
     }

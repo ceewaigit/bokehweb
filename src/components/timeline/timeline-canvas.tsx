@@ -176,8 +176,7 @@ export function TimelineCanvas({
   const commandManagerRef = useRef<CommandManager | null>(null)
 
   useEffect(() => {
-    const store = useProjectStore.getState()
-    const ctx = new DefaultCommandContext(store)
+    const ctx = new DefaultCommandContext(useProjectStore)
     commandManagerRef.current = CommandManager.getInstance(ctx)
   }, [])
 
@@ -254,7 +253,7 @@ export function TimelineCanvas({
     const manager = commandManagerRef.current
     if (!manager) return
 
-    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const freshContext = new DefaultCommandContext(useProjectStore)
     const command = new UpdateClipCommand(
       freshContext,
       clipId,
@@ -270,7 +269,7 @@ export function TimelineCanvas({
   const handleSplit = useCallback(async () => {
     const manager = commandManagerRef.current
     if (selectedClips.length === 1 && manager) {
-      const freshContext = new DefaultCommandContext(useProjectStore.getState())
+      const freshContext = new DefaultCommandContext(useProjectStore)
       const command = new SplitClipCommand(
         freshContext,
         selectedClips[0],
@@ -283,7 +282,7 @@ export function TimelineCanvas({
   const handleTrimStart = useCallback(async () => {
     const manager = commandManagerRef.current
     if (selectedClips.length === 1 && manager) {
-      const freshContext = new DefaultCommandContext(useProjectStore.getState())
+      const freshContext = new DefaultCommandContext(useProjectStore)
       const command = new TrimCommand(
         freshContext,
         selectedClips[0],
@@ -297,7 +296,7 @@ export function TimelineCanvas({
   const handleTrimEnd = useCallback(async () => {
     const manager = commandManagerRef.current
     if (selectedClips.length === 1 && manager) {
-      const freshContext = new DefaultCommandContext(useProjectStore.getState())
+      const freshContext = new DefaultCommandContext(useProjectStore)
       const command = new TrimCommand(
         freshContext,
         selectedClips[0],
@@ -318,7 +317,7 @@ export function TimelineCanvas({
     }
 
     for (const clipId of selectedClips) {
-      const freshContext = new DefaultCommandContext(useProjectStore.getState())
+      const freshContext = new DefaultCommandContext(useProjectStore)
       const command = new RemoveClipCommand(freshContext, clipId)
       await manager.execute(command)
     }
@@ -333,7 +332,7 @@ export function TimelineCanvas({
   const handleDuplicate = useCallback(async () => {
     const manager = commandManagerRef.current
     if (selectedClips.length === 1 && manager) {
-      const freshContext = new DefaultCommandContext(useProjectStore.getState())
+      const freshContext = new DefaultCommandContext(useProjectStore)
       const command = new DuplicateClipCommand(
         freshContext,
         selectedClips[0]
@@ -346,7 +345,7 @@ export function TimelineCanvas({
   const handleClipSplit = useCallback(async (clipId: string) => {
     const manager = commandManagerRef.current
     if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const freshContext = new DefaultCommandContext(useProjectStore)
     const command = new SplitClipCommand(freshContext, clipId, currentTime)
     await manager.execute(command)
   }, [currentTime])
@@ -354,7 +353,7 @@ export function TimelineCanvas({
   const handleClipTrimStart = useCallback(async (clipId: string) => {
     const manager = commandManagerRef.current
     if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const freshContext = new DefaultCommandContext(useProjectStore)
     const command = new TrimCommand(freshContext, clipId, currentTime, 'start')
     await manager.execute(command)
   }, [currentTime])
@@ -362,7 +361,7 @@ export function TimelineCanvas({
   const handleClipTrimEnd = useCallback(async (clipId: string) => {
     const manager = commandManagerRef.current
     if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const freshContext = new DefaultCommandContext(useProjectStore)
     const command = new TrimCommand(freshContext, clipId, currentTime, 'end')
     await manager.execute(command)
   }, [currentTime])
@@ -370,7 +369,7 @@ export function TimelineCanvas({
   const handleClipDuplicate = useCallback(async (clipId: string) => {
     const manager = commandManagerRef.current
     if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const freshContext = new DefaultCommandContext(useProjectStore)
     const command = new DuplicateClipCommand(freshContext, clipId)
     await manager.execute(command)
   }, [])
@@ -378,7 +377,7 @@ export function TimelineCanvas({
   const handleClipCopy = useCallback(async (clipId: string) => {
     const manager = commandManagerRef.current
     if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const freshContext = new DefaultCommandContext(useProjectStore)
     const command = new CopyCommand(freshContext, clipId)
     await manager.execute(command)
   }, [])
@@ -386,7 +385,7 @@ export function TimelineCanvas({
   const handleClipDelete = useCallback(async (clipId: string) => {
     const manager = commandManagerRef.current
     if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const freshContext = new DefaultCommandContext(useProjectStore)
     const command = new RemoveClipCommand(freshContext, clipId)
     await manager.execute(command)
   }, [])
@@ -395,7 +394,7 @@ export function TimelineCanvas({
     selectClip(clipId) // Ensure UI syncs
     const manager = commandManagerRef.current
     if (!manager) return
-    const freshContext = new DefaultCommandContext(useProjectStore.getState())
+    const freshContext = new DefaultCommandContext(useProjectStore)
     const command = new ChangePlaybackRateCommand(freshContext, clipId, 2.0)
     await manager.execute(command)
   }, [selectClip])

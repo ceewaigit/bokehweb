@@ -16,12 +16,13 @@ interface CursorTabProps {
 export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: CursorTabProps) {
   const cursorData = cursorEffect?.data as CursorEffectData | undefined
   const hideOnIdle = cursorData?.hideOnIdle ?? DEFAULT_CURSOR_DATA.hideOnIdle
+  const fadeOnIdle = cursorData?.fadeOnIdle ?? DEFAULT_CURSOR_DATA.fadeOnIdle
 
   return (
     <div className="space-y-4">
       {/* Master cursor visibility toggle */}
-      <div className="p-3 bg-background/30 rounded-lg">
-        <label className="flex items-center justify-between">
+      <div className="p-4 bg-background/40 rounded-xl">
+        <label className="flex items-center justify-between cursor-pointer">
           <span className="text-xs">Show Cursor</span>
           <Switch
             checked={cursorEffect?.enabled ?? false}
@@ -42,7 +43,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
       {/* Only show cursor settings when enabled */}
       {cursorEffect?.enabled && (
         <div className="space-y-3">
-          <div className="p-1 bg-background/30 rounded-lg space-y-2">
+          <div className="p-4 bg-background/40 rounded-xl space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Size</label>
             <Slider
               value={[cursorData?.size ?? DEFAULT_CURSOR_DATA.size]}
@@ -56,8 +57,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.size ?? DEFAULT_CURSOR_DATA.size).toFixed(1)}x</span>
           </div>
 
-          <div className="p-1 bg-background/30 rounded-lg">
-            <label className="flex items-center justify-between">
+          <div className="p-4 bg-background/40 rounded-xl">
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-xs">Click Animation</span>
               <Switch
                 checked={cursorData?.clickEffects ?? DEFAULT_CURSOR_DATA.clickEffects}
@@ -68,8 +69,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </label>
           </div>
 
-          <div className="p-1 bg-background/30 rounded-lg">
-            <label className="flex items-center justify-between">
+          <div className="p-4 bg-background/40 rounded-xl">
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-xs">Smooth Movement</span>
               <Switch
                 checked={cursorData?.gliding ?? DEFAULT_CURSOR_DATA.gliding}
@@ -80,8 +81,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </label>
           </div>
 
-          <div className="p-1 bg-background/30 rounded-lg">
-            <label className="flex items-center justify-between">
+          <div className="p-4 bg-background/40 rounded-xl">
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-xs">Motion Blur</span>
               <Switch
                 checked={cursorData?.motionBlur ?? DEFAULT_CURSOR_DATA.motionBlur}
@@ -92,8 +93,8 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </label>
           </div>
 
-          <div className="p-1 bg-background/30 rounded-lg">
-            <label className="flex items-center justify-between">
+          <div className="p-4 bg-background/40 rounded-xl">
+            <label className="flex items-center justify-between cursor-pointer">
               <span className="text-xs">Hide When Idle</span>
               <Switch
                 checked={cursorData?.hideOnIdle ?? DEFAULT_CURSOR_DATA.hideOnIdle}
@@ -105,7 +106,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           </div>
 
           {hideOnIdle && (
-            <div className="p-1 bg-background/30 rounded-lg space-y-2">
+            <div className="p-4 bg-background/40 rounded-xl space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Idle Timeout</label>
               <Slider
                 value={[(cursorData?.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout) / 1000]}
@@ -120,10 +121,24 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </div>
           )}
 
+          {hideOnIdle && (
+            <div className="p-4 bg-background/40 rounded-xl">
+              <label className="flex items-center justify-between cursor-pointer">
+                <span className="text-xs">Fade In/Out</span>
+                <Switch
+                  checked={fadeOnIdle}
+                  onCheckedChange={(checked) =>
+                    onUpdateCursor({ fadeOnIdle: checked })
+                  }
+                />
+              </label>
+            </div>
+          )}
+
           {/* Advanced Section */}
           <details className="space-y-2 pt-2">
             <summary className="text-xs font-medium text-muted-foreground cursor-pointer">Advanced</summary>
-            <div className="p-1 bg-background/30 rounded-lg space-y-2">
+            <div className="p-4 bg-background/40 rounded-xl space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Speed</label>
               <Slider
                 value={[cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed]}
@@ -135,7 +150,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               />
               <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed).toFixed(2)}</span>
             </div>
-            <div className="p-1 bg-background/30 rounded-lg space-y-2">
+            <div className="p-4 bg-background/40 rounded-xl space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Smoothness</label>
               <Slider
                 value={[cursorData?.smoothness ?? DEFAULT_CURSOR_DATA.smoothness]}

@@ -368,6 +368,7 @@ export interface CursorEffectData {
   clickEffects: boolean
   motionBlur: boolean
   hideOnIdle: boolean
+  fadeOnIdle: boolean
   idleTimeout: number
   gliding: boolean
   speed: number

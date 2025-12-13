@@ -23,22 +23,21 @@ interface UseCommandKeyboardProps {
 }
 
 export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps = {}) {
-  const store = useProjectStore()
   const commandManagerRef = useRef<CommandManager | null>(null)
   const contextRef = useRef<DefaultCommandContext | null>(null)
 
   // Initialize command manager
   useEffect(() => {
     if (!commandManagerRef.current) {
-      contextRef.current = new DefaultCommandContext(store)
+      contextRef.current = new DefaultCommandContext(useProjectStore)
       commandManagerRef.current = CommandManager.getInstance(contextRef.current)
       registerAllCommands(commandManagerRef.current)
     } else {
-      // Update context with latest store
-      contextRef.current = new DefaultCommandContext(store)
+      // Ensure manager has a live context (reads from store accessor)
+      contextRef.current = new DefaultCommandContext(useProjectStore)
       commandManagerRef.current.setContext(contextRef.current)
     }
-  }, [store])
+  }, [])
 
   useEffect(() => {
     if (!enabled || !commandManagerRef.current) return
@@ -47,8 +46,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Copy handler
     const handleCopy = async () => {
-      const currentStore = useProjectStore.getState()
-      const freshContext = new DefaultCommandContext(currentStore)
+      const freshContext = new DefaultCommandContext(useProjectStore)
       
       try {
         const command = new CopyCommand(freshContext)
@@ -72,7 +70,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
     // Cut handler
     const handleCut = async () => {
       // Update context with fresh store state
-      contextRef.current = new DefaultCommandContext(useProjectStore.getState())
+      contextRef.current = new DefaultCommandContext(useProjectStore)
       const command = new CutCommand(contextRef.current)
       const result = await manager.execute(command)
       
@@ -85,8 +83,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Paste handler
     const handlePaste = async () => {
-      const currentStore = useProjectStore.getState()
-      const freshContext = new DefaultCommandContext(currentStore)
+      const freshContext = new DefaultCommandContext(useProjectStore)
       
       try {
         const command = new PasteCommand(freshContext)
@@ -113,13 +110,11 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Delete handler
     const handleDelete = async () => {
-      const currentStore = useProjectStore.getState()
-      
-      // Create new context with fresh state
-      const freshContext = new DefaultCommandContext(currentStore)
+      // Create new context with live state access
+      const freshContext = new DefaultCommandContext(useProjectStore)
       
       // Check if an effect layer is selected (e.g., zoom block or screen block)
-      const effectLayer = currentStore.selectedEffectLayer
+      const effectLayer = useProjectStore.getState().selectedEffectLayer
       if (effectLayer && effectLayer.type === EffectLayerType.Zoom && effectLayer.id) {
         const command = new RemoveZoomBlockCommand(
           freshContext,
@@ -164,7 +159,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       }
 
       // Fallback: delete selected clip(s)
-      const selectedClips = currentStore.selectedClips
+      const selectedClips = useProjectStore.getState().selectedClips
       if (selectedClips && selectedClips.length > 0) {
         try {
           for (const clipId of selectedClips) {
@@ -189,7 +184,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       }
 
       // Update context with fresh store state
-      contextRef.current = new DefaultCommandContext(currentStore)
+      contextRef.current = new DefaultCommandContext(useProjectStore)
       const command = new SplitClipCommand(
         contextRef.current,
         selectedClips[0],
@@ -217,8 +212,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       }
 
       for (const clipId of selectedClips) {
-        // Update context with fresh store state
-        contextRef.current = new DefaultCommandContext(currentStore)
+        contextRef.current = new DefaultCommandContext(useProjectStore)
         const command = new DuplicateClipCommand(contextRef.current, clipId)
         await manager.execute(command)
       }
@@ -266,7 +260,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       keyboardManager.removeListener('undo', handleUndo)
       keyboardManager.removeListener('redo', handleRedo)
     }
-  }, [enabled, store])
+  }, [enabled])
 
   return {
     commandManager: commandManagerRef.current,

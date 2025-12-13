@@ -18,12 +18,10 @@ interface ScreenTabProps {
 export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }: ScreenTabProps) {
   return (
     <div className="space-y-4">
-
-
       {/* Add Screen Block */}
-      <div className="p-3 bg-background/30 rounded-lg">
+      <div className="p-4 bg-background/40 rounded-xl">
         <button
-          className="w-full px-3 py-2 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded-md transition-all"
+          className="w-full px-4 py-2.5 text-xs bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all"
           onClick={async () => {
             if (!selectedClip) return
             const newEffect: Effect = {
@@ -35,7 +33,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
               data: { preset: ScreenEffectPreset.Subtle }
             }
             // Use command pattern for undo/redo support
-            const context = new DefaultCommandContext(useProjectStore.getState())
+            const context = new DefaultCommandContext(useProjectStore)
             const command = new AddEffectCommand(context, newEffect)
             await CommandManager.getInstance().execute(command)
           }}
@@ -49,7 +47,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
 
       {/* Show presets only when a screen block is selected */}
       {selectedEffectLayer?.type === EffectLayerType.Screen && selectedEffectLayer?.id ? (
-        <div className="p-3 bg-background/30 rounded-lg space-y-3">
+        <div className="p-4 bg-background/40 rounded-xl space-y-3">
           <label className="text-xs font-medium text-muted-foreground mb-2 block">3D Preset</label>
           <div className="grid grid-cols-2 gap-1">
             {([
@@ -96,7 +94,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
           </div>
         </div>
       ) : (
-        <div className="p-3 bg-background/30 rounded-lg">
+        <div className="p-4 bg-background/40 rounded-xl">
           <p className="text-[10px] text-muted-foreground">
             Select a 3D Screen block on the timeline to edit its preset.
           </p>

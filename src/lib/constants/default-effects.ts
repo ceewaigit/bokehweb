@@ -47,6 +47,7 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
   clickEffects: true,
   motionBlur: true,
   hideOnIdle: true,
+  fadeOnIdle: true,
   idleTimeout: 3000,
   gliding: true,
   speed: 0.2,

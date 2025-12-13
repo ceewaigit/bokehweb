@@ -123,12 +123,38 @@ export function calculateCursorState(
     const lastMovement = findLastMovement(mouseEvents, timestamp)
     if (lastMovement) {
       const idleTime = timestamp - lastMovement.timestamp
-      if (idleTime > idleTimeout) {
-        visible = false
-        opacity = 0
-      } else if (idleTime > idleTimeout - 300) {
-        // Fade out in the last 300ms
-        opacity = Math.max(0, 1 - (idleTime - (idleTimeout - 300)) / 300)
+      const fadeOnIdle = cursorData.fadeOnIdle ?? DEFAULT_CURSOR_DATA.fadeOnIdle
+
+      if (!fadeOnIdle) {
+        if (idleTime > idleTimeout) {
+          visible = false
+          opacity = 0
+        }
+      } else {
+        const FADE_OUT_DURATION = 300 // ms
+        const FADE_IN_DURATION = 180 // ms
+
+        if (idleTime >= idleTimeout) {
+          opacity = 0
+        } else if (idleTime > idleTimeout - FADE_OUT_DURATION) {
+          // Fade out in the last FADE_OUT_DURATION ms
+          opacity = Math.max(0, 1 - (idleTime - (idleTimeout - FADE_OUT_DURATION)) / FADE_OUT_DURATION)
+        }
+
+        // Fade in on "wake" movement after being idle long enough to hide
+        const previousMovement = findLastMovement(mouseEvents, lastMovement.timestamp - 1)
+        const idleGap = previousMovement ? (lastMovement.timestamp - previousMovement.timestamp) : 0
+        const resumedAfterHide = previousMovement
+          ? idleGap > idleTimeout
+          : lastMovement.timestamp >= idleTimeout
+        if (resumedAfterHide) {
+          const sinceWake = timestamp - lastMovement.timestamp
+          if (sinceWake >= 0 && sinceWake < FADE_IN_DURATION) {
+            opacity = Math.min(opacity, Math.max(0, sinceWake / FADE_IN_DURATION))
+          }
+        }
+
+        visible = opacity > 0.001
       }
     }
   }
