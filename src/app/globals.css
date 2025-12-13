@@ -52,6 +52,12 @@
   --transition-normal: 250ms;
   --transition-slow: 350ms;
 
+  /* Window surface (glassmorphism) */
+  --window-surface-opacity: 1;
+  --window-surface-blur: 0px;
+  /* Light mode glass: high brightness white for clean, modern look */
+  --window-surface-color: 220 20% 98%;
+
   /* Light theme colors */
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
@@ -140,6 +146,9 @@
   /* Red recording */
   --recording-inactive: 0 0% 40%;
   /* Gray when not recording */
+
+  /* Dark mode glass - pure neutral dark for clean look */
+  --window-surface-color: 0 0% 5%;
 }
 
 @layer base {
@@ -226,6 +235,37 @@
 }
 
 @layer components {
+  .window-surface {
+    background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.05);
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.05);
+  }
+
+  /* Dark mode: reduce brightness boost */
+  .dark .window-surface {
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
+  }
+
+  /* Solid mode: use pure background color with no transparency tricks */
+  [data-window-surface="solid"] .window-surface,
+  [data-window-surface="solid"].window-surface {
+    background-color: hsl(var(--background));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  /* Full-window surface uses the app background token */
+  .window-surface-bg {
+    background-color: hsl(var(--window-surface-color) / var(--window-surface-opacity));
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.05);
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(180%) brightness(1.05);
+  }
+
+  .dark .window-surface-bg {
+    -webkit-backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
+    backdrop-filter: blur(var(--window-surface-blur)) saturate(130%);
+  }
 
   /* Electron title bar */
   .drag-region {

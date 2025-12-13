@@ -290,10 +290,22 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const hotspot = CURSOR_HOTSPOTS[cursorType];
   const dimensions = CURSOR_DIMENSIONS[cursorType];
 
-  // Calculate the rendered size of the cursor (NOT scaled by zoom)
-  // The cursor maintains consistent visual size regardless of zoom
-  const renderedWidth = dimensions.width * cursorSize;
-  const renderedHeight = dimensions.height * cursorSize;
+  // Calculate resolution scale factor to maintain consistent cursor size
+  // relative to the video content regardless of preview resolution.
+  // This ensures the cursor takes up the same visual proportion at 480p, 720p, 1080p, etc.
+  const resolutionScale = useMemo(() => {
+    // Source dimensions (original recording resolution)
+    const sourceWidth = videoPositionContext.videoWidth || 1920;
+    // Composition dimensions (preview resolution)
+    const compositionWidth = width;
+    // Scale cursor based on composition:source ratio
+    return compositionWidth / sourceWidth;
+  }, [width, videoPositionContext.videoWidth]);
+
+  // Calculate the rendered size of the cursor (scaled by resolution but NOT by zoom)
+  // The cursor maintains consistent visual proportion regardless of preview resolution
+  const renderedWidth = dimensions.width * cursorSize * resolutionScale;
+  const renderedHeight = dimensions.height * cursorSize * resolutionScale;
 
   // Initialize cursor position
   let cursorX = cursorTipX;

@@ -107,9 +107,9 @@ export function EffectsSidebar({
   const scheduleBackgroundUpdate = updateBackgroundEffect
 
   return (
-    <div className={cn("flex h-full bg-background/80 backdrop-blur-md border-l border-border/40", className)}>
+    <div className={cn("flex h-full bg-transparent border-l border-border/40", className)}>
       {/* Left sidebar with section tabs */}
-      <div className="w-[60px] flex-shrink-0 flex flex-col items-center py-4 border-r border-border/40 bg-background/40">
+      <div className="w-[60px] flex-shrink-0 flex flex-col items-center py-4 border-r border-border/40 bg-transparent">
         <div className="flex flex-col gap-3 w-full px-2">
           {SIDEBAR_TABS.map((tab) => (
             <button
@@ -134,9 +134,9 @@ export function EffectsSidebar({
       </div>
 
       {/* Right content area */}
-      <div className="flex-1 min-w-0 flex flex-col bg-background/20">
+      <div className="flex-1 min-w-0 flex flex-col bg-transparent">
         {/* Header */}
-        <div className="h-14 flex items-center px-6 border-b border-border/40 bg-background/40 backdrop-blur-sm sticky top-0 z-10">
+        <div className="h-14 flex items-center px-6 border-b border-border/40 bg-transparent sticky top-0 z-10">
           <h2 className="text-sm font-semibold tracking-tight">
             {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
           </h2>

@@ -52,7 +52,7 @@ export function Toolbar({
   }
 
   return (
-    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-background/60 backdrop-blur-sm border-b border-border/50"
+    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-transparent"
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
@@ -88,7 +88,7 @@ export function Toolbar({
             variant="ghost"
             size="sm"
             onClick={onNewProject}
-            className="h-7 px-2 text-[11px] font-medium hover:bg-background/50"
+            className="h-7 px-2 text-[11px] font-medium hover:bg-muted/30"
           >
             <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
             <span className="whitespace-nowrap">New</span>
@@ -119,7 +119,7 @@ export function Toolbar({
                 }
               }
             }}
-            className="h-7 px-2 text-[11px] font-medium hover:bg-background/50"
+            className="h-7 px-2 text-[11px] font-medium hover:bg-muted/30"
           >
             <FolderOpen className="w-3 h-3 mr-1 flex-shrink-0" />
             <span className="whitespace-nowrap">Open</span>
@@ -150,7 +150,7 @@ export function Toolbar({
       <div className="flex-1 flex items-center justify-center gap-2 min-w-0 overflow-hidden">
         {/* Project Name and Time Display */}
         {project && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-background/40 backdrop-blur-sm rounded-md flex-shrink-0 border border-border/50">
+          <div className="flex items-center gap-2 px-3 py-1 window-surface rounded-md flex-shrink-0 border border-border/50">
             <span className="text-[11px] font-semibold text-foreground/90">{project.name}</span>
             <span className="text-[10px] text-muted-foreground/50">•</span>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -208,7 +208,7 @@ export function Toolbar({
           variant="ghost"
           size="icon"
           onClick={handleToggleProperties}
-          className="h-7 w-7 hover:bg-background/50"
+          className="h-7 w-7 hover:bg-muted/30"
         >
           {propertiesOpen ?
             <PanelRightClose className="w-3.5 h-3.5" /> :

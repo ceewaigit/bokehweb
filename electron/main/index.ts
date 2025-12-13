@@ -16,6 +16,7 @@ import { registerKeyboardTrackingHandlers, cleanupKeyboardTracking } from './han
 import { registerFileOperationHandlers } from './handlers/file-operations'
 import { registerDialogHandlers } from './handlers/dialogs'
 import { registerWindowControlHandlers } from './handlers/window-controls'
+import { registerWindowAppearanceHandlers } from './handlers/window-appearance'
 import { setupNativeRecorder } from './handlers/native-recorder'
 import { setupExportHandler, cleanupBundleCache } from './handlers/export'
 
@@ -302,6 +303,7 @@ function registerAllHandlers(): void {
   registerFileOperationHandlers()
   registerDialogHandlers()
   registerWindowControlHandlers()
+  registerWindowAppearanceHandlers()
   setupNativeRecorder()
   setupExportHandler()
 

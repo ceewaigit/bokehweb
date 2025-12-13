@@ -5,10 +5,12 @@
  * All logic is in normalized source space (0-1).
  */
 
-import type { Effect, MouseEvent, Recording, ZoomEffectData, ZoomFollowStrategy } from '@/types/project'
+import type { CursorEffectData, Effect, MouseEvent, Recording, ZoomEffectData, ZoomFollowStrategy } from '@/types/project'
 import { EffectType } from '@/types/project'
 import { interpolateMousePosition } from './mouse-interpolation'
 import { calculateZoomScale } from '@/remotion/compositions/utils/zoom-transform'
+import { CURSOR_DIMENSIONS, CURSOR_HOTSPOTS, electronToCustomCursor } from '@/lib/effects/cursor-types'
+import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 import {
   CAMERA_DEAD_ZONE_RATIO,
   CLUSTER_RADIUS_RATIO,
@@ -439,6 +441,7 @@ function projectCenterToKeepCursorVisible(
   halfWindowX: number,
   halfWindowY: number,
   overscan: OutputOverscan,
+  cursorMargins?: { left: number; right: number; top: number; bottom: number },
   /** When true, allow full 0-1 range for output-space calculations */
   allowFullRange: boolean = false
 ): { x: number; y: number } {
@@ -446,28 +449,54 @@ function projectCenterToKeepCursorVisible(
     c: number,
     cursorPos: number,
     halfWindow: number,
+    marginMin: number,
+    marginMax: number,
     overscanMin: number,
     overscanMax: number
   ) => {
     const clampedCursor = Math.max(0, Math.min(1, cursorPos))
-    let minCenter = clampedCursor - halfWindow
-    let maxCenter = clampedCursor + halfWindow
-    if (allowFullRange) {
-      // In output space with padding, allow camera to span full 0-1 range
-      // to reveal padding areas when cursor is near video edges
-      minCenter = Math.max(minCenter, halfWindow)
-      maxCenter = Math.min(maxCenter, 1 - halfWindow)
-    } else {
-      minCenter = Math.max(minCenter, halfWindow - overscanMin)
-      maxCenter = Math.min(maxCenter, 1 - halfWindow + overscanMax)
+
+    // Keep the full cursor image visible, not just the hotspot point.
+    // Visible source window is [center - halfWindow, center + halfWindow].
+    // Require: cursorPos - marginMin >= center - halfWindow  => center >= cursorPos - marginMin + halfWindow
+    //          cursorPos + marginMax <= center + halfWindow  => center <= cursorPos + marginMax - halfWindow
+    let minCenter = clampedCursor - marginMin + halfWindow
+    let maxCenter = clampedCursor + marginMax - halfWindow
+
+    const minAllowed = allowFullRange ? halfWindow : halfWindow - overscanMin
+    const maxAllowed = allowFullRange ? 1 - halfWindow : 1 - halfWindow + overscanMax
+
+    minCenter = Math.max(minCenter, minAllowed)
+    maxCenter = Math.min(maxCenter, maxAllowed)
+
+    // If constraints are infeasible (e.g., giant cursor at extreme zoom),
+    // fall back to clamping within allowed content bounds.
+    if (minCenter > maxCenter) {
+      return Math.max(minAllowed, Math.min(maxAllowed, c))
     }
-    if (minCenter > maxCenter) return 0.5
+
     return Math.max(minCenter, Math.min(maxCenter, c))
   }
 
   return {
-    x: projectAxis(centerNorm.x, cursorNorm.x, halfWindowX, overscan.left, overscan.right),
-    y: projectAxis(centerNorm.y, cursorNorm.y, halfWindowY, overscan.top, overscan.bottom),
+    x: projectAxis(
+      centerNorm.x,
+      cursorNorm.x,
+      halfWindowX,
+      cursorMargins?.left ?? 0,
+      cursorMargins?.right ?? 0,
+      overscan.left,
+      overscan.right
+    ),
+    y: projectAxis(
+      centerNorm.y,
+      cursorNorm.y,
+      halfWindowY,
+      cursorMargins?.top ?? 0,
+      cursorMargins?.bottom ?? 0,
+      overscan.top,
+      overscan.bottom
+    ),
   }
 }
 
@@ -619,8 +648,8 @@ function getExponentiallySmoothedCursorNorm(
   }
 
   return {
-    x: Math.max(0, Math.min(1, sumX / sumW)),
-    y: Math.max(0, Math.min(1, sumY / sumW)),
+    x: sumX / sumW,
+    y: sumY / sumW,
   }
 }
 
@@ -689,6 +718,18 @@ export function computeCameraState({
   const denomX = 1 + safeOverscan.left + safeOverscan.right
   const denomY = 1 + safeOverscan.top + safeOverscan.bottom
 
+  const cursorClampBounds = hasOverscan
+    ? {
+      minX: -safeOverscan.left,
+      maxX: 1 + safeOverscan.right,
+      minY: -safeOverscan.top,
+      maxY: 1 + safeOverscan.bottom,
+    }
+    : { minX: 0, maxX: 1, minY: 0, maxY: 1 }
+
+  const clampCursorX = (x: number) => Math.max(cursorClampBounds.minX, Math.min(cursorClampBounds.maxX, x))
+  const clampCursorY = (y: number) => Math.max(cursorClampBounds.minY, Math.min(cursorClampBounds.maxY, y))
+
   const attractor = calculateAttractor(
     mouseEvents,
     sourceTimeMs,
@@ -702,8 +743,11 @@ export function computeCameraState({
     cursorNormX = attractor.x / sourceWidth
     cursorNormY = attractor.y / sourceHeight
   }
-  cursorNormX = Math.max(0, Math.min(1, cursorNormX))
-  cursorNormY = Math.max(0, Math.min(1, cursorNormY))
+  // Important: cursor positions can legitimately be outside the capture bounds.
+  // When the output has padding/letterbox (overscan), allow the camera to pan
+  // into that area so the cursor never gets hidden behind the zoom window edge.
+  cursorNormX = clampCursorX(cursorNormX)
+  cursorNormY = clampCursorY(cursorNormY)
 
   // Calculate cursor velocity for stop detection
   const cursorVelocity = calculateCursorVelocity(
@@ -966,11 +1010,71 @@ export function computeCameraState({
   // to ensure it stays in frame (cursor uses different smoothing).
   const rawCursorPos = interpolateMousePosition(mouseEvents, sourceTimeMs)
   const rawCursorNormX = rawCursorPos
-    ? Math.max(0, Math.min(1, rawCursorPos.x / sourceWidth))
+    ? clampCursorX(rawCursorPos.x / sourceWidth)
     : cursorNormX
   const rawCursorNormY = rawCursorPos
-    ? Math.max(0, Math.min(1, rawCursorPos.y / sourceHeight))
+    ? clampCursorY(rawCursorPos.y / sourceHeight)
     : cursorNormY
+
+  const cursorMarginsNorm = (() => {
+    const cursorEffect = effects.find(e => e.type === EffectType.Cursor && e.enabled)
+    if (!cursorEffect) return null
+
+    const cursorData = cursorEffect.data as CursorEffectData | undefined
+    const cursorScale = cursorData?.size ?? DEFAULT_CURSOR_DATA.size
+
+    // Determine cursor type at time (matches CursorLayer behavior).
+    let cursorEventIndex = -1
+    let low = 0
+    let high = mouseEvents.length - 1
+    while (low <= high) {
+      const mid = (low + high) >> 1
+      if (mouseEvents[mid].timestamp <= sourceTimeMs) {
+        cursorEventIndex = mid
+        low = mid + 1
+      } else {
+        high = mid - 1
+      }
+    }
+    const cursorTypeRaw = (mouseEvents[cursorEventIndex] ?? mouseEvents[0])?.cursorType ?? 'default'
+    const cursorType = electronToCustomCursor(cursorTypeRaw)
+
+    const baseDim = CURSOR_DIMENSIONS[cursorType]
+    const hotspot = CURSOR_HOTSPOTS[cursorType]
+    const widthPx = baseDim.width * cursorScale
+    const heightPx = baseDim.height * cursorScale
+
+    const leftPx = hotspot.x * widthPx
+    const rightPx = (1 - hotspot.x) * widthPx
+    const topPx = hotspot.y * heightPx
+    const bottomPx = (1 - hotspot.y) * heightPx
+
+    const outW = outputWidth || sourceWidth
+    const outH = outputHeight || sourceHeight
+    const drawW = outW / (hasOverscan ? denomX : 1)
+    const drawH = outH / (hasOverscan ? denomY : 1)
+    const windowWidthNorm = halfWindowX * 2
+    const windowHeightNorm = halfWindowY * 2
+
+    // Cursor is rendered at a constant pixel size (it is not scaled by zoom).
+    // Convert its pixel footprint into the normalized camera-space units
+    // (i.e., source normalized coords) using the current visible window size.
+    // This makes the "keep cursor visible" projection work across zoom levels,
+    // aspect ratios, and cursor sizes.
+    // Important: zoom/pan are applied to the video draw area (letterboxed content),
+    // not the full output frame, so we normalize against drawW/drawH.
+    const left = (leftPx / drawW) * windowWidthNorm
+    const right = (rightPx / drawW) * windowWidthNorm
+    const top = (topPx / drawH) * windowHeightNorm
+    const bottom = (bottomPx / drawH) * windowHeightNorm
+
+    return {
+      left,
+      right,
+      top,
+      bottom,
+    }
+  })()
 
   // After freezing, avoid further cursor-visibility projections which can
   // reintroduce jitter from tiny cursor deltas.
@@ -985,6 +1089,14 @@ export function computeCameraState({
         x: (safeOverscan.left + rawCursorNormX) / denomX,
         y: (safeOverscan.top + rawCursorNormY) / denomY,
       }
+      const cursorMarginsOut = cursorMarginsNorm
+        ? {
+          left: cursorMarginsNorm.left / denomX,
+          right: cursorMarginsNorm.right / denomX,
+          top: cursorMarginsNorm.top / denomY,
+          bottom: cursorMarginsNorm.bottom / denomY,
+        }
+        : undefined
       const halfWindowOutX = halfWindowX / denomX
       const halfWindowOutY = halfWindowY / denomY
       const projectedOut = projectCenterToKeepCursorVisible(
@@ -993,6 +1105,7 @@ export function computeCameraState({
         halfWindowOutX,
         halfWindowOutY,
         { left: 0, right: 0, top: 0, bottom: 0 },
+        cursorMarginsOut,
         true // allowFullRange: camera can span full output space to show padding
       )
       finalCenter = {
@@ -1006,7 +1119,8 @@ export function computeCameraState({
         { x: rawCursorNormX, y: rawCursorNormY },
         halfWindowX,
         halfWindowY,
-        safeOverscan
+        safeOverscan,
+        cursorMarginsNorm ?? undefined
       )
     }
   }

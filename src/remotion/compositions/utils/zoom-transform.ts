@@ -106,80 +106,21 @@ export function calculateZoomTransform(
       activeBlock.outroMs
     );
 
-  // Use fixed zoom center for stable, cinematic zoom
-  // Clamp to 0-1 for the "keep point fixed" calculation
-  const clampedCenterX = Math.max(0, Math.min(1, zoomCenter.x));
-  const clampedCenterY = Math.max(0, Math.min(1, zoomCenter.y));
-
-  // Convert to pixel coordinates
-  const zoomPointX = clampedCenterX * videoWidth;
-  const zoomPointY = clampedCenterY * videoHeight;
-
-  // Calculate center of video
-  const centerX = videoWidth / 2;
-  const centerY = videoHeight / 2;
-
-  // Calculate offset from center to zoom point
-  const offsetFromCenterX = zoomPointX - centerX;
-  const offsetFromCenterY = zoomPointY - centerY;
-
-  // Scale compensation to keep zoom point fixed
-  const scaleCompensationX = -offsetFromCenterX * (scale - 1);
-  const scaleCompensationY = -offsetFromCenterY * (scale - 1);
-
-  // Calculate pan to reveal padding when camera is at edge.
-  // The camera center in source-normalized coords tells us where the view should be centered.
-  // When it's < 0.5/scale or > 1-0.5/scale, we need additional pan to show padding.
-  let panX = 0;
-  let panY = 0;
-
-  if (padding && padding > 0 && scale > 1) {
-    // The camera can position the view such that some padding should be visible.
-    // Calculate how much of the view extends beyond the video content.
-    const halfViewWidth = 0.5 / scale; // Normalized half-width of visible area
-
-    // View left edge in source-normalized coords
-    const viewLeftEdge = zoomCenter.x - halfViewWidth;
-    // View right edge in source-normalized coords
-    const viewRightEdge = zoomCenter.x + halfViewWidth;
-
-    // If view extends left of video (< 0), pan right to reveal left padding
-    if (viewLeftEdge < 0) {
-      // How much of the view is in the "padding zone" (negative source coords)
-      const paddingVisible = -viewLeftEdge; // As normalized ratio
-      // Convert to pixel pan - this shifts the scaled video right
-      panX = paddingVisible * videoWidth * scale;
-    }
-    // If view extends right of video (> 1), pan left to reveal right padding
-    if (viewRightEdge > 1) {
-      const paddingVisible = viewRightEdge - 1;
-      panX = -paddingVisible * videoWidth * scale;
-    }
-
-    // Same for Y
-    const viewTopEdge = zoomCenter.y - halfViewWidth;
-    const viewBottomEdge = zoomCenter.y + halfViewWidth;
-
-    if (viewTopEdge < 0) {
-      panY = -viewTopEdge * videoHeight * scale;
-    }
-    if (viewBottomEdge > 1) {
-      panY = -(viewBottomEdge - 1) * videoHeight * scale;
-    }
-  }
-
-  // Fade padding-pan with zoom progress so zoom-out doesn't "snap" on the last frame.
-  if (padding && padding > 0 && (panX !== 0 || panY !== 0)) {
-    const targetScale = activeBlock.scale || 2;
-    const t = targetScale > 1.000001 ? Math.max(0, Math.min(1, (scale - 1) / (targetScale - 1))) : 0;
-    panX *= t;
-    panY *= t;
-  }
+  // IMPORTANT:
+  // `zoomCenter` is a CAMERA CENTER (view center) in normalized source space.
+  // It can go outside 0-1 when overscan/padding should be revealed.
+  //
+  // Our CSS transform is `translate(...) scale(...)` (scale applies first, then translate),
+  // so to center the visible window on `zoomCenter`, we translate by:
+  //   T = (0.5 - zoomCenter) * size * scale
+  // Derived from: x_view_center = 0.5 - T/(size*scale)
+  const panX = Math.abs(scale - 1) < 0.001 ? 0 : (0.5 - zoomCenter.x) * videoWidth * scale;
+  const panY = Math.abs(scale - 1) < 0.001 ? 0 : (0.5 - zoomCenter.y) * videoHeight * scale;
 
   return {
     scale,
-    scaleCompensationX,
-    scaleCompensationY,
+    scaleCompensationX: 0,
+    scaleCompensationY: 0,
     panX,
     panY
   };

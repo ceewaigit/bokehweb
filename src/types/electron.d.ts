@@ -126,6 +126,48 @@ export interface ElectronAPI {
   showRecordButton?: () => void
   openWorkspace?: () => void
   setWindowContentSize?: (dimensions: { width: number; height: number }) => Promise<{ success: boolean }>
+  setWindowVibrancy?: (vibrancy: string | null) => Promise<{ success: boolean }>
+  setWindowHasShadow?: (hasShadow: boolean) => Promise<{ success: boolean }>
+  getWindowDebugState?: () => Promise<{
+    success: boolean
+    platform?: string
+    isVisible?: boolean
+    hasShadow?: boolean
+    backgroundColor?: string
+    isDestroyed?: boolean
+    bounds?: { x: number; y: number; width: number; height: number }
+    url?: string
+    error?: string
+  }>
+  getWindowAlphaSamples?: () => Promise<{
+    success: boolean
+    samples?: Array<{ x: number; y: number; r: number; g: number; b: number; alpha: number }>
+    error?: string
+  }>
+  getElementAtPoint?: (x: number, y: number) => Promise<{
+    success: boolean
+    result?: {
+      tagName: string
+      id: string | null
+      className: string | null
+      backgroundColor: string
+      opacity: string
+      pointerEvents: string
+    } | null
+    error?: string
+  }>
+  getElementsAtPoint?: (x: number, y: number, limit?: number) => Promise<{
+    success: boolean
+    result?: Array<{
+      tagName: string
+      id: string | null
+      className: string | null
+      backgroundColor: string
+      opacity: string
+      pointerEvents: string
+    }>
+    error?: string
+  }>
 
   // Countdown window methods
   showCountdown?: (number: number, displayId?: number) => Promise<{ success: boolean }>

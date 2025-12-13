@@ -19,6 +19,7 @@ import { TimelineContextMenu } from './timeline-context-menu'
 import { TimelineEffectBlock } from './timeline-effect-block'
 import { EffectLayerType, type SelectedEffectLayer } from '@/types/effects'
 import type { TypingPeriod } from '@/lib/timeline/typing-detector'
+import { useWindowAppearanceStore } from '@/stores/window-appearance-store'
 
 // Utilities
 import { TimelineConfig } from '@/lib/timeline/config'
@@ -96,12 +97,14 @@ export function TimelineCanvas({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const colors = useTimelineColors()
+  const windowSurfaceMode = useWindowAppearanceStore((s) => s.mode)
+  const windowSurfaceOpacity = useWindowAppearanceStore((s) => s.opacity)
 
   // Force re-render when theme changes by using colors as part of key
   const themeKey = React.useMemo(() => {
     // Create a simple hash from primary color to detect theme changes
-    return colors.primary + colors.background
-  }, [colors.primary, colors.background])
+    return colors.primary + colors.background + windowSurfaceMode + windowSurfaceOpacity
+  }, [colors.primary, colors.background, windowSurfaceMode, windowSurfaceOpacity])
 
   // Calculate timeline dimensions
   const duration = currentProject?.timeline?.duration || 10000
@@ -412,6 +415,9 @@ export function TimelineCanvas({
     )
   }
 
+  // The timeline panel already sits on a `.window-surface`; avoid painting an extra opaque canvas layer in glass modes.
+  const backgroundOpacity = windowSurfaceMode === 'solid' ? 1 : 0
+
   return (
     <div className={cn("flex flex-col h-full w-full", className)}>
       <TimelineControls
@@ -435,7 +441,7 @@ export function TimelineCanvas({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-background select-none outline-none focus:outline-none"
+        className="flex-1 overflow-x-auto overflow-y-hidden relative bg-transparent select-none outline-none focus:outline-none"
         tabIndex={0}
         onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
         onMouseDown={() => {
@@ -470,6 +476,7 @@ export function TimelineCanvas({
               width={stageWidth}
               height={stageSize.height}
               fill={colors.background}
+              opacity={backgroundOpacity}
             />
 
             <Rect
@@ -478,6 +485,7 @@ export function TimelineCanvas({
               width={timelineWidth + TimelineConfig.TRACK_LABEL_WIDTH}
               height={rulerHeight}
               fill={colors.background}
+              opacity={backgroundOpacity}
             />
 
             <TimelineTrack

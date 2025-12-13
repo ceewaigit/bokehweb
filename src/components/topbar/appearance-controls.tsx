@@ -1,6 +1,6 @@
 "use client"
 
-import { ThemeToggle } from "./theme-toggle"
+import { AppearanceToggle } from "./appearance-toggle"
 
 interface AppearanceControlsProps {
   align?: "start" | "center" | "end"
@@ -9,8 +9,9 @@ interface AppearanceControlsProps {
 
 export function AppearanceControls({ align = "end", className }: AppearanceControlsProps) {
   return (
-    <div className={className ?? "flex items-center gap-1"}>
-      <ThemeToggle align={align} />
+    <div className={className ?? "flex items-center"}>
+      <AppearanceToggle align={align} />
     </div>
   )
 }
+

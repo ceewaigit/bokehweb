@@ -48,6 +48,11 @@ export function registerWindowControlHandlers(): void {
         global.mainWindow.once('ready-to-show', () => {
           console.log('[WindowControls] Main window ready to show')
           if (global.mainWindow) {
+            if (process.platform === 'darwin') {
+              try {
+                global.mainWindow.setBackgroundColor('#00000000')
+              } catch { }
+            }
             global.mainWindow.show()
             global.mainWindow.focus()
             // Hide record button when main window is shown
@@ -69,6 +74,11 @@ export function registerWindowControlHandlers(): void {
         console.log('[WindowControls] Showing existing main window')
         // Hide any overlay when showing existing main window
         hideMonitorOverlay()
+        if (process.platform === 'darwin') {
+          try {
+            global.mainWindow.setBackgroundColor('#00000000')
+          } catch { }
+        }
         global.mainWindow.show()
         global.mainWindow.focus()
         // Hide record button when main window is shown

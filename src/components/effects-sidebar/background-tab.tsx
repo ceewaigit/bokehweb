@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { Palette } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
@@ -17,6 +17,9 @@ interface BackgroundTabProps {
 let cachedMacOSWallpapers: any[] | null = null
 let macOSWallpapersPromise: Promise<any[] | null> | null = null
 
+const WALLPAPERS_PER_PAGE = 12
+const DEFAULT_WALLPAPER_NAME = 'Sonoma'
+
 export function BackgroundTab({ backgroundEffect, onUpdateBackground }: BackgroundTabProps) {
   const [backgroundType, setBackgroundType] = useState<BackgroundType>(BackgroundType.Gradient)
   const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({
@@ -24,6 +27,27 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
   })
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
+  const [wallpaperPage, setWallpaperPage] = useState(0)
+
+  // Sort wallpapers with default
+  const sortedWallpapers = useMemo(() => {
+    const wallpapers = macOSWallpapers.wallpapers
+    if (wallpapers.length === 0) return []
+
+    // Find default wallpaper and put it first
+    const defaultIndex = wallpapers.findIndex(w => w.name === DEFAULT_WALLPAPER_NAME)
+    if (defaultIndex === -1) return wallpapers
+
+    const defaultWallpaper = wallpapers[defaultIndex]
+    const rest = [...wallpapers.slice(0, defaultIndex), ...wallpapers.slice(defaultIndex + 1)]
+    return [defaultWallpaper, ...rest]
+  }, [macOSWallpapers.wallpapers])
+
+  const totalPages = Math.ceil(sortedWallpapers.length / WALLPAPERS_PER_PAGE)
+  const paginatedWallpapers = sortedWallpapers.slice(
+    wallpaperPage * WALLPAPERS_PER_PAGE,
+    (wallpaperPage + 1) * WALLPAPERS_PER_PAGE
+  )
 
   // Sync backgroundType with actual background effect type
   useEffect(() => {
@@ -106,18 +130,43 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
         {/* macOS Wallpapers */}
         {backgroundType === BackgroundType.Wallpaper && (
           <div className="space-y-3">
-            <h4 className="text-xs font-medium text-muted-foreground">Select Wallpaper</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-medium text-muted-foreground">Select Wallpaper</h4>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setWallpaperPage(p => Math.max(0, p - 1))}
+                    disabled={wallpaperPage === 0}
+                    className="p-1 rounded hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[10px] text-muted-foreground min-w-[32px] text-center">
+                    {wallpaperPage + 1}/{totalPages}
+                  </span>
+                  <button
+                    onClick={() => setWallpaperPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={wallpaperPage >= totalPages - 1}
+                    className="p-1 rounded hover:bg-muted/50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
             {loadingWallpapers ? (
               <div className="text-xs text-muted-foreground">Loading wallpapers...</div>
-            ) : macOSWallpapers.wallpapers.length > 0 ? (
+            ) : paginatedWallpapers.length > 0 ? (
               <div className="grid grid-cols-4 gap-2">
-                {macOSWallpapers.wallpapers.slice(0, 12).map((wallpaper, index) => {
-                  const wallpaperId = `${wallpaper.path}-${index}`
+                {paginatedWallpapers.map((wallpaper, index) => {
+                  const globalIndex = wallpaperPage * WALLPAPERS_PER_PAGE + index
+                  const wallpaperId = `${wallpaper.path}-${globalIndex}`
                   const isLoading = loadingWallpaperId === wallpaperId
+                  const isDefault = wallpaper.name === DEFAULT_WALLPAPER_NAME
 
                   return (
                     <button
-                      key={index}
+                      key={wallpaperId}
                       onClick={async () => {
                         setLoadingWallpaperId(wallpaperId)
                         try {
@@ -135,8 +184,11 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                         }
                       }}
                       disabled={isLoading}
-                      className="aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group disabled:opacity-50 disabled:cursor-wait"
-                      title={wallpaper.name}
+                      className={cn(
+                        "aspect-video rounded-md overflow-hidden ring-1 ring-border/20 hover:ring-2 hover:ring-primary/50 transition-all transform hover:scale-105 relative group disabled:opacity-50 disabled:cursor-wait",
+                        isDefault && "ring-2 ring-primary/30"
+                      )}
+                      title={wallpaper.name + (isDefault ? ' (Default)' : '')}
                     >
                       {wallpaper.thumbnail ? (
                         <img
@@ -145,7 +197,9 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
+                          <span className="text-[8px] text-white/60 truncate px-1">{wallpaper.name}</span>
+                        </div>
                       )}
                       {isLoading && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -153,7 +207,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                         </div>
                       )}
                       <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                        {wallpaper.name}
+                        {wallpaper.name}{isDefault ? ' ★' : ''}
                       </span>
                     </button>
                   )

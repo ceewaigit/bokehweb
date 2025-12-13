@@ -120,6 +120,20 @@ const electronAPI = {
     return () => ipcRenderer.removeListener('keyboard-event', wrappedCallback)
   },
 
+  // Window appearance
+  setWindowVibrancy: (vibrancy: string | null) =>
+    ipcRenderer.invoke('set-window-vibrancy', vibrancy),
+  setWindowHasShadow: (hasShadow: boolean) =>
+    ipcRenderer.invoke('set-window-has-shadow', hasShadow),
+  getWindowDebugState: () =>
+    ipcRenderer.invoke('get-window-debug-state'),
+  getWindowAlphaSamples: () =>
+    ipcRenderer.invoke('get-window-alpha-samples'),
+  getElementAtPoint: (x: number, y: number) =>
+    ipcRenderer.invoke('get-element-at-point', x, y),
+  getElementsAtPoint: (x: number, y: number, limit: number = 12) =>
+    ipcRenderer.invoke('get-elements-at-point', x, y, limit),
+
   // Scroll events
   onScroll: (callback: (event: IpcRendererEvent, data: { timestamp: number; deltaX: number; deltaY: number }) => void) => {
     const wrapped = (event: IpcRendererEvent, data: any) => {

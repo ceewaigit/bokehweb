@@ -35,6 +35,37 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
     timelineMetadata?.fps || 30
   );
 
+  // Calculate composition size for preview (720p default for performance)
+  const compositionSize = useMemo(() => {
+    if (!timelineMetadata) return { width: 1280, height: 720 };
+
+    const videoWidth = timelineMetadata.width;
+    const videoHeight = timelineMetadata.height;
+    const videoAspectRatio = videoWidth / videoHeight;
+
+    // Scale to 720p max for preview performance
+    const maxWidth = 1280;
+    const maxHeight = 720;
+
+    const scaleByWidth = maxWidth / videoWidth;
+    const scaleByHeight = maxHeight / videoHeight;
+    const scale = Math.min(scaleByWidth, scaleByHeight, 1); // Don't upscale
+
+    let width = Math.max(320, Math.round(videoWidth * scale));
+    let height = Math.max(180, Math.round(videoHeight * scale));
+
+    // Ensure aspect ratio is maintained
+    if (Math.abs(width / height - videoAspectRatio) > 0.001) {
+      height = Math.round(width / videoAspectRatio);
+    }
+
+    // Ensure even dimensions (required for video encoding)
+    width = Math.floor(width / 2) * 2;
+    height = Math.floor(height / 2) * 2;
+
+    return { width, height };
+  }, [timelineMetadata]);
+
   // Ensure all videos are loaded
   useEffect(() => {
     if (!project?.recordings) return;
@@ -74,37 +105,6 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
     }
   }, [currentTime, timelineMetadata, isPlaying]);
 
-  // Calculate composition size for preview (720p default)
-  const compositionSize = useMemo(() => {
-    if (!timelineMetadata) return { width: 1280, height: 720 };
-
-    const videoWidth = timelineMetadata.width;
-    const videoHeight = timelineMetadata.height;
-    const videoAspectRatio = videoWidth / videoHeight;
-
-    // Scale to 720p max
-    const maxWidth = 1280;
-    const maxHeight = 720;
-
-    const scaleByWidth = maxWidth / videoWidth;
-    const scaleByHeight = maxHeight / videoHeight;
-    const scale = Math.min(scaleByWidth, scaleByHeight, 1); // Don't upscale
-
-    let width = Math.max(320, Math.round(videoWidth * scale));
-    let height = Math.max(180, Math.round(videoHeight * scale));
-
-    // Ensure aspect ratio is maintained
-    if (Math.abs(width / height - videoAspectRatio) > 0.001) {
-      height = Math.round(width / videoAspectRatio);
-    }
-
-    // Ensure even dimensions (required for video encoding)
-    width = Math.floor(width / 2) * 2;
-    height = Math.floor(height / 2) * 2;
-
-    return { width, height };
-  }, [timelineMetadata]);
-
   // Calculate initial frame
   const initialFrame = useMemo(() => {
     if (!timelineMetadata) return 0;
@@ -123,7 +123,7 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
   // Show loading state if no data
   if (!timelineMetadata || !playerConfig) {
     return (
-      <div className="relative w-full h-full overflow-hidden bg-background">
+      <div className="relative w-full h-full overflow-hidden bg-transparent">
         <div className="absolute inset-0 flex items-center justify-center p-8">
           <div className="text-gray-500 text-center">
             <p className="text-lg font-medium mb-2">No timeline data</p>
@@ -135,7 +135,7 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
   }
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-background">
+    <div className="relative w-full h-full overflow-hidden bg-transparent">
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="relative w-full h-full flex items-center justify-center">
           <Player

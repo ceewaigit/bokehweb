@@ -9,22 +9,28 @@ export function createMainWindow(): BrowserWindow {
 
   const isMac = process.platform === 'darwin'
 
+  // Main app window: transparent surface with native macOS traffic lights.
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 800,
     show: false,
-    backgroundColor: '#00000000',
     ...(isMac
       ? {
-          transparent: true,
-          vibrancy: 'under-window',
-          visualEffectState: 'active',
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 20, y: 16 },
         }
       : {
-          transparent: true,
+          titleBarOverlay: {
+            color: '#00000000',
+            symbolColor: '#ffffff',
+            height: 40,
+          },
         }),
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -36,22 +42,6 @@ export function createMainWindow(): BrowserWindow {
       spellcheck: false,
       sandbox: false
     },
-    titleBarStyle: isMac ? 'hidden' : 'hiddenInset',
-    ...(isMac
-      ? {
-          // Frameless is required for full-window vibrancy on recent macOS/Electron.
-          frame: false,
-          trafficLightPosition: { x: 20, y: 16 },
-        }
-      : {
-          frame: true,
-          titleBarOverlay: {
-            color: '#00000000',
-            symbolColor: '#ffffff',
-            height: 40,
-          },
-          trafficLightPosition: { x: 20, y: 16 },
-        })
   })
 
   setupPermissions(mainWindow)
@@ -62,18 +52,12 @@ export function createMainWindow(): BrowserWindow {
 
   if (isMac) {
     try {
-      // Re-apply vibrancy after creation; some macOS/Electron combos ignore ctor value.
-      mainWindow.setVibrancy?.('under-window')
       mainWindow.setBackgroundColor('#00000000')
-      ;(mainWindow as any).setVisualEffectState?.('active')
-    } catch (e) {
-      console.warn('[MainWindow] Failed to apply vibrancy on macOS:', e)
-    }
+    } catch { }
   }
 
-  if (isDev) {
-    mainWindow.webContents.openDevTools()
-  }
+  // Avoid auto-opening devtools; it affects perceived transparency.
+  if (isDev && process.env.OPEN_DEVTOOLS === '1') mainWindow.webContents.openDevTools()
 
   mainWindow.on('closed', () => {
     console.log('[MainWindow] Window closed')

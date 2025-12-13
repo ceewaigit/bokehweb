@@ -215,12 +215,7 @@ async function loadProjectRecording(
   const clampedZoom = Math.max(adaptiveLimits.min, Math.min(adaptiveLimits.max, optimalZoom))
   useProjectStore.getState().setAutoZoom(clampedZoom)
 
-  const firstClip = project.timeline.tracks
-    .flatMap((t: any) => t.clips)
-    .sort((a: any, b: any) => a.startTime - b.startTime)[0]
-  if (firstClip) {
-    useProjectStore.getState().selectClip(firstClip.id)
-  }
+  // Don't auto-select first clip - let sidebar show default tab
 
   return true
 }
@@ -666,9 +661,9 @@ export function WorkspaceManager() {
 
   return (
     <>
-      <div className="fixed inset-0 flex flex-col bg-background" style={{ width: '100vw', height: '100vh' }}>
+      <div className="fixed inset-0 flex flex-col bg-transparent" style={{ width: '100vw', height: '100vh' }}>
         {/* Top Toolbar - Compact with macOS traffic light padding */}
-        <div className="flex-shrink-0 bg-background/60 backdrop-blur-sm overflow-hidden border-b border-border/50" style={{ height: '48px', paddingLeft: '80px' }}>
+        <div className="flex-shrink-0 bg-transparent overflow-hidden border-b border-border/50" style={{ height: '48px', paddingLeft: '80px' }}>
           <Toolbar
             project={currentProject}
             onToggleProperties={toggleProperties}
@@ -718,7 +713,7 @@ export function WorkspaceManager() {
             {/* Properties Panel - Fixed width when open, same height as preview */}
             {isPropertiesOpen && (
               <div
-                className="bg-background/40 backdrop-blur-sm overflow-hidden"
+                className="bg-transparent overflow-hidden"
                 style={{ width: `${propertiesPanelWidth}px` }}
               >
                 <EffectsSidebar
@@ -734,7 +729,7 @@ export function WorkspaceManager() {
           </div>
 
           {/* Timeline Section - Full width at bottom (40% height) */}
-          <div className="bg-background/60 backdrop-blur-sm overflow-hidden border-t border-border/50" style={{ height: '40%', width: '100vw' }}>
+          <div className="bg-transparent overflow-hidden border-t border-border/50" style={{ height: '40%', width: '100vw' }}>
             <TimelineCanvas
               className="h-full w-full"
               currentProject={currentProject}

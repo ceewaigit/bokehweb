@@ -561,10 +561,6 @@ export function setupExportHandler(): void {
         totalChunks: chunkPlan.length
       }
 
-      // Export: Remotion may render frames out-of-order when concurrency > 1.
-      // Use deterministic camera evaluation so export does not depend on prior frames.
-      inputProps.deterministicCamera = true
-
       // Create progress tracker
       const progressTracker = new ProgressTracker(event.sender, totalDurationInFrames)
 

@@ -12,8 +12,6 @@ export function usePrecomputedCameraPath(args: {
   currentFrame: number
   frameLayout: FrameLayoutItem[]
   fps: number
-  width: number
-  height: number
   videoWidth: number
   videoHeight: number
   sourceVideoWidth?: number
@@ -26,8 +24,6 @@ export function usePrecomputedCameraPath(args: {
     currentFrame,
     frameLayout,
     fps,
-    width,
-    height,
     videoWidth,
     videoHeight,
     sourceVideoWidth,
@@ -65,9 +61,11 @@ export function usePrecomputedCameraPath(args: {
       const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null
       const padding = backgroundData?.padding || 0
 
+      // Use stable videoWidth/videoHeight for camera calculation
+      // This ensures preview and export compute identical camera positions
       const videoArea = calculateVideoPosition(
-        width,
-        height,
+        videoWidth,
+        videoHeight,
         sourceVideoWidth ?? videoWidth,
         sourceVideoHeight ?? videoHeight,
         padding
@@ -76,9 +74,9 @@ export function usePrecomputedCameraPath(args: {
       const overscan = (() => {
         if (!videoArea || videoArea.drawWidth <= 0 || videoArea.drawHeight <= 0) return undefined
         const leftPx = videoArea.offsetX
-        const rightPx = width - videoArea.offsetX - videoArea.drawWidth
+        const rightPx = videoWidth - videoArea.offsetX - videoArea.drawWidth
         const topPx = videoArea.offsetY
-        const bottomPx = height - videoArea.offsetY - videoArea.drawHeight
+        const bottomPx = videoHeight - videoArea.offsetY - videoArea.drawHeight
         return {
           left: Math.max(0, leftPx / videoArea.drawWidth),
           right: Math.max(0, rightPx / videoArea.drawWidth),
@@ -111,12 +109,10 @@ export function usePrecomputedCameraPath(args: {
     fps,
     effects,
     getRecording,
-    height,
     sourceVideoHeight,
     sourceVideoWidth,
     videoHeight,
     videoWidth,
-    width,
   ])
 
   if (!frames) return null

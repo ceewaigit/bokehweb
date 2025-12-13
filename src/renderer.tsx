@@ -6,6 +6,7 @@ import AreaSelectionPage from './app/area-selection/page';
 import { ThemeProvider } from './contexts/theme-context';
 import { ErrorBoundary } from './components/error-boundary';
 import { PermissionGuard } from './components/permission-guard';
+import { WindowAppearanceProvider } from './components/window-appearance-provider';
 import './app/globals.css';
 
 // Check route based on URL hash
@@ -17,9 +18,11 @@ const App = () => {
   if (isRecordButton) {
     // Record button needs ThemeProvider to access design tokens
     return (
-      <ThemeProvider>
-        <RecordButtonDock />
-      </ThemeProvider>
+      <WindowAppearanceProvider>
+        <ThemeProvider>
+          <RecordButtonDock />
+        </ThemeProvider>
+      </WindowAppearanceProvider>
     );
   }
 
@@ -31,13 +34,15 @@ const App = () => {
 
   // Main app UI needs ThemeProvider
   return (
-    <ThemeProvider>
-      <ErrorBoundary>
-        <PermissionGuard>
-          <WorkspaceManager />
-        </PermissionGuard>
-      </ErrorBoundary>
-    </ThemeProvider>
+    <WindowAppearanceProvider>
+      <ThemeProvider>
+        <ErrorBoundary>
+          <PermissionGuard>
+            <WorkspaceManager />
+          </PermissionGuard>
+        </ErrorBoundary>
+      </ThemeProvider>
+    </WindowAppearanceProvider>
   );
 };
 

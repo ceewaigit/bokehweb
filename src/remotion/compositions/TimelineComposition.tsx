@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { AbsoluteFill } from 'remotion';
 import type { Clip, Recording, Effect } from '@/types/project';
 import { TimeProvider } from '../context/TimeContext';
 import { ClipSequence } from './ClipSequence';
@@ -37,10 +37,10 @@ export interface TimelineCompositionProps {
   // Allow export to fall back to <Video> when OffthreadVideo is too heavy.
   preferOffthreadVideo?: boolean;
 
-  // Export-only: make camera evaluation independent of prior frames.
-  deterministicCamera?: boolean;
-
   videoUrls?: Record<string, string>;
+
+  // Preview-only: allow transparent background for window transparency.
+  backgroundColor?: string;
 }
 
 /**
@@ -61,11 +61,9 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   sourceVideoWidth,
   sourceVideoHeight,
   preferOffthreadVideo,
-  deterministicCamera,
   videoUrls,
+  backgroundColor,
 }) => {
-  const { width, height } = useVideoConfig();
-
   // Sort clips by start time for consistent rendering
   const sortedClips = React.useMemo(() => {
     return [...clips].sort((a, b) => a.startTime - b.startTime);
@@ -77,7 +75,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
     <TimeProvider clips={sortedClips} recordings={recordings} fps={fps}>
       <AbsoluteFill
         style={{
-          backgroundColor: '#000',
+          backgroundColor: backgroundColor ?? '#000',
         }}
       >
         {/* SharedVideoController provides VideoPositionContext for all children */}
@@ -87,7 +85,6 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
           sourceVideoWidth={sourceVideoWidth}
           sourceVideoHeight={sourceVideoHeight}
           preferOffthreadVideo={preferOffthreadVideo}
-          deterministicCamera={deterministicCamera}
           effects={effects}
           videoUrls={videoUrls}
         >

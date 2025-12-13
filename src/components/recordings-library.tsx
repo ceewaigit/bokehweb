@@ -263,9 +263,9 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-hidden bg-background">
+      <div className="flex-1 overflow-hidden bg-transparent">
         {/* Header skeleton */}
-        <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-2xl drag-region border-b border-border/40">
+        <div className="sticky top-0 z-20 bg-transparent drag-region border-b border-border/40">
           <div className="px-6 py-3 ml-20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -312,7 +312,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
           transition={{ delay: 0.2 }}
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
         >
-          <div className="bg-background/80 backdrop-blur-xl rounded-full px-4 py-2 flex items-center gap-3 shadow-2xl border border-border/50">
+          <div className="bg-black/60 backdrop-blur-md rounded-full px-4 py-2 flex items-center gap-3 shadow-2xl border border-border/50">
             <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
             <span className="text-xs font-medium text-muted-foreground">Loading your recordings...</span>
           </div>
@@ -325,7 +325,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     return (
       <div className="flex-1 overflow-hidden">
         {/* Header */}
-        <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-2xl drag-region border-b border-border/40">
+        <div className="sticky top-0 z-20 bg-transparent drag-region border-b border-border/40">
           <div className="px-6 py-3 ml-20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -398,15 +398,15 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
   }
 
   return (
-    <div className="flex-1 overflow-hidden bg-background">
+    <div className="flex-1 overflow-hidden bg-transparent">
       <div className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent">
-        {/* Enhanced header */}
-        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40 drag-region">
+        {/* header */}
+        <div className="sticky top-0 z-30 bg-transparent border-b border-border/40 drag-region">
           <div className="px-6 py-3 ml-20">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <h1 className="text-sm font-semibold text-foreground tracking-tight">Library</h1>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full ring-1 ring-border/20">
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-background backdrop-blur-xl px-2 py-0.5 rounded-full ring-1 ring-border/20">
                   <Layers className="w-3 h-3" />
                   <span className="font-mono">{allRecordings.length}</span>
                 </div>
@@ -441,7 +441,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 px-3 text-xs font-medium bg-background/50 hover:bg-muted/50"
+                  className="h-8 px-3 text-xs font-medium bg-muted/20 hover:bg-muted/40 border border-border/40"
                   onClick={() => loadRecordings(true)}
                   title="Refresh Library"
                 >
@@ -485,7 +485,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                     <div
                       className={cn(
                         "relative rounded-xl overflow-hidden cursor-pointer",
-                        "bg-card transition-all duration-300 border border-border/40",
+                        "bg-muted/10 transition-all duration-300 border border-border/40",
                         isHovered
                           ? "shadow-xl ring-1 ring-primary/20 -translate-y-1"
                           : "shadow-sm hover:shadow-md"
@@ -594,7 +594,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
 
           {isPageHydrating && (
             <div className="mt-4 flex justify-center">
-              <div className="bg-background/80 backdrop-blur-xl rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
+              <div className="bg-black/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm border border-border/50">
                 <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />
                 <span className="text-[10px] font-medium text-muted-foreground">Loading page…</span>
               </div>

@@ -22,7 +22,6 @@ import { calculateScreenTransform } from './utils/screen-transform';
 import { EffectType } from '@/types/project';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
 import type { Effect, Recording, Clip } from '@/types/project';
-import { useZoomState } from '../hooks/useZoomState';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { buildFrameLayout } from '@/lib/timeline/frame-layout';
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
@@ -34,7 +33,6 @@ export interface SharedVideoControllerProps {
   sourceVideoWidth?: number;
   sourceVideoHeight?: number;
   preferOffthreadVideo?: boolean;
-  deterministicCamera?: boolean;
   effects: Effect[];
   videoUrls?: Record<string, string>;
   children?: React.ReactNode;
@@ -69,7 +67,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   sourceVideoWidth,
   sourceVideoHeight,
   preferOffthreadVideo = true,
-  deterministicCamera,
   effects,
   videoUrls,
   children,
@@ -156,12 +153,17 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
     const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
     const padding = backgroundData?.padding || 0;
+    // Padding is authored in project pixel space (videoWidth/videoHeight). Preview compositions can be
+    // scaled (e.g. 1280x720) so we scale padding to keep the same relative layout as export.
+    const scaleFactor =
+      videoWidth > 0 && videoHeight > 0 ? Math.min(width / videoWidth, height / videoHeight) : 1;
+    const paddingScaled = padding * scaleFactor;
     return calculateVideoPosition(
       width,
       height,
       sourceVideoWidth ?? videoWidth,
       sourceVideoHeight ?? videoHeight,
-      padding
+      paddingScaled
     );
   }, [activeClipData, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight]);
 
@@ -179,13 +181,14 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     };
   }, [videoDrawArea, width, height]);
 
+  // ALWAYS use precomputed camera path for both preview and export.
+  // This ensures identical camera behavior - what you see in preview is exactly what exports.
+  // Uses stable videoWidth/videoHeight (not composition dimensions) so preview matches export.
   const precomputedCamera = usePrecomputedCameraPath({
-    enabled: Boolean(deterministicCamera && isRendering),
+    enabled: true,
     currentFrame,
     frameLayout,
     fps,
-    width,
-    height,
     videoWidth,
     videoHeight,
     sourceVideoWidth,
@@ -194,24 +197,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     getRecording,
   });
 
-  // Use custom hook for zoom state calculation
-  const computedZoomState = useZoomState({
-    effects: effects,
-    timelineMs: currentTimeMs,
-    sourceTimeMs: activeClipData?.sourceTimeMs,
-    recording: activeClipData?.recording,
-    // Use full preview/composition bounds for camera clamping so padding/background
-    // can be revealed when panning near edges.
-    // IMPORTANT: Use stable output dimensions (project resolution), not preview-scaled
-    // composition size, so preview/export camera math matches exactly.
-    outputWidth: videoWidth,
-    outputHeight: videoHeight,
-    overscan: cameraOverscan,
-    deterministic: deterministicCamera,
-  });
-
-  const calculatedZoomBlock = precomputedCamera ? precomputedCamera.activeZoomBlock : computedZoomState.activeZoomBlock;
-  const calculatedZoomCenter = precomputedCamera ? precomputedCamera.zoomCenter : computedZoomState.zoomCenter;
+  // Always use precomputed values - guarantees preview matches export exactly
+  const calculatedZoomBlock = precomputedCamera?.activeZoomBlock;
+  const calculatedZoomCenter = precomputedCamera?.zoomCenter ?? { x: 0.5, y: 0.5 };
 
   // Calculate render data (position, transforms, etc.) for the active clip
   const renderData = useMemo(() => {
@@ -223,6 +211,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
     const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
     const padding = backgroundData?.padding || 0;
+    const scaleFactor =
+      videoWidth > 0 && videoHeight > 0 ? Math.min(width / videoWidth, height / videoHeight) : 1;
+    const paddingScaled = padding * scaleFactor;
     const cornerRadius = backgroundData?.cornerRadius || 0;
     const shadowIntensity = backgroundData?.shadowIntensity || 0;
 
@@ -231,7 +222,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       height,
       sourceVideoWidth ?? videoWidth,
       sourceVideoHeight ?? videoHeight,
-      padding
+      paddingScaled
     );
 
     const zoomTransform = calculateZoomTransform(
@@ -241,7 +232,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       drawHeight,
       calculatedZoomCenter,
       undefined,
-      padding
+      paddingScaled
     );
     const transform = getZoomTransformString(zoomTransform);
     // Screen effects are in TIMELINE-space, so use currentTimeMs (not sourceTimeMs)

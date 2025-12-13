@@ -3,6 +3,7 @@ import { Group, Rect, Text } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import { TimelineTrackType } from '@/types/project'
+import { useWindowAppearanceStore } from '@/stores/window-appearance-store'
 
 interface TimelineTrackProps {
   type: TimelineTrackType
@@ -14,6 +15,8 @@ interface TimelineTrackProps {
 
 export const TimelineTrack = React.memo(({ type, y, width, height, muted = false }: TimelineTrackProps) => {
   const colors = useTimelineColors()
+  const windowSurfaceMode = useWindowAppearanceStore((s) => s.mode)
+  const windowSurfaceOpacity = useWindowAppearanceStore((s) => s.opacity)
 
   const getTrackStyle = () => {
     switch (type) {
@@ -56,6 +59,8 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
   }
 
   const style = getTrackStyle()
+  const isSolid = windowSurfaceMode === 'solid'
+  const baseOpacity = isSolid ? 1 : Math.min(0.5, Math.max(0.04, windowSurfaceOpacity))
 
   return (
     <Group>
@@ -66,7 +71,11 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
         width={width}
         height={height}
         fill={style.bgFill}
-        opacity={muted ? Math.min(1, (style.bgOpacity || 0) + 0.2) : style.bgOpacity}
+        opacity={
+          isSolid
+            ? baseOpacity * (muted ? Math.min(1, (style.bgOpacity || 0) + 0.2) : (style.bgOpacity || 0))
+            : baseOpacity * (muted ? 0.12 : 0.08)
+        }
         stroke={colors.muted}
         strokeWidth={4}
       />
@@ -78,7 +87,7 @@ export const TimelineTrack = React.memo(({ type, y, width, height, muted = false
         width={TimelineConfig.TRACK_LABEL_WIDTH}
         height={height}
         fill={muted ? colors.muted : colors.background}
-        opacity={muted ? 0.35 : 0.95}
+        opacity={isSolid ? baseOpacity * (muted ? 0.35 : 0.95) : baseOpacity * (muted ? 0.22 : 0.3)}
       />
 
       {/* Track label border */}

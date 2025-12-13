@@ -10,6 +10,7 @@
 import { useMemo } from 'react';
 import type { Project } from '@/types/project';
 import type { TimelineCompositionProps } from '@/remotion/compositions/TimelineComposition';
+import { useWindowAppearanceStore } from '@/stores/window-appearance-store';
 
 /**
  * Build timeline composition props from project
@@ -23,6 +24,8 @@ export function usePlayerConfiguration(
   videoHeight: number,
   fps: number
 ): TimelineCompositionProps | null {
+  const windowSurfaceMode = useWindowAppearanceStore((s) => s.mode)
+
   return useMemo(() => {
     if (!project?.timeline.tracks || !project.recordings) {
       return null;
@@ -56,6 +59,7 @@ export function usePlayerConfiguration(
       videoWidth,
       videoHeight,
       fps,
+      backgroundColor: windowSurfaceMode === 'solid' ? '#000' : 'transparent',
     };
-  }, [project, videoWidth, videoHeight, fps]);
+  }, [project, videoWidth, videoHeight, fps, windowSurfaceMode]);
 }

@@ -29,7 +29,7 @@ const PermissionItem: React.FC<PermissionItemProps> = ({
         flex items-center justify-between p-4 rounded-xl border transition-all duration-300
         ${isGranted
                     ? 'bg-primary/10 border-primary/20'
-                    : 'bg-card border-border hover:border-primary/20'
+                    : 'window-surface border-border hover:border-primary/20'
                 }
       `}
         >
@@ -94,7 +94,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     const allRequiredGranted = permissions.screenRecording && permissions.microphone
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background text-foreground overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-transparent text-foreground overflow-hidden">
             {/* Background Effects */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[120px]" />
