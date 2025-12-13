@@ -19,6 +19,7 @@ import { registerWindowControlHandlers } from './handlers/window-controls'
 import { registerWindowAppearanceHandlers } from './handlers/window-appearance'
 import { setupNativeRecorder } from './handlers/native-recorder'
 import { setupExportHandler, cleanupBundleCache } from './handlers/export'
+import { registerAssetHandlers } from './handlers/assets'
 
 // Helper functions for MIME type detection
 const guessMimeType = (filePath: string): string => {
@@ -304,6 +305,7 @@ function registerAllHandlers(): void {
   registerDialogHandlers()
   registerWindowControlHandlers()
   registerWindowAppearanceHandlers()
+  registerAssetHandlers()
   setupNativeRecorder()
   setupExportHandler()
 

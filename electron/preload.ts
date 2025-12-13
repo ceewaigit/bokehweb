@@ -173,6 +173,10 @@ const electronAPI = {
   loadImageAsDataUrl: (imagePath: string): Promise<string> =>
     ipcRenderer.invoke('load-image-as-data-url', imagePath),
 
+  // Asset helpers
+  listParallaxPresets: (): Promise<Array<{ id: string; name: string; folder: string; files: string[] }>> =>
+    ipcRenderer.invoke('list-parallax-presets'),
+
   // Native screen area selection
   selectScreenArea: (): Promise<{
     success: boolean

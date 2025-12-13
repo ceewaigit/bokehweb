@@ -1,18 +1,22 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { BackgroundEffectData, Effect } from '@/types/project'
 import { BackgroundType } from '@/types/project'
+import { DEFAULT_PARALLAX_LAYERS } from '@/lib/constants/default-effects'
 import { GRADIENT_PRESETS, COLOR_PRESETS } from './constants'
+import { getElectronAssetUrl } from '@/lib/assets/electron-asset-url'
 
 interface BackgroundTabProps {
   backgroundEffect: Effect | undefined
   onUpdateBackground: (updates: any) => void
 }
+
+type ParallaxPreset = { id: string; name: string; folder: string; files: string[] }
 
 let cachedMacOSWallpapers: any[] | null = null
 let macOSWallpapersPromise: Promise<any[] | null> | null = null
@@ -28,6 +32,9 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
   const [wallpaperPage, setWallpaperPage] = useState(0)
+  const [parallaxPresets, setParallaxPresets] = useState<ParallaxPreset[]>([])
+  const [selectedParallaxPresetId, setSelectedParallaxPresetId] = useState<string | null>(null)
+  const [loadingParallaxPresets, setLoadingParallaxPresets] = useState(false)
 
   // Sort wallpapers with default
   const sortedWallpapers = useMemo(() => {
@@ -104,26 +111,137 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
   }, [backgroundType])
 
   const bgData = backgroundEffect?.data as BackgroundEffectData
+  const parallaxPreviewRef = useRef<HTMLDivElement | null>(null)
+  const parallaxPreviewRafRef = useRef<number | null>(null)
+  const [parallaxPreviewMouse, setParallaxPreviewMouse] = useState({ x: 0.5, y: 0.5, active: false })
+
+  useEffect(() => {
+    if (backgroundType !== BackgroundType.Parallax) return
+    if (loadingParallaxPresets) return
+    if (parallaxPresets.length > 0) return
+
+    const buildFallbackPresets = (): ParallaxPreset[] => {
+      const byFolder = new Map<string, Set<string>>()
+      for (const layer of (bgData?.parallaxLayers?.length ? bgData.parallaxLayers : DEFAULT_PARALLAX_LAYERS)) {
+        const parts = layer.image.split('/').filter(Boolean)
+        const parallaxIndex = parts.indexOf('parallax')
+        if (parallaxIndex === -1) continue
+        const folder = parts[parallaxIndex + 1]
+        const file = parts[parallaxIndex + 2]
+        if (!folder || !file) continue
+        if (!byFolder.has(folder)) byFolder.set(folder, new Set())
+        byFolder.get(folder)!.add(file)
+      }
+      return Array.from(byFolder.entries()).map(([folder, files]) => ({
+        id: folder,
+        name: folder,
+        folder,
+        files: Array.from(files).sort((a, b) => a.localeCompare(b)),
+      }))
+    }
+
+    const pickDefaultPresetId = (presets: ParallaxPreset[]) => {
+      if (presets.some(p => p.id === 'hill')) return 'hill'
+      return presets[0]?.id ?? null
+    }
+
+    setLoadingParallaxPresets(true)
+    const maybeElectron = window.electronAPI?.listParallaxPresets
+    const loader = maybeElectron ? maybeElectron() : Promise.resolve(buildFallbackPresets())
+
+    loader
+      .then((presets) => {
+        const sanitized = (presets || []).filter(p => p.files?.length)
+        setParallaxPresets(sanitized)
+        setSelectedParallaxPresetId(prev => prev ?? pickDefaultPresetId(sanitized))
+      })
+      .catch(() => {
+        const fallback = buildFallbackPresets()
+        setParallaxPresets(fallback)
+        setSelectedParallaxPresetId(prev => prev ?? pickDefaultPresetId(fallback))
+      })
+      .finally(() => setLoadingParallaxPresets(false))
+  }, [backgroundType, bgData?.parallaxLayers, loadingParallaxPresets, parallaxPresets.length])
+
+  const selectedParallaxPreset = useMemo(() => {
+    if (!selectedParallaxPresetId) return null
+    return parallaxPresets.find(p => p.id === selectedParallaxPresetId) ?? null
+  }, [parallaxPresets, selectedParallaxPresetId])
+
+  const previewParallaxLayers = useMemo(() => {
+    const files = selectedParallaxPreset?.files
+    const folder = selectedParallaxPreset?.folder
+
+    if (!files?.length || !folder) {
+      return (bgData?.parallaxLayers?.length ? bgData.parallaxLayers : DEFAULT_PARALLAX_LAYERS)
+    }
+
+    const sorted = [...files].sort((a, b) => {
+      const ak = Number((a.match(/(\d+)(?!.*\d)/)?.[1]) ?? Number.NEGATIVE_INFINITY)
+      const bk = Number((b.match(/(\d+)(?!.*\d)/)?.[1]) ?? Number.NEGATIVE_INFINITY)
+      if (ak !== bk) return bk - ak
+      return a.localeCompare(b)
+    })
+
+    const maxFactor = 50
+    const minFactor = 10
+    const steps = Math.max(1, sorted.length - 1)
+
+    return sorted.map((file, index) => {
+      const t = steps === 0 ? 0 : index / steps
+      const factor = Math.round(maxFactor + (minFactor - maxFactor) * t)
+      return { image: `/parallax/${folder}/${file}`, factor, zIndex: index + 1 }
+    })
+  }, [bgData?.parallaxLayers, selectedParallaxPreset])
 
   return (
     <div className="space-y-4">
 
-      {/* Horizontal Background Type Tabs */}
-      <div className="flex p-1 bg-muted/50 rounded-lg">
-        {([BackgroundType.Wallpaper, BackgroundType.Gradient, BackgroundType.Color, BackgroundType.Image] as const).map(type => (
-          <button
-            key={type}
-            onClick={() => setBackgroundType(type)}
-            className={cn(
-              "flex-1 py-1.5 px-2 rounded-md text-xs font-medium transition-all capitalize",
-              backgroundType === type
-                ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
-                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-            )}
-          >
-            {type}
-          </button>
-        ))}
+      {/* Horizontal Background Type Tabs with scroll arrows */}
+      <div className="relative">
+        {/* Left scroll arrow */}
+        <button
+          onClick={() => {
+            const container = document.getElementById('bg-tabs-container')
+            if (container) container.scrollBy({ left: -100, behavior: 'smooth' })
+          }}
+          className="absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center w-6 bg-gradient-to-r from-muted/80 to-transparent opacity-0 hover:opacity-100 transition-opacity"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+        </button>
+
+        <div
+          id="bg-tabs-container"
+          className="flex p-0.5 bg-muted/50 rounded-lg gap-0.5 overflow-x-auto hide-scrollbar scroll-smooth"
+        >
+          {([BackgroundType.Wallpaper, BackgroundType.Parallax, BackgroundType.Gradient, BackgroundType.Color, BackgroundType.Image] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => setBackgroundType(type)}
+              className={cn(
+                "flex-shrink-0 py-1.5 px-2.5 rounded-md text-[11px] font-medium transition-all capitalize whitespace-nowrap",
+                backgroundType === type
+                  ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+              )}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+
+        {/* Right scroll arrow */}
+        <button
+          onClick={() => {
+            const container = document.getElementById('bg-tabs-container')
+            if (container) container.scrollBy({ left: 100, behavior: 'smooth' })
+          }}
+          className="absolute right-0 top-0 bottom-0 z-10 flex items-center justify-center w-6 bg-gradient-to-l from-muted/80 to-transparent opacity-0 hover:opacity-100 transition-opacity"
+          aria-label="Scroll right"
+        >
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </button>
       </div>
 
       <div className="border-t border-border/30 pt-2">
@@ -218,6 +336,136 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                 No wallpapers found. Use gradient presets instead.
               </div>
             )}
+          </div>
+        )}
+
+        {/* Parallax Background */}
+        {backgroundType === BackgroundType.Parallax && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-medium text-muted-foreground">Parallax Layers</h4>
+              {parallaxPresets.length > 1 && (
+                <select
+                  value={selectedParallaxPresetId ?? ''}
+                  onChange={(e) => setSelectedParallaxPresetId(e.target.value)}
+                  className="text-[11px] bg-background/80 border border-border/40 rounded px-1.5 py-0.5"
+                  aria-label="Parallax preset"
+                >
+                  {parallaxPresets.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div
+              ref={parallaxPreviewRef}
+              className="relative aspect-video rounded-lg overflow-hidden ring-1 ring-border/20 bg-gradient-to-b from-sky-400 to-sky-600"
+              onMouseEnter={() => setParallaxPreviewMouse(m => ({ ...m, active: true }))}
+              onMouseLeave={() => {
+                if (parallaxPreviewRafRef.current !== null) {
+                  cancelAnimationFrame(parallaxPreviewRafRef.current)
+                  parallaxPreviewRafRef.current = null
+                }
+                setParallaxPreviewMouse({ x: 0.5, y: 0.5, active: false })
+              }}
+              onMouseMove={(e) => {
+                const el = parallaxPreviewRef.current
+                if (!el) return
+
+                const rect = el.getBoundingClientRect()
+                if (rect.width <= 0 || rect.height <= 0) return
+
+                const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+                const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+
+                if (parallaxPreviewRafRef.current !== null) return
+                parallaxPreviewRafRef.current = requestAnimationFrame(() => {
+                  parallaxPreviewRafRef.current = null
+                  setParallaxPreviewMouse({ x, y, active: true })
+                })
+              }}
+            >
+              {/* Preview of layered parallax effect */}
+              <div className="absolute inset-0 flex items-end justify-center">
+                <div className="relative w-full h-3/4">
+                  {(previewParallaxLayers || []).slice().sort((a, b) => a.zIndex - b.zIndex).map((layer, index, all) => {
+                    const steps = Math.max(1, all.length - 1)
+                    const t = steps === 0 ? 0 : index / steps
+                    const opacity = 0.6 + t * 0.4
+                    const intensityMultiplier = (bgData?.parallaxIntensity ?? 50) / 50
+                    const offsetX = (parallaxPreviewMouse.x - 0.5) * 120 * intensityMultiplier
+                    const offsetY = (parallaxPreviewMouse.y - 0.5) * 80 * intensityMultiplier
+
+                    const moveX = offsetX / layer.factor
+                    const moveY = offsetY / layer.factor
+
+                    return (
+                      <img
+                        key={layer.image}
+                        src={getElectronAssetUrl(layer.image)}
+                        alt=""
+                        className="absolute bottom-0 w-full"
+                        style={{
+                          opacity,
+                          filter: 'grayscale(40%)',
+                          transform: `translate3d(${moveX}px, ${moveY}px, 0) scale(1.05)`,
+                          transition: parallaxPreviewMouse.active ? 'transform 40ms linear' : 'transform 200ms ease-out',
+                          willChange: 'transform',
+                        }}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <span className="text-white text-xs font-medium px-2 py-1 bg-black/40 rounded">Hill Parallax</span>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                onUpdateBackground({
+                  type: BackgroundType.Parallax,
+                  parallaxLayers: previewParallaxLayers,
+                  parallaxIntensity: bgData?.parallaxIntensity ?? 50
+                })
+              }}
+              className={cn(
+                "w-full py-2 px-3 rounded-md text-xs font-medium transition-all",
+                bgData?.type === BackgroundType.Parallax
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-primary/10 hover:bg-primary/20 text-primary"
+              )}
+            >
+              {loadingParallaxPresets ? 'Loading…' : bgData?.type === BackgroundType.Parallax ? 'Parallax Active' : 'Apply Parallax'}
+            </button>
+
+            {/* Intensity Slider - only show when parallax is active */}
+            {bgData?.type === BackgroundType.Parallax && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-muted-foreground">Movement Intensity</label>
+                  <span className="text-xs text-muted-foreground">{bgData?.parallaxIntensity ?? 50}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={bgData?.parallaxIntensity ?? 50}
+                  onChange={(e) => {
+                    onUpdateBackground({
+                      parallaxIntensity: parseInt(e.target.value)
+                    })
+                  }}
+                  className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                />
+              </div>
+            )}
+
+            <p className="text-[10px] text-muted-foreground/70">
+              Background follows recorded mouse movement during playback and export.
+            </p>
           </div>
         )}
 

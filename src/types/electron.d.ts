@@ -110,6 +110,7 @@ export interface ElectronAPI {
   loadWallpaperImage?: (imagePath: string) => Promise<string>
   selectImageFile?: () => Promise<string | null>
   loadImageAsDataUrl?: (imagePath: string) => Promise<string>
+  listParallaxPresets?: () => Promise<Array<{ id: string; name: string; folder: string; files: string[] }>>
   selectScreenArea?: () => Promise<{
     success: boolean
     cancelled?: boolean

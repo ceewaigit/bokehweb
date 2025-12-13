@@ -50,7 +50,7 @@ interface TimelineCanvasProps {
   onPlay: () => void
   onPause: () => void
   onSeek: (time: number) => void
-  onClipSelect: (clipId: string) => void
+  onClipSelect?: (clipId: string) => void
   onZoomChange: (zoom: number) => void
   onZoomBlockUpdate?: (blockId: string, updates: Partial<ZoomBlock>) => void
 }
@@ -237,9 +237,17 @@ export function TimelineCanvas({
 
   // Handle clip selection
   const handleClipSelect = useCallback((clipId: string) => {
-    onClipSelect(clipId)
     selectClip(clipId)
-  }, [onClipSelect, selectClip])
+    onClipSelect?.(clipId)
+  }, [selectClip, onClipSelect])
+
+  const handleReorderClip = useCallback((clipId: string, newIndex: number) => {
+    useProjectStore.getState().reorderClip(clipId, newIndex)
+  }, [])
+
+  const handleCacheTypingPeriods = useCallback((recordingId: string, periods: TypingPeriod[]) => {
+    useProjectStore.getState().cacheTypingPeriods(recordingId, periods)
+  }, [])
 
   // Handle clip drag using command pattern
   const handleClipDragEnd = useCallback(async (clipId: string, newStartTime: number) => {
@@ -569,6 +577,8 @@ export function TimelineCanvas({
                     otherClipsInTrack={videoClips}
                     clipEffects={clipEffects}
                     onSelect={handleClipSelect}
+                    onReorderClip={handleReorderClip}
+                    onCacheTypingPeriods={handleCacheTypingPeriods}
                     onSelectEffect={(type) => {
                       selectEffectLayer(type)
                     }}
@@ -749,6 +759,8 @@ export function TimelineCanvas({
                   isSelected={selectedClips.includes(clip.id)}
                   otherClipsInTrack={audioClips}
                   onSelect={handleClipSelect}
+                  onReorderClip={handleReorderClip}
+                  onCacheTypingPeriods={handleCacheTypingPeriods}
                   onDragEnd={handleClipDragEnd}
                   onContextMenu={handleClipContextMenu}
                 />

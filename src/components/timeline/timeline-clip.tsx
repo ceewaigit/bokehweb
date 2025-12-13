@@ -37,6 +37,8 @@ interface TimelineClipProps {
   onSelect: (clipId: string) => void
   onSelectEffect?: (type: EffectLayerType) => void
   onDragEnd: (clipId: string, newStartTime: number) => void
+  onReorderClip?: (clipId: string, newIndex: number) => void
+  onCacheTypingPeriods?: (recordingId: string, periods: TypingPeriod[]) => void
   onContextMenu?: (e: any, clipId: string) => void
   onOpenTypingSuggestion?: (opts: {
     x: number
@@ -63,6 +65,8 @@ export const TimelineClip = React.memo(({
   onSelect,
   onSelectEffect,
   onDragEnd,
+  onReorderClip,
+  onCacheTypingPeriods,
   onContextMenu,
   onOpenTypingSuggestion
 }: TimelineClipProps) => {
@@ -141,7 +145,7 @@ export const TimelineClip = React.memo(({
 
       // Cache results if not already cached (through store to handle Immer frozen objects)
       if (suggestions.periods.length > 0 && !recording.metadata?.detectedTypingPeriods) {
-        useProjectStore.getState().cacheTypingPeriods(recording.id, suggestions.periods)
+        onCacheTypingPeriods?.(recording.id, suggestions.periods)
       }
 
       // Only show suggestions for typing periods that fall within this clip's time range
@@ -166,7 +170,7 @@ export const TimelineClip = React.memo(({
       console.warn('Failed to analyze typing patterns:', error)
       setTypingSuggestions(null)
     }
-  }, [recording?.metadata?.keyboardEvents, clip.id, clip.sourceIn, clip.sourceOut, clip.duration, clip.playbackRate, clip.typingSpeedApplied])
+  }, [recording?.metadata?.keyboardEvents, clip.id, clip.sourceIn, clip.sourceOut, clip.duration, clip.playbackRate, clip.typingSpeedApplied, onCacheTypingPeriods])
 
   // Load single cached thumbnail for video clips - optimized for performance
   useEffect(() => {
@@ -347,7 +351,7 @@ export const TimelineClip = React.memo(({
             : [...otherClipsInTrack, clip]
         })()
         if (ClipReorderService.wouldChangeOrder(allClips, clip.id, newIndex)) {
-          useProjectStore.getState().reorderClip(clip.id, newIndex)
+          onReorderClip?.(clip.id, newIndex)
         }
 
         // Clear cached snap positions

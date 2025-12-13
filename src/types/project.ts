@@ -294,7 +294,8 @@ export enum BackgroundType {
   Color = 'color',
   Gradient = 'gradient',
   Image = 'image',
-  Wallpaper = 'wallpaper'
+  Wallpaper = 'wallpaper',
+  Parallax = 'parallax'
 }
 
 // Screen effect preset enum
@@ -399,6 +400,15 @@ export interface BackgroundEffectData {
   padding: number
   cornerRadius?: number  // Video corner radius in pixels
   shadowIntensity?: number  // Shadow intensity 0-100
+  parallaxLayers?: ParallaxLayer[]  // Layers for parallax background
+  parallaxIntensity?: number  // Movement intensity 0-100 (default 50)
+}
+
+// Parallax layer definition
+export interface ParallaxLayer {
+  image: string      // Path or URL to the layer image
+  factor: number     // Movement sensitivity (smaller = more movement)
+  zIndex: number     // Visual stacking order
 }
 
 // Annotation style definition

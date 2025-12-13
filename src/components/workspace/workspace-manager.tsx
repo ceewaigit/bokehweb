@@ -414,10 +414,9 @@ export function WorkspaceManager() {
     storeSeek(time)
   }, [storeSeek])
 
-  const handleClipSelect = useCallback((clipId: string) => {
+  const handleClipSelect = useCallback((_clipId: string) => {
     setHasUnsavedChanges(false)
-    selectClip(clipId)
-  }, [selectClip])
+  }, [])
 
   const handleEffectChange = useCallback((type: EffectType, data: any) => {
     // Get effects from single source of truth

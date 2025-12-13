@@ -1,7 +1,11 @@
 import React from 'react';
-import { AbsoluteFill } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { Effect, BackgroundEffectData } from '@/types/project';
 import { BackgroundType } from '@/types/project';
+import { useClipContext } from '../context/ClipContext';
+import { interpolateMousePositionNormalized } from '@/lib/effects/utils/mouse-interpolation';
+import { ParallaxBackgroundLayer } from './ParallaxBackgroundLayer';
+import { DEFAULT_PARALLAX_LAYERS } from '@/lib/constants/default-effects';
 
 export interface BackgroundLayerProps {
   backgroundEffect?: Effect;
@@ -15,9 +19,44 @@ export const BackgroundLayer: React.FC<BackgroundLayerProps> = ({
   videoHeight
 }) => {
   const backgroundData = backgroundEffect?.data as BackgroundEffectData | undefined;
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  // Get clip context for mouse events - this component is always rendered inside ClipProvider
+  const { cursorEvents, clip } = useClipContext();
 
   if (!backgroundData?.type) {
     return null;
+  }
+
+  // Handle Parallax type separately with its own component
+  if (backgroundData.type === BackgroundType.Parallax) {
+    // Calculate current source time for mouse interpolation
+    // frame is relative to the Sequence start (clip start), not timeline
+    const frameTimeMs = (frame / fps) * 1000;
+    const sourceTimeMs = (clip.sourceIn ?? 0) + frameTimeMs;
+
+    // Get normalized mouse position (0-1)
+    const mousePos = interpolateMousePositionNormalized(cursorEvents, sourceTimeMs);
+    const mouseX = mousePos?.x ?? 0.5;
+    const mouseY = mousePos?.y ?? 0.5;
+
+    // Use configured layers or defaults
+    const layers = backgroundData.parallaxLayers?.length
+      ? backgroundData.parallaxLayers
+      : DEFAULT_PARALLAX_LAYERS;
+
+    // Get intensity (default 50)
+    const intensity = backgroundData.parallaxIntensity ?? 50;
+
+    return (
+      <ParallaxBackgroundLayer
+        layers={layers}
+        mouseX={mouseX}
+        mouseY={mouseY}
+        intensity={intensity}
+      />
+    );
   }
 
   let backgroundStyle: React.CSSProperties = {};

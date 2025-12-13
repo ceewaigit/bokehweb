@@ -51,6 +51,7 @@ export type {
   CursorEffectData,
   KeystrokeEffectData,
   BackgroundEffectData,
+  ParallaxLayer,
   AnnotationData,
   ScreenEffectData,
   CaptureArea,
