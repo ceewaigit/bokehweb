@@ -90,26 +90,64 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
     loadVideos();
   }, [project?.recordings]);
 
-  // Sync player with currentTime
+  const clampFrame = (frame: number) => {
+    if (!timelineMetadata) return Math.max(0, frame);
+    const maxFrame = timelineMetadata.durationInFrames - 1;
+    return Math.max(0, Math.min(frame, maxFrame));
+  };
+
+  const timeToFrame = (timeMs: number) => {
+    if (!timelineMetadata) return 0;
+    return Math.round((timeMs / 1000) * timelineMetadata.fps);
+  };
+
+  // When playing, drive playback via the Remotion Player (so audio can play).
+  // When paused, sync the player to the currentTime (scrubbing/seek).
   useEffect(() => {
     if (!playerRef.current || !timelineMetadata) return;
 
-    const targetFrame = Math.round((currentTime / 1000) * timelineMetadata.fps);
-    const maxFrame = timelineMetadata.durationInFrames - 1;
-    const clampedFrame = Math.max(0, Math.min(targetFrame, maxFrame));
+    const targetFrame = clampFrame(timeToFrame(currentTime));
+
+    if (isPlaying) {
+      try {
+        playerRef.current.seekTo(targetFrame);
+      } catch (e) {
+        console.warn('Failed to seek before play:', e);
+      }
+
+      try {
+        playerRef.current.unmute();
+        playerRef.current.setVolume(1);
+      } catch {
+        // Best-effort: older player versions may not expose all methods
+      }
+
+      try {
+        playerRef.current.play();
+      } catch (e) {
+        console.warn('Failed to play:', e);
+      }
+
+      return;
+    }
 
     try {
-      playerRef.current.seekTo(clampedFrame);
+      playerRef.current.pause();
+    } catch (e) {
+      console.warn('Failed to pause:', e);
+    }
+
+    try {
+      playerRef.current.seekTo(targetFrame);
     } catch (e) {
       console.warn('Failed to seek:', e);
     }
-  }, [currentTime, timelineMetadata, isPlaying]);
+  }, [currentTime, isPlaying, timelineMetadata]);
 
   // Calculate initial frame
   const initialFrame = useMemo(() => {
     if (!timelineMetadata) return 0;
-    const frame = Math.round((currentTime / 1000) * timelineMetadata.fps);
-    return Math.max(0, Math.min(frame, timelineMetadata.durationInFrames - 1));
+    return clampFrame(timeToFrame(currentTime));
   }, [currentTime, timelineMetadata]);
 
   // Generate a key that changes when clip positions change to force Player re-render
@@ -148,6 +186,7 @@ export function PreviewAreaRemotion({ currentTime, isPlaying }: PreviewAreaRemot
             compositionHeight={compositionSize.height}
             fps={timelineMetadata.fps}
             initialFrame={initialFrame}
+            initiallyMuted={false}
             style={{
               width: '100%',
               height: '100%',

@@ -13,6 +13,8 @@ export class SplitClipCommand extends Command<SplitClipResult> {
   private originalClip?: Clip
   private leftClip?: Clip
   private rightClip?: Clip
+  private leftClipSnapshot?: Clip
+  private rightClipSnapshot?: Clip
   private trackId?: string
   private originalIndex?: number
 
@@ -42,7 +44,6 @@ export class SplitClipCommand extends Command<SplitClipResult> {
 
   doExecute(): CommandResult<SplitClipResult> {
     const store = this.context.getStore()
-    const project = this.context.getProject()
     const result = this.context.findClip(this.clipId)
 
     if (!result) {
@@ -59,23 +60,40 @@ export class SplitClipCommand extends Command<SplitClipResult> {
     // Store original clip
     this.originalClip = JSON.parse(JSON.stringify(clip))
 
-    // Get the track before split to count clips
-    const trackBeforeSplit = project?.timeline.tracks.find(t => t.id === this.trackId)
-    const clipsBeforeSplit = trackBeforeSplit?.clips.length || 0
-
     // Execute split using store method
     store.splitClip(this.clipId, this.splitTime)
 
-    // Get the newly created clips from the track after split
-    // The split operation replaces 1 clip with 2, so we find the 2 newest clips at the original position
-    if (project && this.trackId && this.originalIndex !== undefined) {
-      const track = project.timeline.tracks.find(t => t.id === this.trackId)
-      if (track && track.clips.length === clipsBeforeSplit + 1) {
-        // Split succeeded - get the two clips at and after the original index
-        this.leftClip = track.clips[this.originalIndex]
-        this.rightClip = track.clips[this.originalIndex + 1]
+    // IMPORTANT: Re-read project after store mutation; references captured before `set()` can be stale.
+    const updatedProject = this.context.getProject()
+    if (updatedProject && this.trackId && this.originalIndex !== undefined) {
+      const updatedTrack = updatedProject.timeline.tracks.find(t => t.id === this.trackId)
+
+      if (updatedTrack) {
+        const candidateLeft = updatedTrack.clips[this.originalIndex]
+        const candidateRight = updatedTrack.clips[this.originalIndex + 1]
+
+        // Most common case: split inserts two clips at original index.
+        if (candidateLeft && candidateRight) {
+          this.leftClip = candidateLeft
+          this.rightClip = candidateRight
+        } else if (this.originalClip) {
+          // Fallback: locate by expected timeline positions.
+          const left = updatedTrack.clips.find(c =>
+            c.recordingId === this.originalClip!.recordingId &&
+            c.startTime === this.originalClip!.startTime
+          )
+          const right = updatedTrack.clips.find(c =>
+            c.recordingId === this.originalClip!.recordingId &&
+            c.startTime === this.splitTime
+          )
+          if (left) this.leftClip = left
+          if (right) this.rightClip = right
+        }
       }
     }
+
+    if (this.leftClip) this.leftClipSnapshot = JSON.parse(JSON.stringify(this.leftClip))
+    if (this.rightClip) this.rightClipSnapshot = JSON.parse(JSON.stringify(this.rightClip))
 
     return {
       success: true,
@@ -122,11 +140,11 @@ export class SplitClipCommand extends Command<SplitClipResult> {
       if (leftIndex !== -1) insertIndex = leftIndex
     }
 
-    // Remove split clips via store to ensure state updates
-    if (this.leftClip) {
+    // Remove split clips via store to ensure state updates (guard against missing/stale references)
+    if (this.leftClip?.id && this.context.findClip(this.leftClip.id)) {
       store.removeClip(this.leftClip.id)
     }
-    if (this.rightClip) {
+    if (this.rightClip?.id && this.context.findClip(this.rightClip.id)) {
       store.removeClip(this.rightClip.id)
     }
 
@@ -147,7 +165,7 @@ export class SplitClipCommand extends Command<SplitClipResult> {
   }
 
   doRedo(): CommandResult<SplitClipResult> {
-    if (!this.leftClip || !this.rightClip || !this.trackId) {
+    if (!this.leftClipSnapshot || !this.rightClipSnapshot || !this.trackId) {
       return {
         success: false,
         error: 'Cannot redo: missing split clip data'
@@ -182,18 +200,18 @@ export class SplitClipCommand extends Command<SplitClipResult> {
 
     // Re-insert split clips at the original position via store API
     const insertIndex = originalIndex === -1 ? (this.originalIndex ?? 0) : originalIndex
-    store.restoreClip(this.trackId, this.leftClip, insertIndex)
-    store.restoreClip(this.trackId, this.rightClip, insertIndex + 1)
+    store.restoreClip(this.trackId, JSON.parse(JSON.stringify(this.leftClipSnapshot)), insertIndex)
+    store.restoreClip(this.trackId, JSON.parse(JSON.stringify(this.rightClipSnapshot)), insertIndex + 1)
 
     // Select the left clip
-    store.selectClip(this.leftClip.id)
+    store.selectClip(this.leftClipSnapshot.id)
 
     return {
       success: true,
       data: {
         originalClipId: this.clipId,
-        leftClipId: this.leftClip.id,
-        rightClipId: this.rightClip.id
+        leftClipId: this.leftClipSnapshot.id,
+        rightClipId: this.rightClipSnapshot.id
       }
     }
   }

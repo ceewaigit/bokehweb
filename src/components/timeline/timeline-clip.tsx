@@ -438,80 +438,87 @@ export const TimelineClip = React.memo(({
         </Group>
       )}
 
-      {/* Audio waveform visualization for clips with audio */}
+      {/* Audio waveform visualization - minimal bottom strip */}
       {trackType === TrackType.Video && recording?.hasAudio && (
         <Group
-          y={trackHeight / 2}
-          opacity={0.7}
+          y={(() => {
+            const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+            const stripHeight = Math.max(12, Math.min(22, Math.floor(clipInnerHeight * 0.48)))
+            return clipInnerHeight - stripHeight
+          })()}
           clipFunc={(ctx) => {
-            // Clip to the bounds of the clip for clean edges
             ctx.beginPath()
-            ctx.rect(0, -trackHeight / 2 + 4, clipWidth, trackHeight - 8)
+            const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+            const stripHeight = Math.max(12, Math.min(22, Math.floor(clipInnerHeight * 0.48)))
+            ctx.roundRect(0, 0, clipWidth, stripHeight, 6)
             ctx.closePath()
           }}
         >
-          {/* Generate waveform bars from real audio data or fallback */}
           {(() => {
-            const barWidth = 2
-            const barGap = 2
-            const barCount = Math.floor(clipWidth / (barWidth + barGap))
+            const clipInnerHeight = trackHeight - TimelineConfig.TRACK_PADDING * 2
+            const stripHeight = Math.max(16, Math.min(34, Math.floor(clipInnerHeight * 0.7)))
+            const baselineY = stripHeight - 1
+            const maxAmplitude = stripHeight - 1
+            const minBarHeight = 4
+            const heightBoost = 1.55
 
-            // Use real waveform data if available, otherwise use a simple pattern
-            const peaks = waveformData
+            // Modern minimal waveform: thin, rounded bars centered on the midline
+            const barWidth = 3
+            const barGap = 1
+            const barCount = Math.max(24, Math.floor(clipWidth / (barWidth + barGap)))
+
+            const peaks = waveformData?.peaks?.length
               ? WaveformAnalyzer.resamplePeaks(waveformData.peaks, clipWidth, barWidth, barGap)
-              : Array.from({ length: barCount }, (_, i) => {
-                // Fallback: simple sine wave pattern if no real data yet
-                const progress = i / Math.max(1, barCount - 1)
-                const envelope = Math.min(1, Math.min(progress * 10, (1 - progress) * 10))
-                return Math.abs(Math.sin(i * 0.2)) * envelope * 0.7
-              })
+              : []
 
-            return peaks.map((peak, i) => {
-              const x = i * (barWidth + barGap) + 2
-              const maxHeight = (trackHeight - 16) / 2
-              const barHeight = Math.max(1, peak * maxHeight)
+            const fill = isSelected ? colors.primary : colors.foreground
+            const opacity = isSelected ? 0.5 : 0.35
 
-              // Only render bars that fit within the clip width
-              if (x + barWidth > clipWidth) return null
-
-              return (
-                <Group key={i}>
-                  {/* Main waveform bar - symmetrical */}
-                  <Rect
-                    x={x}
-                    y={-barHeight}
-                    width={barWidth}
-                    height={barHeight * 2}
-                    fill={colors.foreground}
-                    opacity={0.25 + peak * 0.2}
-                    cornerRadius={1}
-                  />
-                  {/* Highlight on peaks for depth */}
-                  {peak > 0.7 && (
+            return (
+              <>
+                {/* Contrast backdrop so waveform stays visible over thumbnails */}
+                <Rect
+                  x={0}
+                  y={0}
+                  width={clipWidth}
+                  height={stripHeight}
+                  fill="rgba(0,0,0,0.35)"
+                  opacity={0.35}
+                  listening={false}
+                />
+                {peaks.length > 0 && peaks.map((peak, i) => {
+                  const clamped = Math.max(0, Math.min(1, peak))
+                  const shaped = Math.pow(clamped, 0.45)
+                  const scaled = minBarHeight + shaped * (maxAmplitude - minBarHeight) * heightBoost
+                  const barHeight = Math.max(minBarHeight, Math.min(maxAmplitude, scaled))
+                  const x = i * (barWidth + barGap)
+                  if (x > clipWidth) return null
+                  return (
                     <Rect
+                      key={`wf-${clip.id}-${i}`}
                       x={x}
-                      y={-barHeight * 0.9}
+                      y={baselineY - barHeight}
                       width={barWidth}
-                      height={barHeight * 1.8}
-                      fill={colors.foreground}
-                      opacity={0.08}
-                      cornerRadius={1}
+                      height={barHeight}
+                      fill={fill}
+                      opacity={opacity}
+                      cornerRadius={barWidth}
+                      listening={false}
                     />
-                  )}
-                </Group>
-              )
-            }).filter(Boolean)
+                  )
+                })}
+                {/* Subtle baseline */}
+                <Rect
+                  x={0}
+                  y={baselineY}
+                  width={clipWidth}
+                  height={1}
+                  fill={fill}
+                  opacity={0.18}
+                />
+              </>
+            )
           })()}
-
-          {/* Subtle center line */}
-          <Rect
-            x={0}
-            y={-0.5}
-            width={clipWidth}
-            height={1}
-            fill={colors.foreground}
-            opacity={0.1}
-          />
         </Group>
       )}
 
@@ -519,7 +526,7 @@ export const TimelineClip = React.memo(({
       {trackType === TrackType.Video && clip.playbackRate && clip.playbackRate !== 1.0 && (() => {
         const rateText = `${clip.playbackRate.toFixed(clip.playbackRate === Math.floor(clip.playbackRate) ? 0 : 1)}x`
         return (
-          <Group x={6} y={trackHeight - TimelineConfig.TRACK_PADDING * 2 - 14}>
+          <Group x={6} y={6}>
             <Rect
               width={22}
               height={10}

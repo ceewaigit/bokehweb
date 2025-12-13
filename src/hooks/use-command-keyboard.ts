@@ -6,6 +6,7 @@ import {
   DefaultCommandContext,
   registerAllCommands,
   SplitClipCommand,
+  TrimCommand,
   DuplicateClipCommand,
   RemoveClipCommand,
   RemoveZoomBlockCommand,
@@ -200,6 +201,50 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       }
     }
 
+    const handleTrimStart = async () => {
+      const currentStore = useProjectStore.getState()
+      const selectedClips = currentStore.selectedClips
+      if (selectedClips.length !== 1) {
+        toast.error('Select exactly one clip to trim')
+        return
+      }
+
+      contextRef.current = new DefaultCommandContext(useProjectStore)
+      const command = new TrimCommand(
+        contextRef.current,
+        selectedClips[0],
+        currentStore.currentTime,
+        'start'
+      )
+
+      const result = await manager.execute(command)
+      if (!result.success) {
+        toast.error(result.error as string)
+      }
+    }
+
+    const handleTrimEnd = async () => {
+      const currentStore = useProjectStore.getState()
+      const selectedClips = currentStore.selectedClips
+      if (selectedClips.length !== 1) {
+        toast.error('Select exactly one clip to trim')
+        return
+      }
+
+      contextRef.current = new DefaultCommandContext(useProjectStore)
+      const command = new TrimCommand(
+        contextRef.current,
+        selectedClips[0],
+        currentStore.currentTime,
+        'end'
+      )
+
+      const result = await manager.execute(command)
+      if (!result.success) {
+        toast.error(result.error as string)
+      }
+    }
+
     // Duplicate handler
     const handleDuplicate = async () => {
       const currentStore = useProjectStore.getState()
@@ -246,6 +291,8 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
     keyboardManager.on('paste', handlePaste)
     keyboardManager.on('delete', handleDelete)
     keyboardManager.on('split', handleSplit)
+    keyboardManager.on('trimStart', handleTrimStart)
+    keyboardManager.on('trimEnd', handleTrimEnd)
     keyboardManager.on('duplicate', handleDuplicate)
     keyboardManager.on('undo', handleUndo)
     keyboardManager.on('redo', handleRedo)
@@ -256,6 +303,8 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       keyboardManager.removeListener('paste', handlePaste)
       keyboardManager.removeListener('delete', handleDelete)
       keyboardManager.removeListener('split', handleSplit)
+      keyboardManager.removeListener('trimStart', handleTrimStart)
+      keyboardManager.removeListener('trimEnd', handleTrimEnd)
       keyboardManager.removeListener('duplicate', handleDuplicate)
       keyboardManager.removeListener('undo', handleUndo)
       keyboardManager.removeListener('redo', handleRedo)

@@ -8,6 +8,7 @@ import { ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType, EffectType } from '@/types/effects'
 import { AddEffectCommand, DefaultCommandContext, CommandManager } from '@/lib/commands'
+import { InfoTooltip } from './info-tooltip'
 
 interface ScreenTabProps {
   selectedClip: Clip | null
@@ -40,9 +41,12 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
         >
           Add 3D Screen Block
         </button>
-        <p className="text-[9px] text-muted-foreground/60 mt-2 italic">
-          Creates a block you can resize on the timeline.
-        </p>
+        <div className="mt-2 flex items-center justify-center gap-2">
+          <p className="text-xs text-muted-foreground/70 italic leading-snug">
+            Creates a block you can resize on the timeline.
+          </p>
+          <InfoTooltip content="Select the block on the timeline to edit its preset here." />
+        </div>
       </div>
 
       {/* Show presets only when a screen block is selected */}
@@ -58,7 +62,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
               <button
                 key={preset}
                 className={cn(
-                  'px-2 py-1.5 text-[10px] rounded transition-all capitalize',
+                  'px-2 py-1.5 text-xs font-medium rounded transition-all capitalize',
                   'bg-background/50 text-muted-foreground hover:bg-background/70'
                 )}
                 onClick={() => onEffectChange(EffectType.Screen, { preset })}
@@ -70,7 +74,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
 
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/30">
             <div className="space-y-1">
-              <label className="text-[10px] text-muted-foreground">Tilt Ease In (ms)</label>
+              <label className="text-xs text-muted-foreground">Tilt Ease In (ms)</label>
               <input
                 type="range"
                 min={0}
@@ -81,7 +85,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-muted-foreground">Tilt Ease Out (ms)</label>
+              <label className="text-xs text-muted-foreground">Tilt Ease Out (ms)</label>
               <input
                 type="range"
                 min={0}
@@ -95,7 +99,7 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
         </div>
       ) : (
         <div className="p-4 bg-background/40 rounded-xl">
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground leading-snug">
             Select a 3D Screen block on the timeline to edit its preset.
           </p>
         </div>

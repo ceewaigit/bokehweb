@@ -38,6 +38,8 @@ import {
   DuplicateClipCommand,
   TrimCommand,
   CopyCommand,
+  CutCommand,
+  PasteCommand,
   ChangePlaybackRateCommand
 } from '@/lib/commands'
 
@@ -227,12 +229,14 @@ export function TimelineCanvas({
 
   // Handle clip context menu
   const handleClipContextMenu = useCallback((e: { evt: { clientX: number; clientY: number } }, clipId: string) => {
+    // Match common UX: right-clicking a clip selects it so actions operate on the intended target.
+    selectClip(clipId)
     setContextMenu({
       x: e.evt.clientX,
       y: e.evt.clientY,
       clipId
     })
-  }, [])
+  }, [selectClip])
 
   // Handle clip selection
   const handleClipSelect = useCallback((clipId: string) => {
@@ -381,6 +385,22 @@ export function TimelineCanvas({
     const command = new CopyCommand(freshContext, clipId)
     await manager.execute(command)
   }, [])
+
+  const handleClipCut = useCallback(async (clipId: string) => {
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore)
+    const command = new CutCommand(freshContext, clipId)
+    await manager.execute(command)
+  }, [])
+
+  const handlePaste = useCallback(async () => {
+    const manager = commandManagerRef.current
+    if (!manager) return
+    const freshContext = new DefaultCommandContext(useProjectStore)
+    const command = new PasteCommand(freshContext, currentTime)
+    await manager.execute(command)
+  }, [currentTime])
 
   const handleClipDelete = useCallback(async (clipId: string) => {
     const manager = commandManagerRef.current
@@ -700,6 +720,9 @@ export function TimelineCanvas({
                 const visualWidth = Math.max(TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX, calculatedWidth)
                 const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
 
+                // Get screen effect data for intro/outro
+                const screenData = EffectsFactory.getScreenData(effect)
+
                 const blockElement = (
                   <TimelineEffectBlock
                     key={effect.id}
@@ -713,6 +736,9 @@ export function TimelineCanvas({
                     endTime={effect.endTime}
                     label={'3D'}
                     fillColor={colors.screenBlock}
+                    scale={1.3}  // Use a fixed scale to show the intro/outro curve
+                    introMs={screenData?.introMs ?? 400}
+                    outroMs={screenData?.outroMs ?? 400}
                     isSelected={isBlockSelected}
                     isEnabled={effect.enabled}
                     allBlocks={allScreenBlocks}
@@ -790,7 +816,9 @@ export function TimelineCanvas({
             onTrimStart={handleClipTrimStart}
             onTrimEnd={handleClipTrimEnd}
             onDuplicate={handleClipDuplicate}
+            onCut={handleClipCut}
             onCopy={handleClipCopy}
+            onPaste={handlePaste}
             onDelete={handleClipDelete}
             onSpeedUp={handleClipSpeedUp}
             onClose={() => setContextMenu(null)}

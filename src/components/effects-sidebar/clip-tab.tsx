@@ -9,6 +9,7 @@ import type { Clip } from '@/types/project'
 import { useCommandManager } from '@/hooks/use-command-manager'
 import { ChangePlaybackRateCommand } from '@/lib/commands'
 import { useProjectStore } from '@/stores/project-store'
+import { InfoTooltip } from './info-tooltip'
 
 interface ClipTabProps {
   selectedClip: Clip | null
@@ -92,7 +93,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
     return (
       <div className="text-center text-muted-foreground py-8">
         <Zap className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        <p>Select a clip to edit its properties</p>
+        <p className="text-sm">Select a clip to edit its properties</p>
       </div>
     )
   }
@@ -114,7 +115,10 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
 
       <div className="p-4 bg-background/40 rounded-xl space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium text-foreground">Playback Speed</h4>
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-medium text-foreground">Playback Speed</h4>
+            <InfoTooltip content="Changes clip speed without changing its start time." />
+          </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-xs">
               {playbackRate.toFixed(2)}x
@@ -142,13 +146,10 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
             className="w-full"
           />
 
-          <div className="relative w-full h-4 mt-1">
-            {/* Min label */}
-            <span className="absolute text-xs text-muted-foreground" style={{ left: `${pct(MIN_RATE)}%`, transform: 'translateX(-50%)' }}>0.25x</span>
-            {/* 1x label positioned at actual 1x */}
-            <span className="absolute text-xs text-muted-foreground" style={{ left: `${pct(1)}%`, transform: 'translateX(-50%)' }}>1x</span>
-            {/* Max label */}
-            <span className="absolute text-xs text-muted-foreground" style={{ left: `${pct(MAX_RATE)}%`, transform: 'translateX(-50%)' }}>4x</span>
+          <div className="relative w-full h-4 mt-1 text-xs text-muted-foreground tabular-nums leading-none">
+            <span className="absolute left-0">0.25x</span>
+            <span className="absolute" style={{ left: `${pct(1)}%`, transform: 'translateX(-50%)' }}>1x</span>
+            <span className="absolute right-0">4x</span>
           </div>
         </div>
 

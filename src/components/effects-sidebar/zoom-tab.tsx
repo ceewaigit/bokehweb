@@ -11,6 +11,7 @@ import { EffectType, ScreenEffectPreset } from '@/types/project'
 import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
+import { InfoTooltip } from './info-tooltip'
 
 interface ZoomTabProps {
   effects: Effect[] | undefined
@@ -57,7 +58,10 @@ export function ZoomTab({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ZoomIn className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium">Zoom Scale</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium leading-none">Zoom Scale</span>
+                    <InfoTooltip content="How much to zoom into the region (higher = closer)." />
+                  </div>
                 </div>
                 <span className="text-xs font-mono text-primary tabular-nums">
                   {(localScale ?? zoomData.scale ?? 2.0).toFixed(1)}x
@@ -78,7 +82,7 @@ export function ZoomTab({
                 step={0.1}
                 className="w-full"
               />
-              <div className="flex justify-between text-[10px] text-muted-foreground/60">
+              <div className="flex justify-between text-xs text-muted-foreground/70 tabular-nums">
                 <span>1x</span>
                 <span>7x</span>
               </div>
@@ -86,13 +90,16 @@ export function ZoomTab({
 
             {/* Easing Controls */}
             <div className="p-4 bg-background/40 rounded-xl space-y-3">
-              <span className="text-xs font-medium">Easing Duration</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium leading-none">Easing Duration</span>
+                <InfoTooltip content="How quickly the zoom eases in and out (ms)." />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 {/* Ease In */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">In</span>
-                    <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                    <span className="text-xs text-muted-foreground">In</span>
+                    <span className="text-xs font-mono text-muted-foreground tabular-nums">
                       {localIntroMs ?? (zoomData.introMs || 500)}ms
                     </span>
                   </div>
@@ -115,8 +122,8 @@ export function ZoomTab({
                 {/* Ease Out */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">Out</span>
-                    <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                    <span className="text-xs text-muted-foreground">Out</span>
+                    <span className="text-xs font-mono text-muted-foreground tabular-nums">
                       {localOutroMs ?? (zoomData.outroMs || 500)}ms
                     </span>
                   </div>
@@ -142,17 +149,23 @@ export function ZoomTab({
             {/* Advanced Settings Toggle */}
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground bg-background/30 hover:bg-background/50 rounded-lg transition-colors"
             >
-              <span>Advanced</span>
+              <span className="flex items-center gap-2">
+                Advanced
+                <InfoTooltip content="Fine-tune how zoom regions track cursor movement." />
+              </span>
               <ChevronRight className={cn("w-3.5 h-3.5 transition-transform duration-200", showAdvanced && "rotate-90")} />
             </button>
 
             {showAdvanced && (
               <div className="p-4 bg-background/30 rounded-xl space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-muted-foreground">Mouse Idle Threshold</span>
-                  <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Mouse Idle Threshold</span>
+                    <InfoTooltip content="Minimum movement (px) needed to trigger panning inside a zoom." />
+                  </div>
+                  <span className="text-xs font-mono text-muted-foreground tabular-nums">
                     {zoomData.mouseIdlePx ?? 3}px
                   </span>
                 </div>
@@ -169,7 +182,7 @@ export function ZoomTab({
                   step={1}
                   className="w-full"
                 />
-                <p className="text-[9px] text-muted-foreground/60">
+                <p className="text-xs text-muted-foreground/70 leading-snug">
                   Minimum cursor movement to trigger pan
                 </p>
               </div>
@@ -183,18 +196,22 @@ export function ZoomTab({
 
       {/* Zoom Effects Toggle */}
       <div className="p-4 bg-background/40 rounded-xl">
-        <label className="flex items-center justify-between cursor-pointer">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <ZoomIn className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-medium">Zoom Effects</span>
+            <div className="min-w-0">
+              <div className="text-sm font-medium leading-none">Zoom Effects</div>
+              <div className="mt-1 text-xs text-muted-foreground leading-snug">
+                Auto-detect and apply zoom regions.
+              </div>
+            </div>
           </div>
           <Switch
+            aria-label="Enable zoom effects"
             checked={zoomEffects.length > 0}
-            onCheckedChange={(checked) =>
-              onUpdateZoom({ enabled: checked })
-            }
+            onCheckedChange={(checked) => onUpdateZoom({ enabled: checked })}
           />
-        </label>
+        </div>
       </div>
 
       {/* Reset Detection */}
@@ -205,24 +222,31 @@ export function ZoomTab({
         <RotateCcw className="w-3.5 h-3.5 text-muted-foreground group-hover:rotate-[-45deg] transition-transform duration-300" />
         <span>Regenerate Zoom Regions</span>
       </button>
-      <p className="text-[10px] text-muted-foreground/60 text-center">
+      <p className="text-xs text-muted-foreground/70 text-center leading-snug">
         Re-analyze mouse movements to detect zoom areas
       </p>
 
       {/* Cinematic Scroll */}
-      <div className="p-4 bg-background/40 rounded-xl space-y-3">
-        <label className="flex items-center justify-between cursor-pointer">
-          <div className="flex items-center gap-2.5">
+      <div className="p-3 bg-background/40 rounded-xl space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
             <Sparkles className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-medium">Cinematic Scroll</span>
+            <div className="min-w-0">
+              <div className="text-sm font-medium leading-none">Cinematic Scroll</div>
+              <div className="mt-1 text-xs text-muted-foreground leading-snug">
+                Smoothen scroll motion for a more polished feel.
+              </div>
+            </div>
           </div>
           <Switch
+            aria-label="Enable cinematic scroll"
+            className="scale-90 origin-right"
             checked={!!effects?.some(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled)}
             onCheckedChange={(checked) => {
               onEffectChange(EffectType.Annotation, { kind: 'scrollCinematic', enabled: checked, data: { preset: 'medium' } })
             }}
           />
-        </label>
+        </div>
 
         {/* Preset selector when enabled */}
         {effects?.some(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled) && (
@@ -235,7 +259,7 @@ export function ZoomTab({
                 <button
                   key={preset}
                   className={cn(
-                    "px-3 py-1.5 text-[10px] font-medium rounded-lg transition-all capitalize",
+                    "px-3 py-1.5 text-xs font-medium rounded-lg transition-all capitalize",
                     isActive
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-background/50 text-muted-foreground hover:bg-background/80 hover:text-foreground"
@@ -254,4 +278,3 @@ export function ZoomTab({
     </div>
   )
 }
-

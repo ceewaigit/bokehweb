@@ -441,6 +441,10 @@ export function restoreClipToTrack(
   clip: Clip,
   index: number
 ): boolean {
+  // Idempotency guard: undo should not be able to "double restore" the same clip
+  // even if commands are triggered twice or history gets desynced.
+  if (findClipById(project, clip.id)) return true
+
   const track = project.timeline.tracks.find(t => t.id === trackId)
   if (!track) return false
 

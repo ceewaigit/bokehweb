@@ -27,41 +27,29 @@ export class WaveformAnalyzer {
       return this.cache.get(cacheKey)!
     }
     
+    let audioContext: AudioContext | null = null
+
     try {
-      // Skip waveform analysis for video-stream:// URLs (can't be fetched via Fetch API)
-      if (blobUrl.startsWith('video-stream://')) {
-        // Return a flat waveform for now - could implement server-side analysis later
-        const numSamples = Math.floor(duration * samplesPerSecond)
-        const peaks = new Array(numSamples).fill(0.1)
-        const waveformData: WaveformData = {
-          peaks,
-          duration,
-          sampleRate: samplesPerSecond
-        }
-        this.cache.set(cacheKey, waveformData)
-        return waveformData
-      }
-      
       // Create audio context
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      
-      // Fetch the video as array buffer
+      audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+
+      // Fetch the video as array buffer (works for blob: and http(s); may work for custom protocols in Electron)
       const response = await fetch(blobUrl)
       const arrayBuffer = await response.arrayBuffer()
-      
+
       // Decode audio data
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-      
+
       // Get audio channel data (use first channel for simplicity)
       const channelData = audioBuffer.getChannelData(0)
-      const sampleRate = audioBuffer.sampleRate
+      const audioSampleRate = audioBuffer.sampleRate
       
       // Calculate sample window
-      const startSample = Math.floor((startTime / 1000) * sampleRate)
+      const startSample = Math.floor((startTime / 1000) * audioSampleRate)
       const durationInSeconds = duration > 0 ? duration / 1000 : audioBuffer.duration
       const endSample = Math.min(
         channelData.length,
-        startSample + Math.floor(durationInSeconds * sampleRate)
+        startSample + Math.floor(durationInSeconds * audioSampleRate)
       )
       
       // Calculate how many samples to extract
@@ -94,20 +82,23 @@ export class WaveformAnalyzer {
       const waveformData: WaveformData = {
         peaks: smoothedPeaks,
         duration: durationInSeconds * 1000,
-        sampleRate
+        sampleRate: samplesPerSecond
       }
       
       // Cache the result
       this.cache.set(cacheKey, waveformData)
-      
-      // Clean up
-      audioContext.close()
       
       return waveformData
       
     } catch (error) {
       console.warn('Failed to analyze audio:', error)
       return null
+    } finally {
+      try {
+        audioContext?.close()
+      } catch {
+        // Ignore close errors
+      }
     }
   }
   

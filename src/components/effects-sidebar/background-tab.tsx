@@ -10,6 +10,7 @@ import { BackgroundType } from '@/types/project'
 import { DEFAULT_PARALLAX_LAYERS } from '@/lib/constants/default-effects'
 import { GRADIENT_PRESETS, COLOR_PRESETS } from './constants'
 import { getElectronAssetUrl } from '@/lib/assets/electron-asset-url'
+import { InfoTooltip } from './info-tooltip'
 
 interface BackgroundTabProps {
   backgroundEffect: Effect | undefined
@@ -220,7 +221,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
               key={type}
               onClick={() => setBackgroundType(type)}
               className={cn(
-                "flex-shrink-0 py-1.5 px-2.5 rounded-md text-[11px] font-medium transition-all capitalize whitespace-nowrap",
+                "flex-shrink-0 py-1.5 px-2.5 rounded-md text-xs font-medium transition-all capitalize whitespace-nowrap",
                 backgroundType === type
                   ? "bg-background text-foreground shadow-sm ring-1 ring-border/50"
                   : "text-muted-foreground hover:text-foreground hover:bg-background/50"
@@ -259,7 +260,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-[10px] text-muted-foreground min-w-[32px] text-center">
+                  <span className="text-xs text-muted-foreground min-w-[32px] text-center tabular-nums">
                     {wallpaperPage + 1}/{totalPages}
                   </span>
                   <button
@@ -316,7 +317,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                         />
                       ) : (
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                          <span className="text-[8px] text-white/60 truncate px-1">{wallpaper.name}</span>
+                          <span className="text-[10px] leading-none text-white/70 truncate px-1">{wallpaper.name}</span>
                         </div>
                       )}
                       {isLoading && (
@@ -324,7 +325,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         </div>
                       )}
-                      <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[8px] text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-[10px] leading-none text-white/80 truncate opacity-0 group-hover:opacity-100 transition-opacity">
                         {wallpaper.name}{isDefault ? ' ★' : ''}
                       </span>
                     </button>
@@ -348,7 +349,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                 <select
                   value={selectedParallaxPresetId ?? ''}
                   onChange={(e) => setSelectedParallaxPresetId(e.target.value)}
-                  className="text-[11px] bg-background/80 border border-border/40 rounded px-1.5 py-0.5"
+                  className="text-xs bg-background/80 border border-border/40 rounded px-1.5 py-0.5"
                   aria-label="Parallax preset"
                 >
                   {parallaxPresets.map(p => (
@@ -463,7 +464,7 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
               </div>
             )}
 
-            <p className="text-[10px] text-muted-foreground/70">
+            <p className="text-xs text-muted-foreground/70 leading-snug">
               Background follows recorded mouse movement during playback and export.
             </p>
           </div>
@@ -621,7 +622,10 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
             <h4 className="text-xs font-medium text-muted-foreground">Background Blur</h4>
             <div className="p-4 bg-background/40 rounded-xl space-y-3">
               <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-xs">Enable Blur</span>
+                <span className="flex items-center gap-2 text-xs">
+                  Enable Blur
+                  <InfoTooltip content="Applies blur to image-based backgrounds for focus and readability." />
+                </span>
                 <Switch
                   checked={bgData?.blur ? bgData.blur > 0 : false}
                   onCheckedChange={(checked) =>
@@ -637,10 +641,10 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
                     onValueCommit={([value]) => onUpdateBackground({ blur: value })}
                     min={1}
                     max={50}
-                    step={1}
-                    className="w-full"
-                  />
-                  <span className="text-[10px] text-muted-foreground/70 font-mono">{bgData.blur}px</span>
+                  step={1}
+                  className="w-full"
+                />
+                  <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{bgData.blur}px</span>
                 </div>
               )}
             </div>

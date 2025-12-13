@@ -15,6 +15,7 @@ export class CommandManager {
   private history: CommandHistoryEntry[] = []
   private maxHistorySize: number = 100
   private isExecuting: boolean = false
+  private executionChain: Promise<void> = Promise.resolve()
   private commandRegistry: Map<string, typeof Command> = new Map()
   private shortcuts: Map<string, string> = new Map()
   private groupingEnabled: boolean = false
@@ -44,7 +45,61 @@ export class CommandManager {
     this.shortcuts.set(shortcut, commandName)
   }
 
+  private enqueue<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.executionChain.then(fn, fn)
+    this.executionChain = run.then(() => undefined, () => undefined)
+    return run
+  }
+
   public async execute<T = any>(command: Command<T>): Promise<CommandResult<T>> {
+    return this.enqueue(async () => {
+      if (this.isExecuting) {
+        return {
+          success: false,
+          error: 'Another command is currently executing'
+        }
+      }
+
+      try {
+        this.isExecuting = true
+        // Standard undo stack behavior: once you execute a new command,
+        // you can no longer redo commands that were previously undone.
+        this.history = this.history.filter(entry => !entry.undone)
+
+        // If grouping is enabled, add to pending group
+        if (this.groupingEnabled) {
+          this.pendingGroup.push(command)
+          command.metadata.groupId = this.currentGroupId || undefined
+        }
+
+        const result = await command.execute()
+
+        if (result.success) {
+          // Add to history
+          const entry: CommandHistoryEntry = {
+            command,
+            metadata: command.getMetadata(),
+            result,
+            timestamp: Date.now(),
+            undone: false
+          }
+
+          this.history.push(entry)
+          
+          // Trim history if needed
+          if (this.history.length > this.maxHistorySize) {
+            this.history.shift()
+          }
+        }
+
+        return result
+      } finally {
+        this.isExecuting = false
+      }
+    })
+  }
+
+  public async undo(): Promise<CommandResult> {
     if (this.isExecuting) {
       return {
         success: false,
@@ -52,42 +107,6 @@ export class CommandManager {
       }
     }
 
-    try {
-      this.isExecuting = true
-
-      // If grouping is enabled, add to pending group
-      if (this.groupingEnabled) {
-        this.pendingGroup.push(command)
-        command.metadata.groupId = this.currentGroupId || undefined
-      }
-
-      const result = await command.execute()
-
-      if (result.success) {
-        // Add to history
-        const entry: CommandHistoryEntry = {
-          command,
-          metadata: command.getMetadata(),
-          result,
-          timestamp: Date.now(),
-          undone: false
-        }
-
-        this.history.push(entry)
-        
-        // Trim history if needed
-        if (this.history.length > this.maxHistorySize) {
-          this.history.shift()
-        }
-      }
-
-      return result
-    } finally {
-      this.isExecuting = false
-    }
-  }
-
-  public async undo(): Promise<CommandResult> {
     const lastEntry = this.getLastUndoableEntry()
     if (!lastEntry) {
       return {
@@ -103,14 +122,12 @@ export class CommandManager {
       if (lastEntry.metadata.groupId) {
         const groupEntries = this.getGroupEntries(lastEntry.metadata.groupId)
         const results: CommandResult[] = []
-        
         // Undo in reverse order
         for (let i = groupEntries.length - 1; i >= 0; i--) {
           const entry = groupEntries[i]
           const result = await entry.command.undo()
           results.push(result)
           entry.undone = true
-          
           if (!result.success) {
             return {
               success: false,
@@ -118,7 +135,6 @@ export class CommandManager {
             }
           }
         }
-        
         return {
           success: true,
           data: results
@@ -134,6 +150,13 @@ export class CommandManager {
   }
 
   public async redo(): Promise<CommandResult> {
+    if (this.isExecuting) {
+      return {
+        success: false,
+        error: 'Another command is currently executing'
+      }
+    }
+
     const lastUndoneEntry = this.getLastUndoneEntry()
     if (!lastUndoneEntry) {
       return {
@@ -149,12 +172,10 @@ export class CommandManager {
       if (lastUndoneEntry.metadata.groupId) {
         const groupEntries = this.getGroupEntries(lastUndoneEntry.metadata.groupId, true)
         const results: CommandResult[] = []
-        
         for (const entry of groupEntries) {
           const result = await entry.command.redo()
           results.push(result)
           entry.undone = false
-          
           if (!result.success) {
             return {
               success: false,
@@ -162,7 +183,6 @@ export class CommandManager {
             }
           }
         }
-        
         return {
           success: true,
           data: results
@@ -248,10 +268,8 @@ export class CommandManager {
   }
 
   private getLastUndoneEntry(): CommandHistoryEntry | null {
-    for (const entry of this.history) {
-      if (entry.undone) {
-        return entry
-      }
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      if (this.history[i].undone) return this.history[i]
     }
     return null
   }

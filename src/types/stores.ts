@@ -26,6 +26,7 @@ export interface ClipboardEffect {
 export interface ProjectStore {
   currentProject: Project | null
   currentTime: number
+  selectedClipId?: string | null
   selectedClips: string[]
   selectedEffectLayer: SelectedEffectLayer
   clipboard: {

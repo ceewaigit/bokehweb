@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Group, Line, Rect } from 'react-konva'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
@@ -23,7 +23,16 @@ export const TimelinePlayhead = React.memo(({
   onSeek
 }: TimelinePlayheadProps) => {
   const colors = useTimelineColors()
+  const [isHovered, setIsHovered] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+
   const x = TimeConverter.msToPixels(currentTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH
+  const isActive = isHovered || isDragging
+
+  // Handle dimensions
+  const handleWidth = 12
+  const handleHeight = 16
+  const handleRadius = 4
 
   return (
     <Group
@@ -37,29 +46,45 @@ export const TimelinePlayhead = React.memo(({
         )
         return { x: newX, y: 0 }
       }}
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={() => setIsDragging(false)}
       onDragMove={(e) => {
         const newX = e.target.x() - TimelineConfig.TRACK_LABEL_WIDTH
         const time = TimeConverter.pixelsToMs(newX, pixelsPerMs)
         onSeek(clamp(time, 0, maxTime))
       }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Playhead line */}
+      {/* Main playhead line - clean and crisp */}
       <Line
-        points={[0, 0, 0, totalHeight]}
+        points={[0, handleHeight, 0, totalHeight]}
         stroke={colors.playhead}
-        strokeWidth={2}
-        hitStrokeWidth={8}
-        opacity={1}
+        strokeWidth={1.5}
+        hitStrokeWidth={10}
+        opacity={isActive ? 1 : 0.85}
       />
-      {/* Diamond centered on line */}
+
+      {/* Handle body - clean pill shape */}
       <Rect
-        x={0}
-        y={-6}
-        width={12}
-        height={12}
+        x={-handleWidth / 2}
+        y={0}
+        width={handleWidth}
+        height={handleHeight}
         fill={colors.playhead}
-        rotation={45}
-        opacity={1}
+        cornerRadius={handleRadius}
+        opacity={isActive ? 1 : 0.9}
+      />
+
+      {/* Subtle top highlight for depth */}
+      <Rect
+        x={-handleWidth / 2 + 2}
+        y={2}
+        width={handleWidth - 4}
+        height={3}
+        fill="rgba(255, 255, 255, 0.25)"
+        cornerRadius={1.5}
+        listening={false}
       />
     </Group>
   )

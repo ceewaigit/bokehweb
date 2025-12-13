@@ -493,7 +493,9 @@ export class RecordingStorage {
           timestamp: m.timestamp,
           x: m.mouseX!,
           y: m.mouseY!,
-          button: m.key || 'left' as const
+          button: m.key || 'left' as const,
+          captureWidth: m.captureWidth || captureWidth,
+          captureHeight: m.captureHeight || captureHeight
         }))
 
       const scrollEvents = metadata

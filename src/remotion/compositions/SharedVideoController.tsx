@@ -352,56 +352,77 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
             return (
               <React.Fragment key={`clip-video-fragment-${clipForVideo.id}`}>
-                {/* Merged Sequence with Freeze-based Preloading
-                    We extend the sequence backwards to mount early.
-                    We use <Freeze> to hold the video at the first frame during the preload phase,
-                    and then advance normally during the active phase.
-                    This avoids negative startFrom values and keeps the video mounted.
+                {/* Two-phase rendering:
+                    1. Preload phase: Use Freeze to mount video early without playing (muted, hidden)
+                    2. Active phase: Render video normally without Freeze so audio works
+                    
+                    Note: Freeze mutes audio by design, so we MUST NOT use Freeze during active playback.
                 */}
-                <Sequence from={startFrame - actualPreloadDuration} durationInFrames={totalDuration}>
-                  <Freeze
-                    frame={
-                      isPreloading
-                        ? 0 // Hold at start of clip (relative frame 0)
-                        : (currentFrame - startFrame) // Advance normally from start of clip
-                    }
-                  >
-                    <VideoComponent
-                      src={videoUrl || ''}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'contain' as const,
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        borderRadius: `${cornerRadius}px`,
-                        pointerEvents: 'none',
-                        // Hide during preload phase
-                        opacity: isPreloading ? 0 : 1,
-                      }}
-                      volume={isPreloading ? 0 : 1}
-                      muted={isPreloading}
-                      pauseWhenBuffering={isRendering ? true : false}
-                      crossOrigin="anonymous"
-                      startFrom={originalStartFrom} // Use original positive startFrom
-                      endAt={endAt}
-                      playbackRate={playbackRate}
-                      {...(shouldMarkReady ? ({
-                        onLoadedData: markRenderReady,
-                        onCanPlay: markRenderReady,
-                        onCanPlayThrough: markRenderReady,
-                      } as any) : {})}
-                      onError={(e) => {
-                        console.error('[SharedVideoController] Per-clip video playback error:', {
-                          error: e,
-                          videoUrl,
-                          recordingId: recording.id,
-                          clipId: clipForVideo.id,
-                        });
-                      }}
-                    />
-                  </Freeze>
+
+                {/* Preload phase - hidden, muted, frozen at first frame */}
+                {isPreloading && (
+                  <Sequence from={startFrame - actualPreloadDuration} durationInFrames={actualPreloadDuration}>
+                    <Freeze frame={0}>
+                      <VideoComponent
+                        src={videoUrl || ''}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain' as const,
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          borderRadius: `${cornerRadius}px`,
+                          pointerEvents: 'none',
+                          opacity: 0, // Hidden during preload
+                        }}
+                        volume={0}
+                        muted={true}
+                        pauseWhenBuffering={false}
+                        crossOrigin="anonymous"
+                        startFrom={originalStartFrom}
+                        endAt={endAt}
+                        playbackRate={playbackRate}
+                      />
+                    </Freeze>
+                  </Sequence>
+                )}
+
+                {/* Active phase - normal video playback with audio */}
+                <Sequence from={startFrame} durationInFrames={durationFrames}>
+                  <VideoComponent
+                    src={videoUrl || ''}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain' as const,
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      borderRadius: `${cornerRadius}px`,
+                      pointerEvents: 'none',
+                    }}
+                    volume={1}
+                    muted={false}
+                    pauseWhenBuffering={isRendering ? true : false}
+                    crossOrigin="anonymous"
+                    startFrom={originalStartFrom}
+                    endAt={endAt}
+                    playbackRate={playbackRate}
+                    {...(shouldMarkReady ? ({
+                      onLoadedData: markRenderReady,
+                      onCanPlay: markRenderReady,
+                      onCanPlayThrough: markRenderReady,
+                    } as any) : {})}
+                    onError={(e) => {
+                      console.error('[SharedVideoController] Per-clip video playback error:', {
+                        error: e,
+                        videoUrl,
+                        recordingId: recording.id,
+                        clipId: clipForVideo.id,
+                      });
+                    }}
+                  />
                 </Sequence>
               </React.Fragment>
             );

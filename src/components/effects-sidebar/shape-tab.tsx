@@ -4,6 +4,7 @@ import React from 'react'
 import { Square } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import type { BackgroundEffectData, Effect } from '@/types/project'
+import { InfoTooltip } from './info-tooltip'
 
 interface ShapeTabProps {
   backgroundEffect: Effect | undefined
@@ -15,13 +16,16 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
 
   return (
     <div className="space-y-4">
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground leading-snug">
         Controls the frame padding, corner radius, and shadow.
       </p>
 
       <div className="space-y-3">
         <div className="p-4 bg-background/40 rounded-xl space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">Padding</label>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-muted-foreground">Padding</label>
+            <InfoTooltip content="Adds space around the captured screen inside the frame." />
+          </div>
           <Slider
             value={[bgData?.padding ?? 40]}
             onValueChange={([value]) => onUpdateBackground({ padding: value })}
@@ -31,11 +35,14 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             step={2}
             className="w-full"
           />
-          <span className="text-[10px] text-muted-foreground/70 font-mono">{bgData?.padding ?? 40}px</span>
+          <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{bgData?.padding ?? 40}px</span>
         </div>
 
         <div className="p-4 bg-background/40 rounded-xl space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">Corner Radius</label>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-muted-foreground">Corner Radius</label>
+            <InfoTooltip content="Rounds the corners of the frame." />
+          </div>
           <Slider
             value={[bgData?.cornerRadius ?? 15]}
             onValueChange={([value]) => onUpdateBackground({ cornerRadius: value })}
@@ -45,11 +52,14 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             step={1}
             className="w-full"
           />
-          <span className="text-[10px] text-muted-foreground/70 font-mono">{bgData?.cornerRadius ?? 15}px</span>
+          <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{bgData?.cornerRadius ?? 15}px</span>
         </div>
 
         <div className="p-4 bg-background/40 rounded-xl space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">Shadow Intensity</label>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-muted-foreground">Shadow Intensity</label>
+            <InfoTooltip content="Controls how strong the frame shadow appears." />
+          </div>
           <Slider
             value={[bgData?.shadowIntensity ?? 85]}
             onValueChange={([value]) => onUpdateBackground({ shadowIntensity: value })}
@@ -59,7 +69,7 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             step={1}
             className="w-full"
           />
-          <span className="text-[10px] text-muted-foreground/70 font-mono">{bgData?.shadowIntensity ?? 85}%</span>
+          <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{bgData?.shadowIntensity ?? 85}%</span>
         </div>
       </div>
     </div>

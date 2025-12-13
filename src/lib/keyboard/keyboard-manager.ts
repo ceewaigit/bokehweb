@@ -286,6 +286,23 @@ class KeyboardManager extends EventEmitter {
       context: ['timeline'],
     })
 
+    // Trimming
+    this.register({
+      id: 'trim-start',
+      key: '[',
+      action: 'trimStart',
+      description: 'Trim Start to Playhead',
+      context: ['timeline'],
+    })
+
+    this.register({
+      id: 'trim-end',
+      key: ']',
+      action: 'trimEnd',
+      description: 'Trim End to Playhead',
+      context: ['timeline'],
+    })
+
 
     this.register({
       id: 'split-cmd',

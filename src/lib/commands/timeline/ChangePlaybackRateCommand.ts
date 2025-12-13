@@ -8,6 +8,8 @@ export class ChangePlaybackRateCommand extends Command<{ clipId: string; playbac
   private originalPlaybackRate?: number
   private originalDuration?: number
   private originalSourceOut?: number
+  private appliedDuration?: number
+  private appliedSourceOut?: number
 
   constructor(
     private context: CommandContext,
@@ -53,6 +55,9 @@ export class ChangePlaybackRateCommand extends Command<{ clipId: string; playbac
       ? result.clip.sourceOut
       : (result.clip.sourceIn || 0) + (result.clip.duration * (result.clip.playbackRate || 1))
 
+    this.appliedDuration = newDuration
+    this.appliedSourceOut = validSourceOut
+
     const store = this.context.getStore()
     store.updateClip(this.clipId, {
       playbackRate: this.playbackRate,
@@ -79,7 +84,7 @@ export class ChangePlaybackRateCommand extends Command<{ clipId: string; playbac
       playbackRate: this.originalPlaybackRate,
       duration: this.originalDuration,
       sourceOut: this.originalSourceOut
-    })
+    }, { exact: true })
 
     return {
       success: true,
@@ -88,6 +93,20 @@ export class ChangePlaybackRateCommand extends Command<{ clipId: string; playbac
   }
 
   doRedo(): CommandResult<{ clipId: string; playbackRate: number }> {
-    return this.doExecute()
+    if (this.appliedDuration === undefined) {
+      return this.doExecute()
+    }
+
+    const store = this.context.getStore()
+    store.updateClip(this.clipId, {
+      playbackRate: this.playbackRate,
+      duration: this.appliedDuration,
+      sourceOut: this.appliedSourceOut
+    }, { exact: true })
+
+    return {
+      success: true,
+      data: { clipId: this.clipId, playbackRate: this.playbackRate }
+    }
   }
 } 

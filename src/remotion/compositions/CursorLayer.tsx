@@ -223,10 +223,11 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
     };
   }, [videoPositionContext.offsetX, videoPositionContext.offsetY, videoPositionContext.drawWidth, videoPositionContext.drawHeight]);
 
-  // Get capture dimensions from first event (use actual video dimensions from context)
+  // Get capture dimensions from first event - this is the SSOT for cursor coordinates
+  // The cursor coordinates were recorded relative to these dimensions, so we MUST use them
   const firstEvent = cursorEvents[0];
-  const captureWidth = firstEvent?.captureWidth || videoPositionContext.videoWidth;
-  const captureHeight = firstEvent?.captureHeight || videoPositionContext.videoHeight;
+  const captureWidth = firstEvent?.captureWidth ?? videoPositionContext.videoWidth;
+  const captureHeight = firstEvent?.captureHeight ?? videoPositionContext.videoHeight;
 
   // Normalize cursor position (0-1 range within the capture area)
   // Both cursorPosition.x/y and captureWidth/captureHeight are in physical pixels for consistency

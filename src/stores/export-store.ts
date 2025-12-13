@@ -174,9 +174,9 @@ export const useExportStore = create<ExportStore>((set, get) => {
       const mime = lastExport.type || ''
       const inferredExt =
         mime === 'video/mp4' ? 'mp4' :
-        mime === 'video/webm' ? 'webm' :
-        mime === 'image/gif' ? 'gif' :
-        (exportSettings.format === 'gif' ? 'gif' : exportSettings.format.toLowerCase())
+          mime === 'video/webm' ? 'webm' :
+            mime === 'image/gif' ? 'gif' :
+              (exportSettings.format === 'gif' ? 'gif' : exportSettings.format.toLowerCase())
       const extension = inferredExt
       const suggestedName = defaultFilename.endsWith(`.${extension}`)
         ? defaultFilename
@@ -204,18 +204,17 @@ export const useExportStore = create<ExportStore>((set, get) => {
     },
 
     setPreset: (preset) => {
-      // Define preset settings
+      // Quality-tier based presets
+      // Resolution height defines the tier, width is calculated from project aspect ratio at export time
       const presets: Record<string, Partial<ExportSettings>> = {
-        'youtube-4k': { resolution: { width: 3840, height: 2160 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.Ultra },
-        'cinema-4k': { resolution: { width: 4096, height: 2160 }, framerate: 24, format: ExportFormat.MP4, quality: QualityLevel.Ultra },
-        'youtube-1080p': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.High },
-        'youtube-1080p-30': { resolution: { width: 1920, height: 1080 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
-        'youtube-720p': { resolution: { width: 1280, height: 720 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.High },
-        'twitter': { resolution: { width: 1280, height: 720 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
-        'instagram': { resolution: { width: 1080, height: 1080 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
+        'hd-60': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.High },
+        'hd-30': { resolution: { width: 1920, height: 1080 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
+        '4k-60': { resolution: { width: 3840, height: 2160 }, framerate: 60, format: ExportFormat.MP4, quality: QualityLevel.Ultra },
+        '4k-30': { resolution: { width: 3840, height: 2160 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.High },
+        'sd': { resolution: { width: 1280, height: 720 }, framerate: 30, format: ExportFormat.MP4, quality: QualityLevel.Medium },
+        'prores-hd': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MOV, quality: QualityLevel.High },
         'prores-4k': { resolution: { width: 3840, height: 2160 }, framerate: 30, format: ExportFormat.MOV, quality: QualityLevel.Ultra },
-        'prores-mov': { resolution: { width: 1920, height: 1080 }, framerate: 60, format: ExportFormat.MOV, quality: QualityLevel.High },
-        'gif-small': { resolution: { width: 480, height: 360 }, framerate: 15, format: ExportFormat.GIF, quality: QualityLevel.Low }
+        'gif': { resolution: { width: 640, height: 480 }, framerate: 15, format: ExportFormat.GIF, quality: QualityLevel.Low }
       }
 
       set((state) => ({

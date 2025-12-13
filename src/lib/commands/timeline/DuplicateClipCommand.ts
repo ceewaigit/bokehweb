@@ -1,10 +1,12 @@
 import { Command, CommandResult } from '../base/Command'
-import { CommandContext, findNextValidPosition } from '../base/CommandContext'
+import { CommandContext } from '../base/CommandContext'
 import type { Clip } from '@/types/project'
 
 export class DuplicateClipCommand extends Command<{ newClipId: string }> {
-  private newClip?: Clip
-  private sourceClip?: Clip
+  private newClipId?: string
+  private newClipSnapshot?: Clip
+  private sourceTrackId?: string
+  private insertIndex?: number
 
   constructor(
     private context: CommandContext,
@@ -33,16 +35,9 @@ export class DuplicateClipCommand extends Command<{ newClipId: string }> {
       }
     }
 
-    const { clip, track } = result
-    this.sourceClip = clip
-
-    // Create duplicate with new ID - place it right after the original clip
-    // Let the store handle overlap detection
-    this.newClip = {
-      ...JSON.parse(JSON.stringify(clip)),
-      id: `clip-${Date.now()}`,
-      startTime: clip.startTime + clip.duration + 100 // Small gap after original
-    }
+    const { track } = result
+    this.sourceTrackId = track.id
+    this.insertIndex = Math.max(0, track.clips.findIndex(c => c.id === this.clipId) + 1)
 
     // Use store's duplicateClip method
     const newClipId = store.duplicateClip(this.clipId)
@@ -54,20 +49,26 @@ export class DuplicateClipCommand extends Command<{ newClipId: string }> {
       }
     }
 
-    // Update our reference
+    this.newClipId = newClipId
+
+    // Snapshot the duplicated clip for reliable undo/redo.
     const newClipResult = this.context.findClip(newClipId)
-    if (newClipResult) {
-      this.newClip = newClipResult.clip
+    if (!newClipResult) {
+      return {
+        success: false,
+        error: 'Duplicated clip was not found after creation'
+      }
     }
+    this.newClipSnapshot = JSON.parse(JSON.stringify(newClipResult.clip))
 
     return {
       success: true,
-      data: { newClipId }
+      data: { newClipId: newClipId }
     }
   }
 
   doUndo(): CommandResult<{ newClipId: string }> {
-    if (!this.newClip) {
+    if (!this.newClipId) {
       return {
         success: false,
         error: 'No duplicated clip to remove'
@@ -75,19 +76,19 @@ export class DuplicateClipCommand extends Command<{ newClipId: string }> {
     }
 
     const store = this.context.getStore()
-    store.removeClip(this.newClip.id)
+    store.removeClip(this.newClipId)
 
     // Restore selection to original clip
     store.selectClip(this.clipId)
 
     return {
       success: true,
-      data: { newClipId: this.newClip.id }
+      data: { newClipId: this.newClipId }
     }
   }
 
   doRedo(): CommandResult<{ newClipId: string }> {
-    if (!this.newClip) {
+    if (!this.newClipId || !this.newClipSnapshot || !this.sourceTrackId || this.insertIndex === undefined) {
       return {
         success: false,
         error: 'No clip data to re-duplicate'
@@ -95,11 +96,23 @@ export class DuplicateClipCommand extends Command<{ newClipId: string }> {
     }
 
     const store = this.context.getStore()
-    store.addClip(this.newClip, this.newClip.startTime)
+
+    // If clip already exists (e.g., due to a prior failed undo), avoid creating duplicates.
+    if (this.context.findClip(this.newClipId)) {
+      store.selectClip(this.newClipId)
+      return {
+        success: true,
+        data: { newClipId: this.newClipId }
+      }
+    }
+
+    // Reinsert into the original track and position; do not use addClip() since it targets the video track.
+    store.restoreClip(this.sourceTrackId, JSON.parse(JSON.stringify(this.newClipSnapshot)), this.insertIndex)
+    store.selectClip(this.newClipId)
 
     return {
       success: true,
-      data: { newClipId: this.newClip.id }
+      data: { newClipId: this.newClipId }
     }
   }
 }

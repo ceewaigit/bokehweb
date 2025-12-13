@@ -498,22 +498,25 @@ export const useProjectStore = create<ProjectStore>()(
     },
 
     duplicateClip: (clipId) => {
-      const state = get()
-      if (!state.currentProject) return null
+      let newClipId: string | null = null
 
-      const newClip = duplicateClipInTrack(state.currentProject, clipId)
+      set((state) => {
+        if (!state.currentProject) return
 
-      if (newClip) {
+        const newClip = duplicateClipInTrack(state.currentProject, clipId)
+        if (!newClip) return
+
+        newClipId = newClip.id
+
         // Select the duplicated clip
-        set((state) => {
-          state.selectedClipId = newClip.id
-          state.selectedClips = [newClip.id]
-        })
+        state.selectedClipId = newClip.id
+        state.selectedClips = [newClip.id]
 
-        return newClip.id
-      }
+        // Update playhead state in case duplication affects current time context
+        updatePlayheadState(state)
+      })
 
-      return null
+      return newClipId
     },
 
     reorderClip: (clipId, newIndex) => {

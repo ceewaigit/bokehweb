@@ -184,8 +184,8 @@ export class TrackingService {
       return { rx: x, ry: y, inside: true }
     }
 
-    const originX = Math.round(bounds.x * scale)
-    const originY = Math.round(bounds.y * scale)
+    const originX = bounds.x * scale
+    const originY = bounds.y * scale
     const rx = x - originX
     const ry = y - originY
     const w = this.captureWidth || Math.round(bounds.width * scale)

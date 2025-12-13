@@ -9,6 +9,7 @@ import type { SelectedEffectLayer } from '@/types/effects'
 import { EffectLayerType } from '@/types/effects'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 import { DEFAULT_BACKGROUND_DATA } from '@/lib/constants/default-effects'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 import { SIDEBAR_TABS, SidebarTabId } from './constants'
 
@@ -38,6 +39,7 @@ export function EffectsSidebar({
   onZoomBlockUpdate
 }: EffectsSidebarProps) {
   const [activeTab, setActiveTab] = useState<SidebarTabId>(SidebarTabId.Background)
+  const tooltipRef = useRef<HTMLDivElement | null>(null)
 
   // Extract current effects from the array using EffectsFactory helpers
   const backgroundEffect = effects ? EffectsFactory.getBackgroundEffect(effects) : undefined
@@ -107,111 +109,115 @@ export function EffectsSidebar({
   const scheduleBackgroundUpdate = updateBackgroundEffect
 
   return (
-    <div className={cn("flex h-full bg-transparent border-l border-border/40", className)}>
-      {/* Left sidebar with section tabs */}
-      <div className="w-[60px] flex-shrink-0 flex flex-col items-center py-4 border-r border-border/40 bg-transparent">
-        <div className="flex flex-col gap-3 w-full px-2">
-          {SIDEBAR_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={cn(
-                "group relative flex items-center justify-center p-2.5 rounded-xl transition-all duration-200",
-                activeTab === tab.id
-                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <tab.icon className={cn("w-5 h-5 transition-transform duration-200", activeTab === tab.id ? "scale-100" : "group-hover:scale-110")} />
+    <TooltipProvider>
+      <div ref={tooltipRef} className={cn("flex h-full bg-transparent border-l border-border/40", className)}>
+        {/* Left sidebar with section tabs */}
+        <div className="w-[60px] flex-shrink-0 flex flex-col items-center py-4 border-r border-border/40 bg-transparent">
+          <div className="flex flex-col gap-3 w-full px-2">
+            {SIDEBAR_TABS.map((tab) => (
+              <Tooltip key={tab.id} delayDuration={150}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={cn(
+                      "group relative flex w-full items-center justify-center p-2.5 rounded-xl transition-all duration-200",
+                      activeTab === tab.id
+                        ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )}
+                    aria-label={tab.label}
+                  >
+                    <tab.icon className={cn("w-5 h-5 transition-transform duration-200", activeTab === tab.id ? "scale-100" : "group-hover:scale-110")} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" align="center" sideOffset={12}>
+                  {tab.label}
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        </div>
 
-              {/* Tooltip */}
-              <div className="absolute left-full ml-3 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 border border-border/50">
-                {tab.label}
+        {/* Right content area */}
+        <div className="flex-1 min-w-0 flex flex-col bg-transparent">
+          {/* Header */}
+          <div className="h-14 flex items-center px-5 border-b border-border/40 bg-transparent sticky top-0 z-10">
+            <h2 className="text-sm font-medium tracking-tight">
+              {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
+            </h2>
+            {selectedEffectLayer && (
+              <div className="ml-auto px-2.5 py-1 bg-primary/10 text-primary text-xs font-medium leading-none rounded-full border border-primary/20">
+                {selectedEffectLayer.type === EffectLayerType.Zoom && selectedEffectLayer.id ?
+                  `Editing Zoom Block` :
+                  (() => {
+                    const t = String(selectedEffectLayer.type)
+                    return `Editing ${t.charAt(0).toUpperCase() + t.slice(1)}`
+                  })()}
               </div>
-            </button>
-          ))}
-        </div>
-      </div>
+            )}
+          </div>
 
-      {/* Right content area */}
-      <div className="flex-1 min-w-0 flex flex-col bg-transparent">
-        {/* Header */}
-        <div className="h-14 flex items-center px-5 border-b border-border/40 bg-transparent sticky top-0 z-10">
-          <h2 className="text-sm font-semibold tracking-tight">
-            {SIDEBAR_TABS.find(t => t.id === activeTab)?.label}
-          </h2>
-          {selectedEffectLayer && (
-            <div className="ml-auto px-2.5 py-1 bg-primary/10 text-primary text-[10px] font-medium rounded-full border border-primary/20">
-              {selectedEffectLayer.type === EffectLayerType.Zoom && selectedEffectLayer.id ?
-                `Editing Zoom Block` :
-                (() => {
-                  const t = String(selectedEffectLayer.type)
-                  return `Editing ${t.charAt(0).toUpperCase() + t.slice(1)}`
-                })()}
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-6 custom-scrollbar">
+            <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              {activeTab === SidebarTabId.Background && (
+                <BackgroundTab
+                  backgroundEffect={backgroundEffect}
+                  onUpdateBackground={scheduleBackgroundUpdate}
+                />
+              )}
+
+              {activeTab === SidebarTabId.Cursor && (
+                <CursorTab
+                  cursorEffect={cursorEffect}
+                  onUpdateCursor={(updates) => updateEffect(EffectType.Cursor, updates)}
+                  onEffectChange={onEffectChange}
+                />
+              )}
+
+              {activeTab === SidebarTabId.Keystroke && (
+                <KeystrokeTab
+                  keystrokeEffect={keystrokeEffect}
+                  onUpdateKeystroke={(updates) => updateEffect(EffectType.Keystroke, updates)}
+                  onEffectChange={onEffectChange}
+                />
+              )}
+
+              {activeTab === SidebarTabId.Zoom && (
+                <ZoomTab
+                  effects={effects}
+                  selectedEffectLayer={selectedEffectLayer}
+                  selectedClip={selectedClip}
+                  onUpdateZoom={(updates) => onEffectChange(EffectType.Zoom, updates)}
+                  onEffectChange={onEffectChange}
+                  onZoomBlockUpdate={onZoomBlockUpdate}
+                />
+              )}
+
+              {activeTab === SidebarTabId.Shape && (
+                <ShapeTab
+                  backgroundEffect={backgroundEffect}
+                  onUpdateBackground={scheduleBackgroundUpdate}
+                />
+              )}
+
+              {activeTab === SidebarTabId.Screen && (
+                <ScreenTab
+                  selectedClip={selectedClip}
+                  selectedEffectLayer={selectedEffectLayer}
+                  onEffectChange={(type, data) => onEffectChange(EffectType.Screen, data)}
+                />
+              )}
+
+              {activeTab === SidebarTabId.Clip && (
+                <ClipTab
+                  selectedClip={selectedClip}
+                />
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-6 custom-scrollbar">
-          <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            {activeTab === SidebarTabId.Background && (
-              <BackgroundTab
-                backgroundEffect={backgroundEffect}
-                onUpdateBackground={scheduleBackgroundUpdate}
-              />
-            )}
-
-            {activeTab === SidebarTabId.Cursor && (
-              <CursorTab
-                cursorEffect={cursorEffect}
-                onUpdateCursor={(updates) => updateEffect(EffectType.Cursor, updates)}
-                onEffectChange={onEffectChange}
-              />
-            )}
-
-            {activeTab === SidebarTabId.Keystroke && (
-              <KeystrokeTab
-                keystrokeEffect={keystrokeEffect}
-                onUpdateKeystroke={(updates) => updateEffect(EffectType.Keystroke, updates)}
-                onEffectChange={onEffectChange}
-              />
-            )}
-
-            {activeTab === SidebarTabId.Zoom && (
-              <ZoomTab
-                effects={effects}
-                selectedEffectLayer={selectedEffectLayer}
-                selectedClip={selectedClip}
-                onUpdateZoom={(updates) => onEffectChange(EffectType.Zoom, updates)}
-                onEffectChange={onEffectChange}
-                onZoomBlockUpdate={onZoomBlockUpdate}
-              />
-            )}
-
-            {activeTab === SidebarTabId.Shape && (
-              <ShapeTab
-                backgroundEffect={backgroundEffect}
-                onUpdateBackground={scheduleBackgroundUpdate}
-              />
-            )}
-
-            {activeTab === SidebarTabId.Screen && (
-              <ScreenTab
-                selectedClip={selectedClip}
-                selectedEffectLayer={selectedEffectLayer}
-                onEffectChange={(type, data) => onEffectChange(EffectType.Screen, data)}
-              />
-            )}
-
-            {activeTab === SidebarTabId.Clip && (
-              <ClipTab
-                selectedClip={selectedClip}
-              />
-            )}
           </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }

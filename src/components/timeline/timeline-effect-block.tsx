@@ -248,21 +248,31 @@ export const TimelineEffectBlock = React.memo(({
         }}
         listening={true}
       >
+        {/* Selection highlight - subtle inner glow */}
+        {isSelected && (
+          <Rect
+            x={-1}
+            y={-1}
+            width={width + 2}
+            height={height + 2}
+            fill="transparent"
+            stroke="rgba(255, 255, 255, 0.5)"
+            strokeWidth={1.5}
+            cornerRadius={7}
+            listening={false}
+          />
+        )}
+
+        {/* Main block */}
         <Rect
           ref={rectRef}
           x={0}
           y={0}
-          width={width} // Keep this as width prop, transformer handles visual scaling
+          width={width}
           height={height}
-          fill={fillColor || colors.zoomBlock || 'rgba(147, 51, 234, 0.85)'}
-          cornerRadius={6}
-          opacity={!isEnabled ? 0.3 : (isDragging ? 0.7 : (isSelected ? 0.95 : 0.85))}
-          stroke={isSelected ? colors.primary : undefined}
-          strokeWidth={isSelected ? 2 : 0}
-          shadowColor={colors.zoomBlock}
-          shadowBlur={isSelected ? 12 : 4}
-          shadowOpacity={0.3}
-          shadowOffsetY={2}
+          fill={fillColor || colors.zoomBlock || 'rgba(147, 51, 234, 0.9)'}
+          cornerRadius={5}
+          opacity={!isEnabled ? 0.35 : (isDragging ? 0.75 : (isSelected ? 1 : 0.9))}
           listening={true}
         />
 
@@ -271,8 +281,8 @@ export const TimelineEffectBlock = React.memo(({
           <>
             <Line
               points={curvePoints}
-              stroke={!isEnabled ? "rgba(255, 255, 255, 0.4)" : "white"}
-              strokeWidth={2.5}
+              stroke={!isEnabled ? "rgba(255, 255, 255, 0.4)" : "rgba(255, 255, 255, 0.9)"}
+              strokeWidth={2}
               lineCap="round"
               lineJoin="round"
               listening={false}
@@ -320,13 +330,12 @@ export const TimelineEffectBlock = React.memo(({
             newBox.y = oldBox.y
             return newBox
           }}
-          borderStroke={colors.primary || '#6366f1'}
-          borderStrokeWidth={1}
-          anchorFill="white"
-          anchorStroke={colors.primary || '#6366f1'}
-          anchorStrokeWidth={1}
-          anchorSize={10}
-          anchorCornerRadius={5}
+          borderEnabled={false}
+          anchorFill="rgba(255, 255, 255, 0.95)"
+          anchorStroke="rgba(0, 0, 0, 0.2)"
+          anchorStrokeWidth={0.5}
+          anchorSize={6}
+          anchorCornerRadius={3}
           keepRatio={false}
           ignoreStroke={true}
           onTransformStart={() => {

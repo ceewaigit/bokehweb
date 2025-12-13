@@ -19,7 +19,7 @@ export const DEFAULT_BACKGROUND_DATA: BackgroundEffectData = {
     angle: 135
   },
   wallpaper: undefined,
-  padding: 40,
+  padding: 60,
   cornerRadius: 15,
   shadowIntensity: 85,
   parallaxLayers: DEFAULT_PARALLAX_LAYERS
