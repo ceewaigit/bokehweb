@@ -340,7 +340,12 @@ export const TimelineClip = React.memo(({
         )
 
         // Check if reorder would change anything
-        const allClips = otherClipsInTrack ? [...otherClipsInTrack, clip] : [clip]
+        const allClips = (() => {
+          if (!otherClipsInTrack || otherClipsInTrack.length === 0) return [clip]
+          return otherClipsInTrack.some(c => c.id === clip.id)
+            ? otherClipsInTrack
+            : [...otherClipsInTrack, clip]
+        })()
         if (ClipReorderService.wouldChangeOrder(allClips, clip.id, newIndex)) {
           useProjectStore.getState().reorderClip(clip.id, newIndex)
         }

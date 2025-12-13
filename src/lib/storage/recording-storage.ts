@@ -5,7 +5,7 @@
 
 import { logger } from '@/lib/utils/logger'
 import type { Project, Recording, Clip, CaptureArea, Effect, ZoomEffectData, BackgroundEffectData, CursorEffectData } from '@/types/project'
-import { TrackType, EffectType, ExportFormat, QualityLevel, RecordingSourceType, KeystrokePosition } from '@/types/project'
+import { TrackType, EffectType, ExportFormat, QualityLevel, RecordingSourceType } from '@/types/project'
 import { EffectsFactory } from '@/lib/effects/effects-factory'
 
 export class RecordingStorage {
@@ -583,26 +583,13 @@ export class RecordingStorage {
       const hasKeystroke = !!EffectsFactory.getKeystrokeEffect(project.timeline.effects || [])
       if (keyboardEvents.length > 0 && !hasKeystroke) {
         logger.info(`✅ Creating global keystroke effect for ${keyboardEvents.length} keyboard events`)
-        project.timeline.effects!.push({
-          id: `keystroke-global`,
-          type: EffectType.Keystroke,
-          startTime: 0,
-          endTime: Number.MAX_SAFE_INTEGER,
-          data: {
-            position: KeystrokePosition.BottomCenter,
-            fontSize: 16,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            textColor: '#ffffff',
-            borderColor: 'rgba(255, 255, 255, 0.2)',
-            borderRadius: 6,
-            padding: 12,
-            fadeOutDuration: 300,
-            maxWidth: 300
-          },
-          enabled: true  // Show keystrokes by default when there are keyboard events
-        })
+        project.timeline.effects!.push(EffectsFactory.createDefaultKeystrokeEffect({ enabled: true }))
       } else {
-        logger.info('⚠️ No keyboard events detected - skipping keystroke effect')
+        if (keyboardEvents.length === 0) {
+          logger.info('⚠️ No keyboard events detected - skipping keystroke effect')
+        } else {
+          logger.info('ℹ️ Keystroke effect already exists - skipping creation')
+        }
       }
 
       // Save metadata chunks under recording folder

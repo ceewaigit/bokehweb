@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { type Effect, type Recording } from '@/types/project';
-import { computeCameraState, type CameraPhysicsState } from '@/lib/effects/utils/camera-calculator';
+import { computeCameraState, type CameraPhysicsState, type ParsedZoomBlock } from '@/lib/effects/utils/camera-calculator';
 
 interface UseZoomStateProps {
     /** Timeline effects array - zoom effects are now always in timeline-space */
@@ -21,10 +21,12 @@ interface UseZoomStateProps {
         top: number;
         bottom: number;
     };
+    /** When true, compute camera without spring state (export-safe). */
+    deterministic?: boolean;
 }
 
 interface ZoomState {
-    activeZoomBlock: any | undefined;
+    activeZoomBlock: ParsedZoomBlock | undefined;
     zoomCenter: { x: number; y: number };
     zoomScale: number;
 }
@@ -43,6 +45,7 @@ export function useZoomState({
     outputWidth,
     outputHeight,
     overscan,
+    deterministic,
 }: UseZoomStateProps): ZoomState {
     // Source time for mouse event lookup (fallback to timeline time if not provided)
     const mouseEventTimeMs = sourceTimeMs ?? timelineMs;
@@ -68,12 +71,12 @@ export function useZoomState({
             outputHeight,
             overscan,
             physics: physicsState.current,
-            deterministic: false,
+            deterministic: deterministic ?? false,
         });
         physicsState.current = computed.physics;
 
         return computed;
-    }, [effects, timelineMs, mouseEventTimeMs, recording, outputWidth, outputHeight, overscan]);
+    }, [effects, timelineMs, mouseEventTimeMs, recording, outputWidth, outputHeight, overscan, deterministic]);
 
     return {
         activeZoomBlock: cameraState.activeZoomBlock,

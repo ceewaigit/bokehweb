@@ -1,11 +1,11 @@
 'use client'
 
 import React from 'react'
-import { MousePointer } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { CursorEffectData, Effect } from '@/types/project'
-import { EffectType, CursorStyle } from '@/types'
+import { EffectType } from '@/types'
+import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 
 interface CursorTabProps {
   cursorEffect: Effect | undefined
@@ -14,7 +14,8 @@ interface CursorTabProps {
 }
 
 export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: CursorTabProps) {
-  const cursorData = cursorEffect?.data as CursorEffectData
+  const cursorData = cursorEffect?.data as CursorEffectData | undefined
+  const hideOnIdle = cursorData?.hideOnIdle ?? DEFAULT_CURSOR_DATA.hideOnIdle
 
   return (
     <div className="space-y-4">
@@ -29,13 +30,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 onEffectChange(EffectType.Cursor, { ...cursorData, enabled: checked })
               } else {
                 onEffectChange(EffectType.Cursor, {
-                  style: CursorStyle.Default,
-                  size: 3.0,
-                  color: '#ffffff',
-                  clickEffects: true,
-                  motionBlur: false,
-                  hideOnIdle: false,
-                  idleTimeout: 3000,
+                  ...DEFAULT_CURSOR_DATA,
                   enabled: checked
                 })
               }
@@ -50,7 +45,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
           <div className="p-1 bg-background/30 rounded-lg space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Size</label>
             <Slider
-              value={[cursorData?.size ?? 3.0]}
+              value={[cursorData?.size ?? DEFAULT_CURSOR_DATA.size]}
               onValueChange={([value]) => onUpdateCursor({ size: value })}
               onValueCommit={([value]) => onUpdateCursor({ size: value })}
               min={0.5}
@@ -58,14 +53,14 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
               step={0.1}
               className="w-full"
             />
-            <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.size ?? 3.0).toFixed(1)}x</span>
+            <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.size ?? DEFAULT_CURSOR_DATA.size).toFixed(1)}x</span>
           </div>
 
           <div className="p-1 bg-background/30 rounded-lg">
             <label className="flex items-center justify-between">
               <span className="text-xs">Click Animation</span>
               <Switch
-                checked={cursorData?.clickEffects ?? false}
+                checked={cursorData?.clickEffects ?? DEFAULT_CURSOR_DATA.clickEffects}
                 onCheckedChange={(checked) =>
                   onUpdateCursor({ clickEffects: checked })
                 }
@@ -77,7 +72,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             <label className="flex items-center justify-between">
               <span className="text-xs">Smooth Movement</span>
               <Switch
-                checked={cursorData?.gliding ?? true}
+                checked={cursorData?.gliding ?? DEFAULT_CURSOR_DATA.gliding}
                 onCheckedChange={(checked) =>
                   onUpdateCursor({ gliding: checked })
                 }
@@ -89,7 +84,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             <label className="flex items-center justify-between">
               <span className="text-xs">Motion Blur</span>
               <Switch
-                checked={cursorData?.motionBlur ?? false}
+                checked={cursorData?.motionBlur ?? DEFAULT_CURSOR_DATA.motionBlur}
                 onCheckedChange={(checked) =>
                   onUpdateCursor({ motionBlur: checked })
                 }
@@ -101,7 +96,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             <label className="flex items-center justify-between">
               <span className="text-xs">Hide When Idle</span>
               <Switch
-                checked={cursorData?.hideOnIdle ?? false}
+                checked={cursorData?.hideOnIdle ?? DEFAULT_CURSOR_DATA.hideOnIdle}
                 onCheckedChange={(checked) =>
                   onUpdateCursor({ hideOnIdle: checked })
                 }
@@ -109,11 +104,11 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             </label>
           </div>
 
-          {cursorData?.hideOnIdle && (
+          {hideOnIdle && (
             <div className="p-1 bg-background/30 rounded-lg space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Idle Timeout</label>
               <Slider
-                value={[(cursorData?.idleTimeout ?? 3000) / 1000]}
+                value={[(cursorData?.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout) / 1000]}
                 onValueChange={([value]) => onUpdateCursor({ idleTimeout: value * 1000 })}
                 onValueCommit={([value]) => onUpdateCursor({ idleTimeout: value * 1000 })}
                 min={1}
@@ -121,7 +116,7 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
                 step={0.5}
                 className="w-full"
               />
-              <span className="text-[10px] text-muted-foreground/70 font-mono">{((cursorData?.idleTimeout ?? 3000) / 1000).toFixed(1)}s</span>
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{((cursorData?.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout) / 1000).toFixed(1)}s</span>
             </div>
           )}
 
@@ -131,26 +126,26 @@ export function CursorTab({ cursorEffect, onUpdateCursor, onEffectChange }: Curs
             <div className="p-1 bg-background/30 rounded-lg space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Speed</label>
               <Slider
-                value={[cursorData?.speed ?? 0.5]}
+                value={[cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed]}
                 onValueChange={([value]) => onUpdateCursor({ speed: value })}
                 min={0.1}
                 max={1}
                 step={0.05}
                 className="w-full"
               />
-              <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.speed ?? 0.5).toFixed(2)}</span>
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.speed ?? DEFAULT_CURSOR_DATA.speed).toFixed(2)}</span>
             </div>
             <div className="p-1 bg-background/30 rounded-lg space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Smoothness</label>
               <Slider
-                value={[cursorData?.smoothness ?? 0.5]}
+                value={[cursorData?.smoothness ?? DEFAULT_CURSOR_DATA.smoothness]}
                 onValueChange={([value]) => onUpdateCursor({ smoothness: value })}
                 min={0.1}
                 max={1}
                 step={0.05}
                 className="w-full"
               />
-              <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.smoothness ?? 0.5).toFixed(2)}</span>
+              <span className="text-[10px] text-muted-foreground/70 font-mono">{(cursorData?.smoothness ?? DEFAULT_CURSOR_DATA.smoothness).toFixed(2)}</span>
             </div>
           </details>
         </div>

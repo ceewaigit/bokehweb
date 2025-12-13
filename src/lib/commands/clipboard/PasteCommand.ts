@@ -169,18 +169,8 @@ export class PasteCommand extends Command<PasteResult> {
       scale: zoomData.scale || 2
     }
 
-    console.log('[PasteCommand] Creating zoom block in TIMELINE space:', {
-      blockId: newBlock.id,
-      startTime: newBlock.startTime,
-      endTime: newBlock.endTime,
-      scale: newBlock.scale
-    })
-
-    // Add zoom effect to timeline.effects using new signature (no recordingId)
     this.pastedCommand = new AddZoomBlockCommand(this.context, newBlock)
     const result = await this.pastedCommand.execute()
-
-    console.log('[PasteCommand] AddZoomBlockCommand result:', result)
 
     if (result.success) {
       return {

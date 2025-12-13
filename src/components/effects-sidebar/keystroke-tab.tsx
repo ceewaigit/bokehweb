@@ -1,12 +1,12 @@
 'use client'
 
 import React from 'react'
-import { Keyboard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import type { KeystrokeEffectData, Effect } from '@/types/project'
 import { EffectType, KeystrokePosition } from '@/types'
+import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
 
 interface KeystrokeTabProps {
   keystrokeEffect: Effect | undefined
@@ -15,7 +15,7 @@ interface KeystrokeTabProps {
 }
 
 export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChange }: KeystrokeTabProps) {
-  const keystrokeData = keystrokeEffect?.data as KeystrokeEffectData
+  const keystrokeData = keystrokeEffect?.data as KeystrokeEffectData | undefined
 
   return (
     <div className="space-y-4">
@@ -32,15 +32,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
                 onEffectChange(EffectType.Keystroke, { ...keystrokeData, enabled: checked })
               } else {
                 onEffectChange(EffectType.Keystroke, {
-                  position: KeystrokePosition.BottomCenter,
-                  fontSize: 16,
-                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                  textColor: '#ffffff',
-                  borderColor: 'rgba(255, 255, 255, 0.2)',
-                  borderRadius: 6,
-                  padding: 12,
-                  fadeOutDuration: 300,
-                  maxWidth: 300,
+                  ...DEFAULT_KEYSTROKE_DATA,
                   enabled: checked
                 })
               }
@@ -61,7 +53,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
                   onClick={() => onUpdateKeystroke({ position: pos })}
                   className={cn(
                     "px-2 py-1.5 text-[10px] rounded transition-all",
-                    keystrokeData?.position === pos
+                    (keystrokeData?.position ?? DEFAULT_KEYSTROKE_DATA.position) === pos
                       ? "bg-primary/20 text-primary"
                       : "bg-background/50 text-muted-foreground hover:bg-background/70"
                   )}
@@ -75,7 +67,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
           <div className="p-3 bg-background/30 rounded-lg space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Font Size</label>
             <Slider
-              value={[keystrokeData?.fontSize ?? 16]}
+              value={[keystrokeData?.fontSize ?? DEFAULT_KEYSTROKE_DATA.fontSize!]}
               onValueChange={([value]) => onUpdateKeystroke({ fontSize: value })}
               onValueCommit={([value]) => onUpdateKeystroke({ fontSize: value })}
               min={12}
@@ -83,13 +75,13 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
               step={1}
               className="w-full"
             />
-            <span className="text-[10px] text-muted-foreground/70 font-mono">{keystrokeData?.fontSize ?? 16}px</span>
+            <span className="text-[10px] text-muted-foreground/70 font-mono">{keystrokeData?.fontSize ?? DEFAULT_KEYSTROKE_DATA.fontSize!}px</span>
           </div>
 
           <div className="p-3 bg-background/30 rounded-lg space-y-2">
             <label className="text-xs font-medium text-muted-foreground">Fade Duration</label>
             <Slider
-              value={[(keystrokeData?.fadeOutDuration ?? 300) / 100]}
+              value={[(keystrokeData?.fadeOutDuration ?? DEFAULT_KEYSTROKE_DATA.fadeOutDuration!) / 100]}
               onValueChange={([value]) => onUpdateKeystroke({ fadeOutDuration: value * 100 })}
               onValueCommit={([value]) => onUpdateKeystroke({ fadeOutDuration: value * 100 })}
               min={1}
@@ -97,7 +89,7 @@ export function KeystrokeTab({ keystrokeEffect, onUpdateKeystroke, onEffectChang
               step={0.5}
               className="w-full"
             />
-            <span className="text-[10px] text-muted-foreground/70 font-mono">{((keystrokeData?.fadeOutDuration ?? 300) / 100).toFixed(1)}s</span>
+            <span className="text-[10px] text-muted-foreground/70 font-mono">{((keystrokeData?.fadeOutDuration ?? DEFAULT_KEYSTROKE_DATA.fadeOutDuration!) / 100).toFixed(1)}s</span>
           </div>
         </div>
       )}

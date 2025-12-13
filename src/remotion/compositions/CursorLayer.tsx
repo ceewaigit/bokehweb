@@ -7,7 +7,6 @@ import {
   CURSOR_HOTSPOTS,
   getCursorImagePath
 } from '../../lib/effects/cursor-types';
-import { applyZoomToPoint } from './utils/zoom-transform';
 import { calculateCursorState, type CursorState } from '../../lib/effects/utils/cursor-calculator';
 import { normalizeClickEvents, normalizeMouseEvents } from './utils/event-normalizer';
 import { useClipContext } from '../context/ClipContext';
@@ -16,6 +15,7 @@ import { useSourceTime, usePreviousSourceTime } from '../hooks/useTimeCoordinate
 import { useTimeContext } from '../context/TimeContext';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
 import { EffectType } from '@/types/project';
+import { applyCssTransformToPoint } from './utils/transform-point';
 
 // SINGLETON: Global cursor image cache - prevents redundant loading across all CursorLayer instances
 class CursorImagePreloader {
@@ -299,17 +299,20 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   let cursorX = cursorTipX;
   let cursorY = cursorTipY;
 
-  // Apply SHARED zoom transformation from SharedVideoController (fixes zoom mismatch!)
-  // Use the exact same zoomTransform that was applied to the video element
-  if (videoPositionContext.zoomTransform && videoPositionContext.zoomTransform.scale > 1) {
-    const transformedPos = applyZoomToPoint(
-      cursorTipX,
-      cursorTipY,
-      videoOffset,
-      videoPositionContext.zoomTransform
+  // Apply the EXACT same CSS transform string as the video element.
+  // This keeps ordering correct under combinations of zoom + 3D (perspective/tilt/skew).
+  if (videoPositionContext.contentTransform) {
+    const originX = videoOffset.x + videoOffset.width / 2;
+    const originY = videoOffset.y + videoOffset.height / 2;
+    const transformed = applyCssTransformToPoint(
+      cursorX,
+      cursorY,
+      originX,
+      originY,
+      videoPositionContext.contentTransform
     );
-    cursorX = transformedPos.x;
-    cursorY = transformedPos.y;
+    cursorX = transformed.x;
+    cursorY = transformed.y;
   }
 
 

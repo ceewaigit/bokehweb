@@ -17,6 +17,7 @@ import type { Clip, Recording, Effect } from '@/types/project';
 import { TimeProvider } from '../context/TimeContext';
 import { ClipSequence } from './ClipSequence';
 import { SharedVideoController } from './SharedVideoController';
+import { buildFrameLayout } from '@/lib/timeline/frame-layout';
 
 export interface TimelineCompositionProps {
   // Timeline data
@@ -35,6 +36,9 @@ export interface TimelineCompositionProps {
 
   // Allow export to fall back to <Video> when OffthreadVideo is too heavy.
   preferOffthreadVideo?: boolean;
+
+  // Export-only: make camera evaluation independent of prior frames.
+  deterministicCamera?: boolean;
 
   videoUrls?: Record<string, string>;
 }
@@ -57,6 +61,7 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   sourceVideoWidth,
   sourceVideoHeight,
   preferOffthreadVideo,
+  deterministicCamera,
   videoUrls,
 }) => {
   const { width, height } = useVideoConfig();
@@ -65,6 +70,8 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   const sortedClips = React.useMemo(() => {
     return [...clips].sort((a, b) => a.startTime - b.startTime);
   }, [clips]);
+
+  const frameLayout = React.useMemo(() => buildFrameLayout(sortedClips, fps), [sortedClips, fps]);
 
   return (
     <TimeProvider clips={sortedClips} recordings={recordings} fps={fps}>
@@ -80,16 +87,13 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
           sourceVideoWidth={sourceVideoWidth}
           sourceVideoHeight={sourceVideoHeight}
           preferOffthreadVideo={preferOffthreadVideo}
+          deterministicCamera={deterministicCamera}
           effects={effects}
           videoUrls={videoUrls}
         >
           {/* Overlay layers (cursor, keystrokes, etc.) rendered per clip as children */}
           {/* They now have access to VideoPositionContext! */}
-          {sortedClips.map((clip) => {
-            // Calculate sequence frame offset (timeline position in frames)
-            const startFrame = Math.round((clip.startTime / 1000) * fps);
-            const durationFrames = Math.round((clip.duration / 1000) * fps);
-
+          {frameLayout.map(({ clip, startFrame, durationFrames }) => {
             return (
               <ClipSequence
                 key={clip.id}

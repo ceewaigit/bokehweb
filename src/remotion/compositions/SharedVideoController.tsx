@@ -12,8 +12,8 @@
  * - Apply all transforms (zoom, 3D screen effects, cinematic)
  */
 
-import React, { useMemo } from 'react';
-import { Video, OffthreadVideo, AbsoluteFill, useCurrentFrame, useVideoConfig, getRemotionEnvironment } from 'remotion';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Video, OffthreadVideo, AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig, getRemotionEnvironment, delayRender, continueRender, Freeze } from 'remotion';
 import { useTimeContext } from '../context/TimeContext';
 import { VideoPositionProvider } from '../context/VideoPositionContext';
 import { calculateVideoPosition } from './utils/video-position';
@@ -24,6 +24,9 @@ import { EffectsFactory } from '@/lib/effects/effects-factory';
 import type { Effect, Recording, Clip } from '@/types/project';
 import { useZoomState } from '../hooks/useZoomState';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
+import { buildFrameLayout } from '@/lib/timeline/frame-layout';
+import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
+import { usePrecomputedCameraPath } from '@/remotion/hooks/usePrecomputedCameraPath';
 export interface SharedVideoControllerProps {
   videoWidth: number;
   videoHeight: number;
@@ -31,59 +34,11 @@ export interface SharedVideoControllerProps {
   sourceVideoWidth?: number;
   sourceVideoHeight?: number;
   preferOffthreadVideo?: boolean;
+  deterministicCamera?: boolean;
   effects: Effect[];
   videoUrls?: Record<string, string>;
   children?: React.ReactNode;
 }
-
-/**
- * Calculate a STABLE startFrom for a recording that works for ALL clips using it.
- * 
- * KEY INSIGHT: startFrom must be constant throughout playback to avoid seeks.
- * We calculate it based on the FIRST clip using this recording, ensuring the
- * video plays continuously from composition start.
- * 
- * For the video to show the correct frame at any point:
- * - At composition frame F, Remotion shows: startFrom + F * playbackRate
- * - For clip starting at clipStartFrame with sourceIn at sourceInFrame:
- *   startFrom + clipStartFrame * playbackRate = sourceInFrame
- *   startFrom = sourceInFrame - clipStartFrame * playbackRate
- */
-function calculateStableRecordingParams(
-  recording: Recording,
-  allClips: Clip[],
-  fps: number
-): { startFrom: number; endAt: number; playbackRate: number } {
-  // Find the FIRST clip using this recording (ordered by timeline position)
-  const clipsSorted = allClips
-    .filter(c => c.recordingId === recording.id)
-    .sort((a, b) => a.startTime - b.startTime);
-
-  if (clipsSorted.length === 0) {
-    // No clips use this recording - shouldn't happen, but return defaults
-    return {
-      startFrom: 0,
-      endAt: Math.round((recording.duration || 60000) * fps / 1000),
-      playbackRate: 1
-    };
-  }
-
-  // Use the first clip to establish the stable offset
-  const firstClip = clipsSorted[0];
-  const clipStartFrame = Math.round((firstClip.startTime / 1000) * fps);
-  const safeSourceIn = Math.max(0, firstClip.sourceIn || 0);
-  const sourceInFrame = Math.round((safeSourceIn * fps) / 1000);
-  const playbackRate = firstClip.playbackRate || 1;
-
-  // Calculate stable startFrom: at clipStartFrame, video shows sourceInFrame
-  const startFrom = Math.max(0, Math.round(sourceInFrame - clipStartFrame * playbackRate));
-
-  // endAt: use recording duration to allow playing through all clips
-  const endAt = Math.max(startFrom + 1, Math.round((recording.duration || 60000) * fps / 1000));
-
-  return { startFrom, endAt, playbackRate };
-}
-
 
 /**
  * Resolve video URL for a recording (used outside of React hook context)
@@ -114,104 +69,85 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   sourceVideoWidth,
   sourceVideoHeight,
   preferOffthreadVideo = true,
+  deterministicCamera,
   effects,
   videoUrls,
   children,
 }) => {
   const currentFrame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-  const { fps, clips, getClipAtTimelinePosition, getRecording, recordingsMap } = useTimeContext();
+  const { fps, clips, getRecording, recordingsMap } = useTimeContext();
+  const { isRendering } = getRemotionEnvironment();
 
   // Calculate current timeline position in milliseconds
   const currentTimeMs = (currentFrame / fps) * 1000;
 
-  // Extract unique recordings from all clips (stable across frames)
-  const uniqueRecordings = useMemo(() => {
-    const seen = new Set<string>();
-    const recordings: Recording[] = [];
+  const sortedClips = useMemo(() => {
+    return [...clips].sort((a, b) => a.startTime - b.startTime);
+  }, [clips]);
 
-    for (const clip of clips) {
-      if (!seen.has(clip.recordingId)) {
-        seen.add(clip.recordingId);
-        const recording = recordingsMap.get(clip.recordingId);
-        if (recording) {
-          recordings.push(recording);
-        }
-      }
-    }
-
-    return recordings;
-  }, [clips, recordingsMap]);
+  const frameLayout = useMemo(() => buildFrameLayout(sortedClips, fps), [sortedClips, fps]);
 
   // Find active clip at current timeline position
   const activeClipData = useMemo(() => {
-    let clip = getClipAtTimelinePosition(currentTimeMs);
+    return getActiveClipDataAtFrame({
+      frame: currentFrame,
+      frameLayout,
+      fps,
+      effects,
+      getRecording,
+    });
+  }, [currentFrame, effects, fps, frameLayout, getRecording]);
 
-    // If no clip at current position, find the nearest one to prevent black frame
-    if (!clip && clips.length > 0) {
-      let prevClip = clips[0];
-      let nextClip = clips[0];
-      let foundPrev = false;
-      let foundNext = false;
+  // Render-only: prevent blank first frame by waiting for the active video to be ready.
+  // Without this, frame 0 can be captured before the browser has decoded the first frame.
+  const renderReadyRef = useRef(!isRendering);
+  const renderDelayHandleRef = useRef<number | null>(null);
+  const readyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-      for (const c of clips) {
-        const clipEnd = c.startTime + c.duration;
-        if (clipEnd <= currentTimeMs) {
-          if (!foundPrev || clipEnd > prevClip.startTime + prevClip.duration) {
-            prevClip = c;
-            foundPrev = true;
-          }
-        }
-        if (c.startTime > currentTimeMs) {
-          if (!foundNext || c.startTime < nextClip.startTime) {
-            nextClip = c;
-            foundNext = true;
-          }
-        }
+  const markRenderReady = useCallback(() => {
+    if (!isRendering) return;
+    if (renderReadyRef.current) return;
+    renderReadyRef.current = true;
+
+    if (readyTimeoutRef.current) {
+      clearTimeout(readyTimeoutRef.current);
+      readyTimeoutRef.current = null;
+    }
+    if (renderDelayHandleRef.current != null) {
+      continueRender(renderDelayHandleRef.current);
+      renderDelayHandleRef.current = null;
+    }
+  }, [isRendering]);
+
+  useEffect(() => {
+    if (!isRendering) return;
+    if (renderReadyRef.current) return;
+    if (currentFrame !== 0) return;
+
+    if (renderDelayHandleRef.current == null) {
+      renderDelayHandleRef.current = delayRender('Waiting for first video to load');
+    }
+
+    if (!readyTimeoutRef.current) {
+      // Safety valve to avoid hanging renders if the media element never fires events.
+      readyTimeoutRef.current = setTimeout(() => {
+        markRenderReady();
+      }, 15000);
+    }
+
+    return () => {
+      if (readyTimeoutRef.current) {
+        clearTimeout(readyTimeoutRef.current);
+        readyTimeoutRef.current = null;
       }
-
-      clip = foundPrev ? prevClip : (foundNext ? nextClip : null);
-    }
-
-    if (!clip) {
-      return null;
-    }
-
-    const recording = getRecording(clip.recordingId);
-    if (!recording) return null;
-
-    let clipElapsedMs = currentTimeMs - clip.startTime;
-    clipElapsedMs = Math.max(0, Math.min(clipElapsedMs, clip.duration));
-    const sourceTimeMs = (clip.sourceIn || 0) + clipElapsedMs * (clip.playbackRate || 1);
-
-    const clipStart = clip.startTime;
-    const clipEnd = clip.startTime + clip.duration;
-    const timelineEffects = effects.filter(effect => {
-      return effect.startTime < clipEnd && effect.endTime > clipStart;
-    });
-
-    // Recording-scoped effects are stored in source space on Recording.effects.
-    // They should be resolved by sourceTimeMs, not timeline overlap.
-    const sourceEffects = (recording.effects || []).filter(effect => {
-      return effect.enabled && sourceTimeMs >= effect.startTime && sourceTimeMs <= effect.endTime;
-    });
-
-    const mergedEffects = [...timelineEffects, ...sourceEffects].filter((effect, index, arr) => {
-      const id = (effect as any)?.id;
-      if (!id) return true;
-      return arr.findIndex(e => (e as any)?.id === id) === index;
-    });
-
-    return {
-      clip,
-      recording,
-      sourceTimeMs,
-      effects: mergedEffects,
+      // Ensure we never leave a render handle hanging during unmount/teardown.
+      if (renderDelayHandleRef.current != null) {
+        continueRender(renderDelayHandleRef.current);
+        renderDelayHandleRef.current = null;
+      }
     };
-  }, [currentTimeMs, getClipAtTimelinePosition, getRecording, effects, clips]);
-
-  // Get the active recording ID for visibility toggling
-  const activeRecordingId = activeClipData?.recording.id || null;
+  }, [currentFrame, isRendering, markRenderReady]);
 
   // Compute draw area aspect before camera state so bounds match letterboxed video.
   const videoDrawArea = useMemo(() => {
@@ -243,8 +179,23 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     };
   }, [videoDrawArea, width, height]);
 
+  const precomputedCamera = usePrecomputedCameraPath({
+    enabled: Boolean(deterministicCamera && isRendering),
+    currentFrame,
+    frameLayout,
+    fps,
+    width,
+    height,
+    videoWidth,
+    videoHeight,
+    sourceVideoWidth,
+    sourceVideoHeight,
+    effects,
+    getRecording,
+  });
+
   // Use custom hook for zoom state calculation
-  const { activeZoomBlock: calculatedZoomBlock, zoomCenter: calculatedZoomCenter } = useZoomState({
+  const computedZoomState = useZoomState({
     effects: effects,
     timelineMs: currentTimeMs,
     sourceTimeMs: activeClipData?.sourceTimeMs,
@@ -256,7 +207,11 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     outputWidth: videoWidth,
     outputHeight: videoHeight,
     overscan: cameraOverscan,
+    deterministic: deterministicCamera,
   });
+
+  const calculatedZoomBlock = precomputedCamera ? precomputedCamera.activeZoomBlock : computedZoomState.activeZoomBlock;
+  const calculatedZoomCenter = precomputedCamera ? precomputedCamera.zoomCenter : computedZoomState.zoomCenter;
 
   // Calculate render data (position, transforms, etc.) for the active clip
   const renderData = useMemo(() => {
@@ -312,7 +267,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   }, [activeClipData, width, height, videoWidth, videoHeight, calculatedZoomBlock, calculatedZoomCenter, currentTimeMs]);
 
   // If no clips at all, render black frame
-  if (!renderData || uniqueRecordings.length === 0) {
+  if (!renderData || sortedClips.length === 0) {
     return <AbsoluteFill style={{ backgroundColor: '#000' }} />;
   }
 
@@ -330,18 +285,20 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     zoomTransform,
   } = renderData;
 
-    const videoPositionValue = {
-      offsetX,
-      offsetY,
-      drawWidth,
-      drawHeight,
-      zoomTransform,
-      padding,
-      videoWidth: sourceVideoWidth ?? videoWidth,
-      videoHeight: sourceVideoHeight ?? videoHeight,
-    };
-
   const combinedTransform = `${transform}${extra3DTransform}`.trim();
+  const contentTransform = `translate3d(0,0,0) ${combinedTransform}`.trim();
+
+  const videoPositionValue = {
+    offsetX,
+    offsetY,
+    drawWidth,
+    drawHeight,
+    zoomTransform,
+    contentTransform,
+    padding,
+    videoWidth: sourceVideoWidth ?? videoWidth,
+    videoHeight: sourceVideoHeight ?? videoHeight,
+  };
 
   const shadowOpacity = (shadowIntensity / 100) * 0.5;
   const shadowBlur = 25 + (shadowIntensity / 100) * 25;
@@ -350,8 +307,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       ? `drop-shadow(0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0, 0, 0, ${shadowOpacity})) drop-shadow(0 ${shadowBlur * 0.6}px ${shadowBlur * 1.2}px rgba(0, 0, 0, ${shadowOpacity * 0.8}))`
       : '';
 
-  const { isRendering } = getRemotionEnvironment();
   const VideoComponent = (isRendering && preferOffthreadVideo) ? OffthreadVideo : Video;
+  // Some boundaries decode slower (keyframe distance varies), so we pre-mount the next clip
+  // (hidden, muted) for a short window to avoid flashes at clip boundaries.
+  const PRELOAD_FRAMES = Math.max(2, Math.round(fps * 0.35));
 
   return (
     <VideoPositionProvider value={videoPositionValue}>
@@ -373,56 +332,87 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             backfaceVisibility: 'hidden' as const,
           }}
         >
-          {/* 
-            MULTI-VIDEO FIX: Render one video per unique recording.
-            All videos stay mounted - only visibility changes.
-            This eliminates blinking caused by React remounting on recording change.
-          */}
-          {uniqueRecordings.map((recording) => {
-            const isActive = recording.id === activeRecordingId;
+          {/* Correctness-first: render one video per clip inside its own <Sequence>.
+              This avoids the “single linear mapping per recording” assumption that breaks after typing-speed splits. */}
+          {frameLayout.map(({ clip: clipForVideo, startFrame, durationFrames }) => {
+            const recording = recordingsMap.get(clipForVideo.recordingId);
+            if (!recording) return null;
             const videoUrl = getVideoUrlForRecording(recording, videoUrls);
-            // Use STABLE params calculated from ALL clips - startFrom never changes!
-            const { startFrom, endAt, playbackRate } = calculateStableRecordingParams(
-              recording,
-              clips,
-              fps
-            );
+
+            const playbackRate = clipForVideo.playbackRate && clipForVideo.playbackRate > 0 ? clipForVideo.playbackRate : 1;
+            const sourceInMs = Math.max(0, clipForVideo.sourceIn || 0);
+            const sourceOutMs =
+              clipForVideo.sourceOut ?? (sourceInMs + (clipForVideo.duration || 0) * playbackRate);
+            const sourceInFrame = Math.round((sourceInMs * fps) / 1000);
+            const sourceOutFrame = Math.round((sourceOutMs * fps) / 1000);
+
+            const originalStartFrom = Math.max(0, sourceInFrame);
+            const endAt = Math.max(originalStartFrom + 1, sourceOutFrame);
+
+            // Calculate preload window
+            // We clamp to 0 to avoid negative start frames for the sequence
+            const actualPreloadStart = Math.max(0, startFrame - PRELOAD_FRAMES);
+            const actualPreloadDuration = startFrame - actualPreloadStart;
+            const totalDuration = actualPreloadDuration + durationFrames;
+
+            const isPreloading = currentFrame < startFrame;
+
+            const shouldMarkReady = isRendering && currentFrame === 0 && startFrame === 0;
 
             return (
-              <VideoComponent
-                key={`video-${recording.id}`}
-                src={videoUrl || ''}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain' as const,
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  borderRadius: `${cornerRadius}px`,
-                  // CRITICAL: Use visibility instead of display/conditional rendering
-                  // This keeps the video mounted and buffered while hidden
-                  visibility: isActive ? 'visible' : 'hidden',
-                  // Ensure hidden videos don't receive pointer events
-                  pointerEvents: isActive ? 'auto' : 'none',
-                }}
-                volume={isActive ? 1 : 0}
-                muted={!isActive}
-                pauseWhenBuffering={false}
-                crossOrigin="anonymous"
-                startFrom={startFrom}
-                endAt={endAt}
-                playbackRate={playbackRate}
-                onError={(e) => {
-                  if (isActive) {
-                    console.error('[SharedVideoController] Video playback error:', {
-                      error: e,
-                      videoUrl,
-                      recordingId: recording.id,
-                    });
-                  }
-                }}
-              />
+              <React.Fragment key={`clip-video-fragment-${clipForVideo.id}`}>
+                {/* Merged Sequence with Freeze-based Preloading
+                    We extend the sequence backwards to mount early.
+                    We use <Freeze> to hold the video at the first frame during the preload phase,
+                    and then advance normally during the active phase.
+                    This avoids negative startFrom values and keeps the video mounted.
+                */}
+                <Sequence from={startFrame - actualPreloadDuration} durationInFrames={totalDuration}>
+                  <Freeze
+                    frame={
+                      isPreloading
+                        ? 0 // Hold at start of clip (relative frame 0)
+                        : (currentFrame - startFrame) // Advance normally from start of clip
+                    }
+                  >
+                    <VideoComponent
+                      src={videoUrl || ''}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain' as const,
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        borderRadius: `${cornerRadius}px`,
+                        pointerEvents: 'none',
+                        // Hide during preload phase
+                        opacity: isPreloading ? 0 : 1,
+                      }}
+                      volume={isPreloading ? 0 : 1}
+                      muted={isPreloading}
+                      pauseWhenBuffering={isRendering ? true : false}
+                      crossOrigin="anonymous"
+                      startFrom={originalStartFrom} // Use original positive startFrom
+                      endAt={endAt}
+                      playbackRate={playbackRate}
+                      {...(shouldMarkReady ? ({
+                        onLoadedData: markRenderReady,
+                        onCanPlay: markRenderReady,
+                        onCanPlayThrough: markRenderReady,
+                      } as any) : {})}
+                      onError={(e) => {
+                        console.error('[SharedVideoController] Per-clip video playback error:', {
+                          error: e,
+                          videoUrl,
+                          recordingId: recording.id,
+                          clipId: clipForVideo.id,
+                        });
+                      }}
+                    />
+                  </Freeze>
+                </Sequence>
+              </React.Fragment>
             );
           })}
         </div>

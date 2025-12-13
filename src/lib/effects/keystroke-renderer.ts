@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from '@/types/project'
 import { KeystrokePosition } from '@/types/project'
 import { getPrintableCharFromKey, isShortcutModifier, isStandaloneModifierKey } from '@/lib/keyboard/keyboard-utils'
+import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
 
 interface KeystrokeOptions {
   fontSize?: number
@@ -50,16 +51,8 @@ export class KeystrokeRenderer {
 
   constructor(private options: KeystrokeOptions = {}) {
     this.options = {
-      fontSize: 16,
-      fontFamily: 'SF Pro Display, system-ui, -apple-system, sans-serif',
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      textColor: '#ffffff',
-      borderColor: 'rgba(255, 255, 255, 0.2)',
-      borderRadius: 6,
-      padding: 12,
+      ...DEFAULT_KEYSTROKE_DATA,
       fadeOutDuration: this.FADE_DURATION,
-      position: KeystrokePosition.BottomCenter,
-      maxWidth: 300,
       ...options
     }
   }

@@ -1,11 +1,11 @@
 import type { ClickEvent, MouseEvent } from '@/types/project';
 
-export type TimestampedEvent = {
+type TimestampedEvent = {
   timestamp: number;
   sourceTimestamp?: number;
 };
 
-export const getEventSourceTimestamp = (event: TimestampedEvent): number => (
+const getEventSourceTimestamp = (event: TimestampedEvent): number => (
   typeof event.sourceTimestamp === 'number' ? event.sourceTimestamp : event.timestamp
 );
 
@@ -14,7 +14,7 @@ export const getEventSourceTimestamp = (event: TimestampedEvent): number => (
  * This prevents chunked renders (which restart the Remotion frame clock) from feeding
  * discontinuous time deltas into smoothing/interpolation logic.
  */
-export function normalizeEventsToSourceSpace<T extends TimestampedEvent>(events?: T[] | null): T[] {
+function normalizeEventsToSourceSpace<T extends TimestampedEvent>(events?: T[] | null): T[] {
   if (!events || events.length === 0) {
     return [];
   }

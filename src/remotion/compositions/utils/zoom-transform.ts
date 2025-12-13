@@ -133,7 +133,7 @@ export function calculateZoomTransform(
   let panX = 0;
   let panY = 0;
 
-  if (padding && padding > 0 && scale > 1.001) {
+  if (padding && padding > 0 && scale > 1) {
     // The camera can position the view such that some padding should be visible.
     // Calculate how much of the view extends beyond the video content.
     const halfViewWidth = 0.5 / scale; // Normalized half-width of visible area
@@ -168,6 +168,14 @@ export function calculateZoomTransform(
     }
   }
 
+  // Fade padding-pan with zoom progress so zoom-out doesn't "snap" on the last frame.
+  if (padding && padding > 0 && (panX !== 0 || panY !== 0)) {
+    const targetScale = activeBlock.scale || 2;
+    const t = targetScale > 1.000001 ? Math.max(0, Math.min(1, (scale - 1) / (targetScale - 1))) : 0;
+    panX *= t;
+    panY *= t;
+  }
+
   return {
     scale,
     scaleCompensationX,
@@ -181,38 +189,6 @@ export function calculateZoomTransform(
  * Apply zoom transformation to a point (for cursor positioning)
  * Matches the video transform which uses transformOrigin: '50% 50%'
  */
-export function applyZoomToPoint(
-  pointX: number,
-  pointY: number,
-  videoOffset: { x: number; y: number; width: number; height: number },
-  zoomTransform: ZoomState
-): { x: number; y: number } {
-  if (zoomTransform.scale === 1) {
-    return { x: pointX, y: pointY };
-  }
-
-  // The video div is transformed with CSS transform and transformOrigin: '50% 50%'
-  // This means the video scales from its center, then translates
-
-  // First, get the point relative to the video's top-left corner
-  const relativeToVideoX = pointX - videoOffset.x;
-  const relativeToVideoY = pointY - videoOffset.y;
-
-  // Now scale this position (video scales from its center)
-  const scaledRelativeX = relativeToVideoX * zoomTransform.scale + (videoOffset.width / 2) * (1 - zoomTransform.scale);
-  const scaledRelativeY = relativeToVideoY * zoomTransform.scale + (videoOffset.height / 2) * (1 - zoomTransform.scale);
-
-  // Apply the translation that was applied to the video
-  const totalTranslateX = zoomTransform.scaleCompensationX + zoomTransform.panX;
-  const totalTranslateY = zoomTransform.scaleCompensationY + zoomTransform.panY;
-
-  // Final position in screen coordinates
-  return {
-    x: videoOffset.x + scaledRelativeX + totalTranslateX,
-    y: videoOffset.y + scaledRelativeY + totalTranslateY
-  };
-}
-
 /**
  * Generate CSS transform string for video element with GPU acceleration
  * Now with sub-pixel rounding to prevent jitter

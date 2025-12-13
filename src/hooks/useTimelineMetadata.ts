@@ -7,6 +7,7 @@
 
 import { useMemo } from 'react';
 import type { Project } from '@/types/project';
+import { buildFrameLayout, getTimelineDurationInFrames } from '@/lib/timeline/frame-layout';
 
 export interface TimelineMetadata {
   durationInFrames: number;
@@ -48,8 +49,9 @@ export function useTimelineMetadata(project: Project | null): TimelineMetadata |
 
     const fps = 30; // Default fps
 
-    // Calculate duration in frames
-    const durationInFrames = Math.round((totalDurationMs / 1000) * fps);
+    // Calculate duration in frames using frame layout to avoid rounding gaps.
+    const frameLayout = buildFrameLayout(clips, fps);
+    const durationInFrames = getTimelineDurationInFrames(frameLayout);
 
     // Get dimensions from first recording
     const width = firstRecording.width || 1920;

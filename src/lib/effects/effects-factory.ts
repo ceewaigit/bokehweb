@@ -1,8 +1,9 @@
 import type { Effect, Recording, Clip, Project, ZoomEffectData, BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ScreenEffectData } from '@/types/project'
-import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
+import { EffectType } from '@/types/project'
 import {
   DEFAULT_BACKGROUND_DATA,
   DEFAULT_CURSOR_DATA,
+  DEFAULT_KEYSTROKE_DATA,
   getDefaultWallpaper
 } from '@/lib/constants/default-effects'
 
@@ -31,15 +32,21 @@ export class EffectsFactory {
       endTime: Number.MAX_SAFE_INTEGER,
       data: {
         ...DEFAULT_CURSOR_DATA,
-        style: CursorStyle.MacOS,
-        size: 4.0,
-        clickEffects: true,
-        motionBlur: true,
-        gliding: true,
-        speed: 0.2,
-        smoothness: 0.85,
       } as CursorEffectData,
       enabled: true
+    }
+  }
+
+  static createDefaultKeystrokeEffect(options?: { id?: string; enabled?: boolean }): Effect {
+    return {
+      id: options?.id ?? `keystroke-global`,
+      type: EffectType.Keystroke,
+      startTime: 0,
+      endTime: Number.MAX_SAFE_INTEGER,
+      data: {
+        ...DEFAULT_KEYSTROKE_DATA,
+      } as KeystrokeEffectData,
+      enabled: options?.enabled ?? true
     }
   }
   static createInitialEffectsForRecording(

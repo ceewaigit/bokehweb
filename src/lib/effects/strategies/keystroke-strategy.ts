@@ -18,19 +18,7 @@ export class KeystrokeEffectStrategy implements IEffectStrategy {
   private lastCanvas: HTMLCanvasElement | undefined
 
   constructor() {
-    // Initialize renderer with centralized defaults
-    this.keystrokeRenderer = new KeystrokeRenderer({
-      fontSize: DEFAULT_KEYSTROKE_DATA.fontSize!,
-      fontFamily: DEFAULT_KEYSTROKE_DATA.fontFamily!,
-      backgroundColor: DEFAULT_KEYSTROKE_DATA.backgroundColor!,
-      textColor: DEFAULT_KEYSTROKE_DATA.textColor!,
-      borderColor: DEFAULT_KEYSTROKE_DATA.borderColor!,
-      borderRadius: DEFAULT_KEYSTROKE_DATA.borderRadius!,
-      padding: DEFAULT_KEYSTROKE_DATA.padding!,
-      fadeOutDuration: DEFAULT_KEYSTROKE_DATA.fadeOutDuration!,
-      position: DEFAULT_KEYSTROKE_DATA.position!,
-      maxWidth: DEFAULT_KEYSTROKE_DATA.maxWidth!
-    })
+    this.keystrokeRenderer = new KeystrokeRenderer(DEFAULT_KEYSTROKE_DATA)
   }
 
   canRender(effect: Effect): boolean {
@@ -41,19 +29,7 @@ export class KeystrokeEffectStrategy implements IEffectStrategy {
     const data = effect.data as KeystrokeEffectData
     if (!context.keyboardEvents || context.keyboardEvents.length === 0) return
 
-    // Update renderer settings from effect data, falling back to centralized defaults
-    this.keystrokeRenderer.updateSettings({
-      fontSize: data.fontSize ?? DEFAULT_KEYSTROKE_DATA.fontSize!,
-      fontFamily: data.fontFamily ?? DEFAULT_KEYSTROKE_DATA.fontFamily!,
-      backgroundColor: data.backgroundColor ?? DEFAULT_KEYSTROKE_DATA.backgroundColor!,
-      textColor: data.textColor ?? DEFAULT_KEYSTROKE_DATA.textColor!,
-      borderColor: data.borderColor ?? DEFAULT_KEYSTROKE_DATA.borderColor!,
-      borderRadius: data.borderRadius ?? DEFAULT_KEYSTROKE_DATA.borderRadius!,
-      padding: data.padding ?? DEFAULT_KEYSTROKE_DATA.padding!,
-      fadeOutDuration: data.fadeOutDuration ?? DEFAULT_KEYSTROKE_DATA.fadeOutDuration!,
-      position: data.position ?? DEFAULT_KEYSTROKE_DATA.position!,
-      maxWidth: data.maxWidth ?? DEFAULT_KEYSTROKE_DATA.maxWidth!
-    })
+    this.keystrokeRenderer.updateSettings({ ...DEFAULT_KEYSTROKE_DATA, ...data })
 
     // Set events only when changed to avoid resetting state each frame
     if (this.lastKeyboardEvents !== context.keyboardEvents) {

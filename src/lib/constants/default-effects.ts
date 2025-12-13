@@ -1,4 +1,4 @@
-import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData, ZoomEffectData } from '@/types/project'
+import type { BackgroundEffectData, CursorEffectData, KeystrokeEffectData } from '@/types/project'
 import { BackgroundType, CursorStyle, KeystrokePosition, ScreenEffectPreset } from '@/types/project'
 
 // Default background effect data
@@ -30,11 +30,11 @@ export const SCREEN_EFFECT_PRESETS: Record<string, { tiltX: number; tiltY: numbe
 
 // Default cursor effect data
 export const DEFAULT_CURSOR_DATA: CursorEffectData = {
-  style: CursorStyle.Default,
-  size: 3.0,
+  style: CursorStyle.MacOS,
+  size: 4.0,
   color: '#ffffff',
-  clickEffects: false,
-  motionBlur: false,
+  clickEffects: true,
+  motionBlur: true,
   hideOnIdle: true,
   idleTimeout: 3000,
   gliding: true,

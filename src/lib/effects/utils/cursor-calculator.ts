@@ -8,6 +8,7 @@ import type { CursorEffectData, MouseEvent, ClickEvent } from '@/types/project'
 import { CursorStyle } from '@/types/project'
 import { interpolateMousePosition } from './mouse-interpolation'
 import { CursorType, electronToCustomCursor } from '../cursor-types'
+import { DEFAULT_CURSOR_DATA } from '@/lib/constants/default-effects'
 
 // PERF: Memoization cache for smoothing results to avoid re-simulation
 const smoothingCache = new Map<string, { x: number; y: number }>()
@@ -64,7 +65,7 @@ export function calculateCursorState(
       x: 0,
       y: 0,
       type: CursorType.ARROW,
-      scale: cursorData?.size ?? 4.0,
+      scale: cursorData?.size ?? DEFAULT_CURSOR_DATA.size,
       opacity: 0,
       clickEffects: [],
       timestamp
@@ -79,7 +80,7 @@ export function calculateCursorState(
       x: 0,
       y: 0,
       type: CursorType.ARROW,
-      scale: cursorData.size ?? 4.0,
+      scale: cursorData.size ?? DEFAULT_CURSOR_DATA.size,
       opacity: 0,
       clickEffects: [],
       timestamp
@@ -118,7 +119,7 @@ export function calculateCursorState(
   let opacity = 1
 
   if (cursorData.hideOnIdle) {
-    const idleTimeout = cursorData.idleTimeout ?? 3000 // Default 3 seconds
+    const idleTimeout = cursorData.idleTimeout ?? DEFAULT_CURSOR_DATA.idleTimeout
     const lastMovement = findLastMovement(mouseEvents, timestamp)
     if (lastMovement) {
       const idleTime = timestamp - lastMovement.timestamp
@@ -138,7 +139,7 @@ export function calculateCursorState(
     const sequentialPrev = shouldUsePreviousState(previousState, timestamp)
     const referencePosition = sequentialPrev && previousState
       ? { x: previousState.x, y: previousState.y }
-      : sampleHistoricalPosition(mouseEvents, timestamp, position, Math.min(60, (1 - (cursorData.speed ?? 0.5)) * 80 + 20))
+      : sampleHistoricalPosition(mouseEvents, timestamp, position, Math.min(60, (1 - (cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)) * 80 + 20))
 
     const dx = position.x - referencePosition.x
     const dy = position.y - referencePosition.y
@@ -163,7 +164,7 @@ export function calculateCursorState(
     x: position.x,
     y: position.y,
     type: cursorType,
-    scale: cursorData.size ?? 4.0, // Default to 4.0 to match UI
+    scale: cursorData.size ?? DEFAULT_CURSOR_DATA.size,
     opacity,
     clickEffects: activeClickEffects,
     motionBlur,
@@ -211,7 +212,7 @@ function simulateSmoothingWithHistory(
   renderFps?: number
 ): { x: number; y: number } {
   // PERF: Check cache first - key includes timestamp and smoothing params
-  const cacheKey = `${timestamp.toFixed(0)}-${(cursorData.smoothness ?? 0.5).toFixed(2)}-${(cursorData.speed ?? 0.5).toFixed(2)}`
+  const cacheKey = `${timestamp.toFixed(0)}-${(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness).toFixed(2)}-${(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed).toFixed(2)}`
   const cached = smoothingCache.get(cacheKey)
   if (cached) {
     return cached
@@ -282,8 +283,8 @@ function sampleHistoricalPosition(
 }
 
 function computeHistoryWindowMs(cursorData: CursorEffectData): number {
-  const smoothness = clamp01(cursorData.smoothness ?? 0.5)
-  const speed = clamp01(cursorData.speed ?? 0.5)
+  const smoothness = clamp01(cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness)
+  const speed = clamp01(cursorData.speed ?? DEFAULT_CURSOR_DATA.speed)
 
   const minWindow = 120
   const maxWindow = 420
@@ -322,8 +323,8 @@ function smoothTowardsTarget(
   const MAX_ALPHA = 0.3
   const ADAPTABILITY_FACTOR = 0.15
 
-  const baseAlpha = MIN_ALPHA + ((cursorData.speed ?? 0.5) * (MAX_ALPHA - MIN_ALPHA))
-  const adaptability = (cursorData.smoothness ?? 0.5) * ADAPTABILITY_FACTOR
+  const baseAlpha = MIN_ALPHA + ((cursorData.speed ?? DEFAULT_CURSOR_DATA.speed) * (MAX_ALPHA - MIN_ALPHA))
+  const adaptability = (cursorData.smoothness ?? DEFAULT_CURSOR_DATA.smoothness) * ADAPTABILITY_FACTOR
 
   let smoothingAlpha = baseAlpha
   if (movementDelta < 20) {

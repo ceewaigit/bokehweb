@@ -1,10 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Rect, Text, Transformer, Line, Group } from 'react-konva'
-import type { ZoomBlock } from '@/types/project'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { TimeConverter } from '@/lib/timeline/time-space-converter'
 import { useTimelineColors } from '@/lib/timeline/colors'
 import Konva from 'konva'
+
+interface TimelineTimeBlock {
+  id: string
+  startTime: number
+  endTime: number
+}
 
 interface TimelineEffectBlockProps {
   x: number
@@ -24,13 +29,12 @@ interface TimelineEffectBlockProps {
   isSelected: boolean
   isEnabled?: boolean
   isCompact?: boolean // When true, show simplified view (no curve, just label)
-  allBlocks: ZoomBlock[]
+  allBlocks: TimelineTimeBlock[]
   blockId: string
   pixelsPerMs: number
   // Events
   onSelect: () => void
-  onDragEnd: (newX: number) => void
-  onUpdate: (updates: Partial<ZoomBlock>) => void
+  onUpdate: (updates: { startTime: number; endTime: number }) => void
 }
 
 export const TimelineEffectBlock = React.memo(({
@@ -52,7 +56,6 @@ export const TimelineEffectBlock = React.memo(({
   blockId,
   pixelsPerMs,
   onSelect,
-  onDragEnd,
   onUpdate
 }: TimelineEffectBlockProps) => {
   const colors = useTimelineColors()
@@ -231,8 +234,6 @@ export const TimelineEffectBlock = React.memo(({
               startTime: Math.max(0, newStartTime),
               endTime: Math.max(0, newEndTime)
             })
-
-            onDragEnd(snappedX)
           }
         }}
         onClick={(e) => {

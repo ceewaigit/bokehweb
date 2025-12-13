@@ -227,10 +227,12 @@ export function trimClipStart(
   }
 
   const trimAmount = newStartTime - clip.startTime
+  // Convert timeline trim amount to source space (respects playbackRate + time remaps)
+  const newSourceIn = TimeConverter.clipRelativeToSource(trimAmount, clip)
   return {
     startTime: newStartTime,
     duration: clip.duration - trimAmount,
-    sourceIn: clip.sourceIn + trimAmount
+    sourceIn: newSourceIn
   }
 }
 
@@ -264,9 +266,11 @@ export function trimClipEnd(
   }
 
   const newDuration = newEndTime - clip.startTime
+  // Convert new timeline duration to source space (respects playbackRate + time remaps)
+  const newSourceOut = TimeConverter.clipRelativeToSource(newDuration, clip)
   return {
     duration: newDuration,
-    sourceOut: clip.sourceIn + newDuration
+    sourceOut: newSourceOut
   }
 }
 
@@ -279,11 +283,14 @@ export function executeTrimClipEnd(
   const result = findClipById(project, clipId)
   if (!result) return false
 
-  const { clip } = result
+  const { clip, track } = result
   const trimResult = trimClipEnd(clip, newEndTime)
   if (!trimResult) return false
 
   Object.assign(clip, trimResult)
+  // Maintain contiguous timeline layout after shortening the clip.
+  // Without this, gaps can form and later reorder/playback may desync.
+  reflowClips(track, 0)
   project.timeline.duration = calculateTimelineDuration(project)
   project.modifiedAt = new Date().toISOString()
   return true

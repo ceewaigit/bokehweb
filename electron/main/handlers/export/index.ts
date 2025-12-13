@@ -470,15 +470,6 @@ export function setupExportHandler(): void {
         })
       })()
 
-      // If we have zoom effects that follow the mouse, keep export single-threaded
-      // so spring-based camera math matches preview (frames evaluated sequentially).
-      const hasMouseFollowZoom = allEffects.some((e: any) => {
-        if (!e || !e.enabled) return false
-        if (e.type !== 'zoom') return false
-        const follow = (e.data as any)?.followStrategy
-        return follow == null || follow === 'mouse'
-      })
-
       // Build input props with downsampled recordings
       const inputProps = {
         clips: allClips,
@@ -525,13 +516,6 @@ export function setupExportHandler(): void {
         compositionMetadata.fps || 30
       )
 
-      if (hasMouseFollowZoom) {
-        allocation.concurrency = 1
-        allocation.useParallel = false
-        allocation.workerCount = 1
-        console.log('[Export] Forcing sequential render for mouse-follow zoom')
-      }
-
       console.log('[Export] Chunk plan metrics', {
         totalFrames: totalDurationInFrames,
         chunkCount: chunkPlan.length,
@@ -577,9 +561,9 @@ export function setupExportHandler(): void {
         totalChunks: chunkPlan.length
       }
 
-      // Let compositions know whether to use deterministic camera evaluation.
-      // If we forced sequential rendering, disable determinism to match preview spring follow.
-      inputProps.deterministicCamera = hasMouseFollowZoom ? false : true
+      // Export: Remotion may render frames out-of-order when concurrency > 1.
+      // Use deterministic camera evaluation so export does not depend on prior frames.
+      inputProps.deterministicCamera = true
 
       // Create progress tracker
       const progressTracker = new ProgressTracker(event.sender, totalDurationInFrames)

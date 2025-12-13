@@ -324,7 +324,8 @@ export function RecordButtonDock() {
         layout
         className={cn(
           "relative flex flex-col",
-          "bg-background",
+          // Keep the window background transparent, but give the dock itself a subtle glass fill
+          "bg-background/60 backdrop-blur-md",
           "rounded-xl border border-border",
           "shadow-lg dark:shadow-2xl",
           isRecording && "ring-2 ring-destructive/40",

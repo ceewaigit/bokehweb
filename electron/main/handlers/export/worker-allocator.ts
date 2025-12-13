@@ -145,13 +145,19 @@ export function calculateWorkerAllocation(
   }
 
   // Real-time free memory is a better predictor of thrash than derived effective memory.
-  // If the OS reports very low free RAM, reduce tabs to avoid swap storms.
+  // However, on macOS `os.freemem()` can be misleadingly low due to compressed/inactive memory,
+  // so use the caller's effective memory estimate for throttling on darwin.
   const rawAvailableGB = profile.availableMemoryGB ?? 0
-  if (rawAvailableGB < 1) {
+  const throttlingMemoryGB =
+    process.platform === 'darwin'
+      ? Math.max(rawAvailableGB, safeMemoryGB)
+      : rawAvailableGB
+
+  if (throttlingMemoryGB < 1) {
     concurrency = 1
-  } else if (rawAvailableGB < 2) {
+  } else if (throttlingMemoryGB < 2) {
     concurrency = Math.min(concurrency, 2)
-  } else if (rawAvailableGB < 3) {
+  } else if (throttlingMemoryGB < 3) {
     concurrency = Math.min(concurrency, 3)
   }
 
@@ -168,9 +174,9 @@ export function calculateWorkerAllocation(
 
   // Cap parallel workers aggressively when raw available memory is low.
   if (useParallel) {
-    if (rawAvailableGB < 2) {
+    if (throttlingMemoryGB < 2) {
       workerCount = Math.min(workerCount, 2)
-    } else if (rawAvailableGB < 3) {
+    } else if (throttlingMemoryGB < 3) {
       workerCount = Math.min(workerCount, 3)
     } else {
       workerCount = Math.min(workerCount, 4)

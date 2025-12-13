@@ -61,7 +61,7 @@ export function ExportDialog({ isOpen, onClose }: ExportDialogProps) {
       category: 'Social & Web',
       items: [
         { id: 'youtube-1080p', name: 'YouTube 1080p', desc: 'Standard HD quality', icon: MonitorPlay, details: '1920×1080 • 60fps' },
-        { id: 'youtube-1080p-30', name: '1080p 30fps', desc: 'Medium quality', icon: MonitorPlay, details: '1920×1080 • 30fps' },
+        { id: 'youtube-1080p-30', name: 'YouTube 1080p 30fps', desc: 'Medium quality', icon: MonitorPlay, details: '1920×1080 • 30fps' },
         { id: 'youtube-4k', name: 'YouTube 4K', desc: 'Ultra HD for big screens', icon: MonitorPlay, details: '3840×2160 • 60fps' },
         { id: 'twitter', name: 'Twitter / X', desc: 'Optimized for feed', icon: Share2, details: '1280×720 • 30fps' },
         { id: 'instagram', name: 'Instagram Square', desc: '1:1 aspect ratio', icon: Smartphone, details: '1080×1080 • 30fps' },

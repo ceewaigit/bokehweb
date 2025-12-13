@@ -21,8 +21,8 @@ export const CLUSTER_HOLD_BUFFER_MS = 0;
 // Cinematic mouse smoothing
 /** Window size in ms for averaging mouse position */
 export const CINEMATIC_WINDOW_MS = 200;
-/** Number of samples to take within the averaging window - reduced for export performance */
-export const CINEMATIC_SAMPLES = 1;
+/** Number of samples to take within the averaging window for smooth camera follow */
+export const CINEMATIC_SAMPLES = 8;
 
 // Physics
 /** Time delta threshold in ms to consider a seek (skip vs normal playback) */

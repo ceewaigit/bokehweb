@@ -1,4 +1,5 @@
 import type { Project, Clip, Recording, Track } from '@/types/project'
+import { findClipAtTimelinePosition } from '@/lib/timeline/time-space-converter'
 
 export interface PlayheadState {
   playheadClip: Clip | null
@@ -61,11 +62,7 @@ export class PlayheadService {
   static findClipAtTime(project: Project, time: number): { clip: Clip; track: Track } | null {
     for (const track of project.timeline.tracks) {
       const sortedClips = [...track.clips].sort((a, b) => a.startTime - b.startTime)
-      const clip = sortedClips.find(c => {
-        const atStart = time === c.startTime
-        const withinClip = time > c.startTime && time <= c.startTime + c.duration
-        return atStart || withinClip
-      })
+      const clip = findClipAtTimelinePosition(time, sortedClips)
 
       if (clip) {
         return { clip, track }

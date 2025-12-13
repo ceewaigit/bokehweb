@@ -18,7 +18,7 @@ import { globalBlobManager } from '@/lib/security/blob-url-manager'
 import type { Effect, ZoomBlock, ZoomEffectData } from '@/types/project'
 import { EffectType, BackgroundType, CursorStyle } from '@/types/project'
 import { CommandManager, DefaultCommandContext, UpdateZoomBlockCommand } from '@/lib/commands'
-import { TimeConverter } from '@/lib/timeline/time-space-converter'
+import { TimeConverter, timelineToSource, getSourceDuration } from '@/lib/timeline/time-space-converter'
 import { TimelineConfig } from '@/lib/timeline/config'
 import { initializeDefaultWallpaper } from '@/lib/constants/default-effects'
 import { EffectLayerType } from '@/types/effects'
@@ -48,7 +48,7 @@ async function loadProjectRecording(
   // Run migrations to convert old source-space zoom effects to timeline-space
   if ((project as any).schemaVersion == null) {
     console.warn('[WorkspaceManager] schemaVersion missing; assuming v0 and migrating')
-    ;(project as any).schemaVersion = 0
+      ; (project as any).schemaVersion = 0
   }
   project = migrationRunner.migrateProject(project)
 
@@ -185,65 +185,8 @@ async function loadProjectRecording(
   // They are migrated from recording.effects[] on project load.
   // This preserves backward compatibility via the migration system.
 
-  // Ensure global background and cursor effects exist
-  const hasGlobalBackground = !!EffectsFactory.getBackgroundEffect(project.timeline.effects)
-  const hasGlobalCursor = !!EffectsFactory.getCursorEffect(project.timeline.effects)
-
-  // Update existing background effect with wallpaper if needed
-  const existingBg = EffectsFactory.getBackgroundEffect(project.timeline.effects)
-  if (existingBg) {
-    const bgData = EffectsFactory.getBackgroundData(existingBg)
-    if (bgData && bgData.type === BackgroundType.Wallpaper && !bgData.wallpaper) {
-      const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
-      const defaultWallpaper = getDefaultWallpaper()
-      if (defaultWallpaper) {
-        bgData.wallpaper = defaultWallpaper
-      }
-    }
-  }
-
-  if (!hasGlobalBackground) {
-    const { getDefaultWallpaper } = await import('@/lib/constants/default-effects')
-    const defaultWallpaper = getDefaultWallpaper()
-
-    project.timeline.effects.push({
-      id: 'background-global',
-      type: EffectType.Background,
-      startTime: 0,
-      endTime: Number.MAX_SAFE_INTEGER,
-      data: {
-        type: BackgroundType.Wallpaper,
-        gradient: {
-          colors: ['#2D3748', '#1A202C'],
-          angle: 135
-        },
-        wallpaper: defaultWallpaper,
-        padding: 40,
-        cornerRadius: 15,
-        shadowIntensity: 85
-      },
-      enabled: true
-    })
-  }
-
-  if (!hasGlobalCursor) {
-    project.timeline.effects.push({
-      id: 'cursor-global',
-      type: EffectType.Cursor,
-      startTime: 0,
-      endTime: Number.MAX_SAFE_INTEGER,
-      data: {
-        style: CursorStyle.MacOS,
-        size: 4.0,
-        color: '#ffffff',
-        clickEffects: true,
-        motionBlur: true,
-        hideOnIdle: true,
-        idleTimeout: 3000
-      },
-      enabled: true
-    })
-  }
+  // Ensure global background/cursor effects exist (SSOT: EffectsFactory + default-effects).
+  EffectsFactory.ensureGlobalEffects(project)
 
   // Set the project ONCE after all recordings are processed
   useProjectStore.getState().setProject(project)
@@ -291,8 +234,8 @@ export function WorkspaceManager() {
     selectedEffectLayer,
     currentTime,
     isPlaying,
-    playheadClip,        // Reactive from store
-    playheadRecording,   // Reactive from store
+    playheadClip,
+    playheadRecording,
     play: storePlay,
     pause: storePause,
     seek: storeSeek,
@@ -447,11 +390,13 @@ export function WorkspaceManager() {
     const syncInterval = setInterval(() => {
       if (!isPlaying || !playheadClip) return
 
-      const clipProgress = Math.max(0, currentTime - playheadClip.startTime)
-      const sourceTime = (playheadClip.sourceIn + clipProgress) / 1000
-      const maxTime = playheadClip.sourceOut / 1000
+      // Convert timeline time to source time using the shared converter (respects playbackRate + remaps).
+      const sourceTimeMs = timelineToSource(currentTime, playheadClip)
+      const sourceOutMs =
+        playheadClip.sourceOut ??
+        ((playheadClip.sourceIn || 0) + getSourceDuration(playheadClip))
 
-      if (sourceTime > maxTime) {
+      if (sourceTimeMs > sourceOutMs) {
         handlePause()
       }
     }, 100)

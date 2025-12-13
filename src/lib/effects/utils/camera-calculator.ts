@@ -99,6 +99,18 @@ interface Cluster {
   centroidY: number
 }
 
+type MotionClusterCacheEntry = {
+  width: number
+  height: number
+  length: number
+  lastTimestamp: number
+  clusters: Cluster[]
+}
+
+const motionClusterCache = new WeakMap<MouseEvent[], MotionClusterCacheEntry>()
+
+const ZOOM_BLOCK_END_EPSILON_MS = 40
+
 function parseZoomBlocks(effects: Effect[]): ParsedZoomBlock[] {
   return effects
     .filter(e => e.type === EffectType.Zoom && e.enabled)
@@ -203,6 +215,32 @@ function analyzeMotionClusters(
   return clusters
 }
 
+function getMotionClusters(
+  mouseEvents: MouseEvent[],
+  videoWidth: number,
+  videoHeight: number
+): Cluster[] {
+  if (!mouseEvents || mouseEvents.length === 0) return []
+
+  const length = mouseEvents.length
+  const lastTimestamp = mouseEvents[length - 1]?.timestamp ?? 0
+  const cached = motionClusterCache.get(mouseEvents)
+
+  if (
+    cached &&
+    cached.width === videoWidth &&
+    cached.height === videoHeight &&
+    cached.length === length &&
+    cached.lastTimestamp === lastTimestamp
+  ) {
+    return cached.clusters
+  }
+
+  const clusters = analyzeMotionClusters(mouseEvents, videoWidth, videoHeight)
+  motionClusterCache.set(mouseEvents, { width: videoWidth, height: videoHeight, length, lastTimestamp, clusters })
+  return clusters
+}
+
 function getCinematicMousePosition(
   mouseEvents: MouseEvent[],
   timeMs: number
@@ -236,7 +274,7 @@ function calculateAttractor(
 ): { x: number; y: number } | null {
   if (mouseEvents.length === 0) return null
 
-  const clusters = analyzeMotionClusters(mouseEvents, videoWidth, videoHeight)
+  const clusters = getMotionClusters(mouseEvents, videoWidth, videoHeight)
   const holdBuffer = CLUSTER_HOLD_BUFFER_MS
 
   const activeCluster = clusters.find(
@@ -530,6 +568,81 @@ function calculateCursorVelocity(
   return { velocity, stoppedSinceMs: null }
 }
 
+/**
+ * Linear interpolation between two values.
+ */
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t
+}
+
+/**
+ * Exponentially-weighted smoothing of cursor position for deterministic export.
+ * This provides temporal smoothing without relying on frame-to-frame physics state.
+ *
+ * Uses a decay window where recent positions have higher weight than older ones.
+ * This produces smooth camera movement that's frame-order independent.
+ */
+function getExponentiallySmoothedCursorNorm(
+  mouseEvents: MouseEvent[],
+  timeMs: number,
+  sourceWidth: number,
+  sourceHeight: number
+): { x: number; y: number } {
+  if (mouseEvents.length === 0) {
+    return { x: 0.5, y: 0.5 }
+  }
+
+  // Smoothing parameters
+  const windowMs = 600  // Look back 600ms
+  const tauMs = 180     // Exponential decay time constant
+  const steps = 12      // Number of samples within the window
+
+  let sumX = 0
+  let sumY = 0
+  let sumW = 0
+  const stepMs = windowMs / steps
+
+  for (let i = 0; i <= steps; i++) {
+    const t = timeMs - i * stepMs
+    const pos = interpolateMousePosition(mouseEvents, t)
+    if (pos) {
+      // Exponential decay weight: more recent = higher weight
+      const w = Math.exp(-(i * stepMs) / tauMs)
+      sumW += w
+      sumX += (pos.x / sourceWidth) * w
+      sumY += (pos.y / sourceHeight) * w
+    }
+  }
+
+  if (sumW === 0) {
+    return { x: 0.5, y: 0.5 }
+  }
+
+  return {
+    x: Math.max(0, Math.min(1, sumX / sumW)),
+    y: Math.max(0, Math.min(1, sumY / sumW)),
+  }
+}
+
+function getZoomBlockAtTime(zoomBlocks: ParsedZoomBlock[], timelineMs: number): ParsedZoomBlock | undefined {
+  const exact = zoomBlocks.find(b => timelineMs >= b.startTime && timelineMs <= b.endTime)
+  if (exact) return exact
+
+  // If the block ends between frames, allow a short post-roll where scale is already 1.
+  // This avoids a 1-frame snap when the next frame falls just after `endTime`.
+  let best: ParsedZoomBlock | undefined
+  let bestDelta = Infinity
+  for (const b of zoomBlocks) {
+    if (timelineMs < b.startTime) continue
+    const delta = timelineMs - b.endTime
+    if (delta >= 0 && delta <= ZOOM_BLOCK_END_EPSILON_MS && delta < bestDelta) {
+      best = b
+      bestDelta = delta
+    }
+  }
+  return best
+}
+
 export function computeCameraState({
   effects,
   timelineMs,
@@ -541,10 +654,9 @@ export function computeCameraState({
   physics,
   deterministic,
 }: CameraComputeInput): CameraComputeOutput {
+  const isDeterministic = Boolean(deterministic)
   const zoomBlocks = parseZoomBlocks(effects)
-  const activeZoomBlock = zoomBlocks.find(
-    b => timelineMs >= b.startTime && timelineMs <= b.endTime
-  )
+  const activeZoomBlock = getZoomBlockAtTime(zoomBlocks, timelineMs)
 
   const currentScale = activeZoomBlock
     ? calculateZoomScale(
@@ -606,33 +718,45 @@ export function computeCameraState({
   let cursorIsFrozen = false
   let frozenTarget: { x: number; y: number } | null = null
 
-  const unfreezeVelocityThreshold = CURSOR_STOP_VELOCITY_THRESHOLD * 1.5
-
-  if (shouldApplyStopDetection && cursorVelocity.velocity < CURSOR_STOP_VELOCITY_THRESHOLD) {
-    const stoppedAt = physics.cursorStoppedAtMs ??
-      cursorVelocity.stoppedSinceMs ??
-      sourceTimeMs
-    const stoppedDuration = sourceTimeMs - stoppedAt
-
-    if (stoppedDuration >= CURSOR_STOP_DWELL_MS) {
-      cursorIsFrozen = true
-      frozenTarget = {
-        x: physics.frozenTargetX ?? cursorNormX,
-        y: physics.frozenTargetY ?? cursorNormY
+  if (isDeterministic) {
+    // Deterministic export: do not rely on prior-frame physics state for stop detection.
+    if (shouldApplyStopDetection && cursorVelocity.velocity < CURSOR_STOP_VELOCITY_THRESHOLD) {
+      const stoppedAt = cursorVelocity.stoppedSinceMs ?? sourceTimeMs
+      const stoppedDuration = sourceTimeMs - stoppedAt
+      if (stoppedDuration >= CURSOR_STOP_DWELL_MS) {
+        cursorIsFrozen = true
+        frozenTarget = { x: cursorNormX, y: cursorNormY }
       }
     }
-    physics.cursorStoppedAtMs = stoppedAt
-  } else if (physics.frozenTargetX != null && physics.frozenTargetY != null && cursorVelocity.velocity < unfreezeVelocityThreshold) {
-    // Hysteresis: once frozen, keep it frozen until the cursor clearly moves again.
-    cursorIsFrozen = true
-    frozenTarget = {
-      x: physics.frozenTargetX,
-      y: physics.frozenTargetY,
-    }
   } else {
-    physics.cursorStoppedAtMs = undefined
-    physics.frozenTargetX = undefined
-    physics.frozenTargetY = undefined
+    const unfreezeVelocityThreshold = CURSOR_STOP_VELOCITY_THRESHOLD * 1.5
+
+    if (shouldApplyStopDetection && cursorVelocity.velocity < CURSOR_STOP_VELOCITY_THRESHOLD) {
+      const stoppedAt = physics.cursorStoppedAtMs ??
+        cursorVelocity.stoppedSinceMs ??
+        sourceTimeMs
+      const stoppedDuration = sourceTimeMs - stoppedAt
+
+      if (stoppedDuration >= CURSOR_STOP_DWELL_MS) {
+        cursorIsFrozen = true
+        frozenTarget = {
+          x: physics.frozenTargetX ?? cursorNormX,
+          y: physics.frozenTargetY ?? cursorNormY
+        }
+      }
+      physics.cursorStoppedAtMs = stoppedAt
+    } else if (physics.frozenTargetX != null && physics.frozenTargetY != null && cursorVelocity.velocity < unfreezeVelocityThreshold) {
+      // Hysteresis: once frozen, keep it frozen until the cursor clearly moves again.
+      cursorIsFrozen = true
+      frozenTarget = {
+        x: physics.frozenTargetX,
+        y: physics.frozenTargetY,
+      }
+    } else {
+      physics.cursorStoppedAtMs = undefined
+      physics.frozenTargetX = undefined
+      physics.frozenTargetY = undefined
+    }
   }
 
   const followStrategy = activeZoomBlock?.followStrategy
@@ -641,7 +765,7 @@ export function computeCameraState({
     // If strategy is unspecified, default to mouse follow.
     followStrategy == null
 
-  let targetCenter = { x: physics.x, y: physics.y }
+  let targetCenter = isDeterministic ? { x: 0.5, y: 0.5 } : { x: physics.x, y: physics.y }
 
   if (activeZoomBlock && !shouldFollowMouse && activeZoomBlock.targetX != null && activeZoomBlock.targetY != null) {
     const sw = activeZoomBlock.screenWidth || sourceWidth
@@ -659,9 +783,57 @@ export function computeCameraState({
         x: (safeOverscan.left + cursorNormX) / denomX,
         y: (safeOverscan.top + cursorNormY) / denomY,
       }
+      const baseCenter = isDeterministic ? { x: 0.5, y: 0.5 } : { x: physics.x, y: physics.y }
       const centerOut = {
-        x: (safeOverscan.left + physics.x) / denomX,
-        y: (safeOverscan.top + physics.y) / denomY,
+        x: (safeOverscan.left + baseCenter.x) / denomX,
+        y: (safeOverscan.top + baseCenter.y) / denomY,
+      }
+      const halfWindowOutX = halfWindowX / denomX
+      const halfWindowOutY = halfWindowY / denomY
+      const targetOut = calculateFollowTargetNormalized(
+        cursorOut,
+        centerOut,
+        halfWindowOutX,
+        halfWindowOutY,
+        currentScale,
+        { left: 0, right: 0, top: 0, bottom: 0 }
+      )
+      targetCenter = {
+        x: targetOut.x * denomX - safeOverscan.left,
+        y: targetOut.y * denomY - safeOverscan.top,
+      }
+    } else {
+      const baseCenter = isDeterministic ? { x: 0.5, y: 0.5 } : { x: physics.x, y: physics.y }
+      targetCenter = calculateFollowTargetNormalized(
+        { x: cursorNormX, y: cursorNormY },
+        baseCenter,
+        halfWindowX,
+        halfWindowY,
+        currentScale,
+        safeOverscan
+      )
+    }
+  }
+
+  // For deterministic export with mouse follow, use exponentially smoothed cursor
+  // to provide temporal smoothing without relying on frame-to-frame physics state
+  if (isDeterministic && shouldFollowMouse && activeZoomBlock) {
+    const smoothedCursor = getExponentiallySmoothedCursorNorm(
+      mouseEvents,
+      sourceTimeMs,
+      sourceWidth,
+      sourceHeight
+    )
+    // Apply dead zone and follow logic to the smoothed cursor
+    const baseCenter = { x: 0.5, y: 0.5 }
+    if (hasOverscan) {
+      const cursorOut = {
+        x: (safeOverscan.left + smoothedCursor.x) / denomX,
+        y: (safeOverscan.top + smoothedCursor.y) / denomY,
+      }
+      const centerOut = {
+        x: (safeOverscan.left + baseCenter.x) / denomX,
+        y: (safeOverscan.top + baseCenter.y) / denomY,
       }
       const halfWindowOutX = halfWindowX / denomX
       const halfWindowOutY = halfWindowY / denomY
@@ -679,8 +851,8 @@ export function computeCameraState({
       }
     } else {
       targetCenter = calculateFollowTargetNormalized(
-        { x: cursorNormX, y: cursorNormY },
-        { x: physics.x, y: physics.y },
+        smoothedCursor,
+        baseCenter,
         halfWindowX,
         halfWindowY,
         currentScale,
@@ -692,25 +864,39 @@ export function computeCameraState({
   // Override target when cursor is frozen to prevent halt-shake
   if (cursorIsFrozen && frozenTarget) {
     targetCenter = frozenTarget
-    physics.frozenTargetX = frozenTarget.x
-    physics.frozenTargetY = frozenTarget.y
+    if (!isDeterministic) {
+      physics.frozenTargetX = frozenTarget.x
+      physics.frozenTargetY = frozenTarget.y
+    }
   }
 
+  // Calculate zoom progress for fading camera movement
+  const targetScale = activeZoomBlock?.scale ?? 1
+  const zoomProgress =
+    targetScale > 1.000001
+      ? Math.max(0, Math.min(1, (currentScale - 1) / (targetScale - 1)))
+      : 0
+
   let nextPhysics: CameraPhysicsState
-  if (deterministic) {
+  if (isDeterministic) {
     // Deterministic per-frame center (no dependence on previous frames).
     // Use frozen target if cursor is frozen to ensure consistent output
     const finalTarget = cursorIsFrozen && frozenTarget ? frozenTarget : targetCenter
+
+    // Fade camera pan with zoom progress so camera doesn't jump before zoom starts
+    // and smoothly returns to center as zoom ends
+    const fadedTarget = {
+      x: lerp(0.5, finalTarget.x, zoomProgress),
+      y: lerp(0.5, finalTarget.y, zoomProgress),
+    }
+
     nextPhysics = {
-      x: finalTarget.x,
-      y: finalTarget.y,
+      x: fadedTarget.x,
+      y: fadedTarget.y,
       vx: 0,
       vy: 0,
       lastTimeMs: timelineMs,
       lastSourceTimeMs: sourceTimeMs,
-      cursorStoppedAtMs: physics.cursorStoppedAtMs,
-      frozenTargetX: physics.frozenTargetX,
-      frozenTargetY: physics.frozenTargetY,
     }
   } else {
     const dtTimeline = timelineMs - (physics.lastTimeMs ?? timelineMs)
@@ -773,6 +959,19 @@ export function computeCameraState({
   }
 
   let finalCenter = { x: nextPhysics.x, y: nextPhysics.y }
+
+  // Get RAW cursor position for visibility projection.
+  // Camera follows the smoothed attractor for cinematic movement,
+  // but visibility checks must use the actual rendered cursor position
+  // to ensure it stays in frame (cursor uses different smoothing).
+  const rawCursorPos = interpolateMousePosition(mouseEvents, sourceTimeMs)
+  const rawCursorNormX = rawCursorPos
+    ? Math.max(0, Math.min(1, rawCursorPos.x / sourceWidth))
+    : cursorNormX
+  const rawCursorNormY = rawCursorPos
+    ? Math.max(0, Math.min(1, rawCursorPos.y / sourceHeight))
+    : cursorNormY
+
   // After freezing, avoid further cursor-visibility projections which can
   // reintroduce jitter from tiny cursor deltas.
   if (shouldFollowMouse && !cursorIsFrozen) {
@@ -781,9 +980,10 @@ export function computeCameraState({
         x: (safeOverscan.left + finalCenter.x) / denomX,
         y: (safeOverscan.top + finalCenter.y) / denomY,
       }
+      // Use RAW cursor position for visibility, not smoothed attractor
       const cursorOut = {
-        x: (safeOverscan.left + cursorNormX) / denomX,
-        y: (safeOverscan.top + cursorNormY) / denomY,
+        x: (safeOverscan.left + rawCursorNormX) / denomX,
+        y: (safeOverscan.top + rawCursorNormY) / denomY,
       }
       const halfWindowOutX = halfWindowX / denomX
       const halfWindowOutY = halfWindowY / denomY
@@ -800,9 +1000,10 @@ export function computeCameraState({
         y: projectedOut.y * denomY - safeOverscan.top,
       }
     } else {
+      // Use RAW cursor position for visibility, not smoothed attractor
       finalCenter = projectCenterToKeepCursorVisible(
         finalCenter,
-        { x: cursorNormX, y: cursorNormY },
+        { x: rawCursorNormX, y: rawCursorNormY },
         halfWindowX,
         halfWindowY,
         safeOverscan
@@ -831,7 +1032,7 @@ export function computeCameraState({
 
   return {
     activeZoomBlock,
-    zoomScale: activeZoomBlock ? activeZoomBlock.scale : 1,
+    zoomScale: currentScale,
     zoomCenter: finalCenter,
     physics: nextPhysics,
   }

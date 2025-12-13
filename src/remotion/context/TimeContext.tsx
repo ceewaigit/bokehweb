@@ -7,6 +7,7 @@
 
 import React, { createContext, useContext, useMemo } from 'react';
 import type { Clip, Recording } from '@/types/project';
+import { findClipAtTimelinePosition } from '@/lib/timeline/time-space-converter';
 
 export interface TimeContextValue {
   // Timeline metadata
@@ -44,27 +45,9 @@ export function TimeProvider({ clips, recordings, fps, children }: TimeProviderP
     );
 
     // Find clip at a specific timeline position
-    // Single-pass algorithm: at exact boundaries, prefer the clip that is STARTING
     const getClipAtTimelinePosition = (timelineMs: number): Clip | null => {
-      let bestMatch: Clip | null = null;
-      const epsilon = 0.001;
-
-      for (const clip of clips) {
-        const clipEnd = clip.startTime + clip.duration;
-
-        // Check if timelineMs is at this clip's start (boundary case)
-        if (Math.abs(timelineMs - clip.startTime) < epsilon) {
-          // Prefer clip that is starting over one that is ending
-          return clip;
-        }
-
-        // Check if timelineMs is within this clip's range [startTime, endTime)
-        if (timelineMs >= clip.startTime && timelineMs < clipEnd) {
-          bestMatch = clip;
-        }
-      }
-
-      return bestMatch;
+      // Delegate to the shared, unit-tested implementation to keep boundary behavior consistent.
+      return findClipAtTimelinePosition(timelineMs, clips);
     };
 
     // Get recording by ID

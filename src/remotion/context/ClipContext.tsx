@@ -8,7 +8,8 @@
  */
 
 import React, { createContext, useContext, useMemo } from 'react';
-import type { Clip, Recording, Effect, MouseEvent, ClickEvent, ScrollEvent } from '@/types/project';
+import type { Clip, Recording, Effect, MouseEvent, ClickEvent, ScrollEvent, RecordingMetadata } from '@/types/project';
+import type { KeyboardEvent as ProjectKeyboardEvent } from '@/types/project';
 import { useTimeContext } from './TimeContext';
 import { useVideoUrl } from '../hooks/useVideoUrl';
 
@@ -20,7 +21,7 @@ export interface ClipContextValue {
   // Filtered metadata (only events within this clip's source range)
   cursorEvents: MouseEvent[];
   clickEvents: ClickEvent[];
-  keystrokeEvents: any[];
+  keystrokeEvents: ProjectKeyboardEvent[];
   scrollEvents: ScrollEvent[];
 
   // Filtered effects (only effects that overlap this clip's timeline range)
@@ -45,26 +46,18 @@ export function ClipProvider({ clip, effects, videoUrls, children }: ClipProvide
       throw new Error(`Recording not found: ${clip.recordingId}`);
     }
 
-    const metadata = recording.metadata || {};
-    const sourceIn = clip.sourceIn || 0;
-    const sourceOut = clip.sourceOut || recording.duration;
+    const metadata: RecordingMetadata | undefined = recording.metadata;
+    const sourceIn = clip.sourceIn ?? 0;
+    const sourceOut = clip.sourceOut ?? recording.duration;
 
     // Filter metadata to only events within this clip's source range
-    const cursorEvents = ((metadata as any).mouseEvents || []).filter(
-      (e: any) => e.timestamp >= sourceIn && e.timestamp <= sourceOut
-    );
+    const cursorEvents = (metadata?.mouseEvents ?? []).filter((e) => e.timestamp >= sourceIn && e.timestamp <= sourceOut);
 
-    const clickEvents = ((metadata as any).clickEvents || []).filter(
-      (e: any) => e.timestamp >= sourceIn && e.timestamp <= sourceOut
-    );
+    const clickEvents = (metadata?.clickEvents ?? []).filter((e) => e.timestamp >= sourceIn && e.timestamp <= sourceOut);
 
-    const keystrokeEvents = ((metadata as any).keyboardEvents || []).filter(
-      (e: any) => e.timestamp >= sourceIn && e.timestamp <= sourceOut
-    );
+    const keystrokeEvents = (metadata?.keyboardEvents ?? []).filter((e) => e.timestamp >= sourceIn && e.timestamp <= sourceOut);
 
-    const scrollEvents = ((metadata as any).scrollEvents || []).filter(
-      (e: any) => e.timestamp >= sourceIn && e.timestamp <= sourceOut
-    );
+    const scrollEvents = (metadata?.scrollEvents ?? []).filter((e) => e.timestamp >= sourceIn && e.timestamp <= sourceOut);
 
     // Filter effects by timeline range (all effects are now in timeline-space)
     const clipStart = clip.startTime;

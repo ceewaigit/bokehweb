@@ -28,6 +28,8 @@ export function createRecordButton(): BrowserWindow {
 
   const isDev = process.env.NODE_ENV === 'development'
 
+  const isMac = process.platform === 'darwin'
+
   const recordButton = new BrowserWindow({
     width: 200,
     height: 67,
@@ -49,6 +51,7 @@ export function createRecordButton(): BrowserWindow {
     skipTaskbar: true,
     hasShadow: false,
     show: false,
+    // Keep true transparency (no vibrancy material behind the UI)
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

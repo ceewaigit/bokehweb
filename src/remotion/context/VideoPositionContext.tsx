@@ -24,6 +24,7 @@ export interface VideoPositionContextValue {
 
   // Active transforms applied to video
   zoomTransform: ZoomTransform | null;
+  contentTransform: string;
   padding: number;
 
   // Original video dimensions (native recording size)

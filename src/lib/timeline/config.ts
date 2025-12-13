@@ -6,16 +6,16 @@ export const TimelineConfig = {
   RULER_HEIGHT: 32,
   TRACK_LABEL_WIDTH: 42,
   TRACK_PADDING: 4,
-  MIN_CLIP_WIDTH: 1, // Reduced from 40 to prevent visual overlap at low zoom levels
+  MIN_CLIP_WIDTH: 1,
 
   // Snapping behavior
-  SNAP_THRESHOLD_MS: 200,  // Increased for better snapping
-  SNAP_THRESHOLD_PX: 15,   // Increased for better visual snapping
+  SNAP_THRESHOLD_MS: 200,
+  SNAP_THRESHOLD_PX: 15,
   SNAP_INTERVAL_MS: 100,
 
   // Clip positioning
-  DEFAULT_CLIP_GAP_MS: 0, // No forced gaps
-  AUTO_POSITION_GAP_MS: 100, // Gap when auto-positioning to avoid overlaps
+  DEFAULT_CLIP_GAP_MS: 0,
+  AUTO_POSITION_GAP_MS: 100,
 
   // Zoom settings
   MIN_ZOOM: 0.1,
@@ -25,27 +25,19 @@ export const TimelineConfig = {
 
   // Playback
   DEFAULT_FPS: 30,
-  PLAYBACK_UPDATE_INTERVAL_MS: 33, // ~30fps
+  PLAYBACK_UPDATE_INTERVAL_MS: 33,
 
   // Effects defaults
   ZOOM_EFFECT_DEFAULT_SCALE: 2.0,
   ZOOM_EFFECT_DEFAULT_INTRO_MS: 500,
   ZOOM_EFFECT_DEFAULT_OUTRO_MS: 500,
   ZOOM_EFFECT_MIN_DURATION_MS: 100,
-  ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX: 1, // Reduced from 24 to prevent visual overlap at low zoom levels
-  ZOOM_EFFECT_COMPACT_THRESHOLD_PX: 50, // Below this width, show compact mode
-
-  CURSOR_EFFECT_DEFAULT_SIZE: 4.0,
-  CURSOR_EFFECT_DEFAULT_COLOR: '#ffffff',
-  CURSOR_EFFECT_IDLE_TIMEOUT_MS: 3000,
-
-  BACKGROUND_EFFECT_DEFAULT_PADDING: 80,
-  BACKGROUND_EFFECT_DEFAULT_CORNER_RADIUS: 25,
-  BACKGROUND_EFFECT_DEFAULT_SHADOW_INTENSITY: 85,
+  ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX: 1,
+  ZOOM_EFFECT_COMPACT_THRESHOLD_PX: 50,
 
   // Timeline visibility
-  BASE_VISIBLE_DURATION_MS: 10000, // 10 seconds visible at zoom 1.0
-  TIMELINE_EXTRA_PADDING_PERCENT: 0.3, // 30% extra space at the end
+  BASE_VISIBLE_DURATION_MS: 10000,
+  TIMELINE_EXTRA_PADDING_PERCENT: 0.3,
 
   // Keyboard shortcuts
   SHORTCUTS: {
