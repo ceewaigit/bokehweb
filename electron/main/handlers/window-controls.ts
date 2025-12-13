@@ -1,11 +1,10 @@
-import { ipcMain, BrowserWindow, IpcMainInvokeEvent, IpcMainEvent, app, desktopCapturer } from 'electron'
+import { ipcMain, BrowserWindow, IpcMainInvokeEvent, IpcMainEvent, app, desktopCapturer, systemPreferences } from 'electron'
 import { createMainWindow } from '../windows/main-window'
 import { getAppURL } from '../config'
 import { createCountdownWindow, showCountdown } from '../windows/countdown-window'
 import { showMonitorOverlay, hideMonitorOverlay } from '../windows/monitor-overlay'
 
 let countdownWindow: BrowserWindow | null = null
-
 // Cache for source information
 const sourceCache = new Map<string, { name: string; type: string }>()
 
@@ -132,6 +131,8 @@ export function registerWindowControlHandlers(): void {
     }
     return { success: false }
   })
+
+  // Glassmorphism handlers removed (feature disabled).
 
   ipcMain.handle('show-countdown', async (event: IpcMainInvokeEvent, number: number, displayId?: number) => {
     // Hide any overlay when countdown starts

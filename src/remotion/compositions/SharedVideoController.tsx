@@ -24,10 +24,13 @@ import { EffectsFactory } from '@/lib/effects/effects-factory';
 import type { Effect, Recording, Clip } from '@/types/project';
 import { useZoomState } from '../hooks/useZoomState';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
-
 export interface SharedVideoControllerProps {
   videoWidth: number;
   videoHeight: number;
+  // Native source dimensions for zoom/crop math.
+  sourceVideoWidth?: number;
+  sourceVideoHeight?: number;
+  preferOffthreadVideo?: boolean;
   effects: Effect[];
   videoUrls?: Record<string, string>;
   children?: React.ReactNode;
@@ -108,6 +111,9 @@ function getVideoUrlForRecording(recording: Recording, videoUrls?: Record<string
 export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
   videoWidth,
   videoHeight,
+  sourceVideoWidth,
+  sourceVideoHeight,
+  preferOffthreadVideo = true,
   effects,
   videoUrls,
   children,
@@ -180,20 +186,62 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
     const clipStart = clip.startTime;
     const clipEnd = clip.startTime + clip.duration;
-    const filteredEffects = effects.filter(effect => {
+    const timelineEffects = effects.filter(effect => {
       return effect.startTime < clipEnd && effect.endTime > clipStart;
+    });
+
+    // Recording-scoped effects are stored in source space on Recording.effects.
+    // They should be resolved by sourceTimeMs, not timeline overlap.
+    const sourceEffects = (recording.effects || []).filter(effect => {
+      return effect.enabled && sourceTimeMs >= effect.startTime && sourceTimeMs <= effect.endTime;
+    });
+
+    const mergedEffects = [...timelineEffects, ...sourceEffects].filter((effect, index, arr) => {
+      const id = (effect as any)?.id;
+      if (!id) return true;
+      return arr.findIndex(e => (e as any)?.id === id) === index;
     });
 
     return {
       clip,
       recording,
       sourceTimeMs,
-      effects: filteredEffects,
+      effects: mergedEffects,
     };
   }, [currentTimeMs, getClipAtTimelinePosition, getRecording, effects, clips]);
 
   // Get the active recording ID for visibility toggling
   const activeRecordingId = activeClipData?.recording.id || null;
+
+  // Compute draw area aspect before camera state so bounds match letterboxed video.
+  const videoDrawArea = useMemo(() => {
+    if (!activeClipData) return null;
+    const { recording, sourceTimeMs, effects: clipEffects } = activeClipData;
+    const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
+    const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
+    const padding = backgroundData?.padding || 0;
+    return calculateVideoPosition(
+      width,
+      height,
+      sourceVideoWidth ?? videoWidth,
+      sourceVideoHeight ?? videoHeight,
+      padding
+    );
+  }, [activeClipData, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight]);
+
+  const cameraOverscan = useMemo(() => {
+    if (!videoDrawArea || videoDrawArea.drawWidth <= 0 || videoDrawArea.drawHeight <= 0) return undefined;
+    const leftPx = videoDrawArea.offsetX;
+    const rightPx = width - videoDrawArea.offsetX - videoDrawArea.drawWidth;
+    const topPx = videoDrawArea.offsetY;
+    const bottomPx = height - videoDrawArea.offsetY - videoDrawArea.drawHeight;
+    return {
+      left: Math.max(0, leftPx / videoDrawArea.drawWidth),
+      right: Math.max(0, rightPx / videoDrawArea.drawWidth),
+      top: Math.max(0, topPx / videoDrawArea.drawHeight),
+      bottom: Math.max(0, bottomPx / videoDrawArea.drawHeight),
+    };
+  }, [videoDrawArea, width, height]);
 
   // Use custom hook for zoom state calculation
   const { activeZoomBlock: calculatedZoomBlock, zoomCenter: calculatedZoomCenter } = useZoomState({
@@ -201,6 +249,13 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     timelineMs: currentTimeMs,
     sourceTimeMs: activeClipData?.sourceTimeMs,
     recording: activeClipData?.recording,
+    // Use full preview/composition bounds for camera clamping so padding/background
+    // can be revealed when panning near edges.
+    // IMPORTANT: Use stable output dimensions (project resolution), not preview-scaled
+    // composition size, so preview/export camera math matches exactly.
+    outputWidth: videoWidth,
+    outputHeight: videoHeight,
+    overscan: cameraOverscan,
   });
 
   // Calculate render data (position, transforms, etc.) for the active clip
@@ -219,8 +274,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     const { drawWidth, drawHeight, offsetX, offsetY } = calculateVideoPosition(
       width,
       height,
-      videoWidth,
-      videoHeight,
+      sourceVideoWidth ?? videoWidth,
+      sourceVideoHeight ?? videoHeight,
       padding
     );
 
@@ -230,7 +285,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       drawWidth,
       drawHeight,
       calculatedZoomCenter,
-      undefined
+      undefined,
+      padding
     );
     const transform = getZoomTransformString(zoomTransform);
     // Screen effects are in TIMELINE-space, so use currentTimeMs (not sourceTimeMs)
@@ -274,16 +330,16 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     zoomTransform,
   } = renderData;
 
-  const videoPositionValue = {
-    offsetX,
-    offsetY,
-    drawWidth,
-    drawHeight,
-    zoomTransform,
-    padding,
-    videoWidth,
-    videoHeight,
-  };
+    const videoPositionValue = {
+      offsetX,
+      offsetY,
+      drawWidth,
+      drawHeight,
+      zoomTransform,
+      padding,
+      videoWidth: sourceVideoWidth ?? videoWidth,
+      videoHeight: sourceVideoHeight ?? videoHeight,
+    };
 
   const combinedTransform = `${transform}${extra3DTransform}`.trim();
 
@@ -295,7 +351,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       : '';
 
   const { isRendering } = getRemotionEnvironment();
-  const VideoComponent = isRendering ? OffthreadVideo : Video;
+  const VideoComponent = (isRendering && preferOffthreadVideo) ? OffthreadVideo : Video;
 
   return (
     <VideoPositionProvider value={videoPositionValue}>
@@ -307,8 +363,9 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
             top: offsetY,
             width: drawWidth,
             height: drawHeight,
-            borderRadius: `${cornerRadius}px`,
-            overflow: 'hidden',
+            // Allow the video to pan outside its base draw area during zoom
+            // so preview padding/background can be revealed.
+            overflow: zoomTransform && zoomTransform.scale > 1.001 ? 'visible' : 'hidden',
             transform: `translate3d(0,0,0) ${combinedTransform}`,
             transformOrigin: '50% 50%',
             filter: dropShadow || undefined,
@@ -342,6 +399,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
                   position: 'absolute',
                   top: 0,
                   left: 0,
+                  borderRadius: `${cornerRadius}px`,
                   // CRITICAL: Use visibility instead of display/conditional rendering
                   // This keeps the video mounted and buffered while hidden
                   visibility: isActive ? 'visible' : 'hidden',

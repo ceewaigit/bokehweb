@@ -423,7 +423,11 @@ app.commandLine.appendSwitch('enable-zero-copy')
 app.commandLine.appendSwitch('ignore-gpu-blacklist')
 app.commandLine.appendSwitch('disable-gpu-sandbox')
 app.commandLine.appendSwitch('disable-software-rasterizer')
-app.commandLine.appendSwitch('use-angle', 'metal')
+// Forcing ANGLE Metal can break transparent/vibrant windows on some macOS/Electron builds.
+// Let Electron pick the default backend on darwin.
+if (process.platform !== 'darwin') {
+  app.commandLine.appendSwitch('use-angle', 'metal')
+}
 app.commandLine.appendSwitch('enable-accelerated-2d-canvas')
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192')
 

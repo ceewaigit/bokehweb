@@ -204,6 +204,64 @@ function findClosestEvent<T extends { timestamp: number }>(events: T[], targetTi
 }
 
 /**
+ * Sample a smooth mouse event at a specific time by interpolating between
+ * surrounding raw events. This avoids snapping to the nearest event, which
+ * can introduce jitter when camera follow uses spring physics during export.
+ */
+function sampleMouseEventAtTime<T extends { timestamp: number; x: number; y: number }>(
+  events: T[],
+  targetTimeMs: number
+): T | null {
+  if (!events || events.length === 0) return null
+
+  if (targetTimeMs <= events[0].timestamp) {
+    return { ...events[0], timestamp: targetTimeMs }
+  }
+
+  const lastIdx = events.length - 1
+  if (targetTimeMs >= events[lastIdx].timestamp) {
+    return { ...events[lastIdx], timestamp: targetTimeMs }
+  }
+
+  // Binary search for last event <= targetTimeMs
+  let low = 0
+  let high = lastIdx
+  let beforeIdx = 0
+  while (low <= high) {
+    const mid = (low + high) >> 1
+    if (events[mid].timestamp <= targetTimeMs) {
+      beforeIdx = mid
+      low = mid + 1
+    } else {
+      high = mid - 1
+    }
+  }
+
+  const before = events[beforeIdx]
+  const after = events[Math.min(beforeIdx + 1, lastIdx)]
+  if (!before || !after) return before || after || null
+
+  const dt = after.timestamp - before.timestamp
+  if (dt <= 0) {
+    return { ...before, timestamp: targetTimeMs }
+  }
+
+  const tRaw = (targetTimeMs - before.timestamp) / dt
+  const t = Math.max(0, Math.min(1, tRaw))
+  const smoothT = t * t * (3 - 2 * t)
+
+  const x = before.x + (after.x - before.x) * smoothT
+  const y = before.y + (after.y - before.y) * smoothT
+
+  return {
+    ...before,
+    x,
+    y,
+    timestamp: targetTimeMs,
+  }
+}
+
+/**
  * Downsample mouse events to one per frame for efficient rendering
  * Reduces ~87 events/sec to fps events/sec (typically 30)
  */
@@ -216,7 +274,11 @@ function downsampleMouseEvents(
 
   // If already sparse enough, don't downsample
   const eventsPerSecond = (events.length / durationMs) * 1000
-  if (eventsPerSecond <= fps * 1.5) {
+  // Export jitter can appear if we over-downsample mouse input while zoom-following.
+  // Keep raw events unless they're extremely dense/large.
+  const maxAllowedEps = Math.max(fps * 4, 120) // allow typical ~80-90Hz captures
+  const maxAllowedTotal = 8000               // avoid memory blowups on long recordings
+  if (eventsPerSecond <= maxAllowedEps || events.length <= maxAllowedTotal) {
     return events
   }
 
@@ -226,10 +288,9 @@ function downsampleMouseEvents(
 
   for (let frame = 0; frame < frameCount; frame++) {
     const targetTimeMs = frame * frameDurationMs
-    const event = findClosestEvent(events, targetTimeMs)
+    const event = sampleMouseEventAtTime(events, targetTimeMs)
     if (event) {
-      // Create a new event with adjusted timestamp for frame alignment
-      sampledEvents.push({ ...event, timestamp: targetTimeMs })
+      sampledEvents.push(event)
     }
   }
 
@@ -287,6 +348,8 @@ export function setupExportHandler(): void {
         memoryGB: machineProfile.totalMemoryGB.toFixed(1),
         gpuAvailable: machineProfile.gpuAvailable
       })
+
+      const rawAvailableGB = machineProfile.availableMemoryGB ?? 0
 
       // Get export settings
       const targetQuality = settings.quality === 'ultra' ? 'quality' :
@@ -366,7 +429,7 @@ export function setupExportHandler(): void {
 
       // Extract clips and effects
       const allClips = extractClipsFromSegments(segments)
-      const allEffects = extractEffectsFromSegments(segments)
+      const segmentEffects = extractEffectsFromSegments(segments)
 
       // Log metadata sizes for debugging memory issues
       for (const [recordingId, recording] of recordings) {
@@ -387,6 +450,35 @@ export function setupExportHandler(): void {
       const downsampledRecordings = Array.from(new Map(recordings).values())
         .map(r => downsampleRecordingMetadata(r, fps))
 
+      const nativeSourceWidth = downsampledRecordings.reduce((max, r: any) => Math.max(max, r?.width || 0), 0) ||
+        (settings.resolution?.width || 1920)
+      const nativeSourceHeight = downsampledRecordings.reduce((max, r: any) => Math.max(max, r?.height || 0), 0) ||
+        (settings.resolution?.height || 1080)
+
+      // Some effects (notably background/corner effects) are stored on recordings
+      // with source-relative timings. Segment filtering is timeline-relative and may drop them.
+      // Merge in recording-scoped effects so Remotion can resolve them at sourceTimeMs.
+      const recordingEffects = downsampledRecordings.flatMap((r: any) => r.effects || [])
+      const allEffects = (() => {
+        const merged = [...segmentEffects, ...recordingEffects]
+        const seen = new Set<string>()
+        return merged.filter((e: any) => {
+          const id = e?.id
+          if (!id || seen.has(id)) return false
+          seen.add(id)
+          return true
+        })
+      })()
+
+      // If we have zoom effects that follow the mouse, keep export single-threaded
+      // so spring-based camera math matches preview (frames evaluated sequentially).
+      const hasMouseFollowZoom = allEffects.some((e: any) => {
+        if (!e || !e.enabled) return false
+        if (e.type !== 'zoom') return false
+        const follow = (e.data as any)?.followStrategy
+        return follow == null || follow === 'mouse'
+      })
+
       // Build input props with downsampled recordings
       const inputProps = {
         clips: allClips,
@@ -394,6 +486,10 @@ export function setupExportHandler(): void {
         effects: allEffects,
         videoWidth: settings.resolution?.width || 1920,
         videoHeight: settings.resolution?.height || 1080,
+        sourceVideoWidth: nativeSourceWidth,
+        sourceVideoHeight: nativeSourceHeight,
+        // OffthreadVideo can be slower under severe OS memory pressure; fall back to <Video>.
+        preferOffthreadVideo: rawAvailableGB >= 1,
         fps,
         metadata: Object.fromEntries(metadata),
         videoUrls,
@@ -428,6 +524,13 @@ export function setupExportHandler(): void {
         totalDurationInFrames,
         compositionMetadata.fps || 30
       )
+
+      if (hasMouseFollowZoom) {
+        allocation.concurrency = 1
+        allocation.useParallel = false
+        allocation.workerCount = 1
+        console.log('[Export] Forcing sequential render for mouse-follow zoom')
+      }
 
       console.log('[Export] Chunk plan metrics', {
         totalFrames: totalDurationInFrames,
@@ -473,6 +576,10 @@ export function setupExportHandler(): void {
         totalFrames: totalDurationInFrames,
         totalChunks: chunkPlan.length
       }
+
+      // Let compositions know whether to use deterministic camera evaluation.
+      // If we forced sequential rendering, disable determinism to match preview spring follow.
+      inputProps.deterministicCamera = hasMouseFollowZoom ? false : true
 
       // Create progress tracker
       const progressTracker = new ProgressTracker(event.sender, totalDurationInFrames)

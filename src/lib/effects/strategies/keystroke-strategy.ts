@@ -8,11 +8,14 @@ import type { EffectRenderContext } from '../effect-renderer'
 import type { IEffectStrategy } from './index'
 import { KeystrokeRenderer } from '../keystroke-renderer'
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
+import type { KeyboardEvent } from '@/types/project'
 
 export class KeystrokeEffectStrategy implements IEffectStrategy {
   readonly effectType = EffectType.Keystroke
 
   private keystrokeRenderer: KeystrokeRenderer
+  private lastKeyboardEvents: KeyboardEvent[] | undefined
+  private lastCanvas: HTMLCanvasElement | undefined
 
   constructor() {
     // Initialize renderer with centralized defaults
@@ -52,9 +55,17 @@ export class KeystrokeEffectStrategy implements IEffectStrategy {
       maxWidth: data.maxWidth ?? DEFAULT_KEYSTROKE_DATA.maxWidth!
     })
 
-    // Set events and render
-    this.keystrokeRenderer.setKeyboardEvents(context.keyboardEvents)
-    this.keystrokeRenderer.setCanvas(context.canvas as HTMLCanvasElement)
+    // Set events only when changed to avoid resetting state each frame
+    if (this.lastKeyboardEvents !== context.keyboardEvents) {
+      this.keystrokeRenderer.setKeyboardEvents(context.keyboardEvents)
+      this.lastKeyboardEvents = context.keyboardEvents
+    }
+
+    const canvas = context.canvas as HTMLCanvasElement
+    if (this.lastCanvas !== canvas) {
+      this.keystrokeRenderer.setCanvas(canvas)
+      this.lastCanvas = canvas
+    }
     this.keystrokeRenderer.render(context.timestamp, context.width, context.height)
   }
 

@@ -18,7 +18,7 @@ export interface DynamicExportSettings {
   concurrency: number;
   jpegQuality: number;
   videoBitrate: string;
-  x264Preset: string;
+  x264Preset: import('@remotion/renderer/dist/options/x264-preset').X264Preset;
   useGPU: boolean;
   offthreadVideoCacheSizeInBytes: number;
   enableAdaptiveOptimization: boolean;
@@ -68,7 +68,7 @@ export class MachineProfiler {
 
     const settings: DynamicExportSettings = {
       concurrency: baseConcurrency,
-      jpegQuality: 70, // OPTIMIZED: 70 is sweet spot for speed vs quality
+      jpegQuality: 85, // Higher default to keep UI/text crisp
       videoBitrate: '8M', // Balanced bitrate
       x264Preset: 'veryfast', // Prioritize speed over compression
       useGPU: profile.gpuAvailable,
@@ -79,7 +79,7 @@ export class MachineProfiler {
     // Adjust based on quality preference
     switch (quality) {
       case 'quality':
-        settings.jpegQuality = 80; // REDUCED: High quality but not excessive (was 90)
+        settings.jpegQuality = 90; // High quality for sharp text/UI
         settings.videoBitrate = '12M'; // High bitrate
         settings.x264Preset = 'fast'; // Good balance
         settings.offthreadVideoCacheSizeInBytes = 256 * 1024 * 1024; // Will be overridden

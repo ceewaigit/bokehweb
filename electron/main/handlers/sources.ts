@@ -1,8 +1,123 @@
-import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen, IpcMainInvokeEvent, nativeImage } from 'electron'
+import { ipcMain, desktopCapturer, BrowserWindow, dialog, systemPreferences, screen, IpcMainInvokeEvent, nativeImage, app } from 'electron'
 import { exec, execSync } from 'child_process'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import { promisify } from 'util'
+import * as crypto from 'crypto'
+
+const WALLPAPER_EXTS = new Set(['.heic', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.gif', '.webp'])
+const THUMB_MAX = 300
+const WALLPAPER_MAX = 2560
+const MAX_WALLPAPERS = 250
+// Electron doesn't expose a "cache" path. Use userData/Cache for persistence.
+const thumbCacheDir = path.join(app.getPath('userData'), 'Cache', 'wallpaper-thumbs')
+
+async function ensureThumbCacheDir(): Promise<void> {
+  try { await fs.mkdir(thumbCacheDir, { recursive: true }) } catch { }
+}
+
+function hashPath(p: string): string {
+  return crypto.createHash('sha1').update(p).digest('hex')
+}
+
+async function listWallpaperFiles(root: string, depth = 2, out: string[] = []): Promise<string[]> {
+  if (out.length >= MAX_WALLPAPERS) return out
+  try {
+    const entries = await fs.readdir(root, { withFileTypes: true })
+    for (const entry of entries) {
+      if (out.length >= MAX_WALLPAPERS) break
+      const full = path.join(root, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name.startsWith('.') || entry.name.endsWith('.madesktop')) continue
+        if (depth > 0) await listWallpaperFiles(full, depth - 1, out)
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase()
+        if (WALLPAPER_EXTS.has(ext)) out.push(full)
+      }
+    }
+  } catch { }
+  return out
+}
+
+async function getThumbnailDataUrl(imagePath: string): Promise<string | null> {
+  await ensureThumbCacheDir()
+  const thumbFile = path.join(thumbCacheDir, `${hashPath(imagePath)}.jpg`)
+  try {
+    const [srcStat, thumbStat] = await Promise.all([
+      fs.stat(imagePath),
+      fs.stat(thumbFile).catch(() => null as any)
+    ])
+    if (thumbStat && thumbStat.mtimeMs >= srcStat.mtimeMs) {
+      const buf = await fs.readFile(thumbFile)
+      return `data:image/jpeg;base64,${buf.toString('base64')}`
+    }
+  } catch { }
+
+  try {
+    const ext = path.extname(imagePath).toLowerCase()
+    let img: Electron.NativeImage | null = null
+
+    if (!(process.platform === 'darwin' && ext === '.heic')) {
+      img = nativeImage.createFromPath(imagePath)
+      if (img.isEmpty()) img = null
+    }
+
+    if (img) {
+      const size = img.getSize()
+      const scale = Math.min(1, THUMB_MAX / Math.max(size.width, size.height))
+      const resized = scale < 1 ? img.resize({ width: Math.round(size.width * scale) }) : img
+      const jpeg = resized.toJPEG(70)
+      await fs.writeFile(thumbFile, jpeg).catch(() => { })
+      return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+    }
+  } catch { }
+
+  if (process.platform === 'darwin') {
+    try {
+      const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
+      execSync(`sips -Z ${THUMB_MAX} -s format jpeg "${imagePath}" --out "${tempFile}"`, { stdio: 'ignore' })
+      const buf = await fs.readFile(tempFile)
+      await fs.writeFile(thumbFile, buf).catch(() => { })
+      await fs.unlink(tempFile).catch(() => { })
+      return `data:image/jpeg;base64,${buf.toString('base64')}`
+    } catch { }
+  }
+
+  return null
+}
+
+async function loadAndResizeToDataUrl(imagePath: string, maxDim: number): Promise<string> {
+  const ext = path.extname(imagePath).toLowerCase()
+
+  if (process.platform === 'darwin' && ext === '.heic') {
+    const tempFile = path.join(require('os').tmpdir(), `wallpaper-${Date.now()}.jpg`)
+    execSync(`sips -s format jpeg "${imagePath}" --out "${tempFile}"`, { stdio: 'ignore' })
+    const buf = await fs.readFile(tempFile)
+    try { await fs.unlink(tempFile) } catch { }
+    const img = nativeImage.createFromBuffer(buf)
+    if (!img.isEmpty()) {
+      const size = img.getSize()
+      const scale = Math.min(1, maxDim / Math.max(size.width, size.height))
+      const resized = scale < 1 ? img.resize({ width: Math.round(size.width * scale) }) : img
+      const jpeg = resized.toJPEG(85)
+      return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+    }
+    return `data:image/jpeg;base64,${buf.toString('base64')}`
+  }
+
+  const imageBuffer = await fs.readFile(imagePath)
+  const img = nativeImage.createFromBuffer(imageBuffer)
+  if (!img.isEmpty()) {
+    const size = img.getSize()
+    const scale = Math.min(1, maxDim / Math.max(size.width, size.height))
+    const resized = scale < 1 ? img.resize({ width: Math.round(size.width * scale) }) : img
+    const jpeg = resized.toJPEG(85)
+    return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+  }
+
+  // Fallback: return raw bytes as data URL when nativeImage can't decode
+  return nativeImage.createFromBuffer(imageBuffer).toDataURL()
+}
 
 interface DesktopSourceOptions {
   types?: string[]
@@ -275,44 +390,26 @@ export function registerSourceHandlers(): void {
   })
 
   ipcMain.handle('get-macos-wallpapers', async () => {
-    const wallpapers = []
-    const desktopPicturesPath = '/System/Library/Desktop Pictures'
-
-    // Only use full-resolution HEIC files that actually exist
-    // Skip .madesktop files as they only have low-res thumbnails available
-    const availableWallpapers = [
-      { name: 'Sonoma', file: 'Sonoma.heic' },
-      { name: 'Sky Blue', file: 'Radial Sky Blue.heic' },
-      { name: 'iMac Blue', file: 'iMac Blue.heic' },
-      { name: 'iMac Green', file: 'iMac Green.heic' },
-      { name: 'iMac Orange', file: 'iMac Orange.heic' },
-      { name: 'iMac Pink', file: 'iMac Pink.heic' },
-      { name: 'iMac Purple', file: 'iMac Purple.heic' },
-      { name: 'iMac Silver', file: 'iMac Silver.heic' },
-      { name: 'iMac Yellow', file: 'iMac Yellow.heic' }
+    const wallpapers: Array<{ name: string; path: string; thumbnail?: string | null }> = []
+    const roots = [
+      '/System/Library/Desktop Pictures',
+      '/Library/Desktop Pictures'
     ]
 
-    for (const wallpaper of availableWallpapers) {
-      try {
-        const fullPath = path.join(desktopPicturesPath, wallpaper.file)
-        await fs.access(fullPath)
+    const files = new Set<string>()
+    for (const root of roots) {
+      const listed = await listWallpaperFiles(root, 4)
+      for (const f of listed) files.add(f)
+      if (files.size >= MAX_WALLPAPERS) break
+    }
 
-        // Generate small thumbnail (150px) for UI preview
-        let thumbnail = null
-        try {
-          const tempFile = path.join(require('os').tmpdir(), `thumb-${Date.now()}.jpg`)
-          execSync(`sips -Z 150 -s format jpeg "${fullPath}" --out "${tempFile}"`, { stdio: 'ignore' })
-          const thumbBuffer = await fs.readFile(tempFile)
-          thumbnail = `data:image/jpeg;base64,${thumbBuffer.toString('base64')}`
-          await fs.unlink(tempFile).catch(() => { })
-        } catch { }
+    const sorted = Array.from(files).sort((a, b) => path.basename(a).localeCompare(path.basename(b)))
+    const previewTargets = new Set(sorted.slice(0, 24))
 
-        wallpapers.push({
-          name: wallpaper.name,
-          path: fullPath,
-          thumbnail
-        })
-      } catch { }
+    for (const filePath of sorted) {
+      const name = path.basename(filePath, path.extname(filePath))
+      const thumbnail = previewTargets.has(filePath) ? await getThumbnailDataUrl(filePath) : null
+      wallpapers.push({ name, path: filePath, thumbnail: thumbnail || undefined })
     }
 
     return {
@@ -325,37 +422,14 @@ export function registerSourceHandlers(): void {
     try {
       const allowedDirs = [
         '/System/Library/Desktop Pictures',
-        '/Library/Desktop Pictures',
-        path.join(process.env.HOME || '', 'Pictures')
+        '/Library/Desktop Pictures'
       ]
 
       const isAllowed = allowedDirs.some(dir => imagePath.startsWith(dir))
       if (!isAllowed) {
         throw new Error('Access denied')
       }
-
-      const ext = path.extname(imagePath).toLowerCase()
-
-      // HEIC requires special handling on macOS
-      if (process.platform === 'darwin' && ext === '.heic') {
-        // Convert HEIC to JPEG using sips
-        const tempFile = path.join(require('os').tmpdir(), `wallpaper-${Date.now()}.jpg`)
-        execSync(`sips -s format jpeg "${imagePath}" --out "${tempFile}"`, { stdio: 'ignore' })
-
-        // Read converted image
-        const convertedBuffer = await fs.readFile(tempFile)
-        const base64 = convertedBuffer.toString('base64')
-
-        // Clean up temp file
-        try { await fs.unlink(tempFile) } catch { }
-
-        return `data:image/jpeg;base64,${base64}`
-      }
-
-      // For all other formats, use nativeImage
-      const imageBuffer = await fs.readFile(imagePath)
-      const image = nativeImage.createFromBuffer(imageBuffer)
-      return image.toDataURL()
+      return await loadAndResizeToDataUrl(imagePath, WALLPAPER_MAX)
     } catch (error) {
       console.error('Error loading wallpaper image:', error)
       throw error

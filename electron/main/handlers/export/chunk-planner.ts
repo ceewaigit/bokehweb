@@ -75,22 +75,41 @@ export function calculateStableChunkSize(
   totalFrames: number,
   durationSeconds: number
 ): number {
-  // STABILITY FIX: Prefer single-pass rendering for most videos to avoid memory issues
-  // Parallel rendering causes browser crashes due to multiple Chromium instances competing for memory
-  if (durationSeconds < 300) {
-    // Videos under 5 minutes: single pass, no chunking
-    // This avoids the "Target closed" errors from parallel browser instances
-    console.log(`Video (${durationSeconds.toFixed(1)}s) < 5min, using single-pass rendering for stability`)
+  // Updated balance:
+  // - Very short exports stay single-pass to avoid Chromium churn.
+  // - Longer exports are chunked to keep memory stable and unlock parallelism.
+  //
+  // Chunking in a single worker is safe; parallel workers are still gated by allocator.
+
+  if (durationSeconds < 45 || totalFrames <= 1800) {
+    console.log(`Video (${durationSeconds.toFixed(1)}s) short, using single-pass rendering`)
     return totalFrames
-  } else if (durationSeconds < 600) {
-    // Medium video (5-10 min): use 2 large chunks
-    console.log(`Medium video detected (${durationSeconds.toFixed(1)}s), using 2-chunk rendering`)
-    return Math.ceil(totalFrames / 2)
-  } else {
-    // Large video (>10 min): use larger chunks to minimize overhead
-    console.log(`Large video detected (${durationSeconds.toFixed(1)}s), using 3-chunk rendering`)
-    return Math.ceil(totalFrames / 3)
   }
+
+  if (durationSeconds < 180) {
+    // ~45s–3min: 2–3 chunks
+    const chunks = durationSeconds < 90 ? 2 : 3
+    console.log(`Video (${durationSeconds.toFixed(1)}s) medium, using ${chunks}-chunk rendering`)
+    return Math.ceil(totalFrames / chunks)
+  }
+
+  if (durationSeconds < 600) {
+    // 3–10min: aim for ~30–45s chunks
+    const targetChunkSeconds = 40
+    const fps = totalFrames / durationSeconds
+    const targetChunkFrames = Math.max(1200, Math.round(targetChunkSeconds * fps))
+    const chunkSize = Math.min(totalFrames, targetChunkFrames)
+    console.log(`Video (${durationSeconds.toFixed(1)}s) long, using chunkSize=${chunkSize} frames`)
+    return chunkSize
+  }
+
+  // >10min: slightly larger chunks to reduce overhead
+  const targetChunkSeconds = 60
+  const fps = totalFrames / durationSeconds
+  const targetChunkFrames = Math.max(1800, Math.round(targetChunkSeconds * fps))
+  const chunkSize = Math.min(totalFrames, targetChunkFrames)
+  console.log(`Video (${durationSeconds.toFixed(1)}s) very long, using chunkSize=${chunkSize} frames`)
+  return chunkSize
 }
 
 /**
@@ -100,5 +119,5 @@ export function calculateStableChunkSize(
  */
 export function estimateVideoSizeGB(durationSeconds: number): number {
   // Rough estimate: 50MB per minute
-  return durationSeconds * 0.05
+  return (durationSeconds / 60) * 0.05
 }

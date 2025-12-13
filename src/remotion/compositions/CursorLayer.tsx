@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { AbsoluteFill, Img, useCurrentFrame, delayRender, continueRender, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Img, useCurrentFrame, delayRender, continueRender, useVideoConfig, getRemotionEnvironment } from 'remotion';
 import type { Effect, CursorEffectData } from '@/types/project';
 import {
   CursorType,
@@ -101,6 +101,7 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
   const { fps } = useTimeContext();
   const sourceTimeMs = useSourceTime();
   const prevSourceTimeMs = usePreviousSourceTime();
+  const { isRendering } = getRemotionEnvironment();
 
   const { width, height } = useVideoConfig();
 
@@ -177,7 +178,8 @@ export const CursorLayer: React.FC<CursorLayerProps> = ({
       clickEvents,
       currentSourceTime,
       previousState, // Use cached state when available
-      fps
+      fps,
+      isRendering
     );
 
     cache.set(cacheKey, newState);

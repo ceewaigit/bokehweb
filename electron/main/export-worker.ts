@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import { tmpdir } from 'os';
+import type { X264Preset } from '@remotion/renderer/dist/options/x264-preset';
 
 interface ChunkAssignment {
   index: number;
@@ -40,7 +41,7 @@ interface ExportJob {
   offthreadVideoCacheSizeInBytes: number;
   jpegQuality: number;
   videoBitrate: string;
-  x264Preset: string;
+  x264Preset: X264Preset | string | null | undefined;
   useGPU: boolean;
   concurrency?: number;
   ffmpegPath: string;
@@ -58,6 +59,26 @@ class ExportWorker extends BaseWorker {
     isActive: boolean;
     tempFiles: string[];
   } | null = null;
+
+  private readonly allowedPresets: readonly X264Preset[] = [
+    'ultrafast',
+    'superfast',
+    'veryfast',
+    'faster',
+    'fast',
+    'medium',
+    'slow',
+    'slower',
+    'veryslow',
+    'placebo',
+  ];
+
+  private coerceX264Preset(preset: unknown): X264Preset | null {
+    if (typeof preset !== 'string') return null;
+    return (this.allowedPresets as readonly string[]).includes(preset)
+      ? (preset as X264Preset)
+      : null;
+  }
 
   protected onInit(): void {
     console.log('[ExportWorker] Initialized with MessagePort IPC');
@@ -192,6 +213,8 @@ class ExportWorker extends BaseWorker {
     this.normalizeVideoProps(job.inputProps);
     console.log('[ExportWorker] inputProps.videoUrls:', job.inputProps?.videoUrls);
     console.log('[ExportWorker] recording IDs:', Object.keys(job.inputProps?.videoUrls || {}));
+    const x264Preset = this.coerceX264Preset(job.x264Preset) ?? 'veryfast';
+    const jpegQuality = Math.max(40, Math.min(job.jpegQuality ?? 85, 100));
 
     // Use renderMedia for memory-efficient single-pass rendering
     await renderMedia({
@@ -201,8 +224,9 @@ class ExportWorker extends BaseWorker {
       outputLocation: job.outputPath,
       codec: 'h264',
       videoBitrate: job.videoBitrate,
+      x264Preset,
       // OPTIMIZED: Lower JPEG quality for better performance (70 is sweet spot)
-      jpegQuality: Math.min(job.jpegQuality || 70, 75), // Cap at 75 max
+      jpegQuality,
       imageFormat: 'jpeg',
       concurrency: renderConcurrency,
       enforceAudioTrack: false, // Don't require audio track
@@ -416,6 +440,8 @@ class ExportWorker extends BaseWorker {
 
         console.log('[ExportWorker] chunk inputProps.videoUrls:', chunkInputProps?.videoUrls);
         console.log('[ExportWorker] chunk recording IDs:', Object.keys(chunkInputProps?.videoUrls || {}));
+        const x264Preset = this.coerceX264Preset(job.x264Preset) ?? 'veryfast';
+        const jpegQuality = Math.max(40, Math.min(job.jpegQuality ?? 85, 100));
 
         await renderMedia({
           serveUrl: job.bundleLocation,
@@ -424,8 +450,9 @@ class ExportWorker extends BaseWorker {
           outputLocation: chunkPath,
           codec: 'h264',
           videoBitrate: job.videoBitrate,
+          x264Preset,
           // OPTIMIZED: Lower JPEG quality for better performance (70 is sweet spot)
-          jpegQuality: Math.min(job.jpegQuality || 70, 75), // Cap at 75 max
+          jpegQuality,
           imageFormat: 'jpeg',
           frameRange: chunkFrameRange,
           concurrency: renderConcurrency,

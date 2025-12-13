@@ -9,22 +9,13 @@ import {
   FileVideo,
   PanelRightClose,
   PanelRight,
-  Sun,
-  Moon,
-  Monitor,
   Library
 } from 'lucide-react'
 import { Button } from './ui/button'
 import { useRecordingSessionStore } from '@/stores/recording-session-store'
 import { cn, formatTime } from '@/lib/utils'
 import type { Project } from '@/types/project'
-import { useTheme } from '@/contexts/theme-context'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { AppearanceControls } from '@/components/topbar/appearance-controls'
 
 interface ToolbarProps {
   project: Project | null
@@ -53,7 +44,6 @@ export function Toolbar({
     status
   } = useRecordingSessionStore()
 
-  const { theme, setTheme } = useTheme()
   const [propertiesOpen, setPropertiesOpen] = useState(true)
 
   const handleToggleProperties = () => {
@@ -210,34 +200,8 @@ export function Toolbar({
 
         {/* Settings Button */}
 
-        {/* Theme Toggle */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 hover:bg-background/50"
-            >
-              {theme === 'light' && <Sun className="w-3.5 h-3.5" />}
-              {theme === 'dark' && <Moon className="w-3.5 h-3.5" />}
-              {theme === 'system' && <Monitor className="w-3.5 h-3.5" />}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-32">
-            <DropdownMenuItem onClick={() => setTheme('light')} className="text-xs">
-              <Sun className="w-3 h-3 mr-2" />
-              Light
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('dark')} className="text-xs">
-              <Moon className="w-3 h-3 mr-2" />
-              Dark
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme('system')} className="text-xs">
-              <Monitor className="w-3 h-3 mr-2" />
-              System
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Appearance Controls */}
+        <AppearanceControls />
 
         {/* Properties Toggle */}
         <Button

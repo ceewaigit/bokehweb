@@ -21,13 +21,16 @@ export const KeystrokeLayer: React.FC<KeystrokeLayerProps> = ({
   const { keystrokeEvents } = useClipContext();
   const { width, height } = useVideoConfig();
 
-  // Extract settings from effect data
-  const settings = (keystrokeEffect?.data as KeystrokeEffectData | undefined) || {};
+  // Extract settings from effect data with stable memoization
+  const settings = useMemo(
+    () => (keystrokeEffect?.data as KeystrokeEffectData | undefined) || {},
+    [keystrokeEffect?.data]
+  );
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<KeystrokeRenderer | null>(null);
 
   // Check if effect is enabled (must be after all hooks)
-  const isEffectEnabled = keystrokeEffect && keystrokeEffect.enabled !== false;
+  const isEffectEnabled = keystrokeEffect?.enabled !== false;
   
   // Initialize renderer once
   useEffect(() => {

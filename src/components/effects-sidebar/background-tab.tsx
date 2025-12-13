@@ -14,9 +14,14 @@ interface BackgroundTabProps {
   onUpdateBackground: (updates: any) => void
 }
 
+let cachedMacOSWallpapers: any[] | null = null
+let macOSWallpapersPromise: Promise<any[] | null> | null = null
+
 export function BackgroundTab({ backgroundEffect, onUpdateBackground }: BackgroundTabProps) {
   const [backgroundType, setBackgroundType] = useState<BackgroundType>(BackgroundType.Gradient)
-  const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({ wallpapers: [] })
+  const [macOSWallpapers, setMacOSWallpapers] = useState<{ wallpapers: any[] }>({
+    wallpapers: cachedMacOSWallpapers || []
+  })
   const [loadingWallpapers, setLoadingWallpapers] = useState(false)
   const [loadingWallpaperId, setLoadingWallpaperId] = useState<string | null>(null)
 
@@ -32,28 +37,45 @@ export function BackgroundTab({ backgroundEffect, onUpdateBackground }: Backgrou
 
   // Load macOS wallpapers when wallpaper tab is selected
   useEffect(() => {
-    if (backgroundType === BackgroundType.Wallpaper && macOSWallpapers.wallpapers.length === 0 && !loadingWallpapers) {
-      setLoadingWallpapers(true)
+    if (backgroundType !== BackgroundType.Wallpaper) return
+    if (macOSWallpapers.wallpapers.length > 0 || loadingWallpapers) return
 
-      if (window.electronAPI?.getMacOSWallpapers) {
-        window.electronAPI.getMacOSWallpapers()
-          .then((data) => {
-            if (data?.wallpapers) {
-              setMacOSWallpapers({ wallpapers: data.wallpapers })
-            } else {
-              setMacOSWallpapers({ wallpapers: [] })
-            }
-            setLoadingWallpapers(false)
-          })
-          .catch((error) => {
-            console.error('Failed to load macOS wallpapers:', error)
-            setMacOSWallpapers({ wallpapers: [] })
-            setLoadingWallpapers(false)
-          })
-      } else {
-        setMacOSWallpapers({ wallpapers: [] })
-        setLoadingWallpapers(false)
-      }
+    if (cachedMacOSWallpapers && cachedMacOSWallpapers.length > 0) {
+      setMacOSWallpapers({ wallpapers: cachedMacOSWallpapers })
+      return
+    }
+
+    if (macOSWallpapersPromise) {
+      setLoadingWallpapers(true)
+      macOSWallpapersPromise.then((wallpapers) => {
+        if (wallpapers) setMacOSWallpapers({ wallpapers })
+      }).finally(() => setLoadingWallpapers(false))
+      return
+    }
+
+    if (window.electronAPI?.getMacOSWallpapers) {
+      setLoadingWallpapers(true)
+      macOSWallpapersPromise = window.electronAPI.getMacOSWallpapers()
+        .then((data) => {
+          const wallpapers = data?.wallpapers || []
+          cachedMacOSWallpapers = wallpapers
+          setMacOSWallpapers({ wallpapers })
+          return wallpapers
+        })
+        .catch((error) => {
+          console.error('Failed to load macOS wallpapers:', error)
+          cachedMacOSWallpapers = []
+          setMacOSWallpapers({ wallpapers: [] })
+          return []
+        })
+        .finally(() => {
+          macOSWallpapersPromise = null
+          setLoadingWallpapers(false)
+        })
+    } else {
+      cachedMacOSWallpapers = []
+      setMacOSWallpapers({ wallpapers: [] })
+      setLoadingWallpapers(false)
     }
   }, [backgroundType])
 

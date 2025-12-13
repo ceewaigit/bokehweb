@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from '@/types/project'
 import { KeystrokePosition } from '@/types/project'
+import { getPrintableCharFromKey, isShortcutModifier, isStandaloneModifierKey } from '@/lib/keyboard/keyboard-utils'
 
 interface KeystrokeOptions {
   fontSize?: number
@@ -113,42 +114,43 @@ export class KeystrokeRenderer {
     while (this.currentIndex < this.keyHistory.length) {
       const event = this.keyHistory[this.currentIndex]
       if (event.timestamp > timestamp) break
+      const key = event.key
 
       // Filter out standalone modifier keys
-      const modifierKeys = ['CapsLock', 'Shift', 'Control', 'Alt', 'Meta', 'Command', 'Option', 'Fn']
-      if (!modifierKeys.includes(event.key)) {
+      if (!isStandaloneModifierKey(key)) {
         // Check if we should flush buffer (Enter key, long pause, or special keys)
+        const shortcut = isShortcutModifier(event.modifiers || [])
         const shouldFlush =
-          event.key === 'Enter' ||
-          event.key === 'Tab' ||
-          event.key === 'Escape' ||
+          key === 'Enter' ||
+          key === 'Tab' ||
+          key === 'Escape' ||
           (this.buffer && event.timestamp - this.buffer.lastKeyTime > this.BUFFER_TIMEOUT) ||
-          (event.modifiers && event.modifiers.length > 0) // Shortcut keys flush buffer
+          shortcut // Shortcut keys flush buffer
 
         if (shouldFlush && this.buffer) {
           this.flushBuffer()
         }
 
         // Handle different key types
-        if (event.modifiers && event.modifiers.length > 0) {
+        if (shortcut) {
           // Shortcut keys show immediately
-          const keyDisplay = this.formatSingleKey(event.key, event.modifiers)
+          const keyDisplay = this.formatSingleKey(key, event.modifiers)
           this.displayQueue.push({
             text: keyDisplay,
             startTime: event.timestamp,
             lastKeyTime: event.timestamp,
             keys: [event]
           })
-        } else if (event.key === 'Enter' || event.key === 'Tab' || event.key === 'Escape') {
+        } else if (key === 'Enter' || key === 'Tab' || key === 'Escape') {
           // Special keys show with their symbol
-          const keyDisplay = this.formatKey(event.key)
+          const keyDisplay = this.formatKey(key)
           this.displayQueue.push({
             text: keyDisplay,
             startTime: event.timestamp,
             lastKeyTime: event.timestamp,
             keys: [event]
           })
-        } else if (event.key === 'Backspace' || event.key === 'Delete') {
+        } else if (key === 'Backspace' || key === 'Delete') {
           // Handle backspace/delete in buffer
           if (this.buffer && this.buffer.text.length > 0) {
             // Remove last character from buffer
@@ -172,11 +174,10 @@ export class KeystrokeRenderer {
             }
           }
 
-          // Add character to buffer
-          if (event.key === ' ') {
-            this.buffer.text += ' '
-          } else if (event.key.length === 1) {
-            this.buffer.text += event.key
+          // Add printable character to buffer (supports KeyA/Digit1/numeric codes)
+          const printable = getPrintableCharFromKey(key, event.modifiers)
+          if (printable) {
+            this.buffer.text += printable
           }
 
           this.buffer.lastKeyTime = event.timestamp
@@ -311,6 +312,11 @@ export class KeystrokeRenderer {
       displayKey = key.charAt(3).toUpperCase()
     } else if (key.startsWith('Digit') && key.length === 6) {
       displayKey = key.charAt(5)
+    } else if (/^\d+$/.test(key)) {
+      const printable = getPrintableCharFromKey(key, modifiers)
+      if (printable && printable.length === 1) {
+        displayKey = printable
+      }
     }
 
     // Handle modifier combos (e.g., Cmd+C)

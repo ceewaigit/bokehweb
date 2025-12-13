@@ -11,6 +11,7 @@ import { ThumbnailGenerator } from '@/lib/utils/thumbnail-generator'
 import { getVideoDuration } from '@/lib/utils/video-metadata'
 import { type Recording as ProjectRecording, type Project } from '@/types'
 import { useRecordingsLibraryStore, type LibraryRecording } from '@/stores/recordings-library-store'
+import { AppearanceControls } from '@/components/topbar/appearance-controls'
 
 interface RecordingsLibraryProps {
   onSelectRecording: (recording: LibraryRecording) => void | Promise<void>
@@ -344,6 +345,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   <Video className="w-3.5 h-3.5 mr-2" />
                   New Recording
                 </Button>
+                <AppearanceControls className="flex items-center gap-1 ml-1" />
               </div>
             </div>
           </div>
@@ -456,6 +458,7 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                   <Video className="w-3.5 h-3.5 mr-2" />
                   New Recording
                 </Button>
+                <AppearanceControls className="flex items-center gap-1 ml-1" />
               </div>
             </div>
           </div>

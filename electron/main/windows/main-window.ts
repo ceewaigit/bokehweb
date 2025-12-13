@@ -7,13 +7,24 @@ import { getAppURL, isDev } from '../config'
 export function createMainWindow(): BrowserWindow {
   console.log('[MainWindow] Creating main window...')
 
+  const isMac = process.platform === 'darwin'
+
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 800,
     show: false,
-    backgroundColor: '#000000',
+    backgroundColor: '#00000000',
+    ...(isMac
+      ? {
+          transparent: true,
+          vibrancy: 'under-window',
+          visualEffectState: 'active',
+        }
+      : {
+          transparent: true,
+        }),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -25,14 +36,22 @@ export function createMainWindow(): BrowserWindow {
       spellcheck: false,
       sandbox: false
     },
-    titleBarStyle: 'hiddenInset',
-    titleBarOverlay: {
-      color: '#ffffff', // Solid white title bar
-      symbolColor: '#000000',
-      height: 40
-    },
-    frame: true,
-    trafficLightPosition: { x: 20, y: 16 }
+    titleBarStyle: isMac ? 'hidden' : 'hiddenInset',
+    ...(isMac
+      ? {
+          // Frameless is required for full-window vibrancy on recent macOS/Electron.
+          frame: false,
+          trafficLightPosition: { x: 20, y: 16 },
+        }
+      : {
+          frame: true,
+          titleBarOverlay: {
+            color: '#00000000',
+            symbolColor: '#ffffff',
+            height: 40,
+          },
+          trafficLightPosition: { x: 20, y: 16 },
+        })
   })
 
   setupPermissions(mainWindow)
@@ -40,6 +59,17 @@ export function createMainWindow(): BrowserWindow {
 
   // Don't load URL here - let the caller handle it
   // This prevents double loading
+
+  if (isMac) {
+    try {
+      // Re-apply vibrancy after creation; some macOS/Electron combos ignore ctor value.
+      mainWindow.setVibrancy?.('under-window')
+      mainWindow.setBackgroundColor('#00000000')
+      ;(mainWindow as any).setVisualEffectState?.('active')
+    } catch (e) {
+      console.warn('[MainWindow] Failed to apply vibrancy on macOS:', e)
+    }
+  }
 
   if (isDev) {
     mainWindow.webContents.openDevTools()

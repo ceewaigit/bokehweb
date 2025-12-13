@@ -1,16 +1,14 @@
 /**
  * Constants for calculator utilities
- * Used by zoom-pan-calculator.ts and background-calculator.ts
+ * Used by camera-calculator.ts and background-calculator.ts
  */
 
 // =============================================================================
 // ZOOM/PAN CAMERA BEHAVIOR
 // =============================================================================
 
-/** How much the viewport follows mouse position (0=none, 1=perfect center) */
-export const CAMERA_FOLLOW_STRENGTH = 0.7;
-/** Interpolation smoothing factor - lower = smoother, higher = more responsive */
-export const CAMERA_SMOOTHING = 0.08;
+/** Dead‑zone size as ratio of visible window (0-1). Cursor can move within this without panning. */
+export const CAMERA_DEAD_ZONE_RATIO = 0.4;
 
 // Motion cluster detection
 /** Maximum cluster radius as ratio of screen diagonal */
@@ -33,6 +31,25 @@ export const SEEK_THRESHOLD_MS = 100;
 export const SPRING_TENSION = 120;
 /** Spring friction - higher = less oscillation */
 export const SPRING_FRICTION = 25;
+
+// =============================================================================
+// CURSOR STOP DETECTION (prevents camera halt-shake)
+// =============================================================================
+
+/** Velocity threshold (normalized units/sec) below which cursor is "stopped" */
+export const CURSOR_STOP_VELOCITY_THRESHOLD = 0.002;
+
+/** Time in ms cursor must be below velocity threshold before freeze activates */
+export const CURSOR_STOP_DWELL_MS = 80;
+
+/** Minimum zoom scale for stop detection (no effect at 1x) */
+export const CURSOR_STOP_MIN_ZOOM = 1.05;
+
+/** Velocity damping factor when frozen (0-1, lower = faster settling) */
+export const CURSOR_STOP_DAMPING = 0.7;
+
+/** Distance threshold for snapping to target when frozen */
+export const CURSOR_STOP_SNAP_THRESHOLD = 0.0005;
 
 // =============================================================================
 // BACKGROUND/SHADOW EFFECTS

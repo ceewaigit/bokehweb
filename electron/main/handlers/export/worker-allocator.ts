@@ -129,22 +129,71 @@ export function calculateWorkerAllocation(
   totalFrames: number,
   fps: number
 ): WorkerAllocation {
-  // MEMORY/PERFORMANCE BALANCE:
-  // - concurrency=1 is too slow (10s per 1% = 17min for 2.5min video)
-  // - concurrency=3 causes 8GB+ memory from 3 video decoders
-  // - concurrency=2 is the sweet spot: 2× speed, ~3GB memory
-  //
-  // The binary search optimization in mouse-interpolation.ts fixed the
-  // per-frame computation bottleneck. Now we can safely use concurrency=2.
+  const cpuCores = Math.max(1, profile.cpuCores || 1)
+  const safeMemoryGB = Math.max(0.5, effectiveMemoryGB || 0.5)
+  const safeFps = Math.max(1, fps || 30)
+  const durationSeconds = Math.max(0, totalFrames / safeFps)
 
-  const concurrency = 2
-  const workerCount = 1
-  const useParallel = false
+  const cpuBasedConcurrency = Math.max(1, Math.floor(cpuCores / 2))
+  const memBasedConcurrency = Math.max(1, Math.floor(safeMemoryGB / 1.5))
+  let concurrency = Math.max(1, Math.min(cpuBasedConcurrency, memBasedConcurrency, 6))
+
+  if (safeMemoryGB < 2) {
+    concurrency = 1
+  } else if (safeMemoryGB < 3) {
+    concurrency = Math.min(concurrency, 2)
+  }
+
+  // Real-time free memory is a better predictor of thrash than derived effective memory.
+  // If the OS reports very low free RAM, reduce tabs to avoid swap storms.
+  const rawAvailableGB = profile.availableMemoryGB ?? 0
+  if (rawAvailableGB < 1) {
+    concurrency = 1
+  } else if (rawAvailableGB < 2) {
+    concurrency = Math.min(concurrency, 2)
+  } else if (rawAvailableGB < 3) {
+    concurrency = Math.min(concurrency, 3)
+  }
+
+  // Allow higher concurrency for short exports to avoid needless slowness.
+  if (durationSeconds < 60 && safeMemoryGB >= 3) {
+    concurrency = Math.min(concurrency + 1, 6)
+  }
+  if (durationSeconds < 30 && cpuCores >= 8 && safeMemoryGB >= 4) {
+    concurrency = Math.min(concurrency, 4)
+  }
+
+  const useParallel = chunkCount > 1 && recommendedWorkers > 1
+  let workerCount = useParallel ? recommendedWorkers : 1
+
+  // Cap parallel workers aggressively when raw available memory is low.
+  if (useParallel) {
+    if (rawAvailableGB < 2) {
+      workerCount = Math.min(workerCount, 2)
+    } else if (rawAvailableGB < 3) {
+      workerCount = Math.min(workerCount, 3)
+    } else {
+      workerCount = Math.min(workerCount, 4)
+    }
+  }
+
+  // When using multiple workers, keep tabs per worker modest.
+  if (useParallel) {
+    concurrency = Math.min(concurrency, 3)
+  }
 
   const timeoutMs = computeWorkerTimeoutMs(totalFrames, fps, chunkCount, workerCount)
   const memoryPerWorkerMB = computePerWorkerMemoryMB(profile, workerCount)
 
-  console.log(`[Export] Optimized: 1 worker × 2 tabs (balanced speed/memory)`)
+  console.log('[Export] Allocation', {
+    workerCount,
+    concurrency,
+    useParallel,
+    durationSeconds: durationSeconds.toFixed(1),
+    cpuCores,
+    effectiveMemoryGB: safeMemoryGB.toFixed(2),
+    chunkCount
+  })
 
   return {
     workerCount,

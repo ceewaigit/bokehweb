@@ -3,6 +3,7 @@
  */
 
 import type { MachineProfile } from '../../utils/machine-profiler'
+import type { X264Preset } from '@remotion/renderer/dist/options/x264-preset'
 
 // Bundle cache management
 export interface BundleCache {
@@ -55,7 +56,7 @@ export interface ExportJobConfig {
   offthreadVideoCacheSizeInBytes: number
   jpegQuality: number
   videoBitrate: string
-  x264Preset: string
+  x264Preset: X264Preset
   useGPU: boolean
   concurrency: number
   ffmpegPath: string

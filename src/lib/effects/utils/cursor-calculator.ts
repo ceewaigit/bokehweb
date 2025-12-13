@@ -54,7 +54,8 @@ export function calculateCursorState(
   clickEvents: ClickEvent[],
   timestamp: number,
   previousState?: CursorState,
-  renderFps?: number
+  renderFps?: number,
+  disableHistorySmoothing?: boolean
 ): CursorState {
   // Default state
   if (!cursorData || !mouseEvents || mouseEvents.length === 0) {
@@ -87,7 +88,15 @@ export function calculateCursorState(
 
   // Apply additional smoothing on top of interpolation (stateless, time-based)
   // This matches the original CursorLayer behavior for buttery-smooth movement
-  const position = applySmoothingFilter(mouseEvents, timestamp, rawPosition, previousState, cursorData, renderFps)
+  const position = applySmoothingFilter(
+    mouseEvents,
+    timestamp,
+    rawPosition,
+    previousState,
+    cursorData,
+    renderFps,
+    disableHistorySmoothing
+  )
 
   // Determine cursor type - use binary search for most recent event
   let cursorEventIndex = -1
@@ -172,7 +181,8 @@ function applySmoothingFilter(
   rawPosition: { x: number; y: number },
   previousState: CursorState | undefined,
   cursorData: CursorEffectData,
-  renderFps?: number
+  renderFps?: number,
+  disableHistorySmoothing?: boolean
 ): { x: number; y: number } {
   // If gliding is disabled, return the raw interpolated position
   if (!cursorData.gliding) {
@@ -182,6 +192,11 @@ function applySmoothingFilter(
   const canUsePreviousState = shouldUsePreviousState(previousState, timestamp)
   if (canUsePreviousState && previousState) {
     return smoothTowardsTarget(previousState, rawPosition, cursorData)
+  }
+
+  if (disableHistorySmoothing) {
+    // Export/perf mode: avoid expensive history simulation when frames render out of order.
+    return rawPosition
   }
 
   // Fallback: derive smoothing purely from historical samples so rendering order doesn't matter

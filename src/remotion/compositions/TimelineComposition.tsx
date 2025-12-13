@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { AbsoluteFill } from 'remotion';
+import { AbsoluteFill, useVideoConfig } from 'remotion';
 import type { Clip, Recording, Effect } from '@/types/project';
 import { TimeProvider } from '../context/TimeContext';
 import { ClipSequence } from './ClipSequence';
@@ -28,6 +28,13 @@ export interface TimelineCompositionProps {
   videoWidth: number;
   videoHeight: number;
   fps: number;
+
+  // Native source dimensions for zoom/crop math (keeps exports sharp on HiDPI captures)
+  sourceVideoWidth?: number;
+  sourceVideoHeight?: number;
+
+  // Allow export to fall back to <Video> when OffthreadVideo is too heavy.
+  preferOffthreadVideo?: boolean;
 
   videoUrls?: Record<string, string>;
 }
@@ -47,14 +54,17 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
   videoWidth,
   videoHeight,
   fps,
+  sourceVideoWidth,
+  sourceVideoHeight,
+  preferOffthreadVideo,
   videoUrls,
 }) => {
+  const { width, height } = useVideoConfig();
+
   // Sort clips by start time for consistent rendering
   const sortedClips = React.useMemo(() => {
     return [...clips].sort((a, b) => a.startTime - b.startTime);
   }, [clips]);
-
-
 
   return (
     <TimeProvider clips={sortedClips} recordings={recordings} fps={fps}>
@@ -67,6 +77,9 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
         <SharedVideoController
           videoWidth={videoWidth}
           videoHeight={videoHeight}
+          sourceVideoWidth={sourceVideoWidth}
+          sourceVideoHeight={sourceVideoHeight}
+          preferOffthreadVideo={preferOffthreadVideo}
           effects={effects}
           videoUrls={videoUrls}
         >

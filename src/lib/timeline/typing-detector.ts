@@ -3,6 +3,7 @@
  */
 
 import type { KeyboardEvent, Recording, TypingPeriod as ProjectTypingPeriod } from '@/types/project'
+import { countPrintableCharacters, getPrintableCharFromKey } from '@/lib/keyboard/keyboard-utils'
 
 export interface TypingPeriod {
   startTime: number
@@ -82,14 +83,12 @@ export class TypingDetector {
       return true
     }
 
-    // Accept numeric keycodes emitted by uiohook as strings (e.g., "30")
-    if (/^\d+$/.test(key)) {
-      return true
-    }
-
     // Common typing keys
     const typingKeys = ['Space', 'Backspace', 'Delete', 'Enter', 'Return', 'Tab']
-    return typingKeys.includes(key)
+    if (typingKeys.includes(key)) return true
+
+    // uiohook "code"-style values (KeyA, Digit1, Numpad5, etc)
+    return getPrintableCharFromKey(key) !== null
   }
 
   /**
@@ -143,7 +142,7 @@ export class TypingDetector {
     const keyCount = events.length
 
     // Calculate WPM (assuming average word is 5 characters)
-    const charactersTyped = events.filter(e => TypingDetector.isPrintableCharacter(e.key)).length
+    const charactersTyped = countPrintableCharacters(events)
     const words = charactersTyped / 5
     const minutes = duration / 60000
     const averageWpm = minutes > 0 ? words / minutes : 0
@@ -168,9 +167,7 @@ export class TypingDetector {
    * Calculate confidence that this is actually typing (vs random key presses)
    */
   private static isPrintableCharacter(key: string): boolean {
-    if (key === 'Space' || key === 'Return' || key === 'Enter' || key === 'Tab') return true
-    if (/^\d+$/.test(key)) return true
-    return key.length === 1 && this.TYPING_CHARS.test(key)
+    return getPrintableCharFromKey(key) !== null
   }
 
   private static calculateConfidence(events: KeyboardEvent[], wpm: number): number {
