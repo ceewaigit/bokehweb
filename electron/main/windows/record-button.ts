@@ -31,13 +31,13 @@ export function createRecordButton(): BrowserWindow {
   const isMac = process.platform === 'darwin'
 
   const recordButton = new BrowserWindow({
-    width: 200,
-    height: 67,
-    minWidth: 200,
-    minHeight: 67,
-    maxWidth: 200,
-    maxHeight: 67,
-    x: Math.floor(display.workAreaSize.width / 2 - 100),
+    width: 180,
+    height: 72,
+    minWidth: 140,
+    minHeight: 56,
+    maxWidth: 500,  // Allow expansion for source picker
+    maxHeight: 500, // Allow expansion for source picker
+    x: Math.floor(display.workAreaSize.width / 2 - 90),
     y: 20,
     frame: false,
     transparent: true,
@@ -62,6 +62,7 @@ export function createRecordButton(): BrowserWindow {
       backgroundThrottling: false
     }
   })
+
 
   // Set window title to empty string to avoid any OS chrome showing it
   recordButton.setTitle('')

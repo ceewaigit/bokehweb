@@ -224,31 +224,34 @@ export function registerSourceHandlers(): void {
         const displays = screen.getAllDisplays()
         const primaryDisplay = screen.getPrimaryDisplay()
 
-        // Filter and map the sources
+        // Filter and map the sources - be more lenient to capture Electron apps
         const filteredSources = sources.filter(source => {
           // Always keep screen sources
           if (source.id.startsWith('screen:')) {
             return true
           }
 
-          // For window sources, only keep if the window is visible on screen
-          // Check if window name or app name matches any visible window
-          const appName = source.name.split(' - ')[0].split(' — ')[0].trim()
+          // For window sources, include if it has a non-empty name from desktopCapturer
+          // The desktopCapturer API already filters for visible windows
+          // We only do light filtering here to catch obvious system windows
+          const sourceName = source.name.toLowerCase()
 
-          // Check for exact name match or app name match in visible windows
-          const isVisible = visibleWindowNames.has(source.name) ||
-            visibleWindows.some(w =>
-              w.name === source.name ||
-              w.ownerName === appName ||
-              source.name.includes(w.ownerName)
-            )
-
-          if (!isVisible) {
-            console.log(`[Sources] Filtering out hidden window: ${source.name}`)
+          // Skip empty names
+          if (!source.name.trim()) {
+            console.log(`[Sources] Filtering out empty name window`)
+            return false
           }
 
-          return isVisible
+          // Skip obvious system UI elements that slip through
+          const systemPatterns = ['menubar', 'menu bar', 'notification center', 'control center']
+          if (systemPatterns.some(pattern => sourceName.includes(pattern))) {
+            console.log(`[Sources] Filtering out system window: ${source.name}`)
+            return false
+          }
+
+          return true
         })
+
 
         // Map the sources to our format with bounds information
         const mappedSources = await Promise.all(filteredSources.map(async source => {

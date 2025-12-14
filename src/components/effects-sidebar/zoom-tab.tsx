@@ -39,7 +39,7 @@ export function ZoomTab({
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
 
       {/* Selected Zoom Block Editor */}
       {selectedEffectLayer?.type === EffectLayerType.Zoom && selectedEffectLayer?.id && (() => {
@@ -51,19 +51,19 @@ export function ZoomTab({
         return (
           <div
             key={`zoom-block-${selectedEffectLayer.id}`}
-            className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200"
+            className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200"
           >
             {/* Scale Control */}
-            <div className="p-4 bg-background/40 rounded-xl space-y-3">
+            <div className="p-3 bg-background/40 rounded-lg space-y-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ZoomIn className="w-3.5 h-3.5 text-muted-foreground" />
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium leading-none">Zoom Scale</span>
+                <div className="flex items-center gap-1.5">
+                  <ZoomIn className="w-3 h-3 text-muted-foreground" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-medium leading-none">Zoom Scale</span>
                     <InfoTooltip content="How much to zoom into the region (higher = closer)." />
                   </div>
                 </div>
-                <span className="text-xs font-mono text-primary tabular-nums">
+                <span className="text-[10px] font-mono text-primary tabular-nums">
                   {(localScale ?? zoomData.scale ?? 2.0).toFixed(1)}x
                 </span>
               </div>
@@ -82,7 +82,7 @@ export function ZoomTab({
                 step={0.1}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-muted-foreground/70 tabular-nums">
+              <div className="flex justify-between text-[10px] text-muted-foreground/70 tabular-nums">
                 <span>1x</span>
                 <span>7x</span>
               </div>
@@ -195,13 +195,13 @@ export function ZoomTab({
       })()}
 
       {/* Zoom Effects Toggle */}
-      <div className="p-4 bg-background/40 rounded-xl">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <ZoomIn className="w-4 h-4 text-muted-foreground" />
+      <div className="p-3 bg-background/40 rounded-lg">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <ZoomIn className="w-3.5 h-3.5 text-muted-foreground" />
             <div className="min-w-0">
-              <div className="text-sm font-medium leading-none">Zoom Effects</div>
-              <div className="mt-1 text-xs text-muted-foreground leading-snug">
+              <div className="text-xs font-medium leading-none">Zoom Effects</div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
                 Auto-detect and apply zoom regions.
               </div>
             </div>
@@ -217,24 +217,21 @@ export function ZoomTab({
       {/* Reset Detection */}
       <button
         onClick={() => onUpdateZoom({ regenerate: Date.now() })}
-        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs bg-background/40 hover:bg-background/60 rounded-xl transition-all group"
+        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] bg-background/40 hover:bg-background/60 rounded-lg transition-all group"
       >
-        <RotateCcw className="w-3.5 h-3.5 text-muted-foreground group-hover:rotate-[-45deg] transition-transform duration-300" />
+        <RotateCcw className="w-3 h-3 text-muted-foreground group-hover:rotate-[-45deg] transition-transform duration-300" />
         <span>Regenerate Zoom Regions</span>
       </button>
-      <p className="text-xs text-muted-foreground/70 text-center leading-snug">
-        Re-analyze mouse movements to detect zoom areas
-      </p>
 
       {/* Cinematic Scroll */}
-      <div className="p-3 bg-background/40 rounded-xl space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Sparkles className="w-4 h-4 text-muted-foreground" />
+      <div className="p-3 bg-background/40 rounded-lg space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="w-3.5 h-3.5 text-muted-foreground" />
             <div className="min-w-0">
-              <div className="text-sm font-medium leading-none">Cinematic Scroll</div>
-              <div className="mt-1 text-xs text-muted-foreground leading-snug">
-                Smoothen scroll motion for a more polished feel.
+              <div className="text-xs font-medium leading-none">Cinematic Scroll</div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground leading-snug">
+                Smoothen scroll motion for a polished feel.
               </div>
             </div>
           </div>
@@ -250,7 +247,7 @@ export function ZoomTab({
 
         {/* Preset selector when enabled */}
         {effects?.some(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic' && e.enabled) && (
-          <div className="grid grid-cols-3 gap-1.5 pt-2">
+          <div className="grid grid-cols-3 gap-1 pt-1.5">
             {([ScreenEffectPreset.Subtle, ScreenEffectPreset.Medium, ScreenEffectPreset.Dramatic] as const).map(preset => {
               const scrollEffect = effects?.find(e => e.type === EffectType.Annotation && (e as any).data?.kind === 'scrollCinematic')
               const currentPreset = (scrollEffect?.data as any)?.preset || 'medium'
@@ -259,7 +256,7 @@ export function ZoomTab({
                 <button
                   key={preset}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-medium rounded-lg transition-all capitalize",
+                    "px-2 py-1 text-[10px] font-medium rounded transition-all capitalize",
                     isActive
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-background/50 text-muted-foreground hover:bg-background/80 hover:text-foreground"

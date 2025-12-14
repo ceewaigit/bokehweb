@@ -87,7 +87,6 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
 
   const MIN_RATE = 0.25
   const MAX_RATE = 4
-  const pct = (v: number) => ((v - MIN_RATE) / (MAX_RATE - MIN_RATE)) * 100
 
   if (!selectedClip) {
     return (
@@ -102,32 +101,33 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
   const effectiveDuration = selectedClip.duration / 1000 // Convert to seconds
 
   return (
-    <div className="space-y-6">
-      <div className="p-4 bg-background/40 rounded-xl space-y-1">
-        <div className="text-xs text-muted-foreground">Clip ID: {selectedClip.id.slice(0, 8)}...</div>
-        <div className="text-xs text-muted-foreground">
-          Duration: {effectiveDuration.toFixed(2)}s
+    <div className="space-y-3">
+      <div className="px-3 py-2 bg-background/40 rounded-lg text-xs text-muted-foreground">
+        <span>Clip ID: {selectedClip.id.slice(0, 8)}...</span>
+        <span className="mx-2">•</span>
+        <span>
+          {effectiveDuration.toFixed(2)}s
           {selectedClip.playbackRate && selectedClip.playbackRate !== 1.0 && (
-            <span className="ml-1 text-orange-500">({selectedClip.playbackRate}x speed)</span>
+            <span className="ml-1 text-orange-500">({selectedClip.playbackRate}x)</span>
           )}
-        </div>
+        </span>
       </div>
 
-      <div className="p-4 bg-background/40 rounded-xl space-y-4">
+      <div className="p-3 bg-background/40 rounded-lg space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h4 className="text-sm font-medium text-foreground">Playback Speed</h4>
+          <div className="flex items-center gap-1.5">
+            <h4 className="text-xs font-medium text-foreground">Playback Speed</h4>
             <InfoTooltip content="Changes clip speed without changing its start time." />
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">
+          <div className="flex items-center gap-1.5">
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 h-5">
               {playbackRate.toFixed(2)}x
             </Badge>
             <Button
               size="sm"
               variant="ghost"
               onClick={resetPlaybackRate}
-              className="h-6 w-6 p-0"
+              className="h-5 w-5 p-0"
               title="Reset to normal speed"
             >
               <RotateCcw className="w-3 h-3" />
@@ -135,7 +135,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-1">
           <Slider
             value={[playbackRate]}
             onValueChange={handlePlaybackRateChange}
@@ -145,22 +145,21 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
             step={0.25}
             className="w-full"
           />
-
-          <div className="relative w-full h-4 mt-1 text-xs text-muted-foreground tabular-nums leading-none">
-            <span className="absolute left-0">0.25x</span>
-            <span className="absolute" style={{ left: `${pct(1)}%`, transform: 'translateX(-50%)' }}>1x</span>
-            <span className="absolute right-0">4x</span>
+          <div className="flex justify-between text-[10px] text-muted-foreground/70 tabular-nums">
+            <span>0.25x</span>
+            <span>1x</span>
+            <span>4x</span>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="text-xs font-medium text-muted-foreground">Quick Presets</div>
-          <div className="flex gap-2 flex-wrap">
+        <div className="space-y-1.5 pt-2 border-t border-border/30">
+          <div className="text-[10px] font-medium text-muted-foreground">Quick Presets</div>
+          <div className="flex gap-1.5 flex-wrap">
             <Button
               size="sm"
               variant={Math.abs(playbackRate - 0.5) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(0.5)}
-              className="text-xs h-7"
+              className="text-[10px] h-6 px-2"
             >
               0.5x
             </Button>
@@ -168,7 +167,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
               size="sm"
               variant={Math.abs(playbackRate - 0.75) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(0.75)}
-              className="text-xs h-7"
+              className="text-[10px] h-6 px-2"
             >
               0.75x
             </Button>
@@ -176,7 +175,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
               size="sm"
               variant={Math.abs(playbackRate - 1.0) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(1.0)}
-              className="text-xs h-7"
+              className="text-[10px] h-6 px-2"
             >
               1x
             </Button>
@@ -184,7 +183,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
               size="sm"
               variant={Math.abs(playbackRate - 1.25) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(1.25)}
-              className="text-xs h-7"
+              className="text-[10px] h-6 px-2"
             >
               1.25x
             </Button>
@@ -192,7 +191,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
               size="sm"
               variant={Math.abs(playbackRate - 1.5) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(1.5)}
-              className="text-xs h-7"
+              className="text-[10px] h-6 px-2"
             >
               1.5x
             </Button>
@@ -200,7 +199,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
               size="sm"
               variant={Math.abs(playbackRate - 2.0) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(2.0)}
-              className="text-xs h-7"
+              className="text-[10px] h-6 px-2"
             >
               2x
             </Button>
@@ -208,7 +207,7 @@ export function ClipTab({ selectedClip: propSelectedClip, onClipUpdate }: ClipTa
               size="sm"
               variant={Math.abs(playbackRate - 3.0) < 0.01 ? "default" : "outline"}
               onClick={() => setCommonSpeed(3.0)}
-              className="text-xs h-7"
+              className="text-[10px] h-6 px-2"
             >
               3x
             </Button>

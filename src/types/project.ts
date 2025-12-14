@@ -386,6 +386,11 @@ export interface KeystrokeEffectData {
   padding?: number
   fadeOutDuration?: number
   maxWidth?: number
+  // Extended options
+  displayDuration?: number      // How long text stays visible (ms)
+  stylePreset?: 'default' | 'glass' | 'minimal' | 'terminal' | 'outline'
+  showModifierSymbols?: boolean // Show ⌘⌥⌃⇧ vs Cmd+Alt+Ctrl+Shift
+  scale?: number                // Overall scale multiplier
 }
 
 export interface BackgroundEffectData {

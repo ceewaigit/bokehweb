@@ -6,6 +6,7 @@ import {
   DEFAULT_KEYSTROKE_DATA,
   getDefaultWallpaper
 } from '@/lib/constants/default-effects'
+import { sourceToTimeline, getSourceDuration } from '@/lib/timeline/time-space-converter'
 
 export class EffectsFactory {
   // NOTE: createZoomEffectsFromRecording removed - zoom effects are created on-demand
@@ -37,16 +38,23 @@ export class EffectsFactory {
     }
   }
 
-  static createDefaultKeystrokeEffect(options?: { id?: string; enabled?: boolean }): Effect {
+  static createKeystrokeEffect(options: {
+    id: string
+    startTime: number
+    endTime: number
+    enabled?: boolean
+    data?: KeystrokeEffectData
+  }): Effect {
     return {
-      id: options?.id ?? `keystroke-global`,
+      id: options.id,
       type: EffectType.Keystroke,
-      startTime: 0,
-      endTime: Number.MAX_SAFE_INTEGER,
+      startTime: options.startTime,
+      endTime: options.endTime,
       data: {
         ...DEFAULT_KEYSTROKE_DATA,
+        ...(options.data ?? {})
       } as KeystrokeEffectData,
-      enabled: options?.enabled ?? true
+      enabled: options.enabled ?? true
     }
   }
   static createInitialEffectsForRecording(
@@ -81,6 +89,195 @@ export class EffectsFactory {
     if (!hasCursor) {
       project.timeline.effects.push(this.createDefaultCursorEffect())
     }
+
+    // Keep keystroke effects aligned with the current clip layout (trim/split/speed changes).
+    // Also detects and replaces old-style global keystroke effects.
+    this.syncKeystrokeEffects(project)
+  }
+
+  /**
+   * Rebuild "managed" keystroke effects so they always match the current clip layout.
+   * - Clusters keyboard events in SOURCE SPACE (recording timestamps)
+   * - Projects each cluster into TIMELINE SPACE for every clip that uses that recording
+   * - Preserves per-block `enabled` state + keystroke settings where possible
+   *
+   * Managed effects:
+   * - New IDs: `keystroke|<recordingId>|<clipId>|<clusterIndex>`
+   * - Legacy IDs: `keystroke-<recordingId>-<clusterIndex>`
+   * - Old-style global effect (0..MAX_SAFE_INTEGER)
+   */
+  static syncKeystrokeEffects(project: Project): void {
+    if (!project.timeline.effects) {
+      project.timeline.effects = []
+    }
+
+    const allClips = project.timeline.tracks.flatMap(t => t.clips)
+    const MAX_GAP_MS = 2000 // Max gap between keys to be in same cluster
+    const PADDING_MS = 500  // Add padding before/after cluster
+    const MIN_DURATION_MS = 100
+
+    const existingKeystrokes = project.timeline.effects.filter(e => e.type === EffectType.Keystroke)
+
+    const isOldStyleGlobalEffect = (e: Effect): boolean => {
+      return e.type === EffectType.Keystroke &&
+        e.startTime === 0 &&
+        e.endTime >= Number.MAX_SAFE_INTEGER - 1
+    }
+
+    const isManagedKeystrokeEffect = (e: Effect): boolean => {
+      if (isOldStyleGlobalEffect(e)) return true
+      return typeof e.id === 'string' && (e.id.startsWith('keystroke|') || e.id.startsWith('keystroke-'))
+    }
+
+    const templateData: KeystrokeEffectData | undefined =
+      (existingKeystrokes.find(e => e.data) as Effect | undefined)?.data as KeystrokeEffectData | undefined
+
+    // Preserve state from existing managed effects so toggles/settings survive rebuilds.
+    const stateById = new Map<string, { enabled: boolean; data?: KeystrokeEffectData }>()
+    const legacyStateByRecordingCluster = new Map<string, { enabled: boolean; data?: KeystrokeEffectData }>()
+
+    for (const e of existingKeystrokes) {
+      if (!isManagedKeystrokeEffect(e)) continue
+
+      stateById.set(e.id, { enabled: e.enabled, data: e.data as KeystrokeEffectData })
+
+      // Legacy format: keystroke-<recordingId>-<clusterIndex>
+      const legacyMatch = /^keystroke-(.+)-(\d+)$/.exec(e.id)
+      if (legacyMatch) {
+        const recordingId = legacyMatch[1]
+        const clusterIndex = Number(legacyMatch[2])
+        if (Number.isFinite(clusterIndex)) {
+          legacyStateByRecordingCluster.set(`${recordingId}::${clusterIndex}`, {
+            enabled: e.enabled,
+            data: e.data as KeystrokeEffectData
+          })
+        }
+      }
+    }
+
+    const preservedUserKeystrokes = existingKeystrokes.filter(e => !isManagedKeystrokeEffect(e))
+
+    // Remove managed keystroke effects (including old-style global one).
+    project.timeline.effects = [
+      ...project.timeline.effects.filter(e => e.type !== EffectType.Keystroke),
+      ...preservedUserKeystrokes
+    ]
+
+    // Rebuild managed keystroke effects from keyboard event clusters.
+    // We collect all timeline ranges per recording+cluster, then merge adjacent/overlapping
+    // ranges to avoid creating multiple keystroke blocks when clips are split.
+
+    // Map: `${recordingId}::${clusterIndex}` -> array of timeline ranges
+    const clusterTimelineRanges = new Map<string, { start: number; end: number }[]>()
+
+    for (const recording of project.recordings || []) {
+      const events = recording.metadata?.keyboardEvents
+      if (!events?.length) continue
+
+      const clipsForRecording = allClips.filter(c => c.recordingId === recording.id)
+      if (clipsForRecording.length === 0) continue
+
+      const sortedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp)
+
+      const clusters: { startTime: number; endTime: number }[] = []
+      let currentCluster: { startTime: number; endTime: number } | null = null
+
+      for (const event of sortedEvents) {
+        if (!currentCluster) {
+          currentCluster = { startTime: event.timestamp, endTime: event.timestamp }
+          continue
+        }
+
+        if (event.timestamp - currentCluster.endTime <= MAX_GAP_MS) {
+          currentCluster.endTime = event.timestamp
+          continue
+        }
+
+        clusters.push(currentCluster)
+        currentCluster = { startTime: event.timestamp, endTime: event.timestamp }
+      }
+      if (currentCluster) clusters.push(currentCluster)
+
+      // Collect timeline ranges for each cluster from all clips
+      for (const clip of clipsForRecording) {
+        const clipStart = clip.startTime
+        const clipEnd = clip.startTime + clip.duration
+
+        const clipSourceIn = clip.sourceIn ?? 0
+        const clipSourceOut = clip.sourceOut ?? (clipSourceIn + getSourceDuration(clip))
+
+        clusters.forEach((cluster, clusterIndex) => {
+          const paddedSourceStart = cluster.startTime - PADDING_MS
+          const paddedSourceEnd = cluster.endTime + PADDING_MS
+
+          // Skip if cluster doesn't intersect this clip's SOURCE range.
+          if (paddedSourceEnd <= clipSourceIn || paddedSourceStart >= clipSourceOut) return
+
+          // Map source → timeline using the canonical converter (handles playbackRate + time remaps).
+          const timelineStart = sourceToTimeline(paddedSourceStart, clip)
+          const timelineEnd = sourceToTimeline(paddedSourceEnd, clip)
+
+          // Clamp to this clip's timeline bounds.
+          const effectStart = Math.max(clipStart, Math.min(clipEnd, timelineStart))
+          const effectEnd = Math.max(effectStart, Math.min(clipEnd, timelineEnd))
+          if (effectEnd - effectStart < MIN_DURATION_MS) return
+
+          const key = `${recording.id}::${clusterIndex}`
+          if (!clusterTimelineRanges.has(key)) {
+            clusterTimelineRanges.set(key, [])
+          }
+          clusterTimelineRanges.get(key)!.push({ start: effectStart, end: effectEnd })
+        })
+      }
+
+      // Create merged keystroke effects for each cluster
+      clusters.forEach((_, clusterIndex) => {
+        const key = `${recording.id}::${clusterIndex}`
+        const ranges = clusterTimelineRanges.get(key)
+        if (!ranges || ranges.length === 0) return
+
+        // Sort ranges by start time
+        ranges.sort((a, b) => a.start - b.start)
+
+        // Merge overlapping/adjacent ranges (within 1ms tolerance)
+        const MERGE_TOLERANCE_MS = 1
+        const mergedRanges: { start: number; end: number }[] = []
+
+        for (const range of ranges) {
+          if (mergedRanges.length === 0) {
+            mergedRanges.push({ ...range })
+            continue
+          }
+
+          const last = mergedRanges[mergedRanges.length - 1]
+          // If adjacent or overlapping, merge
+          if (range.start <= last.end + MERGE_TOLERANCE_MS) {
+            last.end = Math.max(last.end, range.end)
+          } else {
+            mergedRanges.push({ ...range })
+          }
+        }
+
+        // Create one keystroke effect per merged range
+        for (let rangeIndex = 0; rangeIndex < mergedRanges.length; rangeIndex++) {
+          const merged = mergedRanges[rangeIndex]
+
+          // Use a stable ID based on recording + cluster + range index
+          const id = `keystroke|${recording.id}|${clusterIndex}|${rangeIndex}`
+          const saved = stateById.get(id) ??
+            legacyStateByRecordingCluster.get(key) ??
+            null
+
+          project.timeline.effects!.push(this.createKeystrokeEffect({
+            id,
+            startTime: merged.start,
+            endTime: merged.end,
+            enabled: saved?.enabled ?? true,
+            data: (saved?.data ?? templateData) as KeystrokeEffectData | undefined
+          }))
+        }
+      })
+    }
   }
   static getEffectsInTimeRange(effects: Effect[], startTime: number, endTime: number): Effect[] {
     return effects.filter(effect =>
@@ -100,7 +297,12 @@ export class EffectsFactory {
     return effects.find(e => e.type === EffectType.Cursor)
   }
 
+  static getKeystrokeEffects(effects: Effect[]): Effect[] {
+    return effects.filter(e => e.type === EffectType.Keystroke)
+  }
+
   static getKeystrokeEffect(effects: Effect[]): Effect | undefined {
+    // Returns first keystroke effect (for settings UI)
     return effects.find(e => e.type === EffectType.Keystroke)
   }
 
@@ -119,6 +321,10 @@ export class EffectsFactory {
     return effects.some(e => e.type === EffectType.Zoom && e.enabled)
   }
   static hasKeystrokeTrack(effects: Effect[]): boolean {
+    return effects.some(e => e.type === EffectType.Keystroke)
+  }
+
+  static hasEnabledKeystrokeEffects(effects: Effect[]): boolean {
     return effects.some(e => e.type === EffectType.Keystroke && e.enabled)
   }
 

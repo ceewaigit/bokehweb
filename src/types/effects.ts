@@ -14,6 +14,7 @@ export enum EffectLayerType {
   Cursor = 'cursor',
   Background = 'background',
   Screen = 'screen',
+  Keystroke = 'keystroke',
 }
 
-export type SelectedEffectLayer = { type: EffectLayerType; id?: string } | null 
+export type SelectedEffectLayer = { type: EffectLayerType; id?: string } | null

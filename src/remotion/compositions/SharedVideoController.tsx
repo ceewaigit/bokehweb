@@ -21,7 +21,7 @@ import { calculateZoomTransform, getZoomTransformString } from './utils/zoom-tra
 import { calculateScreenTransform } from './utils/screen-transform';
 import { EffectType } from '@/types/project';
 import { EffectsFactory } from '@/lib/effects/effects-factory';
-import type { Effect, Recording, Clip } from '@/types/project';
+import type { Effect, Recording } from '@/types/project';
 import { RecordingStorage } from '@/lib/storage/recording-storage';
 import { buildFrameLayout } from '@/lib/timeline/frame-layout';
 import { getActiveClipDataAtFrame } from '@/remotion/utils/get-active-clip-data-at-frame';
@@ -176,43 +176,6 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
     };
   }, [currentFrame, isRendering, markRenderReady]);
 
-  // Compute draw area aspect before camera state so bounds match letterboxed video.
-  const videoDrawArea = useMemo(() => {
-    if (!activeClipData) return null;
-    const { recording, sourceTimeMs, effects: clipEffects } = activeClipData;
-    const backgroundEffect = EffectsFactory.getActiveEffectAtTime(clipEffects, EffectType.Background, sourceTimeMs);
-    const backgroundData = backgroundEffect ? EffectsFactory.getBackgroundData(backgroundEffect) : null;
-    const padding = backgroundData?.padding || 0;
-    // RESOLUTION-AGNOSTIC: Use fixed 1080p reference (1920x1080) for scale factor.
-    // This ensures padding appears the same regardless of source resolution (720p, 1080p, 4K, etc.)
-    // The padding is authored at 1080p reference scale.
-    const REFERENCE_WIDTH = 1920;
-    const REFERENCE_HEIGHT = 1080;
-    const scaleFactor = Math.min(width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT);
-    const paddingScaled = padding * scaleFactor;
-    return calculateVideoPosition(
-      width,
-      height,
-      sourceVideoWidth ?? videoWidth,
-      sourceVideoHeight ?? videoHeight,
-      paddingScaled
-    );
-  }, [activeClipData, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight]);
-
-  const cameraOverscan = useMemo(() => {
-    if (!videoDrawArea || videoDrawArea.drawWidth <= 0 || videoDrawArea.drawHeight <= 0) return undefined;
-    const leftPx = videoDrawArea.offsetX;
-    const rightPx = width - videoDrawArea.offsetX - videoDrawArea.drawWidth;
-    const topPx = videoDrawArea.offsetY;
-    const bottomPx = height - videoDrawArea.offsetY - videoDrawArea.drawHeight;
-    return {
-      left: Math.max(0, leftPx / videoDrawArea.drawWidth),
-      right: Math.max(0, rightPx / videoDrawArea.drawWidth),
-      top: Math.max(0, topPx / videoDrawArea.drawHeight),
-      bottom: Math.max(0, bottomPx / videoDrawArea.drawHeight),
-    };
-  }, [videoDrawArea, width, height]);
-
   // ALWAYS use precomputed camera path for both preview and export.
   // This ensures identical camera behavior - what you see in preview is exactly what exports.
   // Uses stable videoWidth/videoHeight (not composition dimensions) so preview matches export.
@@ -290,7 +253,7 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
       extra3DTransform,
       zoomTransform,
     };
-  }, [activeClipData, width, height, videoWidth, videoHeight, calculatedZoomBlock, calculatedZoomCenter, currentTimeMs]);
+  }, [activeClipData, width, height, videoWidth, videoHeight, sourceVideoWidth, sourceVideoHeight, calculatedZoomBlock, calculatedZoomCenter, currentTimeMs]);
 
   // If no clips at all, render black frame
   if (!renderData || sortedClips.length === 0) {
@@ -343,7 +306,8 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
 
   return (
     <VideoPositionProvider value={videoPositionValue}>
-      <AbsoluteFill style={{ zIndex: 50 }}>
+      {/* Video layer (bottom). Overlays are rendered above via `children`. */}
+      <AbsoluteFill style={{ zIndex: 10 }}>
         <div
           style={{
             position: 'absolute',
@@ -468,7 +432,10 @@ export const SharedVideoController: React.FC<SharedVideoControllerProps> = ({
           })}
         </div>
       </AbsoluteFill>
-      {children}
+      {/* Overlay layers (top) */}
+      <AbsoluteFill style={{ zIndex: 20 }}>
+        {children}
+      </AbsoluteFill>
     </VideoPositionProvider>
   );
 };

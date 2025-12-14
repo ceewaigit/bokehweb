@@ -136,8 +136,15 @@ export function TimelineCanvas({
     )
   }, [allZoomEffects, duration, stageSize.width])
 
-  // Show keystroke track if ANY keystroke effects exist
-  const hasKeystrokeTrack = EffectsFactory.hasKeystrokeTrack(currentProject?.timeline.effects || [])
+  // Show keystroke track if keystrokes exist in metadata OR any keystroke effect exists.
+  // This ensures the UI exposes the keystroke lane/toggle even if the effect is disabled or missing.
+  const hasAnyKeyboardEvents = (currentProject?.recordings || []).some(
+    (r) => (r.metadata?.keyboardEvents?.length ?? 0) > 0
+  )
+  const hasAnyKeystrokeEffect = (currentProject?.timeline.effects || []).some(
+    (e) => e.type === EffectType.Keystroke
+  )
+  const hasKeystrokeTrack = hasAnyKeystrokeEffect || hasAnyKeyboardEvents
 
   // Calculate track heights based on number of tracks
   const calculateTrackHeights = () => {
@@ -764,6 +771,76 @@ export function TimelineCanvas({
                 <>
                   {screenBlocks}
                   {selectedScreenBlocks}
+                </>
+              )
+            })()}
+
+            {/* Keystroke blocks - rendered in dedicated Keystroke track */}
+            {hasKeystrokeTrack && (() => {
+              const effectsSource = currentProject.timeline.effects || []
+              const keystrokeEffects = effectsSource.filter((e) => e.type === EffectType.Keystroke)
+              if (keystrokeEffects.length === 0) return null
+
+              const blocks: React.ReactElement[] = []
+              const selectedBlocks: React.ReactElement[] = []
+
+              const renderBlocks = keystrokeEffects.map((e) => {
+                const startTime = Math.max(0, e.startTime)
+                const endTime = Math.min(currentProject.timeline.duration, e.endTime)
+                return { id: e.id, startTime, endTime }
+              })
+
+              const yBase = rulerHeight + videoTrackHeight + zoomTrackHeight + screenTrackHeight + TimelineConfig.TRACK_PADDING
+
+              keystrokeEffects.forEach((effect) => {
+                const isBlockSelected =
+                  selectedEffectLayer?.type === EffectLayerType.Keystroke && selectedEffectLayer?.id === effect.id
+
+                const startTime = Math.max(0, effect.startTime)
+                const endTime = Math.min(currentProject.timeline.duration, effect.endTime)
+
+                const calculatedWidth = TimeConverter.msToPixels(endTime - startTime, pixelsPerMs)
+                const visualWidth = Math.max(TimelineConfig.ZOOM_EFFECT_MIN_VISUAL_WIDTH_PX, calculatedWidth)
+                const isCompact = calculatedWidth < TimelineConfig.ZOOM_EFFECT_COMPACT_THRESHOLD_PX
+
+                const blockElement = (
+                  <TimelineEffectBlock
+                    key={effect.id}
+                    blockId={effect.id}
+                    x={TimeConverter.msToPixels(startTime, pixelsPerMs) + TimelineConfig.TRACK_LABEL_WIDTH}
+                    y={yBase}
+                    width={visualWidth}
+                    height={keystrokeTrackHeight - TimelineConfig.TRACK_PADDING * 2}
+                    isCompact={isCompact}
+                    startTime={startTime}
+                    endTime={endTime}
+                    label={'Keys'}
+                    fillColor={colors.warning}
+                    isSelected={isBlockSelected}
+                    isEnabled={effect.enabled}
+                    allBlocks={renderBlocks}
+                    pixelsPerMs={pixelsPerMs}
+                    onSelect={() => {
+                      selectEffectLayer(EffectLayerType.Keystroke, effect.id)
+                      setTimeout(() => {
+                        containerRef.current?.focus()
+                      }, 0)
+                    }}
+                    onUpdate={(updates) => updateEffect(effect.id, updates)}
+                  />
+                )
+
+                if (isBlockSelected) {
+                  selectedBlocks.push(blockElement)
+                } else {
+                  blocks.push(blockElement)
+                }
+              })
+
+              return (
+                <>
+                  {blocks}
+                  {selectedBlocks}
                 </>
               )
             })()}

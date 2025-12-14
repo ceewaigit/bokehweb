@@ -314,6 +314,9 @@ export const useProjectStore = create<ProjectStore>()(
         const clip = addClipToTrack(state.currentProject, clipOrRecordingId, startTime)
 
         if (clip) {
+          // New clip can change mapping; keep derived keystroke blocks aligned.
+          EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
           state.selectedClipId = clip.id
           state.selectedClips = [clip.id]
 
@@ -328,6 +331,9 @@ export const useProjectStore = create<ProjectStore>()(
         if (!state.currentProject) return
 
         if (removeClipFromTrack(state.currentProject, clipId)) {
+          // Clip removal changes layout; rebuild derived keystroke blocks.
+          EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
           // Clear selection if removed clip was selected
           if (state.selectedClipId === clipId) {
             state.selectedClipId = null
@@ -353,6 +359,9 @@ export const useProjectStore = create<ProjectStore>()(
           console.error('updateClip: Failed to update clip')
           return
         }
+
+        // Clip timing/position can change (drag/trim/etc); keep derived keystroke blocks aligned.
+        EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
         // Maintain playhead relative position inside the edited clip
         const updatedResult = findClipById(state.currentProject, clipId)
@@ -387,6 +396,9 @@ export const useProjectStore = create<ProjectStore>()(
         if (!restoreClipToTrack(state.currentProject, trackId, clip, index)) {
           return
         }
+
+        // Clip restoration changes layout; rebuild derived keystroke blocks.
+        EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
         // Update playhead state
         updatePlayheadState(state)
@@ -453,6 +465,9 @@ export const useProjectStore = create<ProjectStore>()(
           return
         }
 
+        // Split changes clip boundaries; rebuild derived keystroke blocks.
+        EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
         const { firstClip } = result
 
         // Select the left clip to keep focus at the split point
@@ -478,6 +493,9 @@ export const useProjectStore = create<ProjectStore>()(
           return
         }
 
+        // Trim changes clip boundaries; rebuild derived keystroke blocks.
+        EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
         // Update playhead state in case trim affects current time
         updatePlayheadState(state)
       })
@@ -491,6 +509,9 @@ export const useProjectStore = create<ProjectStore>()(
         if (!executeTrimClipEnd(state.currentProject, clipId, newEndTime)) {
           return
         }
+
+        // Trim changes clip boundaries; rebuild derived keystroke blocks.
+        EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
         // Update playhead state in case trim affects current time
         updatePlayheadState(state)
@@ -507,6 +528,9 @@ export const useProjectStore = create<ProjectStore>()(
         if (!newClip) return
 
         newClipId = newClip.id
+
+        // Duplicated clips should get matching derived keystroke blocks.
+        EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
         // Select the duplicated clip
         state.selectedClipId = newClip.id
@@ -536,6 +560,9 @@ export const useProjectStore = create<ProjectStore>()(
             // Reflow all clips to ensure contiguity from time 0
             // Use skipSort: true to preserve the manual reorder we just performed
             reflowClips(track, 0, { skipSort: true })
+
+            // Start times changed; rebuild derived keystroke blocks.
+            EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
             // Force new array reference to ensure all consumers get fresh data
             // This breaks any stale references in memoized contexts
@@ -720,6 +747,9 @@ export const useProjectStore = create<ProjectStore>()(
           periods
         )
 
+        // Typing speed can change durations/time-remaps (and sometimes clip IDs); rebuild derived keystroke blocks.
+        EffectsFactory.syncKeystrokeEffects(state.currentProject)
+
         // Update modified timestamp to trigger save button
         state.currentProject.modifiedAt = new Date().toISOString()
 
@@ -798,6 +828,9 @@ export const useProjectStore = create<ProjectStore>()(
         // Step 5: Update timeline duration
         state.currentProject.timeline.duration = calculateTimelineDuration(state.currentProject)
         state.currentProject.modifiedAt = new Date().toISOString()
+
+        // Clip layout changed; rebuild derived keystroke blocks.
+        EffectsFactory.syncKeystrokeEffects(state.currentProject)
 
         // Step 6: Update playhead state
         updatePlayheadState(state)

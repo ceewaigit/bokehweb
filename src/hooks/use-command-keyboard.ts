@@ -48,11 +48,11 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
     // Copy handler
     const handleCopy = async () => {
       const freshContext = new DefaultCommandContext(useProjectStore)
-      
+
       try {
         const command = new CopyCommand(freshContext)
         const result = await manager.execute(command)
-        
+
         if (result.success) {
           if (result.data?.type === 'effect') {
             toast(`${result.data.effectType} block copied`)
@@ -74,7 +74,7 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
       contextRef.current = new DefaultCommandContext(useProjectStore)
       const command = new CutCommand(contextRef.current)
       const result = await manager.execute(command)
-      
+
       if (result.success) {
         toast('Clip cut')
       } else {
@@ -85,11 +85,11 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
     // Paste handler
     const handlePaste = async () => {
       const freshContext = new DefaultCommandContext(useProjectStore)
-      
+
       try {
         const command = new PasteCommand(freshContext)
         const result = await manager.execute(command)
-        
+
         if (result.success) {
           if (result.data?.type === 'effect') {
             // Auto-select pasted effect in sidebar
@@ -111,50 +111,40 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
 
     // Delete handler
     const handleDelete = async () => {
-      // Create new context with live state access
       const freshContext = new DefaultCommandContext(useProjectStore)
-      
-      // Check if an effect layer is selected (e.g., zoom block or screen block)
+
+      // Check if an effect layer is selected
       const effectLayer = useProjectStore.getState().selectedEffectLayer
-      if (effectLayer && effectLayer.type === EffectLayerType.Zoom && effectLayer.id) {
-        const command = new RemoveZoomBlockCommand(
-          freshContext,
-          effectLayer.id
-        )
-        
-        try {
-          const result = await manager.execute(command)
-          if (result.success) {
-            // Clear selection after successful deletion
-            useProjectStore.getState().clearEffectSelection()
-            toast('Zoom block deleted')
-          } else {
-            console.error('[Keyboard] Delete failed:', result.error)
-            toast.error(result.error as string)
-          }
-        } catch (err) {
-          console.error('[Keyboard] Delete failed:', err)
-          toast.error('Failed to delete')
+
+      // Handle any selected effect layer with an ID
+      if (effectLayer?.id) {
+        // Use appropriate command based on effect type
+        let command
+        let effectName = 'Effect'
+
+        if (effectLayer.type === EffectLayerType.Zoom) {
+          command = new RemoveZoomBlockCommand(freshContext, effectLayer.id)
+          effectName = 'Zoom block'
+        } else {
+          // Generic handler for Screen, Keystroke, and any other effect types
+          command = new RemoveEffectCommand(freshContext, effectLayer.id)
+          effectName = effectLayer.type === EffectLayerType.Screen ? 'Screen block' :
+            effectLayer.type === EffectLayerType.Keystroke ? 'Keystroke block' :
+              'Effect block'
         }
-        return
-      }
-
-      // Remove selected screen block via command (enables undo/redo)
-      if (effectLayer && effectLayer.type === EffectLayerType.Screen && effectLayer.id) {
-        const command = new RemoveEffectCommand(freshContext, effectLayer.id)
 
         try {
           const result = await manager.execute(command)
           if (result.success) {
             useProjectStore.getState().clearEffectSelection()
-            toast('Screen block deleted')
+            toast(`${effectName} deleted`)
           } else {
-            console.error('[Keyboard] Delete screen block failed:', result.error)
+            console.error('[Keyboard] Delete effect failed:', result.error)
             toast.error(result.error as string)
           }
         } catch (err) {
-          console.error('[Keyboard] Delete screen block failed:', err)
-          toast.error('Failed to delete screen block')
+          console.error('[Keyboard] Delete effect failed:', err)
+          toast.error('Failed to delete')
         }
         return
       }
@@ -191,9 +181,9 @@ export function useCommandKeyboard({ enabled = true }: UseCommandKeyboardProps =
         selectedClips[0],
         currentStore.currentTime
       )
-      
+
       const result = await manager.execute(command)
-      
+
       if (result.success) {
         toast('Clip split')
       } else {

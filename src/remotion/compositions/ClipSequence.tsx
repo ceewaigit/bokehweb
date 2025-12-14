@@ -24,6 +24,8 @@ export interface ClipSequenceProps {
   startFrame: number;
   durationFrames: number;
   videoUrls?: Record<string, string>;
+  includeBackground?: boolean;
+  includeKeystrokes?: boolean;
 }
 
 /**
@@ -40,6 +42,8 @@ export const ClipSequence: React.FC<ClipSequenceProps> = ({
   startFrame,
   durationFrames,
   videoUrls,
+  includeBackground,
+  includeKeystrokes,
 }) => {
   return (
     <Sequence
@@ -48,7 +52,12 @@ export const ClipSequence: React.FC<ClipSequenceProps> = ({
       name={`Clip ${clip.id}`}
     >
       <ClipProvider clip={clip} effects={effects} videoUrls={videoUrls}>
-        <LayerStack videoWidth={videoWidth} videoHeight={videoHeight} />
+        <LayerStack
+          videoWidth={videoWidth}
+          videoHeight={videoHeight}
+          includeBackground={includeBackground}
+          includeKeystrokes={includeKeystrokes}
+        />
       </ClipProvider>
     </Sequence>
   );

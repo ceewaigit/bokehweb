@@ -35,7 +35,7 @@ let excludedApps: Set<String> = [
     "Control Center", "NotificationCenter", "loginwindow",
     "AirPlayUIAgent", "talagent", "universalaccessd",
     "ScreenCaptureKit", "screencapturekt", "screencaptured",
-    "CoreServicesUIAgent", "Finder", "System Preferences",
+    "CoreServicesUIAgent", "System Preferences",
     "System Settings", "FolderActionsDispatcher", "launchservicesd"
 ]
 
@@ -57,7 +57,7 @@ for window in windows {
           let y = bounds["Y"] as? CGFloat,
           let width = bounds["Width"] as? CGFloat,
           let height = bounds["Height"] as? CGFloat,
-          width > 100, height > 100  // Filter out small windows
+          width > 50, height > 50  // Filter out small windows (reduced from 100)
     else { continue }
     
     print("\\(windowId)|\\(ownerName)|\\(name)|\\(Int(x))|\\(Int(y))|\\(Int(width))|\\(Int(height))")

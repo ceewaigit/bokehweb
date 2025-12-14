@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { cn } from '@/lib/utils'
+import { Slider } from '@/components/ui/slider'
 import { useProjectStore } from '@/stores/project-store'
 import type { Clip, Effect } from '@/types/project'
 import { ScreenEffectPreset } from '@/types/project'
@@ -72,27 +73,33 @@ export function ScreenTab({ selectedClip, selectedEffectLayer, onEffectChange }:
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/30">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Tilt Ease In (ms)</label>
-              <input
-                type="range"
+          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border/30">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-muted-foreground">Ease In</label>
+                <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">300ms</span>
+              </div>
+              <Slider
+                defaultValue={[300]}
+                onValueChange={([value]) => onEffectChange(EffectType.Screen, { introMs: value })}
                 min={0}
                 max={1000}
                 step={50}
-                onChange={(e) => onEffectChange(EffectType.Screen, { introMs: Number(e.target.value) })}
-                className="w-full bg-accent"
+                className="w-full"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Tilt Ease Out (ms)</label>
-              <input
-                type="range"
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-muted-foreground">Ease Out</label>
+                <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">300ms</span>
+              </div>
+              <Slider
+                defaultValue={[300]}
+                onValueChange={([value]) => onEffectChange(EffectType.Screen, { outroMs: value })}
                 min={0}
                 max={1000}
                 step={50}
-                onChange={(e) => onEffectChange(EffectType.Screen, { outroMs: Number(e.target.value) })}
-                className="w-full text-accent"
+                className="w-full"
               />
             </div>
           </div>

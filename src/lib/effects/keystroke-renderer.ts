@@ -1,553 +1,374 @@
-import type { KeyboardEvent } from '@/types/project'
+import type { KeyboardEvent, KeystrokeEffectData } from '@/types/project'
 import { KeystrokePosition } from '@/types/project'
 import { getPrintableCharFromKey, isShortcutModifier, isStandaloneModifierKey } from '@/lib/keyboard/keyboard-utils'
 import { DEFAULT_KEYSTROKE_DATA } from '@/lib/constants/default-effects'
 
-interface KeystrokeOptions {
-  fontSize?: number
-  fontFamily?: string
-  backgroundColor?: string
-  textColor?: string
-  borderColor?: string
-  borderRadius?: number
-  padding?: number
-  fadeOutDuration?: number
-  position?: KeystrokePosition
-  maxWidth?: number
-}
+type StylePreset = 'default' | 'glass' | 'minimal' | 'terminal' | 'outline'
 
-interface ActiveKeystroke {
-  id: string
+interface KeystrokeSegment {
   text: string
   startTime: number
-  fadeStartTime: number
-  opacity: number
-  x: number
-  y: number
-  fadeIn?: boolean
-}
-
-interface KeystrokeBuffer {
-  text: string
-  startTime: number
-  lastKeyTime: number
-  keys: KeyboardEvent[]
+  endTime: number
+  isShortcut: boolean
+  charTimestamps: number[]
 }
 
 export class KeystrokeRenderer {
   private canvas: HTMLCanvasElement | null = null
   private ctx: CanvasRenderingContext2D | null = null
-  private activeKeystrokes: Map<string, ActiveKeystroke> = new Map()
   private keyHistory: KeyboardEvent[] = []
-  private currentIndex = 0
-  private buffer: KeystrokeBuffer | null = null
-  private displayQueue: KeystrokeBuffer[] = []
+  private segments: KeystrokeSegment[] = []
+  private options: Required<KeystrokeEffectData>
 
-  // Timing constants
-  private readonly DISPLAY_DURATION = 2500 // ms - how long to show text
-  private readonly FADE_DURATION = 300 // ms - fade out animation
-  private readonly BUFFER_TIMEOUT = 800 // ms - time before flushing buffer
-  private readonly FADE_IN_DURATION = 200 // ms - fade in animation
-
-  constructor(private options: KeystrokeOptions = {}) {
+  constructor(initialOptions: KeystrokeEffectData = {}) {
     this.options = {
       ...DEFAULT_KEYSTROKE_DATA,
-      fadeOutDuration: this.FADE_DURATION,
-      ...options
-    }
+      ...initialOptions
+    } as Required<KeystrokeEffectData>
   }
 
-  updateSettings(newOptions: KeystrokeOptions) {
+  updateSettings(newOptions: KeystrokeEffectData) {
     this.options = {
       ...this.options,
       ...newOptions
-    }
-    // Update canvas font if canvas is set
-    if (this.ctx) {
-      this.ctx.font = `${this.options.fontSize}px ${this.options.fontFamily}`
-    }
+    } as Required<KeystrokeEffectData>
   }
 
   setCanvas(canvas: HTMLCanvasElement) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
-    if (this.ctx) {
-      this.ctx.font = `${this.options.fontSize}px ${this.options.fontFamily}`
-    }
   }
 
   setKeyboardEvents(events: KeyboardEvent[]) {
     this.keyHistory = events
-    this.currentIndex = 0
-    this.activeKeystrokes.clear()
-    this.buffer = null
-    this.displayQueue = []
+    this.segments = this.computeSegments(events)
   }
 
-  private flushBuffer() {
-    if (!this.buffer || this.buffer.text.trim().length === 0) {
-      this.buffer = null
-      return
+  private computeSegments(events: KeyboardEvent[]): KeystrokeSegment[] {
+    const segments: KeystrokeSegment[] = []
+    const BUFFER_TIMEOUT = 800
+    const displayDuration = this.options.displayDuration || 2000
+
+    let currentBuffer: {
+      text: string
+      startTime: number
+      lastKeyTime: number
+      charTimestamps: number[]
+    } | null = null
+
+    const flushBuffer = () => {
+      if (currentBuffer && currentBuffer.text.trim().length > 0) {
+        const trimmedText = currentBuffer.text.trim()
+        const leftTrimCount = currentBuffer.text.length - currentBuffer.text.trimStart().length
+        const adjustedTimestamps = currentBuffer.charTimestamps.slice(
+          leftTrimCount,
+          leftTrimCount + trimmedText.length
+        )
+        segments.push({
+          text: trimmedText,
+          startTime: currentBuffer.startTime,
+          endTime: currentBuffer.lastKeyTime + displayDuration,
+          isShortcut: false,
+          charTimestamps: adjustedTimestamps
+        })
+      }
+      currentBuffer = null
     }
 
-    this.displayQueue.push({
-      text: this.buffer.text.trim(),
-      startTime: this.buffer.startTime,
-      lastKeyTime: this.buffer.lastKeyTime,
-      keys: [...this.buffer.keys]
-    })
+    for (const event of events) {
+      const key = event.key
+      if (isStandaloneModifierKey(key)) continue
 
-    this.buffer = null
+      const shortcut = isShortcutModifier(event.modifiers || [])
+      const isSpecialKey = key === 'Enter' || key === 'Tab' || key === 'Escape'
+      const isTimeGap = currentBuffer && (event.timestamp - currentBuffer.lastKeyTime > BUFFER_TIMEOUT)
+
+      if (isTimeGap && currentBuffer) flushBuffer()
+      if ((isSpecialKey || shortcut) && currentBuffer) flushBuffer()
+
+      if (shortcut) {
+        const keyDisplay = this.formatModifierKey(key, event.modifiers)
+        segments.push({
+          text: keyDisplay,
+          startTime: event.timestamp,
+          endTime: event.timestamp + displayDuration,
+          isShortcut: true,
+          charTimestamps: [event.timestamp]
+        })
+      } else if (isSpecialKey) {
+        const keyDisplay = this.formatSpecialKey(key)
+        segments.push({
+          text: keyDisplay,
+          startTime: event.timestamp,
+          endTime: event.timestamp + displayDuration,
+          isShortcut: true,
+          charTimestamps: [event.timestamp]
+        })
+      } else if (key === 'Backspace' || key === 'Delete') {
+        if (currentBuffer && currentBuffer.text.length > 0) {
+          currentBuffer.text = currentBuffer.text.slice(0, -1)
+          currentBuffer.charTimestamps.pop()
+          currentBuffer.lastKeyTime = event.timestamp
+          if (currentBuffer.text.length === 0) currentBuffer = null
+        }
+      } else {
+        const printable = getPrintableCharFromKey(key, event.modifiers)
+        if (printable) {
+          if (!currentBuffer) {
+            currentBuffer = { text: '', startTime: event.timestamp, lastKeyTime: event.timestamp, charTimestamps: [] }
+          }
+          currentBuffer.text += printable
+          currentBuffer.charTimestamps.push(event.timestamp)
+          currentBuffer.lastKeyTime = event.timestamp
+        }
+      }
+    }
+
+    flushBuffer()
+    return segments
   }
 
   render(timestamp: number, videoWidth: number, videoHeight: number) {
-    if (!this.canvas || !this.ctx || this.keyHistory.length === 0) return
+    if (!this.canvas || !this.ctx || this.segments.length === 0) return
 
-    // Process new keystrokes into buffer
-    while (this.currentIndex < this.keyHistory.length) {
-      const event = this.keyHistory[this.currentIndex]
-      if (event.timestamp > timestamp) break
-      const key = event.key
+    const displayDuration = this.options.displayDuration || 2000
+    const fadeOutDuration = this.options.fadeOutDuration || 400
+    const fadeInDuration = 120
 
-      // Filter out standalone modifier keys
-      if (!isStandaloneModifierKey(key)) {
-        // Check if we should flush buffer (Enter key, long pause, or special keys)
-        const shortcut = isShortcutModifier(event.modifiers || [])
-        const shouldFlush =
-          key === 'Enter' ||
-          key === 'Tab' ||
-          key === 'Escape' ||
-          (this.buffer && event.timestamp - this.buffer.lastKeyTime > this.BUFFER_TIMEOUT) ||
-          shortcut // Shortcut keys flush buffer
+    let activeSegment: KeystrokeSegment | null = null
+    let displayText: string | null = null
+    let isMidTyping = false
 
-        if (shouldFlush && this.buffer) {
-          this.flushBuffer()
+    for (const segment of this.segments) {
+      const fadeEnd = segment.endTime + fadeOutDuration
+      if (segment.startTime > timestamp || fadeEnd < timestamp) continue
+
+      if (!segment.isShortcut) {
+        let charsToShow = 0
+        for (const charTime of segment.charTimestamps) {
+          if (charTime <= timestamp) charsToShow++
+          else break
         }
-
-        // Handle different key types
-        if (shortcut) {
-          // Shortcut keys show immediately
-          const keyDisplay = this.formatSingleKey(key, event.modifiers)
-          this.displayQueue.push({
-            text: keyDisplay,
-            startTime: event.timestamp,
-            lastKeyTime: event.timestamp,
-            keys: [event]
-          })
-        } else if (key === 'Enter' || key === 'Tab' || key === 'Escape') {
-          // Special keys show with their symbol
-          const keyDisplay = this.formatKey(key)
-          this.displayQueue.push({
-            text: keyDisplay,
-            startTime: event.timestamp,
-            lastKeyTime: event.timestamp,
-            keys: [event]
-          })
-        } else if (key === 'Backspace' || key === 'Delete') {
-          // Handle backspace/delete in buffer
-          if (this.buffer && this.buffer.text.length > 0) {
-            // Remove last character from buffer
-            this.buffer.text = this.buffer.text.slice(0, -1)
-            this.buffer.lastKeyTime = event.timestamp
-            this.buffer.keys.push(event)
-
-            // If buffer is now empty, clear it
-            if (this.buffer.text.length === 0) {
-              this.buffer = null
-            }
-          }
-        } else {
-          // Regular typing - add to buffer
-          if (!this.buffer) {
-            this.buffer = {
-              text: '',
-              startTime: event.timestamp,
-              lastKeyTime: event.timestamp,
-              keys: []
-            }
-          }
-
-          // Add printable character to buffer (supports KeyA/Digit1/numeric codes)
-          const printable = getPrintableCharFromKey(key, event.modifiers)
-          if (printable) {
-            this.buffer.text += printable
-          }
-
-          this.buffer.lastKeyTime = event.timestamp
-          this.buffer.keys.push(event)
-        }
-      }
-
-      this.currentIndex++
-    }
-
-    // Check if we should flush buffer due to timeout
-    if (this.buffer && timestamp - this.buffer.lastKeyTime > this.BUFFER_TIMEOUT) {
-      this.flushBuffer()
-    }
-
-    // Show current buffer text progressively if it exists
-    if (this.buffer && this.buffer.text.length > 0) {
-      // Calculate how many characters to show based on actual typing speed
-      // Count how many keys were typed (excluding backspaces)
-      const typedKeys = this.buffer.keys.filter(k => k.key !== 'Backspace' && k.key !== 'Delete')
-
-      // Show characters based on actual key timing
-      let charsToShow = 0
-      for (const key of typedKeys) {
-        if (key.timestamp <= timestamp) {
-          charsToShow++
-        } else {
+        if (charsToShow > 0) {
+          displayText = segment.text.substring(0, charsToShow)
+          activeSegment = segment
+          isMidTyping = charsToShow < segment.text.length
           break
         }
-      }
-
-      // Ensure we don't exceed buffer text length
-      charsToShow = Math.min(charsToShow, this.buffer.text.length)
-
-      if (charsToShow > 0) {
-        const displayText = this.buffer.text.substring(0, charsToShow)
-        const bufferId = 'current-buffer'
-
-        // Update or create the current buffer display
-        if (!this.activeKeystrokes.has(bufferId)) {
-          const position = this.calculatePosition(0, videoWidth, videoHeight)
-          this.activeKeystrokes.set(bufferId, {
-            id: bufferId,
-            text: displayText,
-            startTime: timestamp,
-            fadeStartTime: timestamp + 10000, // Don't fade while typing
-            opacity: 1,
-            x: position.x,
-            y: position.y,
-            fadeIn: true
-          })
-        } else {
-          // Update existing text
-          const existing = this.activeKeystrokes.get(bufferId)!
-          existing.text = displayText
-          existing.fadeStartTime = timestamp + 10000 // Keep resetting fade
-        }
-      }
-    }
-
-    // Process display queue for completed text blocks
-    while (this.displayQueue.length > 0) {
-      const buffered = this.displayQueue.shift()!
-
-      // Wait for the right time to show this text
-      if (buffered.startTime > timestamp) {
-        // Put it back, not time yet
-        this.displayQueue.unshift(buffered)
+      } else {
+        displayText = segment.text
+        activeSegment = segment
         break
       }
-
-      // Remove current buffer display if exists
-      if (this.activeKeystrokes.has('current-buffer')) {
-        this.activeKeystrokes.delete('current-buffer')
-      }
-
-      // Show the completed text for its display duration
-      const position = this.calculatePosition(0, videoWidth, videoHeight)
-      const keystrokeId = `buffer-${buffered.startTime}`
-
-      this.activeKeystrokes.set(keystrokeId, {
-        id: keystrokeId,
-        text: buffered.text,
-        startTime: timestamp,
-        fadeStartTime: timestamp + this.DISPLAY_DURATION,
-        opacity: 1,
-        x: position.x,
-        y: position.y,
-        fadeIn: true
-      })
-
-      // Since MAX_CONCURRENT is 1, we should already have removed the buffer above
     }
 
-    // Update and render active keystrokes
-    const toRemove: string[] = []
+    if (!activeSegment || !displayText) return
 
-    this.activeKeystrokes.forEach((keystroke, id) => {
-      // Calculate opacity based on fade
-      if (timestamp >= keystroke.fadeStartTime) {
-        const fadeProgress = (timestamp - keystroke.fadeStartTime) / this.FADE_DURATION
-        keystroke.opacity = Math.max(0, 1 - fadeProgress)
+    let opacity = 1
+    const elapsed = timestamp - activeSegment.startTime
+    if (elapsed < fadeInDuration) opacity = Math.min(1, elapsed / fadeInDuration)
+    if (!isMidTyping && timestamp >= activeSegment.endTime) {
+      const fadeProgress = (timestamp - activeSegment.endTime) / fadeOutDuration
+      opacity = Math.max(0, 1 - fadeProgress)
+    }
 
-        if (keystroke.opacity <= 0) {
-          toRemove.push(id)
-          return
-        }
-      }
+    if (opacity <= 0) return
 
-      // Apply fade-in effect if needed
-      if (keystroke.fadeIn) {
-        const fadeInProgress = Math.min(1, (timestamp - keystroke.startTime) / this.FADE_IN_DURATION)
-        keystroke.opacity = Math.min(keystroke.opacity, fadeInProgress)
-        if (fadeInProgress >= 1) {
-          keystroke.fadeIn = false
-        }
-      }
-
-      // Render the keystroke
-      this.drawKeystroke(keystroke, videoWidth, videoHeight)
-    })
-
-    // Clean up faded keystrokes
-    toRemove.forEach(id => this.activeKeystrokes.delete(id))
+    const position = this.calculatePosition(videoWidth, videoHeight)
+    this.drawKeystroke(displayText, position.x, position.y, opacity)
   }
 
-
-  private formatSingleKey(key: string, modifiers: string[]): string {
-    // Normalize key for display - convert KeyA→A, Digit1→1
-    let displayKey = key
-    if (key.startsWith('Key') && key.length === 4) {
-      displayKey = key.charAt(3).toUpperCase()
-    } else if (key.startsWith('Digit') && key.length === 6) {
-      displayKey = key.charAt(5)
-    } else if (/^\d+$/.test(key)) {
-      const printable = getPrintableCharFromKey(key, modifiers)
-      if (printable && printable.length === 1) {
-        displayKey = printable
-      }
-    }
-
-    // Handle modifier combos (e.g., Cmd+C)
+  private formatModifierKey(key: string, modifiers: string[]): string {
+    let displayKey = this.normalizeKey(key)
     if (modifiers.length > 0 && displayKey.length === 1) {
       const parts: string[] = []
-      // Add modifiers with Mac-style symbols
-      if (modifiers.includes('cmd') || modifiers.includes('meta')) parts.push('⌘')
-      if (modifiers.includes('ctrl')) parts.push('⌃')
-      if (modifiers.includes('alt') || modifiers.includes('option')) parts.push('⌥')
-      if (modifiers.includes('shift')) parts.push('⇧')
+      const useSymbols = this.options.showModifierSymbols !== false
+      if (modifiers.includes('cmd') || modifiers.includes('meta')) parts.push(useSymbols ? '⌘' : 'Cmd+')
+      if (modifiers.includes('ctrl')) parts.push(useSymbols ? '⌃' : 'Ctrl+')
+      if (modifiers.includes('alt') || modifiers.includes('option')) parts.push(useSymbols ? '⌥' : 'Alt+')
+      if (modifiers.includes('shift')) parts.push(useSymbols ? '⇧' : 'Shift+')
       parts.push(displayKey.toUpperCase())
       return parts.join('')
     }
-
-    // For regular typing, just show the character
-    if (displayKey.length === 1) {
-      return displayKey
-    }
-
-    // For special keys, show them with formatting
-    return this.formatKey(key)
+    return displayKey.length === 1 ? displayKey : this.formatSpecialKey(key)
   }
 
-  private formatKey(key: string): string {
-    // Special key mappings for better display
+  private normalizeKey(key: string): string {
+    if (key.startsWith('Key') && key.length === 4) return key.charAt(3).toUpperCase()
+    if (key.startsWith('Digit') && key.length === 6) return key.charAt(5)
+    if (key.length === 1) return key
+    return key
+  }
+
+  private formatSpecialKey(key: string): string {
     const keyMap: Record<string, string> = {
-      ' ': 'Space',
-      'Space': 'Space',
-      'Enter': '↵',
-      'Return': '↵',
-      'Tab': '⇥',
-      'Backspace': '⌫',
-      'Delete': '⌦',
-      'Escape': 'Esc',
-      'ArrowUp': '↑',
-      'ArrowDown': '↓',
-      'ArrowLeft': '←',
-      'ArrowRight': '→',
-      'Home': '↖',
-      'End': '↘',
-      'PageUp': '⇞',
-      'PageDown': '⇟',
+      'Space': '␣', 'Enter': '↵', 'Return': '↵', 'Tab': '⇥',
+      'Backspace': '⌫', 'Delete': '⌦', 'Escape': 'esc',
+      'ArrowUp': '↑', 'ArrowDown': '↓', 'ArrowLeft': '←', 'ArrowRight': '→',
     }
-
-    // Direct mapping first
-    if (keyMap[key]) {
-      return keyMap[key]
-    }
-
-    // Handle KeyA-KeyZ format → A-Z
-    if (key.startsWith('Key') && key.length === 4) {
-      return key.charAt(3).toUpperCase()
-    }
-
-    // Handle Digit0-Digit9 format → 0-9
-    if (key.startsWith('Digit') && key.length === 6) {
-      return key.charAt(5)
-    }
-
-    // Handle Numpad keys → show with prefix
-    if (key.startsWith('Numpad')) {
-      const numpadKey = key.slice(6)
-      if (numpadKey.length === 1) {
-        return numpadKey // Just the digit
-      }
-      // Numpad operators
-      const numpadMap: Record<string, string> = {
-        'Multiply': '×',
-        'Add': '+',
-        'Subtract': '-',
-        'Decimal': '.',
-        'Divide': '÷',
-        'Enter': '↵',
-      }
-      return numpadMap[numpadKey] || numpadKey
-    }
-
-    // Handle modifier keys - strip Left/Right suffix
-    if (key.endsWith('Left') || key.endsWith('Right')) {
-      const base = key.replace(/(Left|Right)$/, '')
-      const modifierMap: Record<string, string> = {
-        'Shift': '⇧',
-        'Control': '⌃',
-        'Alt': '⌥',
-        'Meta': '⌘',
-      }
-      return modifierMap[base] || base
-    }
-
-    // F-keys are already fine (F1, F2, etc.)
-    if (key.match(/^F\d{1,2}$/)) {
-      return key
-    }
-
-    return key.toUpperCase()
+    if (keyMap[key]) return keyMap[key]
+    if (key.startsWith('Key') && key.length === 4) return key.charAt(3).toUpperCase()
+    if (key.startsWith('Digit') && key.length === 6) return key.charAt(5)
+    if (key.match(/^F\d{1,2}$/)) return key
+    return key.toLowerCase()
   }
 
-  private calculatePosition(
-    _index: number, // Keep for compatibility but unused since we only show one at a time
-    videoWidth: number,
-    videoHeight: number
-  ): { x: number; y: number } {
-    const margin = 40
-    // Use half of maxWidth as offset since box is centered around X position
-    const rightAlignOffset = (this.options.maxWidth || 300) / 2 + this.options.padding!
+  private calculatePosition(videoWidth: number, videoHeight: number): { x: number; y: number } {
+    const scale = this.options.scale || 1
+    const margin = 48 * scale
 
     switch (this.options.position) {
       case KeystrokePosition.BottomRight:
-        return {
-          x: videoWidth - margin - rightAlignOffset,
-          y: videoHeight - margin
-        }
+        return { x: videoWidth - margin - 100, y: videoHeight - margin }
       case KeystrokePosition.TopCenter:
-        return {
-          x: videoWidth / 2,
-          y: margin
-        }
+        return { x: videoWidth / 2, y: margin }
       case KeystrokePosition.BottomCenter:
       default:
-        return {
-          x: videoWidth / 2,
-          y: videoHeight - margin
-        }
+        return { x: videoWidth / 2, y: videoHeight - margin }
     }
   }
 
-  private drawKeystroke(keystroke: ActiveKeystroke, _videoWidth: number, _videoHeight: number) {
+  private drawKeystroke(text: string, x: number, y: number, opacity: number) {
     if (!this.ctx) return
 
     const ctx = this.ctx
+    const scale = this.options.scale || 1
+    const fontSize = (this.options.fontSize || 14) * scale
+    const padding = (this.options.padding || 10) * scale
+    const borderRadius = (this.options.borderRadius || 8) * scale
+    const preset = this.options.stylePreset || 'glass'
+
     ctx.save()
+    ctx.globalAlpha = opacity
 
-    // Set opacity
-    ctx.globalAlpha = keystroke.opacity
+    // Clean, professional typography
+    const isTerminal = preset === 'terminal'
+    const fontFamily = isTerminal
+      ? 'ui-monospace, "SF Mono", Monaco, "Cascadia Code", monospace'
+      : '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
 
-    // Set font with weight for better readability
-    ctx.font = `500 ${this.options.fontSize}px ${this.options.fontFamily}`
+    ctx.font = `500 ${fontSize}px ${fontFamily}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // Measure text
-    const metrics = ctx.measureText(keystroke.text)
+    const metrics = ctx.measureText(text)
     const textWidth = metrics.width
-    const boxWidth = Math.min(textWidth + this.options.padding! * 2, this.options.maxWidth!)
-    const boxHeight = this.options.fontSize! + this.options.padding! * 2
+    const hPad = padding * 1.4
+    const vPad = padding * 0.9
+    const boxWidth = textWidth + hPad * 2
+    const boxHeight = fontSize + vPad * 2
+    const boxX = x - boxWidth / 2
+    const boxY = y - boxHeight / 2
 
-    // Adjust position to center the box
-    const boxX = keystroke.x - boxWidth / 2
-    const boxY = keystroke.y - boxHeight / 2
-
-    // Draw shadow for depth
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
-    ctx.shadowBlur = 12
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 4
-
-    // Draw background with rounded corners
-    this.drawRoundedRect(
-      ctx,
-      boxX,
-      boxY,
-      boxWidth,
-      boxHeight,
-      this.options.borderRadius!
-    )
-
-    // Fill background with gradient for depth
-    const gradient = ctx.createLinearGradient(boxX, boxY, boxX, boxY + boxHeight)
-    gradient.addColorStop(0, 'rgba(40, 40, 40, 0.95)')
-    gradient.addColorStop(1, 'rgba(20, 20, 20, 0.95)')
-    ctx.fillStyle = gradient
-    ctx.fill()
-
-    // Reset shadow before drawing border and text
-    ctx.shadowColor = 'transparent'
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
-
-    // Draw subtle border with highlight at top
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'
-    ctx.lineWidth = 1
-    ctx.stroke()
-
-    // Draw inner highlight line at top for 3D effect
-    ctx.beginPath()
-    ctx.moveTo(boxX + this.options.borderRadius!, boxY + 1)
-    ctx.lineTo(boxX + boxWidth - this.options.borderRadius!, boxY + 1)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
-    ctx.lineWidth = 1
-    ctx.stroke()
-
-    // Draw text with slight text shadow for readability
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
-    ctx.shadowBlur = 2
-    ctx.shadowOffsetY = 1
-    ctx.fillStyle = '#ffffff'
-    ctx.fillText(
-      keystroke.text,
-      keystroke.x,
-      keystroke.y
-    )
+    this.drawBackground(ctx, preset, boxX, boxY, boxWidth, boxHeight, borderRadius, scale)
+    this.drawText(ctx, preset, text, x, y, scale)
 
     ctx.restore()
   }
 
-  private drawRoundedRect(
+  private drawBackground(
     ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    radius: number
+    preset: StylePreset,
+    x: number, y: number,
+    w: number, h: number,
+    r: number,
+    scale: number
   ) {
     ctx.beginPath()
-    ctx.moveTo(x + radius, y)
-    ctx.lineTo(x + width - radius, y)
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
-    ctx.lineTo(x + width, y + height - radius)
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
-    ctx.lineTo(x + radius, y + height)
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
-    ctx.lineTo(x, y + radius)
-    ctx.quadraticCurveTo(x, y, x + radius, y)
-    ctx.closePath()
+    ctx.roundRect(x, y, w, h, r)
+
+    switch (preset) {
+      case 'glass': {
+        // Clean, subtle glass - NOT over-designed
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
+        ctx.fill()
+
+        // Single subtle border, no gradient gimmicks
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)'
+        ctx.lineWidth = 0.5
+        ctx.stroke()
+        break
+      }
+
+      case 'minimal': {
+        // No background at all - just the text
+        break
+      }
+
+      case 'terminal': {
+        // Clean dark with subtle accent
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(74, 222, 128, 0.4)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+        break
+      }
+
+      case 'outline': {
+        // Simple outline, no fill
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+        break
+      }
+
+      case 'default':
+      default: {
+        // Solid, professional
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.2)'
+        ctx.shadowBlur = 8 * scale
+        ctx.shadowOffsetY = 2 * scale
+        ctx.fillStyle = this.options.backgroundColor || 'rgba(24, 24, 27, 0.9)'
+        ctx.fill()
+        break
+      }
+    }
+
+    // Reset shadow
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+    ctx.shadowOffsetY = 0
   }
 
-  reset() {
-    this.currentIndex = 0
-    this.activeKeystrokes.clear()
-    this.buffer = null
-    this.displayQueue = []
+  private drawText(ctx: CanvasRenderingContext2D, preset: StylePreset, text: string, x: number, y: number, scale: number) {
+    switch (preset) {
+      case 'minimal':
+        // Text shadow for readability
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)'
+        ctx.shadowBlur = 6 * scale
+        ctx.shadowOffsetY = 2 * scale
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(text, x, y)
+        break
+
+      case 'terminal':
+        ctx.fillStyle = '#4ade80'
+        ctx.fillText(text, x, y)
+        break
+
+      case 'outline':
+        // White text with subtle shadow
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+        ctx.shadowBlur = 4 * scale
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(text, x, y)
+        break
+
+      default:
+        ctx.fillStyle = this.options.textColor || '#ffffff'
+        ctx.fillText(text, x, y)
+        break
+    }
+
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
   }
+
+  reset() { }
 
   hasKeystrokesAtTime(timestamp: number): boolean {
-    return this.keyHistory.some(event =>
-      event.timestamp <= timestamp &&
-      event.timestamp + this.DISPLAY_DURATION + this.FADE_DURATION > timestamp
-    )
+    const fadeOutDuration = this.options.fadeOutDuration || 400
+    return this.segments.some(s => s.startTime <= timestamp && s.endTime + fadeOutDuration > timestamp)
   }
 }

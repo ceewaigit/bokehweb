@@ -31,7 +31,7 @@ interface TimelineClipProps {
   trackHeight: number
   pixelsPerMs: number
   isSelected: boolean
-  selectedEffectType?: EffectLayerType.Zoom | EffectLayerType.Cursor | EffectLayerType.Background | null
+  selectedEffectType?: EffectLayerType | null
   otherClipsInTrack?: Clip[]
   clipEffects?: any[]  // Effects for this clip from timeline.effects
   onSelect: (clipId: string) => void

@@ -21,13 +21,7 @@ export default function LayoutClient({
     <ThemeProvider>
       <ErrorBoundary>
         <div className="h-screen w-screen overflow-hidden">
-          {/* Electron title bar spacer */}
-          <div className="h-10 w-full backdrop-blur-sm border-b border-border/50 flex items-center justify-center drag-region">
-            <div className="text-sm font-medium text-muted-foreground">Screen Recorder</div>
-          </div>
-          <div className="h-[calc(100vh-2.5rem)] w-full overflow-hidden">
-            {children}
-          </div>
+          {children}
         </div>
         <ToastContainer />
       </ErrorBoundary>

@@ -15,16 +15,20 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
   const bgData = backgroundEffect?.data as BackgroundEffectData
 
   return (
-    <div className="space-y-4">
-      <p className="text-xs text-muted-foreground leading-snug">
+    <div className="space-y-3">
+      <p className="text-[10px] text-muted-foreground leading-snug">
         Controls the frame padding, corner radius, and shadow.
       </p>
 
-      <div className="space-y-3">
-        <div className="p-4 bg-background/40 rounded-xl space-y-2">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-muted-foreground">Padding</label>
-            <InfoTooltip content="Adds space around the captured screen inside the frame." />
+      <div className="p-3 bg-background/40 rounded-lg space-y-3">
+        {/* Padding slider */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Padding</label>
+              <InfoTooltip content="Adds space around the captured screen inside the frame." />
+            </div>
+            <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{bgData?.padding ?? 40}px</span>
           </div>
           <Slider
             value={[bgData?.padding ?? 40]}
@@ -35,13 +39,16 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             step={2}
             className="w-full"
           />
-          <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{bgData?.padding ?? 40}px</span>
         </div>
 
-        <div className="p-4 bg-background/40 rounded-xl space-y-2">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-muted-foreground">Corner Radius</label>
-            <InfoTooltip content="Rounds the corners of the frame." />
+        {/* Corner Radius slider */}
+        <div className="border-t border-border/30 pt-2.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Corner Radius</label>
+              <InfoTooltip content="Rounds the corners of the frame." />
+            </div>
+            <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{bgData?.cornerRadius ?? 15}px</span>
           </div>
           <Slider
             value={[bgData?.cornerRadius ?? 15]}
@@ -52,13 +59,16 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             step={1}
             className="w-full"
           />
-          <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{bgData?.cornerRadius ?? 15}px</span>
         </div>
 
-        <div className="p-4 bg-background/40 rounded-xl space-y-2">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-muted-foreground">Shadow Intensity</label>
-            <InfoTooltip content="Controls how strong the frame shadow appears." />
+        {/* Shadow Intensity slider */}
+        <div className="border-t border-border/30 pt-2.5 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Shadow</label>
+              <InfoTooltip content="Controls how strong the frame shadow appears." />
+            </div>
+            <span className="text-[10px] text-muted-foreground/70 font-mono tabular-nums">{bgData?.shadowIntensity ?? 85}%</span>
           </div>
           <Slider
             value={[bgData?.shadowIntensity ?? 85]}
@@ -69,7 +79,6 @@ export function ShapeTab({ backgroundEffect, onUpdateBackground }: ShapeTabProps
             step={1}
             className="w-full"
           />
-          <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">{bgData?.shadowIntensity ?? 85}%</span>
         </div>
       </div>
     </div>

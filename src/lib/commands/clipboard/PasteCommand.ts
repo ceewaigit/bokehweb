@@ -9,7 +9,7 @@ import { TimeConverter } from '@/lib/timeline/time-space-converter'
 export interface PasteResult {
   type: 'clip' | 'effect'
   clipId?: string
-  effectType?: EffectType.Zoom | EffectType.Cursor | EffectType.Background
+  effectType?: EffectType.Zoom | EffectType.Cursor | EffectType.Background | EffectType.Keystroke | EffectType.Screen
   blockId?: string
 }
 
@@ -73,8 +73,52 @@ export class PasteCommand extends Command<PasteResult> {
         // Paste at timeline position directly (no source conversion)
         return this.createZoomBlock(zoomData, clipAtPlayhead.recordingId, currentTimelineTime, project)
       } else {
-        // For other effect types (cursor/background), use playhead-based approach too
+        // For other effect types (keystroke, screen, cursor, background)
         const currentTime = this.pasteTime ?? this.context.getCurrentTime()
+        const effectType = clipboard.effect.type as EffectType
+        const effectData = clipboard.effect.data
+        const store = this.context.getStore()
+
+        // Keystroke and Screen effects are timeline-based blocks with durations
+        // Cursor and Background are global settings (no duration)
+        const isBlockEffect = effectType === EffectType.Keystroke || effectType === EffectType.Screen
+
+        if (isBlockEffect && project) {
+          // Use appropriate default duration for block effects
+          const defaultDuration = effectType === EffectType.Keystroke ? 5000 : 3000 // 5s for keystroke, 3s for screen
+
+          // Find non-overlapping position
+          const existingEffects: Effect[] = (project.timeline.effects || []).filter(
+            (e: Effect) => e.type === effectType
+          )
+          existingEffects.sort((a, b) => a.startTime - b.startTime)
+
+          let finalStartTime = Math.max(0, currentTime)
+
+          // Check for overlaps
+          for (const effect of existingEffects) {
+            if (finalStartTime < effect.endTime && (finalStartTime + defaultDuration) > effect.startTime) {
+              finalStartTime = effect.endTime + 100
+            }
+          }
+
+          // Create new effect block
+          store.addEffect({
+            id: `${effectType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: effectType as EffectType,
+            startTime: finalStartTime,
+            endTime: finalStartTime + defaultDuration,
+            data: effectData,
+            enabled: true
+          })
+
+          return {
+            success: true,
+            data: { type: 'effect', effectType, blockId: `${effectType}-pasted` }
+          }
+        }
+
+        // For global effects (cursor, background), update existing or create new
         const allClips = project?.timeline.tracks.flatMap(t => t.clips) || []
         const clipAtPlayhead = TimeConverter.findClipAtTimelinePosition(currentTime, allClips)
 
@@ -82,12 +126,6 @@ export class PasteCommand extends Command<PasteResult> {
           return { success: false, error: 'Position playhead on a clip to paste the effect' }
         }
 
-        // Paste cursor/background settings
-        const effectType = clipboard.effect.type
-        const effectData = clipboard.effect.data
-        const store = this.context.getStore()
-
-        // Find existing effect of this type and update it
         const existingEffects = store.getEffectsAtTimeRange(clipAtPlayhead.id)
         const existingEffect = existingEffects.find(e => e.type === effectType)
 
@@ -97,8 +135,8 @@ export class PasteCommand extends Command<PasteResult> {
           store.addEffect({
             id: `${effectType}-global-${Date.now()}`,
             type: effectType as EffectType,
-            startTime: clipAtPlayhead.startTime,
-            endTime: clipAtPlayhead.startTime + clipAtPlayhead.duration,
+            startTime: 0,
+            endTime: Number.MAX_SAFE_INTEGER,
             data: effectData,
             enabled: true
           })
@@ -106,7 +144,7 @@ export class PasteCommand extends Command<PasteResult> {
 
         return {
           success: true,
-          data: { type: 'effect', effectType, clipId: clipAtPlayhead.id }
+          data: { type: 'effect', effectType: effectType as PasteResult['effectType'], clipId: clipAtPlayhead.id }
         }
       }
     }

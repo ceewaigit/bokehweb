@@ -587,6 +587,17 @@ export function WorkspaceManager() {
     }
   }, [currentProject, selectedEffectLayer, playheadRecording, selectedClip, contextEffects])
 
+  // Bulk toggle all keystroke effects
+  const handleBulkToggleKeystrokes = useCallback((enabled: boolean) => {
+    const commandManager = commandManagerRef.current
+    if (!commandManager) return
+
+    const keystrokeEffects = contextEffects.filter(e => e.type === EffectType.Keystroke)
+    keystrokeEffects.forEach(effect => {
+      commandManager.executeByName('UpdateEffect', effect.id, { enabled })
+    })
+  }, [contextEffects])
+
   // Show loading screen when processing
   if (isLoading) {
     return (
@@ -659,8 +670,8 @@ export function WorkspaceManager() {
   return (
     <>
       <div className="fixed inset-0 flex flex-col bg-transparent" style={{ width: '100vw', height: '100vh' }}>
-        {/* Top Toolbar - Compact with macOS traffic light padding */}
-        <div className="flex-shrink-0 bg-transparent overflow-hidden border-b border-border/50" style={{ height: '48px', paddingLeft: '80px' }}>
+        {/* Top Toolbar */}
+        <div className="flex-shrink-0">
           <Toolbar
             project={currentProject}
             onToggleProperties={toggleProperties}
@@ -720,6 +731,7 @@ export function WorkspaceManager() {
                   selectedEffectLayer={selectedEffectLayer}
                   onEffectChange={handleEffectChange}
                   onZoomBlockUpdate={handleZoomBlockUpdate}
+                  onBulkToggleKeystrokes={handleBulkToggleKeystrokes}
                 />
               </div>
             )}

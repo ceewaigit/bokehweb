@@ -18,6 +18,8 @@ import { useClipContext } from '../context/ClipContext';
 export interface LayerStackProps {
   videoWidth: number;
   videoHeight: number;
+  includeBackground?: boolean;
+  includeKeystrokes?: boolean;
 }
 
 /**
@@ -26,31 +28,41 @@ export interface LayerStackProps {
  * Elegant composition: Declarative layer ordering
  * Layers are rendered bottom-to-top (background to cursor)
  */
-export const LayerStack: React.FC<LayerStackProps> = ({ videoWidth, videoHeight }) => {
+export const LayerStack: React.FC<LayerStackProps> = ({
+  videoWidth,
+  videoHeight,
+  includeBackground = false,
+  includeKeystrokes = true,
+}) => {
   const { effects } = useClipContext();
 
   // Extract effect data for layers
   const backgroundEffect = React.useMemo(() => {
     return effects.find((e) => e.type === 'background');
   }, [effects]);
-  const keystrokeEffect = React.useMemo(() => {
-    return effects.find((e) => e.type === 'keystroke');
+
+  // Get ALL keystroke effects (per-typing-period architecture)
+  const keystrokeEffects = React.useMemo(() => {
+    return effects.filter((e) => e.type === 'keystroke');
   }, [effects]);
 
   return (
     <>
-      {/* Layer 0: Background (bottom) */}
-      <BackgroundLayer
-        backgroundEffect={backgroundEffect}
-        videoWidth={videoWidth}
-        videoHeight={videoHeight}
-      />
+      {includeBackground && (
+        <BackgroundLayer
+          backgroundEffect={backgroundEffect}
+          videoWidth={videoWidth}
+          videoHeight={videoHeight}
+        />
+      )}
 
       {/* Video layer is now rendered by SharedVideoController at TimelineComposition level */}
       {/* This prevents unmount/remount blinking between clips */}
 
       {/* Layer 2: Keystrokes (above video) */}
-      <KeystrokeLayer keystrokeEffect={keystrokeEffect} videoWidth={videoWidth} videoHeight={videoHeight} />
+      {includeKeystrokes && (
+        <KeystrokeLayer keystrokeEffects={keystrokeEffects} videoWidth={videoWidth} videoHeight={videoHeight} />
+      )}
     </>
   );
 };

@@ -578,20 +578,17 @@ export class RecordingStorage {
       // Create effects on the recording itself (in source space)
       EffectsFactory.createInitialEffectsForRecording(recording)
 
-      // Ensure global effects exist (background, cursor, keystroke)
+      // Ensure global effects exist (background, cursor, and per-typing-period keystroke effects)
       EffectsFactory.ensureGlobalEffects(project)
 
-      // Add global keystroke effect if keyboard events exist and not already present
-      const hasKeystroke = !!EffectsFactory.getKeystrokeEffect(project.timeline.effects || [])
-      if (keyboardEvents.length > 0 && !hasKeystroke) {
-        logger.info(`✅ Creating global keystroke effect for ${keyboardEvents.length} keyboard events`)
-        project.timeline.effects!.push(EffectsFactory.createDefaultKeystrokeEffect({ enabled: true }))
+      // Log keystroke effect status
+      const keystrokeEffects = EffectsFactory.getKeystrokeEffects(project.timeline.effects || [])
+      if (keystrokeEffects.length > 0) {
+        logger.info(`✅ Created ${keystrokeEffects.length} keystroke effect blocks from typing periods`)
+      } else if (keyboardEvents.length > 0) {
+        logger.info('⚠️ Keyboard events detected but no typing periods found')
       } else {
-        if (keyboardEvents.length === 0) {
-          logger.info('⚠️ No keyboard events detected - skipping keystroke effect')
-        } else {
-          logger.info('ℹ️ Keystroke effect already exists - skipping creation')
-        }
+        logger.info('ℹ️ No keyboard events detected - skipping keystroke effects')
       }
 
       // Auto-generate zoom effects from mouse events (enabled by default)

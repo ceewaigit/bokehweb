@@ -56,16 +56,20 @@ export const DEFAULT_CURSOR_DATA: CursorEffectData = {
 
 // Default keystroke effect data
 export const DEFAULT_KEYSTROKE_DATA: KeystrokeEffectData = {
-  fontSize: 16,
+  fontSize: 14,
   fontFamily: 'SF Pro Display, system-ui, -apple-system, sans-serif',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  backgroundColor: 'rgba(0, 0, 0, 0.75)',
   textColor: '#ffffff',
-  borderColor: 'rgba(255, 255, 255, 0.2)',
-  borderRadius: 6,
-  padding: 12,
-  fadeOutDuration: 300,
+  borderColor: 'rgba(255, 255, 255, 0.15)',
+  borderRadius: 15,
+  padding: 10,
+  fadeOutDuration: 400,
+  displayDuration: 2000,
   position: KeystrokePosition.BottomCenter,
-  maxWidth: 300
+  maxWidth: 400,
+  stylePreset: 'glass',
+  showModifierSymbols: true,
+  scale: 1.0
 }
 
 // Store for default wallpaper once loaded

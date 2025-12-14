@@ -11,6 +11,7 @@ import { getVideoDuration } from '@/lib/utils/video-metadata'
 import { type Recording as ProjectRecording, type Project } from '@/types'
 import { useRecordingsLibraryStore, type LibraryRecording } from '@/stores/recordings-library-store'
 import { AppearanceControls } from '@/components/topbar/appearance-controls'
+import { WindowHeader } from '@/components/ui/window-header'
 import {
   Dialog,
   DialogContent,
@@ -372,18 +373,16 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     return (
       <div className="flex-1 overflow-hidden bg-transparent">
         {/* Header skeleton */}
-        <div className="sticky top-0 z-20 bg-transparent drag-region border-b border-border/40">
-          <div className="px-6 py-3 ml-20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-5 w-24 bg-muted/40 rounded-md animate-pulse" />
-              </div>
-              <div className="flex items-center gap-2 no-drag">
-                <div className="h-8 w-24 bg-muted/40 rounded-md animate-pulse" />
-              </div>
+        <WindowHeader className="sticky top-0 z-20">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-24 bg-muted/40 rounded-md animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-24 bg-muted/40 rounded-md animate-pulse" />
             </div>
           </div>
-        </div>
+        </WindowHeader>
 
         {/* Grid skeleton with animated cards */}
         <div className="p-6">
@@ -432,34 +431,41 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
     return (
       <div className="flex-1 overflow-hidden">
         {/* Header */}
-        <div className="sticky top-0 z-20 bg-transparent drag-region border-b border-border/40">
-          <div className="px-6 py-3 ml-20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h1 className="text-sm font-semibold text-foreground tracking-tight">Library</h1>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full ring-1 ring-border/20">
-                  <Layers className="w-3 h-3" />
-                  <span className="font-mono">0</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 no-drag">
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="h-8 px-4 text-xs font-medium shadow-sm hover:shadow transition-all"
-                  onClick={() => window.electronAPI?.showRecordButton?.()}
-                >
-                  <Video className="w-3.5 h-3.5 mr-2" />
-                  New Recording
-                </Button>
-                <AppearanceControls className="flex items-center gap-1 ml-1" />
-              </div>
+        <WindowHeader customDragRegions className="sticky top-0 z-20">
+          {/* Left Section - Not draggable */}
+          <div className="flex items-center gap-3 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-md">
+              <Film className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              <span className="font-bold text-[10px] text-primary uppercase tracking-wider whitespace-nowrap">
+                Library
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full ring-1 ring-border/20">
+              <Layers className="w-3 h-3" />
+              <span className="font-mono">0</span>
             </div>
           </div>
-        </div>
+
+          {/* Center - Draggable spacer */}
+          <div className="flex-1" />
+
+          {/* Right Section - Not draggable */}
+          <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <Button
+              size="sm"
+              variant="default"
+              className="h-8 px-4 text-xs font-medium shadow-sm hover:shadow transition-all"
+              onClick={() => window.electronAPI?.showRecordButton?.()}
+            >
+              <Video className="w-3.5 h-3.5 mr-2" />
+              New Recording
+            </Button>
+            <AppearanceControls className="flex items-center gap-1 ml-1" />
+          </div>
+        </WindowHeader>
 
         {/* Empty state */}
-        <div className="flex-1 flex items-center justify-center p-8 min-h-[calc(100vh-60px)]">
+        <div className="flex-1 flex items-center justify-center p-8 min-h-[calc(100vh-48px)]">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -511,71 +517,75 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
         className="h-full overflow-auto scrollbar-thin scrollbar-track-transparent"
       >
         {/* header */}
-        <div
-          ref={setHeaderEl}
-          className="sticky top-0 z-30 bg-transparent border-b border-border/40 drag-region"
-        >
-          <div className="px-6 py-3 ml-20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h1 className="text-sm font-semibold text-foreground tracking-tight">Library</h1>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-background backdrop-blur-xl px-2 py-0.5 rounded-full ring-1 ring-border/20">
-                  <Layers className="w-3 h-3" />
-                  <span className="font-mono">{allRecordings.length}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 no-drag">
-                {/* Pagination controls */}
-                <div className="flex items-center gap-1 mr-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 hover:bg-muted/50"
-                    onClick={handlePrevPage}
-                    disabled={!canPrev}
-                    title="Previous page"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-[10px] text-muted-foreground font-mono w-12 text-center">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 hover:bg-muted/50"
-                    onClick={handleNextPage}
-                    disabled={!canNext}
-                    title="Next page"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 px-3 text-xs font-medium bg-muted/20 hover:bg-muted/40 border border-border/40"
-                  onClick={() => loadRecordings(true)}
-                  title="Refresh Library"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-                  Refresh
-                </Button>
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="h-8 px-4 text-xs font-medium shadow-sm hover:shadow transition-all"
-                  onClick={() => window.electronAPI?.showRecordButton?.()}
-                  title="New Recording"
-                >
-                  <Video className="w-3.5 h-3.5 mr-2" />
-                  New Recording
-                </Button>
-                <AppearanceControls className="flex items-center gap-1 ml-1" />
-              </div>
+        <WindowHeader ref={setHeaderEl} customDragRegions className="sticky top-0 z-30">
+          {/* Left Section - Not draggable */}
+          <div className="flex items-center gap-3 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-md">
+              <Film className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              <span className="font-bold text-[10px] text-primary uppercase tracking-wider whitespace-nowrap">
+                Library
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-background backdrop-blur-xl px-2 py-0.5 rounded-full ring-1 ring-border/20">
+              <Layers className="w-3 h-3" />
+              <span className="font-mono">{allRecordings.length}</span>
             </div>
           </div>
-        </div>
+
+          {/* Center - Draggable spacer */}
+          <div className="flex-1" />
+
+          {/* Right Section - Not draggable */}
+          <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            {/* Pagination controls */}
+            <div className="flex items-center gap-1 mr-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 hover:bg-muted/50"
+                onClick={handlePrevPage}
+                disabled={!canPrev}
+                title="Previous page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-[10px] text-muted-foreground font-mono w-12 text-center">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0 hover:bg-muted/50"
+                onClick={handleNextPage}
+                disabled={!canNext}
+                title="Next page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-3 text-xs font-medium bg-muted/20 hover:bg-muted/40 border border-border/40"
+              onClick={() => loadRecordings(true)}
+              title="Refresh Library"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              variant="default"
+              className="h-8 px-4 text-xs font-medium shadow-sm hover:shadow transition-all"
+              onClick={() => window.electronAPI?.showRecordButton?.()}
+              title="New Recording"
+            >
+              <Video className="w-3.5 h-3.5 mr-2" />
+              New Recording
+            </Button>
+            <AppearanceControls className="flex items-center gap-1 ml-1" />
+          </div>
+        </WindowHeader>
 
         {/* Enhanced grid with better spacing */}
         <div className="p-6">
@@ -599,132 +609,137 @@ export function RecordingsLibrary({ onSelectRecording }: RecordingsLibraryProps)
                     )}
                     onClick={() => handleSelect(recording)}
                   >
-                      {/* Enhanced thumbnail with loading state */}
-                      <div className="aspect-video relative bg-muted/10 overflow-hidden">
-                        {recording.thumbnailUrl ? (
-                          <>
-                            <img
-                              src={recording.thumbnailUrl}
-                              alt={recording.name}
-                              className="w-full h-full object-cover transition-transform duration-200 ease-out group-hover:scale-105"
-                              loading="lazy"
-                            />
-                            {/* Subtle gradient overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                          </>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="relative">
-                              <Film className="w-8 h-8 text-muted-foreground/20" />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Enhanced play button on hover */}
-                        <div
-                          className={cn(
-                            "absolute inset-0 flex items-center justify-center",
-                            "opacity-0 bg-black/10 backdrop-blur-[1px] transition-opacity duration-150",
-                            "group-hover:opacity-100"
-                          )}
-                        >
-                          <div className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-150 ease-out">
-                            <Play className="w-5 h-5 text-black ml-0.5" fill="currentColor" />
+                    {/* Enhanced thumbnail with loading state */}
+                    <div className="aspect-video relative bg-muted/10 overflow-hidden">
+                      {recording.thumbnailUrl ? (
+                        <>
+                          <img
+                            src={recording.thumbnailUrl}
+                            alt={recording.name}
+                            className="w-full h-full object-cover transition-transform duration-200 ease-out group-hover:scale-105"
+                            loading="lazy"
+                          />
+                          {/* Subtle gradient overlay */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                        </>
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="relative">
+                            <Film className="w-8 h-8 text-muted-foreground/20" />
                           </div>
                         </div>
+                      )}
 
-                        {/* Duration badge */}
-                        {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
-                          <div className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 backdrop-blur-md rounded text-white/90">
-                            <span className="text-[10px] font-medium font-mono">
-                              {formatTime(recording.project.timeline.duration)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Enhanced info section */}
-                      <div className="p-3">
-                        <h3 className="font-medium text-xs text-foreground truncate mb-1">
-                          {recording.project?.name || recording.name.replace(/^Recording_/, '').replace(/\.ssproj$/, '')}
-                        </h3>
-                        <div className="flex items-center justify-between text-[10px] text-muted-foreground gap-2">
-                          <span className="truncate">
-                            {formatDistanceToNow(recording.timestamp, { addSuffix: true })
-                              .replace('about ', '')
-                              .replace('less than ', '<')}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            {recording.size && (
-                              <span className="font-mono opacity-70 whitespace-nowrap">
-                                {(recording.size / 1024 / 1024).toFixed(1)} MB
-                              </span>
-                            )}
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  className={cn(
-                                    "inline-flex items-center justify-center rounded-sm p-0.5",
-                                    "text-muted-foreground/70 transition-colors hover:text-foreground",
-                                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                  )}
-                                  aria-label="Recording details"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Info className="h-3.5 w-3.5" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" align="end" className="text-xs">
-                                <div className="space-y-1">
-                                  <div className="font-medium text-foreground">
-                                    {recording.project?.name || recording.name.replace(/\.ssproj$/, '')}
-                                  </div>
-                                  <div className="text-muted-foreground">
-                                    Created: {recording.timestamp.toLocaleString()}
-                                  </div>
-                                  {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
-                                    <div className="text-muted-foreground">
-                                      Duration: <span className="font-mono">{formatTime(recording.project.timeline.duration)}</span>
-                                    </div>
-                                  )}
-                                  {recording.size && (
-                                    <div className="text-muted-foreground">
-                                      Size: <span className="font-mono">{(recording.size / 1024 / 1024).toFixed(1)} MB</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Enhanced action buttons */}
+                      {/* Enhanced play button on hover */}
                       <div
                         className={cn(
-                          "absolute top-2 right-2",
-                          "opacity-0 -translate-y-1 transition-all duration-150 ease-out",
-                          "group-hover:opacity-100 group-hover:translate-y-0"
+                          "absolute inset-0 flex items-center justify-center",
+                          "opacity-0 bg-black/10 backdrop-blur-[1px] transition-opacity duration-150",
+                          "group-hover:opacity-100"
                         )}
                       >
-                        <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-lg p-1 shadow-lg border border-white/10">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="w-6 h-6 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded-md"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setPendingDelete(recording)
-                            }}
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
+                        <div className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center shadow-lg transform scale-95 group-hover:scale-100 transition-transform duration-150 ease-out">
+                          <Play className="w-5 h-5 text-black ml-0.5" fill="currentColor" />
+                        </div>
+                      </div>
+
+                      {/* Duration badge */}
+                      {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
+                        <div className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 backdrop-blur-md rounded text-white/90">
+                          <span className="text-[10px] font-medium font-mono">
+                            {formatTime(recording.project.timeline.duration)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Enhanced info section */}
+                    <div className="p-3">
+                      <h3 className="font-medium text-xs text-foreground truncate mb-1">
+                        {recording.project?.name || recording.name.replace(/^Recording_/, '').replace(/\.ssproj$/, '')}
+                      </h3>
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground gap-2">
+                        <span className="truncate">
+                          {formatDistanceToNow(recording.timestamp, { addSuffix: true })
+                            .replace('about ', '')
+                            .replace('less than ', '<')}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {recording.size && (
+                            <span className="font-mono opacity-70 whitespace-nowrap">
+                              {(recording.size / 1024 / 1024).toFixed(1)} MB
+                            </span>
+                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className={cn(
+                                  "inline-flex items-center justify-center rounded-sm p-0.5",
+                                  "text-muted-foreground/70 transition-colors hover:text-foreground",
+                                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                )}
+                                aria-label="Recording details"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="end" className="text-xs">
+                              <div className="space-y-1">
+                                <div className="font-medium text-foreground">
+                                  {recording.project?.name || recording.name.replace(/\.ssproj$/, '')}
+                                </div>
+                                <div className="text-muted-foreground">
+                                  Created: {recording.timestamp.toLocaleString()}
+                                </div>
+                                {recording.project?.recordings?.[0]?.width && recording.project?.recordings?.[0]?.height && (
+                                  <div className="text-muted-foreground">
+                                    Resolution: <span className="font-mono">{recording.project.recordings[0].width}×{recording.project.recordings[0].height}</span>
+                                  </div>
+                                )}
+                                {recording.project?.timeline?.duration && recording.project.timeline.duration > 0 && (
+                                  <div className="text-muted-foreground">
+                                    Duration: <span className="font-mono">{formatTime(recording.project.timeline.duration)}</span>
+                                  </div>
+                                )}
+                                {recording.size && (
+                                  <div className="text-muted-foreground">
+                                    Size: <span className="font-mono">{(recording.size / 1024 / 1024).toFixed(1)} MB</span>
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
                         </div>
                       </div>
                     </div>
+
+                    {/* Enhanced action buttons */}
+                    <div
+                      className={cn(
+                        "absolute top-2 right-2",
+                        "opacity-0 -translate-y-1 transition-all duration-150 ease-out",
+                        "group-hover:opacity-100 group-hover:translate-y-0"
+                      )}
+                    >
+                      <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md rounded-lg p-1 shadow-lg border border-white/10">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-6 h-6 p-0 hover:bg-red-500/80 hover:text-white text-white/80 rounded-md"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setPendingDelete(recording)
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
+                </div>
               ))}
             </TooltipProvider>
           </div>

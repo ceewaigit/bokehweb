@@ -28,6 +28,7 @@ interface EffectsSidebarProps {
   selectedEffectLayer?: SelectedEffectLayer
   onEffectChange: (type: EffectType, data: any) => void
   onZoomBlockUpdate?: (blockId: string, updates: any) => void
+  onBulkToggleKeystrokes?: (enabled: boolean) => void
 }
 
 export function EffectsSidebar({
@@ -36,7 +37,8 @@ export function EffectsSidebar({
   effects,
   selectedEffectLayer,
   onEffectChange,
-  onZoomBlockUpdate
+  onZoomBlockUpdate,
+  onBulkToggleKeystrokes
 }: EffectsSidebarProps) {
   const [activeTab, setActiveTab] = useState<SidebarTabId>(SidebarTabId.Background)
   const tooltipRef = useRef<HTMLDivElement | null>(null)
@@ -158,8 +160,8 @@ export function EffectsSidebar({
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-5 py-6 custom-scrollbar">
-            <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 custom-scrollbar">
+            <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
               {activeTab === SidebarTabId.Background && (
                 <BackgroundTab
                   backgroundEffect={backgroundEffect}
@@ -180,6 +182,7 @@ export function EffectsSidebar({
                   keystrokeEffect={keystrokeEffect}
                   onUpdateKeystroke={(updates) => updateEffect(EffectType.Keystroke, updates)}
                   onEffectChange={onEffectChange}
+                  onBulkToggleKeystrokes={onBulkToggleKeystrokes}
                 />
               )}
 

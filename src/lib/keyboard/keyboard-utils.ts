@@ -35,7 +35,11 @@ export function getPrintableCharFromKey(key: string, modifiers: string[] = []): 
 }
 
 export function isStandaloneModifierKey(key: string): boolean {
-  const modifierKeys = ['CapsLock', 'Shift', 'Control', 'Alt', 'Meta', 'Command', 'Option', 'Fn']
+  const modifierKeys = [
+    'CapsLock', 'Shift', 'Control', 'Alt', 'Meta', 'Command', 'Option', 'Fn',
+    'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight',
+    'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'
+  ]
   return modifierKeys.includes(key)
 }
 

@@ -79,6 +79,26 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
           backgroundColor: backgroundColor ?? '#000',
         }}
       >
+        {/* Background layer must be below the video. Render per-clip to support parallax (mouse-driven) backgrounds. */}
+        <AbsoluteFill style={{ zIndex: 0 }}>
+          {frameLayout.map(({ clip, startFrame, durationFrames }) => {
+            return (
+              <ClipSequence
+                key={`bg-${clip.id}`}
+                clip={clip}
+                effects={effects}
+                videoWidth={videoWidth}
+                videoHeight={videoHeight}
+                videoUrls={videoUrls}
+                startFrame={startFrame}
+                durationFrames={durationFrames}
+                includeBackground={true}
+                includeKeystrokes={false}
+              />
+            );
+          })}
+        </AbsoluteFill>
+
         {/* SharedVideoController provides VideoPositionContext for all children */}
         <SharedVideoController
           videoWidth={videoWidth}
@@ -102,6 +122,8 @@ export const TimelineComposition: React.FC<TimelineCompositionProps> = ({
                 videoUrls={videoUrls}
                 startFrame={startFrame}
                 durationFrames={durationFrames}
+                includeBackground={false}
+                includeKeystrokes={true}
               />
             );
           })}

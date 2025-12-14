@@ -12,6 +12,7 @@ import {
   Library
 } from 'lucide-react'
 import { Button } from './ui/button'
+import { WindowHeader } from './ui/window-header'
 import { useRecordingSessionStore } from '@/stores/recording-session-store'
 import { cn, formatTime } from '@/lib/utils'
 import type { Project } from '@/types/project'
@@ -52,8 +53,7 @@ export function Toolbar({
   }
 
   return (
-    <div className="h-full w-full flex items-center px-3 gap-2 overflow-hidden bg-transparent"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
+    <WindowHeader customDragRegions className="gap-2 overflow-hidden">
       {/* Left Section - Project Controls */}
       <div className="flex items-center gap-2 flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {/* Logo/Brand - More compact */}
@@ -216,7 +216,6 @@ export function Toolbar({
           }
         </Button>
       </div>
-
-    </div>
+    </WindowHeader>
   )
 }
