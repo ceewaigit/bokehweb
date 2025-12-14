@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContents } from 'electron'
+import { BrowserWindow, WebContents, screen } from 'electron'
 import * as path from 'path'
 import { getAppURL, isDev } from '../config'
 
@@ -9,25 +9,38 @@ export function createMainWindow(): BrowserWindow {
 
   const isMac = process.platform === 'darwin'
 
+  // Calculate window size as 85% of the primary display's work area
+  // This adapts to any screen resolution and aspect ratio
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const workArea = primaryDisplay.workArea
+  const width = Math.round(workArea.width * 0.85)
+  const height = Math.round(workArea.height * 0.85)
+
+  // Center the window on the screen
+  const x = Math.round(workArea.x + (workArea.width - width) / 2)
+  const y = Math.round(workArea.y + (workArea.height - height) / 2)
+
   // Main app window: transparent surface with native macOS traffic lights.
   const mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1200,
-    minHeight: 800,
+    width,
+    height,
+    x,
+    y,
+    minWidth: 1024,
+    minHeight: 700,
     show: false,
     ...(isMac
       ? {
-          titleBarStyle: 'hiddenInset' as const,
-          trafficLightPosition: { x: 20, y: 16 },
-        }
+        titleBarStyle: 'hiddenInset' as const,
+        trafficLightPosition: { x: 20, y: 16 },
+      }
       : {
-          titleBarOverlay: {
-            color: '#00000000',
-            symbolColor: '#ffffff',
-            height: 40,
-          },
-        }),
+        titleBarOverlay: {
+          color: '#00000000',
+          symbolColor: '#ffffff',
+          height: 40,
+        },
+      }),
     transparent: true,
     backgroundColor: '#00000000',
     hasShadow: true,
