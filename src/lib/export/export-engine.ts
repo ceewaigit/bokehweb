@@ -1,6 +1,5 @@
 /**
- * Export Engine - Simplified with Remotion only
- * No fallbacks, no complexity, just Remotion's battle-tested export
+ * Export Engine
  */
 
 import type { ExportSettings, Project, Recording } from '@/types'

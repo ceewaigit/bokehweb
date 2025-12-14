@@ -4,11 +4,13 @@
  */
 
 import os from 'os';
+import { execSync } from 'child_process';
 
 export interface MachineProfile {
   cpuCores: number;
   totalMemoryGB: number;
   availableMemoryGB: number;
+  rawAvailableMemoryGB: number;
   gpuAvailable: boolean;
   memoryPressure: string;
   thermalPressure: string;
@@ -30,8 +32,13 @@ export class MachineProfiler {
    */
   async profileSystem(videoWidth: number, videoHeight: number): Promise<MachineProfile> {
     const cpuCores = os.cpus().length;
-    const totalMemoryGB = os.totalmem() / (1024 * 1024 * 1024);
-    const availableMemoryGB = os.freemem() / (1024 * 1024 * 1024);
+    const totalBytes = os.totalmem();
+    const rawAvailableBytes = os.freemem();
+    const totalMemoryGB = totalBytes / (1024 * 1024 * 1024);
+    const rawAvailableMemoryGB = rawAvailableBytes / (1024 * 1024 * 1024);
+
+    const { normalizedBytes } = normalizeAvailableMemory(rawAvailableBytes, totalBytes);
+    const availableMemoryGB = normalizedBytes / (1024 * 1024 * 1024);
     
     // Simple GPU detection - assume available on modern systems
     const gpuAvailable = process.platform === 'darwin' || process.platform === 'win32';
@@ -40,6 +47,7 @@ export class MachineProfiler {
       cpuCores,
       totalMemoryGB,
       availableMemoryGB,
+      rawAvailableMemoryGB,
       gpuAvailable,
       memoryPressure: 'normal',
       thermalPressure: 'normal'
@@ -110,3 +118,62 @@ export class MachineProfiler {
 
 // Export singleton instance
 export const machineProfiler = new MachineProfiler();
+
+const GB_IN_BYTES = 1024 * 1024 * 1024;
+
+interface NormalizedMemoryResult {
+  normalizedBytes: number;
+}
+
+const normalizeAvailableMemory = (rawBytes: number, totalBytes: number): NormalizedMemoryResult => {
+  let normalizedBytes = Math.max(0, rawBytes);
+
+  if (totalBytes <= 0) {
+    return { normalizedBytes };
+  }
+
+  if (process.platform === 'darwin') {
+    const vmStatBytes = getDarwinAvailableMemoryBytes();
+    if (typeof vmStatBytes === 'number' && vmStatBytes > 0) {
+      normalizedBytes = Math.max(normalizedBytes, vmStatBytes);
+    }
+
+    const minimumReserve = Math.max(totalBytes * 0.15, 1.5 * GB_IN_BYTES);
+    if (normalizedBytes < minimumReserve) {
+      normalizedBytes = Math.min(totalBytes, minimumReserve);
+    }
+  } else {
+    const minimumReserve = Math.max(totalBytes * 0.1, 0.75 * GB_IN_BYTES);
+    if (normalizedBytes < minimumReserve) {
+      normalizedBytes = Math.min(totalBytes, minimumReserve);
+    }
+  }
+
+  normalizedBytes = Math.min(Math.max(normalizedBytes, rawBytes), totalBytes);
+
+  return { normalizedBytes };
+};
+
+const getDarwinAvailableMemoryBytes = (): number | null => {
+  try {
+    const output = execSync('vm_stat', { encoding: 'utf8' });
+    const pageSizeMatch = output.match(/page size of (\d+) bytes/);
+    const pageSize = pageSizeMatch ? parseInt(pageSizeMatch[1], 10) : 4096;
+
+    const readValue = (label: string): number => {
+      const regex = new RegExp(`${label}:\\s+(\\d+)\\.`);
+      const match = output.match(regex);
+      return match ? parseInt(match[1], 10) : 0;
+    };
+
+    const pagesFree = readValue('Pages free');
+    const pagesInactive = readValue('Pages inactive');
+    const pagesSpeculative = readValue('Pages speculative');
+    const pagesPurgeable = readValue('Pages purgeable');
+
+    const availablePages = pagesFree + pagesInactive + pagesSpeculative + pagesPurgeable;
+    return availablePages * pageSize;
+  } catch {
+    return null;
+  }
+};
