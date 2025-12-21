@@ -12,6 +12,7 @@ interface Feature {
     title: string;
     description: string;
     image?: string;
+    video?: string;
     span?: "sm" | "md" | "lg";
     imagePlacement?: "top" | "middle" | "bottom";
     backdrop?: "dots" | "grid" | "gradient";
@@ -248,7 +249,7 @@ export function FeatureShowcaseSection({
                                 {/* Content */}
                                 <div className={cn(
                                     "relative z-10 grid h-full gap-4 p-6",
-                                    feature.image ? cn("grid-cols-1", imageLayout.grid) : "grid-cols-1"
+                                    (feature.image || feature.video) ? cn("grid-cols-1", imageLayout.grid) : "grid-cols-1"
                                 )}>
                                     <div className="flex h-full flex-col justify-between gap-4">
                                         <div>
@@ -275,8 +276,8 @@ export function FeatureShowcaseSection({
                                         </div>
                                     </div>
 
-                                    {/* Feature Image - BLEEDS OUT / CUT OFF */}
-                                    {feature.image && (
+                                {/* Feature Image - BLEEDS OUT / CUT OFF */}
+                                    {(feature.image || feature.video) && (
                                         <div className={cn(
                                             "flex sm:justify-end -mr-6 -mb-6",
                                             placement === "top" && "-mt-2",
@@ -284,13 +285,26 @@ export function FeatureShowcaseSection({
                                             imageAlign
                                         )}>
                                             <div className="w-full overflow-hidden rounded-tl-2xl rounded-bl-2xl shadow-[0_8px_30px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.1)] ring-1 ring-black/[0.06]">
-                                                <Image
-                                                    src={feature.image}
-                                                    alt={feature.title}
-                                                    width={1100}
-                                                    height={800}
-                                                    className="h-full w-full object-cover object-left"
-                                                />
+                                                {feature.video ? (
+                                                    <video
+                                                        className="h-full w-full object-cover object-left"
+                                                        autoPlay
+                                                        loop
+                                                        muted
+                                                        playsInline
+                                                        preload="metadata"
+                                                    >
+                                                        <source src={feature.video} type="video/mp4" />
+                                                    </video>
+                                                ) : (
+                                                    <Image
+                                                        src={feature.image!}
+                                                        alt={feature.title}
+                                                        width={1100}
+                                                        height={800}
+                                                        className="h-full w-full object-cover object-left"
+                                                    />
+                                                )}
                                             </div>
                                         </div>
                                     )}

@@ -56,7 +56,7 @@ const showcaseFeatures = [
     icon: Wand2,
     title: "Auto zoom",
     description: "Auto zoom tracks your cursor to spotlight every click and demo.",
-    image: "/screenshot1.png",
+    video: "/features/zoom-720.mp4",
     imagePlacement: "middle" as const,
     backdrop: "dots" as const,
     span: "md" as const,
