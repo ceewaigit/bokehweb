@@ -45,9 +45,12 @@ const HandArrow = forwardRef<SVGSVGElement, HandArrowProps>(
         size = "md",
         animated = true,
         className,
+        style,
         ...props
     }, ref) => {
         const { width, height } = sizes[size];
+        const fadeInStyle = animated ? { opacity: 0 } : undefined;
+        const mergedStyle = { ...fadeInStyle, ...style };
 
         return (
             <motion.svg
@@ -61,6 +64,7 @@ const HandArrow = forwardRef<SVGSVGElement, HandArrowProps>(
                 whileInView={animated ? { opacity: 1, scale: 1 } : undefined}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: 0.2 }}
+                style={mergedStyle}
                 {...props}
             >
                 {/* Line draws first */}

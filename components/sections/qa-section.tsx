@@ -25,6 +25,7 @@ export function QASection({
     items,
 }: QASectionProps) {
     const [openIndex, setOpenIndex] = useState<number | null>(null);
+    const fadeInStyle = { opacity: 0 };
 
     return (
         <section className={cn("py-24 px-6", className)}>
@@ -37,6 +38,7 @@ export function QASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
+                            style={fadeInStyle}
                         >
                             {eyebrow}
                         </motion.p>
@@ -46,6 +48,7 @@ export function QASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5 }}
+                            style={fadeInStyle}
                         >
                             {title}
                         </motion.h2>
@@ -56,6 +59,7 @@ export function QASection({
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.4, delay: 0.1 }}
+                                style={fadeInStyle}
                             >
                                 {subtitle}
                             </motion.p>
@@ -77,6 +81,7 @@ export function QASection({
                                     whileInView={{ opacity: 1, y: 0 }}
                                     viewport={{ once: true, margin: "-60px" }}
                                     transition={{ duration: 0.22, delay: index * 0.03, ease: [0.22, 0.61, 0.36, 1] }}
+                                    style={fadeInStyle}
                                 >
                                     <button
                                         type="button"

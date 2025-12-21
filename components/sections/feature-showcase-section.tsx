@@ -35,6 +35,7 @@ export function FeatureShowcaseSection({
     features,
     heroImage,
 }: FeatureShowcaseSectionProps) {
+    const fadeInStyle = { opacity: 0 };
     const spanClasses = {
         sm: "md:col-span-1",
         md: "md:col-span-1 lg:col-span-2",
@@ -110,6 +111,7 @@ export function FeatureShowcaseSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
+                            style={fadeInStyle}
                         >
                             <Badge
                                 variant="secondary"
@@ -125,6 +127,7 @@ export function FeatureShowcaseSection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
+                        style={fadeInStyle}
                     >
                         {title}
                     </motion.h2>
@@ -135,6 +138,7 @@ export function FeatureShowcaseSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
+                            style={fadeInStyle}
                         >
                             {subtitle}
                         </motion.p>
@@ -183,6 +187,7 @@ export function FeatureShowcaseSection({
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true, margin: "-50px" }}
                                 transition={{ duration: 0.6, delay: index * 0.1, ease: [0.21, 0.47, 0.32, 0.98] }}
+                                style={fadeInStyle}
                             >
                                 {/* Base gradient surface */}
                                 <div className={cn(

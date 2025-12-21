@@ -22,7 +22,10 @@ interface TweetCardProps extends HTMLMotionProps<"div"> {
 }
 
 const TweetCard = forwardRef<HTMLDivElement, TweetCardProps>(
-    ({ className, content, author, stats, date, ...props }, ref) => {
+    ({ className, content, author, stats, date, style, ...props }, ref) => {
+        const fadeInStyle = { opacity: 0 };
+        const mergedStyle = { ...fadeInStyle, ...style };
+
         return (
             <motion.div
                 ref={ref}
@@ -40,6 +43,7 @@ const TweetCard = forwardRef<HTMLDivElement, TweetCardProps>(
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
                 transition={{ duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}
+                style={mergedStyle}
                 {...props}
             >
                 {/* Header */}

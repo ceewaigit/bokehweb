@@ -8,6 +8,8 @@ import { GlassCard } from "@/components/ui/glass-card"
 import { pricingCopy, pricingPlans } from "@/lib/pricing"
 
 const PricingSection: React.FC = () => {
+  const fadeInStyle = { opacity: 0 }
+
   return (
     <section id="pricing" className="relative w-full bg-background py-24 md:py-32 overflow-visible">
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-6 text-center">
@@ -18,6 +20,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+          style={fadeInStyle}
         >
           {pricingCopy.eyebrow}
         </motion.p>
@@ -29,6 +32,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+          style={fadeInStyle}
         >
           {pricingCopy.title} <em>{pricingCopy.titleEmphasis}</em>.
         </motion.h2>
@@ -40,6 +44,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
+          style={fadeInStyle}
         >
           {pricingCopy.subtitle}
         </motion.p>
@@ -135,6 +140,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+          style={fadeInStyle}
         >
           {pricingCopy.footnote}
         </motion.p>

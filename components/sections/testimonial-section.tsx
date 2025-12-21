@@ -34,6 +34,8 @@ export function TestimonialSection({
     subtitle,
     testimonials,
 }: TestimonialSectionProps) {
+    const fadeInStyle = { opacity: 0 };
+
     return (
         <section className={cn("py-24 px-6", className)}>
             <div className="mx-auto max-w-6xl">
@@ -45,6 +47,7 @@ export function TestimonialSection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
+                        style={fadeInStyle}
                     >
                         {title}
                     </motion.h2>
@@ -55,6 +58,7 @@ export function TestimonialSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
+                            style={fadeInStyle}
                         >
                             {subtitle}
                         </motion.p>
@@ -89,6 +93,7 @@ export function TestimonialSection({
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.4, delay: 0.3 }}
+                    style={fadeInStyle}
                 >
                     <a
                         href="#"

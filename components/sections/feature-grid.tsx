@@ -34,6 +34,7 @@ export function FeatureGrid({
         3: "md:grid-cols-3",
         4: "md:grid-cols-2 lg:grid-cols-4",
     };
+    const fadeInStyle = { opacity: 0 };
 
     return (
         <section className={cn("relative py-24 px-6", className)}>
@@ -47,6 +48,7 @@ export function FeatureGrid({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
+                            style={fadeInStyle}
                         >
                             <Badge
                                 variant="secondary"
@@ -62,6 +64,7 @@ export function FeatureGrid({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
+                        style={fadeInStyle}
                     >
                         {title}
                     </motion.h2>
@@ -72,6 +75,7 @@ export function FeatureGrid({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
+                            style={fadeInStyle}
                         >
                             {subtitle}
                         </motion.p>
@@ -97,6 +101,7 @@ export function FeatureGrid({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true, margin: "-50px" }}
                             transition={{ duration: 0.4, delay: index * 0.06 }}
+                            style={fadeInStyle}
                         >
                             <div className="flex items-start gap-4">
                                 <div className="flex-shrink-0 w-11 h-11 rounded-2xl bg-white/80 text-slate-900 shadow-[0_6px_16px_rgba(15,23,42,0.12)] ring-1 ring-white/60 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">

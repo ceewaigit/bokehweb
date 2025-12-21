@@ -29,6 +29,8 @@ export function SocialProofSection({
     items = defaultItems,
     logos,
 }: SocialProofSectionProps) {
+    const fadeInStyle = { opacity: 0 };
+
     return (
         <section className={cn("py-20 px-6 pt-[25vh]", className)}>
             <div className="mx-auto max-w-5xl">
@@ -39,6 +41,7 @@ export function SocialProofSection({
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5 }}
+                    style={fadeInStyle}
                 >
                     {title}
                 </motion.h2>
@@ -50,6 +53,7 @@ export function SocialProofSection({
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: 0.1 }}
+                    style={fadeInStyle}
                 >
                     {items.map((item, index) => (
                         <motion.div
@@ -82,6 +86,7 @@ export function SocialProofSection({
                         whileInView={{ opacity: 0.5 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5, delay: 0.2 }}
+                        style={fadeInStyle}
                     >
                         {logos.map((logo, index) => (
                             <img

@@ -12,8 +12,10 @@ interface BrowserFrameProps extends HTMLMotionProps<"div"> {
 }
 
 const BrowserFrame = forwardRef<HTMLDivElement, BrowserFrameProps>(
-    ({ className, variant = "light", showControls = true, url, children, ...props }, ref) => {
+    ({ className, variant = "light", showControls = true, url, children, style, ...props }, ref) => {
         const isDark = variant === "dark";
+        const fadeInStyle = { opacity: 0 };
+        const mergedStyle = { ...fadeInStyle, ...style };
 
         return (
             <motion.div
@@ -28,6 +30,7 @@ const BrowserFrame = forwardRef<HTMLDivElement, BrowserFrameProps>(
                 whileInView={{ opacity: 1, y: 0, scale: 1 }}
                 viewport={{ once: true, margin: "-100px" }}
                 transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
+                style={mergedStyle}
                 {...props}
             >
                 {/* Browser Chrome */}

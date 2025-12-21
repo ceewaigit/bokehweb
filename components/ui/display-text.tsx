@@ -28,11 +28,14 @@ const DisplayText = forwardRef<HTMLHeadingElement, DisplayTextProps>(
             italic = false,
             className,
             children,
+            style,
             ...props
         },
         ref
     ) => {
         const MotionTag = motion[Tag] as typeof motion.h1;
+        const fadeInStyle = { opacity: 0 };
+        const mergedStyle = { ...fadeInStyle, ...style };
 
         return (
             <MotionTag
@@ -48,6 +51,7 @@ const DisplayText = forwardRef<HTMLHeadingElement, DisplayTextProps>(
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+                style={mergedStyle}
                 {...props}
             >
                 {children}
