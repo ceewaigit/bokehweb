@@ -44,7 +44,7 @@ export function HeroSection({
                 )}
             >
 
-                <div className="mx-auto max-w-4xl text-center flex-1 flex flex-col justify-center -translate-y-32">
+                <div className="mx-auto max-w-4xl text-center flex-1 flex flex-col justify-center translate-y-0 lg:-translate-y-32 transition-transform duration-700">
                     {brandMarkSrc && (
                         <motion.div
                             className="mb-2 flex justify-center"
@@ -83,7 +83,7 @@ export function HeroSection({
                     {/* Title */}
                     <motion.h1
                         className={cn(
-                            "text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.02] text-foreground mb-6",
+                            "text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.02] text-foreground mb-6",
                             "tracking-[-0.02em] [text-wrap:balance] font-[family-name:var(--font-display)]",
                             "[&_em]:italic [&_em]:font-medium [&_em]:text-primary"
                         )}
@@ -165,7 +165,7 @@ export function HeroSection({
                 {/* Preview half-visible on load */}
                 {screenshotSrc && (
                     <motion.div
-                        className="absolute bottom-0 left-1/2 w-full max-w-6xl -translate-x-1/2 translate-y-[30%] px-6 z-10"
+                        className="absolute bottom-0 left-1/2 w-full max-w-6xl -translate-x-1/2 translate-y-[10%] md:translate-y-[30%] px-6 z-10"
                         initial={{ opacity: 0, y: 80, scale: 0.96 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ duration: 1, delay: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
