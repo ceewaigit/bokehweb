@@ -23,8 +23,8 @@ const footerLinks = {
 export function Footer({ className }: FooterProps) {
     return (
         <footer className={cn("relative overflow-hidden", className)}>
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent" />
-            <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.7),transparent_70%)] blur-3xl" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent pointer-events-none" />
+            <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.7),transparent_70%)] blur-3xl pointer-events-none" />
             <div className="mx-auto max-w-7xl px-6 pb-12 pt-20">
                 <div className="grid gap-10 lg:grid-cols-[1.2fr_2.2fr]">
                     <div className="space-y-6">

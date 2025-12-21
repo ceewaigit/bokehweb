@@ -240,15 +240,18 @@
   /* Texture Utilities */
   .page-backdrop {
     background-image:
-      linear-gradient(180deg, #f6f7fb 0%, #ffffff 38%, #f8f9fd 100%),
-      radial-gradient(680px 560px at 10% 12%, rgba(139, 92, 246, 0.22), transparent 62%),
-      radial-gradient(620px 540px at 88% 18%, rgba(59, 130, 246, 0.2), transparent 62%),
-      radial-gradient(640px 520px at 20% 78%, rgba(236, 72, 153, 0.16), transparent 64%),
-      radial-gradient(520px 520px at 82% 72%, rgba(14, 165, 233, 0.12), transparent 64%),
-      repeating-linear-gradient(112deg, rgba(15, 23, 42, 0.035) 0 1px, transparent 1px 18px),
-      radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.06) 1px, transparent 0);
-    background-size: auto, auto, auto, auto, auto, auto, 22px 22px;
-    background-position: center, center, center, center, center, center, 0 0;
+      linear-gradient(180deg, #f7f8fb 0%, #ffffff 42%, #f7f8fb 100%),
+      radial-gradient(460px 400px at 14% 12%, rgba(139, 92, 246, 0.14), transparent 62%),
+      radial-gradient(460px 400px at 86% 18%, rgba(59, 130, 246, 0.14), transparent 62%),
+      radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.05) 1px, transparent 0);
+    background-size: auto, auto, auto, 26px 26px;
+    background-position: center, center, center, 0 0;
+  }
+
+  .gradient-orb {
+    position: absolute;
+    border-radius: 9999px;
+    opacity: 0.9;
   }
 
   .texture-dots-light {

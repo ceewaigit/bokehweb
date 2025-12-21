@@ -19,7 +19,7 @@ const BrowserFrame = forwardRef<HTMLDivElement, BrowserFrameProps>(
             <motion.div
                 ref={ref}
                 className={cn(
-                    "relative rounded-xl overflow-hidden bg-white/80 dark:bg-black/80 backdrop-blur-xl",
+                    "relative rounded-xl overflow-hidden bg-white/80 backdrop-blur-xl",
                     "border border-white/20 shadow-2xl ring-1 ring-black/5",
                     isDark && "dark",
                     className

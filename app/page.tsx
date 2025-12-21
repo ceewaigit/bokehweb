@@ -173,10 +173,28 @@ export default function Home() {
 
       {/* Unified background wrapper for seamless section blending */}
       <main className="relative">
-        <div className="absolute inset-0 pointer-events-none -z-10 page-backdrop" />
+        <div className="absolute inset-0 pointer-events-none z-0 page-backdrop" />
+        <div className="absolute inset-0 pointer-events-none z-0">
+          <div
+            className="gradient-orb h-[520px] w-[520px] left-[-8%] top-[6vh]"
+            style={{ background: "radial-gradient(circle, rgba(139, 92, 246, 0.14) 0%, transparent 65%)" }}
+          />
+          <div
+            className="gradient-orb h-[460px] w-[460px] right-[-6%] top-[16vh]"
+            style={{ background: "radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 65%)" }}
+          />
+          <div
+            className="gradient-orb h-[440px] w-[440px] left-[-4%] top-[185vh]"
+            style={{ background: "radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, transparent 66%)" }}
+          />
+          <div
+            className="gradient-orb h-[420px] w-[420px] right-[-6%] top-[420vh]"
+            style={{ background: "radial-gradient(circle, rgba(14, 165, 233, 0.1) 0%, transparent 66%)" }}
+          />
+        </div>
 
         {/* Sections with transparent backgrounds - they blend into the global gradient */}
-        <div className="relative">
+        <div className="relative z-10">
           <HeroSection
             badge="Early access"
             brandMarkSrc="/brand/bokeh_logo.svg"
