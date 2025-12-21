@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { Badge } from "@/components/ui/badge";
 import { LucideIcon } from "lucide-react";
 
@@ -18,7 +19,7 @@ interface FeatureGridProps {
     title: React.ReactNode;
     subtitle?: string;
     features: Feature[];
-    columns?: 2 | 3 | 4;
+    columns?: 2 | 3 | 4 | 5;
 }
 
 export function FeatureGrid({
@@ -31,14 +32,18 @@ export function FeatureGrid({
 }: FeatureGridProps) {
     const gridCols = {
         2: "md:grid-cols-2",
-        3: "md:grid-cols-3",
+        3: "md:grid-cols-4 lg:grid-cols-6",
         4: "md:grid-cols-2 lg:grid-cols-4",
+        5: "md:grid-cols-2 lg:grid-cols-5",
     };
     const fadeInStyle = { opacity: 0 };
+    const shouldCenterLgRow = columns === 3 && features.length % 3 === 2;
+    const shouldCenterMdRow = columns === 3 && features.length % 2 === 1;
 
     return (
-        <section className={cn("relative py-24 px-6", className)}>
-            <div className="absolute inset-x-0 top-8 h-56 bg-[radial-gradient(circle_at_center,hsla(var(--primary),0.08),transparent_70%)] blur-3xl" />
+        <section className={cn("relative py-24 px-6 overflow-hidden", className)}>
+            <SectionBackdrop variant="cross-dots" texture fade="all" className="opacity-50" />
+
             <div className="relative mx-auto max-w-6xl">
                 {/* Section Header */}
                 <div className="text-center mb-16">
@@ -95,7 +100,11 @@ export function FeatureGrid({
                                 "hover:shadow-[0_18px_48px_rgba(15,23,42,0.12),0_1px_0_rgba(255,255,255,0.95)_inset]",
                                 "hover:-translate-y-0.5",
                                 "before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_12%_0%,rgba(255,255,255,0.5),transparent_60%)]",
-                                "after:pointer-events-none after:absolute after:inset-0 after:bg-[linear-gradient(140deg,rgba(15,23,42,0.05),transparent_45%,rgba(15,23,42,0.08))] after:opacity-40"
+                                "after:pointer-events-none after:absolute after:inset-0 after:bg-[linear-gradient(140deg,rgba(15,23,42,0.05),transparent_45%,rgba(15,23,42,0.08))] after:opacity-40",
+                                columns === 3 && "md:col-span-2 lg:col-span-2",
+                                shouldCenterLgRow && index === features.length - 2 && "lg:col-start-2",
+                                shouldCenterLgRow && index === features.length - 1 && "lg:col-start-4",
+                                shouldCenterMdRow && index === features.length - 1 && "md:col-start-2"
                             )}
                             initial={{ opacity: 0, y: 12 }}
                             whileInView={{ opacity: 1, y: 0 }}

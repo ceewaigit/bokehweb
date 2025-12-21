@@ -49,21 +49,42 @@ export function Navbar({ className }: NavbarProps) {
 
                 {/* Navigation Links */}
                 <div className="hidden md:flex items-center gap-3">
-                    {["Features", "Pricing", "Resources"].map((item) => (
-                        <motion.div
-                            key={item}
-                            whileHover={{ y: -1 }}
-                            whileTap={{ scale: 0.98 }}
-                            transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                    <motion.div
+                        whileHover={{ y: -1 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                    >
+                        <Link
+                            href="/#features"
+                            className="rounded-full border border-white/55 bg-white/70 px-4 py-2 text-[13px] font-semibold tracking-[0.02em] text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-250 hover:bg-white/85 hover:text-slate-900 hover:shadow-[0_16px_36px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.9)]"
                         >
-                            <Link
-                                href={`/${item.toLowerCase()}`}
-                                className="rounded-full border border-white/55 bg-white/70 px-4 py-2 text-[13px] font-semibold tracking-[0.02em] text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-250 hover:bg-white/85 hover:text-slate-900 hover:shadow-[0_16px_36px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.9)]"
-                            >
-                                {item}
-                            </Link>
-                        </motion.div>
-                    ))}
+                            Features
+                        </Link>
+                    </motion.div>
+                    <motion.div
+                        whileHover={{ y: -1 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                    >
+                        <Link
+                            href="/#pricing"
+                            className="rounded-full border border-white/55 bg-white/70 px-4 py-2 text-[13px] font-semibold tracking-[0.02em] text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-250 hover:bg-white/85 hover:text-slate-900 hover:shadow-[0_16px_36px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.9)]"
+                        >
+                            Pricing
+                        </Link>
+                    </motion.div>
+                    <motion.div
+                        whileHover={{ y: -1 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                    >
+                        <Link
+                            href="/#resources"
+                            className="rounded-full border border-white/55 bg-white/70 px-4 py-2 text-[13px] font-semibold tracking-[0.02em] text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-250 hover:bg-white/85 hover:text-slate-900 hover:shadow-[0_16px_36px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.9)]"
+                        >
+                            Resources
+                        </Link>
+                    </motion.div>
                 </div>
 
                 {/* CTA Buttons */}

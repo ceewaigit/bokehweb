@@ -1,11 +1,119 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useSpring } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { BrowserFrame } from "@/components/ui/browser-frame";
 import Image from "next/image";
 import { LucideIcon } from "lucide-react";
+import { useRef, useState } from "react";
+
+// Cursor follow component for smooth cursor demo
+function CursorFollowImage({
+    src,
+    alt,
+    className
+}: {
+    src: string;
+    alt: string;
+    className?: string;
+}) {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [isInteracting, setIsInteracting] = useState(false);
+    const [isTouching, setIsTouching] = useState(false);
+
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
+
+    // Smooth spring animation - this creates the "stabilized" effect
+    const springConfig = { damping: 25, stiffness: 150, mass: 0.5 };
+    const x = useSpring(mouseX, springConfig);
+    const y = useSpring(mouseY, springConfig);
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!containerRef.current || isTouching) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const offsetX = ((e.clientX - rect.left) - centerX) * 0.4;
+        const offsetY = ((e.clientY - rect.top) - centerY) * 0.4;
+        mouseX.set(offsetX);
+        mouseY.set(offsetY);
+    };
+
+    const handleMouseLeave = () => {
+        if (isTouching) return;
+        setIsInteracting(false);
+        mouseX.set(0);
+        mouseY.set(0);
+    };
+
+    // Touch support for mobile
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setIsTouching(true);
+        setIsInteracting(true);
+        handleTouchMove(e);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!containerRef.current || e.touches.length === 0) return;
+        const touch = e.touches[0];
+        const rect = containerRef.current.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const offsetX = ((touch.clientX - rect.left) - centerX) * 0.4;
+        const offsetY = ((touch.clientY - rect.top) - centerY) * 0.4;
+        mouseX.set(offsetX);
+        mouseY.set(offsetY);
+    };
+
+    const handleTouchEnd = () => {
+        setIsTouching(false);
+        setIsInteracting(false);
+        mouseX.set(0);
+        mouseY.set(0);
+    };
+
+    return (
+        <div
+            ref={containerRef}
+            className="relative w-full h-full flex items-center justify-center cursor-none outline-none ring-0 border-none"
+            onMouseMove={handleMouseMove}
+            onMouseEnter={() => setIsInteracting(true)}
+            onMouseLeave={handleMouseLeave}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+        >
+            <motion.div
+                style={{ x, y }}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                className="outline-none ring-0"
+            >
+                <Image
+                    src={src}
+                    alt={alt}
+                    width={800}
+                    height={600}
+                    className={cn(className, "drop-shadow-[0_8px_24px_rgba(0,0,0,0.15)] pointer-events-none select-none")}
+                    draggable={false}
+                />
+            </motion.div>
+            {/* Subtle hint text - different for mobile */}
+            <motion.span
+                className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-gray-400 font-medium pointer-events-none"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: isInteracting ? 0 : 0.7 }}
+                transition={{ duration: 0.2 }}
+            >
+                <span className="hidden sm:inline">hover to try</span>
+                <span className="sm:hidden">drag to try</span>
+            </motion.span>
+        </div>
+    );
+}
 
 interface Feature {
     icon?: LucideIcon;
@@ -16,10 +124,15 @@ interface Feature {
     span?: "sm" | "md" | "lg";
     imagePlacement?: "top" | "middle" | "bottom";
     backdrop?: "dots" | "grid" | "gradient";
+    variant?: "default" | "outline" | "ghost";
+    isGraphic?: boolean;
+    imageClassName?: string;
+    interactive?: "click" | "hover-tilt" | "cursor-follow";
 }
 
 interface FeatureShowcaseSectionProps {
     className?: string;
+    id?: string;
     badge?: string;
     title: React.ReactNode;
     subtitle?: string;
@@ -29,6 +142,7 @@ interface FeatureShowcaseSectionProps {
 
 export function FeatureShowcaseSection({
     className,
+    id,
     badge,
     title,
     subtitle,
@@ -42,66 +156,78 @@ export function FeatureShowcaseSection({
         lg: "md:col-span-2 lg:col-span-3",
     };
 
-    // Refined warm color palettes
+    // Refined warm color palettes with shadow colors
     const accentPalettes = [
         {
             name: "rose",
-            icon: "bg-gradient-to-br from-rose-100 to-orange-50 text-rose-600 ring-rose-200/50",
+            icon: "bg-gradient-to-br from-rose-100 to-orange-50 text-rose-600",
+            iconShadow: "shadow-[0_4px_12px_rgba(244,63,94,0.25),0_1px_3px_rgba(244,63,94,0.1),inset_0_1px_0_rgba(255,255,255,0.8)]",
             surface: "from-rose-50/80 via-white to-amber-50/40",
             curve: "from-rose-100/60 via-amber-50/30 to-transparent",
             dotColor: "rgba(244,63,94,0.12)",
+            imageShadow: "shadow-[0_8px_32px_rgba(244,63,94,0.15),0_4px_12px_rgba(0,0,0,0.08)]",
         },
         {
             name: "sky",
-            icon: "bg-gradient-to-br from-sky-100 to-cyan-50 text-sky-600 ring-sky-200/50",
+            icon: "bg-gradient-to-br from-sky-100 to-cyan-50 text-sky-600",
+            iconShadow: "shadow-[0_4px_12px_rgba(14,165,233,0.25),0_1px_3px_rgba(14,165,233,0.1),inset_0_1px_0_rgba(255,255,255,0.8)]",
             surface: "from-sky-50/80 via-white to-cyan-50/40",
             curve: "from-sky-100/60 via-cyan-50/30 to-transparent",
             dotColor: "rgba(14,165,233,0.12)",
+            imageShadow: "shadow-[0_8px_32px_rgba(14,165,233,0.15),0_4px_12px_rgba(0,0,0,0.08)]",
         },
         {
             name: "emerald",
-            icon: "bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600 ring-emerald-200/50",
+            icon: "bg-gradient-to-br from-emerald-100 to-teal-50 text-emerald-600",
+            iconShadow: "shadow-[0_4px_12px_rgba(16,185,129,0.25),0_1px_3px_rgba(16,185,129,0.1),inset_0_1px_0_rgba(255,255,255,0.8)]",
             surface: "from-emerald-50/80 via-white to-lime-50/40",
             curve: "from-emerald-100/60 via-lime-50/30 to-transparent",
             dotColor: "rgba(16,185,129,0.12)",
+            imageShadow: "shadow-[0_8px_32px_rgba(16,185,129,0.15),0_4px_12px_rgba(0,0,0,0.08)]",
         },
         {
             name: "violet",
-            icon: "bg-gradient-to-br from-violet-100 to-purple-50 text-violet-600 ring-violet-200/50",
+            icon: "bg-gradient-to-br from-violet-100 to-purple-50 text-violet-600",
+            iconShadow: "shadow-[0_4px_12px_rgba(139,92,246,0.25),0_1px_3px_rgba(139,92,246,0.1),inset_0_1px_0_rgba(255,255,255,0.8)]",
             surface: "from-violet-50/80 via-white to-fuchsia-50/40",
             curve: "from-violet-100/60 via-purple-50/30 to-transparent",
             dotColor: "rgba(139,92,246,0.12)",
+            imageShadow: "shadow-[0_8px_32px_rgba(139,92,246,0.15),0_4px_12px_rgba(0,0,0,0.08)]",
         },
         {
             name: "amber",
-            icon: "bg-gradient-to-br from-amber-100 to-yellow-50 text-amber-600 ring-amber-200/50",
+            icon: "bg-gradient-to-br from-amber-100 to-yellow-50 text-amber-600",
+            iconShadow: "shadow-[0_4px_12px_rgba(245,158,11,0.25),0_1px_3px_rgba(245,158,11,0.1),inset_0_1px_0_rgba(255,255,255,0.8)]",
             surface: "from-amber-50/80 via-white to-orange-50/40",
             curve: "from-amber-100/60 via-orange-50/30 to-transparent",
             dotColor: "rgba(245,158,11,0.12)",
+            imageShadow: "shadow-[0_8px_32px_rgba(245,158,11,0.15),0_4px_12px_rgba(0,0,0,0.08)]",
         },
         {
             name: "cyan",
-            icon: "bg-gradient-to-br from-cyan-100 to-teal-50 text-cyan-600 ring-cyan-200/50",
+            icon: "bg-gradient-to-br from-cyan-100 to-teal-50 text-cyan-600",
+            iconShadow: "shadow-[0_4px_12px_rgba(6,182,212,0.25),0_1px_3px_rgba(6,182,212,0.1),inset_0_1px_0_rgba(255,255,255,0.8)]",
             surface: "from-cyan-50/80 via-white to-sky-50/40",
             curve: "from-cyan-100/60 via-teal-50/30 to-transparent",
             dotColor: "rgba(6,182,212,0.12)",
+            imageShadow: "shadow-[0_8px_32px_rgba(6,182,212,0.15),0_4px_12px_rgba(0,0,0,0.08)]",
         },
     ];
 
     const imageLayoutBySpan = {
-        sm: { grid: "sm:grid-cols-[1fr_1fr]" },
-        md: { grid: "sm:grid-cols-[0.9fr_1.1fr]" },
-        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]" },
+        sm: { grid: "grid-cols-1", minHeight: "min-h-[280px]" },
+        md: { grid: "sm:grid-cols-[1fr_1.2fr]", minHeight: "min-h-[260px]" },
+        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", minHeight: "min-h-[300px]" },
     };
 
     const paddingByPlacement = {
-        top: { sm: "self-start", md: "self-start", lg: "self-start" },
-        middle: { sm: "self-center", md: "self-center", lg: "self-center" },
-        bottom: { sm: "self-end", md: "self-end", lg: "self-end" },
+        top: { sm: "items-start", md: "items-start", lg: "items-start" },
+        middle: { sm: "items-center", md: "items-center", lg: "items-center" },
+        bottom: { sm: "items-end", md: "items-end", lg: "items-end" },
     };
 
     return (
-        <section className={cn("py-24 px-6", className)}>
+        <section id={id} className={cn("py-24 px-6", className)}>
             <div className="mx-auto max-w-6xl">
                 {/* Section Header */}
                 <div className="text-center mb-16">
@@ -169,18 +295,34 @@ export function FeatureShowcaseSection({
                         const spanKey = feature.span || "sm";
                         const imageLayout = imageLayoutBySpan[spanKey];
                         const imageAlign = paddingByPlacement[placement][spanKey];
+                        const variant = feature.variant || "default";
 
                         return (
                             <motion.div
                                 key={feature.title}
                                 className={cn(
-                                    "group relative overflow-hidden rounded-[32px]",
-                                    "bg-white/95 backdrop-blur-sm texture-dots-light",
-                                    "border border-gray-200/50",
-                                    "shadow-[0_2px_8px_rgba(0,0,0,0.03),0_12px_32px_rgba(0,0,0,0.05)]",
-                                    "transition-all duration-500 ease-out",
-                                    "hover:-translate-y-1.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08),0_32px_64px_rgba(0,0,0,0.1)]",
-                                    "hover:border-gray-200/80",
+                                    "group relative overflow-hidden rounded-[24px]",
+                                    "transition-all duration-300 ease-out",
+                                    imageLayout.minHeight,
+                                    variant === "default" && [
+                                        "bg-white/95 backdrop-blur-sm",
+                                        "border border-white/60",
+                                        "ring-1 ring-gray-900/[0.04]",
+                                        "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.06),0_16px_48px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.8)]",
+                                        "hover:ring-gray-900/[0.08] hover:bg-white",
+                                        "hover:-translate-y-1 hover:shadow-[0_2px_4px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08),0_24px_64px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]",
+                                    ],
+                                    variant === "ghost" && [
+                                        "bg-white/70 backdrop-blur-sm",
+                                        "border border-white/40",
+                                        "ring-1 ring-gray-900/[0.03]",
+                                        "shadow-[0_1px_2px_rgba(0,0,0,0.02),0_4px_12px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.6)]",
+                                    ],
+                                    variant === "outline" && [
+                                        "bg-white/40",
+                                        "border border-gray-200/60",
+                                        "shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]",
+                                    ],
                                     spanClasses[feature.span || "sm"]
                                 )}
                                 initial={{ opacity: 0, y: 24 }}
@@ -202,8 +344,8 @@ export function FeatureShowcaseSection({
                                         style={{
                                             backgroundImage: `radial-gradient(circle at 1px 1px, ${palette.dotColor} 1.5px, transparent 0)`,
                                             backgroundSize: "16px 16px",
-                                            maskImage: "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.15) 25%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.9) 75%, black 100%)",
-                                            WebkitMaskImage: "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.15) 25%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.9) 75%, black 100%)",
+                                            maskImage: "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.1) 25%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.7) 75%, black 100%)",
+                                            WebkitMaskImage: "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.1) 25%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.7) 75%, black 100%)",
                                         }}
                                     />
                                 )}
@@ -218,8 +360,8 @@ export function FeatureShowcaseSection({
                                                 linear-gradient(to bottom, ${palette.dotColor} 1px, transparent 1px)
                                             `,
                                             backgroundSize: "24px 24px",
-                                            maskImage: "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.15) 25%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.9) 75%, black 100%)",
-                                            WebkitMaskImage: "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.15) 25%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.9) 75%, black 100%)",
+                                            maskImage: "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.1) 25%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.7) 75%, black 100%)",
+                                            WebkitMaskImage: "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.1) 25%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.7) 75%, black 100%)",
                                         }}
                                     />
                                 )}
@@ -227,7 +369,7 @@ export function FeatureShowcaseSection({
                                 {/* Gradient backdrop - soft colorful wash */}
                                 {backdrop === "gradient" && (
                                     <div
-                                        className="absolute inset-0 opacity-60"
+                                        className="absolute inset-0 opacity-40"
                                         style={{
                                             backgroundImage: `
                                                 radial-gradient(ellipse 80% 60% at 80% 30%, ${palette.dotColor.replace('0.12', '0.25')}, transparent 60%),
@@ -248,51 +390,74 @@ export function FeatureShowcaseSection({
                                     style={{ clipPath: "ellipse(80% 95% at 100% 50%)" }}
                                 />
 
-                                {/* Subtle top highlight */}
-                                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent" />
+                                {/* Subtle edge highlights for depth */}
+                                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/90 to-transparent" />
+                                <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-white/60 via-white/20 to-transparent" />
+                                <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-black/[0.03] to-transparent" />
 
                                 {/* Content */}
                                 <div className={cn(
-                                    "relative z-10 grid h-full gap-4 p-6",
-                                    (feature.image || feature.video) ? cn("grid-cols-1", imageLayout.grid) : "grid-cols-1"
+                                    "relative z-10 h-full p-5 flex",
+                                    spanKey === "sm" && placement === "top" ? "flex-col-reverse" : "flex-col",
+                                    (feature.image || feature.video) && spanKey !== "sm" && "sm:grid sm:gap-2",
+                                    (feature.image || feature.video) && spanKey !== "sm" && imageLayout.grid
                                 )}>
-                                    <div className="flex h-full flex-col justify-between gap-4">
-                                        <div>
-                                            {/* Icon */}
-                                            {feature.icon && (
-                                                <div className={cn(
-                                                    "w-11 h-11 rounded-2xl flex items-center justify-center mb-4",
-                                                    "ring-1 shadow-sm",
-                                                    palette.icon
-                                                )}>
-                                                    <feature.icon className="w-5 h-5" strokeWidth={1.5} />
-                                                </div>
-                                            )}
+                                    {/* Text content */}
+                                    <div className={cn(
+                                        "flex flex-col gap-3",
+                                        spanKey === "sm" ? "flex-shrink-0" : "justify-center",
+                                        spanKey === "sm" && placement === "top" && "mt-auto"
+                                    )}>
+                                        {/* Icon */}
+                                        {feature.icon && (
+                                            <div className={cn(
+                                                "w-10 h-10 rounded-xl flex items-center justify-center",
+                                                "transition-transform duration-300 group-hover:scale-105",
+                                                palette.icon,
+                                                palette.iconShadow
+                                            )}>
+                                                <feature.icon className="w-5 h-5" strokeWidth={1.5} />
+                                            </div>
+                                        )}
 
-                                            {/* Title */}
-                                            <h3 className="font-semibold text-lg text-gray-900 mb-2">
-                                                {feature.title}
-                                            </h3>
+                                        {/* Title */}
+                                        <h3 className="font-semibold text-lg text-gray-900">
+                                            {feature.title}
+                                        </h3>
 
-                                            {/* Description */}
-                                            <p className="text-sm text-gray-500 leading-relaxed">
-                                                {feature.description}
-                                            </p>
-                                        </div>
+                                        {/* Description */}
+                                        <p className="text-sm text-gray-500 leading-relaxed font-medium">
+                                            {feature.description}
+                                        </p>
                                     </div>
 
-                                {/* Feature Image - BLEEDS OUT / CUT OFF */}
+                                    {/* Feature Image */}
                                     {(feature.image || feature.video) && (
                                         <div className={cn(
-                                            "flex sm:justify-end -mr-6 -mb-6",
-                                            placement === "top" && "-mt-2",
-                                            placement === "bottom" && "mt-auto",
-                                            imageAlign
+                                            "flex-1 flex min-h-0",
+                                            spanKey === "sm" && placement === "top" ? "justify-end items-start mb-4 -mr-5 -mt-5" : "",
+                                            spanKey === "sm" && placement !== "top" ? "justify-end items-end mt-4 -mr-5 -mb-5" : "",
+                                            spanKey !== "sm" && cn("justify-end", imageAlign),
+                                            spanKey !== "sm" && !feature.isGraphic && "-mr-5 -mb-5 -mt-5"
                                         )}>
-                                            <div className="w-full overflow-hidden rounded-tl-2xl rounded-bl-2xl shadow-[0_8px_30px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.1)] ring-1 ring-black/[0.06]">
+                                            <div className={cn(
+                                                "relative",
+                                                spanKey === "sm" ? "w-[55%] h-[120px]" : "w-full h-full",
+                                                !feature.isGraphic && "overflow-hidden",
+                                                !feature.isGraphic && spanKey === "sm" && placement === "top" && "rounded-bl-xl",
+                                                !feature.isGraphic && spanKey === "sm" && placement !== "top" && "rounded-tl-xl",
+                                                !feature.isGraphic && spanKey !== "sm" && "rounded-tl-xl rounded-bl-xl",
+                                                !feature.isGraphic && palette.imageShadow,
+                                                !feature.isGraphic && "ring-1 ring-black/[0.08]",
+                                                feature.isGraphic && "flex justify-center items-center"
+                                            )}>
                                                 {feature.video ? (
                                                     <video
-                                                        className="h-full w-full object-cover object-left"
+                                                        className={cn(
+                                                            feature.isGraphic
+                                                                ? (feature.imageClassName || "max-w-full max-h-full object-contain drop-shadow-lg")
+                                                                : "absolute inset-0 w-full h-full object-cover object-left"
+                                                        )}
                                                         autoPlay
                                                         loop
                                                         muted
@@ -301,13 +466,43 @@ export function FeatureShowcaseSection({
                                                     >
                                                         <source src={feature.video} type="video/mp4" />
                                                     </video>
+                                                ) : feature.interactive === "cursor-follow" ? (
+                                                    <CursorFollowImage
+                                                        src={feature.image!}
+                                                        alt={feature.title}
+                                                        className={feature.imageClassName || "max-w-full max-h-full object-contain"}
+                                                    />
+                                                ) : feature.interactive === "click" ? (
+                                                    <motion.div
+                                                        className="cursor-pointer select-none"
+                                                        whileTap={{ scale: 0.92, rotate: -2 }}
+                                                        whileHover={{ scale: 1.02 }}
+                                                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                                    >
+                                                        <Image
+                                                            src={feature.image!}
+                                                            alt={feature.title}
+                                                            width={800}
+                                                            height={600}
+                                                            className={cn(
+                                                                feature.isGraphic
+                                                                    ? cn(feature.imageClassName || "max-w-full max-h-full object-contain", "drop-shadow-[0_8px_24px_rgba(0,0,0,0.15)]")
+                                                                    : "absolute inset-0 w-full h-full object-cover object-left"
+                                                            )}
+                                                            draggable={false}
+                                                        />
+                                                    </motion.div>
                                                 ) : (
                                                     <Image
                                                         src={feature.image!}
                                                         alt={feature.title}
-                                                        width={1100}
-                                                        height={800}
-                                                        className="h-full w-full object-cover object-left"
+                                                        width={800}
+                                                        height={600}
+                                                        className={cn(
+                                                            feature.isGraphic
+                                                                ? cn(feature.imageClassName || "max-w-full max-h-full object-contain", "drop-shadow-[0_8px_24px_rgba(0,0,0,0.15)]")
+                                                                : "absolute inset-0 w-full h-full object-cover object-left"
+                                                        )}
                                                     />
                                                 )}
                                             </div>

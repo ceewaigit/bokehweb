@@ -22,49 +22,61 @@ export default function PrivacyPage() {
                     </p>
                 </div>
 
-                <div className="prose prose-slate prose-lg max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-a:text-indigo-600 hover:prose-a:text-indigo-500">
-                    <p>
+                <div className="max-w-2xl">
+                    <p className="text-[17px] leading-relaxed text-slate-600 mb-8">
                         Privacy is core to bokeh. We follow a few clear principles:
                     </p>
-                    <ul>
+                    <ul className="mb-12 space-y-3 text-[16px] text-slate-600 leading-relaxed list-disc pl-5 marker:text-slate-400">
                         <li>We don't ask you for personal information unless we truly need it.</li>
                         <li>We don't share your personal information with anyone except to comply with the law, develop our products, or protect our rights.</li>
                         <li>We don't store personal information on our servers unless required for the on-going operation of one of our services.</li>
                     </ul>
 
-                    <h3>1. Local-first architecture</h3>
-                    <p>
-                        bokeh is built local-first. Recordings, audio, and projects are stored on your device. We don’t access your content, and we don’t upload recordings to our servers.
-                    </p>
+                    <section className="mb-12">
+                        <h2 className="text-xl font-semibold text-slate-900 mb-4 tracking-tight">1. Local-first architecture</h2>
+                        <p className="text-[16px] leading-relaxed text-slate-600">
+                            bokeh is built local-first. Recordings, audio, and projects are stored on your device. We don't access your content, and we don't upload recordings to our servers.
+                        </p>
+                    </section>
 
-                    <h3>2. Data collection</h3>
-                    <p>
-                        We collect minimal data necessary to operate the service:
-                    </p>
-                    <ul>
-                        <li><strong>Account Information:</strong> If you purchase a pro license, we collect your email address and license key status.</li>
-                        <li><strong>Usage Analytics:</strong> We may collect anonymous, aggregated telemetry (app version, OS version, performance metrics) to improve stability. You can opt out at any time in settings.</li>
-                    </ul>
+                    <section className="mb-12">
+                        <h2 className="text-xl font-semibold text-slate-900 mb-4 tracking-tight">2. Data collection</h2>
+                        <p className="text-[16px] leading-relaxed text-slate-600 mb-4">
+                            We collect minimal data necessary to operate the service:
+                        </p>
+                        <ul className="space-y-3 text-[16px] text-slate-600 leading-relaxed list-disc pl-5 marker:text-slate-400">
+                            <li><strong className="font-medium text-slate-900">Account Information:</strong> If you purchase a pro license, we collect your email address and license key status.</li>
+                            <li><strong className="font-medium text-slate-900">Usage Analytics:</strong> We may collect anonymous, aggregated telemetry (app version, OS version, performance metrics) to improve stability. You can opt out at any time in settings.</li>
+                        </ul>
+                    </section>
 
-                    <h3>3. Third-party services</h3>
-                    <p>
-                        We may use third-party services for specific functions, such as payment processing (e.g., Stripe) or email delivery. These services have their own privacy policies, and we only share the minimum necessary data with them to facilitate their specific service.
-                    </p>
+                    <section className="mb-12">
+                        <h2 className="text-xl font-semibold text-slate-900 mb-4 tracking-tight">3. Third-party services</h2>
+                        <p className="text-[16px] leading-relaxed text-slate-600">
+                            We may use third-party services for specific functions, such as payment processing (e.g., Stripe) or email delivery. These services have their own privacy policies, and we only share the minimum necessary data with them to facilitate their specific service.
+                        </p>
+                    </section>
 
-                    <h3>4. Security</h3>
-                    <p>
-                        We take the security of your data seriously. Since your recordings are stored locally, the security of your content primarily depends on the security of your own device. For any data we do transmit (like license validation), we use industry-standard encryption (TLS/SSL).
-                    </p>
+                    <section className="mb-12">
+                        <h2 className="text-xl font-semibold text-slate-900 mb-4 tracking-tight">4. Security</h2>
+                        <p className="text-[16px] leading-relaxed text-slate-600">
+                            We take the security of your data seriously. Since your recordings are stored locally, the security of your content primarily depends on the security of your own device. For any data we do transmit (like license validation), we use industry-standard encryption (TLS/SSL).
+                        </p>
+                    </section>
 
-                    <h3>5. Changes to this policy</h3>
-                    <p>
-                        We may update this policy from time to time. Please check this page for changes. Continued use of the site means you accept the updated policy.
-                    </p>
-
-                    <h3>6. Contact us</h3>
-                    <p>
-                        If you have any questions about our Privacy Policy, please contact us at privacy@bokeh.app.
-                    </p>
+                    <section className="mb-12">
+                        <h2 className="text-xl font-semibold text-slate-900 mb-4 tracking-tight">5. Changes to this policy</h2>
+                        <p className="text-[16px] leading-relaxed text-slate-600">
+                            We may update this policy from time to time. Please check this page for changes. Continued use of the site means you accept the updated policy.
+                        </p>
+                    </section>
+                    {/* 
+                    <section>
+                        <h2 className="text-xl font-semibold text-slate-900 mb-4 tracking-tight">6. Contact us</h2>
+                        <p className="text-[16px] leading-relaxed text-slate-600">
+                            If you have any questions about our Privacy Policy, please contact us at <a href="mailto:privacy@bokeh.app" className="text-indigo-600 hover:text-indigo-500 font-medium transition-colors">privacy@bokeh.app</a>.
+                        </p>
+                    </section> */}
                 </div>
             </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { TweetCard } from "@/components/ui/tweet-card";
 
 interface Testimonial {
@@ -37,12 +38,14 @@ export function TestimonialSection({
     const fadeInStyle = { opacity: 0 };
 
     return (
-        <section className={cn("py-24 px-6", className)}>
+        <section className={cn("relative py-24 px-6 overflow-hidden", className)}>
+            <SectionBackdrop variant="grid" texture fade="all" className="opacity-40" />
+
             <div className="mx-auto max-w-6xl">
                 {/* Section Header */}
                 <div className="text-center mb-12">
                     <motion.h2
-                        className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.05] text-balance text-foreground mb-4 [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium"
+                        className="text-4xl md:text-5xl font-semibold tracking-[-0.02em] leading-[1.1] text-balance mb-4 bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-transparent"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}

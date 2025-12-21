@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { useState } from "react";
 
 interface QAItem {
@@ -11,6 +12,7 @@ interface QAItem {
 
 interface QASectionProps {
     className?: string;
+    id?: string;
     eyebrow?: string;
     title: React.ReactNode;
     subtitle?: string;
@@ -19,6 +21,7 @@ interface QASectionProps {
 
 export function QASection({
     className,
+    id,
     eyebrow = "Questions",
     title,
     subtitle,
@@ -28,7 +31,9 @@ export function QASection({
     const fadeInStyle = { opacity: 0 };
 
     return (
-        <section className={cn("py-24 px-6", className)}>
+        <section id={id} className={cn("relative py-24 px-6 overflow-hidden", className)}>
+            <SectionBackdrop variant="plus" texture fade="all" className="opacity-40" />
+
             <div className="mx-auto max-w-6xl">
                 <div className="grid gap-12 lg:grid-cols-[1.1fr_1.4fr]">
                     <div>
@@ -74,20 +79,23 @@ export function QASection({
                                 <motion.div
                                     key={item.question}
                                     className={cn(
-                                        "relative overflow-hidden rounded-2xl bg-white/80",
-                                        "backdrop-blur-lg shadow-[0_8px_24px_rgba(15,23,42,0.08),0_1px_0_rgba(255,255,255,0.95)_inset]"
+                                        "relative overflow-hidden rounded-2xl bg-white/80 cursor-pointer",
+                                        "backdrop-blur-lg shadow-[0_8px_24px_rgba(15,23,42,0.08),0_1px_0_rgba(255,255,255,0.95)_inset]",
+                                        "transition-colors duration-200 hover:bg-white/90"
                                     )}
                                     initial={{ opacity: 0, y: 6 }}
                                     whileInView={{ opacity: 1, y: 0 }}
+                                    whileHover={{ scale: 1.005 }}
+                                    whileTap={{ scale: 0.995 }}
                                     viewport={{ once: true, margin: "-60px" }}
                                     transition={{ duration: 0.22, delay: index * 0.03, ease: [0.22, 0.61, 0.36, 1] }}
                                     style={fadeInStyle}
+                                    onClick={() => setOpenIndex(isOpen ? null : index)}
                                 >
                                     <button
                                         type="button"
                                         aria-expanded={isOpen}
-                                        onClick={() => setOpenIndex(isOpen ? null : index)}
-                                        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[15px] font-semibold text-slate-900 outline-none focus-visible:outline-none focus-visible:ring-0"
+                                        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[15px] font-semibold text-slate-900 outline-none focus-visible:outline-none focus-visible:ring-0 pointer-events-none"
                                     >
                                         <span>{item.question}</span>
                                         <span

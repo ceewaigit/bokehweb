@@ -14,39 +14,39 @@ interface Version {
 }
 
 const changelogData: Version[] = [
-    {
-        version: "1.0.0",
-        date: "Current",
-        isMajor: true,
-        changes: [
-            { description: "Official Release", type: "new" },
-        ]
-    },
-    {
-        version: "0.9.8",
-        changes: [
-            { description: "Final pre-release stability polish", type: "improvement" },
-            { description: "Enhanced rendering engine performance on M2 chips", type: "improvement" },
-            { description: "Updated default templates collection", type: "new" },
-        ]
-    },
-    {
-        version: "0.9.5",
-        changes: [
-            { description: "Webcam timeline integration for simplified user experience", type: "new" },
-            { description: "Rebranding: Updated project file format and naming conventions", type: "refactor" },
-            { description: "Text overlays with motion, blur masking, and scene transitions", type: "new" },
-            { description: "Text-based editing functionality", type: "new" },
-        ]
-    },
-    {
-        version: "0.9.2",
-        changes: [
-            { description: "Improved export rendering speeds for 4K video", type: "improvement" },
-            { description: "Fixed thumbnail generation caching issue", type: "fix" },
-            { description: "Refined padding on text overlays", type: "improvement" },
-        ]
-    },
+    // {
+    //     version: "1.0.0",
+    //     date: "Current",
+    //     isMajor: true,
+    //     changes: [
+    //         { description: "Official Release", type: "new" },
+    //     ]
+    // },
+    // {
+    //     version: "0.9.8",
+    //     changes: [
+    //         { description: "Final pre-release stability polish", type: "improvement" },
+    //         { description: "Enhanced rendering engine performance on M2 chips", type: "improvement" },
+    //         { description: "Updated default templates collection", type: "new" },
+    //     ]
+    // },
+    // {
+    //     version: "0.9.5",
+    //     changes: [
+    //         { description: "Webcam timeline integration for simplified user experience", type: "new" },
+    //         { description: "Rebranding: Updated project file format and naming conventions", type: "refactor" },
+    //         { description: "Text overlays with motion, blur masking, and scene transitions", type: "new" },
+    //         { description: "Text-based editing functionality", type: "new" },
+    //     ]
+    // },
+    // {
+    //     version: "0.9.2",
+    //     changes: [
+    //         { description: "Improved export rendering speeds for 4K video", type: "improvement" },
+    //         { description: "Fixed thumbnail generation caching issue", type: "fix" },
+    //         { description: "Refined padding on text overlays", type: "improvement" },
+    //     ]
+    // },
     {
         version: "0.9.0",
         changes: [

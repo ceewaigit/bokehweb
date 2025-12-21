@@ -10,44 +10,47 @@ import { TestimonialSection } from "@/components/sections/testimonial-section";
 import { QASection } from "@/components/sections/qa-section";
 import { CTASection } from "@/components/sections/cta-section";
 import {
-  Scissors,
-  Sparkles,
-  Type,
   Clock,
+  Command,
+  Crop,
+  Keyboard,
+  Type,
+  KeyRound,
   Wand2,
   Layers,
   MousePointer,
   Palette,
-  Video,
-  Zap,
+  Box,
+  FileVideo,
   Download
 } from "lucide-react";
 import PricingSection from "@/components/sections/pricing-section";
 
 const features = [
   {
-    icon: Scissors,
-    title: "Silence cleanup",
-    description: "Remove dead air automatically so every recording stays tight and watchable",
-    highlight: "by default.",
-  },
-  {
-    icon: Sparkles,
-    title: "Filler word removal",
-    description: "Clean up ums and ahs for a polished delivery without manual edits",
-    highlight: "in one pass.",
+    icon: Clock,
+    title: "Idle cleanup",
+    description: "Remove idle gaps automatically so recordings stay tight and watchable.",
   },
   {
     icon: Type,
-    title: "Edit by transcript",
-    description: "Cut, reorder, and refine video using the transcript",
-    highlight: "like a doc.",
+    title: "Typing speed-up",
+    description: "Speed up long typing stretches to keep walkthroughs moving.",
   },
   {
-    icon: Clock,
-    title: "Smart trim",
-    description: "Clean starts and endings so recordings open strong and close clean",
-    highlight: "automatically.",
+    icon: Command,
+    title: "Keyboard shortcuts",
+    description: "Trigger core actions fast with built-in shortcuts.",
+  },
+  {
+    icon: Crop,
+    title: "Aspect ratio presets",
+    description: "Switch to ready-made aspect ratios for common layouts.",
+  },
+  {
+    icon: KeyRound,
+    title: "Auto keystroke detection",
+    description: "Detect keystrokes automatically to highlight what you type.",
   },
 ];
 
@@ -62,49 +65,62 @@ const showcaseFeatures = [
     span: "md" as const,
   },
   {
-    icon: Layers,
-    title: "Beautiful backgrounds",
-    description: "Swap in gradients, patterns, or solid colors for brand-ready recordings.",
-    image: "/screenshot2.png",
-    imagePlacement: "top" as const,
-    backdrop: "gradient" as const,
+    icon: Download,
+    title: "HD zoom",
+    description: "Zoom in without losing clarity, your video stays crisp and high definition.",
+    image: "/features/HDZoom.png",
+    imagePlacement: "middle" as const,
+    backdrop: "grid" as const,
     span: "sm" as const,
+  },
+  {
+    icon: Box,
+    title: "3D effects",
+    description: "Add depth and dimension to your recordings with cinematic 3D transformations.",
+    image: "/features/3d.png",
+    imagePlacement: "bottom" as const,
+    backdrop: "dots" as const,
+    span: "sm" as const,
+    imageClassName: "w-[90%] max-h-[100px] object-contain object-bottom",
   },
   {
     icon: MousePointer,
     title: "Smooth cursor",
     description: "Stabilized cursor motion makes tutorials feel calm and intentional.",
-    image: "/screenshot1.png",
-    imagePlacement: "bottom" as const,
-    backdrop: "grid" as const,
-    span: "sm" as const,
-  },
-  {
-    icon: Video,
-    title: "Webcam overlay",
-    description: "Add a picture-in-picture camera bubble for a more human walkthrough.",
-    image: "/screenshot2.png",
+    image: "/features/arrow.png",
     imagePlacement: "middle" as const,
-    backdrop: "dots" as const,
-    span: "sm" as const,
+    backdrop: "grid" as const,
+    span: "md" as const,
+    isGraphic: true,
+    imageClassName: "w-[70%] max-h-[180px] object-contain",
+    interactive: "cursor-follow" as const,
   },
   {
-    icon: Zap,
-    title: "Instant export",
-    description: "Render and share in seconds with optimized quality.",
-    image: "/screenshot1.png",
+    icon: FileVideo,
+    title: "Media import",
+    description: "Import external video and audio to weave into your story.",
+    image: "/features/import.png",
     imagePlacement: "bottom" as const,
     backdrop: "gradient" as const,
     span: "sm" as const,
   },
   {
-    icon: Download,
-    title: "Multiple formats",
-    description: "Export to MP4, GIF, or web-ready formats for any channel.",
-    image: "/screenshot2.png",
+    icon: Layers,
+    title: "Beautiful backgrounds",
+    description: "Swap in gradients, patterns, or solid colors for brand-ready recordings.",
+    image: "/features/background.png",
     imagePlacement: "top" as const,
-    backdrop: "dots" as const,
-    span: "md" as const,
+    backdrop: "gradient" as const,
+    span: "sm" as const,
+  },
+  {
+    icon: Palette,
+    title: "Advanced controls",
+    description: "Move fast with smart defaults or dive deep to fine-tune every detail.",
+    image: "/features/advanced.png",
+    imagePlacement: "middle" as const,
+    backdrop: "gradient" as const,
+    span: "sm" as const,
   },
 ];
 
@@ -138,7 +154,7 @@ const testimonials = [
 const faqs = [
   {
     question: "Is my data private?",
-    answer: "Recordings are stored locally. Processing stays on your machine, and you can opt out of basic analytics at any time.",
+    answer: "100%. Recordings are stored locally. Processing stays on your machine, and you can opt out of basic analytics at any time.",
   },
   {
     question: "What editing can I do without a timeline?",
@@ -159,6 +175,10 @@ const faqs = [
   {
     question: "How is bokeh different from typical screen recorders?",
     answer: "Bokeh captures clean video and uses precise cursor data to polish movement and focus after capture, so you can refine without re‑recording.",
+  },
+  {
+    question: "What platforms does bokeh support?",
+    answer: "Currently, bokeh is only available for macOS Apple Silicon only.",
   },
   {
     question: "What are the system requirements?",
@@ -208,13 +228,14 @@ export default function Home() {
             subtitle="Record and edit screen videos for demos, tutorials, and updates with fast cleanup, transcript edits, and polished exports."
             primaryCta={{ label: "Get started", href: "#" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
-            screenshotSrc="/screenshot1.png"
+            screenshotSrc="/hero.png"
             socialProof={{ count: "10,000+", label: "teams already recording with bokeh" }}
           />
 
           <SocialProofSection />
 
           <FeatureShowcaseSection
+            id="features"
             badge="Features"
             title={
               <>
@@ -234,9 +255,9 @@ export default function Home() {
                 <em className="highlight-pink">Ship with confidence.</em>
               </>
             }
-            subtitle="Remove silences, clean filler words, and edit by transcript to deliver crisp, on-brand screen recordings."
+            subtitle="Tighten idle moments, speed up typing, and ship recordings quickly with smart presets and shortcuts."
             features={features}
-            columns={4}
+            columns={3}
           />
 
           <TestimonialSection
@@ -245,7 +266,10 @@ export default function Home() {
             testimonials={testimonials}
           />
 
+          <PricingSection />
+
           <QASection
+            id="resources"
             eyebrow="Q&A"
             title={
               <>
@@ -257,10 +281,9 @@ export default function Home() {
             items={faqs}
           />
 
-          <PricingSection />
 
           <CTASection
-            title={<>Try <em>bokeh.</em></>}
+            title={<>try <em>bokeh</em> today.</>}
             subtitle="Start your free trial and publish clear, brand-ready screen recordings in minutes."
             ctaLabel="Get started for free"
             ctaHref="#"

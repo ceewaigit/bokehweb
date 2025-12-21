@@ -6,10 +6,16 @@ export const pricingCopy = {
   footnote: "Trade in after 18 months to move to a lifetime license.",
 };
 
+// TODO: Set to true when ready to launch
+const PRODUCT_READY = false;
+
 const PRICING = {
   trialDays: 7,
-  monthly: 9,
-  lifetime: 149,
+  // TODO: Uncomment when ready to launch
+  // monthly: 9,
+  // lifetime: 149,
+  monthly: null, // Coming soon
+  lifetime: null, // Coming soon
 };
 
 export const pricingPlans = [
@@ -25,11 +31,12 @@ export const pricingPlans = [
       "Cancel anytime",
       "Watermarked exports",
     ],
+    disabled: !PRODUCT_READY,
   },
   {
     name: "Pro",
-    price: `$${PRICING.monthly}`,
-    priceSuffix: "/ month",
+    price: PRICING.monthly ? `$${PRICING.monthly}` : "Coming Soon",
+    priceSuffix: PRICING.monthly ? "/ month" : "",
     description: "Clean exports, priority support, and client-ready polish.",
     cta: "Go Pro",
     features: [
@@ -40,13 +47,14 @@ export const pricingPlans = [
       "Trade in to lifetime after 18 months",
       "Cancel anytime",
     ],
-    footnote: `Lifetime license is $${PRICING.lifetime} unless you trade in after 18 months.`,
+    footnote: PRICING.lifetime ? `Lifetime license is $${PRICING.lifetime} unless you trade in after 18 months.` : undefined,
     highlight: true,
+    comingSoon: !PRICING.monthly,
   },
   {
     name: "Lifetime",
-    price: `$${PRICING.lifetime}`,
-    priceSuffix: "once",
+    price: PRICING.lifetime ? `$${PRICING.lifetime}` : "Coming Soon",
+    priceSuffix: PRICING.lifetime ? "once" : "",
     description: "A one-time purchase for long-term teams.",
     cta: "Buy lifetime",
     features: [
@@ -57,5 +65,6 @@ export const pricingPlans = [
       "Lifetime updates",
       "Pay once, own forever",
     ],
+    comingSoon: !PRICING.lifetime,
   },
 ];

@@ -36,7 +36,7 @@ export function SocialProofSection({
             <div className="mx-auto max-w-5xl">
                 {/* Title */}
                 <motion.h2
-                    className="text-center text-2xl md:text-[28px] font-semibold tracking-[-0.01em] leading-[1.2] text-balance text-slate-900 mb-10 [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium"
+                    className="text-center text-3xl md:text-4xl lg:text-5xl font-semibold tracking-[-0.02em] leading-[1.1] text-balance mb-12 bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-transparent"
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
