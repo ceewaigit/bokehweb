@@ -61,6 +61,7 @@ const showcaseFeatures = [
     description: "Auto zoom tracks your cursor to spotlight every click and demo.",
     video: "/features/zoom-720.mp4",
     imagePlacement: "middle" as const,
+    textPosition: "left" as const,
     backdrop: "dots" as const,
     span: "md" as const,
   },
@@ -89,6 +90,7 @@ const showcaseFeatures = [
     description: "Stabilized cursor motion makes tutorials feel calm and intentional.",
     image: "/features/arrow.png",
     imagePlacement: "middle" as const,
+    textPosition: "right" as const,
     backdrop: "grid" as const,
     span: "md" as const,
     isGraphic: true,
@@ -100,6 +102,7 @@ const showcaseFeatures = [
     title: "Media import",
     description: "Import external video and audio to weave into your story.",
     image: "/features/import.png",
+    textPosition: "right" as const,
     imagePlacement: "bottom" as const,
     backdrop: "gradient" as const,
     span: "sm" as const,
@@ -110,6 +113,7 @@ const showcaseFeatures = [
     description: "Swap in gradients, patterns, or solid colors for brand-ready recordings.",
     image: "/features/background.png",
     imagePlacement: "top" as const,
+    textPosition: "left" as const,
     backdrop: "gradient" as const,
     span: "sm" as const,
   },
@@ -154,35 +158,59 @@ const testimonials = [
 const faqs = [
   {
     question: "Is my data private?",
-    answer: "100%. Recordings are stored locally. Processing stays on your machine, and you can opt out of basic analytics at any time.",
-  },
-  {
-    question: "What editing can I do without a timeline?",
-    answer: "Transcript edits, silence removal, filler cleanup, precision trims, and cursor polish. Use the timeline when you want deeper control.",
+    answer: "Absolutely. Your recordings never leave your machine. All processing happens locally, your videos stay yours, and you can opt out of basic analytics anytime. No cloud uploads, no third-party access, no compromises.",
   },
   {
     question: "Do you support commercial use?",
-    answer: "Yes. bokeh is built for client work, product demos, onboarding, and internal updates.",
+    answer: "100%. bokeh is built for professionals. Use it for client work, product demos, team onboarding, sales enablement, and internal updates. Your videos, your business, no restrictions.",
   },
   {
     question: "Is there a free trial?",
-    answer: "You can try bokeh for free. Upgrade only when you are ready to export and share.",
+    answer: "Yes, with no credit card required. Explore every feature, record as much as you want, and upgrade only when you're ready to export clean, watermark-free videos.",
   },
   {
-    question: "What’s coming next?",
-    answer: "We keep a public roadmap so you can see what is planned and what is in progress.",
+    question: "What is a trade-in?",
+    answer: "We believe you shouldn't pay for software forever. After 16 months on a monthly subscription, you've earned the right to trade in for a lifetime license at no extra cost. It's our way of rewarding loyal users, keep your subscription benefits forever, with no more payments.",
+  },
+  {
+    question: "What export quality can I expect?",
+    answer: "Pixel-perfect exports at your native Retina resolution. Every frame captures the full clarity of your Mac display, no downscaling, no compression artifacts. Your recordings look exactly as sharp as what you see on screen.",
+  },
+  {
+    question: "How long does it take to learn bokeh?",
+    answer: "Minutes, not hours. Record your first video, effects are applied automatically, and export. That's it. The smart defaults handle the polish so you can focus on your content. Power users can dive deeper whenever they're ready.",
+  },
+  {
+    question: "Do I get free updates?",
+    answer: "Pro subscribers get every update while subscribed. Lifetime license holders get all updates for the current major version, plus discounted upgrades when we release new major versions. Think IntelliJ or GoodNotes, fair pricing that respects your investment.",
+  },
+  {
+    question: "What kind of support do you offer?",
+    answer: "Real humans, fast responses. Pro and Lifetime users get priority email support with typical replies within hours, not days. We also maintain detailed docs and video tutorials for self-service help.",
+  },
+  {
+    question: "Why bokeh instead of Loom or cloud recorders?",
+    answer: "Ownership and privacy. Cloud tools host your videos on their servers, bokeh keeps everything local. You get professional-grade editing tools, no monthly upload limits, and your recordings aren't training someone else's AI. Plus, with our trade-in program, you can own it forever.",
+  },
+  {
+    question: "What's coming next?",
+    answer: "We build in the open. Our public roadmap shows exactly what's planned, what's in progress, and what's shipped. Have a feature request? You can vote and shape what we build next.",
   },
   {
     question: "How is bokeh different from typical screen recorders?",
-    answer: "Bokeh captures clean video and uses precise cursor data to polish movement and focus after capture, so you can refine without re‑recording.",
+    answer: "Most recorders just capture pixels. bokeh captures cursor data separately, so you can smooth movements, add zooms, and refine focus after recording. One take, unlimited polish, no re-records.",
+  },
+  {
+    question: "Can I cancel anytime?",
+    answer: "Yes, no questions asked. Cancel your monthly subscription whenever you want and keep using bokeh until your billing period ends. No cancellation fees, no hoops to jump through.",
   },
   {
     question: "What platforms does bokeh support?",
-    answer: "Currently, bokeh is only available for macOS Apple Silicon only.",
+    answer: "macOS with Apple Silicon. We're laser-focused on making the best experience for Mac users first. Windows support is on our roadmap.",
   },
   {
     question: "What are the system requirements?",
-    answer: "macOS Ventura 13.1 or later is recommended for the best performance.",
+    answer: "macOS Ventura 13.1 or later on Apple Silicon (M1 chip or newer). bokeh is optimized for Apple's latest hardware to deliver buttery-smooth recording and editing.",
   },
 ];
 
@@ -226,7 +254,7 @@ export default function Home() {
               </>
             }
             subtitle="Record and edit screen videos for demos, tutorials, and updates with fast cleanup, transcript edits, and polished exports."
-            primaryCta={{ label: "Get started", href: "#" }}
+            primaryCta={{ label: "Download", href: "#" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
             screenshotSrc="/hero.png"
             socialProof={{ count: "10,000+", label: "teams already recording with bokeh" }}

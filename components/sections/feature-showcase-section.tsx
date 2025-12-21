@@ -123,6 +123,7 @@ interface Feature {
     video?: string;
     span?: "sm" | "md" | "lg";
     imagePlacement?: "top" | "middle" | "bottom";
+    textPosition?: "left" | "right"; // Controls text placement on md/lg cards
     backdrop?: "dots" | "grid" | "gradient";
     variant?: "default" | "outline" | "ghost";
     isGraphic?: boolean;
@@ -215,9 +216,9 @@ export function FeatureShowcaseSection({
     ];
 
     const imageLayoutBySpan = {
-        sm: { grid: "grid-cols-1", minHeight: "min-h-[280px]" },
-        md: { grid: "sm:grid-cols-[1fr_1.2fr]", minHeight: "min-h-[260px]" },
-        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", minHeight: "min-h-[300px]" },
+        sm: { grid: "grid-cols-1", gridReverse: "grid-cols-1", minHeight: "min-h-[280px]" },
+        md: { grid: "sm:grid-cols-[1fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_1fr]", minHeight: "min-h-[260px]" },
+        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_0.8fr]", minHeight: "min-h-[300px]" },
     };
 
     const paddingByPlacement = {
@@ -293,9 +294,11 @@ export function FeatureShowcaseSection({
                         const backdrop = feature.backdrop || "dots";
                         const placement = feature.imagePlacement || "middle";
                         const spanKey = feature.span || "sm";
+                        const textPos = feature.textPosition || "left";
                         const imageLayout = imageLayoutBySpan[spanKey];
                         const imageAlign = paddingByPlacement[placement][spanKey];
                         const variant = feature.variant || "default";
+                        const isTextRight = textPos === "right" && spanKey !== "sm";
 
                         return (
                             <motion.div
@@ -400,13 +403,14 @@ export function FeatureShowcaseSection({
                                     "relative z-10 h-full p-5 flex",
                                     spanKey === "sm" && placement === "top" ? "flex-col-reverse" : "flex-col",
                                     (feature.image || feature.video) && spanKey !== "sm" && "sm:grid sm:gap-2",
-                                    (feature.image || feature.video) && spanKey !== "sm" && imageLayout.grid
+                                    (feature.image || feature.video) && spanKey !== "sm" && (isTextRight ? imageLayout.gridReverse : imageLayout.grid)
                                 )}>
                                     {/* Text content */}
                                     <div className={cn(
                                         "flex flex-col gap-3",
                                         spanKey === "sm" ? "flex-shrink-0" : "justify-center",
-                                        spanKey === "sm" && placement === "top" && "mt-auto"
+                                        spanKey === "sm" && placement === "top" && "mt-auto",
+                                        isTextRight && "sm:order-2"
                                     )}>
                                         {/* Icon */}
                                         {feature.icon && (
@@ -421,12 +425,12 @@ export function FeatureShowcaseSection({
                                         )}
 
                                         {/* Title */}
-                                        <h3 className="font-semibold text-lg text-gray-900">
+                                        <h3 className="font-semibold text-[1.125rem] leading-tight tracking-tight text-gray-900">
                                             {feature.title}
                                         </h3>
 
                                         {/* Description */}
-                                        <p className="text-sm text-gray-500 leading-relaxed font-medium">
+                                        <p className="text-[0.9375rem] text-gray-500 leading-[1.6] tracking-[-0.01em]">
                                             {feature.description}
                                         </p>
                                     </div>
@@ -435,10 +439,13 @@ export function FeatureShowcaseSection({
                                     {(feature.image || feature.video) && (
                                         <div className={cn(
                                             "flex-1 flex min-h-0",
+                                            isTextRight && "sm:order-1",
                                             spanKey === "sm" && placement === "top" ? "justify-end items-start mb-4 -mr-5 -mt-5" : "",
                                             spanKey === "sm" && placement !== "top" ? "justify-end items-end mt-4 -mr-5 -mb-5" : "",
-                                            spanKey !== "sm" && cn("justify-end", imageAlign),
-                                            spanKey !== "sm" && !feature.isGraphic && "-mr-5 -mb-5 -mt-5"
+                                            spanKey !== "sm" && !isTextRight && cn("justify-end", imageAlign),
+                                            spanKey !== "sm" && !isTextRight && !feature.isGraphic && "-mr-5 -mb-5 -mt-5",
+                                            spanKey !== "sm" && isTextRight && cn("justify-start", imageAlign),
+                                            spanKey !== "sm" && isTextRight && !feature.isGraphic && "-ml-5 -mb-5 -mt-5"
                                         )}>
                                             <div className={cn(
                                                 "relative",
@@ -446,7 +453,8 @@ export function FeatureShowcaseSection({
                                                 !feature.isGraphic && "overflow-hidden",
                                                 !feature.isGraphic && spanKey === "sm" && placement === "top" && "rounded-bl-xl",
                                                 !feature.isGraphic && spanKey === "sm" && placement !== "top" && "rounded-tl-xl",
-                                                !feature.isGraphic && spanKey !== "sm" && "rounded-tl-xl rounded-bl-xl",
+                                                !feature.isGraphic && spanKey !== "sm" && !isTextRight && "rounded-tl-xl rounded-bl-xl",
+                                                !feature.isGraphic && spanKey !== "sm" && isTextRight && "rounded-tr-xl rounded-br-xl",
                                                 !feature.isGraphic && palette.imageShadow,
                                                 !feature.isGraphic && "ring-1 ring-black/[0.08]",
                                                 feature.isGraphic && "flex justify-center items-center"
@@ -456,7 +464,7 @@ export function FeatureShowcaseSection({
                                                         className={cn(
                                                             feature.isGraphic
                                                                 ? (feature.imageClassName || "max-w-full max-h-full object-contain drop-shadow-lg")
-                                                                : "absolute inset-0 w-full h-full object-cover object-left"
+                                                                : cn("absolute inset-0 w-full h-full object-cover", isTextRight ? "object-right" : "object-left")
                                                         )}
                                                         autoPlay
                                                         loop
@@ -487,7 +495,7 @@ export function FeatureShowcaseSection({
                                                             className={cn(
                                                                 feature.isGraphic
                                                                     ? cn(feature.imageClassName || "max-w-full max-h-full object-contain", "drop-shadow-[0_8px_24px_rgba(0,0,0,0.15)]")
-                                                                    : "absolute inset-0 w-full h-full object-cover object-left"
+                                                                    : cn("absolute inset-0 w-full h-full object-cover", isTextRight ? "object-right" : "object-left")
                                                             )}
                                                             draggable={false}
                                                         />
@@ -501,7 +509,7 @@ export function FeatureShowcaseSection({
                                                         className={cn(
                                                             feature.isGraphic
                                                                 ? cn(feature.imageClassName || "max-w-full max-h-full object-contain", "drop-shadow-[0_8px_24px_rgba(0,0,0,0.15)]")
-                                                                : "absolute inset-0 w-full h-full object-cover object-left"
+                                                                : cn("absolute inset-0 w-full h-full object-cover", isTextRight ? "object-right" : "object-left")
                                                         )}
                                                     />
                                                 )}

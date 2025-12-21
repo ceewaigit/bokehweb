@@ -18,9 +18,9 @@ interface SocialProofSectionProps {
 }
 
 const defaultItems: SocialProofItem[] = [
-    { icon: <Star className="w-4 h-4" />, text: "4.9/5 average", highlight: "from early teams" },
+    { icon: <Star className="w-4 h-4" />, text: "4.9/5 average", highlight: "from early makers" },
     { icon: <Zap className="w-4 h-4" />, text: "10,000+", highlight: "creators" },
-    { icon: <Check className="w-4 h-4" />, text: "Loved by", highlight: "designers & makers" },
+    { icon: <Check className="w-4 h-4" />, text: "Loved by", highlight: "designers & creators" },
 ];
 
 export function SocialProofSection({

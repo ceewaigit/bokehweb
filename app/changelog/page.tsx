@@ -14,56 +14,74 @@ interface Version {
 }
 
 const changelogData: Version[] = [
-    // {
-    //     version: "1.0.0",
-    //     date: "Current",
-    //     isMajor: true,
-    //     changes: [
-    //         { description: "Official Release", type: "new" },
-    //     ]
-    // },
-    // {
-    //     version: "0.9.8",
-    //     changes: [
-    //         { description: "Final pre-release stability polish", type: "improvement" },
-    //         { description: "Enhanced rendering engine performance on M2 chips", type: "improvement" },
-    //         { description: "Updated default templates collection", type: "new" },
-    //     ]
-    // },
-    // {
-    //     version: "0.9.5",
-    //     changes: [
-    //         { description: "Webcam timeline integration for simplified user experience", type: "new" },
-    //         { description: "Rebranding: Updated project file format and naming conventions", type: "refactor" },
-    //         { description: "Text overlays with motion, blur masking, and scene transitions", type: "new" },
-    //         { description: "Text-based editing functionality", type: "new" },
-    //     ]
-    // },
-    // {
-    //     version: "0.9.2",
-    //     changes: [
-    //         { description: "Improved export rendering speeds for 4K video", type: "improvement" },
-    //         { description: "Fixed thumbnail generation caching issue", type: "fix" },
-    //         { description: "Refined padding on text overlays", type: "improvement" },
-    //     ]
-    // },
     {
         version: "0.9.0",
         changes: [
-            { description: "Video fill screen mode (faux 1.5x zoom)", type: "new" },
+            { description: "Video fill screen mode", type: "new" },
             { description: "Thumbnail generation from frame", type: "new" },
+        ]
+    },
+    {
+        version: "0.8.9",
+        changes: [
             { description: "Aspect ratio adjustments with presets (Landing Page, Hero)", type: "new" },
             { description: "Video fade in/out effects", type: "new" },
+        ]
+    },
+    {
+        version: "0.8.8",
+        changes: [
             { description: "Performance optimization for idle video functionality", type: "improvement" },
             { description: "Community template logic refactor for generic parameter handling", type: "refactor" },
         ]
     },
     {
-        version: "0.8.5",
+        version: "0.8.7",
         changes: [
             { description: "Enhanced audio waveform visualization in timeline", type: "new" },
             { description: "Added new keyboard shortcuts for quick zoom levels", type: "new" },
+        ]
+    },
+    {
+        version: "0.8.6",
+        changes: [
             { description: "Resolved memory usage in extended recording sessions", type: "fix" },
+            { description: "Smoother transition animations between zoom states", type: "improvement" },
+        ]
+    },
+    {
+        version: "0.8.5",
+        changes: [
+            { description: "Added 'Reset to Default' option for all effect settings", type: "new" },
+            { description: "Improved tooltip visibility and timing", type: "improvement" },
+        ]
+    },
+    {
+        version: "0.8.4",
+        changes: [
+            { description: "Mouse click animations", type: "new" },
+            { description: "Mouse fade in/out animations", type: "new" },
+        ]
+    },
+    {
+        version: "0.8.3",
+        changes: [
+            { description: "Motion blur for camera movement", type: "new" },
+            { description: "Video crop functionality", type: "new" },
+        ]
+    },
+    {
+        version: "0.8.2",
+        changes: [
+            { description: "Desktop icons and widgets hiding capability", type: "new" },
+            { description: "Optimized export performance when minimized", type: "improvement" },
+        ]
+    },
+    {
+        version: "0.8.1",
+        changes: [
+            { description: "High-resolution zoom on export", type: "improvement" },
+            { description: "Support for blank screens and spacers between clips", type: "new" },
         ]
     },
     {
@@ -72,92 +90,131 @@ const changelogData: Version[] = [
             { description: "Glassmorphic design system implementation", type: "refactor" },
             { description: "Layered parallax background support", type: "new" },
             { description: "Auto audio cleanup", type: "new" },
-            { description: "Pause and resume recording functionality", type: "new" },
-            { description: "Multi-clip support with metadata import", type: "new" },
-            { description: "Mouse fade in/out animations", type: "new" },
-            { description: "Support for blank screens/spacers between clips", type: "new" },
-            { description: "High-resolution zoom on export", type: "improvement" },
-            { description: "Motion blur for camera movement", type: "new" },
-            { description: "Video crop functionality", type: "new" },
-            { description: "Desktop icons and widgets hiding capability", type: "new" },
-            { description: "Mouse click animations", type: "new" },
-            { description: "Optimized export performance when minimized", type: "improvement" },
         ]
     },
     {
         version: "0.7.5",
         changes: [
-            { description: "Smoother transition animations between zoom states", type: "improvement" },
-            { description: "Added 'Reset to Default' option for all effect settings", type: "new" },
-            { description: "Improved tooltip visibility and timing", type: "improvement" },
+            { description: "Pause and resume recording functionality", type: "new" },
+            { description: "Multi-clip support with metadata import", type: "new" },
+        ]
+    },
+    {
+        version: "0.7.4",
+        changes: [
+            { description: "Context menu for timeline operations", type: "new" },
+            { description: "Original cursor recording support", type: "new" },
+        ]
+    },
+    {
+        version: "0.7.3",
+        changes: [
+            { description: "Glassmorphic overlay during recording", type: "new" },
+            { description: "Welcome screen with permissions request", type: "new" },
+        ]
+    },
+    {
+        version: "0.7.2",
+        changes: [
+            { description: "Typing speed-up functionality", type: "improvement" },
+            { description: "Snap-to-grid enhancement on timeline", type: "improvement" },
+        ]
+    },
+    {
+        version: "0.7.1",
+        changes: [
+            { description: "Multi-select clips support", type: "new" },
+            { description: "Drag and drop improvements in media library", type: "improvement" },
         ]
     },
     {
         version: "0.7.0",
         changes: [
-            { description: "Context menu for timeline operations", type: "new" },
-            { description: "Original cursor recording support", type: "new" },
-            { description: "Glassmorphic overlay during recording", type: "new" },
-            { description: "Welcome screen with permissions request", type: "new" },
-            { description: "Typing speed-up functionality", type: "improvement" },
+            { description: "Added support for GIF export", type: "new" },
+            { description: "Custom frame rate selection (30/60 fps)", type: "new" },
         ]
     },
     {
         version: "0.6.5",
         changes: [
-            { description: "Added support for GIF export", type: "new" },
-            { description: "Custom frame rate selection (30/60 fps)", type: "new" },
             { description: "Added estimated file size indicator before export", type: "new" },
+            { description: "Speed up feature", type: "new" },
+        ]
+    },
+    {
+        version: "0.6.4",
+        changes: [
+            { description: "Timeline video editing (cut, extend)", type: "new" },
+            { description: "Keyboard shortcuts for timeline", type: "new" },
+        ]
+    },
+    {
+        version: "0.6.3",
+        changes: [
+            { description: "Audio capabilities support", type: "new" },
+            { description: "Keyboard action collection and display", type: "new" },
+        ]
+    },
+    {
+        version: "0.6.2",
+        changes: [
+            { description: "Partial screen recording support", type: "new" },
+            { description: "Recordings library pagination", type: "new" },
+        ]
+    },
+    {
+        version: "0.6.1",
+        changes: [
+            { description: "Export functionality (Beta)", type: "new" },
+            { description: "Cloud sync preparation updates", type: "refactor" },
         ]
     },
     {
         version: "0.6.0",
         changes: [
-            { description: "Timeline video editing (cut, extend)", type: "new" },
-            { description: "Audio capabilities support", type: "new" },
-            { description: "Partial screen recording support", type: "new" },
-            { description: "Keyboard shortcuts for timeline", type: "new" },
-            { description: "Keyboard action collection and display", type: "new" },
-            { description: "Recordings library pagination", type: "new" },
-            { description: "Export functionality (Beta)", type: "new" },
-            { description: "Speed up feature", type: "new" },
+            { description: "Reduced CPU usage during idle state", type: "improvement" },
+            { description: "Added new onboarding hints for first-time users", type: "new" },
         ]
     },
     {
         version: "0.5.5",
         changes: [
-            { description: "Snap-to-grid enhancement on timeline", type: "improvement" },
-            { description: "Multi-select clips support", type: "new" },
-            { description: "Drag and drop improvements in media library", type: "improvement" },
+            { description: "Significant performance improvements for long recordings", type: "improvement" },
+            { description: "UI polish and visual refinements across the editor", type: "improvement" },
+        ]
+    },
+    {
+        version: "0.5.4",
+        changes: [
+            { description: "Smart zoom capabilities to highlight key details", type: "new" },
+            { description: "Professional cursor overlay system", type: "new" },
+        ]
+    },
+    {
+        version: "0.5.3",
+        changes: [
+            { description: "Customizable wallpaper backgrounds", type: "new" },
+            { description: "Full undo/redo history with keyboard support", type: "new" },
+        ]
+    },
+    {
+        version: "0.5.2",
+        changes: [
+            { description: "Option to auto-hide recording controls", type: "improvement" },
+            { description: "Streamlined workflow: Record → Library → Workspace", type: "new" },
+        ]
+    },
+    {
+        version: "0.5.1",
+        changes: [
+            { description: "Robust project saving and management", type: "new" },
+            { description: "Enhanced application stability and performance", type: "improvement" },
         ]
     },
     {
         version: "0.5.0",
         changes: [
             { description: "High-fidelity screen recording engine", type: "new" },
-            { description: "Smart zoom capabilities to highlight key details", type: "new" },
-            { description: "Professional cursor overlay system", type: "new" },
-            { description: "Customizable wallpaper backgrounds", type: "new" },
-            { description: "Full undo/redo history with keyboard support", type: "new" },
-            { description: "Option to auto-hide recording controls", type: "improvement" },
-            { description: "Streamlined workflow: Record → Library → Workspace", type: "new" },
-            { description: "Robust project saving and management", type: "new" },
-            { description: "Enhanced application stability and performance", type: "improvement" },
-        ]
-    },
-    {
-        version: "0.4.5",
-        changes: [
-            { description: "Cloud sync preparation updates", type: "refactor" },
-            { description: "Reduced CPU usage during idle state", type: "improvement" },
-            { description: "Added new onboarding hints for first-time users", type: "new" },
-        ]
-    },
-    {
-        version: "0.4.1",
-        changes: [
-            { description: "Significant performance improvements for long recordings", type: "improvement" },
-            { description: "UI polish and visual refinements across the editor", type: "improvement" },
             { description: "Internal architecture updates", type: "refactor" },
         ]
     },
@@ -180,7 +237,7 @@ const changelogData: Version[] = [
     {
         version: "0.1.0",
         changes: [
-            { description: "Initial prototype presentation", type: "new" },
+            { description: "Initial prototype", type: "new" },
             { description: "Basic screen capture functionality", type: "new" },
             { description: "4K 60fps recording support", type: "new" },
         ]
@@ -207,11 +264,11 @@ export default function ChangelogPage() {
                         </svg>
                         Back home
                     </Link>
-                    <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl mb-4 font-display">
-                        Changelog
+                    <h1 className="text-4xl font-semibold font-[family-name:var(--font-display)] tracking-tight text-slate-900 sm:text-5xl mb-4 font-display [&_em]:italic [&_em]:font-medium [&_em]:text-primary">
+                        <em>Changelog</em>
                     </h1>
                     <p className="text-[17px] leading-relaxed text-slate-500 max-w-lg mx-auto">
-                        Updates, improvements, and polish across the app.
+                        Updates, improvements, and polish — across the app.
                     </p>
                 </div>
 

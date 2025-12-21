@@ -3,7 +3,7 @@ export const pricingCopy = {
   title: "Pricing that keeps teams",
   titleEmphasis: "shipping",
   subtitle: "Start free, then upgrade for clean exports, priority support, and up to 3 devices.",
-  footnote: "Trade in after 18 months to move to a lifetime license.",
+  footnote: "After 16 months, trade in your subscription for a free lifetime license.",
 };
 
 // TODO: Set to true when ready to launch
@@ -44,10 +44,10 @@ export const pricingPlans = [
       "No watermark",
       "Priority support",
       "3 devices per account",
-      "Trade in to lifetime after 18 months",
+      "Earn a free lifetime license after 16 months",
       "Cancel anytime",
     ],
-    footnote: PRICING.lifetime ? `Lifetime license is $${PRICING.lifetime} unless you trade in after 18 months.` : undefined,
+    footnote: PRICING.lifetime ? `Lifetime license is $${PRICING.lifetime}, or free after 16 months on Pro.` : undefined,
     highlight: true,
     comingSoon: !PRICING.monthly,
   },

@@ -1,6 +1,5 @@
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 
 interface RoadmapItem {
     title: string;
@@ -21,32 +20,36 @@ const roadmapData: Record<string, RoadmapItem[]> = {
             title: "Chapter Markers",
             description: "Drop markers mid-take and jump between sections instantly.",
             status: "in-progress"
-        },
-        {
-            title: "Template Presets",
-            description: "Save reusable show setups for intros, outros, and recurring segments.",
-            status: "in-progress"
         }
     ],
     "Planned": [
         {
-            title: "One-Click Exports",
-            description: "Export optimized files for popular podcast and video platforms.",
-            status: "planned",
-            quarter: "Q1 2026"
-        },
-        {
-            title: "Notes to Outline",
-            description: "Turn rough notes into a clear rundown you can follow on mic.",
+            title: "Webcam Timeline",
+            description: "Combine webcam, video, and audio into a single track. Simple by default for a streamlined experience, with the option to expand for granular control.",
             status: "planned"
         },
         {
-            title: "Auto-Generated Titles",
-            description: "Quickly draft episode titles from your recording highlights.",
+            title: "On-Screen Text & Privacy Blur",
+            description: "Add movable text overlays, blur sensitive content, and create scene transitions with animated text pop-ups.",
+            status: "planned"
+        },
+        {
+            title: "Transcript-Based Editing",
+            description: "Edit your video by editing the transcript. Delete words to cut clips, rearrange sentences to restructure scenes.",
             status: "planned"
         }
     ],
     "Under Consideration": [
+        {
+            title: "One-Click Exports",
+            description: "Export optimized files for popular podcast and video platforms.",
+            status: "consideration",
+        },
+        {
+            title: "Notes to Outline",
+            description: "Turn rough notes into a clear rundown you can follow on mic.",
+            status: "consideration"
+        },
         {
             title: "Guest Mode",
             description: "Temporary profiles for co-hosts and guests without full setup.",
@@ -100,11 +103,11 @@ export default function RoadmapPage() {
                         </svg>
                         Back home
                     </Link>
-                    <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl mb-4 font-display">
-                        Roadmap
+                    <h1 className="text-4xl font-semibold tracking-tight font-[family-name:var(--font-display)] text-slate-900 sm:text-5xl mb-4 font-display">
+                        <em>Roadmap</em>
                     </h1>
                     <p className="text-[17px] leading-relaxed text-slate-500 max-w-lg mx-auto">
-                        A clear view of what we’re building next.
+                        A clear view of what we're building — and what's next.
                     </p>
                 </div>
 
