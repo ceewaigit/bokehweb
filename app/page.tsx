@@ -256,7 +256,7 @@ export default function Home() {
             subtitle="Record and edit screen videos for demos, tutorials, and updates with fast cleanup, transcript edits, and polished exports."
             primaryCta={{ label: "Download", href: "#" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
-            screenshotSrc="/hero.png"
+            screenshotSrc="/hero_dark.png"
             socialProof={{ count: "10,000+", label: "teams already recording with bokeh" }}
           />
 
