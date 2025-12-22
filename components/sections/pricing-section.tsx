@@ -48,7 +48,7 @@ const PricingSection: React.FC = () => {
                 fill="none"
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
-                viewport={{ once: true, margin: "-120px" }}
+                viewport={{ once: true, margin: "-10px" }}
                 transition={{ duration: 0.2, delay: 0.15 }}
               >
                 <motion.path
@@ -59,7 +59,7 @@ const PricingSection: React.FC = () => {
                   strokeLinejoin="round"
                   initial={{ pathLength: 0 }}
                   whileInView={{ pathLength: 1 }}
-                  viewport={{ once: true, margin: "-120px" }}
+                  viewport={{ once: true, margin: "-10px" }}
                   transition={{ duration: 0.45, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 />
                 <motion.path
@@ -71,7 +71,7 @@ const PricingSection: React.FC = () => {
                   opacity="0.28"
                   initial={{ pathLength: 0 }}
                   whileInView={{ pathLength: 1 }}
-                  viewport={{ once: true, margin: "-120px" }}
+                  viewport={{ once: true, margin: "-10px" }}
                   transition={{ duration: 0.4, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
                 />
               </motion.svg>

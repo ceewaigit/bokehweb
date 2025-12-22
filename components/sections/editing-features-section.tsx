@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { LucideIcon, ZoomIn, Keyboard, Crop, Wand2, Type } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { AutoplayVideo } from "@/components/ui/autoplay-video";
 
 import { BeforeAfterSlider } from "@/components/ui/before-after-slider";
 
@@ -90,7 +91,7 @@ function MediaFrame({ children, className }: { children: React.ReactNode; classN
             <div className="absolute inset-0 rounded-2xl md:rounded-3xl ring-1 ring-inset ring-white/40 pointer-events-none" />
 
             {/* Content */}
-            <div className="relative isolate">
+            <div className="relative isolate h-full">
                 {children}
             </div>
 
@@ -103,6 +104,8 @@ function MediaFrame({ children, className }: { children: React.ReactNode; classN
     );
 }
 
+
+
 export function EditingFeaturesSection({
     className,
     id,
@@ -113,7 +116,6 @@ export function EditingFeaturesSection({
 }: EditingFeaturesSectionProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const sectionRef = useRef<HTMLElement | null>(null);
-    const videoRef = useRef<HTMLVideoElement>(null);
     const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
     const isInView = useInView(sectionRef, { margin: "0px 0px 0px 0px" });
 
@@ -143,30 +145,6 @@ export function EditingFeaturesSection({
                 clearTimeout(imageTimerRef.current);
             }
         };
-    }, [currentIndex, features, isInView]);
-
-    useEffect(() => {
-        if (!isInView) {
-            videoRef.current?.pause();
-            return;
-        }
-
-        if (features[currentIndex]?.media?.type === "video") {
-            const video = videoRef.current;
-            if (video) {
-                video.muted = true; // Ensure muted
-
-                // Explicitly play if we are in view
-                // We rely on the key prop to re-mount the video element, so it starts fresh
-                // We do NOT call load() as it might be redundant with key change
-                const playPromise = video.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(() => {
-                        // Autoplay prevented
-                    });
-                }
-            }
-        }
     }, [currentIndex, features, isInView]);
 
     const currentMedia = features[currentIndex]?.media;
@@ -245,13 +223,8 @@ export function EditingFeaturesSection({
                                     className="absolute inset-0"
                                 >
                                     {currentMedia?.type === "video" ? (
-                                        <video
-                                            ref={videoRef}
-                                            className="w-full h-full object-cover"
-                                            src={currentMedia.src}
-                                            muted
-                                            playsInline
-                                            preload="metadata"
+                                        <AutoplayVideo
+                                            src={currentMedia.src!}
                                             onEnded={handleVideoEnd}
                                         />
                                     ) : currentMedia?.type === "component" ? (
