@@ -279,7 +279,7 @@ export default function Home() {
             title={
               <>
                 Small details.<br />
-                <em className="highlight-pink">Big polish.</em>
+                <em className="highlight-pink">Big Wins.</em>
               </>
             }
             subtitle="Smart cleanup and typing enhancements that make every screen recording feel intentional."

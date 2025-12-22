@@ -35,14 +35,25 @@ export function AutoplayVideo({
         attemptPlay();
     }, [src]);
 
-    const handlePlayClick = () => {
+    const togglePlay = () => {
+        if (videoRef.current) {
+            if (videoRef.current.paused) {
+                videoRef.current.play().catch(() => { });
+            } else {
+                videoRef.current.pause();
+            }
+        }
+    };
+
+    const handlePlayClick = (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent double-triggering if video also receives click
         if (videoRef.current) {
             videoRef.current.play().catch(() => { });
         }
     };
 
     return (
-        <div ref={containerRef} className={cn("relative w-full h-full group", containerClassName)}>
+        <div ref={containerRef} className={cn("relative w-full h-full group cursor-pointer", containerClassName)} onClick={togglePlay}>
             <video
                 ref={videoRef}
                 className={cn("w-full h-full object-cover", className)}
@@ -63,14 +74,14 @@ export function AutoplayVideo({
             {/* Fallback Play Button - Visible when not playing */}
             <div
                 className={cn(
-                    "absolute inset-0 z-20 flex items-center justify-center transition-opacity duration-300",
-                    isPlaying ? "opacity-0 pointer-events-none" : "opacity-100"
+                    "absolute inset-0 z-20 flex items-center justify-center transition-opacity duration-300 pointer-events-none",
+                    isPlaying ? "opacity-0" : "opacity-100"
                 )}
             >
                 <button
                     onClick={handlePlayClick}
                     className={cn(
-                        "group/button relative flex h-16 w-16 items-center justify-center rounded-full",
+                        "group/button relative flex h-16 w-16 items-center justify-center rounded-full pointer-events-auto",
                         "bg-white/25 backdrop-blur-md border border-white/30 shadow-[0_8px_32px_rgba(0,0,0,0.2)]",
                         "transition-all duration-300 hover:scale-110 hover:bg-white/35 active:scale-95",
                     )}

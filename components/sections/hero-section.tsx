@@ -50,6 +50,32 @@ export function HeroSection({
                     className
                 )}
             >
+                {/* Texture Cloud Background */}
+                <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none sticky top-0">
+                    {/* Noise Texture */}
+                    <div
+                        className="absolute inset-0 z-20 opacity-[0.05] mix-blend-multiply"
+                        style={{
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E")`,
+                        }}
+                    />
+
+                    {/* Gradient Clouds */}
+                    <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[140%] h-[100%] opacity-100">
+                        {/* Center bright cloud */}
+                        <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[70%] h-[60%] rounded-[50%] bg-[#F0F4FF] blur-[80px] sm:blur-[100px]" />
+
+                        {/* Left soft warm cloud */}
+                        <div className="absolute top-[0%] left-[10%] w-[60%] h-[70%] rounded-[50%] bg-gradient-to-br from-indigo-300/40 to-purple-300/40 blur-[90px] sm:blur-[130px]" />
+
+                        {/* Right soft cool cloud */}
+                        <div className="absolute top-[5%] right-[5%] w-[60%] h-[70%] rounded-[50%] bg-gradient-to-bl from-blue-300/40 to-cyan-300/40 blur-[90px] sm:blur-[130px]" />
+
+                        {/* Bottom fade out mask */}
+                        <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-white via-white/90 to-transparent" />
+                    </div>
+                </div>
+
 
                 <div className="relative z-20 mx-auto max-w-4xl text-center flex flex-col items-center">
                     {brandMarkSrc && (
