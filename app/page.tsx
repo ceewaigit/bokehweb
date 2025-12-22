@@ -9,6 +9,7 @@ import { FeatureGrid } from "@/components/sections/feature-grid";
 import { TestimonialSection } from "@/components/sections/testimonial-section";
 import { QASection } from "@/components/sections/qa-section";
 import { CTASection } from "@/components/sections/cta-section";
+import { SpeedComparisonSection } from "@/components/sections/speed-comparison-section";
 import {
   Clock,
   Command,
@@ -290,6 +291,8 @@ export default function Home() {
             columns={3}
           />
 
+          <SpeedComparisonSection />
+
           <TestimonialSection
             title="Teams ship clearer screen recordings"
             subtitle="Product, support, and education teams rely on bokeh for consistent walkthroughs, demos, and updates."
@@ -311,14 +314,13 @@ export default function Home() {
             items={faqs}
           />
 
-
           <CTASection
             title={<>try <em>bokeh</em> today.</>}
             subtitle="Start your free trial and publish clear, brand-ready screen recordings in minutes."
             ctaLabel="Get started for free"
-            ctaHref="#"
+            ctaHref="/#pricing"
             showArrow={true}
-            arrowText="Ready to share clearer updates?"
+            arrowText="Ready to share a clearer picture?"
           />
         </div>
       </main>
