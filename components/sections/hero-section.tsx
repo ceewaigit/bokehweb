@@ -58,6 +58,7 @@ export function HeroSection({
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5 }}
+                            style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                         >
                             <Image
                                 src={brandMarkSrc}
@@ -77,6 +78,7 @@ export function HeroSection({
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5 }}
                             className="relative inline-block"
+                            style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                         >
                             <Badge
                                 variant="outline"
@@ -97,6 +99,7 @@ export function HeroSection({
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.6, delay: 0.1 }}
+                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         {title}
                     </motion.h1>
@@ -107,6 +110,7 @@ export function HeroSection({
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.3 }}
+                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         {subtitle}
                     </motion.p>
@@ -117,6 +121,7 @@ export function HeroSection({
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.4 }}
+                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -176,6 +181,7 @@ export function HeroSection({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ duration: 0.5, delay: 0.6 }}
+                        style={{ willChange: 'opacity', transform: 'translateZ(0)' }}
                     >
                         Free trial • No credit card required
                     </motion.p>
@@ -188,6 +194,7 @@ export function HeroSection({
                         initial={{ opacity: 0, y: 80, scale: 0.96 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ duration: 1, delay: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         {/* Glow effect behind the frame */}
                         <div

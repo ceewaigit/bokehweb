@@ -16,8 +16,8 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
             subtle: "bg-white/40 dark:bg-white/[0.02] backdrop-blur-lg border-white/30 dark:border-white/5",
             strong: "bg-white/90 dark:bg-white/10 backdrop-blur-2xl border-white/60 dark:border-white/15",
         };
-        const fadeInStyle = { opacity: 0 };
-        const mergedStyle = { ...fadeInStyle, ...style };
+        const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
+        const mergedStyle = { ...gpuStyle, ...style };
 
         return (
             <motion.div
@@ -25,11 +25,12 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
                 className={cn(
                     "rounded-2xl border shadow-lg",
                     variants[variant],
-                    hover && "transition-all duration-300 hover:shadow-xl hover:scale-[1.02]",
+                    hover && "transition-[box-shadow] duration-300 hover:shadow-xl",
                     className
                 )}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
+                whileHover={hover ? { scale: 1.02 } : undefined}
                 viewport={{ once: true, margin: "-50px" }}
                 transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
                 style={mergedStyle}

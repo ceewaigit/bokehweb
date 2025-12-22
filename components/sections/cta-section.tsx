@@ -40,7 +40,7 @@ export function CTASection({
     showFounderMessage = false,
     founder,
 }: CTASectionProps) {
-    const fadeInStyle = { opacity: 0 };
+    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
 
     return (
         <TooltipProvider delayDuration={0}>
@@ -73,7 +73,7 @@ export function CTASection({
                             whileInView={{ opacity: 1, x: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5 }}
-                            style={fadeInStyle}
+                            style={gpuStyle}
                         >
                             <span className="text-sm text-gray-400 italic">{arrowText}</span>
                             <HandArrow direction="down-right" size="sm" className="text-gray-400" />
@@ -87,7 +87,7 @@ export function CTASection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
-                        style={fadeInStyle}
+                        style={gpuStyle}
                     >
                         {title}
                     </motion.h2>
@@ -100,7 +100,7 @@ export function CTASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
-                            style={fadeInStyle}
+                            style={gpuStyle}
                         >
                             {subtitle}
                         </motion.p>
@@ -112,7 +112,7 @@ export function CTASection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5, delay: 0.3 }}
-                        style={fadeInStyle}
+                        style={gpuStyle}
                     >
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -146,7 +146,7 @@ export function CTASection({
                         whileInView={{ opacity: 1 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.4, delay: 0.5 }}
-                        style={fadeInStyle}
+                        style={{ willChange: 'opacity' as const, transform: 'translateZ(0)' }}
                     >
                         7-day Pro trial • No credit card required
                     </motion.p>
@@ -160,7 +160,7 @@ export function CTASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5, delay: 0.6 }}
-                            style={fadeInStyle}
+                            style={gpuStyle}
                         >
                             {founder.avatar ? (
                                 <img

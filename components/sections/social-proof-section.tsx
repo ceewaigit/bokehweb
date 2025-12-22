@@ -29,7 +29,7 @@ export function SocialProofSection({
     items = defaultItems,
     logos,
 }: SocialProofSectionProps) {
-    const fadeInStyle = { opacity: 0 };
+    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
 
     return (
         <section className={cn("py-20 px-6 pt-[25vh]", className)}>
@@ -41,7 +41,7 @@ export function SocialProofSection({
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5 }}
-                    style={fadeInStyle}
+                    style={gpuStyle}
                 >
                     {title}
                 </motion.h2>
@@ -53,7 +53,7 @@ export function SocialProofSection({
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: 0.1 }}
-                    style={fadeInStyle}
+                    style={gpuStyle}
                 >
                     {items.map((item, index) => (
                         <motion.div
@@ -86,7 +86,7 @@ export function SocialProofSection({
                         whileInView={{ opacity: 0.5 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5, delay: 0.2 }}
-                        style={fadeInStyle}
+                        style={{ willChange: 'opacity' as const, transform: 'translateZ(0)' }}
                     >
                         {logos.map((logo, index) => (
                             <img

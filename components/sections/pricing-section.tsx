@@ -9,7 +9,7 @@ import { SectionBackdrop } from "@/components/ui/section-backdrop"
 import { pricingCopy, pricingPlans } from "@/lib/pricing"
 
 const PricingSection: React.FC = () => {
-  const fadeInStyle = { opacity: 0 }
+  const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const }
 
   return (
     <section id="pricing" className="relative w-full py-24 md:py-32 overflow-hidden">
@@ -22,7 +22,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-          style={fadeInStyle}
+          style={gpuStyle}
         >
           {pricingCopy.eyebrow}
         </motion.p>
@@ -34,7 +34,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-          style={fadeInStyle}
+          style={gpuStyle}
         >
           {pricingCopy.title} <em className="">{pricingCopy.titleEmphasis}</em>.
         </motion.h2>
@@ -46,7 +46,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
-          style={fadeInStyle}
+          style={gpuStyle}
         >
           {pricingCopy.subtitle}
         </motion.p>
@@ -60,12 +60,12 @@ const PricingSection: React.FC = () => {
               hover={false}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
+              whileHover={plan.comingSoon ? undefined : { y: -4 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.5, delay: index * 0.1, ease: [0.21, 0.47, 0.32, 0.98] }}
               className={cn(
                 "relative flex min-h-[22rem] md:min-h-[26rem] flex-col rounded-3xl border px-8 py-9 text-left overflow-hidden",
-                "transition-all duration-300 ease-out",
-                plan.comingSoon ? "" : "hover:-translate-y-1",
+                "transition-[box-shadow] duration-300 ease-out",
                 plan.highlight
                   ? "border-violet-200/60 bg-gradient-to-b from-violet-50/50 to-white shadow-[0_4px_24px_rgba(139,92,246,0.08),0_12px_40px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_32px_rgba(139,92,246,0.12),0_16px_48px_rgba(0,0,0,0.08)]"
                   : "border-gray-200/80 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.03),0_8px_24px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.05),0_16px_40px_rgba(0,0,0,0.08)]"
@@ -203,7 +203,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-          style={fadeInStyle}
+          style={gpuStyle}
         >
           {pricingCopy.footnote}
         </motion.p>

@@ -57,6 +57,17 @@ const features = [
 const showcaseFeatures = [
   {
     icon: Wand2,
+    title: "Professional finish",
+    description: "See the difference, from raw capture to polished, share-ready video.",
+    beforeImage: "/features/before.png",
+    afterImage: "/features/after.png",
+    imagePlacement: "middle" as const,
+    backdrop: "gradient" as const,
+    span: "lg" as const,
+    interactive: "before-after" as const,
+  },
+  {
+    icon: Wand2,
     title: "Auto zoom",
     description: "Auto zoom tracks your cursor to spotlight every click and demo.",
     video: "/features/zoom-720.mp4",
@@ -64,15 +75,6 @@ const showcaseFeatures = [
     textPosition: "left" as const,
     backdrop: "dots" as const,
     span: "md" as const,
-  },
-  {
-    icon: Download,
-    title: "HD zoom",
-    description: "Zoom in without losing clarity, your video stays crisp and high definition.",
-    image: "/features/HDZoom.png",
-    imagePlacement: "middle" as const,
-    backdrop: "grid" as const,
-    span: "sm" as const,
   },
   {
     icon: Box,
@@ -124,7 +126,7 @@ const showcaseFeatures = [
     image: "/features/advanced.png",
     imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
-    span: "sm" as const,
+    span: "md" as const,
   },
 ];
 

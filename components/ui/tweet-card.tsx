@@ -23,8 +23,8 @@ interface TweetCardProps extends HTMLMotionProps<"div"> {
 
 const TweetCard = forwardRef<HTMLDivElement, TweetCardProps>(
     ({ className, content, author, stats, date, style, ...props }, ref) => {
-        const fadeInStyle = { opacity: 0 };
-        const mergedStyle = { ...fadeInStyle, ...style };
+        const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
+        const mergedStyle = { ...gpuStyle, ...style };
 
         return (
             <motion.div
@@ -34,13 +34,13 @@ const TweetCard = forwardRef<HTMLDivElement, TweetCardProps>(
                     "backdrop-blur-lg",
                     "shadow-[0_8px_24px_rgba(15,23,42,0.08),0_1px_0_rgba(255,255,255,0.9)_inset]",
                     "hover:shadow-[0_12px_32px_rgba(15,23,42,0.12),0_1px_0_rgba(255,255,255,0.95)_inset]",
-                    "hover:scale-[1.005]",
-                    "transition-all duration-300 ease-out",
+                    "transition-[background-color,box-shadow] duration-300 ease-out",
                     "before:pointer-events-none before:absolute before:inset-0 before:rounded-[24px] before:bg-[radial-gradient(circle_at_15%_0%,rgba(255,255,255,0.5),transparent_60%)]",
                     className
                 )}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
+                whileHover={{ scale: 1.005 }}
                 viewport={{ once: true, margin: "-50px" }}
                 transition={{ duration: 0.4, ease: [0.22, 0.61, 0.36, 1] }}
                 style={mergedStyle}

@@ -35,7 +35,7 @@ export function TestimonialSection({
     subtitle,
     testimonials,
 }: TestimonialSectionProps) {
-    const fadeInStyle = { opacity: 0 };
+    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
 
     return (
         <section className={cn("relative py-24 px-6 overflow-hidden", className)}>
@@ -50,7 +50,7 @@ export function TestimonialSection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
-                        style={fadeInStyle}
+                        style={gpuStyle}
                     >
                         {title}
                     </motion.h2>
@@ -61,7 +61,7 @@ export function TestimonialSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
-                            style={fadeInStyle}
+                            style={gpuStyle}
                         >
                             {subtitle}
                         </motion.p>
@@ -96,7 +96,7 @@ export function TestimonialSection({
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.4, delay: 0.3 }}
-                    style={fadeInStyle}
+                    style={gpuStyle}
                 >
                     <a
                         href="#"

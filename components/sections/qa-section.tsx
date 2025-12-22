@@ -28,7 +28,7 @@ export function QASection({
     items,
 }: QASectionProps) {
     const [openIndex, setOpenIndex] = useState<number | null>(null);
-    const fadeInStyle = { opacity: 0 };
+    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
 
     return (
         <section id={id} className={cn("relative py-24 px-6 overflow-hidden", className)}>
@@ -43,7 +43,7 @@ export function QASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
-                            style={fadeInStyle}
+                            style={gpuStyle}
                         >
                             {eyebrow}
                         </motion.p>
@@ -53,7 +53,7 @@ export function QASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5 }}
-                            style={fadeInStyle}
+                            style={gpuStyle}
                         >
                             {title}
                         </motion.h2>
@@ -64,7 +64,7 @@ export function QASection({
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.4, delay: 0.1 }}
-                                style={fadeInStyle}
+                                style={gpuStyle}
                             >
                                 {subtitle}
                             </motion.p>
@@ -102,6 +102,7 @@ export function QASection({
                                         whileInView={{ opacity: 1, y: 0 }}
                                         viewport={{ once: true, margin: "-40px" }}
                                         transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.15) }}
+                                        style={gpuStyle}
                                         onClick={() => setOpenIndex(isOpen ? null : index)}
                                     >
                                         <button

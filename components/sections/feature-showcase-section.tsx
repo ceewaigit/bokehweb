@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { BrowserFrame } from "@/components/ui/browser-frame";
+import { BeforeAfterSlider } from "@/components/ui/before-after-slider";
 import Image from "next/image";
 import { LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
@@ -121,6 +122,8 @@ interface Feature {
     description: string;
     image?: string;
     video?: string;
+    beforeImage?: string;
+    afterImage?: string;
     span?: "sm" | "md" | "lg";
     imagePlacement?: "top" | "middle" | "bottom";
     textPosition?: "left" | "right"; // Controls text placement on md/lg cards
@@ -128,7 +131,7 @@ interface Feature {
     variant?: "default" | "outline" | "ghost";
     isGraphic?: boolean;
     imageClassName?: string;
-    interactive?: "click" | "hover-tilt" | "cursor-follow";
+    interactive?: "click" | "hover-tilt" | "cursor-follow" | "before-after";
 }
 
 interface FeatureShowcaseSectionProps {
@@ -150,7 +153,7 @@ export function FeatureShowcaseSection({
     features,
     heroImage,
 }: FeatureShowcaseSectionProps) {
-    const fadeInStyle = { opacity: 0 };
+    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
     const spanClasses = {
         sm: "md:col-span-1",
         md: "md:col-span-1 lg:col-span-2",
@@ -238,7 +241,7 @@ export function FeatureShowcaseSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
-                            style={fadeInStyle}
+                            style={gpuStyle}
                         >
                             <Badge
                                 variant="secondary"
@@ -254,7 +257,7 @@ export function FeatureShowcaseSection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
-                        style={fadeInStyle}
+                        style={gpuStyle}
                     >
                         {title}
                     </motion.h2>
@@ -265,7 +268,7 @@ export function FeatureShowcaseSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
-                            style={fadeInStyle}
+                            style={gpuStyle}
                         >
                             {subtitle}
                         </motion.p>
@@ -305,7 +308,7 @@ export function FeatureShowcaseSection({
                                 key={feature.title}
                                 className={cn(
                                     "group relative overflow-hidden rounded-[24px]",
-                                    "transition-all duration-300 ease-out",
+                                    "transition-[background-color,box-shadow,ring] duration-300 ease-out",
                                     imageLayout.minHeight,
                                     variant === "default" && [
                                         "bg-white/95 backdrop-blur-sm",
@@ -313,7 +316,7 @@ export function FeatureShowcaseSection({
                                         "ring-1 ring-gray-900/[0.04]",
                                         "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.06),0_16px_48px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.8)]",
                                         "hover:ring-gray-900/[0.08] hover:bg-white",
-                                        "hover:-translate-y-1 hover:shadow-[0_2px_4px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08),0_24px_64px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]",
+                                        "hover:shadow-[0_2px_4px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.08),0_24px_64px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]",
                                     ],
                                     variant === "ghost" && [
                                         "bg-white/70 backdrop-blur-sm",
@@ -330,9 +333,10 @@ export function FeatureShowcaseSection({
                                 )}
                                 initial={{ opacity: 0, y: 24 }}
                                 whileInView={{ opacity: 1, y: 0 }}
+                                whileHover={{ y: -4 }}
                                 viewport={{ once: true, margin: "-50px" }}
                                 transition={{ duration: 0.6, delay: index * 0.1, ease: [0.21, 0.47, 0.32, 0.98] }}
-                                style={fadeInStyle}
+                                style={gpuStyle}
                             >
                                 {/* Base gradient surface */}
                                 <div className={cn(
@@ -402,8 +406,8 @@ export function FeatureShowcaseSection({
                                 <div className={cn(
                                     "relative z-10 h-full p-5 flex",
                                     spanKey === "sm" && placement === "top" ? "flex-col-reverse" : "flex-col",
-                                    (feature.image || feature.video) && spanKey !== "sm" && "sm:grid sm:gap-2",
-                                    (feature.image || feature.video) && spanKey !== "sm" && (isTextRight ? imageLayout.gridReverse : imageLayout.grid)
+                                    (feature.image || feature.video || (feature.beforeImage && feature.afterImage)) && spanKey !== "sm" && "sm:grid sm:gap-2",
+                                    (feature.image || feature.video || (feature.beforeImage && feature.afterImage)) && spanKey !== "sm" && (isTextRight ? imageLayout.gridReverse : imageLayout.grid)
                                 )}>
                                     {/* Text content */}
                                     <div className={cn(
@@ -436,7 +440,7 @@ export function FeatureShowcaseSection({
                                     </div>
 
                                     {/* Feature Image */}
-                                    {(feature.image || feature.video) && (
+                                    {(feature.image || feature.video || (feature.beforeImage && feature.afterImage)) && (
                                         <div className={cn(
                                             "flex-1 flex min-h-0",
                                             isTextRight && "sm:order-1",
@@ -474,6 +478,14 @@ export function FeatureShowcaseSection({
                                                     >
                                                         <source src={feature.video} type="video/mp4" />
                                                     </video>
+                                                ) : feature.interactive === "before-after" && feature.beforeImage && feature.afterImage ? (
+                                                    <BeforeAfterSlider
+                                                        beforeSrc={feature.beforeImage}
+                                                        afterSrc={feature.afterImage}
+                                                        beforeAlt={`${feature.title} - Before`}
+                                                        afterAlt={`${feature.title} - After`}
+                                                        className="absolute inset-0 w-full h-full"
+                                                    />
                                                 ) : feature.interactive === "cursor-follow" ? (
                                                     <CursorFollowImage
                                                         src={feature.image!}
