@@ -20,7 +20,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "bokeh. — Screen Recording That Just Works",
+  title: "bokeh. Screen Recording That Just Works",
   description:
     "A macOS screen recording utility that removes dead time, smooths motion, and auto-zooms your recordings. Ship polished demos without the editing.",
   keywords: [
