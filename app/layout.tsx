@@ -20,9 +20,9 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "bokeh. — Screen Recording & Editing for Teams",
+  title: "bokeh. — Screen Recording That Just Works",
   description:
-    "bokeh is a modern screen recording app with cursor focus, transcript editing, and clean exports for demos, tutorials, and team updates.",
+    "A macOS screen recording utility that removes dead time, smooths motion, and auto-zooms your recordings. Ship polished demos without the editing.",
   keywords: [
     "screen recorder",
     "screen recording",
@@ -40,16 +40,16 @@ export const metadata: Metadata = {
     shortcut: "/brand/bokeh_logo.svg",
   },
   openGraph: {
-    title: "bokeh — Screen Recording & Editing for Teams",
+    title: "bokeh — Screen Recording That Just Works",
     description:
-      "Modern screen recordings with cursor focus, transcript editing, and polished exports for demos, tutorials, and updates.",
+      "A macOS utility that cleans up screen recordings automatically. Record, polish, ship.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "bokeh — Screen Recording & Editing for Teams",
+    title: "bokeh — Screen Recording That Just Works",
     description:
-      "Modern screen recordings with cursor focus, transcript editing, and polished exports for demos, tutorials, and updates.",
+      "A macOS utility that cleans up screen recordings automatically. Record, polish, ship.",
   },
 };
 

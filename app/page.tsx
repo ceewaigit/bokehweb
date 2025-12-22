@@ -226,11 +226,11 @@ export default function Home() {
                 <em className="highlight-purple">that edits itself</em>
               </>
             }
-            subtitle="bokeh. is a macOS screen recording app that removes dead time, smooths cursor motion, and auto-zooms so every demo looks expensive in minutes."
-            primaryCta={{ label: "Download", href: "#" }}
+            subtitle="A macOS utility that cleans up screen recordings automatically. Remove dead time, smooth cursor motion, and auto-zoom — then ship."
+            primaryCta={{ label: "Download", href: "/download" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
             screenshotSrc="/glassmorphism.png"
-            socialProof={{ count: "10,000+", label: "teams already recording with bokeh" }}
+            socialProof={{ count: "10,000+", label: "people shipping with bokeh" }}
           />
 
           <SocialProofSection />
@@ -276,8 +276,8 @@ export default function Home() {
           <SpeedComparisonSection />
 
           <TestimonialSection
-            title="Teams ship premium screen recordings"
-            subtitle="Product, support, and education teams rely on bokeh for consistent demos, walkthroughs, and updates."
+            title="People ship premium screen recordings"
+            subtitle="Product, support, and education professionals rely on bokeh for consistent demos, walkthroughs, and updates."
             testimonials={testimonials}
           />
 
@@ -288,7 +288,7 @@ export default function Home() {
             eyebrow="Q&A"
             title={
               <>
-                Answers for teams<br />
+                Common questions<br />
                 <em>shipping screen recordings.</em>
               </>
             }
@@ -300,7 +300,7 @@ export default function Home() {
             title={<>Publish premium recordings <em>in minutes.</em></>}
             subtitle="Let bokeh handle the tedious work and ship a polished update fast."
             ctaLabel="Get started for free"
-            ctaHref="/#pricing"
+            ctaHref="/download"
             showArrow={true}
             arrowText="Ready to ship a clearer update?"
           />

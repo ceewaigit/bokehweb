@@ -39,14 +39,14 @@ export function HeroSection({
     primaryCta = { label: "Get started", href: "#" },
     secondaryCta,
     screenshotSrc,
-    socialProof = { count: "10,000+", label: "teams already recording with bokeh" },
+    socialProof = { count: "10,000+", label: "people shipping with bokeh" },
 }: HeroSectionProps) {
     return (
         <TooltipProvider delayDuration={0}>
             <section
                 className={cn(
-                    "relative min-h-screen flex flex-col items-center justify-center overflow-hidden",
-                    "py-16 sm:py-20 lg:py-24 px-4 sm:px-6",
+                    "relative flex flex-col items-center overflow-hidden",
+                    "pt-24 sm:pt-28 md:pt-32 lg:pt-36 pb-16 sm:pb-20 lg:pb-24 px-4 sm:px-6",
                     className
                 )}
             >

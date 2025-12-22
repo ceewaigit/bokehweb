@@ -18,14 +18,14 @@ interface SocialProofSectionProps {
 }
 
 const defaultItems: SocialProofItem[] = [
-    { icon: <Star className="w-4 h-4" />, text: "4.9/5 rating", highlight: "from early teams" },
+    { icon: <Star className="w-4 h-4" />, text: "4.9/5 rating", highlight: "from early users" },
     { icon: <Zap className="w-4 h-4" />, text: "10k+ screen recordings", highlight: "polished" },
     { icon: <Check className="w-4 h-4" />, text: "Hours saved", highlight: "every week" },
 ];
 
 export function SocialProofSection({
     className,
-    title = "Trusted by teams shipping screen recordings every week",
+    title = "Trusted by people shipping screen recordings every week",
     items = defaultItems,
     logos,
 }: SocialProofSectionProps) {
@@ -47,7 +47,7 @@ export function SocialProofSection({
     ];
 
     return (
-        <section className={cn("py-20 px-6 pt-[25vh]", className)}>
+        <section className={cn("py-10 px-6 pt-[5vh]", className)}>
             <div className="mx-auto max-w-5xl">
                 {/* Title */}
                 <motion.h2
@@ -114,9 +114,9 @@ export function SocialProofSection({
                         initial={{ opacity: 0 }}
                         whileInView={{ opacity: 0.5 }}
                         viewport={{ once: true }}
-                    transition={{ duration: 0.45, delay: 0.2, ease: "easeOut" }}
-                    style={{ willChange: 'opacity' as const, transform: 'translateZ(0)' }}
-                >
+                        transition={{ duration: 0.45, delay: 0.2, ease: "easeOut" }}
+                        style={{ willChange: 'opacity' as const, transform: 'translateZ(0)' }}
+                    >
                         {logos.map((logo, index) => (
                             <img
                                 key={index}

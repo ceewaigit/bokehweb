@@ -81,7 +81,7 @@ export default function AboutPage() {
                         <em className="font-[family-name:var(--font-display)] italic not-italic sm:italic text-slate-800">complete</em>.
                     </h1>
                     <p className="text-[18px] sm:text-[19px] leading-[1.75] text-slate-500 max-w-2xl mx-auto text-balance">
-                        We built bokeh. for individuals and teams who need{" "}
+                        We built bokeh. for people who need{" "}
                         <em className="font-[family-name:var(--font-display)] italic text-slate-700">fast, polished</em> updates without the heavy edit.
                     </p>
                     <div className="mt-10 flex justify-center">
@@ -99,7 +99,7 @@ export default function AboutPage() {
                 <div className="space-y-16 sm:space-y-24">
                     {/* Story Section */}
                     <motion.div className="relative" {...reveal}>
-                        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm mb-12 group transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
+                        <div className="relative aspect-[16/9] w-[80%] mx-auto overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm mb-12 group transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
                             <Image
                                 src="/brand/aboutus.jpeg"
                                 alt="Bokeh workspace"
@@ -129,7 +129,7 @@ export default function AboutPage() {
                                 So we built something that just works: smart defaults, calm motion, and clean exports without a complicated timeline. After we shared it, friends and even our bosses kept asking for it. That was the moment it felt bigger than a <em>private tool</em>.
                             </p>
                             <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
-                                Today, bokeh. is for individuals and teams shipping product updates, support walkthroughs, and training. The goal is quiet confidence: you press record, you ship, and your audience gets the message without the noise.
+                                Today, bokeh. is for professionals shipping product updates, support walkthroughs, and training. The goal is quiet confidence: you press record, you ship, and your audience gets the message without the noise.
                             </p>
                             <div className="mt-10 flex items-center gap-3 text-sm text-slate-400">
                                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white/70">
@@ -202,7 +202,7 @@ export default function AboutPage() {
                                     How we grow the feature set
                                 </h2>
                                 <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.75]">
-                                    We keep the core experience steady and fast, then add depth in layers so you never feel buried. That lets teams keep the essentials in muscle memory while still getting new capabilities when they need them.
+                                    We keep the core experience steady and fast, then add depth in layers so you never feel buried. That lets you keep the essentials in muscle memory while still getting new capabilities when you need them.
                                 </p>
                                 <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.75] mt-4">
                                     Every new feature must reduce steps, not add them. If it cannot stay <em>quiet</em> by default, it does not ship.
@@ -256,26 +256,6 @@ export default function AboutPage() {
                                 </div>
                             </div>
                         </div>
-                    </motion.div>
-
-                    {/* Creator Section */}
-                    <motion.div className="pt-16 border-t border-slate-100 text-center" {...reveal}>
-                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">A small team &</p>
-                        <div className="mt-3 inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-sm text-slate-700 shadow-[0_6px_20px_rgba(15,23,42,0.06)]">
-                            <Image
-                                src="/ceewai.ico"
-                                alt="Ceewai"
-                                width={20}
-                                height={20}
-                                className="h-5 w-5 rounded-full"
-                            />
-                            <Link href="https://www.ceewai.com" className="text-slate-500 hover:text-slate-800 transition-colors">
-                                Ceewai
-                            </Link>
-                        </div>
-                        <p className="mt-3 text-sm text-slate-400">
-                            Designers and engineers building calm tools for fast, clear updates.
-                        </p>
                     </motion.div>
                 </div>
             </main>

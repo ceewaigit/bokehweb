@@ -57,7 +57,7 @@ export const pricingPlans = [
     name: "Lifetime",
     price: PRICING.lifetime ? `$${PRICING.lifetime}` : "Coming Soon",
     priceSuffix: PRICING.lifetime ? "once" : "",
-    description: "A one-time purchase for teams that want to own it.",
+    description: "A one-time purchase for those who want to own it.",
     cta: "Buy lifetime",
     features: [
       "All Pro features",

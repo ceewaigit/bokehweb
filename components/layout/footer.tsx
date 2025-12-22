@@ -58,7 +58,7 @@ export function Footer({ className }: FooterProps) {
                                 <span className="text-lg font-semibold text-slate-900 tracking-tight transition-opacity duration-200 group-hover:opacity-80">bokeh</span>
                             </Link>
                             <p className="text-base text-slate-600 max-w-sm leading-relaxed">
-                                A modern screen recording studio for individuals & teams who care about clarity, pace, and polish.
+                                A macOS screen recording utility that makes every recording look finished.
                             </p>
                             <div className="flex items-center gap-3">
                                 <a

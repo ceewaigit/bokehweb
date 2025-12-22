@@ -112,8 +112,8 @@ export function Navbar({ className }: NavbarProps) {
                             asChild
                             className="rounded-full border border-white/60 bg-white/85 px-5 text-[13px] font-semibold tracking-[0.02em] text-slate-900 shadow-[0_14px_36px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all duration-200 ease-out hover:bg-white hover:-translate-y-px active:scale-[0.98]"
                         >
-                            <Link href="/#pricing">
-                                Get started
+                            <Link href="/download">
+                                Download
                             </Link>
                         </Button>
                     </div>
@@ -199,10 +199,10 @@ export function Navbar({ className }: NavbarProps) {
                                     className="w-full rounded-full bg-slate-900 text-white text-[15px] font-semibold py-6 transition-all duration-150 hover:bg-slate-800 active:scale-[0.98]"
                                 >
                                     <Link
-                                        href="/#pricing"
+                                        href="/download"
                                         onClick={() => closeMenu(setMobileMenuOpen)}
                                     >
-                                        Get started
+                                        Download
                                     </Link>
                                 </Button>
                                 <Button
