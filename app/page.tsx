@@ -219,7 +219,7 @@ const faqs = [
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-dvh bg-white overflow-x-hidden">
       <Navbar />
 
       {/* Unified background wrapper for seamless section blending */}
@@ -259,7 +259,7 @@ export default function Home() {
             subtitle="Record and edit screen videos for demos, tutorials, and updates with fast cleanup, transcript edits, and polished exports."
             primaryCta={{ label: "Download", href: "#" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
-            screenshotSrc="/hero_dark.png"
+            screenshotSrc="/glassmorphism.png"
             socialProof={{ count: "10,000+", label: "teams already recording with bokeh" }}
           />
 
@@ -322,10 +322,10 @@ export default function Home() {
             showArrow={true}
             arrowText="Ready to share a clearer picture?"
           />
+
+          <Footer />
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

@@ -50,19 +50,7 @@ export function CTASection({
                     className
                 )}
             >
-                {/* Dramatic gradient background */}
-                <div className="absolute inset-0 -z-10">
-                    <div
-                        className="absolute inset-0"
-                        style={{
-                            background: `
-                            radial-gradient(ellipse 100% 60% at 50% 100%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
-                            radial-gradient(ellipse 60% 40% at 30% 90%, rgba(236, 72, 153, 0.06) 0%, transparent 40%),
-                            radial-gradient(ellipse 60% 40% at 70% 95%, rgba(59, 130, 246, 0.06) 0%, transparent 40%)
-                        `,
-                        }}
-                    />
-                </div>
+
 
                 <div className="mx-auto max-w-3xl text-center">
                     {/* Arrow with Text */}

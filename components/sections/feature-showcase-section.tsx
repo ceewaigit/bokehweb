@@ -109,7 +109,7 @@ function CursorFollowImage({
                 animate={{ opacity: isInteracting ? 0 : 0.7 }}
                 transition={{ duration: 0.2 }}
             >
-                hover to try
+                hover me
             </motion.span>
         </div>
     );

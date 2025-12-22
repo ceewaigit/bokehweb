@@ -247,7 +247,6 @@ const changelogData: Version[] = [
 export default function ChangelogPage() {
     return (
         <div className="min-h-screen bg-[#FBFBFD] relative overflow-hidden font-sans selection:bg-slate-900/10">
-            {/* Artistic Background - Subtle, clean, Apple-esque */}
             <div className="fixed inset-0 pointer-events-none">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-50/50 rounded-full blur-[120px] opacity-60" />
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-50/50 rounded-full blur-[120px] opacity-60" />
