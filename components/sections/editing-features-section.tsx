@@ -157,7 +157,7 @@ export function EditingFeaturesSection({
         <section
             id={id}
             ref={sectionRef}
-            className={cn("relative py-16 md:py-24 px-4 md:px-6 overflow-hidden", className)}
+            className={cn("relative py-12 sm:py-16 lg:py-24 px-4 sm:px-6 overflow-hidden", className)}
         >
             {/* Background */}
             <SectionBackdrop variant="shimmer" fade="all" className="opacity-70" />
@@ -182,7 +182,7 @@ export function EditingFeaturesSection({
                         </motion.div>
                     )}
                     <motion.h2
-                        className="text-3xl md:text-5xl lg:text-[3.5rem] font-bold tracking-[-0.02em] leading-[1.08] text-balance text-gray-900 mb-4 md:mb-5"
+                        className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-[-0.02em] leading-[1.1] text-balance text-gray-900 mb-3 sm:mb-4 md:mb-5"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
@@ -226,15 +226,15 @@ export function EditingFeaturesSection({
                                     className="absolute inset-0"
                                 >
                                     {currentMedia?.type === "video" ? (
-                                            <video
-                                                ref={videoRef}
-                                                className="w-full h-full object-cover"
-                                                autoPlay={isInView}
-                                                muted
-                                                playsInline
-                                                preload="metadata"
-                                                onEnded={handleVideoEnd}
-                                            >
+                                        <video
+                                            ref={videoRef}
+                                            className="w-full h-full object-cover"
+                                            autoPlay={isInView}
+                                            muted
+                                            playsInline
+                                            preload="metadata"
+                                            onEnded={handleVideoEnd}
+                                        >
                                             <source src={currentMedia.src} type="video/mp4" />
                                         </video>
                                     ) : currentMedia?.type === "component" ? (
@@ -278,7 +278,7 @@ export function EditingFeaturesSection({
                 </motion.div>
 
                 {/* Desktop: Feature List - 4 Columns with indicators */}
-                <div className="hidden md:grid md:grid-cols-4 gap-4 lg:gap-6">
+                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                     {features.map((feature, index) => (
                         <motion.button
                             key={feature.title}

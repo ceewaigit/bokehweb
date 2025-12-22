@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HandArrow } from "@/components/ui/hand-arrow";
-import { BrowserFrame } from "@/components/ui/browser-frame";
+
 import Image from "next/image";
 import { Play, ChevronRight } from "lucide-react";
 
@@ -45,13 +45,13 @@ export function HeroSection({
         <TooltipProvider delayDuration={0}>
             <section
                 className={cn(
-                    "relative h-screen flex flex-col items-center overflow-visible",
-                    "pt-24 pb-10 px-6",
+                    "relative min-h-screen flex flex-col items-center justify-center overflow-hidden",
+                    "py-16 sm:py-20 lg:py-24 px-4 sm:px-6",
                     className
                 )}
             >
 
-                <div className="mx-auto max-w-4xl text-center flex-1 flex flex-col justify-start pt-4 sm:justify-center sm:pt-0 lg:-translate-y-32 transition-transform duration-700">
+                <div className="relative z-20 mx-auto max-w-4xl text-center flex flex-col items-center">
                     {brandMarkSrc && (
                         <motion.div
                             className="mb-2 flex justify-center hover:scale-105 transition-all duration-300 hover:rotate-4"
@@ -183,7 +183,7 @@ export function HeroSection({
 
                     {/* Free trial text */}
                     <motion.p
-                        className="text-sm text-muted-foreground/60 mb-12"
+                        className="text-sm text-muted-foreground/60 mb-8 sm:mb-10 lg:mb-12"
                         initial={{ opacity: 0 }}
                         whileInView={{ opacity: 1 }}
                         viewport={{ once: true }}
@@ -194,28 +194,23 @@ export function HeroSection({
                     </motion.p>
                 </div>
 
-                {/* Preview half-visible on load */}
                 {screenshotSrc && (
                     <motion.div
-                        className="absolute bottom-0 left-1/2 w-full max-w-6xl -translate-x-1/2 translate-y-[35%] sm:translate-y-[25%] md:translate-y-[30%] px-6 z-10"
-                        initial={{ opacity: 0, y: 80, scale: 0.96 }}
+                        className="relative w-full max-w-4xl mx-auto px-4 sm:px-6 mt-4 sm:mt-6"
+                        initial={{ opacity: 0, y: 40, scale: 0.98 }}
                         whileInView={{ opacity: 1, y: 0, scale: 1 }}
                         viewport={{ once: true }}
-                        transition={{ duration: 0.8, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                        transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
                         style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         {/* Glow effect behind the frame */}
                         <div
-                            className="absolute inset-0 -z-10 rounded-3xl blur-3xl opacity-30"
-                        // style={{
-                        //     background:
-                        //         "radial-gradient(ellipse at center, hsla(var(--primary), 0.22) 0%, transparent 70%)",
-                        // }}
+                            className="absolute inset-0 -z-10 rounded-2xl blur-2xl opacity-20"
                         />
                         {/* Native App Window Frame - No Header, Glass Border */}
-                        <div className="relative rounded-xl border border-slate-200/60 bg-slate-900/5 backdrop-blur-sm shadow-[0_40px_120px_rgba(15,23,42,0.16),0_12px_32px_rgba(15,23,42,0.08)] overflow-hidden p-2 sm:p-3 md:p-4">
+                        <div className="relative rounded-lg sm:rounded-xl border border-slate-200/60 bg-slate-900/5 backdrop-blur-sm shadow-[0_20px_60px_rgba(15,23,42,0.12),0_8px_24px_rgba(15,23,42,0.06)] overflow-hidden p-1.5 sm:p-2 md:p-3">
                             {/* Window Content */}
-                            <div className="relative rounded-lg overflow-hidden border border-black/5 shadow-sm">
+                            <div className="relative rounded-md sm:rounded-lg overflow-hidden border border-black/5 shadow-sm">
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <div className="relative cursor-not-allowed">

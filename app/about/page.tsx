@@ -105,7 +105,7 @@ export default function AboutPage() {
                                 alt="Bokeh workspace"
                                 fill
                                 className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.01]"
-                                sizes="(min-width: 1024px) 896px, 100vw"
+                                sizes="896px, 100vw"
                                 quality={95}
                                 priority
                             />

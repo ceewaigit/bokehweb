@@ -41,7 +41,7 @@ export function FeatureGrid({
     const shouldCenterMdRow = columns === 3 && features.length % 2 === 1;
 
     return (
-        <section className={cn("relative py-24 px-6 overflow-hidden", className)}>
+        <section className={cn("relative py-16 sm:py-20 lg:py-24 px-4 sm:px-6 overflow-hidden", className)}>
             <SectionBackdrop variant="cross-dots" texture fade="all" className="opacity-50" />
 
             <div className="relative mx-auto max-w-6xl">
@@ -88,7 +88,7 @@ export function FeatureGrid({
                 </div>
 
                 {/* Feature Cards */}
-                <div className={cn("grid gap-6", gridCols[columns])}>
+                <div className={cn("grid gap-4 sm:gap-6", gridCols[columns])}>
                     {features.map((feature, index) => (
                         <motion.div
                             key={feature.title}

@@ -218,9 +218,9 @@ export function FeatureShowcaseSection({
     ];
 
     const imageLayoutBySpan = {
-        sm: { grid: "grid-cols-1", gridReverse: "grid-cols-1", minHeight: "min-h-[280px]" },
-        md: { grid: "sm:grid-cols-[1fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_1fr]", minHeight: "min-h-[360px] sm:min-h-[260px]" },
-        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_0.8fr]", minHeight: "min-h-[420px] sm:min-h-[300px]" },
+        sm: { grid: "grid-cols-1", gridReverse: "grid-cols-1", minHeight: "min-h-[180px] sm:min-h-[200px]" },
+        md: { grid: "sm:grid-cols-[1fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_1fr]", minHeight: "min-h-[200px] sm:min-h-[180px] lg:min-h-[200px]" },
+        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_0.8fr]", minHeight: "min-h-[220px] sm:min-h-[200px] lg:min-h-[220px]" },
     };
 
     const paddingByPlacement = {
@@ -230,7 +230,7 @@ export function FeatureShowcaseSection({
     };
 
     return (
-        <section id={id} className={cn("py-24 px-6", className)}>
+        <section id={id} className={cn("py-16 sm:py-20 lg:py-24 px-4 sm:px-6", className)}>
             <div className="mx-auto max-w-6xl">
                 {/* Section Header */}
                 <div className="text-center mb-16">
@@ -290,7 +290,7 @@ export function FeatureShowcaseSection({
                 )}
 
                 {/* Bento Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {features.map((feature, index) => {
                         const palette = accentPalettes[index % accentPalettes.length];
                         const backdrop = feature.backdrop || "dots";
@@ -403,7 +403,7 @@ export function FeatureShowcaseSection({
 
                                 {/* Content */}
                                 <div className={cn(
-                                    "relative z-10 h-full p-5 flex",
+                                    "relative z-10 h-full p-3 sm:p-4 flex",
                                     spanKey === "sm" && placement === "top" ? "flex-col-reverse" : "flex-col",
                                     (feature.image || feature.video || (feature.beforeImage && feature.afterImage)) && spanKey !== "sm" && "sm:grid sm:gap-2",
                                     (feature.image || feature.video || (feature.beforeImage && feature.afterImage)) && spanKey !== "sm" && (isTextRight ? imageLayout.gridReverse : imageLayout.grid)
@@ -418,22 +418,22 @@ export function FeatureShowcaseSection({
                                         {/* Icon */}
                                         {feature.icon && (
                                             <div className={cn(
-                                                "w-10 h-10 rounded-xl flex items-center justify-center",
+                                                "w-8 h-8 rounded-lg flex items-center justify-center",
                                                 "transition-transform duration-300 group-hover:scale-105",
                                                 palette.icon,
                                                 palette.iconShadow
                                             )}>
-                                                <feature.icon className="w-5 h-5" strokeWidth={1.5} />
+                                                <feature.icon className="w-4 h-4" strokeWidth={1.5} />
                                             </div>
                                         )}
 
                                         {/* Title */}
-                                        <h3 className="font-semibold text-[1.125rem] leading-tight tracking-tight text-gray-900">
+                                        <h3 className="font-semibold text-sm sm:text-base leading-tight tracking-tight text-gray-900">
                                             {feature.title}
                                         </h3>
 
                                         {/* Description */}
-                                        <p className="text-[0.9375rem] text-gray-500 leading-[1.6] tracking-[-0.01em]">
+                                        <p className="text-xs sm:text-sm text-gray-500 leading-[1.5] tracking-[-0.01em]">
                                             {feature.description}
                                         </p>
                                     </div>
@@ -452,7 +452,7 @@ export function FeatureShowcaseSection({
                                         )}>
                                             <div className={cn(
                                                 "relative",
-                                                spanKey === "sm" ? "w-[55%] h-[120px]" : "w-full h-full",
+                                                spanKey === "sm" ? "w-[50%] h-[100px]" : "w-full h-full",
                                                 !feature.isGraphic && "overflow-hidden",
                                                 !feature.isGraphic && spanKey === "sm" && placement === "top" && "rounded-bl-xl",
                                                 !feature.isGraphic && spanKey === "sm" && placement !== "top" && "rounded-tl-xl",
