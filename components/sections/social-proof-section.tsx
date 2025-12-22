@@ -64,20 +64,16 @@ export function SocialProofSection({
                 {/* Stats/Features Row */}
                 <motion.div
                     className="flex flex-wrap items-center justify-center gap-3 md:gap-4"
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 16 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: 0.1 }}
+                    transition={{ duration: 0.45, delay: 0.1, ease: "easeOut" }}
                     style={gpuStyle}
                 >
                     {items.map((item, index) => (
-                        <motion.div
+                        <div
                             key={index}
-                            className="flex items-center gap-2 px-3 py-2 rounded-full border border-slate-200/70 bg-white/80 backdrop-blur"
-                            whileHover={{ y: -2 }}
-                            whileTap={{ scale: 0.98 }}
-                            transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                            style={{ willChange: "transform" }}
+                            className="flex items-center gap-2 px-3 py-2 rounded-full border border-slate-200/70 bg-white/80 backdrop-blur-sm transition-transform duration-200 ease-out hover:-translate-y-0.5"
                         >
                             {item.icon && (
                                 <span
@@ -107,7 +103,7 @@ export function SocialProofSection({
                                     {item.highlight}
                                 </span>
                             )}
-                        </motion.div>
+                        </div>
                     ))}
                 </motion.div>
 
@@ -118,9 +114,9 @@ export function SocialProofSection({
                         initial={{ opacity: 0 }}
                         whileInView={{ opacity: 0.5 }}
                         viewport={{ once: true }}
-                        transition={{ duration: 0.5, delay: 0.2 }}
-                        style={{ willChange: 'opacity' as const, transform: 'translateZ(0)' }}
-                    >
+                    transition={{ duration: 0.45, delay: 0.2, ease: "easeOut" }}
+                    style={{ willChange: 'opacity' as const, transform: 'translateZ(0)' }}
+                >
                         {logos.map((logo, index) => (
                             <img
                                 key={index}

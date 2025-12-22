@@ -139,7 +139,7 @@ export function Navbar({ className }: NavbarProps) {
                                     onClick={() => closeMenu(setMobileMenuOpen)}
                                     className="flex items-center gap-3"
                                 >
-                                    <div className="rounded-full bg-white/80 shadow-[0_6px_18px_rgba(15,23,42,0.12)] ring-1 ring-inset ring-white/50">
+                                    {/* <div className="rounded-full bg-white/80 shadow-[0_6px_18px_rgba(15,23,42,0.12)] ring-1 ring-inset ring-white/50">
                                         <Image
                                             src="/brand/bokeh_logo.svg"
                                             alt="bokeh"
@@ -147,7 +147,7 @@ export function Navbar({ className }: NavbarProps) {
                                             height={36}
                                             className="h-7 w-auto"
                                         />
-                                    </div>
+                                    </div> */}
                                     <span className="text-[18px] font-semibold text-slate-900 tracking-[-0.01em]">bokeh.</span>
                                 </Link>
                                 <button

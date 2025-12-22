@@ -38,44 +38,46 @@ const PricingSection: React.FC = () => {
           style={gpuStyle}
         >
           {pricingCopy.title}{" "}
-          <span className="relative inline-block text-gray-500">
-            {pricingCopy.strike}
-            <motion.svg
-              className="pointer-events-none absolute left-[-2%] top-[58%] h-4 w-[104%] -translate-y-1/2"
-              viewBox="0 0 100 12"
-              preserveAspectRatio="none"
-              fill="none"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true, margin: "-120px" }}
-              transition={{ duration: 0.2, delay: 0.15 }}
-            >
-              <motion.path
-                d="M0 6.6 Q 25 3.6, 50 6.1 Q 75 8.6, 100 4.8"
-                stroke="#374151"
-                strokeWidth="4.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                initial={{ pathLength: 0 }}
-                whileInView={{ pathLength: 1 }}
+          <span className="whitespace-nowrap">
+            <span className="relative inline-block text-gray-500">
+              {pricingCopy.strike}
+              <motion.svg
+                className="pointer-events-none absolute left-[-2%] top-[52%] h-4 w-[104%] -translate-y-1/2"
+                viewBox="0 0 100 12"
+                preserveAspectRatio="none"
+                fill="none"
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
                 viewport={{ once: true, margin: "-120px" }}
-                transition={{ duration: 0.45, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              />
-              <motion.path
-                d="M0 7.0 Q 26 4.4, 52 6.4 Q 76 8.3, 100 5.4"
-                stroke="#374151"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity="0.28"
-                initial={{ pathLength: 0 }}
-                whileInView={{ pathLength: 1 }}
-                viewport={{ once: true, margin: "-120px" }}
-                transition={{ duration: 0.4, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              />
-            </motion.svg>
+                transition={{ duration: 0.2, delay: 0.15 }}
+              >
+                <motion.path
+                  d="M0 6.6 Q 25 3.6, 50 6.1 Q 75 8.6, 100 4.8"
+                  stroke="#374151"
+                  strokeWidth="4.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  initial={{ pathLength: 0 }}
+                  whileInView={{ pathLength: 1 }}
+                  viewport={{ once: true, margin: "-120px" }}
+                  transition={{ duration: 0.45, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                />
+                <motion.path
+                  d="M0 7.0 Q 26 4.4, 52 6.4 Q 76 8.3, 100 5.4"
+                  stroke="#374151"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity="0.28"
+                  initial={{ pathLength: 0 }}
+                  whileInView={{ pathLength: 1 }}
+                  viewport={{ once: true, margin: "-120px" }}
+                  transition={{ duration: 0.4, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                />
+              </motion.svg>
+            </span>{" "}
+            {pricingCopy.titleAfter}
           </span>{" "}
-          {pricingCopy.titleAfter}{" "}
           <motion.em
             initial={{ opacity: 0, y: 6 }}
             whileInView={{ opacity: 1, y: 0 }}

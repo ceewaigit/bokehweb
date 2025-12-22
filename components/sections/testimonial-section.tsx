@@ -152,29 +152,19 @@ const companyLogos = [
 ];
 
 function CompanyMarquee() {
-    // Triple the logos for seamless infinite scroll
-    const marqueeContent = [...companyLogos, ...companyLogos, ...companyLogos];
+    const marqueeContent = [...companyLogos, ...companyLogos];
 
     return (
         <div
-            className="relative w-full overflow-hidden py-4"
+            className="relative w-full overflow-hidden py-4 pause-on-hover"
             style={{
                 maskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
                 WebkitMaskImage: 'linear-gradient(to right, transparent, black 10%, black 90%, transparent)',
             }}
         >
-            <motion.div
-                className="flex items-center"
-                animate={{
-                    x: [0, -(companyLogos.length * 120)],
-                }}
-                transition={{
-                    x: {
-                        duration: 35,
-                        repeat: Infinity,
-                        ease: "linear",
-                    },
-                }}
+            <div
+                className="flex w-max items-center animate-marquee-slow"
+                style={{ willChange: "transform" }}
             >
                 {marqueeContent.map((company, index) => (
                     <div
@@ -185,7 +175,7 @@ function CompanyMarquee() {
                         {company.svg}
                     </div>
                 ))}
-            </motion.div>
+            </div>
         </div>
     );
 }
@@ -199,7 +189,6 @@ function TestimonialCard({
 }) {
     const gpuStyle = {
         willChange: "transform, opacity" as const,
-        transform: "translateZ(0)",
         backfaceVisibility: "hidden" as const,
     };
 
@@ -212,7 +201,7 @@ function TestimonialCard({
                 "shadow-[0_1px_3px_rgba(15,23,42,0.04)]",
                 "hover:shadow-[0_8px_24px_rgba(15,23,42,0.06)]",
                 "hover:border-slate-200/80",
-                "transition-all duration-500 ease-out"
+                "transition-shadow transition-colors duration-300 ease-out"
             )}
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -270,7 +259,6 @@ export function TestimonialSection({
 }: TestimonialSectionProps) {
     const gpuStyle = {
         willChange: "transform, opacity" as const,
-        transform: "translateZ(0)",
         backfaceVisibility: "hidden" as const,
     };
 

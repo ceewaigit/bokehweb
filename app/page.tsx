@@ -226,7 +226,7 @@ export default function Home() {
                 <em className="highlight-purple">that edits itself</em>
               </>
             }
-            subtitle="Bokeh is a macOS screen recording app that removes dead time, smooths cursor motion, and auto-zooms so every demo looks expensive in minutes."
+            subtitle="bokeh. is a macOS screen recording app that removes dead time, smooths cursor motion, and auto-zooms so every demo looks expensive in minutes."
             primaryCta={{ label: "Download", href: "#" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
             screenshotSrc="/glassmorphism.png"
