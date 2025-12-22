@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 interface SectionBackdropProps {
-    variant?: "dots" | "grid" | "gradient" | "plus" | "cross-dots";
+    variant?: "dots" | "grid" | "gradient" | "plus" | "cross-dots" | "shimmer";
     color?: string;
     className?: string;
     fade?: "bottom" | "top" | "x" | "y" | "radial" | "all" | "none";
@@ -120,6 +120,44 @@ export function SectionBackdrop({
                 <div
                     className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_center,var(--primary-light,rgba(139,92,246,0.15)),transparent_70%)]"
                 />
+            )}
+
+            {/* Shimmer - refined, artistic mesh gradient */}
+            {variant === "shimmer" && (
+                <>
+                    {/* Soft mesh gradients */}
+                    <div
+                        className="absolute inset-0 opacity-60"
+                        style={{
+                            backgroundImage: `
+                                radial-gradient(ellipse 80% 50% at 20% 20%, rgba(251,191,36,0.08), transparent 50%),
+                                radial-gradient(ellipse 60% 60% at 80% 30%, rgba(139,92,246,0.06), transparent 50%),
+                                radial-gradient(ellipse 70% 40% at 40% 80%, rgba(14,165,233,0.05), transparent 50%)
+                            `,
+                        }}
+                    />
+                    {/* Subtle line texture */}
+                    <div
+                        className="absolute inset-0 opacity-[0.03]"
+                        style={{
+                            backgroundImage: `repeating-linear-gradient(
+                                105deg,
+                                transparent,
+                                transparent 40px,
+                                rgba(15,23,42,1) 40px,
+                                rgba(15,23,42,1) 41px
+                            )`,
+                        }}
+                    />
+                    {/* Fine dot grid overlay */}
+                    <div
+                        className="absolute inset-0 opacity-40"
+                        style={{
+                            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(15,23,42,0.04) 1px, transparent 0)`,
+                            backgroundSize: "32px 32px",
+                        }}
+                    />
+                </>
             )}
         </div>
     );

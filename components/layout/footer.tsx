@@ -108,7 +108,7 @@ export function Footer({ className }: FooterProps) {
                             © {new Date().getFullYear()} bokeh. All rights reserved.
                         </p>
                         <p className="text-[10px] uppercase tracking-[0.25em] text-slate-300 font-medium">
-                            Crafted for you.
+                            Crafted with you in mind.
                         </p>
                     </div>
                 </div>

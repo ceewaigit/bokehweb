@@ -10,6 +10,8 @@ import { TestimonialSection } from "@/components/sections/testimonial-section";
 import { QASection } from "@/components/sections/qa-section";
 import { CTASection } from "@/components/sections/cta-section";
 import { SpeedComparisonSection } from "@/components/sections/speed-comparison-section";
+import { EditingFeaturesSection } from "@/components/sections/editing-features-section";
+
 import {
   Clock,
   Command,
@@ -34,19 +36,9 @@ const features = [
     description: "Remove idle gaps automatically so recordings stay tight and watchable.",
   },
   {
-    icon: Type,
-    title: "Typing speed-up",
-    description: "Speed up long typing stretches to keep walkthroughs moving.",
-  },
-  {
     icon: Command,
     title: "Keyboard shortcuts",
     description: "Trigger core actions fast with built-in shortcuts.",
-  },
-  {
-    icon: Crop,
-    title: "Aspect ratio presets",
-    description: "Switch to ready-made aspect ratios for common layouts.",
   },
   {
     icon: KeyRound,
@@ -56,27 +48,6 @@ const features = [
 ];
 
 const showcaseFeatures = [
-  {
-    icon: Wand2,
-    title: "Professional finish",
-    description: "See the difference, from raw capture to polished, share-ready video.",
-    beforeImage: "/features/before.png",
-    afterImage: "/features/after.png",
-    imagePlacement: "middle" as const,
-    backdrop: "gradient" as const,
-    span: "lg" as const,
-    interactive: "before-after" as const,
-  },
-  {
-    icon: Wand2,
-    title: "Auto zoom",
-    description: "Auto zoom tracks your cursor to spotlight every click and demo.",
-    video: "/features/zoom-720.mp4",
-    imagePlacement: "middle" as const,
-    textPosition: "left" as const,
-    backdrop: "dots" as const,
-    span: "md" as const,
-  },
   {
     icon: Box,
     title: "3D effects",
@@ -88,6 +59,15 @@ const showcaseFeatures = [
     imageClassName: "w-[90%] max-h-[100px] object-contain object-bottom",
   },
   {
+    icon: FileVideo,
+    title: "Media import",
+    description: "Import external video and audio to weave into your story.",
+    image: "/features/import.png",
+    imagePlacement: "middle" as const,
+    backdrop: "gradient" as const,
+    span: "md" as const,
+  },
+  {
     icon: MousePointer,
     title: "Smooth cursor",
     description: "Stabilized cursor motion makes tutorials feel calm and intentional.",
@@ -95,20 +75,19 @@ const showcaseFeatures = [
     imagePlacement: "middle" as const,
     textPosition: "right" as const,
     backdrop: "grid" as const,
-    span: "md" as const,
+    span: "lg" as const,
     isGraphic: true,
     imageClassName: "w-[70%] max-h-[180px] object-contain",
     interactive: "cursor-follow" as const,
   },
   {
-    icon: FileVideo,
-    title: "Media import",
-    description: "Import external video and audio to weave into your story.",
-    image: "/features/import.png",
-    textPosition: "right" as const,
-    imagePlacement: "bottom" as const,
+    icon: Palette,
+    title: "Advanced controls",
+    description: "Move fast with smart defaults or dive deep to fine-tune every detail.",
+    image: "/features/advanced.png",
+    imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
-    span: "sm" as const,
+    span: "md" as const,
   },
   {
     icon: Layers,
@@ -119,15 +98,6 @@ const showcaseFeatures = [
     textPosition: "left" as const,
     backdrop: "gradient" as const,
     span: "sm" as const,
-  },
-  {
-    icon: Palette,
-    title: "Advanced controls",
-    description: "Move fast with smart defaults or dive deep to fine-tune every detail.",
-    image: "/features/advanced.png",
-    imagePlacement: "middle" as const,
-    backdrop: "gradient" as const,
-    span: "md" as const,
   },
 ];
 
@@ -276,6 +246,18 @@ export default function Home() {
             }
             subtitle="A focused toolkit for cursor clarity, backgrounds, and fast export in every screen recording."
             features={showcaseFeatures}
+          />
+
+          <EditingFeaturesSection
+            badge="Smart defaults"
+            title={
+              <>
+                <span className="font-[family-name:var(--font-display)] italic font-medium">Less thinking.</span>
+                <br />
+                <span className="font-[family-name:var(--font-display)] italic font-medium">More shipping.</span>
+              </>
+            }
+            subtitle="We handle the tedious parts with smart automation. Adjust everything when you want to—leave it alone when you don't."
           />
 
           <FeatureGrid

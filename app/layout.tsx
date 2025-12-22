@@ -19,7 +19,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "bokeh — Screen Recording & Editing for Teams",
+  title: "bokeh. — Screen Recording & Editing for Teams",
   description:
     "bokeh is a modern screen recording app with cursor focus, transcript editing, and clean exports for demos, tutorials, and team updates.",
   keywords: [

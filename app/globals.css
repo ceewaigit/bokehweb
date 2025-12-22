@@ -335,6 +335,29 @@
     animation: dot-drift 90s linear infinite;
   }
 
+  /* Infinite marquee scroll */
+  @keyframes marquee-scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  .animate-marquee {
+    animation: marquee-scroll 25s linear infinite;
+  }
+
+  .animate-marquee-slow {
+    animation: marquee-scroll 40s linear infinite;
+  }
+
+  .pause-on-hover:hover .animate-marquee,
+  .pause-on-hover:hover .animate-marquee-slow {
+    animation-play-state: paused;
+  }
+
   /* Glow Utilities */
   .glow-purple {
     box-shadow: 0 0 20px rgba(124, 58, 237, 0.5);
