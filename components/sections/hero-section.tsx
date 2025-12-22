@@ -51,7 +51,7 @@ export function HeroSection({
                 )}
             >
 
-                <div className="mx-auto max-w-4xl text-center flex-1 flex flex-col justify-center translate-y-0 lg:-translate-y-32 transition-transform duration-700">
+                <div className="mx-auto max-w-4xl text-center flex-1 flex flex-col justify-start pt-4 sm:justify-center sm:pt-0 lg:-translate-y-32 transition-transform duration-700">
                     {brandMarkSrc && (
                         <motion.div
                             className="mb-2 flex justify-center hover:scale-105 transition-all duration-300 hover:rotate-4"
@@ -117,7 +117,7 @@ export function HeroSection({
 
                     {/* CTAs - Apple-style buttons */}
                     <motion.div
-                        className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4"
+                        className="flex flex-row items-center justify-center gap-2 sm:gap-4 mb-4"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.4 }}
@@ -129,7 +129,7 @@ export function HeroSection({
                                     <Button
                                         size="lg"
                                         className={cn(
-                                            "rounded-full px-8 py-6 text-base font-medium",
+                                            "rounded-full px-4 py-4 sm:px-8 sm:py-6 text-sm sm:text-base font-medium",
                                             "bg-primary text-primary-foreground",
                                             "shadow-[var(--shadow-lg)]",
                                             "pointer-events-none"
@@ -161,7 +161,7 @@ export function HeroSection({
                                         <Button
                                             variant="ghost"
                                             size="lg"
-                                            className="rounded-full px-8 py-6 text-base text-foreground/80 gap-2 pointer-events-none"
+                                            className="rounded-full px-4 py-4 sm:px-8 sm:py-6 text-sm sm:text-base text-foreground/80 gap-2 pointer-events-none"
                                         >
                                             <Play className="w-4 h-4 fill-current" />
                                             {secondaryCta.label}
@@ -190,7 +190,7 @@ export function HeroSection({
                 {/* Preview half-visible on load */}
                 {screenshotSrc && (
                     <motion.div
-                        className="absolute bottom-0 left-1/2 w-full max-w-6xl -translate-x-1/2 translate-y-[10%] md:translate-y-[30%] px-6 z-10"
+                        className="absolute bottom-0 left-1/2 w-full max-w-6xl -translate-x-1/2 translate-y-[35%] sm:translate-y-[25%] md:translate-y-[30%] px-6 z-10"
                         initial={{ opacity: 0, y: 80, scale: 0.96 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ duration: 1, delay: 0.5, ease: [0.25, 0.1, 0.25, 1] }}

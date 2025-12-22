@@ -102,15 +102,14 @@ function CursorFollowImage({
                     draggable={false}
                 />
             </motion.div>
-            {/* Subtle hint text - different for mobile */}
+            {/* Subtle hint text - hidden on mobile to avoid overlap */}
             <motion.span
-                className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-gray-400 font-medium pointer-events-none"
+                className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] text-gray-400 font-medium pointer-events-none hidden sm:block"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: isInteracting ? 0 : 0.7 }}
                 transition={{ duration: 0.2 }}
             >
-                <span className="hidden sm:inline">hover to try</span>
-                <span className="sm:hidden">drag to try</span>
+                hover to try
             </motion.span>
         </div>
     );
@@ -220,8 +219,8 @@ export function FeatureShowcaseSection({
 
     const imageLayoutBySpan = {
         sm: { grid: "grid-cols-1", gridReverse: "grid-cols-1", minHeight: "min-h-[280px]" },
-        md: { grid: "sm:grid-cols-[1fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_1fr]", minHeight: "min-h-[260px]" },
-        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_0.8fr]", minHeight: "min-h-[300px]" },
+        md: { grid: "sm:grid-cols-[1fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_1fr]", minHeight: "min-h-[360px] sm:min-h-[260px]" },
+        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_0.8fr]", minHeight: "min-h-[420px] sm:min-h-[300px]" },
     };
 
     const paddingByPlacement = {
@@ -411,8 +410,8 @@ export function FeatureShowcaseSection({
                                 )}>
                                     {/* Text content */}
                                     <div className={cn(
-                                        "flex flex-col gap-3",
-                                        spanKey === "sm" ? "flex-shrink-0" : "justify-center",
+                                        "flex flex-col gap-3 flex-shrink-0",
+                                        spanKey !== "sm" && "sm:flex-shrink justify-center",
                                         spanKey === "sm" && placement === "top" && "mt-auto",
                                         isTextRight && "sm:order-2"
                                     )}>
@@ -447,9 +446,9 @@ export function FeatureShowcaseSection({
                                             spanKey === "sm" && placement === "top" ? "justify-end items-start mb-4 -mr-5 -mt-5" : "",
                                             spanKey === "sm" && placement !== "top" ? "justify-end items-end mt-4 -mr-5 -mb-5" : "",
                                             spanKey !== "sm" && !isTextRight && cn("justify-end", imageAlign),
-                                            spanKey !== "sm" && !isTextRight && !feature.isGraphic && "-mr-5 -mb-5 -mt-5",
+                                            spanKey !== "sm" && !isTextRight && !feature.isGraphic && "mt-4 -mr-5 -mb-5 sm:mt-0 sm:-mt-5",
                                             spanKey !== "sm" && isTextRight && cn("justify-start", imageAlign),
-                                            spanKey !== "sm" && isTextRight && !feature.isGraphic && "-ml-5 -mb-5 -mt-5"
+                                            spanKey !== "sm" && isTextRight && !feature.isGraphic && "mt-4 -ml-5 -mb-5 sm:mt-0 sm:-mt-5"
                                         )}>
                                             <div className={cn(
                                                 "relative",
