@@ -8,6 +8,7 @@ interface HandArrowProps extends SVGMotionProps<SVGSVGElement> {
     direction?: "up" | "down" | "left" | "right" | "up-right" | "down-right";
     size?: "sm" | "md" | "lg";
     animated?: boolean;
+    delay?: number;
 }
 
 // Artistic hand-drawn paths with organic flowing curves
@@ -79,9 +80,9 @@ const HandArrow = forwardRef<SVGSVGElement, HandArrowProps>(
                     whileInView={animated ? { pathLength: 1, opacity: 1 } : undefined}
                     viewport={{ once: true }}
                     transition={{
-                        duration: 1,
+                        duration: 0.6,
                         ease: "easeOut",
-                        delay: 0.2 // Wait for svg fade in
+                        delay: (props.delay || 0.2) // Use refined delay
                     }}
                 />
                 {/* Arrow tip draws AFTER line */}
@@ -96,9 +97,9 @@ const HandArrow = forwardRef<SVGSVGElement, HandArrowProps>(
                     whileInView={animated ? { pathLength: 1, opacity: 1 } : undefined}
                     viewport={{ once: true }}
                     transition={{
-                        duration: 0.4,
+                        duration: 0.3,
                         ease: "easeOut",
-                        delay: 1 // Start after line finishes (0.2 + 0.8s)
+                        delay: (props.delay || 0.2) + 0.5 // Start just before line finishes (0.6s)
                     }}
                 />
             </motion.svg>

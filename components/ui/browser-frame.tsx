@@ -26,10 +26,6 @@ const BrowserFrame = forwardRef<HTMLDivElement, BrowserFrameProps>(
                     isDark && "dark",
                     className
                 )}
-                initial={{ opacity: 0, y: 40, scale: 0.98 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true, margin: "-100px" }}
-                transition={{ duration: 0.7, ease: [0.34, 1.56, 0.64, 1] }}
                 style={mergedStyle}
                 {...props}
             >

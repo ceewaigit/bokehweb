@@ -33,25 +33,25 @@ const features = [
   {
     icon: Clock,
     title: "Idle cleanup",
-    description: "Remove idle gaps automatically so recordings stay tight and watchable.",
+    description: "Trim dead time automatically so recordings stay tight.",
   },
   {
     icon: Command,
     title: "Keyboard shortcuts",
-    description: "Trigger core actions fast with built-in shortcuts.",
+    description: "Move faster with built-in shortcuts for core edits.",
   },
   {
     icon: KeyRound,
     title: "Auto keystroke detection",
-    description: "Detect keystrokes automatically to highlight what you type.",
+    description: "Surface what you type automatically without setup.",
   },
 ];
 
 const showcaseFeatures = [
   {
     icon: Box,
-    title: "3D effects",
-    description: "Add depth and dimension to your recordings with cinematic 3D transformations.",
+    title: "Cinematic depth",
+    description: "Give product clips subtle dimension without keyframes.",
     image: "/features/3d.png",
     imagePlacement: "bottom" as const,
     backdrop: "dots" as const,
@@ -60,8 +60,8 @@ const showcaseFeatures = [
   },
   {
     icon: FileVideo,
-    title: "Media import",
-    description: "Import external video and audio to weave into your story.",
+    title: "Bring your media in",
+    description: "Layer clips and audio without leaving the recorder.",
     image: "/features/import.png",
     imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
@@ -69,8 +69,8 @@ const showcaseFeatures = [
   },
   {
     icon: MousePointer,
-    title: "Smooth cursor",
-    description: "Stabilized cursor motion makes tutorials feel calm and intentional.",
+    title: "Stabilized cursor",
+    description: "A calm pointer keeps focus exactly where it should be.",
     image: "/features/arrow.png",
     imagePlacement: "middle" as const,
     textPosition: "right" as const,
@@ -82,8 +82,8 @@ const showcaseFeatures = [
   },
   {
     icon: Palette,
-    title: "Advanced controls",
-    description: "Move fast with smart defaults or dive deep to fine-tune every detail.",
+    title: "Deep control when you want it",
+    description: "Opinionated defaults, with fine-tuning on demand.",
     image: "/features/advanced.png",
     imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
@@ -91,8 +91,8 @@ const showcaseFeatures = [
   },
   {
     icon: Layers,
-    title: "Beautiful backgrounds",
-    description: "Swap in gradients, patterns, or solid colors for brand-ready recordings.",
+    title: "Brand-ready backgrounds",
+    description: "Swap colors, gradients, or texture in one click.",
     image: "/features/background.png",
     imagePlacement: "top" as const,
     textPosition: "left" as const,
@@ -103,27 +103,27 @@ const showcaseFeatures = [
 
 const testimonials = [
   {
-    content: "Bokeh turns rough screen takes into a clean walkthrough fast. It feels like a native part of our workflow.",
+    content: "Bokeh takes messy recordings and turns them into polished walkthroughs in minutes.",
     author: { name: "Avery Chen", title: "Product Manager, Apple" },
   },
   {
-    content: "I can record, trim, and share in minutes without touching a timeline. It looks polished every time.",
+    content: "No timeline, no fuss. I record, let bokeh polish, and ship.",
     author: { name: "Priya Kapoor", title: "Software Engineer, Google" },
   },
   {
-    content: "The auto-zoom and cleanup features make onboarding videos feel intentional and easy to follow.",
+    content: "Auto-zoom and cleanup make onboarding videos crisp and easy to follow.",
     author: { name: "Marcus Lee", title: "Program Manager, Microsoft" },
   },
   {
-    content: "Our support team ships studio‑quality recordings without the studio. The clarity is consistent.",
+    content: "Our support team ships studio-quality recordings without the studio.",
     author: { name: "Elena Torres", title: "Customer Support Lead, Amazon" },
   },
   {
-    content: "Bokeh keeps tutorials crisp and focused. It’s the only recorder our team actually enjoys using.",
+    content: "It is the only recorder our team actually enjoys using.",
     author: { name: "Jonas Wright", title: "Product Manager, Meta" },
   },
   {
-    content: "The cursor smoothing and export quality make every recording feel deliberate and professional.",
+    content: "Cursor smoothing and export quality make every recording feel expensive.",
     author: { name: "Naomi Park", title: "Student, Apple Developer Academy" },
   },
 ];
@@ -131,59 +131,59 @@ const testimonials = [
 const faqs = [
   {
     question: "Is my data private?",
-    answer: "Absolutely. Your recordings never leave your machine. All processing happens locally, your videos stay yours, and you can opt out of basic analytics anytime. No cloud uploads, no third-party access, no compromises.",
+    answer: "Yes. Recording and processing happen locally on your Mac. No cloud uploads by default, no third-party access.",
   },
   {
     question: "Do you support commercial use?",
-    answer: "100%. bokeh is built for professionals. Use it for client work, product demos, team onboarding, sales enablement, and internal updates. Your videos, your business, no restrictions.",
+    answer: "Yes. Use it for client work, product demos, onboarding, sales enablement, and internal updates.",
   },
   {
     question: "Is there a free trial?",
-    answer: "Yes, with no credit card required. Explore every feature, record as much as you want, and upgrade only when you're ready to export clean, watermark-free videos.",
+    answer: "Yes, no credit card required. Full access during the trial, then upgrade for clean, watermark-free exports.",
   },
   {
     question: "What is a trade-in?",
-    answer: "We believe you shouldn't pay for software forever. After 16 months on a monthly subscription, you've earned the right to trade in for a lifetime license at no extra cost. It's our way of rewarding loyal users, keep your subscription benefits forever, with no more payments.",
+    answer: "After 16 months on Pro, trade in for a lifetime license at no extra cost. Keep the software and stop paying.",
   },
   {
     question: "What export quality can I expect?",
-    answer: "Pixel-perfect exports at your native Retina resolution. Every frame captures the full clarity of your Mac display, no downscaling, no compression artifacts. Your recordings look exactly as sharp as what you see on screen.",
+    answer: "Native Retina-resolution exports with crisp zooms and clean details. What you see on screen is what you ship.",
   },
   {
     question: "How long does it take to learn bokeh?",
-    answer: "Minutes, not hours. Record your first video, effects are applied automatically, and export. That's it. The smart defaults handle the polish so you can focus on your content. Power users can dive deeper whenever they're ready.",
+    answer: "Minutes. Record, let bokeh apply the polish automatically, and export. Fine-tune anytime.",
   },
   {
     question: "Do I get free updates?",
-    answer: "Pro subscribers get every update while subscribed. Lifetime license holders get all updates for the current major version, plus discounted upgrades when we release new major versions. Think IntelliJ or GoodNotes, fair pricing that respects your investment.",
+    answer: "Pro includes updates while subscribed. Lifetime includes updates for the current major version, plus discounted upgrades.",
   },
   {
     question: "What kind of support do you offer?",
-    answer: "Real humans, fast responses. Pro and Lifetime users get priority email support with typical replies within hours, not days. We also maintain detailed docs and video tutorials for self-service help.",
+    answer: "Priority email support for Pro and Lifetime, plus clear docs and tutorials.",
   },
   {
     question: "Why bokeh instead of Loom or cloud recorders?",
-    answer: "Ownership and privacy. Cloud tools host your videos on their servers, bokeh keeps everything local. You get professional-grade editing tools, no monthly upload limits, and your recordings aren't training someone else's AI. Plus, with our trade-in program, you can own it forever.",
+    answer: "Local-first ownership and better polish. No upload limits, no cloud lock-in, and your recordings stay on your machine.",
   },
   {
     question: "What's coming next?",
-    answer: "We build in the open. Our public roadmap shows exactly what's planned, what's in progress, and what's shipped. Have a feature request? You can vote and shape what we build next.",
+    answer: "We build in the open with a public roadmap. You can vote on what we ship next.",
   },
   {
     question: "How is bokeh different from typical screen recorders?",
-    answer: "Most recorders just capture pixels. bokeh captures cursor data separately, so you can smooth movements, add zooms, and refine focus after recording. One take, unlimited polish, no re-records.",
+    answer: "Most recorders just capture pixels. bokeh captures cursor, audio, and keystroke data too, so you can smooth motion, add zooms, and refine focus after recording.",
   },
   {
     question: "Can I cancel anytime?",
-    answer: "Yes, no questions asked. Cancel your monthly subscription whenever you want and keep using bokeh until your billing period ends. No cancellation fees, no hoops to jump through.",
+    answer: "Yes. Cancel anytime and keep access through your billing period.",
   },
   {
     question: "What platforms does bokeh support?",
-    answer: "macOS with Apple Silicon. We're laser-focused on making the best experience for Mac users first. Windows support is on our roadmap.",
+    answer: "macOS on Apple Silicon. Windows is on the roadmap.",
   },
   {
     question: "What are the system requirements?",
-    answer: "macOS Ventura 13.1 or later on Apple Silicon (M1 chip or newer). bokeh is optimized for Apple's latest hardware to deliver buttery-smooth recording and editing.",
+    answer: "macOS Ventura 13.1 or later on Apple Silicon (M1 or newer).",
   },
 ];
 
@@ -222,11 +222,11 @@ export default function Home() {
             brandMarkAlt="bokeh logo"
             title={
               <>
-                The modern screen recorder<br />
-                <em className="highlight-purple">for product teams</em>
+                The screen recorder<br />
+                <em className="highlight-purple">that edits itself</em>
               </>
             }
-            subtitle="Record and edit screen videos for demos, tutorials, and updates with fast cleanup, transcript edits, and polished exports."
+            subtitle="Bokeh is a macOS screen recording app that removes dead time, smooths cursor motion, and auto-zooms so every demo looks expensive in minutes."
             primaryCta={{ label: "Download", href: "#" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
             screenshotSrc="/glassmorphism.png"
@@ -240,11 +240,11 @@ export default function Home() {
             badge="Features"
             title={
               <>
-                Studio-grade screen recordings.<br />
-                <em className="highlight-yellow">Built for real teams.</em>
+                Premium screen recordings.<br />
+                <em className="highlight-yellow">Minus the busywork.</em>
               </>
             }
-            subtitle="A focused toolkit for cursor clarity, backgrounds, and fast export in every screen recording."
+            subtitle="We make the opinionated choices that usually take time: framing, motion, and polish."
             features={showcaseFeatures}
           />
 
@@ -252,23 +252,23 @@ export default function Home() {
             badge="Smart defaults"
             title={
               <>
-                <span className="font-[family-name:var(--font-display)] italic font-medium">Less thinking.</span>
+                <span className="font-[family-name:var(--font-display)] italic font-medium">Less work.</span>
                 <br />
-                <span className="font-[family-name:var(--font-display)] italic font-medium">More shipping.</span>
+                <span className="font-[family-name:var(--font-display)] italic font-medium">More polish.</span>
               </>
             }
-            subtitle="We handle the tedious parts with smart automation. Adjust everything when you want to—leave it alone when you don't."
+            subtitle="We automate the tedious edits - pacing, zoom, and cleanup - so you can ship fast. Adjust anything, or just export."
           />
 
           <FeatureGrid
             badge="Editing Suite"
             title={
               <>
-                Edit fast.<br />
-                <em className="highlight-pink">Ship with confidence.</em>
+                Small details.<br />
+                <em className="highlight-pink">Big polish.</em>
               </>
             }
-            subtitle="Tighten idle moments, speed up typing, and ship recordings quickly with smart presets and shortcuts."
+            subtitle="Smart cleanup and typing enhancements that make every screen recording feel intentional."
             features={features}
             columns={3}
           />
@@ -276,8 +276,8 @@ export default function Home() {
           <SpeedComparisonSection />
 
           <TestimonialSection
-            title="Teams ship clearer screen recordings"
-            subtitle="Product, support, and education teams rely on bokeh for consistent walkthroughs, demos, and updates."
+            title="Teams ship premium screen recordings"
+            subtitle="Product, support, and education teams rely on bokeh for consistent demos, walkthroughs, and updates."
             testimonials={testimonials}
           />
 
@@ -289,7 +289,7 @@ export default function Home() {
             title={
               <>
                 Answers for teams<br />
-                <em>recording fast.</em>
+                <em>shipping screen recordings.</em>
               </>
             }
             subtitle="Short, useful context on recording, editing, privacy, and requirements."
@@ -297,12 +297,12 @@ export default function Home() {
           />
 
           <CTASection
-            title={<>try <em>bokeh</em> today.</>}
-            subtitle="Start your free trial and publish clear, brand-ready screen recordings in minutes."
+            title={<>Publish premium recordings <em>in minutes.</em></>}
+            subtitle="Let bokeh handle the tedious work and ship a polished update fast."
             ctaLabel="Get started for free"
             ctaHref="/#pricing"
             showArrow={true}
-            arrowText="Ready to share a clearer picture?"
+            arrowText="Ready to ship a clearer update?"
           />
 
           <Footer />

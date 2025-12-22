@@ -18,25 +18,40 @@ interface SocialProofSectionProps {
 }
 
 const defaultItems: SocialProofItem[] = [
-    { icon: <Star className="w-4 h-4" />, text: "4.9/5 average", highlight: "from early makers" },
-    { icon: <Zap className="w-4 h-4" />, text: "10,000+", highlight: "creators" },
-    { icon: <Check className="w-4 h-4" />, text: "Loved by", highlight: "designers & creators" },
+    { icon: <Star className="w-4 h-4" />, text: "4.9/5 rating", highlight: "from early teams" },
+    { icon: <Zap className="w-4 h-4" />, text: "10k+ screen recordings", highlight: "polished" },
+    { icon: <Check className="w-4 h-4" />, text: "Hours saved", highlight: "every week" },
 ];
 
 export function SocialProofSection({
     className,
-    title = "Trusted by creators and product teams for screen recordings",
+    title = "Trusted by teams shipping screen recordings every week",
     items = defaultItems,
     logos,
 }: SocialProofSectionProps) {
     const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
+    const accentStyles = [
+        "text-amber-600 bg-amber-50 ring-amber-100",
+        "text-sky-600 bg-sky-50 ring-sky-100",
+        "text-emerald-600 bg-emerald-50 ring-emerald-100",
+    ];
+    const textAccentStyles = [
+        "text-slate-900",
+        "text-slate-900",
+        "text-slate-900",
+    ];
+    const highlightAccentStyles = [
+        "text-amber-600",
+        "text-sky-600",
+        "text-emerald-600",
+    ];
 
     return (
         <section className={cn("py-20 px-6 pt-[25vh]", className)}>
             <div className="mx-auto max-w-5xl">
                 {/* Title */}
                 <motion.h2
-                    className="text-center text-3xl md:text-4xl lg:text-5xl font-semibold tracking-[-0.02em] leading-[1.1] text-balance mb-12 bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-transparent"
+                    className="text-center text-3xl md:text-4xl lg:text-5xl font-semibold tracking-[-0.02em] leading-[1.1] text-balance mb-10 text-slate-900"
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
@@ -48,7 +63,7 @@ export function SocialProofSection({
 
                 {/* Stats/Features Row */}
                 <motion.div
-                    className="flex flex-wrap items-center justify-center gap-4 md:gap-6"
+                    className="flex flex-wrap items-center justify-center gap-3 md:gap-4"
                     initial={{ opacity: 0, y: 20 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
@@ -58,19 +73,37 @@ export function SocialProofSection({
                     {items.map((item, index) => (
                         <motion.div
                             key={index}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-full border border-white/55 bg-white/70 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)]"
-                            whileHover={{ y: -1 }}
+                            className="flex items-center gap-2 px-3 py-2 rounded-full border border-slate-200/70 bg-white/80 backdrop-blur"
+                            whileHover={{ y: -2 }}
                             whileTap={{ scale: 0.98 }}
-                            transition={{ type: "spring", stiffness: 260, damping: 22 }}
+                            transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                            style={{ willChange: "transform" }}
                         >
                             {item.icon && (
-                                <span className="text-slate-500">{item.icon}</span>
+                                <span
+                                    className={cn(
+                                        "inline-flex h-6 w-6 items-center justify-center rounded-full ring-1",
+                                        accentStyles[index % accentStyles.length]
+                                    )}
+                                >
+                                    {item.icon}
+                                </span>
                             )}
-                            <span className="text-[13px] font-semibold tracking-[0.02em] text-slate-900">
+                            <span
+                                className={cn(
+                                    "text-[13px] font-medium tracking-[0.015em]",
+                                    textAccentStyles[index % textAccentStyles.length]
+                                )}
+                            >
                                 {item.text}
                             </span>
                             {item.highlight && (
-                                <span className="text-[13px] text-slate-500 tracking-[0.01em]">
+                                <span
+                                    className={cn(
+                                        "text-[13px] tracking-[0.01em]",
+                                        highlightAccentStyles[index % highlightAccentStyles.length]
+                                    )}
+                                >
                                     {item.highlight}
                                 </span>
                             )}

@@ -56,8 +56,9 @@ export function HeroSection({
                         <motion.div
                             className="mb-2 flex justify-center hover:scale-105 transition-all duration-300 hover:rotate-4"
                             initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                             style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                         >
                             <Image
@@ -75,8 +76,9 @@ export function HeroSection({
                     {badge && (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
                             className="relative inline-block"
                             style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                         >
@@ -97,8 +99,9 @@ export function HeroSection({
                             "[&_em]:italic [&_em]:font-medium [&_em]:text-primary"
                         )}
                         initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, delay: 0.1 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.6, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
                         style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         {title}
@@ -108,8 +111,9 @@ export function HeroSection({
                     <motion.p
                         className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
                         initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.3 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
                         style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         {subtitle}
@@ -119,8 +123,9 @@ export function HeroSection({
                     <motion.div
                         className="flex flex-row items-center justify-center gap-2 sm:gap-4 mb-4"
                         initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.4 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
                         style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         <Tooltip>
@@ -144,6 +149,7 @@ export function HeroSection({
                                         <HandArrow
                                             direction="down-right"
                                             size="md"
+                                            delay={0.6}
                                             className="text-foreground/20 rotate-[300deg] scale-x-[-1]"
                                         />
                                     </div>
@@ -179,8 +185,9 @@ export function HeroSection({
                     <motion.p
                         className="text-sm text-muted-foreground/60 mb-12"
                         initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5, delay: 0.6 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
                         style={{ willChange: 'opacity', transform: 'translateZ(0)' }}
                     >
                         Free trial • No credit card required
@@ -192,8 +199,9 @@ export function HeroSection({
                     <motion.div
                         className="absolute bottom-0 left-1/2 w-full max-w-6xl -translate-x-1/2 translate-y-[35%] sm:translate-y-[25%] md:translate-y-[30%] px-6 z-10"
                         initial={{ opacity: 0, y: 80, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ duration: 1, delay: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+                        whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.8, delay: 0.4, ease: [0.22, 1, 0.36, 1] }}
                         style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
                     >
                         {/* Glow effect behind the frame */}
@@ -204,37 +212,29 @@ export function HeroSection({
                         //         "radial-gradient(ellipse at center, hsla(var(--primary), 0.22) 0%, transparent 70%)",
                         // }}
                         />
-                        {/* For now disabled for photo */}
-                        {/* <BrowserFrame
-                            variant="light"
-                            className="shadow-[0_40px_120px_rgba(15,23,42,0.16),0_12px_32px_rgba(15,23,42,0.08)]"
-                        > */}
-                        <div className="relative">
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className="relative cursor-not-allowed">
-                                        <Image
-                                            src={screenshotSrc}
-                                            alt="App screenshot"
-                                            width={1920}
-                                            height={1080}
-                                            className="w-full h-auto opacity-90"
-                                            priority
-                                        />
-                                        <div className="absolute inset-0 bg-transparent" />
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Coming Soon</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            {/* <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300 bg-black/5">
-                                <div className="w-14 h-14 rounded-full bg-white/95 flex items-center justify-center shadow-lg backdrop-blur-sm">
-                                    <Play className="w-5 h-5 text-gray-900 ml-0.5 fill-current" />
-                                </div>
-                            </div> */}
+                        {/* Native App Window Frame - No Header, Glass Border */}
+                        <div className="relative rounded-xl border border-slate-200/60 bg-slate-900/5 backdrop-blur-sm shadow-[0_40px_120px_rgba(15,23,42,0.16),0_12px_32px_rgba(15,23,42,0.08)] overflow-hidden p-2 sm:p-3 md:p-4">
+                            {/* Window Content */}
+                            <div className="relative rounded-lg overflow-hidden border border-black/5 shadow-sm">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="relative cursor-not-allowed">
+                                            <Image
+                                                src={screenshotSrc}
+                                                alt="App screenshot"
+                                                width={1920}
+                                                height={1080}
+                                                className="w-full h-auto opacity-100 block"
+                                                priority
+                                            />
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Coming Soon</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </div>
                         </div>
-                        {/* </BrowserFrame> */}
                     </motion.div>
                 )}
             </section>

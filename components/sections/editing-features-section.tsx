@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useInView } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { LucideIcon, ZoomIn, Keyboard, Crop, Wand2 } from "lucide-react";
@@ -36,25 +36,25 @@ const defaultFeatures: FeatureItem[] = [
     {
         icon: ZoomIn,
         title: "Auto zoom",
-        description: "Clicks get spotlight treatment automatically. Retina-sharp, perfectly timed.",
+        description: "Clicks get spotlighted automatically. Crisp framing, perfect timing.",
         media: { type: "video", src: "/features/zoom-720.mp4", alt: "Auto zoom demo" },
     },
     {
         icon: Keyboard,
         title: "Typing speed-up",
-        description: "Long typing stretches accelerate on their own. No manual cuts needed.",
+        description: "Long typing bursts speed up on their own. No manual cuts.",
         media: { type: "video", src: "/features/typingspeedup.mp4", alt: "Typing speed-up demo" },
     },
     {
         icon: Crop,
         title: "Crop & aspect ratios",
-        description: "Platform-ready presets, one click away. Adjust the framing whenever you want.",
+        description: "Platform-ready presets in one click. Adjust framing anytime.",
         media: { type: "image", src: "/features/crop.png", alt: "Crop and aspect ratios" },
     },
     {
         icon: Wand2,
         title: "Lossless zoom",
-        description: "We use your source resolution to keep zooms crisp, even when you're 400% in.",
+        description: "Zooms stay sharp by using your full source resolution.",
         media: {
             type: "component",
             component: (
@@ -106,8 +106,10 @@ export function EditingFeaturesSection({
     features = defaultFeatures,
 }: EditingFeaturesSectionProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const sectionRef = useRef<HTMLElement | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const isInView = useInView(sectionRef, { margin: "-10% 0px -10% 0px" });
 
     const gpuStyle = {
         willChange: 'transform, opacity' as const,
@@ -124,7 +126,7 @@ export function EditingFeaturesSection({
     useEffect(() => {
         const currentFeature = features[currentIndex];
 
-        if (currentFeature?.media?.type === "image") {
+        if (isInView && currentFeature?.media?.type === "image") {
             imageTimerRef.current = setTimeout(() => {
                 setCurrentIndex((prev) => (prev + 1) % features.length);
             }, 4000);
@@ -135,13 +137,28 @@ export function EditingFeaturesSection({
                 clearTimeout(imageTimerRef.current);
             }
         };
-    }, [currentIndex, features]);
+    }, [currentIndex, features, isInView]);
+
+    useEffect(() => {
+        if (!isInView) {
+            videoRef.current?.pause();
+            return;
+        }
+
+        if (features[currentIndex]?.media?.type === "video") {
+            videoRef.current?.play().catch(() => undefined);
+        }
+    }, [currentIndex, features, isInView]);
 
     const currentMedia = features[currentIndex]?.media;
     const currentFeature = features[currentIndex];
 
     return (
-        <section id={id} className={cn("relative py-16 md:py-24 px-4 md:px-6 overflow-hidden", className)}>
+        <section
+            id={id}
+            ref={sectionRef}
+            className={cn("relative py-16 md:py-24 px-4 md:px-6 overflow-hidden", className)}
+        >
             {/* Background */}
             <SectionBackdrop variant="shimmer" fade="all" className="opacity-70" />
 
@@ -209,15 +226,15 @@ export function EditingFeaturesSection({
                                     className="absolute inset-0"
                                 >
                                     {currentMedia?.type === "video" ? (
-                                        <video
-                                            ref={videoRef}
-                                            className="w-full h-full object-cover"
-                                            autoPlay
-                                            muted
-                                            playsInline
-                                            preload="metadata"
-                                            onEnded={handleVideoEnd}
-                                        >
+                                            <video
+                                                ref={videoRef}
+                                                className="w-full h-full object-cover"
+                                                autoPlay={isInView}
+                                                muted
+                                                playsInline
+                                                preload="metadata"
+                                                onEnded={handleVideoEnd}
+                                            >
                                             <source src={currentMedia.src} type="video/mp4" />
                                         </video>
                                     ) : currentMedia?.type === "component" ? (

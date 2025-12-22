@@ -1,9 +1,11 @@
 export const pricingCopy = {
   eyebrow: "Pricing",
-  title: "Pricing that keeps teams",
-  titleEmphasis: "shipping",
-  subtitle: "Start free, then upgrade for clean exports, priority support, and up to 3 devices.",
-  footnote: "After 16 months, trade in your subscription for a free lifetime license.",
+  title: "Pricing that",
+  strike: "cuts",
+  titleAfter: "time",
+  titleEmphasis: "and feels just right",
+  subtitle: "Start free, then upgrade for clean exports, priority support, and a lifetime trade-in.",
+  footnote: "After 16 months, trade in your subscription for a lifetime license.",
 };
 
 // TODO: Set to true when ready to launch
@@ -23,7 +25,7 @@ export const pricingPlans = [
     name: "Trial",
     price: "Free",
     priceSuffix: `${PRICING.trialDays} days`,
-    description: "Full access with a discreet watermark.",
+    description: "Full access with a subtle watermark.",
     cta: "Start free trial",
     features: [
       "Full feature access",
@@ -37,7 +39,7 @@ export const pricingPlans = [
     name: "Pro",
     price: PRICING.monthly ? `$${PRICING.monthly}` : "Coming Soon",
     priceSuffix: PRICING.monthly ? "/ month" : "",
-    description: "Clean exports, priority support, and client-ready polish.",
+    description: "Clean exports, priority support, and studio-grade polish.",
     cta: "Go Pro",
     features: [
       "Unlimited clean exports",
@@ -55,7 +57,7 @@ export const pricingPlans = [
     name: "Lifetime",
     price: PRICING.lifetime ? `$${PRICING.lifetime}` : "Coming Soon",
     priceSuffix: PRICING.lifetime ? "once" : "",
-    description: "A one-time purchase for long-term teams.",
+    description: "A one-time purchase for teams that want to own it.",
     cta: "Buy lifetime",
     features: [
       "All Pro features",
@@ -68,3 +70,20 @@ export const pricingPlans = [
     comingSoon: !PRICING.lifetime,
   },
 ];
+
+export const enterprisePlan = {
+  name: "Enterprise",
+  price: "Custom",
+  eyebrow: "Buying for a large team?",
+  description: "For larger organizations with security and procurement needs.",
+  cta: "Contact sales",
+  features: [
+    "Everything in Lifetime",
+    "SSO & Advanced Security",
+    "Unlimited version history",
+    "Dedicated success manager",
+    "Custom contracts & invoicing",
+    "Audit logs",
+  ],
+  comingSoon: true,
+};

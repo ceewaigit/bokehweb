@@ -14,6 +14,9 @@ const footerLinks = {
         { label: "Changelog", href: "/changelog" },
         { label: "Roadmap", href: "/roadmap" },
     ],
+    Company: [
+        { label: "About", href: "/about" },
+    ],
     Legal: [
         { label: "Privacy", href: "/privacy" },
         { label: "Terms", href: "/terms" },
@@ -55,7 +58,7 @@ export function Footer({ className }: FooterProps) {
                                 <span className="text-lg font-semibold text-slate-900 tracking-tight transition-opacity duration-200 group-hover:opacity-80">bokeh</span>
                             </Link>
                             <p className="text-base text-slate-600 max-w-sm leading-relaxed">
-                                A modern screen recording studio for teams who care about clarity, pace, and polish.
+                                A modern screen recording studio for individuals & teams who care about clarity, pace, and polish.
                             </p>
                             <div className="flex items-center gap-3">
                                 <a
@@ -107,9 +110,26 @@ export function Footer({ className }: FooterProps) {
                         <p className="text-sm text-slate-400 transition-opacity duration-200 hover:opacity-80">
                             © {new Date().getFullYear()} bokeh. All rights reserved.
                         </p>
-                        <p className="text-[10px] uppercase tracking-[0.25em] text-slate-300 font-medium">
-                            Crafted with you in mind.
-                        </p>
+                        <div className="flex items-center gap-2.5 text-xs sm:text-sm font-medium text-slate-400/80 transition-colors duration-300 hover:text-slate-600">
+                            <span className="flex items-center gap-1.5 selection:bg-red-100 selection:text-red-900">
+                                Crafted with <span className="text-red-500 animate-pulse drop-shadow-sm hover:scale-110 transition-transform duration-200">❤️</span> by
+                            </span>
+                            <a
+                                href="https://www.ceewai.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group/creator flex items-center gap-2 pl-1 py-1 pr-2.5 rounded-full bg-slate-100/50 border border-transparent hover:border-slate-200/60 hover:bg-white hover:shadow-sm transition-all duration-300 ease-out cursor-pointer"
+                            >
+                                <Image
+                                    src="/ceewai.ico"
+                                    alt="ceewai"
+                                    width={20}
+                                    height={20}
+                                    className="h-5 w-5 rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-out group-hover/creator:scale-105 group-hover/creator:rotate-3"
+                                />
+                                <span className="bg-gradient-to-br from-slate-700 to-slate-500 bg-clip-text text-transparent group-hover/creator:from-slate-900 group-hover/creator:to-slate-700 transition-all duration-300 font-semibold tracking-tight">ceewai</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

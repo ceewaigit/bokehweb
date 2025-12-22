@@ -131,6 +131,10 @@ export function FeatureGrid({
                         </motion.div>
                     ))}
                 </div>
+
+                <p className="mt-8 text-center text-sm text-muted-foreground">
+                    And many more, thoughtfully automated.
+                </p>
             </div>
         </section>
     );

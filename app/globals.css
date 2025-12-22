@@ -155,6 +155,11 @@
     color: hsl(var(--foreground));
     overflow-x: hidden;
   }
+
+  ::selection {
+    background-color: rgba(139, 92, 246, 0.3);
+    color: inherit;
+  }
 }
 
 /* Minimal, modern scrollbars */
@@ -340,6 +345,7 @@
     0% {
       transform: translateX(0);
     }
+
     100% {
       transform: translateX(-50%);
     }

@@ -40,7 +40,7 @@ export function SpeedComparisonSection() {
           className="mb-16 sm:mb-20"
         >
           <p className="text-sm font-medium tracking-[0.2em] uppercase text-violet-600 mb-2">
-            Time saved
+            Editing time
           </p>
           <h2 className="text-[2.5rem] sm:text-5xl md:text-6xl font-medium tracking-[-0.03em] text-slate-900 leading-[1.1]">
             <span className="relative inline-block">
@@ -86,14 +86,18 @@ export function SpeedComparisonSection() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+            transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            style={{ willChange: "transform, opacity" }}
           >
             <div className="flex items-baseline justify-between mb-3">
               <span className="text-base sm:text-lg font-medium text-slate-900">
                 bokeh.
               </span>
               <div className="flex items-baseline gap-1">
-                <motion.span className="text-2xl sm:text-3xl font-semibold tabular-nums text-slate-900">
+                <motion.span
+                  className="text-2xl sm:text-3xl font-semibold tabular-nums text-slate-900"
+                  style={{ willChange: "contents" }}
+                >
                   {bokehMinutes}
                 </motion.span>
                 <span className="text-sm text-slate-400">min</span>
@@ -102,8 +106,9 @@ export function SpeedComparisonSection() {
             <div className="relative h-2 sm:h-2.5 bg-slate-100 rounded-full overflow-hidden">
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
-                style={{ width: bokehWidth }}
+                style={{ width: bokehWidth, willChange: "width" }}
               />
+              <div className="absolute inset-0 bg-white/20 animate-[pulse_2s_ease-in-out_infinite]" />
             </div>
           </motion.div>
 
@@ -112,14 +117,18 @@ export function SpeedComparisonSection() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            style={{ willChange: "transform, opacity" }}
           >
             <div className="flex items-baseline justify-between mb-3">
               <span className="text-base sm:text-lg font-medium text-slate-400">
                 Traditional editing
               </span>
               <div className="flex items-baseline gap-1">
-                <motion.span className="text-2xl sm:text-3xl font-semibold tabular-nums text-slate-400">
+                <motion.span
+                  className="text-2xl sm:text-3xl font-semibold tabular-nums text-slate-400"
+                  style={{ willChange: "contents" }}
+                >
                   {traditionalMinutes}
                 </motion.span>
                 <span className="text-sm text-slate-300">min</span>
@@ -128,7 +137,7 @@ export function SpeedComparisonSection() {
             <div className="relative h-2 sm:h-2.5 bg-slate-100 rounded-full overflow-hidden">
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-full bg-slate-300"
-                style={{ width: traditionalWidth }}
+                style={{ width: traditionalWidth, willChange: "width" }}
               />
             </div>
           </motion.div>
@@ -144,14 +153,14 @@ export function SpeedComparisonSection() {
         >
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
-              <p className="text-sm text-slate-400 mb-1">Time saved per video</p>
+              <p className="text-sm text-slate-400 mb-1">Editing time per video</p>
               <p className="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-[-0.03em] text-slate-900">
                 15<span className="text-violet-500">×</span> faster
               </p>
             </div>
-            <p className="text-sm text-slate-400 max-w-[200px]">
-              Based on creating a 10-minute screen recording
-            </p>
+              <p className="text-sm text-slate-400 max-w-[220px]">
+                Based on a 10-minute screen recording
+              </p>
           </div>
         </motion.div>
       </div>
