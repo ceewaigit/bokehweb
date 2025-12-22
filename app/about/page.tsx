@@ -247,7 +247,6 @@ export default function AboutPage() {
                                             <div className="mt-2 h-2.5 w-2.5 rounded-full bg-slate-300/70 shadow-[0_0_0_6px_rgba(148,163,184,0.12)] transition-transform duration-200 ease-out group-hover:scale-110" />
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="text-[11px] uppercase tracking-[0.2em] text-slate-400">{`0${i + 1}`}</span>
                                                     <h3 className="text-base font-semibold text-slate-900">{tier.title}</h3>
                                                 </div>
                                                 <p className="mt-1 text-sm text-slate-500 leading-relaxed">{tier.description}</p>
