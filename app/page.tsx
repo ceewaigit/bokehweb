@@ -25,7 +25,8 @@ import {
   Palette,
   Box,
   FileVideo,
-  Download
+  Download,
+  WifiOff
 } from "lucide-react";
 import PricingSection from "@/components/sections/pricing-section";
 
@@ -39,11 +40,6 @@ const features = [
     icon: Command,
     title: "Keyboard shortcuts",
     description: "Move faster with built-in shortcuts for core edits.",
-  },
-  {
-    icon: KeyRound,
-    title: "Auto keystroke detection",
-    description: "Surface what you type automatically without setup.",
   },
 ];
 
@@ -81,22 +77,40 @@ const showcaseFeatures = [
     interactive: "cursor-follow" as const,
   },
   {
+    icon: Layers,
+    title: "Brand-ready backgrounds",
+    description: "Swap colors, gradients, or texture in one click.",
+    video: "/features/wallpaper.webm",
+    imagePlacement: "top" as const,
+    textPosition: "left" as const,
+    backdrop: "gradient" as const,
+    span: "md" as const,
+  },
+  {
     icon: Palette,
     title: "Deep control when you want it",
     description: "Opinionated defaults, with fine-tuning on demand.",
     image: "/features/advanced.png",
     imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
-    span: "md" as const,
+    span: "sm" as const,
   },
   {
-    icon: Layers,
-    title: "Brand-ready backgrounds",
-    description: "Swap colors, gradients, or texture in one click.",
-    image: "/features/background.png",
-    imagePlacement: "top" as const,
-    textPosition: "left" as const,
-    backdrop: "gradient" as const,
+    icon: Crop,
+    title: "Social-ready sizes",
+    description: "Crop to 9:16, 4:5, or 1:1 instantly. Perfect for Shorts and Reels.",
+    image: "/features/crop.png",
+    imagePlacement: "middle" as const,
+    backdrop: "dots" as const,
+    span: "sm" as const,
+  },
+  {
+    icon: WifiOff,
+    title: "Offline-first privacy",
+    description: "No cloud, no uploads. Your recordings never leave your Mac.",
+    isGraphic: true,
+    imageClassName: "opacity-40",
+    backdrop: "grid" as const,
     span: "sm" as const,
   },
 ];

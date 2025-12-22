@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence, useInView } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
-import { LucideIcon, ZoomIn, Keyboard, Crop, Wand2 } from "lucide-react";
+import { LucideIcon, ZoomIn, Keyboard, Crop, Wand2, Type } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
 import { BeforeAfterSlider } from "@/components/ui/before-after-slider";
@@ -34,22 +34,28 @@ interface EditingFeaturesSectionProps {
 
 const defaultFeatures: FeatureItem[] = [
     {
+        icon: Crop,
+        title: "Timeline",
+        description: "A clean, visual timeline that makes editing feel tangible.",
+        media: { type: "video", src: "/features/timeline.webm", alt: "Timeline demo" },
+    },
+    {
         icon: ZoomIn,
         title: "Auto zoom",
         description: "Clicks get spotlighted automatically. Crisp framing, perfect timing.",
-        media: { type: "video", src: "/features/zoom-720.mp4", alt: "Auto zoom demo" },
+        media: { type: "video", src: "/features/zoom.webm", alt: "Auto zoom demo" },
     },
     {
         icon: Keyboard,
         title: "Typing speed-up",
         description: "Long typing bursts speed up on their own. No manual cuts.",
-        media: { type: "video", src: "/features/typingspeedup.mp4", alt: "Typing speed-up demo" },
+        media: { type: "video", src: "/features/typingspeedup.webm", alt: "Typing speed-up demo" },
     },
     {
-        icon: Crop,
-        title: "Crop & aspect ratios",
-        description: "Platform-ready presets in one click. Adjust framing anytime.",
-        media: { type: "image", src: "/features/crop.png", alt: "Crop and aspect ratios" },
+        icon: Type,
+        title: "Auto keystrokes",
+        description: "We detect every shortcut and type it out for you.",
+        media: { type: "video", src: "/features/keystroke.webm", alt: "Keystroke demo" },
     },
     {
         icon: Wand2,
@@ -109,7 +115,7 @@ export function EditingFeaturesSection({
     const sectionRef = useRef<HTMLElement | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const isInView = useInView(sectionRef, { margin: "-10% 0px -10% 0px" });
+    const isInView = useInView(sectionRef, { margin: "0px 0px 0px 0px" });
 
     const gpuStyle = {
         willChange: 'transform, opacity' as const,
@@ -146,7 +152,20 @@ export function EditingFeaturesSection({
         }
 
         if (features[currentIndex]?.media?.type === "video") {
-            videoRef.current?.play().catch(() => undefined);
+            const video = videoRef.current;
+            if (video) {
+                video.muted = true; // Ensure muted
+
+                // Explicitly play if we are in view
+                // We rely on the key prop to re-mount the video element, so it starts fresh
+                // We do NOT call load() as it might be redundant with key change
+                const playPromise = video.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(() => {
+                        // Autoplay prevented
+                    });
+                }
+            }
         }
     }, [currentIndex, features, isInView]);
 
@@ -229,14 +248,12 @@ export function EditingFeaturesSection({
                                         <video
                                             ref={videoRef}
                                             className="w-full h-full object-cover"
-                                            autoPlay={isInView}
+                                            src={currentMedia.src}
                                             muted
                                             playsInline
                                             preload="metadata"
                                             onEnded={handleVideoEnd}
-                                        >
-                                            <source src={currentMedia.src} type="video/mp4" />
-                                        </video>
+                                        />
                                     ) : currentMedia?.type === "component" ? (
                                         <div className="w-full h-full bg-white">
                                             {currentMedia.component}
@@ -277,8 +294,8 @@ export function EditingFeaturesSection({
                     </div>
                 </motion.div>
 
-                {/* Desktop: Feature List - 4 Columns with indicators */}
-                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                {/* Desktop: Feature List - 5 Columns with indicators */}
+                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
                     {features.map((feature, index) => (
                         <motion.button
                             key={feature.title}

@@ -7,7 +7,70 @@ import { BrowserFrame } from "@/components/ui/browser-frame";
 import { BeforeAfterSlider } from "@/components/ui/before-after-slider";
 import Image from "next/image";
 import { LucideIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
+import { useInView } from "framer-motion";
+
+// Video component with intersection observer for reliable mobile playback
+function VideoPlayer({
+    src,
+    isGraphic,
+    imageClassName,
+    isTextRight
+}: {
+    src: string;
+    isGraphic?: boolean;
+    imageClassName?: string;
+    isTextRight?: boolean;
+}) {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    // Use 0px margin to trigger immediately when any part is visible
+    const isInView = useInView(containerRef, { margin: "0px 0px 0px 0px" });
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        // Force mute state for autoplay policy
+        video.muted = true;
+
+        if (isInView) {
+            // Reset to start if it ended (just in case loop doesn't catch it for some reason)
+            if (video.ended) {
+                video.currentTime = 0;
+            }
+
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    // Autoplay was prevented.
+                    // This is usually due to user interaction policies.
+                    // We can't force it, but muting usually fixes it.
+                });
+            }
+        } else {
+            video.pause();
+        }
+    }, [isInView, src]); // Re-run if src changes
+
+    return (
+        <div ref={containerRef} className="absolute inset-0 w-full h-full">
+            <video
+                ref={videoRef}
+                className={cn(
+                    isGraphic
+                        ? (imageClassName || "max-w-full max-h-full object-contain drop-shadow-lg")
+                        : cn("absolute inset-0 w-full h-full object-cover", isTextRight ? "object-right" : "object-left")
+                )}
+                src={src}
+                loop
+                muted
+                playsInline
+                preload="auto"
+            />
+        </div>
+    );
+}
 
 // Cursor follow component for smooth cursor demo
 function CursorFollowImage({
@@ -463,20 +526,7 @@ export function FeatureShowcaseSection({
                                                 feature.isGraphic && "flex justify-center items-center"
                                             )}>
                                                 {feature.video ? (
-                                                    <video
-                                                        className={cn(
-                                                            feature.isGraphic
-                                                                ? (feature.imageClassName || "max-w-full max-h-full object-contain drop-shadow-lg")
-                                                                : cn("absolute inset-0 w-full h-full object-cover", isTextRight ? "object-right" : "object-left")
-                                                        )}
-                                                        autoPlay
-                                                        loop
-                                                        muted
-                                                        playsInline
-                                                        preload="metadata"
-                                                    >
-                                                        <source src={feature.video} type="video/mp4" />
-                                                    </video>
+                                                    <VideoPlayer src={feature.video} isGraphic={feature.isGraphic} imageClassName={feature.imageClassName} isTextRight={isTextRight} />
                                                 ) : feature.interactive === "before-after" && feature.beforeImage && feature.afterImage ? (
                                                     <BeforeAfterSlider
                                                         beforeSrc={feature.beforeImage}
