@@ -173,6 +173,6 @@ export function CTASection({
                     )}
                 </div>
             </section>
-        </TooltipProvider>
+        </TooltipProvider >
     );
 }

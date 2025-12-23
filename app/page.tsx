@@ -80,7 +80,7 @@ const showcaseFeatures = [
     icon: Layers,
     title: "Brand-ready backgrounds",
     description: "Swap colors, gradients, or texture in one click.",
-    video: "/features/wallpaper.webm",
+    video: "/features/wallpaper.mp4",
     imagePlacement: "top" as const,
     textPosition: "left" as const,
     backdrop: "gradient" as const,

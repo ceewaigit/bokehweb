@@ -7,7 +7,7 @@ import { useState } from "react";
 
 interface QAItem {
     question: string;
-    answer: string;
+    answer: React.ReactNode;
 }
 
 interface QASectionProps {
@@ -27,6 +27,16 @@ export function QASection({
     subtitle,
     items,
 }: QASectionProps) {
+    // Add pronunciation guide as the first item if not already present
+    // This is a temporary way to inject it, ideally it should come from the prop
+    const updatedItems = [
+        {
+            question: "How do you pronounce bokeh?",
+            answer: <>We usually say <strong>BOH-keh</strong>. But don&apos;t stress about it! We&apos;ve heard &apos;bouquet&apos; (like flowers) and &apos;bow-kuh&apos; too. However you say it, you&apos;re speaking our language.</>
+        },
+        ...items
+    ];
+
     const [openIndex, setOpenIndex] = useState<number | null>(null);
     const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
 
@@ -84,7 +94,7 @@ export function QASection({
                                 WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 24px, black calc(100% - 32px), transparent 100%)",
                             }}
                         >
-                            {items.map((item, index) => {
+                            {updatedItems.map((item, index) => {
                                 const isOpen = openIndex === index;
 
                                 return (

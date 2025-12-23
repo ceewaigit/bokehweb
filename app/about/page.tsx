@@ -106,7 +106,6 @@ export default function AboutPage() {
                                 fill
                                 className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.01]"
                                 sizes="896px, 100vw"
-                                quality={95}
                                 priority
                             />
                             <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-slate-900/10" />

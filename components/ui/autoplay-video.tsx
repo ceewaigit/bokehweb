@@ -1,8 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useEffect, useRef, useState, VideoHTMLAttributes } from "react";
-import { Play, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState, VideoHTMLAttributes, useMemo } from "react";
+import { Play, Loader2, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AutoplayVideoProps extends VideoHTMLAttributes<HTMLVideoElement> {
@@ -19,14 +19,31 @@ export function AutoplayVideo({
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [hasError, setHasError] = useState(false);
+
+    // Retry mechanism
+    const retryCount = useRef(0);
+    const maxRetries = 3;
+
+    // Determine mime type hint
+    const mimeType = useMemo(() => {
+        if (!src || typeof src !== 'string') return undefined;
+        if (src.endsWith(".webm")) return "video/webm";
+        if (src.endsWith(".mp4")) return "video/mp4";
+        return undefined;
+    }, [src]);
+
+    useEffect(() => {
+        // Reset states when src changes
+        setIsLoading(true);
+        setIsPlaying(false);
+        setHasError(false);
+        retryCount.current = 0;
+    }, [src]);
 
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
-
-        // Reset states when src changes
-        setIsLoading(true);
-        setIsPlaying(false);
 
         const attemptPlay = async () => {
             try {
@@ -34,15 +51,20 @@ export function AutoplayVideo({
                     await video.play();
                 }
             } catch (error) {
-                // Autoplay might be blocked or failed, which is expected in some browsers
-                // We leave isPlaying as false so the user can manually play
+                console.warn("AutoplayVideo: Play failed", error);
                 setIsPlaying(false);
             }
         };
 
-        if (src) {
+        // If we have a ref, check readiness immediately
+        if (video.readyState >= 3) {
+            setIsLoading(false);
             attemptPlay();
+        } else {
+            // Otherwise wait for events, but ensure loading starts
+            video.load();
         }
+
     }, [src]);
 
     const togglePlay = () => {
@@ -62,77 +84,132 @@ export function AutoplayVideo({
         }
     };
 
+    const handleRetry = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setHasError(false);
+        setIsLoading(true);
+        retryCount.current = 0; // Manual retry resets count
+        if (videoRef.current) {
+            videoRef.current.load();
+        }
+    };
+
+    const handleError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+        const video = e.currentTarget;
+        const error = video.error;
+        console.error("AutoplayVideo Error:", error?.code, error?.message, "SRC:", src);
+
+        // Don't show error for simple aborts during navigation
+        if (error?.code === MediaError.MEDIA_ERR_ABORTED) return;
+
+        // Auto-retry logic
+        if (retryCount.current < maxRetries) {
+            retryCount.current++;
+            console.log(`AutoplayVideo: Retrying... (${retryCount.current}/${maxRetries})`);
+            setTimeout(() => {
+                if (videoRef.current) videoRef.current.load();
+            }, 1000); // Wait 1s before retry
+        } else {
+            setIsLoading(false);
+            setIsPlaying(false);
+            setHasError(true);
+        }
+    };
+
     return (
         <div
             ref={containerRef}
-            className={cn("relative w-full h-full group cursor-pointer overflow-hidden", containerClassName)}
+            className={cn("relative w-full h-full group cursor-pointer overflow-hidden rounded-inherit", containerClassName)}
             onClick={togglePlay}
         >
             <video
                 ref={videoRef}
+                key={String(src || 'empty')} // FORCE REMOUNT ON SOURCE CHANGE
                 className={cn("w-full h-full object-cover", className)}
-                src={src}
-                // Static props for maximum compatibility
+                // Static props
                 muted={true}
                 loop={true}
                 autoPlay={true}
                 playsInline={true}
                 preload="auto"
-                // Detailed state tracking
+                // State handlers
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onPlaying={() => {
                     setIsPlaying(true);
                     setIsLoading(false);
+                    setHasError(false);
+                }}
+                onTimeUpdate={(e) => {
+                    const video = e.currentTarget;
+                    if (!video.paused && video.currentTime > 0.1 && !isPlaying) {
+                        setIsPlaying(true); // Force verified playing state
+                        setIsLoading(false);
+                    }
                 }}
                 onWaiting={() => setIsLoading(true)}
                 onLoadedData={() => setIsLoading(false)}
+                onCanPlay={() => setIsLoading(false)}
+                onLoadedMetadata={() => setIsLoading(false)}
+                onError={handleError}
                 {...props}
-            />
+            >
+                {typeof src === 'string' && <source src={src} type={mimeType} />}
+            </video>
 
             {/* Overlay Container */}
-            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none p-4">
                 <AnimatePresence mode="wait">
+                    {/* Error State - Retry Button */}
+                    {hasError && (
+                        <motion.button
+                            key="error"
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            onClick={handleRetry}
+                            className="bg-red-500/10 backdrop-blur-md rounded-full p-3 border border-red-500/20 pointer-events-auto hover:bg-red-500/20 transition-colors group/error"
+                            title="Click to retry"
+                        >
+                            <RefreshCw className="w-5 h-5 text-red-500 group-hover/error:rotate-180 transition-transform duration-500" />
+                        </motion.button>
+                    )}
+
                     {/* Loading Spinner */}
-                    {isLoading && (
+                    {isLoading && !hasError && (
                         <motion.div
                             key="loader"
                             initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.8 }}
-                            transition={{ duration: 0.2 }}
                             className="bg-black/20 backdrop-blur-md rounded-full p-3"
                         >
-                            <Loader2 className="w-8 h-8 text-white/80 animate-spin" strokeWidth={2} />
+                            <Loader2 className="w-5 h-5 text-white/70 animate-spin" strokeWidth={2} />
                         </motion.div>
                     )}
 
-                    {/* Play Button */}
-                    {!isPlaying && !isLoading && (
+                    {/* Play Button - Redesigned: Minimal, Refined, Modern */}
+                    {!isPlaying && !isLoading && !hasError && (
                         <motion.button
                             key="play-button"
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.5 }}
+                            initial={{ opacity: 0, scale: 0.9, y: 0 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
-                            transition={{ type: "spring", damping: 15, stiffness: 200 }}
+                            transition={{ type: "spring", damping: 20, stiffness: 300 }}
                             onClick={handlePlayClick}
                             className={cn(
                                 "group/button relative flex items-center justify-center pointer-events-auto",
-                                "w-20 h-20 rounded-full",
-                                "bg-white/10 backdrop-blur-xl border border-white/20",
-                                "shadow-[0_8px_32px_rgba(0,0,0,0.25)]",
-                                "transition-colors duration-300 hover:bg-white/20"
+                                "w-14 h-14 rounded-full", // Smaller, less bloated
+                                "bg-black/20 backdrop-blur-md border border-white/20", // Subtle glass
+                                "shadow-lg shadow-black/10",
+                                "transition-all duration-300 hover:bg-black/30 hover:border-white/30 hover:shadow-xl"
                             )}
                             aria-label="Play video"
                         >
-                            {/* Inner glow ring */}
-                            <div className="absolute inset-0 rounded-full border border-white/10 opacity-50" />
-
-                            {/* Icon */}
                             <Play
-                                className="w-8 h-8 text-white fill-white translate-x-0.5 drop-shadow-sm"
+                                className="w-5 h-5 text-white fill-white translate-x-0.5 opacity-90 group-hover/button:opacity-100 transition-opacity"
                                 strokeWidth={0}
                             />
                         </motion.button>
