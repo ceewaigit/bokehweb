@@ -34,12 +34,12 @@ const features = [
   {
     icon: Clock,
     title: "Idle cleanup",
-    description: "Trim dead time automatically so recordings stay tight.",
+    description: "Silence, skipped. Automatically tighten pacing.",
   },
   {
     icon: Command,
     title: "Keyboard shortcuts",
-    description: "Move faster with built-in shortcuts for core edits.",
+    description: "Native fluency. Shortcuts that match your muscle memory.",
   },
 ];
 
@@ -47,7 +47,7 @@ const showcaseFeatures = [
   {
     icon: Box,
     title: "Cinematic depth",
-    description: "Give product clips subtle dimension without keyframes.",
+    description: "Instant production value. Add 3D depth and polish with a single click.",
     image: "/features/3d.png",
     imagePlacement: "bottom" as const,
     backdrop: "dots" as const,
@@ -57,7 +57,7 @@ const showcaseFeatures = [
   {
     icon: FileVideo,
     title: "Bring your media in",
-    description: "Layer clips and audio without leaving the recorder.",
+    description: "Drag, drop, done. Layer context without fighting a complex timeline.",
     image: "/features/import.png",
     imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
@@ -66,7 +66,7 @@ const showcaseFeatures = [
   {
     icon: MousePointer,
     title: "Stabilized cursor",
-    description: "A calm pointer keeps focus exactly where it should be.",
+    description: "Liquid motion. A cursor that glides, never jitters.",
     image: "/features/arrow.png",
     imagePlacement: "middle" as const,
     textPosition: "right" as const,
@@ -79,7 +79,7 @@ const showcaseFeatures = [
   {
     icon: Layers,
     title: "Brand-ready backgrounds",
-    description: "Swap colors, gradients, or texture in one click.",
+    description: "On-brand, always. Backgrounds that fit your guidelines instantly.",
     video: "/features/wallpaper.mp4",
     imagePlacement: "top" as const,
     textPosition: "left" as const,
@@ -89,7 +89,7 @@ const showcaseFeatures = [
   {
     icon: Palette,
     title: "Deep control when you want it",
-    description: "Opinionated defaults, with fine-tuning on demand.",
+    description: "Power when you need it. Smart defaults for speed, granular control for perfection.",
     image: "/features/advanced.png",
     imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
@@ -98,7 +98,7 @@ const showcaseFeatures = [
   {
     icon: Crop,
     title: "Social-ready sizes",
-    description: "Crop to 9:16, 4:5, or 1:1 instantly. Perfect for Shorts and Reels.",
+    description: "Ship everywhere. Instantly reframe for TikTok, Reels, and Slack.",
     image: "/features/crop.png",
     imagePlacement: "middle" as const,
     backdrop: "dots" as const,
@@ -107,7 +107,7 @@ const showcaseFeatures = [
   {
     icon: WifiOff,
     title: "Offline-first privacy",
-    description: "No cloud, no uploads. Your recordings never leave your Mac.",
+    description: "Private by design. Your recordings never leave your Mac.",
     isGraphic: true,
     imageClassName: "opacity-40",
     backdrop: "grid" as const,
@@ -144,60 +144,32 @@ const testimonials = [
 
 const faqs = [
   {
-    question: "Is my data private?",
-    answer: "Yes. Recording and processing happen locally on your Mac. No cloud uploads by default, no third-party access.",
+    question: "Is this a video editor like Final Cut or DaVinci?",
+    answer: "No. bokeh focuses on the 90% of edits screen recordings actually need: remove mistakes fast, keep the video clean, and export something that looks polished.",
   },
   {
-    question: "Do you support commercial use?",
-    answer: "Yes. Use it for client work, product demos, onboarding, sales enablement, and internal updates.",
+    question: "Do I need an account?",
+    answer: "No account required to start. The app is designed to work locally first.",
+  },
+  {
+    question: "Can I share to my team?",
+    answer: "Yes. Export a file and share it using whatever your team already uses today.",
+  },
+  {
+    question: "What is the transcript editing part?",
+    answer: "You edit the words, and the video follows. Delete a sentence, and that part is cut from the recording.",
+  },
+  {
+    question: "Is my data private?",
+    answer: "Yes. Processing happens locally on your Mac. No cloud uploads, no third-party access.",
   },
   {
     question: "Is there a free trial?",
-    answer: "Yes, no credit card required. Full access during the trial, then upgrade for clean, watermark-free exports.",
-  },
-  {
-    question: "What is a trade-in?",
-    answer: "After 16 months on Pro, trade in for a lifetime license at no extra cost. Keep the software and stop paying.",
-  },
-  {
-    question: "What export quality can I expect?",
-    answer: "Native Retina-resolution exports with crisp zooms and clean details. What you see on screen is what you ship.",
-  },
-  {
-    question: "How long does it take to learn bokeh?",
-    answer: "Minutes. Record, let bokeh apply the polish automatically, and export. Fine-tune anytime.",
-  },
-  {
-    question: "Do I get free updates?",
-    answer: "Pro includes updates while subscribed. Lifetime includes updates for the current major version, plus discounted upgrades.",
-  },
-  {
-    question: "What kind of support do you offer?",
-    answer: "Priority email support for Pro and Lifetime, plus clear docs and tutorials.",
-  },
-  {
-    question: "Why bokeh instead of Loom or cloud recorders?",
-    answer: "Local-first ownership and better polish. No upload limits, no cloud lock-in, and your recordings stay on your machine.",
-  },
-  {
-    question: "What's coming next?",
-    answer: "We build in the open with a public roadmap. You can vote on what we ship next.",
-  },
-  {
-    question: "How is bokeh different from typical screen recorders?",
-    answer: "Most recorders just capture pixels. bokeh captures cursor, audio, and keystroke data too, so you can smooth motion, add zooms, and refine focus after recording.",
-  },
-  {
-    question: "Can I cancel anytime?",
-    answer: "Yes. Cancel anytime and keep access through your billing period.",
+    answer: "Yes. Download and start recording immediately. No credit card required.",
   },
   {
     question: "What platforms does bokeh support?",
     answer: "macOS on Apple Silicon. Windows is on the roadmap.",
-  },
-  {
-    question: "What are the system requirements?",
-    answer: "macOS Ventura 13.1 or later on Apple Silicon (M1 or newer).",
   },
 ];
 
@@ -240,7 +212,7 @@ export default function Home() {
                 <em className="highlight-purple">that edits itself</em>
               </>
             }
-            subtitle="A macOS utility that cleans up screen recordings automatically. Remove dead time, smooth cursor motion, and auto-zoom — then ship."
+            subtitle="Remove pauses, smooth the cursor, and zoom on the action automatically. It understands software so you don't have to."
             primaryCta={{ label: "Download", href: "/download" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
             screenshotSrc="/glassmorphism.png"
@@ -258,7 +230,7 @@ export default function Home() {
                 <em className="highlight-yellow">Minus the busywork.</em>
               </>
             }
-            subtitle="We make the opinionated choices that usually take time: framing, motion, and polish."
+            subtitle="We make the opinionated choices that usually take time. Framing, motion, and polish."
             features={showcaseFeatures}
           />
 
@@ -271,8 +243,11 @@ export default function Home() {
                 <span className="font-[family-name:var(--font-display)] italic font-medium">More polish.</span>
               </>
             }
-            subtitle="We automate the tedious edits - pacing, zoom, and cleanup - so you can ship fast. Adjust anything, or just export."
+            subtitle="We automate the tedious edits like pacing, zoom, and cleanup. Ship fast using our defaults, or adjust anything manually."
           />
+
+
+          <SpeedComparisonSection />
 
           <FeatureGrid
             badge="Editing Suite"
@@ -286,8 +261,6 @@ export default function Home() {
             features={features}
             columns={3}
           />
-
-          <SpeedComparisonSection />
 
           <TestimonialSection
             title="People ship premium screen recordings"

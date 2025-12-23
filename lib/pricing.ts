@@ -1,10 +1,10 @@
 export const pricingCopy = {
-  eyebrow: "Pricing",
+  eyebrow: "Simple pricing, no surprises",
   title: "Pricing that",
   strike: "cuts",
   titleAfter: "time",
-  titleEmphasis: "and feels just right",
-  subtitle: "Start free, then upgrade for clean exports, priority support, and a lifetime trade-in.",
+  titleEmphasis: "and pays for itself",
+  subtitle: "Start with a free trial, then upgrade when bokeh is saving you real time.",
   footnote: "After 16 months, trade in your subscription for a lifetime license.",
 };
 

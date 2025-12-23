@@ -36,7 +36,7 @@ export function CTASection({
     ctaLabel = "Get started for free",
     ctaHref = "#",
     showArrow = true,
-    arrowText = "Ready to share clearer updates?",
+    arrowText = "Ready to ship a clearer update?",
     showFounderMessage = false,
     founder,
 }: CTASectionProps) {
@@ -136,7 +136,7 @@ export function CTASection({
                         transition={{ duration: 0.4, delay: 0.5 }}
                         style={{ willChange: 'opacity' as const, transform: 'translateZ(0)' }}
                     >
-                        7-day Pro trial • No credit card required
+                        Start free. No credit card required.
                     </motion.p>
 
 

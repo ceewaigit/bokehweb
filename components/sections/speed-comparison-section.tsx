@@ -1,11 +1,14 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 import { motion, useInView, useMotionValue, useTransform, animate } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 
 export function SpeedComparisonSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(sectionRef, { once: true, margin: "-100px" });
+  const isInViewOriginal = useInView(sectionRef, { once: true, margin: "-100px" }); // Renamed original for clarity if needed, or just keep it and add new one
+  const isInView = useInView(sectionRef, { margin: "0px" }); // Continuous visibility for pulse
   const [hasAnimated, setHasAnimated] = useState(false);
 
   const bokehProgress = useMotionValue(0);
@@ -17,12 +20,12 @@ export function SpeedComparisonSection() {
   const traditionalMinutes = useTransform(traditionalProgress, (v) => Math.round(v));
 
   useEffect(() => {
-    if (isInView && !hasAnimated) {
+    if (isInViewOriginal && !hasAnimated) {
       setHasAnimated(true);
       animate(bokehProgress, 3, { duration: 1.5, ease: [0.22, 1, 0.36, 1], delay: 0.3 });
       animate(traditionalProgress, 47, { duration: 2, ease: [0.22, 1, 0.36, 1], delay: 0.6 });
     }
-  }, [isInView, hasAnimated, bokehProgress, traditionalProgress]);
+  }, [isInViewOriginal, hasAnimated, bokehProgress, traditionalProgress]);
 
   return (
     <section
@@ -108,7 +111,10 @@ export function SpeedComparisonSection() {
                 className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500"
                 style={{ width: bokehWidth, willChange: "width" }}
               />
-              <div className="absolute inset-0 bg-white/20 animate-[pulse_2s_ease-in-out_infinite]" />
+              <div className={cn(
+                "absolute inset-0 bg-white/20",
+                isInView ? "animate-[pulse_2s_ease-in-out_infinite]" : ""
+              )} />
             </div>
           </motion.div>
 
@@ -158,9 +164,9 @@ export function SpeedComparisonSection() {
                 15<span className="text-violet-500">×</span> faster
               </p>
             </div>
-              <p className="text-sm text-slate-400 max-w-[220px]">
-                Based on a 10-minute screen recording
-              </p>
+            <p className="text-sm text-slate-400 max-w-[220px]">
+              Time to edit a 10-min demo
+            </p>
           </div>
         </motion.div>
       </div>

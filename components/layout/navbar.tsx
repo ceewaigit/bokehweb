@@ -16,12 +16,15 @@ const closeMenu = (setOpen: (v: boolean) => void) => {
     setOpen(false);
 };
 
+const navLinkStyles = "rounded-full border border-white/55 bg-white/70 px-4 py-2 text-[13px] font-semibold tracking-[0.02em] text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-200 ease-out hover:bg-white/85 hover:text-slate-900 hover:-translate-y-px active:scale-[0.98]";
+
 export function Navbar({ className }: NavbarProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { scrollY } = useScroll();
     const paddingY = useTransform(scrollY, [0, 120], [18, 12]);
 
     const navLinks = [
+        { href: "/about", label: "About" },
         { href: "/#features", label: "Features" },
         { href: "/#pricing", label: "Pricing" },
         { href: "/#resources", label: "Resources" },
@@ -75,7 +78,7 @@ export function Navbar({ className }: NavbarProps) {
                             <Link
                                 key={link.href}
                                 href={link.href}
-                                className="rounded-full border border-white/55 bg-white/70 px-4 py-2 text-[13px] font-semibold tracking-[0.02em] text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-200 ease-out hover:bg-white/85 hover:text-slate-900 hover:-translate-y-px active:scale-[0.98]"
+                                className={navLinkStyles}
                             >
                                 {link.label}
                             </Link>
@@ -102,7 +105,7 @@ export function Navbar({ className }: NavbarProps) {
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="rounded-full border border-white/55 bg-white/75 text-[13px] font-semibold tracking-[0.02em] text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-200 ease-out hover:bg-white/90 hover:text-slate-900 hover:-translate-y-px active:scale-[0.98]"
+                                className={navLinkStyles}
                             >
                                 Log in
                             </Button>

@@ -37,31 +37,31 @@ const defaultFeatures: FeatureItem[] = [
     {
         icon: Crop,
         title: "Timeline",
-        description: "A clean, visual timeline that makes editing feel tangible.",
+        description: "Edit by feel. A tactile timeline designed for flow, not clutter.",
         media: { type: "video", src: "/features/timeline.mp4", alt: "Timeline demo" },
     },
     {
         icon: ZoomIn,
         title: "Auto zoom",
-        description: "Clicks get spotlighted automatically. Crisp framing, perfect timing.",
+        description: "Focus, automated. We zoom on the action so your viewers never get lost.",
         media: { type: "video", src: "/features/zoom.mp4", alt: "Auto zoom demo" },
     },
     {
         icon: Keyboard,
         title: "Typing speed-up",
-        description: "Long typing bursts speed up on their own. No manual cuts.",
+        description: "Accelerated input. Turn 20 seconds of typing into 2 seconds of action.",
         media: { type: "video", src: "/features/typingspeedup.mp4", alt: "Typing speed-up demo" },
     },
     {
         icon: Type,
         title: "Auto keystrokes",
-        description: "We detect every shortcut and type it out for you.",
+        description: "Keystrokes, visualized. Shortcuts appear on screen, perfectly timed.",
         media: { type: "video", src: "/features/keystroke.mp4", alt: "Keystroke demo" },
     },
     {
         icon: Wand2,
         title: "Lossless zoom",
-        description: "Zooms stay sharp by using your full source resolution.",
+        description: "Infinite detail. Zoom in deep without losing a single pixel of clarity.",
         media: {
             type: "component",
             component: (
@@ -106,6 +106,12 @@ function MediaFrame({ children, className }: { children: React.ReactNode; classN
 
 
 
+const gpuStyle = {
+    willChange: 'transform, opacity' as const,
+    transform: 'translateZ(0)',
+    backfaceVisibility: 'hidden' as const
+};
+
 export function EditingFeaturesSection({
     className,
     id,
@@ -118,12 +124,6 @@ export function EditingFeaturesSection({
     const sectionRef = useRef<HTMLElement | null>(null);
     const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
     const isInView = useInView(sectionRef, { margin: "0px 0px 0px 0px" });
-
-    const gpuStyle = {
-        willChange: 'transform, opacity' as const,
-        transform: 'translateZ(0)',
-        backfaceVisibility: 'hidden' as const
-    };
 
     // Handle video end - advance to next
     const handleVideoEnd = () => {

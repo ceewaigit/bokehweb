@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { useEffect, useRef, useState, VideoHTMLAttributes, useMemo } from "react";
 import { Play, Loader2, RefreshCw } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useInView } from "framer-motion";
 
 interface AutoplayVideoProps extends VideoHTMLAttributes<HTMLVideoElement> {
     containerClassName?: string;
@@ -20,6 +20,12 @@ export function AutoplayVideo({
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [hasError, setHasError] = useState(false);
+
+    // Check if video is in viewport - plays only when visible
+    const isInView = useInView(containerRef, {
+        margin: "0px", // Exact intersection
+        amount: 0.5 // Require 50% visibility to play
+    });
 
     // Retry mechanism
     const retryCount = useRef(0);
@@ -41,31 +47,40 @@ export function AutoplayVideo({
         retryCount.current = 0;
     }, [src]);
 
+    // Handle play/pause based on visibility and playback state
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
 
-        const attemptPlay = async () => {
+        const managePlayback = async () => {
             try {
-                if (video.paused) {
-                    await video.play();
+                if (isInView && !hasError) {
+                    if (video.paused) {
+                        const playPromise = video.play();
+                        if (playPromise !== undefined) {
+                            await playPromise;
+                        }
+                    }
+                } else {
+                    if (!video.paused) {
+                        video.pause();
+                    }
                 }
             } catch (error) {
-                console.warn("AutoplayVideo: Play failed", error);
+                // Auto-play might be blocked or other errors
+                console.warn("AutoplayVideo: Playback control failed", error);
                 setIsPlaying(false);
             }
         };
 
-        // If we have a ref, check readiness immediately
         if (video.readyState >= 3) {
             setIsLoading(false);
-            attemptPlay();
+            managePlayback();
         } else {
-            // Otherwise wait for events, but ensure loading starts
             video.load();
         }
 
-    }, [src]);
+    }, [isInView, src, hasError]);
 
     const togglePlay = () => {
         if (videoRef.current) {
@@ -129,7 +144,7 @@ export function AutoplayVideo({
                 // Static props
                 muted={true}
                 loop={true}
-                autoPlay={true}
+                // autoPlay removed to strictly control via JS
                 playsInline={true}
                 preload="auto"
                 // State handlers

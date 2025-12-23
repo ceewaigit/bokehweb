@@ -19,13 +19,13 @@ interface SocialProofSectionProps {
 
 const defaultItems: SocialProofItem[] = [
     { icon: <Star className="w-4 h-4" />, text: "4.9/5 rating", highlight: "from early users" },
-    { icon: <Zap className="w-4 h-4" />, text: "10k+ screen recordings", highlight: "polished" },
+    { icon: <Zap className="w-4 h-4" />, text: "10k+ videos polished", highlight: "automatically" },
     { icon: <Check className="w-4 h-4" />, text: "Hours saved", highlight: "every week" },
 ];
 
 export function SocialProofSection({
     className,
-    title = "Trusted by people shipping screen recordings every week",
+    title = "People ship premium screen recordings.",
     items = defaultItems,
     logos,
 }: SocialProofSectionProps) {
