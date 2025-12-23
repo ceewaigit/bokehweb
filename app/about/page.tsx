@@ -101,7 +101,7 @@ export default function AboutPage() {
                     <motion.div className="relative" {...reveal}>
                         <div className="relative aspect-[16/9] w-[80%] mx-auto overflow-hidden rounded-2xl bg-white border border-slate-100 shadow-sm mb-12 group transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(15,23,42,0.12)]">
                             <Image
-                                src="/brand/aboutus.jpeg"
+                                src="/brand/aboutus.jpg"
                                 alt="Bokeh workspace"
                                 fill
                                 className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.01]"
