@@ -26,6 +26,7 @@ interface HeroSectionProps {
     primaryCta?: { label: string; href: string };
     secondaryCta?: { label: string; href: string };
     screenshotSrc?: string;
+    videoSrc?: string;
     socialProof?: { count: string; label: string };
 }
 
@@ -39,6 +40,7 @@ export function HeroSection({
     primaryCta = { label: "Get started", href: "#" },
     secondaryCta,
     screenshotSrc,
+    videoSrc,
     socialProof = { count: "10,000+", label: "people shipping with bokeh" },
 }: HeroSectionProps) {
     return (
@@ -219,7 +221,7 @@ export function HeroSection({
                     </motion.p>
                 </div>
 
-                {screenshotSrc && (
+                {(screenshotSrc || videoSrc) && (
                     <motion.div
                         className="relative w-full max-w-6xl mx-auto px-4 sm:px-6 mt-4 sm:mt-6"
                         initial={{ opacity: 0, y: 40, scale: 0.98 }}
@@ -239,14 +241,37 @@ export function HeroSection({
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <div className="relative cursor-not-allowed">
-                                            <Image
-                                                src={screenshotSrc}
-                                                alt="App screenshot"
-                                                width={1920}
-                                                height={1080}
-                                                className="w-full h-auto opacity-100 block"
-                                                priority
-                                            />
+                                            {videoSrc ? (
+                                                <video
+                                                    autoPlay
+                                                    loop
+                                                    muted
+                                                    playsInline
+                                                    poster={screenshotSrc}
+                                                    className="w-full h-auto opacity-100 block"
+                                                >
+                                                    <source src={videoSrc} type="video/webm" />
+                                                    {screenshotSrc && (
+                                                        <Image
+                                                            src={screenshotSrc}
+                                                            alt="App screenshot"
+                                                            width={1920}
+                                                            height={1216}
+                                                            className="w-full h-auto opacity-100 block"
+                                                            priority
+                                                        />
+                                                    )}
+                                                </video>
+                                            ) : (
+                                                <Image
+                                                    src={screenshotSrc!}
+                                                    alt="App screenshot"
+                                                    width={1920}
+                                                    height={1216}
+                                                    className="w-full h-auto opacity-100 block"
+                                                    priority
+                                                />
+                                            )}
                                         </div>
                                     </TooltipTrigger>
                                     <TooltipContent>

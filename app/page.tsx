@@ -239,7 +239,8 @@ export default function Home() {
             subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and intentionality that most tools miss, turning raw capture into studio-grade video."
             primaryCta={{ label: "Download", href: "/download" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
-            screenshotSrc="/glassmorphism.png"
+            screenshotSrc="/hero.png"
+            videoSrc="/hero.webm"
             socialProof={{ count: "10,000+", label: "people shipping with bokeh" }}
           />
 
