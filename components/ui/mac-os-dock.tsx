@@ -36,38 +36,58 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
         if (typeof window === 'undefined') {
             return { baseIconSize: 64, maxScale: 1.6, effectWidth: 240 };
         }
-        const smallerDimension = Math.min(window.innerWidth, window.innerHeight);
-        const availableWidth = window.innerWidth - 48; // Account for padding
-        const maxIcons = apps.length;
-        const maxIconSize = (availableWidth - (maxIcons - 1) * 8) / maxIcons; // Conservative spacing est.
+        const screenWidth = window.innerWidth;
+        const smallerDimension = Math.min(screenWidth, window.innerHeight);
 
-        let baseIconSize = Math.max(40, Math.min(64, smallerDimension * 0.12));
+        // Calculate maximum icon size that will fit all icons with spacing
+        const numIcons = apps.length;
+        const horizontalPadding = 48; // Total padding (24px each side)
+        const dockInternalPadding = 20; // Internal dock padding (10px each side)
+        const minSpacingPerIcon = 6; // Minimum gap between icons
+        const availableForIcons = screenWidth - horizontalPadding - dockInternalPadding - (numIcons - 1) * minSpacingPerIcon;
+        const maxFitIconSize = Math.floor(availableForIcons / numIcons);
 
-        // Constrain icon size to fit screen
-        if (baseIconSize > maxIconSize) {
-            baseIconSize = Math.max(28, maxIconSize);
-        }
+        // Determine base icon size based on screen size, but constrained to fit
+        let baseIconSize: number;
+        let maxScale: number;
+        let effectWidth: number;
 
-        // Specific overrides for very small screens
-        if (smallerDimension < 480) {
-            return {
-                baseIconSize: baseIconSize,
-                maxScale: 1.3,
-                effectWidth: smallerDimension * 0.4
-            };
-        } else if (smallerDimension < 768) {
-            return {
-                baseIconSize: Math.max(48, Math.min(baseIconSize, 60)),
-                maxScale: 1.5,
-                effectWidth: smallerDimension * 0.35
-            };
+        if (screenWidth < 400) {
+            // Very small phones
+            baseIconSize = Math.min(36, maxFitIconSize);
+            maxScale = 1.2;
+            effectWidth = screenWidth * 0.35;
+        } else if (screenWidth < 480) {
+            // Small phones
+            baseIconSize = Math.min(42, maxFitIconSize);
+            maxScale = 1.25;
+            effectWidth = screenWidth * 0.38;
+        } else if (screenWidth < 640) {
+            // Regular phones
+            baseIconSize = Math.min(48, maxFitIconSize);
+            maxScale = 1.35;
+            effectWidth = screenWidth * 0.4;
+        } else if (screenWidth < 768) {
+            // Large phones / small tablets
+            baseIconSize = Math.min(56, maxFitIconSize);
+            maxScale = 1.5;
+            effectWidth = 200;
+        } else if (smallerDimension < 900) {
+            // Tablets
+            baseIconSize = Math.min(64, maxFitIconSize);
+            maxScale = 1.6;
+            effectWidth = 260;
         } else {
-            return {
-                baseIconSize: Math.max(64, Math.min(80, smallerDimension * 0.05)),
-                maxScale: 1.8,
-                effectWidth: 300
-            };
+            // Desktop
+            baseIconSize = Math.min(72, maxFitIconSize, smallerDimension * 0.05);
+            maxScale = 1.8;
+            effectWidth = 300;
         }
+
+        // Final safety clamp - ensure icons fit
+        baseIconSize = Math.max(28, Math.min(baseIconSize, maxFitIconSize));
+
+        return { baseIconSize, maxScale, effectWidth };
     }, [apps.length]);
 
     const [config, setConfig] = useState(getResponsiveConfig);
@@ -80,16 +100,33 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
 
     useEffect(() => {
         setMounted(true);
-    }, []);
+        // Initial config on mount
+        setConfig(getResponsiveConfig());
+    }, [getResponsiveConfig]);
 
     useEffect(() => {
         if (!mounted) return;
+
+        let resizeTimeout: NodeJS.Timeout;
         const handleResize = () => {
-            setConfig(getResponsiveConfig());
+            // Debounce resize for performance
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                setConfig(getResponsiveConfig());
+            }, 50); // Reduced debounce for snappier response
         };
+
+        // Listen to resize events
         window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [getResponsiveConfig]);
+
+        // Also trigger on initial mount
+        handleResize();
+
+        return () => {
+            clearTimeout(resizeTimeout);
+            window.removeEventListener('resize', handleResize);
+        };
+    }, [mounted, getResponsiveConfig]);
 
     const calculateTargetMagnification = useCallback((mousePosition: number | null) => {
         if (mousePosition === null) {
@@ -206,34 +243,67 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
         setMouseX(null);
     }, []);
 
-    const createBounceAnimation = (element: HTMLElement) => {
-        const bounceHeight = Math.max(-8, -baseIconSize * 0.15);
-        element.style.transition = 'transform 0.2s ease-out';
+    // Touch handlers for mobile - expand on touch
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        if (dockRef.current && e.touches.length > 0) {
+            const touch = e.touches[0];
+            const rect = dockRef.current.getBoundingClientRect();
+            const padding = Math.max(8, baseIconSize * 0.12);
+            setMouseX(touch.clientX - rect.left - padding);
+        }
+    }, [baseIconSize]);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        const now = performance.now();
+        if (now - lastMouseMoveTime.current < 16) return;
+        lastMouseMoveTime.current = now;
+
+        if (dockRef.current && e.touches.length > 0) {
+            const touch = e.touches[0];
+            const rect = dockRef.current.getBoundingClientRect();
+            const padding = Math.max(8, baseIconSize * 0.12);
+            setMouseX(touch.clientX - rect.left - padding);
+        }
+    }, [baseIconSize]);
+
+    const handleTouchEnd = useCallback(() => {
+        // Small delay before collapsing for better visual feedback
+        setTimeout(() => setMouseX(null), 150);
+    }, []);
+
+    // Simple, elegant bounce animation - subtle and refined
+    const createBounceAnimation = useCallback((element: HTMLElement) => {
+        const bounceHeight = -baseIconSize * 0.2; // Subtle 20% lift
+
+        // Single smooth bounce up and back
+        element.style.transition = 'transform 0.18s cubic-bezier(0.4, 0, 0.2, 1)';
         element.style.transform = `translateY(${bounceHeight}px)`;
 
         setTimeout(() => {
+            element.style.transition = 'transform 0.22s cubic-bezier(0.4, 0, 0.2, 1)';
             element.style.transform = 'translateY(0px)';
-        }, 200);
-    };
+        }, 180);
+    }, [baseIconSize]);
 
     const handleAppClick = (appId: string, index: number) => {
-        if (iconRefs.current[index]) {
+        const element = iconRefs.current[index];
+        if (element) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (typeof window !== 'undefined' && (window as any).gsap) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const gsap = (window as any).gsap;
-                const bounceHeight = currentScales[index] > 1.3 ? -baseIconSize * 0.2 : -baseIconSize * 0.15;
 
-                gsap.to(iconRefs.current[index], {
-                    y: bounceHeight,
-                    duration: 0.2,
+                // Simple elegant bounce with GSAP
+                gsap.to(element, {
+                    y: -baseIconSize * 0.2,
+                    duration: 0.18,
                     ease: 'power2.out',
                     yoyo: true,
                     repeat: 1,
                     transformOrigin: 'bottom center'
                 });
             } else {
-                createBounceAnimation(iconRefs.current[index]!);
+                createBounceAnimation(element);
             }
         }
 
@@ -252,6 +322,10 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
         return null;
     }
 
+    // Calculate the maximum scaled size for proper container sizing
+    const maxScaledSize = baseIconSize * maxScale;
+    const overflowHeight = maxScaledSize - baseIconSize;
+
     return (
         <div
             ref={dockRef}
@@ -268,16 +342,24 @@ const MacOSDock: React.FC<MacOSDockProps> = ({
           inset 0 1px 0 rgba(255, 255, 255, 0.15),
           inset 0 -1px 0 rgba(0, 0, 0, 0.2)
         `,
-                padding: `${padding}px`
+                padding: `${padding}px`,
+                // Allow icons to overflow above the dock
+                overflow: 'visible',
+                // Add margin-top to account for overflow when expanded
+                marginTop: `${overflowHeight}px`,
             }}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
         >
             <div
                 className="relative"
                 style={{
                     height: `${baseIconSize}px`,
-                    width: '100%'
+                    width: '100%',
+                    overflow: 'visible',
                 }}
             >
                 {apps.map((app, index) => {

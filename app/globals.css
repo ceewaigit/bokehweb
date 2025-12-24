@@ -218,10 +218,17 @@
   }
 
   .highlight-purple {
-    background-image: linear-gradient(120deg, rgba(167, 139, 250, 0) 0%, rgba(167, 139, 250, 0.3) 18%, rgba(167, 139, 250, 0.3) 82%, rgba(167, 139, 250, 0) 100%);
+    /* Subtle and refined on mobile, richer on desktop */
+    background-image: linear-gradient(120deg, rgba(167, 139, 250, 0) 0%, rgba(167, 139, 250, 0.15) 18%, rgba(167, 139, 250, 0.15) 82%, rgba(167, 139, 250, 0) 100%);
     animation: highlight-appear 0.9s 0.2s forwards cubic-bezier(0.25, 0.1, 0.25, 1);
     border-radius: 0.2em;
     padding: 0 0.1em;
+  }
+
+  @media (min-width: 640px) {
+    .highlight-purple {
+      background-image: linear-gradient(120deg, rgba(167, 139, 250, 0) 0%, rgba(167, 139, 250, 0.25) 18%, rgba(167, 139, 250, 0.25) 82%, rgba(167, 139, 250, 0) 100%);
+    }
   }
 
   .highlight-yellow {
@@ -245,14 +252,25 @@
   }
 
   /* Texture Utilities */
+  /* Mobile-first: clean, minimal gradient */
   .page-backdrop {
     background-image:
-      linear-gradient(180deg, #f7f8fb 0%, #ffffff 42%, #f7f8fb 100%),
-      radial-gradient(460px 400px at 14% 12%, rgba(139, 92, 246, 0.14), transparent 62%),
-      radial-gradient(460px 400px at 86% 18%, rgba(59, 130, 246, 0.14), transparent 62%),
-      radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.05) 1px, transparent 0);
-    background-size: auto, auto, auto, 26px 26px;
-    background-position: center, center, center, 0 0;
+      linear-gradient(180deg, #fafbfc 0%, #ffffff 50%, #fafbfc 100%);
+    background-size: auto;
+    background-position: center;
+  }
+
+  /* Desktop: richer, layered gradient experience */
+  @media (min-width: 640px) {
+    .page-backdrop {
+      background-image:
+        linear-gradient(180deg, #f8f9fc 0%, #ffffff 42%, #f8f9fc 100%),
+        radial-gradient(500px 420px at 12% 10%, rgba(139, 92, 246, 0.10), transparent 65%),
+        radial-gradient(500px 420px at 88% 16%, rgba(59, 130, 246, 0.10), transparent 65%),
+        radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.03) 1px, transparent 0);
+      background-size: auto, auto, auto, 28px 28px;
+      background-position: center, center, center, 0 0;
+    }
   }
 
   .gradient-orb {

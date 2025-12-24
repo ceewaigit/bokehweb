@@ -13,6 +13,7 @@ export function AutoplayVideo({
     className,
     containerClassName,
     src,
+    loop = true,
     ...props
 }: AutoplayVideoProps) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -143,7 +144,7 @@ export function AutoplayVideo({
                 className={cn("w-full h-full object-cover", className)}
                 // Static props
                 muted={true}
-                loop={true}
+                loop={loop}
                 // autoPlay removed to strictly control via JS
                 playsInline={true}
                 preload="auto"

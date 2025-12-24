@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
-import MacOSDock, { DockApp } from "@/components/ui/shadcn-io/mac-os-dock";
+import MacOSDock, { DockApp } from "@/components/ui/mac-os-dock";
 import { AppleHelloEnglishEffect } from "@/components/ui/apple-hello-effect";
 
 interface MacOSDockSectionProps {

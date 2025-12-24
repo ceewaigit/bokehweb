@@ -83,13 +83,17 @@ export function QASection({
 
                     {/* Scrollable FAQ container with fade masks */}
                     <div className="relative">
-                        {/* Scrollable container with CSS mask for fade effect */}
+                        {/* Top fade mask */}
+                        <div className="pointer-events-none absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-slate-50/90 to-transparent z-10" />
+                        {/* Bottom fade mask */}
+                        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-slate-50/90 to-transparent z-10" />
+
+                        {/* Scrollable container */}
                         <div
                             className={cn(
-                                "max-h-[600px] overflow-y-visible space-y-4 py-4 px-4 -mx-4", // Increased max-height and padding
+                                "max-h-[600px] overflow-y-auto space-y-4 py-6 px-4 -mx-4",
                                 "scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                             )}
-                        // Removed mask to allow shadows to be fully visible
                         >
                             {updatedItems.map((item, index) => {
                                 const isOpen = openIndex === index;
@@ -98,6 +102,7 @@ export function QASection({
                                     <motion.div
                                         key={item.question}
                                         layout="position"
+                                        initial={false}
                                         className={cn(
                                             "relative overflow-hidden rounded-2xl cursor-pointer bg-slate-100",
                                             "transition-all duration-300 ease-out",
@@ -105,7 +110,6 @@ export function QASection({
                                                 ? "shadow-[inset_-2px_-2px_5px_rgba(255,255,255,0.7),inset_2px_2px_5px_rgba(0,0,0,0.06)]"
                                                 : "shadow-[-5px_-5px_10px_rgba(255,255,255,0.9),5px_5px_10px_rgba(0,0,0,0.05)] hover:shadow-[-2px_-2px_5px_rgba(255,255,255,0.5),2px_2px_5px_rgba(0,0,0,0.05)]"
                                         )}
-                                        initial={{ opacity: 0, y: 8 }}
                                         whileInView={{ opacity: 1, y: 0 }}
                                         viewport={{ once: true, margin: "-20px" }}
                                         transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.15), layout: { duration: 0.2 } }}

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { GlassCard } from "@/components/ui/glass-card"
 import { SectionBackdrop } from "@/components/ui/section-backdrop"
-import { pricingCopy, pricingPlans, enterprisePlan, pricingPhilosophy } from "@/lib/pricing"
+import { pricingCopy, pricingPlans, enterprisePlan, pricingPhilosophy, PRICING, PRODUCT_READY } from "@/lib/pricing"
 import { NeumorphicButton } from "@/components/ui/neumorphic-button"
 
 // Tooltip component for philosophy callouts
@@ -47,7 +47,21 @@ const CalloutTooltip = ({ short, expanded }: { short: string; expanded: string }
 
 const PricingSection: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<'individuals' | 'teams'>('individuals')
+  const [billingCycle, setBillingCycle] = React.useState<'annual' | 'monthly'>('annual')
   const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const }
+
+  // Calculate savings percentage dynamically
+  const savingsPercent = Math.round((1 - PRICING.annual / PRICING.monthly) * 100)
+
+  // Helper to get the right price for Pro plan based on billing toggle
+  const getProPrice = () => {
+    if (!PRODUCT_READY) return "Coming Soon"
+    return billingCycle === 'annual' ? `$${PRICING.annual}` : `$${PRICING.monthly}`
+  }
+  const getProPriceSuffix = () => {
+    if (!PRODUCT_READY) return ""
+    return billingCycle === 'annual' ? "/ mo, billed annually" : "/ month"
+  }
 
   return (
     <section id="pricing" className="relative w-full py-24 md:py-32 overflow-hidden">
@@ -79,7 +93,7 @@ const PricingSection: React.FC = () => {
             <span className="relative inline-block text-gray-400">
               {pricingCopy.strike}
               <motion.svg
-                className="pointer-events-none absolute left-[-2%] top-[52%] h-4 w-[104%] -translate-y-1/2"
+                className="pointer-events-none absolute left-[-2%] top-[60%] h-4 w-[104%] -translate-y-1/2"
                 viewBox="0 0 100 12"
                 preserveAspectRatio="none"
                 fill="none"
@@ -127,7 +141,7 @@ const PricingSection: React.FC = () => {
           {pricingCopy.subtitle}
         </motion.p>
 
-        {/* Toggle - Neumorphic Style */}
+        {/* Billing Toggle - Neumorphic Style */}
         <motion.div
           className="mt-6 flex justify-center"
           initial={{ opacity: 0, y: 8 }}
@@ -136,28 +150,30 @@ const PricingSection: React.FC = () => {
           transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
           style={gpuStyle}
         >
+          {/* Billing cycle toggle */}
           <div className="relative flex items-center rounded-full bg-slate-100 p-1 shadow-[inset_-2px_-2px_5px_rgba(255,255,255,0.7),inset_2px_2px_5px_rgba(0,0,0,0.1)]">
             <button
-              onClick={() => setActiveTab('individuals')}
+              onClick={() => setBillingCycle('annual')}
               className={cn(
                 "relative z-10 rounded-full px-5 py-2 text-[13px] font-medium tracking-wide transition-all duration-200",
-                activeTab === 'individuals'
+                billingCycle === 'annual'
                   ? "text-gray-900 shadow-[-2px_-2px_5px_rgba(255,255,255,0.8),2px_2px_5px_rgba(0,0,0,0.1)] bg-slate-100"
                   : "text-gray-500 hover:text-gray-700 hover:bg-slate-200/50"
               )}
             >
-              Individuals
+              Annual
+              <span className="ml-1.5 text-[10px] font-semibold text-emerald-500">Save {savingsPercent}%</span>
             </button>
             <button
-              onClick={() => setActiveTab('teams')}
+              onClick={() => setBillingCycle('monthly')}
               className={cn(
                 "relative z-10 rounded-full px-5 py-2 text-[13px] font-medium tracking-wide transition-all duration-200",
-                activeTab === 'teams'
+                billingCycle === 'monthly'
                   ? "text-gray-900 shadow-[-2px_-2px_5px_rgba(255,255,255,0.8),2px_2px_5px_rgba(0,0,0,0.1)] bg-slate-100"
                   : "text-gray-500 hover:text-gray-700 hover:bg-slate-200/50"
               )}
             >
-              Teams
+              Monthly
             </button>
           </div>
         </motion.div>
@@ -231,11 +247,12 @@ const PricingSection: React.FC = () => {
                           "font-bold tracking-[-0.03em] text-gray-900",
                           plan.comingSoon ? "text-[28px]" : "text-[42px]"
                         )}>
-                          {plan.price}
+                          {/* Use dynamic pricing for Pro plan */}
+                          {plan.name === "Pro" ? getProPrice() : plan.price}
                         </span>
-                        {plan.priceSuffix && (
+                        {(plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix) && (
                           <span className="text-[14px] font-medium text-gray-400 ml-1">
-                            {plan.priceSuffix}
+                            {plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix}
                           </span>
                         )}
                       </div>
@@ -275,6 +292,17 @@ const PricingSection: React.FC = () => {
                           </span>
                           <span className="text-[14px] leading-snug text-gray-600">
                             {feature}
+                          </span>
+                        </div>
+                      ))}
+                      {/* Limitations list - styled differently */}
+                      {plan.limitations?.map((limitation) => (
+                        <div key={limitation} className="flex items-start gap-3">
+                          <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-100/60 shadow-[-1px_-1px_3px_rgba(255,255,255,0.7),1px_1px_3px_rgba(0,0,0,0.05)]">
+                            <Info className="h-3 w-3 text-gray-400" strokeWidth={2.5} />
+                          </span>
+                          <span className="text-[14px] leading-snug text-gray-400 italic">
+                            {limitation}
                           </span>
                         </div>
                       ))}
@@ -340,7 +368,7 @@ const PricingSection: React.FC = () => {
 
         {/* Bottom philosophy tagline */}
         <motion.div
-          className="mt-10 flex flex-col items-center gap-2"
+          className="mt-10 flex flex-col items-center gap-3"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
@@ -353,6 +381,30 @@ const PricingSection: React.FC = () => {
           <p className="text-[13px] text-gray-500 max-w-md">
             {pricingPhilosophy.summary}
           </p>
+
+          {/* Teams link - subtle toggle below */}
+          {activeTab === 'individuals' && (
+            <button
+              onClick={() => setActiveTab('teams')}
+              className="mt-2 text-[12px] text-gray-400 hover:text-violet-500 transition-colors flex items-center gap-1.5"
+            >
+              Looking for team pricing?
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+          {activeTab === 'teams' && (
+            <button
+              onClick={() => setActiveTab('individuals')}
+              className="mt-2 text-[12px] text-gray-400 hover:text-violet-500 transition-colors flex items-center gap-1.5"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to individual pricing
+            </button>
+          )}
         </motion.div>
       </div>
     </section>

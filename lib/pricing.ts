@@ -4,20 +4,18 @@ export const pricingCopy = {
   strike: "cuts",
   titleAfter: "time",
   titleEmphasis: "and pays for itself",
-  subtitle: "Start with a free trial, then upgrade when bokeh is saving you real time.",
-  footnote: "After 16 months, trade in your subscription for a lifetime license.",
+  subtitle: "Start with a free trial. Your subscription payments count toward a lifetime license.",
+  footnote: "Reach $149 in payments, and the current major version is yours forever.",
 };
 
 // TODO: Set to true when ready to launch
-const PRODUCT_READY = false;
+export const PRODUCT_READY = false;
 
-const PRICING = {
+export const PRICING = {
   trialDays: 7,
-  // TODO: Uncomment when ready to launch
-  // monthly: 9,
-  // lifetime: 149,
-  monthly: null, // Coming soon
-  lifetime: null, // Coming soon
+  monthly: 13,        // $13/mo billed monthly
+  annual: 8,          // $8/mo billed annually ($96/year)
+  lifetime: 149,      // $149 per major release
 };
 
 export const pricingPlans = [
@@ -31,7 +29,9 @@ export const pricingPlans = [
       "Full feature access",
       "Email support",
       "Cancel anytime",
-      "Watermarked exports",
+    ],
+    limitations: [
+      "Exports include a small watermark",
     ],
     // Philosophy callout - integrated into card
     callout: {
@@ -42,8 +42,8 @@ export const pricingPlans = [
   },
   {
     name: "Pro",
-    price: PRICING.monthly ? `$${PRICING.monthly}` : "Coming Soon",
-    priceSuffix: PRICING.monthly ? "/ month" : "",
+    price: PRODUCT_READY ? `$${PRICING.annual}` : "Coming Soon",
+    priceSuffix: PRODUCT_READY ? "/ mo, billed annually" : "",
     description: "Clean exports, priority support, and studio-grade polish.",
     cta: "Go Pro",
     features: [
@@ -51,23 +51,23 @@ export const pricingPlans = [
       "No watermark",
       "Priority support",
       "3 devices per account",
-      "After 16 months, keep the latest version forever",
+      "Payments count toward lifetime license",
       "Cancel anytime",
     ],
-    footnote: PRICING.lifetime ? `Or grab a license for $${PRICING.lifetime} upfront.` : undefined,
+    footnote: PRODUCT_READY ? `Or $${PRICING.monthly}/mo billed monthly` : undefined,
     // Philosophy callout - integrated into card
     callout: {
-      short: "Your loyalty pays off",
-      expanded: "No nickel-and-diming. Subscribe for 16 months and the latest version is yours. We think that's how it should work.",
+      short: "Pay toward ownership",
+      expanded: `Your subscription payments accumulate toward a lifetime license. Once you've paid $${PRICING.lifetime}, the current major version is yours forever.`,
     },
     highlight: true,
-    comingSoon: !PRICING.monthly,
+    comingSoon: !PRODUCT_READY,
   },
   {
     name: "Lifetime",
-    price: PRICING.lifetime ? `$${PRICING.lifetime}` : "Coming Soon",
-    priceSuffix: PRICING.lifetime ? "once" : "",
-    description: "A one-time purchase for those who want to own it.",
+    price: PRODUCT_READY ? `$${PRICING.lifetime}` : "Coming Soon",
+    priceSuffix: PRODUCT_READY ? "once" : "",
+    description: "Own the current major version outright.",
     cta: "Buy lifetime",
     features: [
       "All Pro features",
@@ -80,16 +80,18 @@ export const pricingPlans = [
     // Philosophy callout - integrated into card
     callout: {
       short: "Own your tools",
-      expanded: "We build software with intention. One payment, one major version, and every update in between.",
+      expanded: "One major version, one payment. Every update from v1.0 to v1.x is included. Future major releases (v2, v3...) are separate.",
     },
-    comingSoon: !PRICING.lifetime,
+    comingSoon: !PRODUCT_READY,
   },
 ];
 
 // Condensed philosophy for an optional expandable section
 export const pricingPhilosophy = {
-  tagline: "Made for creators who care.",
-  summary: "Every choice is intentional. Including the price.",
+  tagline: "Your payments build toward ownership.",
+  summary: PRODUCT_READY
+    ? `Subscribe and your payments count toward a lifetime license. Reach $${PRICING.lifetime}, and it's yours.`
+    : "Subscribe and your payments count toward a lifetime license. Keep paying, and it becomes yours.",
 };
 
 export const enterprisePlan = {

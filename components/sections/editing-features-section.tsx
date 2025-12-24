@@ -1,11 +1,11 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence, useInView } from "framer-motion";
+import { motion, AnimatePresence, useInView, PanInfo } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
-import { LucideIcon, ZoomIn, Keyboard, Crop, Wand2, Type } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { LucideIcon, ZoomIn, Keyboard, Crop, Wand2, Type, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { AutoplayVideo } from "@/components/ui/autoplay-video";
 
 import { BeforeAfterSlider } from "@/components/ui/before-after-slider";
@@ -130,6 +130,31 @@ export function EditingFeaturesSection({
         setCurrentIndex((prev) => (prev + 1) % features.length);
     };
 
+    // Navigation functions
+    const goToNext = useCallback(() => {
+        setCurrentIndex((prev) => (prev + 1) % features.length);
+    }, [features.length]);
+
+    const goToPrevious = useCallback(() => {
+        setCurrentIndex((prev) => (prev - 1 + features.length) % features.length);
+    }, [features.length]);
+
+    // Handle swipe gestures for mobile
+    const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+        const swipeThreshold = 50; // Minimum swipe distance
+        const swipeVelocityThreshold = 200; // Minimum velocity for a swipe
+
+        if (Math.abs(info.offset.x) > swipeThreshold || Math.abs(info.velocity.x) > swipeVelocityThreshold) {
+            if (info.offset.x > 0) {
+                // Swiped right - go to previous
+                goToPrevious();
+            } else {
+                // Swiped left - go to next
+                goToNext();
+            }
+        }
+    }, [goToNext, goToPrevious]);
+
     // For images, auto-advance after 4 seconds. Components (like slider) do NOT auto-advance.
     useEffect(() => {
         const currentFeature = features[currentIndex];
@@ -212,20 +237,28 @@ export function EditingFeaturesSection({
                     style={gpuStyle}
                 >
                     <MediaFrame className="mx-auto">
-                        <div className="relative aspect-video overflow-hidden">
+                        {/* Swipe container for mobile navigation */}
+                        <motion.div
+                            className="relative aspect-video overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
+                            drag="x"
+                            dragConstraints={{ left: 0, right: 0 }}
+                            dragElastic={0.2}
+                            onDragEnd={handleDragEnd}
+                        >
                             <AnimatePresence mode="wait">
                                 <motion.div
                                     key={currentIndex}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.4 }}
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ duration: 0.3, ease: "easeOut" }}
                                     className="absolute inset-0"
                                 >
                                     {currentMedia?.type === "video" ? (
                                         <AutoplayVideo
                                             src={currentMedia.src!}
                                             onEnded={handleVideoEnd}
+                                            loop={false}
                                         />
                                     ) : currentMedia?.type === "component" ? (
                                         <div className="w-full h-full bg-white">
@@ -240,31 +273,42 @@ export function EditingFeaturesSection({
                                     )}
                                 </motion.div>
                             </AnimatePresence>
-                        </div>
+                        </motion.div>
                     </MediaFrame>
 
-                    {/* Mobile: Current feature label below video */}
-                    <div className="md:hidden mt-4 text-center">
+                    {/* Mobile: Current feature label below video - swipeable */}
+                    <motion.div
+                        className="md:hidden mt-4 text-center cursor-grab active:cursor-grabbing touch-pan-y"
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.15}
+                        onDragEnd={handleDragEnd}
+                    >
                         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
                             <currentFeature.icon className="w-4 h-4 text-gray-600" strokeWidth={1.5} />
                             <span className="text-sm font-medium text-gray-700">{currentFeature?.title}</span>
                         </div>
-                        {/* Mobile progress dots */}
-                        <div className="flex justify-center gap-1.5 mt-3">
+                        {/* Mobile progress dots with larger touch targets */}
+                        <div className="flex justify-center gap-3 mt-3 py-2">
                             {features.map((_, index) => (
                                 <button
                                     key={index}
                                     onClick={() => setCurrentIndex(index)}
                                     className={cn(
-                                        "h-1.5 rounded-full transition-all duration-300",
+                                        "relative py-2 px-1 -my-2", // Large touch target
+                                    )}
+                                    aria-label={`Go to feature ${index + 1}`}
+                                >
+                                    <span className={cn(
+                                        "block h-1.5 rounded-full transition-all duration-300",
                                         index === currentIndex
                                             ? "w-6 bg-gray-900"
                                             : "w-1.5 bg-gray-300"
-                                    )}
-                                />
+                                    )} />
+                                </button>
                             ))}
                         </div>
-                    </div>
+                    </motion.div>
                 </motion.div>
 
                 {/* Desktop: Feature List - 5 Columns with indicators */}
