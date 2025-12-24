@@ -190,7 +190,7 @@ export function EditingFeaturesSection({
                     </motion.h2>
                     {subtitle && (
                         <motion.p
-                            className="text-base md:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed"
+                            className="text-lg md:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed tracking-tight text-balance"
                             initial={{ opacity: 0, y: 10 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}

@@ -46,7 +46,7 @@ export function HeroSection({
             <section
                 className={cn(
                     "relative flex flex-col items-center overflow-hidden",
-                    "pt-24 sm:pt-28 md:pt-32 lg:pt-36 pb-16 sm:pb-20 lg:pb-24 px-4 sm:px-6",
+                    "pt-26 sm:pt-30 md:pt-34 lg:pt-56 pb-16 sm:pb-20 lg:pb-24 px-4 sm:px-6",
                     className
                 )}
             >
@@ -92,7 +92,7 @@ export function HeroSection({
                                 alt={brandMarkAlt}
                                 width={160}
                                 height={48}
-                                className="h-11 w-auto drop-shadow-sm"
+                                className="h-11 w-auto drop-shadow-sm rounded-xl"
                                 priority
                             />
                         </motion.div>
@@ -110,7 +110,7 @@ export function HeroSection({
                         >
                             <Badge
                                 variant="outline"
-                                className="mb-2 backdrop-blur"
+                                className="mb-2 backdrop-blur border-violet-100"
                             >
                                 {badge}
                             </Badge>
@@ -133,9 +133,8 @@ export function HeroSection({
                         {title}
                     </motion.h1>
 
-                    {/* Subtitle */}
                     <motion.p
-                        className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed"
+                        className="text-lg md:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed text-balance"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
@@ -222,7 +221,7 @@ export function HeroSection({
 
                 {screenshotSrc && (
                     <motion.div
-                        className="relative w-full max-w-4xl mx-auto px-4 sm:px-6 mt-4 sm:mt-6"
+                        className="relative w-full max-w-6xl mx-auto px-4 sm:px-6 mt-4 sm:mt-6"
                         initial={{ opacity: 0, y: 40, scale: 0.98 }}
                         whileInView={{ opacity: 1, y: 0, scale: 1 }}
                         viewport={{ once: true }}

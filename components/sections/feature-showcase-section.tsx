@@ -8,10 +8,8 @@ import { BeforeAfterSlider } from "@/components/ui/before-after-slider";
 import Image from "next/image";
 import { LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { useInView } from "framer-motion";
 import { AutoplayVideo } from "@/components/ui/autoplay-video";
 
-// Video component with intersection observer for reliable mobile playback
 // Video component with intersection observer for reliable mobile playback
 function VideoPlayer({
     src,
@@ -152,14 +150,16 @@ interface Feature {
     video?: string;
     beforeImage?: string;
     afterImage?: string;
-    span?: "sm" | "md" | "lg";
+    span?: "sm" | "md" | "lg" | "xl";
+    rowSpan?: "sm" | "md" | "lg";
     imagePlacement?: "top" | "middle" | "bottom";
-    textPosition?: "left" | "right"; // Controls text placement on md/lg cards
+    textPosition?: "left" | "right" | "center";
     backdrop?: "dots" | "grid" | "gradient";
     variant?: "default" | "outline" | "ghost";
     isGraphic?: boolean;
     imageClassName?: string;
     interactive?: "click" | "hover-tilt" | "cursor-follow" | "before-after";
+    component?: React.ReactNode;
 }
 
 interface FeatureShowcaseSectionProps {
@@ -183,9 +183,17 @@ export function FeatureShowcaseSection({
 }: FeatureShowcaseSectionProps) {
     const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
     const spanClasses = {
-        sm: "md:col-span-1",
-        md: "md:col-span-1 lg:col-span-2",
-        lg: "md:col-span-2 lg:col-span-3",
+        sm: "col-span-1",
+        md: "col-span-1 sm:col-span-2",
+        lg: "col-span-1 sm:col-span-2 lg:col-span-3",
+        xl: "col-span-1 sm:col-span-2 lg:col-span-4",
+    };
+
+    // Height handling: "sm" is default (1 row), "md" is tall (2 rows), "lg" is tower (3 rows)
+    const rowSpanClasses = {
+        sm: "row-span-1",
+        md: "row-span-1 sm:row-span-2",
+        lg: "row-span-1 sm:row-span-3",
     };
 
     // Refined warm color palettes with shadow colors
@@ -247,15 +255,16 @@ export function FeatureShowcaseSection({
     ];
 
     const imageLayoutBySpan = {
-        sm: { grid: "grid-cols-1", gridReverse: "grid-cols-1", minHeight: "min-h-[180px] sm:min-h-[200px]" },
-        md: { grid: "sm:grid-cols-[1fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_1fr]", minHeight: "min-h-[200px] sm:min-h-[180px] lg:min-h-[200px]" },
-        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_0.8fr]", minHeight: "min-h-[220px] sm:min-h-[200px] lg:min-h-[220px]" },
+        sm: { grid: "grid-cols-1", gridReverse: "grid-cols-1", minHeight: "min-h-[220px]" },
+        md: { grid: "sm:grid-cols-[1fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_1fr]", minHeight: "min-h-[220px]" },
+        lg: { grid: "sm:grid-cols-[0.8fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_0.8fr]", minHeight: "min-h-[220px]" },
+        xl: { grid: "sm:grid-cols-[0.8fr_1.2fr]", gridReverse: "sm:grid-cols-[1.2fr_0.8fr]", minHeight: "min-h-[220px]" },
     };
 
     const paddingByPlacement = {
-        top: { sm: "items-start", md: "items-start", lg: "items-start" },
-        middle: { sm: "items-center", md: "items-center", lg: "items-center" },
-        bottom: { sm: "items-end", md: "items-end", lg: "items-end" },
+        top: { sm: "items-start", md: "items-start", lg: "items-start", xl: "items-start" },
+        middle: { sm: "items-center", md: "items-center", lg: "items-center", xl: "items-center" },
+        bottom: { sm: "items-end", md: "items-end", lg: "items-end", xl: "items-end" },
     };
 
     return (
@@ -291,7 +300,7 @@ export function FeatureShowcaseSection({
                     </motion.h2>
                     {subtitle && (
                         <motion.p
-                            className="text-lg text-gray-500 max-w-2xl mx-auto"
+                            className="text-lg text-gray-500 max-w-2xl mx-auto leading-relaxed tracking-tight text-balance"
                             initial={{ opacity: 0, y: 10 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
@@ -318,26 +327,33 @@ export function FeatureShowcaseSection({
                     </div>
                 )}
 
-                {/* Bento Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {/* Bento Grid - with auto-rows for height consistency */}
+                <div className="grid grid-flow-dense grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 auto-rows-[minmax(280px,auto)]">
                     {features.map((feature, index) => {
                         const palette = accentPalettes[index % accentPalettes.length];
                         const backdrop = feature.backdrop || "dots";
                         const placement = feature.imagePlacement || "middle";
                         const spanKey = feature.span || "sm";
+                        const rowSpanKey = feature.rowSpan || "sm";
                         const textPos = feature.textPosition || "left";
+
+                        // Height management: If row spanning is active (md/lg), removing min-height constraints so it fills the grid cell
+                        // Otherwise use the default min-height
+                        const hasRowSpan = rowSpanKey !== "sm";
                         const imageLayout = imageLayoutBySpan[spanKey];
+                        const minHeightClass = hasRowSpan ? "h-full" : imageLayout.minHeight;
+
                         const imageAlign = paddingByPlacement[placement][spanKey];
                         const variant = feature.variant || "default";
                         const isTextRight = textPos === "right" && spanKey !== "sm";
-
+                        const isTextCenter = textPos === "center";
                         return (
                             <motion.div
                                 key={feature.title}
                                 className={cn(
-                                    "group relative overflow-hidden rounded-[24px]",
+                                    "group relative overflow-hidden rounded-[32px] flex flex-col",
                                     "transition-[background-color,box-shadow,ring] duration-300 ease-out",
-                                    imageLayout.minHeight,
+                                    minHeightClass,
                                     variant === "default" && [
                                         "bg-white/95 backdrop-blur-sm",
                                         "border border-white/60",
@@ -357,7 +373,8 @@ export function FeatureShowcaseSection({
                                         "border border-gray-200/60",
                                         "shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]",
                                     ],
-                                    spanClasses[feature.span || "sm"]
+                                    spanClasses[spanKey],
+                                    rowSpanClasses[rowSpanKey]
                                 )}
                                 initial={{ opacity: 0, y: 24 }}
                                 whileInView={{ opacity: 1, y: 0 }}
@@ -439,15 +456,16 @@ export function FeatureShowcaseSection({
                                 )}>
                                     {/* Text content */}
                                     <div className={cn(
-                                        "flex flex-col gap-3 flex-shrink-0",
+                                        "flex flex-col gap-1 flex-shrink-0",
                                         spanKey !== "sm" && "sm:flex-shrink justify-center",
                                         spanKey === "sm" && placement === "top" && "mt-auto",
-                                        isTextRight && "sm:order-2"
+                                        isTextRight && "sm:order-2 items-end text-right",
+                                        isTextCenter && "items-center text-center mx-auto"
                                     )}>
                                         {/* Icon */}
                                         {feature.icon && (
                                             <div className={cn(
-                                                "w-8 h-8 rounded-lg flex items-center justify-center",
+                                                "w-8 h-8 mb-2 rounded-lg flex items-center justify-center",
                                                 "transition-transform duration-300 group-hover:scale-105",
                                                 palette.icon,
                                                 palette.iconShadow
@@ -467,31 +485,35 @@ export function FeatureShowcaseSection({
                                         </p>
                                     </div>
 
-                                    {/* Feature Image */}
-                                    {(feature.image || feature.video || (feature.beforeImage && feature.afterImage)) && (
+                                    {/* Feature Image or Component */}
+                                    {(feature.component || feature.image || feature.video || (feature.beforeImage && feature.afterImage)) && (
                                         <div className={cn(
                                             "flex-1 flex min-h-0",
                                             isTextRight && "sm:order-1",
-                                            spanKey === "sm" && placement === "top" ? "justify-end items-start mb-4 -mr-5 -mt-5" : "",
-                                            spanKey === "sm" && placement !== "top" ? "justify-end items-end mt-4 -mr-5 -mb-5" : "",
+                                            spanKey === "sm" && placement === "top" && !hasRowSpan ? "justify-end items-start mb-4 -mr-5 -mt-5" : "",
+                                            spanKey === "sm" && placement !== "top" && !hasRowSpan ? "justify-end items-end mt-4 -mr-5 -mb-5" : "",
                                             spanKey !== "sm" && !isTextRight && cn("justify-end", imageAlign),
                                             spanKey !== "sm" && !isTextRight && !feature.isGraphic && "mt-4 -mr-5 -mb-5 sm:mt-0 sm:-mt-5",
                                             spanKey !== "sm" && isTextRight && cn("justify-start", imageAlign),
-                                            spanKey !== "sm" && isTextRight && !feature.isGraphic && "mt-4 -ml-5 -mb-5 sm:mt-0 sm:-mt-5"
+                                            spanKey !== "sm" && isTextRight && !feature.isGraphic && "mt-4 -ml-5 -mb-5 sm:mt-0", // Restored bleed
+                                            feature.component && "m-0"
                                         )}>
                                             <div className={cn(
                                                 "relative",
-                                                spanKey === "sm" ? "w-[50%] h-[100px]" : "w-full h-full",
-                                                !feature.isGraphic && "overflow-hidden",
-                                                !feature.isGraphic && spanKey === "sm" && placement === "top" && "rounded-bl-xl",
-                                                !feature.isGraphic && spanKey === "sm" && placement !== "top" && "rounded-tl-xl",
-                                                !feature.isGraphic && spanKey !== "sm" && !isTextRight && "rounded-tl-xl rounded-bl-xl",
-                                                !feature.isGraphic && spanKey !== "sm" && isTextRight && "rounded-tr-xl rounded-br-xl",
-                                                !feature.isGraphic && palette.imageShadow,
-                                                !feature.isGraphic && "ring-1 ring-black/[0.08]",
-                                                feature.isGraphic && "flex justify-center items-center"
+                                                spanKey === "sm" && !feature.component && !hasRowSpan ? "w-[50%] h-[100px]" : "w-full h-full",
+                                                !feature.isGraphic && !feature.component && "overflow-hidden",
+                                                !feature.isGraphic && !feature.component && spanKey === "sm" && placement === "top" && "rounded-bl-xl",
+                                                !feature.isGraphic && !feature.component && spanKey === "sm" && placement !== "top" && "rounded-tl-xl",
+                                                !feature.isGraphic && !feature.component && spanKey !== "sm" && !isTextRight && "rounded-tl-xl rounded-bl-xl",
+                                                !feature.isGraphic && !feature.component && spanKey !== "sm" && isTextRight && "rounded-tr-xl rounded-br-xl",
+                                                !feature.isGraphic && !feature.component && palette.imageShadow,
+                                                !feature.isGraphic && !feature.component && "ring-1 ring-black/[0.08]",
+                                                feature.isGraphic && "flex justify-center items-center",
+                                                feature.component && "w-full h-full"
                                             )}>
-                                                {feature.video ? (
+                                                {feature.component ? (
+                                                    feature.component
+                                                ) : feature.video ? (
                                                     <VideoPlayer src={feature.video} isGraphic={feature.isGraphic} imageClassName={feature.imageClassName} isTextRight={isTextRight} />
                                                 ) : feature.interactive === "before-after" && feature.beforeImage && feature.afterImage ? (
                                                     <BeforeAfterSlider

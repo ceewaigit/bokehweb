@@ -25,7 +25,7 @@ const defaultItems: SocialProofItem[] = [
 
 export function SocialProofSection({
     className,
-    title = "People ship premium screen recordings.",
+    title = "",
     items = defaultItems,
     logos,
 }: SocialProofSectionProps) {
@@ -47,7 +47,7 @@ export function SocialProofSection({
     ];
 
     return (
-        <section className={cn("py-10 px-6 pt-[5vh]", className)}>
+        <section className={cn("py-10 px-6", className)}>
             <div className="mx-auto max-w-5xl">
                 {/* Title */}
                 <motion.h2

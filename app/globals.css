@@ -218,8 +218,10 @@
   }
 
   .highlight-purple {
-    background-image: linear-gradient(120deg, rgba(167, 139, 250, 0) 0%, rgba(167, 139, 250, 0.42) 18%, rgba(167, 139, 250, 0.42) 82%, rgba(167, 139, 250, 0) 100%);
+    background-image: linear-gradient(120deg, rgba(167, 139, 250, 0) 0%, rgba(167, 139, 250, 0.3) 18%, rgba(167, 139, 250, 0.3) 82%, rgba(167, 139, 250, 0) 100%);
     animation: highlight-appear 0.9s 0.2s forwards cubic-bezier(0.25, 0.1, 0.25, 1);
+    border-radius: 0.2em;
+    padding: 0 0.1em;
   }
 
   .highlight-yellow {

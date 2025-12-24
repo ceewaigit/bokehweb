@@ -12,6 +12,7 @@ import { CTASection } from "@/components/sections/cta-section";
 import { SpeedComparisonSection } from "@/components/sections/speed-comparison-section";
 import { EditingFeaturesSection } from "@/components/sections/editing-features-section";
 import { RecordDockSection } from "@/components/sections/record-dock-section";
+import { GlassmorphismItem } from "@/components/features/glassmorphism-item";
 
 import {
   Clock,
@@ -27,7 +28,8 @@ import {
   Box,
   FileVideo,
   Download,
-  WifiOff
+  WifiOff,
+  Sparkles
 } from "lucide-react";
 import PricingSection from "@/components/sections/pricing-section";
 
@@ -71,6 +73,7 @@ const showcaseFeatures = [
     description: "Drag, drop, done. Layer context without fighting a complex timeline.",
     image: "/features/import.png",
     imagePlacement: "middle" as const,
+    textPosition: "right" as const,
     backdrop: "gradient" as const,
     span: "md" as const,
   },
@@ -80,11 +83,12 @@ const showcaseFeatures = [
     description: "Liquid motion. A cursor that glides, never jitters.",
     image: "/features/arrow.png",
     imagePlacement: "middle" as const,
-    textPosition: "right" as const,
+    textPosition: "center" as const,
     backdrop: "grid" as const,
-    span: "lg" as const,
+    span: "sm" as const,
+    rowSpan: "md" as const,
     isGraphic: true,
-    imageClassName: "w-[70%] max-h-[180px] object-contain",
+    imageClassName: "w-[90%] max-h-[500px] object-contain",
     interactive: "cursor-follow" as const,
   },
   {
@@ -105,6 +109,15 @@ const showcaseFeatures = [
     imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
     span: "sm" as const,
+  },
+  {
+    icon: Sparkles,
+    title: "Glassmorphism",
+    description: "Solid, glassmorphic and clear themes.",
+    component: <GlassmorphismItem />,
+    imagePlacement: "bottom" as const,
+    backdrop: "gradient" as const,
+    span: "md" as const,
   },
   {
     icon: Crop,
@@ -128,7 +141,7 @@ const showcaseFeatures = [
 
 const testimonials = [
   {
-    content: "Bokeh takes messy recordings and turns them into polished walkthroughs in minutes.",
+    content: "bokeh takes messy recordings and turns them into polished walkthroughs in minutes.",
     author: { name: "Avery Chen", title: "Product Manager, Apple" },
   },
   {
@@ -215,15 +228,15 @@ export default function Home() {
         <div className="relative z-10">
           <HeroSection
             badge="Early access"
-            brandMarkSrc="/brand/bokeh_logo.svg"
+            brandMarkSrc="/brand/bokeh_icon.svg"
             brandMarkAlt="bokeh logo"
             title={
               <>
-                The screen recorder<br />
-                <em className="highlight-purple">that edits itself</em>
+                The recorder that<br />
+                <em className="highlight-purple">respects your craft.</em>
               </>
             }
-            subtitle="Remove pauses, smooth the cursor, and zoom on the action automatically. It understands software so you don't have to."
+            subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and intentionality that most tools miss, turning raw capture into studio-grade video."
             primaryCta={{ label: "Download", href: "/download" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
             screenshotSrc="/glassmorphism.png"

@@ -75,7 +75,7 @@ export function FeatureGrid({
                     </motion.h2>
                     {subtitle && (
                         <motion.p
-                            className="text-lg text-muted-foreground max-w-2xl mx-auto"
+                            className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed tracking-tight text-balance"
                             initial={{ opacity: 0, y: 10 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
