@@ -224,7 +224,7 @@ export function AutoplayVideo({
                             aria-label="Play video"
                         >
                             <Play
-                                className="w-5 h-5 text-white fill-white translate-x-0.5 opacity-90 group-hover/button:opacity-100 transition-opacity"
+                                className="w-5 h-5 text-white fill-white opacity-90 group-hover/button:opacity-100 transition-opacity"
                                 strokeWidth={0}
                             />
                         </motion.button>

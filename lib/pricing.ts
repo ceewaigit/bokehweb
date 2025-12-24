@@ -33,6 +33,11 @@ export const pricingPlans = [
       "Cancel anytime",
       "Watermarked exports",
     ],
+    // Philosophy callout - integrated into card
+    callout: {
+      short: "No credit card needed",
+      expanded: "Most tools rush you to pay. We'd rather you feel the difference first.",
+    },
     disabled: !PRODUCT_READY,
   },
   {
@@ -46,10 +51,15 @@ export const pricingPlans = [
       "No watermark",
       "Priority support",
       "3 devices per account",
-      "Earn a free lifetime license after 16 months",
+      "After 16 months, keep the latest version forever",
       "Cancel anytime",
     ],
-    footnote: PRICING.lifetime ? `Lifetime license is $${PRICING.lifetime}, or free after 16 months on Pro.` : undefined,
+    footnote: PRICING.lifetime ? `Or grab a license for $${PRICING.lifetime} upfront.` : undefined,
+    // Philosophy callout - integrated into card
+    callout: {
+      short: "Your loyalty pays off",
+      expanded: "No nickel-and-diming. Subscribe for 16 months and the latest version is yours. We think that's how it should work.",
+    },
     highlight: true,
     comingSoon: !PRICING.monthly,
   },
@@ -64,12 +74,23 @@ export const pricingPlans = [
       "No watermark",
       "Priority support",
       "3 devices per account",
-      "Lifetime updates",
-      "Pay once, own forever",
+      "All updates within this major version",
+      "One payment, yours to keep",
     ],
+    // Philosophy callout - integrated into card
+    callout: {
+      short: "Own your tools",
+      expanded: "We build software with intention. One payment, one major version, and every update in between.",
+    },
     comingSoon: !PRICING.lifetime,
   },
 ];
+
+// Condensed philosophy for an optional expandable section
+export const pricingPhilosophy = {
+  tagline: "Made for creators who care.",
+  summary: "Every choice is intentional. Including the price.",
+};
 
 export const enterprisePlan = {
   name: "Enterprise",

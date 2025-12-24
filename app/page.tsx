@@ -11,6 +11,7 @@ import { QASection } from "@/components/sections/qa-section";
 import { CTASection } from "@/components/sections/cta-section";
 import { SpeedComparisonSection } from "@/components/sections/speed-comparison-section";
 import { EditingFeaturesSection } from "@/components/sections/editing-features-section";
+import { RecordDockSection } from "@/components/sections/record-dock-section";
 
 import {
   Clock,
@@ -34,12 +35,22 @@ const features = [
   {
     icon: Clock,
     title: "Idle cleanup",
-    description: "Silence, skipped. Automatically tighten pacing.",
+    description: "Dead air, gone. We trim the pauses so you don't have to.",
   },
   {
     icon: Command,
     title: "Keyboard shortcuts",
-    description: "Native fluency. Shortcuts that match your muscle memory.",
+    description: "Your hands stay on the keyboard. We designed it that way.",
+  },
+  {
+    icon: Download,
+    title: "Export and share",
+    description: "Your file, your call. Export and share wherever you want.",
+  },
+  {
+    icon: Wand2,
+    title: "Smart defaults",
+    description: "We pick the obvious settings. You override when it matters.",
   },
 ];
 
@@ -226,7 +237,7 @@ export default function Home() {
             badge="Features"
             title={
               <>
-                Premium screen recordings.<br />
+                Studio-grade screen recordings.<br />
                 <em className="highlight-yellow">Minus the busywork.</em>
               </>
             }
@@ -246,20 +257,21 @@ export default function Home() {
             subtitle="We automate the tedious edits like pacing, zoom, and cleanup. Ship fast using our defaults, or adjust anything manually."
           />
 
-
           <SpeedComparisonSection />
 
+          <RecordDockSection />
+
           <FeatureGrid
-            badge="Editing Suite"
+            badge="Intentional choices"
             title={
               <>
-                Small details.<br />
-                <em className="highlight-pink">Big Wins.</em>
+                Intentional choices.<br />
+                <em className="highlight-pink">Everywhere.</em>
               </>
             }
-            subtitle="Smart cleanup and typing enhancements that make every screen recording feel intentional."
+            subtitle="A few highlights from dozens of small decisions that make bokeh feel different."
             features={features}
-            columns={3}
+            columns={4}
           />
 
           <TestimonialSection

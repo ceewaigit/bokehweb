@@ -21,7 +21,7 @@ const navLinkStyles = "rounded-full border border-white/55 bg-white/70 px-4 py-2
 export function Navbar({ className }: NavbarProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const { scrollY } = useScroll();
-    const paddingY = useTransform(scrollY, [0, 120], [18, 12]);
+    const paddingY = useTransform(scrollY, [0, 120], [14, 20]);
 
     const navLinks = [
         { href: "/about", label: "About" },
