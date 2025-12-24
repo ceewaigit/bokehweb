@@ -97,6 +97,7 @@ export function QASection({
                                 return (
                                     <motion.div
                                         key={item.question}
+                                        layout="position"
                                         className={cn(
                                             "relative overflow-hidden rounded-2xl cursor-pointer bg-slate-100",
                                             "transition-all duration-300 ease-out",
@@ -106,8 +107,8 @@ export function QASection({
                                         )}
                                         initial={{ opacity: 0, y: 8 }}
                                         whileInView={{ opacity: 1, y: 0 }}
-                                        viewport={{ once: true, margin: "-40px" }}
-                                        transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.15) }}
+                                        viewport={{ once: true, margin: "-20px" }}
+                                        transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.15), layout: { duration: 0.2 } }}
                                         style={gpuStyle}
                                         onClick={() => setOpenIndex(isOpen ? null : index)}
                                     >

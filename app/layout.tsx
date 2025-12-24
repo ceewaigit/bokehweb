@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     "A macOS screen recording utility that removes dead time, smooths motion, and auto-zooms your recordings. Ship polished demos without the editing.",
   keywords: [
     "screen recorder",
-    "screen recording",
+    "screen recording",  
     "screen capture",
     "screen recording app",
     "video tutorials",

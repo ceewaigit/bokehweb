@@ -45,7 +45,7 @@ export function AppleHelloEnglishEffect({
                 style={{ strokeLinecap: "round" }}
                 initial={initialProps}
                 whileInView={animateProps}
-                viewport={{ once: true, margin: "-100px" }}
+                viewport={{ once: true, margin: "-20px" }}
                 transition={{
                     duration: calc(0.8),
                     ease: "easeInOut",
@@ -58,7 +58,7 @@ export function AppleHelloEnglishEffect({
                 style={{ strokeLinecap: "round" }}
                 initial={initialProps}
                 whileInView={animateProps}
-                viewport={{ once: true, margin: "-100px" }}
+                viewport={{ once: true, margin: "-20px" }}
                 transition={{
                     duration: calc(2.8),
                     ease: "easeInOut",

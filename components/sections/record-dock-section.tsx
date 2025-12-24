@@ -450,7 +450,7 @@ export function RecordDockSection({
         <section
             id={id}
             ref={sectionRef}
-            className={cn("relative py-12 sm:py-16 lg:py-20 px-4 sm:px-6 overflow-hidden", className)}
+            className={cn("relative py-12 sm:py-16 lg:py-24 px-4 sm:px-6 overflow-hidden", className)}
         >
             <div className="relative mx-auto max-w-6xl">
                 {/* Left/Right layout */}
