@@ -15,12 +15,14 @@ function VideoPlayer({
     src,
     isGraphic,
     imageClassName,
-    isTextRight
+    isTextRight,
+    objectPosition
 }: {
     src: string;
     isGraphic?: boolean;
     imageClassName?: string;
     isTextRight?: boolean;
+    objectPosition?: "left" | "center" | "right";
 }) {
     return (
         <div className="absolute inset-0 w-full h-full">
@@ -28,7 +30,10 @@ function VideoPlayer({
                 className={cn(
                     isGraphic
                         ? (imageClassName || "max-w-full max-h-full object-contain drop-shadow-lg")
-                        : cn("absolute inset-0 w-full h-full object-cover", isTextRight ? "object-right" : "object-left")
+                        : cn(
+                            "absolute inset-0 w-full h-full object-cover",
+                            objectPosition ? `object-${objectPosition}` : (isTextRight ? "object-right" : "object-left")
+                        )
                 )}
                 src={src}
             />
@@ -160,6 +165,7 @@ interface Feature {
     imageClassName?: string;
     interactive?: "click" | "hover-tilt" | "cursor-follow" | "before-after";
     component?: React.ReactNode;
+    objectPosition?: "left" | "center" | "right";
 }
 
 interface FeatureShowcaseSectionProps {
@@ -514,7 +520,13 @@ export function FeatureShowcaseSection({
                                                 {feature.component ? (
                                                     feature.component
                                                 ) : feature.video ? (
-                                                    <VideoPlayer src={feature.video} isGraphic={feature.isGraphic} imageClassName={feature.imageClassName} isTextRight={isTextRight} />
+                                                    <VideoPlayer
+                                                        src={feature.video}
+                                                        isGraphic={feature.isGraphic}
+                                                        imageClassName={feature.imageClassName}
+                                                        isTextRight={isTextRight}
+                                                        objectPosition={feature.objectPosition}
+                                                    />
                                                 ) : feature.interactive === "before-after" && feature.beforeImage && feature.afterImage ? (
                                                     <BeforeAfterSlider
                                                         beforeSrc={feature.beforeImage}
@@ -544,7 +556,10 @@ export function FeatureShowcaseSection({
                                                             className={cn(
                                                                 feature.isGraphic
                                                                     ? cn(feature.imageClassName || "max-w-full max-h-full object-contain", "drop-shadow-[0_8px_24px_rgba(0,0,0,0.15)]")
-                                                                    : cn("absolute inset-0 w-full h-full object-cover", isTextRight ? "object-right" : "object-left")
+                                                                    : cn(
+                                                                        "absolute inset-0 w-full h-full object-cover",
+                                                                        feature.objectPosition ? `object-${feature.objectPosition}` : (isTextRight ? "object-right" : "object-left")
+                                                                    )
                                                             )}
                                                             draggable={false}
                                                         />
@@ -558,7 +573,10 @@ export function FeatureShowcaseSection({
                                                         className={cn(
                                                             feature.isGraphic
                                                                 ? cn(feature.imageClassName || "max-w-full max-h-full object-contain", "drop-shadow-[0_8px_24px_rgba(0,0,0,0.15)]")
-                                                                : cn("absolute inset-0 w-full h-full object-cover", isTextRight ? "object-right" : "object-left")
+                                                                : cn(
+                                                                    "absolute inset-0 w-full h-full object-cover",
+                                                                    feature.objectPosition ? `object-${feature.objectPosition}` : (isTextRight ? "object-right" : "object-left")
+                                                                )
                                                         )}
                                                     />
                                                 )}

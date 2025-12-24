@@ -12,15 +12,14 @@ import { CTASection } from "@/components/sections/cta-section";
 import { SpeedComparisonSection } from "@/components/sections/speed-comparison-section";
 import { EditingFeaturesSection } from "@/components/sections/editing-features-section";
 import { RecordDockSection } from "@/components/sections/record-dock-section";
+import { MacOSDockSection } from "@/components/sections/macos-dock-section";
+import { HighlightCircle } from "@/components/ui/highlight-circle";
 import { GlassmorphismItem } from "@/components/features/glassmorphism-item";
 
 import {
   Clock,
   Command,
   Crop,
-  Keyboard,
-  Type,
-  KeyRound,
   Wand2,
   Layers,
   MousePointer,
@@ -74,6 +73,7 @@ const showcaseFeatures = [
     image: "/features/import.png",
     imagePlacement: "middle" as const,
     textPosition: "right" as const,
+    objectPosition: "left" as const,
     backdrop: "gradient" as const,
     span: "md" as const,
   },
@@ -98,6 +98,7 @@ const showcaseFeatures = [
     video: "/features/wallpaper.mp4",
     imagePlacement: "top" as const,
     textPosition: "left" as const,
+    objectPosition: "right" as const,
     backdrop: "gradient" as const,
     span: "md" as const,
   },
@@ -236,7 +237,7 @@ export default function Home() {
                 <em className="highlight-purple">respects your craft.</em>
               </>
             }
-            subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and intentionality that most tools miss, turning raw capture into studio-grade video."
+            subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and intentionality that most tools miss."
             primaryCta={{ label: "Download", href: "/download" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
             screenshotSrc="/hero.png"
@@ -251,11 +252,11 @@ export default function Home() {
             badge="Features"
             title={
               <>
-                Studio-grade screen recordings.<br />
-                <em className="highlight-yellow">Minus the busywork.</em>
+                Cinematic motion.<br />
+                <em className="highlight-yellow not-italic">Zero effort.</em>
               </>
             }
-            subtitle="We make the opinionated choices that usually take time. Framing, motion, and polish."
+            subtitle="We automated the techniques top creators use. Smooth zooms, liquid cursors, and perfect pacing."
             features={showcaseFeatures}
           />
 
@@ -273,6 +274,8 @@ export default function Home() {
 
           <SpeedComparisonSection />
 
+          <MacOSDockSection />
+
           <RecordDockSection />
 
           <FeatureGrid
@@ -289,8 +292,12 @@ export default function Home() {
           />
 
           <TestimonialSection
-            title="People ship premium screen recordings"
-            subtitle="Product, support, and education professionals rely on bokeh for consistent demos, walkthroughs, and updates."
+            title={
+              <>
+                Trusted by teams who care about <HighlightCircle color="#8b5cf6" className="text-inherit"><em className="text-primary not-italic">craft.</em></HighlightCircle>
+              </>
+            }
+            subtitle="From changing the way they demo, to shipping faster updates. See why detail-oriented teams switched to bokeh."
             testimonials={testimonials}
           />
 
@@ -301,17 +308,16 @@ export default function Home() {
             eyebrow="Q&A"
             title={
               <>
-                Common questions<br />
-                <em>shipping screen recordings.</em>
+                Everything you need to know about <em>bokeh.</em>
               </>
             }
-            subtitle="Short, useful context on recording, editing, privacy, and requirements."
+            subtitle="No hidden clauses. No gotchas. Just bokeh."
             items={faqs}
           />
 
           <CTASection
-            title={<>Publish premium recordings <em>in minutes.</em></>}
-            subtitle="Let bokeh handle the tedious work and ship a polished update fast."
+            title={<>Stop fighting with your <HighlightCircle className="text-inherit"><em className="not-italic">video editor.</em></HighlightCircle></>}
+            subtitle="Start shipping clearer, sharper, and more professional updates today."
             ctaLabel="Get started for free"
             ctaHref="/download"
             showArrow={true}

@@ -41,7 +41,7 @@ export function QASection({
     const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
 
     return (
-        <section id={id} className={cn("relative py-24 px-6 overflow-hidden", className)}>
+        <section id={id} className={cn("relative py-24 px-6 overflow-hidden bg-slate-50/50", className)}>
             <SectionBackdrop variant="plus" texture fade="all" className="opacity-40" />
 
             <div className="mx-auto max-w-6xl">
@@ -86,13 +86,10 @@ export function QASection({
                         {/* Scrollable container with CSS mask for fade effect */}
                         <div
                             className={cn(
-                                "max-h-[400px] md:max-h-[520px] overflow-y-auto space-y-3 py-4 -mx-4 px-4",
+                                "max-h-[600px] overflow-y-visible space-y-4 py-4 px-4 -mx-4", // Increased max-height and padding
                                 "scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                             )}
-                            style={{
-                                maskImage: "linear-gradient(to bottom, transparent 0%, black 24px, black calc(100% - 32px), transparent 100%)",
-                                WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 24px, black calc(100% - 32px), transparent 100%)",
-                            }}
+                        // Removed mask to allow shadows to be fully visible
                         >
                             {updatedItems.map((item, index) => {
                                 const isOpen = openIndex === index;
@@ -101,12 +98,11 @@ export function QASection({
                                     <motion.div
                                         key={item.question}
                                         className={cn(
-                                            "relative overflow-hidden rounded-2xl bg-white/90 cursor-pointer",
-                                            "shadow-[0_2px_8px_rgba(15,23,42,0.06),0_1px_2px_rgba(15,23,42,0.04)]",
-                                            "border border-slate-100/80",
-                                            "transition-[background-color,box-shadow] duration-150 ease-out",
-                                            "hover:bg-white hover:shadow-[0_4px_12px_rgba(15,23,42,0.08)]",
-                                            "active:bg-slate-50"
+                                            "relative overflow-hidden rounded-2xl cursor-pointer bg-slate-100",
+                                            "transition-all duration-300 ease-out",
+                                            isOpen
+                                                ? "shadow-[inset_-2px_-2px_5px_rgba(255,255,255,0.7),inset_2px_2px_5px_rgba(0,0,0,0.06)]"
+                                                : "shadow-[-5px_-5px_10px_rgba(255,255,255,0.9),5px_5px_10px_rgba(0,0,0,0.05)] hover:shadow-[-2px_-2px_5px_rgba(255,255,255,0.5),2px_2px_5px_rgba(0,0,0,0.05)]"
                                         )}
                                         initial={{ opacity: 0, y: 8 }}
                                         whileInView={{ opacity: 1, y: 0 }}
@@ -118,27 +114,31 @@ export function QASection({
                                         <button
                                             type="button"
                                             aria-expanded={isOpen}
-                                            className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[15px] font-semibold text-slate-900 outline-none focus-visible:outline-none focus-visible:ring-0 pointer-events-none"
+                                            className="flex w-full items-center justify-between gap-4 px-6 py-3 text-left text-[15px] font-semibold text-slate-800 outline-none focus-visible:outline-none focus-visible:ring-0 pointer-events-none"
                                         >
                                             <span>{item.question}</span>
                                             <span
                                                 className={cn(
-                                                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 border border-slate-100",
-                                                    "transition-transform duration-150 ease-out",
-                                                    isOpen && "rotate-45"
+                                                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500",
+                                                    "transition-all duration-300 ease-out",
+                                                    isOpen
+                                                        ? "rotate-45 shadow-[inset_-2px_-2px_4px_rgba(255,255,255,0.8),inset_2px_2px_4px_rgba(0,0,0,0.05)] text-violet-500"
+                                                        : "shadow-[-2px_-2px_5px_rgba(255,255,255,0.9),2px_2px_5px_rgba(0,0,0,0.1)]"
                                                 )}
                                             >
-                                                +
+                                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M6 1V11M1 6H11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
                                             </span>
                                         </button>
                                         <div
                                             className={cn(
-                                                "grid transition-[grid-template-rows] duration-150 ease-out",
+                                                "grid transition-[grid-template-rows] duration-300 ease-out",
                                                 isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
                                             )}
                                         >
                                             <div className="overflow-hidden">
-                                                <div className="px-5 pb-4 text-sm text-slate-600 leading-relaxed">
+                                                <div className="px-6 pb-6 text-[15px] text-slate-600 leading-relaxed max-w-[90%]">
                                                     {item.answer}
                                                 </div>
                                             </div>

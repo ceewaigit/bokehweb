@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { NeumorphicButton } from "@/components/ui/neumorphic-button";
 import Link from "next/link";
-import Image from "next/image";
+
 import { X } from "lucide-react";
 
 interface NavbarProps {
@@ -16,12 +17,10 @@ const closeMenu = (setOpen: (v: boolean) => void) => {
     setOpen(false);
 };
 
-const navLinkStyles = "rounded-full border border-white/55 bg-white/70 px-4 py-2 text-[13px] font-semibold tracking-[0.02em] text-slate-700 shadow-[0_12px_30px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.85)] transition-all duration-200 ease-out hover:bg-white/85 hover:text-slate-900 hover:-translate-y-px active:scale-[0.98]";
+
 
 export function Navbar({ className }: NavbarProps) {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const { scrollY } = useScroll();
-    const paddingY = useTransform(scrollY, [0, 120], [14, 20]);
 
     const navLinks = [
         { href: "/about", label: "About" },
@@ -46,13 +45,9 @@ export function Navbar({ className }: NavbarProps) {
         <>
             <motion.header
                 className={cn(
-                    "fixed top-0 left-0 right-0 z-50 px-6",
+                    "fixed top-0 left-0 right-0 z-50 px-6 py-5",
                     className
                 )}
-                style={{
-                    paddingTop: paddingY,
-                    paddingBottom: paddingY,
-                }}
             >
                 <nav className="mx-auto flex max-w-7xl items-center justify-between relative">
                     {/* Logo */}
@@ -73,14 +68,12 @@ export function Navbar({ className }: NavbarProps) {
                     </Link>
 
                     {/* Navigation Links - Desktop (Absolutely centered) */}
-                    <div className="hidden md:flex items-center gap-3 absolute left-1/2 -translate-x-1/2">
+                    <div className="hidden md:flex items-center gap-4 absolute left-1/2 -translate-x-1/2">
                         {navLinks.map((link) => (
-                            <Link
-                                key={link.href}
-                                href={link.href}
-                                className={navLinkStyles}
-                            >
-                                {link.label}
+                            <Link key={link.href} href={link.href}>
+                                <NeumorphicButton>
+                                    {link.label}
+                                </NeumorphicButton>
                             </Link>
                         ))}
                     </div>
@@ -102,23 +95,15 @@ export function Navbar({ className }: NavbarProps) {
 
                         {/* Desktop buttons */}
                         <div className="hidden md:block">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className={navLinkStyles}
-                            >
+                            <NeumorphicButton>
                                 Log in
-                            </Button>
+                            </NeumorphicButton>
                         </div>
-                        <Button
-                            size="sm"
-                            asChild
-                            className="rounded-full border border-white/60 bg-white/85 px-5 text-[13px] font-semibold tracking-[0.02em] text-slate-900 shadow-[0_14px_36px_rgba(15,23,42,0.14),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all duration-200 ease-out hover:bg-white hover:-translate-y-px active:scale-[0.98]"
-                        >
-                            <Link href="/download">
+                        <Link href="/download">
+                            <NeumorphicButton className="bg-slate-900 text-white shadow-[-5px_-5px_10px_rgba(255,255,255,0.5),5px_5px_10px_rgba(0,0,0,0.2)] hover:text-white hover:bg-slate-800 hover:shadow-[-2px_-2px_5px_rgba(255,255,255,0.5),2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(255,255,255,0.1),inset_2px_2px_4px_rgba(0,0,0,0.3)]">
                                 Download
-                            </Link>
-                        </Button>
+                            </NeumorphicButton>
+                        </Link>
                     </div>
                 </nav>
             </motion.header>

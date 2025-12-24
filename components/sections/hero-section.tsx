@@ -63,15 +63,15 @@ export function HeroSection({
                     />
 
                     {/* Gradient Clouds */}
-                    <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[140%] h-[100%] opacity-100">
+                    <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[140%] h-[100%] opacity-80 sm:opacity-100">
                         {/* Center bright cloud */}
                         <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[70%] h-[60%] rounded-[50%] bg-[#F0F4FF] blur-[80px] sm:blur-[100px]" />
 
                         {/* Left soft warm cloud */}
-                        <div className="absolute top-[0%] left-[10%] w-[60%] h-[70%] rounded-[50%] bg-gradient-to-br from-indigo-300/40 to-purple-300/40 blur-[90px] sm:blur-[130px]" />
+                        <div className="absolute top-[0%] left-[10%] w-[60%] h-[70%] rounded-[50%] bg-gradient-to-br from-indigo-300/30 to-purple-300/30 sm:from-indigo-300/40 sm:to-purple-300/40 blur-[90px] sm:blur-[130px]" />
 
                         {/* Right soft cool cloud */}
-                        <div className="absolute top-[5%] right-[5%] w-[60%] h-[70%] rounded-[50%] bg-gradient-to-bl from-blue-300/40 to-cyan-300/40 blur-[90px] sm:blur-[130px]" />
+                        <div className="absolute top-[5%] right-[5%] w-[60%] h-[70%] rounded-[50%] bg-gradient-to-bl from-blue-300/30 to-cyan-300/30 sm:from-blue-300/40 sm:to-cyan-300/40 blur-[90px] sm:blur-[130px]" />
 
                         {/* Bottom fade out mask */}
                         <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-white via-white/90 to-transparent" />
@@ -136,7 +136,7 @@ export function HeroSection({
                     </motion.h1>
 
                     <motion.p
-                        className="text-lg md:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed text-balance"
+                        className="text-lg md:text-xl text-slate-400 max-w-3xl mx-auto mb-10 leading-relaxed text-balance"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
