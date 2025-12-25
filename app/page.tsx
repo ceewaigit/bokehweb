@@ -172,18 +172,18 @@ const faqs = [
     question: "Is this a video editor like Final Cut or DaVinci?",
     answer: "No. bokeh focuses on the 90% of edits screen recordings actually need: remove mistakes fast, keep the video clean, and export something that looks polished.",
   },
-  {
-    question: "How does subscription credit work?",
-    answer: "Your monthly payments accumulate toward a lifetime license. Once you've paid $149 through your subscription, the current major version is yours forever—no extra payment needed.",
-  },
+  // {
+  //   question: "How does subscription credit work?",
+  //   answer: "Your monthly payments accumulate toward a lifetime license. Once you've paid $149 through your subscription, the current major version is yours forever, no extra payment needed.",
+  // },
   {
     question: "What's included in a lifetime license?",
-    answer: "A lifetime license covers all updates within a major version (e.g., v1.0 to v1.x). When we release a new major version (v2.0), that's a separate purchase—but your subscription payments on the new version count toward it too.",
+    answer: "A lifetime license covers all updates within a major version (e.g., v1.0 to v1.x). When we release a new major version (v2.0), that's a separate purchase, but your subscription payments on the new version count toward it too.",
   },
-  {
-    question: "What's the difference between monthly and annual billing?",
-    answer: "Monthly is $13/mo, cancel anytime. Annual is $8/mo ($96 billed yearly)—about 38% savings. Both count toward your lifetime license.",
-  },
+  // {
+  //   question: "What's the difference between monthly and annual billing?",
+  //   answer: "Monthly is $13/mo, cancel anytime. Annual is $8/mo ($96 billed yearly), about 38% savings. Both count toward your lifetime license.",
+  // },
   {
     question: "Do I need an account?",
     answer: "No account required to start. The app is designed to work locally first.",
