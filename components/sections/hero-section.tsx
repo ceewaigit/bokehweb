@@ -294,7 +294,7 @@ export function HeroSection({
                             </div>
                         </div>
 
-                        <div className="relative w-full max-w-5xl aspect-[2048/1377] max-h-[70vh] self-start -mt-4">
+                        <div className="relative w-full max-w-5xl aspect-[2048/1377] max-h-[70vh] self-start -mt-8 sm:-mt-16">
                             <div
                                 ref={workspaceRef}
                                 className="absolute inset-0 z-10 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] p-2 sm:p-3"
