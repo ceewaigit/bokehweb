@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import { Play, ChevronRight } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -38,7 +38,6 @@ export function HeroSection({
     videoSrc,
     scrollVideoSrc,
 }: HeroSectionProps) {
-    const [shouldPlay, setShouldPlay] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const pinRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLDivElement>(null);
@@ -47,6 +46,9 @@ export function HeroSection({
     const dockRef = useRef<HTMLDivElement>(null);
     const heroVideoRef = useRef<HTMLVideoElement>(null);
     const scrollVideoRef = useRef<HTMLVideoElement>(null);
+    const readyRef = useRef({ hero: false, scroll: false });
+    const startedRef = useRef(false);
+    const heroStartedRef = useRef(false);
     const heroMp4Fallback = videoSrc?.endsWith(".webm")
         ? videoSrc.replace(/\.webm$/i, ".mp4")
         : undefined;
@@ -152,125 +154,51 @@ export function HeroSection({
     }, [videoSrc, scrollVideoSrc]);
 
     useEffect(() => {
-        const onInteract = () => setShouldPlay(true);
-        const onVisibility = () => {
-            if (document.visibilityState === "visible") {
-                setShouldPlay(true);
-            }
-        };
-        const id = window.setTimeout(() => setShouldPlay(true), 80);
-        window.addEventListener("pointerdown", onInteract, { once: true });
-        window.addEventListener("touchstart", onInteract, { once: true });
-        window.addEventListener("focus", onVisibility);
-        window.addEventListener("pageshow", onVisibility);
-        document.addEventListener("visibilitychange", onVisibility);
-        return () => {
-            window.clearTimeout(id);
-            window.removeEventListener("pointerdown", onInteract);
-            window.removeEventListener("touchstart", onInteract);
-            window.removeEventListener("focus", onVisibility);
-            window.removeEventListener("pageshow", onVisibility);
-            document.removeEventListener("visibilitychange", onVisibility);
-        };
-    }, []);
+        readyRef.current = { hero: false, scroll: false };
+        startedRef.current = false;
+        heroStartedRef.current = false;
+    }, [videoSrc, scrollVideoSrc]);
 
     useEffect(() => {
-        if (!shouldPlay) return;
-        const kickstart = (video: HTMLVideoElement | null) => {
-            if (!video) return;
-            video.muted = true;
-            video.defaultMuted = true;
-            video.playsInline = true;
-            video.setAttribute("muted", "");
-            video.setAttribute("playsinline", "");
-            try {
-                video.load();
-            } catch {
-                // Ignore load errors; play will still be attempted below.
-            }
-            const playPromise = video.play();
-            if (playPromise !== undefined) playPromise.catch(() => { });
-        };
-        kickstart(heroVideoRef.current);
-        kickstart(scrollVideoRef.current);
+        heroVideoRef.current?.load();
+        scrollVideoRef.current?.load();
+    }, [videoSrc, scrollVideoSrc]);
 
-        const retryInterval = window.setInterval(() => {
-            const hero = heroVideoRef.current;
-            const scroll = scrollVideoRef.current;
-            if (hero && !hero.paused) return;
-            if (scroll && !scroll.paused) return;
-            kickstart(hero);
-            kickstart(scroll);
-        }, 500);
+    const startHeroPlayback = () => {
+        const hero = heroVideoRef.current;
+        if (!hero) return;
+        if (heroStartedRef.current) return;
+        heroStartedRef.current = true;
+        hero.pause();
+        hero.currentTime = 0;
+        const playHero = hero.play();
+        if (playHero !== undefined) playHero.catch(() => { });
+    };
 
-        const stopAfter = window.setTimeout(() => {
-            window.clearInterval(retryInterval);
-        }, 4000);
-
-        return () => {
-            window.clearInterval(retryInterval);
-            window.clearTimeout(stopAfter);
-        };
-    }, [shouldPlay, videoSrc, scrollVideoSrc]);
-
-    const syncVideos = () => {
+    const startScrollWhenHeroReady = () => {
         const hero = heroVideoRef.current;
         const scroll = scrollVideoRef.current;
         if (!hero || !scroll) return;
-
-        if (Math.abs(scroll.currentTime - hero.currentTime) > 0.12) {
-            scroll.currentTime = hero.currentTime;
-        }
-
-        if (shouldPlay) {
-            if (hero.paused) {
-                hero.play().catch(() => { });
-            }
-            if (scroll.paused) {
-                scroll.play().catch(() => { });
-            }
-        }
+        if (!readyRef.current.scroll) return;
+        if (startedRef.current) return;
+        if (hero.currentTime < 0.05) return;
+        scroll.pause();
+        scroll.currentTime = hero.currentTime;
+        const playScroll = scroll.play();
+        if (playScroll !== undefined) playScroll.catch(() => { });
+        startedRef.current = true;
     };
 
-    useEffect(() => {
+    const handleHeroLoop = () => {
         const hero = heroVideoRef.current;
-        const heroTarget = heroWrapRef.current;
-        if (!hero || !heroTarget) return;
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    hero.muted = true;
-                    hero.defaultMuted = true;
-                    hero.play().catch(() => { });
-                }
-            },
-            { threshold: 0.2 }
-        );
-
-        observer.observe(heroTarget);
-        return () => observer.disconnect();
-    }, [videoSrc]);
-
-    useEffect(() => {
         const scroll = scrollVideoRef.current;
-        const scrollTarget = workspaceRef.current;
-        if (!scroll || !scrollTarget) return;
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    scroll.muted = true;
-                    scroll.defaultMuted = true;
-                    scroll.play().catch(() => { });
-                }
-            },
-            { threshold: 0.2 }
-        );
-
-        observer.observe(scrollTarget);
-        return () => observer.disconnect();
-    }, [scrollVideoSrc]);
+        if (!hero || !scroll) return;
+        startedRef.current = false;
+        heroStartedRef.current = false;
+        scroll.pause();
+        scroll.currentTime = 0;
+        startHeroPlayback();
+    };
     return (
         <TooltipProvider delayDuration={0}>
             <section
@@ -354,21 +282,6 @@ export function HeroSection({
                         </div>
 
                         <div className="relative w-full max-w-5xl aspect-[2048/1377] max-h-[70vh] self-start -mt-8 sm:-mt-16">
-                            {(videoSrc || heroMp4Fallback) && (
-                                <video
-                                    aria-hidden="true"
-                                    tabIndex={-1}
-                                    className="absolute w-0 h-0 opacity-0 pointer-events-none"
-                                    muted
-                                    playsInline
-                                    autoPlay
-                                    loop
-                                    preload="auto"
-                                >
-                                    {heroMp4Fallback && <source src={heroMp4Fallback} type="video/mp4" />}
-                                    {videoSrc && <source src={videoSrc} type="video/webm" />}
-                                </video>
-                            )}
                             <div
                                 ref={workspaceRef}
                                 className="absolute inset-0 z-10 opacity-0 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] p-2 sm:p-3"
@@ -379,26 +292,11 @@ export function HeroSection({
                                         className="h-full w-full rounded-lg object-cover"
                                         muted
                                         playsInline
-                                        autoPlay
-                                        loop
                                         preload="auto"
-                                        onPlay={syncVideos}
-                                        onTimeUpdate={syncVideos}
                                         onLoadedMetadata={() => {
-                                            if (shouldPlay) {
-                                                scrollVideoRef.current?.play().catch(() => { });
-                                            }
+                                            readyRef.current.scroll = true;
+                                            startScrollWhenHeroReady();
                                         }}
-                                            onCanPlayThrough={() => {
-                                                if (shouldPlay) {
-                                                    scrollVideoRef.current?.play().catch(() => { });
-                                                }
-                                            }}
-                                            onCanPlay={() => {
-                                                if (shouldPlay) {
-                                                    scrollVideoRef.current?.play().catch(() => { });
-                                                }
-                                            }}
                                     >
                                         <source src={scrollVideoSrc} type="video/webm" />
                                         {scrollMp4Fallback && <source src={scrollMp4Fallback} type="video/mp4" />}
@@ -414,36 +312,23 @@ export function HeroSection({
 
                             {/* 2. HERO FOREGROUND (Visible initially) */}
                             <div className="absolute inset-0 z-20 flex items-center justify-center">
-                                    <div
-                                        ref={heroWrapRef}
-                                        className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5"
-                                    >
-                                        {videoSrc ? (
-                                            <video
-                                                ref={heroVideoRef}
-                                                className="h-full w-full rounded-lg object-cover"
-                                                muted
-                                                playsInline
-                                                autoPlay
-                                                loop
-                                                preload="auto"
-                                                poster={screenshotSrc}
-                                                onPlay={syncVideos}
-                                                onTimeUpdate={syncVideos}
-                                                onLoadedMetadata={() => {
-                                                    if (shouldPlay) {
-                                                        heroVideoRef.current?.play().catch(() => { });
-                                                    }
-                                                }}
-                                                onCanPlayThrough={() => {
-                                                    if (shouldPlay) {
-                                                        heroVideoRef.current?.play().catch(() => { });
-                                                    }
-                                                }}
-                                                onCanPlay={() => {
-                                                    if (shouldPlay) {
-                                                        heroVideoRef.current?.play().catch(() => { });
-                                                    }
+                                <div
+                                    ref={heroWrapRef}
+                                    className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5"
+                                >
+                                    {videoSrc ? (
+                                        <video
+                                            ref={heroVideoRef}
+                                            className="h-full w-full rounded-lg object-cover"
+                                            muted
+                                            playsInline
+                                            preload="auto"
+                                            poster={screenshotSrc}
+                                            onTimeUpdate={startScrollWhenHeroReady}
+                                            onEnded={handleHeroLoop}
+                                            onLoadedMetadata={() => {
+                                                readyRef.current.hero = true;
+                                                startHeroPlayback();
                                             }}
                                         >
                                             <source src={videoSrc} type="video/webm" />
