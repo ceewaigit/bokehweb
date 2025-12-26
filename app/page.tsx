@@ -13,6 +13,7 @@ import { SpeedComparisonSection } from "@/components/sections/speed-comparison-s
 import { EditingFeaturesSection } from "@/components/sections/editing-features-section";
 import { RecordDockSection } from "@/components/sections/record-dock-section";
 import { MacOSDockSection } from "@/components/sections/macos-dock-section";
+import { MailingListSection } from "@/components/sections/mailing-list-section";
 import { HighlightCircle } from "@/components/ui/highlight-circle";
 import { GlassmorphismItem } from "@/components/features/glassmorphism-item";
 
@@ -326,6 +327,8 @@ export default function Home() {
             subtitle="No hidden clauses. No gotchas. Just bokeh."
             items={faqs}
           />
+
+          <MailingListSection />
 
           <CTASection
             title={<>Stop fighting with your <HighlightCircle className="text-inherit"><em className="not-italic">video editor.</em></HighlightCircle></>}
