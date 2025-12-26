@@ -212,6 +212,46 @@ export function HeroSection({
             window.clearTimeout(stopAfter);
         };
     }, [shouldPlay, videoSrc, scrollVideoSrc]);
+
+    useEffect(() => {
+        const hero = heroVideoRef.current;
+        const heroTarget = heroWrapRef.current;
+        if (!hero || !heroTarget) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    hero.muted = true;
+                    hero.defaultMuted = true;
+                    hero.play().catch(() => { });
+                }
+            },
+            { threshold: 0.2 }
+        );
+
+        observer.observe(heroTarget);
+        return () => observer.disconnect();
+    }, [videoSrc]);
+
+    useEffect(() => {
+        const scroll = scrollVideoRef.current;
+        const scrollTarget = workspaceRef.current;
+        if (!scroll || !scrollTarget) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    scroll.muted = true;
+                    scroll.defaultMuted = true;
+                    scroll.play().catch(() => { });
+                }
+            },
+            { threshold: 0.2 }
+        );
+
+        observer.observe(scrollTarget);
+        return () => observer.disconnect();
+    }, [scrollVideoSrc]);
     return (
         <TooltipProvider delayDuration={0}>
             <section
@@ -295,9 +335,24 @@ export function HeroSection({
                         </div>
 
                         <div className="relative w-full max-w-5xl aspect-[2048/1377] max-h-[70vh] self-start -mt-8 sm:-mt-16">
+                            {(videoSrc || heroMp4Fallback) && (
+                                <video
+                                    aria-hidden="true"
+                                    tabIndex={-1}
+                                    className="absolute w-0 h-0 opacity-0 pointer-events-none"
+                                    muted
+                                    playsInline
+                                    autoPlay
+                                    loop
+                                    preload="auto"
+                                >
+                                    {heroMp4Fallback && <source src={heroMp4Fallback} type="video/mp4" />}
+                                    {videoSrc && <source src={videoSrc} type="video/webm" />}
+                                </video>
+                            )}
                             <div
                                 ref={workspaceRef}
-                                className="absolute inset-0 z-10 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] p-2 sm:p-3"
+                                className="absolute inset-0 z-10 opacity-0 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] p-2 sm:p-3"
                             >
                                 {scrollVideoSrc && (
                                     <video
@@ -308,16 +363,21 @@ export function HeroSection({
                                         autoPlay
                                         loop
                                         preload="auto"
-                                        onLoadedMetadata={() => {
-                                            if (shouldPlay) {
-                                                scrollVideoRef.current?.play().catch(() => { });
-                                            }
-                                        }}
-                                        onCanPlay={() => {
-                                            if (shouldPlay) {
-                                                scrollVideoRef.current?.play().catch(() => { });
-                                            }
-                                        }}
+                                            onLoadedMetadata={() => {
+                                                if (shouldPlay) {
+                                                    scrollVideoRef.current?.play().catch(() => { });
+                                                }
+                                            }}
+                                            onCanPlayThrough={() => {
+                                                if (shouldPlay) {
+                                                    scrollVideoRef.current?.play().catch(() => { });
+                                                }
+                                            }}
+                                            onCanPlay={() => {
+                                                if (shouldPlay) {
+                                                    scrollVideoRef.current?.play().catch(() => { });
+                                                }
+                                            }}
                                     >
                                         <source src={scrollVideoSrc} type="video/webm" />
                                         {scrollMp4Fallback && <source src={scrollMp4Fallback} type="video/mp4" />}
@@ -347,15 +407,20 @@ export function HeroSection({
                                             loop
                                             preload="auto"
                                             poster={screenshotSrc}
-                                            onLoadedMetadata={() => {
-                                                if (shouldPlay) {
-                                                    heroVideoRef.current?.play().catch(() => { });
-                                                }
-                                            }}
-                                            onCanPlay={() => {
-                                                if (shouldPlay) {
-                                                    heroVideoRef.current?.play().catch(() => { });
-                                                }
+                                                onLoadedMetadata={() => {
+                                                    if (shouldPlay) {
+                                                        heroVideoRef.current?.play().catch(() => { });
+                                                    }
+                                                }}
+                                                onCanPlayThrough={() => {
+                                                    if (shouldPlay) {
+                                                        heroVideoRef.current?.play().catch(() => { });
+                                                    }
+                                                }}
+                                                onCanPlay={() => {
+                                                    if (shouldPlay) {
+                                                        heroVideoRef.current?.play().catch(() => { });
+                                                    }
                                             }}
                                         >
                                             <source src={videoSrc} type="video/webm" />
