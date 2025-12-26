@@ -110,7 +110,7 @@ function CursorFollowImage({
     return (
         <div
             ref={containerRef}
-            className="relative w-full h-full flex items-center justify-center cursor-none outline-none ring-0 border-none"
+            className="relative w-full h-full flex items-center justify-center outline-none ring-0 border-none"
             onMouseMove={handleMouseMove}
             onMouseEnter={() => setIsInteracting(true)}
             onMouseLeave={handleMouseLeave}

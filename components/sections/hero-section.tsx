@@ -1,20 +1,14 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { HandArrow } from "@/components/ui/hand-arrow";
-
 import Image from "next/image";
 import { Play, ChevronRight } from "lucide-react";
-
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 interface HeroSectionProps {
     className?: string;
@@ -27,6 +21,7 @@ interface HeroSectionProps {
     secondaryCta?: { label: string; href: string };
     screenshotSrc?: string;
     videoSrc?: string;
+    scrollVideoSrc?: string;
     socialProof?: { count: string; label: string };
 }
 
@@ -41,247 +36,339 @@ export function HeroSection({
     secondaryCta,
     screenshotSrc,
     videoSrc,
-    socialProof = { count: "10,000+", label: "people shipping with bokeh" },
+    scrollVideoSrc,
 }: HeroSectionProps) {
+    const [shouldPlay, setShouldPlay] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const pinRef = useRef<HTMLDivElement>(null);
+    const textRef = useRef<HTMLDivElement>(null);
+    const heroWrapRef = useRef<HTMLDivElement>(null);
+    const workspaceRef = useRef<HTMLDivElement>(null);
+    const dockRef = useRef<HTMLDivElement>(null);
+    const heroVideoRef = useRef<HTMLVideoElement>(null);
+    const scrollVideoRef = useRef<HTMLVideoElement>(null);
+    const heroMp4Fallback = videoSrc?.endsWith(".webm")
+        ? videoSrc.replace(/\.webm$/i, ".mp4")
+        : undefined;
+    const scrollMp4Fallback = scrollVideoSrc?.endsWith(".webm")
+        ? scrollVideoSrc.replace(/\.webm$/i, ".mp4")
+        : undefined;
+
+    useLayoutEffect(() => {
+        if (
+            !containerRef.current ||
+            !pinRef.current ||
+            !textRef.current ||
+            !heroWrapRef.current ||
+            !workspaceRef.current ||
+            !dockRef.current
+        ) {
+            return;
+        }
+
+        gsap.registerPlugin(ScrollTrigger);
+
+        let timeline: gsap.core.Timeline | null = null;
+        const initialScale = 1.5;
+
+        const buildTimeline = () => {
+            if (timeline) {
+                timeline.scrollTrigger?.kill();
+                timeline.kill();
+            }
+
+            const hero = heroWrapRef.current as HTMLDivElement;
+            const dock = dockRef.current as HTMLDivElement;
+            const text = textRef.current as HTMLDivElement;
+            const workspace = workspaceRef.current as HTMLDivElement;
+
+            gsap.set(hero, {
+                x: 0,
+                y: "26%",
+                scale: initialScale,
+                transformOrigin: "center center",
+            });
+            gsap.set(text, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" });
+            gsap.set(workspace, { opacity: 0 });
+
+            const heroRect = hero.getBoundingClientRect();
+            const dockRect = dock.getBoundingClientRect();
+
+            const heroCenterX = heroRect.left + heroRect.width / 2;
+            const heroCenterY = heroRect.top + heroRect.height / 2;
+            const dockCenterX = dockRect.left + dockRect.width / 2;
+            const dockCenterY = dockRect.top + dockRect.height / 2;
+
+            const x = dockCenterX - heroCenterX;
+            const y = dockCenterY - heroCenterY;
+            const scale = dockRect.width / heroRect.width;
+
+            timeline = gsap.timeline({
+                scrollTrigger: {
+                    trigger: containerRef.current,
+                    start: "top top",
+                    end: "bottom top",
+                    scrub: true,
+                    pin: pinRef.current,
+                    anticipatePin: 1,
+                    pinSpacing: true,
+                },
+            });
+
+            timeline.to(
+                text,
+                { opacity: 0, y: 24, scale: 0.95, filter: "blur(10px)", duration: 0.25, ease: "none" },
+                0
+            );
+            timeline.to(workspace, { opacity: 1, duration: 0.35, ease: "none" }, 0.1);
+            timeline.to(hero, { x, y, scale, duration: 1, ease: "none" }, 0);
+        };
+
+        buildTimeline();
+
+        const refreshHandler = () => buildTimeline();
+        ScrollTrigger.addEventListener("refreshInit", refreshHandler);
+
+        const resizeHandler = () => ScrollTrigger.refresh();
+        window.addEventListener("resize", resizeHandler);
+
+        const observer = new ResizeObserver(() => {
+            buildTimeline();
+            ScrollTrigger.refresh();
+        });
+        observer.observe(containerRef.current);
+        observer.observe(pinRef.current);
+        observer.observe(workspaceRef.current);
+
+        return () => {
+            window.removeEventListener("resize", resizeHandler);
+            ScrollTrigger.removeEventListener("refreshInit", refreshHandler);
+            if (timeline) {
+                timeline.scrollTrigger?.kill();
+                timeline.kill();
+            }
+            observer.disconnect();
+        };
+    }, [videoSrc, scrollVideoSrc]);
+
+    useEffect(() => {
+        const onInteract = () => setShouldPlay(true);
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") {
+                setShouldPlay(true);
+            }
+        };
+        const id = window.setTimeout(() => setShouldPlay(true), 80);
+        window.addEventListener("pointerdown", onInteract, { once: true });
+        window.addEventListener("touchstart", onInteract, { once: true });
+        window.addEventListener("focus", onVisibility);
+        window.addEventListener("pageshow", onVisibility);
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => {
+            window.clearTimeout(id);
+            window.removeEventListener("pointerdown", onInteract);
+            window.removeEventListener("touchstart", onInteract);
+            window.removeEventListener("focus", onVisibility);
+            window.removeEventListener("pageshow", onVisibility);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!shouldPlay) return;
+        const kickstart = (video: HTMLVideoElement | null) => {
+            if (!video) return;
+            video.muted = true;
+            video.defaultMuted = true;
+            video.playsInline = true;
+            video.setAttribute("muted", "");
+            video.setAttribute("playsinline", "");
+            try {
+                video.load();
+            } catch {
+                // Ignore load errors; play will still be attempted below.
+            }
+            const playPromise = video.play();
+            if (playPromise !== undefined) playPromise.catch(() => { });
+        };
+        kickstart(heroVideoRef.current);
+        kickstart(scrollVideoRef.current);
+
+        const retryInterval = window.setInterval(() => {
+            const hero = heroVideoRef.current;
+            const scroll = scrollVideoRef.current;
+            if (hero && !hero.paused) return;
+            if (scroll && !scroll.paused) return;
+            kickstart(hero);
+            kickstart(scroll);
+        }, 500);
+
+        const stopAfter = window.setTimeout(() => {
+            window.clearInterval(retryInterval);
+        }, 4000);
+
+        return () => {
+            window.clearInterval(retryInterval);
+            window.clearTimeout(stopAfter);
+        };
+    }, [shouldPlay, videoSrc, scrollVideoSrc]);
     return (
         <TooltipProvider delayDuration={0}>
             <section
-                className={cn(
-                    "relative flex flex-col items-center overflow-hidden",
-                    "pt-26 sm:pt-30 md:pt-34 lg:pt-56 pb-16 sm:pb-20 lg:pb-24 px-4 sm:px-6",
-                    className
-                )}
+                ref={containerRef}
+                className={cn("relative min-h-[300vh] w-full", className)}
             >
-                {/* Texture Cloud Background */}
-                <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none sticky top-0">
-                    {/* Noise Texture - more subtle on mobile */}
-                    <div
-                        className="absolute inset-0 z-20 opacity-[0.03] sm:opacity-[0.05] mix-blend-multiply"
-                        style={{
-                            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='1'/%3E%3C/svg%3E")`,
-                        }}
-                    />
-
-                    {/* Gradient Clouds - positioned at edges, pushed further out on mobile */}
-                    <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[200%] sm:w-[140%] h-[100%]">
-                        {/* Center bright cloud - softer on mobile */}
-                        <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[50%] sm:w-[70%] h-[50%] sm:h-[60%] rounded-[50%] bg-slate-100/60 sm:bg-[#F0F4FF] blur-[80px] sm:blur-[100px]" />
-
-                        {/* Left soft warm cloud - pushed further left on mobile */}
-                        <div className="absolute top-[0%] -left-[15%] sm:left-[10%] w-[45%] sm:w-[60%] h-[60%] sm:h-[70%] rounded-[50%] bg-gradient-to-br from-indigo-300/15 sm:from-indigo-300/30 to-purple-300/15 sm:to-purple-300/30 blur-[100px] sm:blur-[130px]" />
-
-                        {/* Right soft cool cloud - pushed further right on mobile */}
-                        <div className="absolute top-[5%] -right-[15%] sm:right-[5%] w-[45%] sm:w-[60%] h-[60%] sm:h-[70%] rounded-[50%] bg-gradient-to-bl from-blue-300/15 sm:from-blue-300/30 to-cyan-300/15 sm:to-cyan-300/30 blur-[100px] sm:blur-[130px]" />
-
-                        {/* Bottom fade out mask */}
-                        <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-white via-white/90 to-transparent" />
-                    </div>
-                </div>
-
-
-                <div className="relative z-20 mx-auto max-w-4xl text-center flex flex-col items-center">
-                    {brandMarkSrc && (
-                        <motion.div
-                            className="mb-2 flex justify-center hover:scale-105 transition-all duration-300 hover:rotate-4"
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.05, ease: [0.22, 1, 0.36, 1] }}
-                            style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
+                <div ref={pinRef} className="relative h-screen w-full bg-background">
+                    <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
+                        <div
+                            ref={textRef}
+                            className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-20"
                         >
-                            <Image
-                                src={brandMarkSrc}
-                                alt={brandMarkAlt}
-                                width={160}
-                                height={48}
-                                className="h-11 w-auto drop-shadow-sm rounded-xl"
-                                priority
-                            />
-                        </motion.div>
-                    )}
+                            {/* Brand Mark */}
+                            {brandMarkSrc && (
+                                <div className="flex justify-center">
+                                    <Image
+                                        src={brandMarkSrc}
+                                        alt={brandMarkAlt}
+                                        width={160}
+                                        height={48}
+                                        className="h-9 w-auto rounded-xl sm:h-12"
+                                        priority
+                                    />
+                                </div>
+                            )}
 
-                    {/* Badge */}
-                    {badge && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                            className="relative inline-block"
-                            style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
-                        >
-                            <Badge
-                                variant="outline"
-                                className="mb-2 backdrop-blur border-violet-100"
+                            {/* Badge */}
+                            {badge && (
+                                <div>
+                                    <Badge variant="outline" className="px-3 py-1 text-xs sm:text-sm sm:px-4 sm:py-1.5 font-medium rounded-full border-border/50 backdrop-blur-sm bg-background/50 text-foreground">
+                                        {badge}
+                                    </Badge>
+                                </div>
+                            )}
+
+                            {/* Title */}
+                            <h1
+                                className={cn(
+                                    "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[1.02] text-foreground",
+                                    "text-balance font-[family-name:var(--font-geist-sans)]",
+                                    "[&_em]:italic [&_em]:font-medium [&_em]:text-primary [&_em]:font-[family-name:var(--font-display)]"
+                                )}
                             >
-                                {badge}
-                            </Badge>
-                        </motion.div>
-                    )}
+                                {title}
+                            </h1>
 
-                    {/* Title */}
-                    <motion.h1
-                        className={cn(
-                            "text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.02] text-foreground mb-6",
-                            "tracking-[-0.02em] [text-wrap:balance] font-[family-name:var(--font-display)]",
-                            "[&_em]:italic [&_em]:font-medium [&_em]:text-primary"
-                        )}
-                        initial={{ opacity: 0, y: 30 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
-                    >
-                        {title}
-                    </motion.h1>
+                            {/* Subtitle */}
+                            <p className="text-[clamp(0.85rem,2vw,1.05rem)] text-muted-foreground max-w-2xl mx-auto leading-snug text-balance tracking-[-0.012em]">
+                                {subtitle}
+                            </p>
 
-                    <motion.p
-                        className="text-lg md:text-xl text-slate-400 max-w-3xl mx-auto mb-10 leading-relaxed text-balance"
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
-                    >
-                        {subtitle}
-                    </motion.p>
-
-                    {/* CTAs - Apple-style buttons */}
-                    <motion.div
-                        className="flex flex-row items-center justify-center gap-2 sm:gap-4 mb-4"
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
-                    >
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <div className="relative cursor-not-allowed opacity-80">
+                            {/* CTAs */}
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
+                                <div className="hidden sm:block">
                                     <Button
                                         size="lg"
-                                        className={cn(
-                                            "rounded-full px-4 py-4 sm:px-8 sm:py-6 text-sm sm:text-base font-medium",
-                                            "bg-primary text-primary-foreground",
-                                            "shadow-[var(--shadow-lg)]",
-                                            "pointer-events-none"
-                                        )}
+                                        className="rounded-full h-10 px-6 text-[14px] font-medium shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] sm:h-12 sm:px-8 sm:text-[15px]"
+                                        asChild
                                     >
-                                        <span className="gap-1 flex items-center">
-                                            {primaryCta.label}
-                                            <ChevronRight className="w-4 h-4" />
-                                        </span>
+                                        <a href={primaryCta.href}>
+                                            <span className="flex items-center gap-2">
+                                                {primaryCta.label} <ChevronRight className="w-4 h-4 opacity-70" />
+                                            </span>
+                                        </a>
                                     </Button>
-                                    <div className="absolute -top-8 -left-20 hidden md:block pointer-events-none">
-                                        <HandArrow
-                                            direction="down-right"
-                                            size="md"
-                                            delay={0.6}
-                                            className="text-foreground/20 rotate-[300deg] scale-x-[-1]"
-                                        />
-                                    </div>
                                 </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Coming Soon</p>
-                            </TooltipContent>
-                        </Tooltip>
-
-                        {secondaryCta && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div className="cursor-not-allowed opacity-80">
-                                        <Button
-                                            variant="ghost"
-                                            size="lg"
-                                            className="rounded-full px-4 py-4 sm:px-8 sm:py-6 text-sm sm:text-base text-foreground/80 gap-2 pointer-events-none"
-                                        >
-                                            <Play className="w-4 h-4 fill-current" />
+                                {secondaryCta && (
+                                    <Button
+                                        variant="ghost"
+                                        size="lg"
+                                        className="rounded-full h-10 px-6 text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 transition-all duration-300 sm:h-12 sm:px-8 sm:text-[15px]"
+                                        asChild
+                                    >
+                                        <a href={secondaryCta.href}>
+                                            <Play className="w-3.5 h-3.5 mr-2 fill-current opacity-80" />
                                             {secondaryCta.label}
-                                        </Button>
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Coming Soon</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        )}
-                    </motion.div>
-
-                    {/* Free trial text */}
-                    <motion.p
-                        className="text-sm text-muted-foreground/60 mb-8 sm:mb-10 lg:mb-12"
-                        initial={{ opacity: 0 }}
-                        whileInView={{ opacity: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.5, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ willChange: 'opacity', transform: 'translateZ(0)' }}
-                    >
-                        Free trial • No credit card required
-                    </motion.p>
-                </div>
-
-                {(screenshotSrc || videoSrc) && (
-                    <motion.div
-                        className="relative w-full max-w-6xl mx-auto px-4 sm:px-6 mt-4 sm:mt-6"
-                        initial={{ opacity: 0, y: 40, scale: 0.98 }}
-                        whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.6, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
-                    >
-                        {/* Glow effect behind the frame */}
-                        <div
-                            className="absolute inset-0 -z-10 rounded-2xl blur-2xl opacity-20"
-                        />
-                        {/* Native App Window Frame - No Header, Glass Border */}
-                        <div className="relative rounded-lg sm:rounded-xl border border-slate-200/60 bg-slate-900/5 backdrop-blur-sm shadow-[0_20px_60px_rgba(15,23,42,0.12),0_8px_24px_rgba(15,23,42,0.06)] overflow-hidden p-1.5 sm:p-2 md:p-3">
-                            {/* Window Content */}
-                            <div className="relative rounded-md sm:rounded-lg overflow-hidden border border-black/5 shadow-sm">
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <div className="relative cursor-not-allowed">
-                                            {videoSrc ? (
-                                                <video
-                                                    autoPlay
-                                                    loop
-                                                    muted
-                                                    playsInline
-                                                    poster={screenshotSrc}
-                                                    className="w-full h-auto opacity-100 block"
-                                                >
-                                                    <source src={videoSrc} type="video/webm" />
-                                                    {screenshotSrc && (
-                                                        <Image
-                                                            src={screenshotSrc}
-                                                            alt="App screenshot"
-                                                            width={1920}
-                                                            height={1216}
-                                                            className="w-full h-auto opacity-100 block"
-                                                            priority
-                                                        />
-                                                    )}
-                                                </video>
-                                            ) : (
-                                                <Image
-                                                    src={screenshotSrc!}
-                                                    alt="App screenshot"
-                                                    width={1920}
-                                                    height={1216}
-                                                    className="w-full h-auto opacity-100 block"
-                                                    priority
-                                                />
-                                            )}
-                                        </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>Coming Soon</p>
-                                    </TooltipContent>
-                                </Tooltip>
+                                        </a>
+                                    </Button>
+                                )}
                             </div>
                         </div>
-                    </motion.div>
-                )}
+
+                        <div className="relative w-full max-w-5xl aspect-[2048/1377] max-h-[70vh] self-start -mt-4">
+                            <div
+                                ref={workspaceRef}
+                                className="absolute inset-0 z-10 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] p-2 sm:p-3"
+                            >
+                                {scrollVideoSrc && (
+                                    <video
+                                        ref={scrollVideoRef}
+                                        className="h-full w-full rounded-lg object-cover"
+                                        muted
+                                        playsInline
+                                        autoPlay
+                                        loop
+                                        preload="auto"
+                                        onLoadedMetadata={() => {
+                                            if (shouldPlay) {
+                                                scrollVideoRef.current?.play().catch(() => { });
+                                            }
+                                        }}
+                                        onCanPlay={() => {
+                                            if (shouldPlay) {
+                                                scrollVideoRef.current?.play().catch(() => { });
+                                            }
+                                        }}
+                                    >
+                                        <source src={scrollVideoSrc} type="video/webm" />
+                                        {scrollMp4Fallback && <source src={scrollMp4Fallback} type="video/mp4" />}
+                                    </video>
+                                )}
+                            </div>
+
+                            {/* Dock Target (invisible) */}
+                            <div
+                                ref={dockRef}
+                                className="absolute left-[-1%] top-[11.5%] w-[81.2%] aspect-[337/270] pointer-events-none"
+                            />
+
+                            {/* 2. HERO FOREGROUND (Visible initially) */}
+                            <div className="absolute inset-0 z-20 flex items-center justify-center">
+                                <div
+                                    ref={heroWrapRef}
+                                    className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5"
+                                >
+                                    {videoSrc ? (
+                                        <video
+                                            ref={heroVideoRef}
+                                            className="h-full w-full rounded-lg object-cover"
+                                            muted
+                                            playsInline
+                                            autoPlay
+                                            loop
+                                            preload="auto"
+                                            poster={screenshotSrc}
+                                            onLoadedMetadata={() => {
+                                                if (shouldPlay) {
+                                                    heroVideoRef.current?.play().catch(() => { });
+                                                }
+                                            }}
+                                            onCanPlay={() => {
+                                                if (shouldPlay) {
+                                                    heroVideoRef.current?.play().catch(() => { });
+                                                }
+                                            }}
+                                        >
+                                            <source src={videoSrc} type="video/webm" />
+                                            {heroMp4Fallback && <source src={heroMp4Fallback} type="video/mp4" />}
+                                        </video>
+                                    ) : (
+                                        screenshotSrc && <Image src={screenshotSrc} alt="Hero" fill className="object-cover" />
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
         </TooltipProvider>
     );

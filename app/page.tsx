@@ -254,7 +254,8 @@ export default function Home() {
             primaryCta={{ label: "Download", href: "/download" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
             screenshotSrc="/hero.png"
-            videoSrc="/hero.webm"
+            videoSrc="/hero/hero_export.webm"
+            scrollVideoSrc="/hero/recording_workspace.webm"
             socialProof={{ count: "10,000+", label: "people shipping with bokeh" }}
           />
 
