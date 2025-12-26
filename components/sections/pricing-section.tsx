@@ -64,9 +64,9 @@ const PricingSection: React.FC = () => {
   }
 
   return (
-    <section id="pricing" className="relative w-full py-24 md:py-32 overflow-hidden">
+    <section id="pricing" className="relative w-full py-16 sm:py-24 md:py-32 overflow-hidden">
       <SectionBackdrop variant="dots" texture fade="all" className="opacity-50" />
-      <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-6 text-center">
+      <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 sm:px-6 text-center">
         {/* Section badge */}
         <motion.p
           className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400"
@@ -131,7 +131,7 @@ const PricingSection: React.FC = () => {
 
         {/* Subtitle - improved typography */}
         <motion.p
-          className="mt-5 max-w-xl text-pretty text-[17px] leading-relaxed text-gray-500 font-light"
+          className="mt-4 sm:mt-5 max-w-xl text-pretty text-[15px] sm:text-[17px] leading-relaxed text-gray-500 font-light"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
@@ -143,7 +143,7 @@ const PricingSection: React.FC = () => {
 
         {/* Billing Toggle - Neumorphic Style */}
         <motion.div
-          className="mt-6 flex justify-center"
+          className="mt-5 sm:mt-6 flex justify-center"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
@@ -179,7 +179,7 @@ const PricingSection: React.FC = () => {
         </motion.div>
 
         {/* Content Container */}
-        <div className="mt-8 w-full" style={{ minHeight: 500 }}>
+        <div className="mt-6 sm:mt-8 w-full" style={{ minHeight: 480 }}>
           <AnimatePresence mode="wait" initial={false}>
             {activeTab === 'individuals' ? (
               <motion.div
@@ -188,7 +188,7 @@ const PricingSection: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.25, ease: [0.21, 0.47, 0.32, 0.98] }}
-                className="grid w-full gap-8 sm:grid-cols-2 lg:grid-cols-3"
+                className="grid w-full gap-4 sm:gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-3"
               >
                 {pricingPlans.map((plan, index) => (
                   <GlassCard
@@ -201,7 +201,7 @@ const PricingSection: React.FC = () => {
                     viewport={{ once: true, margin: "-60px" }}
                     transition={{ duration: 0.5, delay: index * 0.08, ease: [0.21, 0.47, 0.32, 0.98] }}
                     className={cn(
-                      "relative flex flex-col rounded-[32px] px-8 py-9 text-left overflow-hidden",
+                      "relative flex flex-col rounded-[24px] sm:rounded-[32px] px-5 py-6 sm:px-8 sm:py-9 text-left overflow-hidden",
                       "transition-all duration-300 ease-out will-change-transform",
                       plan.highlight
                         ? "border-violet-200/50 bg-gradient-to-b from-violet-50/40 to-white shadow-[0_2px_16px_rgba(139,92,246,0.06),0_8px_32px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_24px_rgba(139,92,246,0.1),0_12px_40px_rgba(0,0,0,0.06)]"
@@ -210,7 +210,7 @@ const PricingSection: React.FC = () => {
                   >
                     {/* Coming Soon Overlay */}
                     {plan.comingSoon && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[32px] overflow-hidden">
+                      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] sm:rounded-[32px] overflow-hidden">
                         <div className="absolute inset-0 backdrop-blur-[2px] bg-slate-100/50" />
                         <motion.span
                           className="relative z-20 rounded-full bg-slate-100 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 shadow-[-4px_-4px_8px_rgba(255,255,255,0.9),4px_4px_8px_rgba(0,0,0,0.1)]"
@@ -224,8 +224,8 @@ const PricingSection: React.FC = () => {
                     )}
 
                     {/* Plan header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-[17px] font-bold tracking-[-0.01em] text-gray-800">
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
+                      <h3 className="text-[15px] sm:text-[17px] font-bold tracking-[-0.01em] text-gray-800">
                         {plan.name}
                       </h3>
                       {plan.highlight && !plan.comingSoon && (
@@ -236,22 +236,22 @@ const PricingSection: React.FC = () => {
                     </div>
 
                     {/* Description */}
-                    <p className="min-h-[40px] text-[14px] leading-relaxed text-gray-500">
+                    <p className="min-h-[36px] sm:min-h-[40px] text-[13px] sm:text-[14px] leading-relaxed text-gray-500">
                       {plan.description}
                     </p>
 
                     {/* Price */}
-                    <div className="mt-8 mb-8">
+                    <div className="mt-5 mb-5 sm:mt-8 sm:mb-8">
                       <div className="flex items-baseline gap-1">
                         <span className={cn(
                           "font-bold tracking-[-0.03em] text-gray-900",
-                          plan.comingSoon ? "text-[28px]" : "text-[42px]"
+                          plan.comingSoon ? "text-[24px] sm:text-[28px]" : "text-[36px] sm:text-[42px]"
                         )}>
                           {/* Use dynamic pricing for Pro plan */}
                           {plan.name === "Pro" ? getProPrice() : plan.price}
                         </span>
                         {(plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix) && (
-                          <span className="text-[14px] font-medium text-gray-400 ml-1">
+                          <span className="text-[12px] sm:text-[14px] font-medium text-gray-400 ml-1">
                             {plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix}
                           </span>
                         )}
@@ -266,11 +266,11 @@ const PricingSection: React.FC = () => {
                     </div>
 
                     {/* CTA button */}
-                    <div className="mb-8">
+                    <div className="mb-5 sm:mb-8">
                       <NeumorphicButton
                         disabled={plan.comingSoon || plan.disabled}
                         className={cn(
-                          "w-full py-3.5 text-[14px] font-semibold",
+                          "w-full py-3 sm:py-3.5 text-[13px] sm:text-[14px] font-semibold",
                           (plan.comingSoon || plan.disabled)
                             ? "opacity-60 cursor-not-allowed"
                             : "",
@@ -284,24 +284,24 @@ const PricingSection: React.FC = () => {
                     </div>
 
                     {/* Features list */}
-                    <div className="flex-1 space-y-4">
+                    <div className="flex-1 space-y-3 sm:space-y-4">
                       {plan.features.map((feature) => (
-                        <div key={feature} className="flex items-start gap-3">
-                          <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 shadow-[-2px_-2px_4px_rgba(255,255,255,0.9),2px_2px_4px_rgba(0,0,0,0.1)]">
-                            <Check className="h-3 w-3 text-emerald-500" strokeWidth={3} />
+                        <div key={feature} className="flex items-start gap-2.5 sm:gap-3">
+                          <span className="mt-0.5 flex h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 shadow-[-2px_-2px_4px_rgba(255,255,255,0.9),2px_2px_4px_rgba(0,0,0,0.1)]">
+                            <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" strokeWidth={3} />
                           </span>
-                          <span className="text-[14px] leading-snug text-gray-600">
+                          <span className="text-[13px] sm:text-[14px] leading-snug text-gray-600">
                             {feature}
                           </span>
                         </div>
                       ))}
                       {/* Limitations list - styled differently */}
                       {plan.limitations?.map((limitation) => (
-                        <div key={limitation} className="flex items-start gap-3">
-                          <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-100/60 shadow-[-1px_-1px_3px_rgba(255,255,255,0.7),1px_1px_3px_rgba(0,0,0,0.05)]">
-                            <Info className="h-3 w-3 text-gray-400" strokeWidth={2.5} />
+                        <div key={limitation} className="flex items-start gap-2.5 sm:gap-3">
+                          <span className="mt-0.5 flex h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-100/60 shadow-[-1px_-1px_3px_rgba(255,255,255,0.7),1px_1px_3px_rgba(0,0,0,0.05)]">
+                            <Info className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-gray-400" strokeWidth={2.5} />
                           </span>
-                          <span className="text-[14px] leading-snug text-gray-400 italic">
+                          <span className="text-[13px] sm:text-[14px] leading-snug text-gray-400 italic">
                             {limitation}
                           </span>
                         </div>
@@ -368,7 +368,7 @@ const PricingSection: React.FC = () => {
 
         {/* Bottom philosophy tagline */}
         <motion.div
-          className="mt-10 flex flex-col items-center gap-3"
+          className="mt-10 flex flex-col items-center gap-1"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
