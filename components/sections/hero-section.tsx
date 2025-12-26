@@ -213,6 +213,25 @@ export function HeroSection({
         };
     }, [shouldPlay, videoSrc, scrollVideoSrc]);
 
+    const syncVideos = () => {
+        const hero = heroVideoRef.current;
+        const scroll = scrollVideoRef.current;
+        if (!hero || !scroll) return;
+
+        if (Math.abs(scroll.currentTime - hero.currentTime) > 0.12) {
+            scroll.currentTime = hero.currentTime;
+        }
+
+        if (shouldPlay) {
+            if (hero.paused) {
+                hero.play().catch(() => { });
+            }
+            if (scroll.paused) {
+                scroll.play().catch(() => { });
+            }
+        }
+    };
+
     useEffect(() => {
         const hero = heroVideoRef.current;
         const heroTarget = heroWrapRef.current;
@@ -363,11 +382,13 @@ export function HeroSection({
                                         autoPlay
                                         loop
                                         preload="auto"
-                                            onLoadedMetadata={() => {
-                                                if (shouldPlay) {
-                                                    scrollVideoRef.current?.play().catch(() => { });
-                                                }
-                                            }}
+                                        onPlay={syncVideos}
+                                        onTimeUpdate={syncVideos}
+                                        onLoadedMetadata={() => {
+                                            if (shouldPlay) {
+                                                scrollVideoRef.current?.play().catch(() => { });
+                                            }
+                                        }}
                                             onCanPlayThrough={() => {
                                                 if (shouldPlay) {
                                                     scrollVideoRef.current?.play().catch(() => { });
@@ -393,20 +414,22 @@ export function HeroSection({
 
                             {/* 2. HERO FOREGROUND (Visible initially) */}
                             <div className="absolute inset-0 z-20 flex items-center justify-center">
-                                <div
-                                    ref={heroWrapRef}
-                                    className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5"
-                                >
-                                    {videoSrc ? (
-                                        <video
-                                            ref={heroVideoRef}
-                                            className="h-full w-full rounded-lg object-cover"
-                                            muted
-                                            playsInline
-                                            autoPlay
-                                            loop
-                                            preload="auto"
-                                            poster={screenshotSrc}
+                                    <div
+                                        ref={heroWrapRef}
+                                        className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5"
+                                    >
+                                        {videoSrc ? (
+                                            <video
+                                                ref={heroVideoRef}
+                                                className="h-full w-full rounded-lg object-cover"
+                                                muted
+                                                playsInline
+                                                autoPlay
+                                                loop
+                                                preload="auto"
+                                                poster={screenshotSrc}
+                                                onPlay={syncVideos}
+                                                onTimeUpdate={syncVideos}
                                                 onLoadedMetadata={() => {
                                                     if (shouldPlay) {
                                                         heroVideoRef.current?.play().catch(() => { });
