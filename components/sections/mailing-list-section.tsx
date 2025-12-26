@@ -105,14 +105,8 @@ export function MailingListSection({ className }: MailingListSectionProps) {
 
             {/* Right column: Form card */}
             <div className="rounded-[20px] sm:rounded-[28px] bg-slate-100 p-5 sm:p-7 shadow-[-8px_-8px_20px_rgba(255,255,255,0.95),8px_8px_20px_rgba(0,0,0,0.08)] sm:shadow-[-10px_-10px_24px_rgba(255,255,255,0.95),10px_10px_24px_rgba(0,0,0,0.1)]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Stay in the loop
-              </p>
-              <p className="mt-1.5 text-xl sm:text-2xl font-semibold text-slate-900 tracking-[-0.02em]">
-                Get notified.
-              </p>
 
-              <form onSubmit={handleSubmit} noValidate className="mt-4 sm:mt-6 space-y-3 sm:space-y-4">
+              <form onSubmit={handleSubmit} noValidate className="space-y-3 sm:space-y-4">
                 <div>
                   <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 mb-2 block">
                     Email
@@ -153,7 +147,7 @@ export function MailingListSection({ className }: MailingListSectionProps) {
               <p className="mt-3 sm:mt-4 text-[12px] sm:text-[13px] text-slate-400 min-h-[18px]" aria-live="polite">
                 {status === "success" && <span className="text-emerald-600">{message}</span>}
                 {status === "error" && <span className="text-rose-500">{message}</span>}
-                {status === "idle" && "Infrequent, considered, unsubscribe anytime."}
+                {status === "idle" && "No spam. Just the best updates, infrequently."}
               </p>
 
               <p className="mt-4 sm:mt-5 text-[10px] sm:text-[11px] text-slate-400">
@@ -169,4 +163,3 @@ export function MailingListSection({ className }: MailingListSectionProps) {
     </section>
   );
 }
-
