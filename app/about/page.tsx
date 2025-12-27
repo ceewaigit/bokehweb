@@ -76,7 +76,7 @@ export default function AboutPage() {
                         </svg>
                         Back home
                     </Link>
-                    <h1 className="text-4xl font-semibold tracking-[-0.02em] leading-[1.05] font-[family-name:var(--font-display)] text-slate-900 sm:text-6xl sm:leading-[1.02] mb-6 text-balance">
+                    <h1 className="text-4xl font-semibold text-slate-900 sm:text-6xl sm:leading-[1.02] mb-6 text-balance page-title">
                         Screen recordings that feel calm, <Highlighter action="highlight" style="clean" color="#fde047">clear,</Highlighter> and{" "}
                         <em className="font-[family-name:var(--font-display)] italic not-italic sm:italic text-slate-800">complete</em>.
                     </h1>

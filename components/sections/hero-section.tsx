@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import { Play, ChevronRight } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -47,6 +47,7 @@ export function HeroSection({
     const dockRef = useRef<HTMLDivElement>(null);
     const heroVideoRef = useRef<HTMLVideoElement>(null);
     const scrollVideoRef = useRef<HTMLVideoElement>(null);
+    const [heroVisualReady, setHeroVisualReady] = useState(false);
     const readyRef = useRef({ hero: false, scroll: false });
     const startedRef = useRef(false);
     const heroStartedRef = useRef(false);
@@ -87,16 +88,18 @@ export function HeroSection({
 
             gsap.set(hero, {
                 x: 0,
-                y: "26%",
+                y: 0,
                 scale: initialScale,
                 transformOrigin: "center center",
                 force3D: true,
+                willChange: "transform",
             });
             gsap.set(text, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", force3D: true });
-            gsap.set(workspace, { opacity: 0, force3D: true });
+            gsap.set(workspace, { opacity: 0, force3D: true, willChange: "opacity" });
 
             const heroRect = hero.getBoundingClientRect();
             const dockRect = dock.getBoundingClientRect();
+            const textRect = text.getBoundingClientRect();
 
             const heroCenterX = heroRect.left + heroRect.width / 2;
             const heroCenterY = heroRect.top + heroRect.height / 2;
@@ -106,13 +109,15 @@ export function HeroSection({
             const x = dockCenterX - heroCenterX;
             const y = dockCenterY - heroCenterY;
             const scale = dockRect.width / heroRect.width;
+            const startGap = 32;
+            const startY = textRect.bottom + startGap - heroRect.top;
 
             timeline = gsap.timeline({
                 scrollTrigger: {
                     trigger: containerRef.current,
                     start: "top top",
                     end: "bottom top",
-                    scrub: 0.8, // Smoother scroll-linked animation, reduces halting
+                    scrub: 0.8,
                     pin: pinRef.current,
                     anticipatePin: 1,
                     pinSpacing: true,
@@ -120,13 +125,19 @@ export function HeroSection({
                 },
             });
 
+            gsap.set(hero, { y: startY });
+            timeline.to(hero, { y: 0, duration: 0.3, ease: "none" }, 0);
             timeline.to(
                 text,
                 { opacity: 0, y: 24, scale: 0.95, filter: "blur(10px)", duration: 0.25, ease: "none" },
                 0
             );
-            timeline.to(workspace, { opacity: 1, duration: 0.35, ease: "none" }, 0.1);
-            timeline.to(hero, { x, y, scale, duration: 1, ease: "none" }, 0);
+            const dockDuration = 0.7;
+            const dockHold = 0.3;
+
+            timeline.to(workspace, { opacity: 1, duration: 0.35, ease: "none" }, 0.15);
+            timeline.to(hero, { x, y, scale, duration: dockDuration, ease: "none" }, 0.45);
+            timeline.to(hero, { x, y, scale, duration: dockHold, ease: "none" }, 0.45 + dockDuration);
         };
 
         buildTimeline();
@@ -134,7 +145,6 @@ export function HeroSection({
         const refreshHandler = () => buildTimeline();
         ScrollTrigger.addEventListener("refreshInit", refreshHandler);
 
-        // Debounced resize handler for better performance
         let resizeTimeout: NodeJS.Timeout;
         const resizeHandler = () => {
             clearTimeout(resizeTimeout);
@@ -159,6 +169,7 @@ export function HeroSection({
         readyRef.current = { hero: false, scroll: false };
         startedRef.current = false;
         heroStartedRef.current = false;
+        setHeroVisualReady(false);
     }, [videoSrc, scrollVideoSrc]);
 
     useEffect(() => {
@@ -213,7 +224,6 @@ export function HeroSection({
                             ref={textRef}
                             className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[14vh] sm:mt-[10vh] md:mt-[8vh] mb-[0vh] sm:mb-[2vh]"
                         >
-                            {/* Brand Mark */}
                             {brandMarkSrc && (
                                 <div className="flex justify-center">
                                     <Image
@@ -227,7 +237,6 @@ export function HeroSection({
                                 </div>
                             )}
 
-                            {/* Badge */}
                             {badge && (
                                 <div>
                                     <Badge variant="outline" className="px-3 py-1 text-xs sm:text-xs sm:px-3 sm:py-1 font-medium rounded-fullbackdrop-blur-sm bg-background/50 text-foreground">
@@ -236,7 +245,6 @@ export function HeroSection({
                                 </div>
                             )}
 
-                            {/* Title */}
                             <h1
                                 className={cn(
                                     "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[1.1] tracking-[-0.04em] text-foreground",
@@ -247,12 +255,10 @@ export function HeroSection({
                                 {title}
                             </h1>
 
-                            {/* Subtitle */}
                             <p className="text-[clamp(0.85rem,2vw,1.05rem)] text-muted-foreground max-w-2xl mx-auto leading-snug text-balance tracking-[-0.012em]">
                                 {subtitle} <Highlighter action="underline" style="clean" color="#cbd5e1" delay={800}>intentionality</Highlighter> that most tools miss.
                             </p>
 
-                            {/* CTAs */}
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-[1vh]">
                                 <Button
                                     size="lg"
@@ -283,7 +289,7 @@ export function HeroSection({
                             </div>
                         </div>
 
-                        <div className="relative w-full max-w-[90%] sm:max-w-[65%] md:max-w-[60%] lg:max-w-5xl aspect-[2048/1377] self-start -mt-8 md:-mt-12 sm:-mt-16">
+                        <div className="absolute left-1/2 top-1/2 w-full max-w-[90%] sm:max-w-[65%] md:max-w-[60%] lg:max-w-5xl aspect-[2048/1377] -translate-x-1/2 -translate-y-1/2">
                             <div
                                 ref={workspaceRef}
                                 className="absolute inset-0 z-10 opacity-0 rounded-lg bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] overflow-hidden"
@@ -292,6 +298,7 @@ export function HeroSection({
                                     <video
                                         ref={scrollVideoRef}
                                         className="h-full w-full rounded-lg object-cover"
+                                        style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
                                         muted
                                         playsInline
                                         preload="metadata"
@@ -306,22 +313,37 @@ export function HeroSection({
                                 )}
                             </div>
 
-                            {/* Dock Target (invisible) */}
                             <div
                                 ref={dockRef}
-                                className="absolute left-[-1%] top-[11.5%] w-[81.2%] aspect-[337/270] pointer-events-none"
+                                className="absolute left-[-1%] top-[-7.7%] w-[81.2%] aspect-[337/270] pointer-events-none"
                             />
 
-                            {/* 2. HERO FOREGROUND (Visible initially) */}
                             <div className="absolute inset-0 z-20 flex items-center justify-center">
                                 <div
                                     ref={heroWrapRef}
                                     className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5"
                                 >
+                                    {!heroVisualReady && (
+                                        <div className="absolute inset-0 z-10">
+                                            {screenshotSrc && (
+                                                <Image
+                                                    src={screenshotSrc}
+                                                    alt="Hero preview"
+                                                    fill
+                                                    className="object-cover blur-md scale-[1.03]"
+                                                />
+                                            )}
+                                            <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/60 via-white/25 to-white/50" />
+                                        </div>
+                                    )}
                                     {videoSrc ? (
                                         <video
                                             ref={heroVideoRef}
-                                            className="h-full w-full rounded-lg object-cover"
+                                            className={cn(
+                                                "h-full w-full rounded-lg object-cover transition-opacity duration-300",
+                                                heroVisualReady ? "opacity-100" : "opacity-0"
+                                            )}
+                                            style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
                                             muted
                                             playsInline
                                             preload="metadata"
@@ -332,6 +354,7 @@ export function HeroSection({
                                                 readyRef.current.hero = true;
                                                 startHeroPlayback();
                                             }}
+                                            onLoadedData={() => setHeroVisualReady(true)}
                                         >
                                             <source src={videoSrc} type="video/webm" />
                                             {heroMp4Fallback && <source src={heroMp4Fallback} type="video/mp4" />}

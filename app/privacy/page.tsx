@@ -14,7 +14,7 @@ export default function PrivacyPage() {
                         </svg>
                         Back home
                     </Link>
-                    <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl mb-4 font-display">
+                    <h1 className="text-4xl font-semibold text-slate-900 sm:text-5xl mb-4 page-title">
                         Privacy Policy
                     </h1>
                     <p className="text-[15px] text-slate-500">

@@ -368,7 +368,7 @@ export default function ChangelogPage() {
                         <ArrowLeft className="mr-2 h-3.5 w-3.5 group-hover:-translate-x-1 transition-transform duration-300" />
                         Back home
                     </Link>
-                    <h1 className="text-4xl font-medium font-[family-name:var(--font-display)] tracking-tight text-slate-900 sm:text-5xl mb-6">
+                    <h1 className="text-4xl font-semibold text-slate-900 sm:text-5xl mb-6 page-title">
                         Product Changelog
                     </h1>
                     <p className="text-lg leading-relaxed text-slate-500 max-w-lg mx-auto font-light">

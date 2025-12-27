@@ -73,7 +73,7 @@ export default function DownloadPage() {
                             </div>
                         </div>
 
-                        <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-semibold tracking-[-0.02em] leading-[1.08] font-[family-name:var(--font-display)] text-slate-800 mb-6 text-balance">
+                        <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-semibold text-slate-800 mb-6 text-balance page-title">
                             Ready to ship{" "}
                             <Highlighter action="highlight" style="clean" color="#fde047">polished</Highlighter>{" "}
                             recordings?

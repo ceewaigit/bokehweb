@@ -44,7 +44,7 @@ export default function SecurityPage() {
                         </svg>
                         Back home
                     </Link>
-                    <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl mb-6 font-display">
+                    <h1 className="text-4xl font-semibold text-slate-900 sm:text-5xl mb-6 page-title">
                         Security & Privacy
                     </h1>
                     <p className="text-[17px] leading-relaxed text-slate-500 max-w-2xl mx-auto">

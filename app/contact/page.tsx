@@ -25,7 +25,7 @@ export default function ContactPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">
                         Contact
                     </p>
-                    <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl font-sans [text-wrap:balance] [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-orange-300">
+                    <h1 className="mt-3 text-4xl font-semibold text-gray-900 sm:text-5xl lg:text-6xl page-title [&_em]:text-orange-300">
                         Talk to us when you need a steady hand <em>and a clear answer.</em>
                     </h1>
                     <p className="mt-4 text-[17px] leading-relaxed text-gray-500 max-w-xl">

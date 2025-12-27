@@ -218,6 +218,20 @@
 }
 
 @layer utilities {
+  .page-title {
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+
+  .page-title em {
+    font-family: var(--font-display), ui-serif, Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-weight: 500;
+  }
+
   .cursor-pointer {
     cursor: var(--cursor-pointer);
   }
