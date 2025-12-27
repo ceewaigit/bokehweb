@@ -314,13 +314,13 @@ export function EditingFeaturesSection({
                             key={feature.title}
                             onClick={() => setCurrentIndex(index)}
                             className={cn(
-                                "group relative text-left cursor-pointer transition-all duration-300",
+                                "group relative text-left cursor-pointer transition-all duration-200",
                                 index === currentIndex && "scale-[1.02]"
                             )}
                             initial={{ opacity: 0, y: 20 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true, margin: "-30px" }}
-                            transition={{ duration: 0.5, delay: 0.1 + index * 0.08 }}
+                            transition={{ duration: 0.4, delay: 0.08 + index * 0.05 }}
                             style={gpuAccelerated}
                         >
                             {/* Feature Card */}

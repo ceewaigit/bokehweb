@@ -204,8 +204,8 @@ function TestimonialCard({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{
-                duration: 0.6,
-                delay: index * 0.08,
+                duration: 0.45,
+                delay: index * 0.06,
                 ease: [0.22, 0.61, 0.36, 1],
             }}
             style={gpuAccelerated}

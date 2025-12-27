@@ -160,6 +160,7 @@
   html {
     /* Note: scroll-behavior: smooth removed to prevent conflicts with scroll-driven animations */
     overflow-x: hidden;
+    scrollbar-gutter: stable;
     cursor: var(--cursor-default);
   }
 

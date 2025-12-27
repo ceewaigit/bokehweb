@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { springConfigs } from "@/lib/animation-utils";
 import { motion, AnimatePresence, useInView } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { useState, useEffect, useRef } from "react";
@@ -27,9 +28,9 @@ interface RecordDockSectionProps {
     subtitle?: string;
 }
 
-// Simplified spring config for mobile - less stiff, more performant
-const springConfig = { type: "spring", stiffness: 300, damping: 25 } as const;
-const softSpring = { type: "spring", stiffness: 250, damping: 22 } as const;
+// Use centralized spring configs from animation-utils
+const springConfig = springConfigs.default;
+const softSpring = springConfigs.soft;
 
 // Recording time display - no animation key to prevent flicker
 function RecordingTime({ duration }: { duration: number }) {

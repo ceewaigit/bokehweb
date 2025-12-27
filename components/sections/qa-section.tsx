@@ -101,8 +101,6 @@ export function QASection({
                                 return (
                                     <motion.div
                                         key={item.question}
-                                        layout="position"
-                                        initial={false}
                                         className={cn(
                                             "relative overflow-hidden rounded-2xl cursor-pointer bg-slate-100",
                                             "transition-all duration-300 ease-out",

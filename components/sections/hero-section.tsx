@@ -111,11 +111,11 @@ export function HeroSection({
                     trigger: containerRef.current,
                     start: "top top",
                     end: "bottom top",
-                    scrub: 0.5, // Smoother than scrub: true, reduces jank
+                    scrub: 0.8, // Smoother scroll-linked animation, reduces halting
                     pin: pinRef.current,
                     anticipatePin: 1,
                     pinSpacing: true,
-                    fastScrollEnd: true,
+                    invalidateOnRefresh: true,
                 },
             });
 

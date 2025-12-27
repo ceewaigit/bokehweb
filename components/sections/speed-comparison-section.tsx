@@ -98,7 +98,6 @@ export function SpeedComparisonSection() {
               <div className="flex items-baseline gap-1">
                 <motion.span
                   className="text-2xl sm:text-3xl font-semibold tabular-nums text-slate-900"
-                  style={{ willChange: "contents" }}
                 >
                   {bokehMinutes}
                 </motion.span>
@@ -131,7 +130,6 @@ export function SpeedComparisonSection() {
               <div className="flex items-baseline gap-1">
                 <motion.span
                   className="text-2xl sm:text-3xl font-semibold tabular-nums text-slate-400"
-                  style={{ willChange: "contents" }}
                 >
                   {traditionalMinutes}
                 </motion.span>
