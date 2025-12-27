@@ -133,7 +133,7 @@ export function HeroSection({
                 0
             );
             const dockDuration = 0.7;
-            const dockHold = 0.3;
+            const dockHold = 0.75;
 
             timeline.to(workspace, { opacity: 1, duration: 0.35, ease: "none" }, 0.15);
             timeline.to(hero, { x, y, scale, duration: dockDuration, ease: "none" }, 0.45);
