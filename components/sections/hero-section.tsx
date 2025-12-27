@@ -230,7 +230,7 @@ export function HeroSection({
                             {/* Badge */}
                             {badge && (
                                 <div>
-                                    <Badge variant="outline" className="px-3 py-1 text-xs sm:text-xs sm:px-3 sm:py-1 font-medium rounded-full border-border/50 backdrop-blur-sm bg-background/50 text-foreground">
+                                    <Badge variant="outline" className="px-3 py-1 text-xs sm:text-xs sm:px-3 sm:py-1 font-medium rounded-fullbackdrop-blur-sm bg-background/50 text-foreground">
                                         {badge}
                                     </Badge>
                                 </div>
@@ -286,7 +286,7 @@ export function HeroSection({
                         <div className="relative w-full max-w-[90%] sm:max-w-[65%] md:max-w-[60%] lg:max-w-5xl aspect-[2048/1377] self-start -mt-8 md:-mt-12 sm:-mt-16">
                             <div
                                 ref={workspaceRef}
-                                className="absolute inset-0 z-10 opacity-0 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] overflow-hidden"
+                                className="absolute inset-0 z-10 opacity-0 rounded-lg bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] overflow-hidden"
                             >
                                 {scrollVideoSrc && (
                                     <video
