@@ -59,7 +59,7 @@ export function QASection({
                             {eyebrow}
                         </motion.p>
                         <motion.h2
-                            className="text-4xl md:text-5xl font-semibold tracking-[-0.02em] leading-[1.05] text-foreground text-balance font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-primary"
+                            className="text-4xl md:text-5xl font-semibold tracking-[-0.02em] leading-[1.2] text-foreground text-balance font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-primary"
                             initial={{ opacity: 0, y: 18 }}
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}

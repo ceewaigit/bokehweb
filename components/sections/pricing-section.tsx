@@ -82,7 +82,7 @@ const PricingSection: React.FC = () => {
 
         {/* Main heading */}
         <motion.h2
-          className="mt-4 text-4xl font-semibold tracking-[-0.03em] leading-[1.06] text-slate-900 sm:text-5xl lg:text-6xl [text-wrap:balance] [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-orange-300"
+          className="mt-4 text-4xl font-semibold tracking-[-0.03em] leading-[1.2] text-slate-900 sm:text-5xl lg:text-6xl [text-wrap:balance] [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-orange-300"
           initial={{ opacity: 0, y: 10 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}

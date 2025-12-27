@@ -186,7 +186,8 @@ export function Highlighter({
                     >
                         <motion.path
                             initial={{ pathLength: 0, opacity: 0 }}
-                            animate={shouldShow ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0 }}
+                            whileInView={{ pathLength: 1, opacity: 1 }}
+                            viewport={{ once: true }}
                             transition={{
                                 duration: animationDuration / 1000,
                                 delay: delay / 1000,
@@ -216,11 +217,12 @@ export function Highlighter({
                         <motion.path
                             d="M0 6.6 Q 25 3.6, 50 6.1 Q 75 8.6, 100 4.8"
                             stroke={color}
-                            strokeWidth={strokeWidth * 2} // Scale up a bit for this specific path
+                            strokeWidth={strokeWidth * 2}
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             initial={{ pathLength: 0, opacity: 0 }}
-                            animate={shouldShow ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0 }}
+                            whileInView={{ pathLength: 1, opacity: 1 }}
+                            viewport={{ once: true }}
                             transition={{
                                 duration: animationDuration / 1000,
                                 delay: delay / 1000,
@@ -242,7 +244,6 @@ export function Highlighter({
                         preserveAspectRatio="none"
                         fill="none"
                     >
-                        {/* A gentle curve for underline */}
                         <motion.path
                             d="M6 10.5 C 50 12.5, 150 12.5, 294 8.5"
                             stroke={color}
@@ -250,7 +251,8 @@ export function Highlighter({
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             initial={{ pathLength: 0, opacity: 0 }}
-                            animate={shouldShow ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0 }}
+                            whileInView={{ pathLength: 1, opacity: 1 }}
+                            viewport={{ once: true }}
                             transition={{
                                 duration: animationDuration / 1000,
                                 delay: delay / 1000,
@@ -279,7 +281,8 @@ export function Highlighter({
                             strokeWidth={strokeWidth}
                             strokeLinecap="round"
                             initial={{ pathLength: 0, opacity: 0 }}
-                            animate={shouldShow ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0 }}
+                            whileInView={{ pathLength: 1, opacity: 1 }}
+                            viewport={{ once: true }}
                             transition={{
                                 duration: animationDuration / 1000,
                                 delay: delay / 1000,
@@ -300,7 +303,8 @@ export function Highlighter({
                             strokeWidth={strokeWidth}
                             strokeLinecap="round"
                             initial={{ pathLength: 0, opacity: 0 }}
-                            animate={shouldShow ? { pathLength: 1, opacity: 1 } : { pathLength: 0, opacity: 0 }}
+                            whileInView={{ pathLength: 1, opacity: 1 }}
+                            viewport={{ once: true }}
                             transition={{
                                 duration: animationDuration / 1000,
                                 delay: delay / 1000,

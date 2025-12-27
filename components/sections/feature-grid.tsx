@@ -64,7 +64,7 @@ export function FeatureGrid({
                         </motion.div>
                     )}
                     <motion.h2
-                        className="text-4xl md:text-5xl font-semibold tracking-[-0.02em] leading-[1.05] text-balance text-foreground mb-4 font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-primary"
+                        className="text-4xl md:text-5xl font-semibold tracking-[-0.02em] leading-[1.2] text-balance text-foreground mb-4 font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-primary"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}

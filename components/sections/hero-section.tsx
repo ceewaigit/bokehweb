@@ -239,7 +239,7 @@ export function HeroSection({
                             {/* Title */}
                             <h1
                                 className={cn(
-                                    "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[0.7] tracking-tighter text-foreground",
+                                    "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[1.1] tracking-[-0.04em] text-foreground",
                                     "text-balance font-[family-name:var(--font-geist-sans)]",
                                     "[&_em]:italic [&_em]:font-medium [&_em]:text-primary [&_em]:font-[family-name:var(--font-display)]"
                                 )}

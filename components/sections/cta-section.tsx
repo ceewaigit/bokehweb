@@ -70,7 +70,7 @@ export function CTASection({
 
                     {/* Title */}
                     <motion.h2
-                        className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.05] text-balance text-gray-900 mb-4 [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium"
+                        className="text-4xl md:text-5xl font-bold tracking-tight leading-[1.2] text-balance text-gray-900 mb-4 [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium"
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}

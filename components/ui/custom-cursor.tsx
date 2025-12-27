@@ -94,7 +94,7 @@ export function CustomCursor() {
         let rafId = 0;
         let isVisible = false;
         let isPressed = false;
-        let isIdle = false; // Track if cursor is idle
+        let isIdle = false;
         let activeState = cursorStates.default;
         const current = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         const target = { x: current.x, y: current.y };
@@ -103,8 +103,8 @@ export function CustomCursor() {
         const scale = { current: 1 };
         let lastMoveAt = performance.now();
         let lastFrameAt = performance.now();
-        const IDLE_THRESHOLD = 0.5; // Distance threshold to consider idle
-        const IDLE_TIMEOUT = 100; // ms to wait before pausing RAF
+        const IDLE_THRESHOLD = 0.5;
+        const IDLE_TIMEOUT = 100;
 
         const setVisibility = (nextVisible: boolean) => {
             if (isVisible === nextVisible) return;
@@ -155,8 +155,10 @@ export function CustomCursor() {
             const rotateEase = targetRotate === 0 ? 0.5 : 0.2;
             rotation.current += (targetRotate - rotation.current) * rotateEase;
 
+            // Simple fast easing for scale (subtle, snappy click)
             const targetScale = isPressed ? pressedScale : 1;
-            scale.current += (targetScale - scale.current) * 0.35;
+            const easeFactor = isPressed ? 0.5 : 0.4; // Faster on press, smooth on release
+            scale.current += (targetScale - scale.current) * easeFactor;
 
             cursorEl.style.setProperty("--cursor-x", `${drawX}px`);
             cursorEl.style.setProperty("--cursor-y", `${drawY}px`);
