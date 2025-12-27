@@ -8,6 +8,7 @@ import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { LucideIcon, ZoomIn, Keyboard, Crop, Wand2, Type, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AutoplayVideo } from "@/components/ui/autoplay-video";
+import { Highlighter } from "@/components/ui/highlighter";
 
 import { BeforeAfterSlider } from "@/components/ui/before-after-slider";
 

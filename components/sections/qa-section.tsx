@@ -5,6 +5,7 @@ import { gpuAccelerated } from "@/lib/animation-utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { useState } from "react";
+import { Highlighter } from "@/components/ui/highlighter";
 
 interface QAItem {
     question: string;
@@ -32,8 +33,8 @@ export function QASection({
     // This is a temporary way to inject it, ideally it should come from the prop
     const updatedItems = [
         {
-            question: "How do you pronounce bokeh?",
-            answer: <>We usually say <strong>BOH-keh</strong>. But don&apos;t stress about it! We&apos;ve heard &apos;bouquet&apos; (like flowers) and &apos;bow-kuh&apos; too. However you say it, you&apos;re speaking our language.</>
+            question: <>How do you pronounce <Highlighter action="box" color="#cbd5e1" style="rough" delay={400}>bokeh</Highlighter>?</>,
+            answer: "We usually say BOH-keh. But don't stress about it! We've heard 'bouquet' (like flowers) and 'bow-kuh' too. However you say it, you're speaking our language.",
         },
         ...items
     ];
@@ -100,7 +101,7 @@ export function QASection({
 
                                 return (
                                     <motion.div
-                                        key={item.question}
+                                        key={index}
                                         className={cn(
                                             "relative overflow-hidden rounded-2xl cursor-pointer bg-slate-100",
                                             "transition-all duration-300 ease-out",

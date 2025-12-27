@@ -9,6 +9,7 @@ import { GlassCard } from "@/components/ui/glass-card"
 import { SectionBackdrop } from "@/components/ui/section-backdrop"
 import { pricingCopy, pricingPlans, enterprisePlan, pricingPhilosophy, PRICING, PRODUCT_READY } from "@/lib/pricing"
 import { NeumorphicButton } from "@/components/ui/neumorphic-button"
+import { Highlighter } from "@/components/ui/highlighter"
 
 // Tooltip component for philosophy callouts
 const CalloutTooltip = ({ short, expanded }: { short: string; expanded: string }) => {
@@ -90,31 +91,9 @@ const PricingSection: React.FC = () => {
         >
           {pricingCopy.title}{" "}
           <span className="whitespace-nowrap">
-            <span className="relative inline-block text-slate-400">
+            <Highlighter action="strike-through" color="#94a3b8" strokeWidth={2} style="clean" delay={200} className="text-slate-400/80">
               {pricingCopy.strike}
-              <motion.svg
-                className="pointer-events-none absolute left-[-2%] top-[60%] h-4 w-[104%] -translate-y-1/2"
-                viewBox="0 0 100 12"
-                preserveAspectRatio="none"
-                fill="none"
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true, margin: "-10px" }}
-                transition={{ duration: 0.2, delay: 0.15 }}
-              >
-                <motion.path
-                  d="M0 6.6 Q 25 3.6, 50 6.1 Q 75 8.6, 100 4.8"
-                  stroke="#9ca3af"
-                  strokeWidth="4.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  initial={{ pathLength: 0 }}
-                  whileInView={{ pathLength: 1 }}
-                  viewport={{ once: true, margin: "-10px" }}
-                  transition={{ duration: 0.45, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                />
-              </motion.svg>
-            </span>{" "}
+            </Highlighter>{" "}
             {pricingCopy.titleAfter}
           </span>{" "}
           <br />

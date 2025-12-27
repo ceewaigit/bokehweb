@@ -1,8 +1,8 @@
 export const pricingCopy = {
   eyebrow: "Simple pricing, no surprises",
-  title: "Pricing that",
-  strike: "cuts",
-  titleAfter: "time",
+  title: "Pricing that cuts",
+  strike: "time",
+  titleAfter: "",
   titleEmphasis: "and pays for itself",
   subtitle: "Start with a free trial. Your subscription payments count toward a lifetime license.",
   footnote: "Reach $149 in payments, and the current major version is yours forever.",

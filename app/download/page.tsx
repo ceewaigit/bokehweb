@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { HighlightText } from "@/components/ui/highlight-text";
+import { Highlighter } from "@/components/ui/highlighter";
 import { Download, Shield, Zap, Sparkles, Check } from "lucide-react";
 
 export default function DownloadPage() {
@@ -75,12 +75,12 @@ export default function DownloadPage() {
 
                         <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-semibold tracking-[-0.02em] leading-[1.08] font-[family-name:var(--font-display)] text-slate-800 mb-6 text-balance">
                             Ready to ship{" "}
-                            <HighlightText variant="yellow">polished</HighlightText>{" "}
+                            <Highlighter action="highlight" style="clean" color="#fde047">polished</Highlighter>{" "}
                             recordings?
                         </h1>
 
                         <p className="text-[17px] sm:text-[18px] leading-[1.75] text-slate-500 max-w-lg">
-                            Join teams who replaced their clunky workflow with something that{" "}
+                            Join teams who replaced their <Highlighter action="strike-through" style="clean" color="#94a3b8" delay={400}>clunky workflow</Highlighter> with something that{" "}
                             <em className="font-[family-name:var(--font-display)] italic text-slate-700 font-medium">just works.</em>
                         </p>
                     </motion.div>

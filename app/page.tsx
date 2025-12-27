@@ -14,7 +14,7 @@ import { EditingFeaturesSection } from "@/components/sections/editing-features-s
 import { RecordDockSection } from "@/components/sections/record-dock-section";
 import { MacOSDockSection } from "@/components/sections/macos-dock-section";
 import { MailingListSection } from "@/components/sections/mailing-list-section";
-import { HighlightCircle } from "@/components/ui/highlight-circle";
+import { Highlighter } from "@/components/ui/highlighter";
 import { GlassmorphismItem } from "@/components/features/glassmorphism-item";
 
 import {
@@ -247,7 +247,7 @@ export default function Home() {
             title={
               <>
                 The recorder that<br />
-                <em className="highlight-purple">respects your craft.</em>
+                <Highlighter action="highlight" style="clean" color="#a78bfa"><em className="not-italic text-inherit">respects your craft.</em></Highlighter>
               </>
             }
             subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and intentionality that most tools miss."
@@ -267,7 +267,7 @@ export default function Home() {
             title={
               <>
                 Cinematic motion.<br />
-                <em className="highlight-yellow not-italic">Zero effort.</em>
+                <Highlighter action="highlight" style="clean" color="#fde047"><em className="not-italic text-inherit">Zero effort.</em></Highlighter>
               </>
             }
             subtitle="We automated the techniques top creators use. Smooth zooms, liquid cursors, and perfect pacing."
@@ -278,7 +278,9 @@ export default function Home() {
             badge="Smart defaults"
             title={
               <>
-                <span className="font-[family-name:var(--font-display)] italic font-medium">Less work.</span>
+                <span className="font-[family-name:var(--font-display)] italic font-medium">
+                  <Highlighter action="underline" color="#cbd5e1" style="clean" delay={200}>Less work.</Highlighter>
+                </span>
                 <br />
                 <span className="font-[family-name:var(--font-display)] italic font-medium">More polish.</span>
               </>
@@ -297,7 +299,7 @@ export default function Home() {
             title={
               <>
                 Intentional choices.<br />
-                <em className="highlight-pink">Everywhere.</em>
+                <Highlighter action="highlight" style="clean" color="#f472b6"><em className="not-italic text-inherit">Everywhere.</em></Highlighter>
               </>
             }
             subtitle="A few highlights from dozens of small decisions that make bokeh feel different."
@@ -308,7 +310,7 @@ export default function Home() {
           <TestimonialSection
             title={
               <>
-                Trusted by teams who care about <HighlightCircle color="#8b5cf6" className="text-inherit"><em className="text-primary not-italic">craft.</em></HighlightCircle>
+                Trusted by teams who care about <Highlighter action="circle" style="clean" color="#8b5cf6" className="text-inherit"><em className="text-primary not-italic">craft.</em></Highlighter>
               </>
             }
             subtitle="From changing the way they demo, to shipping faster updates. See why detail-oriented teams switched to bokeh."
@@ -332,7 +334,7 @@ export default function Home() {
           <MailingListSection />
 
           <CTASection
-            title={<>Stop fighting with your <HighlightCircle className="text-inherit"><em className="not-italic">video editor.</em></HighlightCircle></>}
+            title={<>Stop fighting with your <Highlighter action="circle" style="clean" className="text-inherit"><em className="not-italic">video editor.</em></Highlighter></>}
             subtitle="Start shipping clearer, sharper, and more professional updates today."
             ctaLabel="Get started for free"
             ctaHref="/download"

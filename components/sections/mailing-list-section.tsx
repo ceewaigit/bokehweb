@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { gpuAccelerated } from "@/lib/animation-utils";
 import Link from "next/link";
 
+import { Highlighter } from "@/components/ui/highlighter";
+
 type SubmitState = "idle" | "loading" | "success" | "error";
 
 interface MailingListSectionProps {
@@ -83,7 +85,7 @@ export function MailingListSection({ className }: MailingListSectionProps) {
               <h2 className="text-[28px] sm:text-4xl lg:text-[42px] tracking-[-0.025em] text-slate-900 leading-[1.1]">
                 <span className="font-semibold">Updates worth</span>
                 <br className="hidden sm:block" />{" "}
-                <em className="font-[family-name:var(--font-display)] italic font-normal">waiting for</em>.
+                <em className="font-[family-name:var(--font-display)] italic font-normal"><Highlighter action="highlight" color="#e2e8f0" style="clean" delay={600}>waiting for</Highlighter></em>.
               </h2>
 
               <p className="text-[14px] sm:text-base text-slate-500 leading-relaxed">

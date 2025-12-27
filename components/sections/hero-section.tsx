@@ -9,6 +9,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Highlighter } from "@/components/ui/highlighter";
 
 interface HeroSectionProps {
     className?: string;
@@ -248,7 +249,7 @@ export function HeroSection({
 
                             {/* Subtitle */}
                             <p className="text-[clamp(0.85rem,2vw,1.05rem)] text-muted-foreground max-w-2xl mx-auto leading-snug text-balance tracking-[-0.012em]">
-                                {subtitle}
+                                {subtitle} <Highlighter action="underline" style="clean" color="#cbd5e1" delay={800}>intentionality</Highlighter> that most tools miss.
                             </p>
 
                             {/* CTAs */}
