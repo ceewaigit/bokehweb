@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { NeumorphicButton } from "@/components/ui/neumorphic-button";
 import { cn } from "@/lib/utils";
+import { gpuAccelerated } from "@/lib/animation-utils";
 import Link from "next/link";
 
 type SubmitState = "idle" | "loading" | "success" | "error";
@@ -49,8 +50,6 @@ export function MailingListSection({ className }: MailingListSectionProps) {
     }
   };
 
-  const gpuStyle = { willChange: "transform, opacity" as const, transform: "translateZ(0)" };
-
   return (
     <section className={cn("relative py-12 sm:py-20 px-4 sm:px-6", className)}>
       {/* Background glow */}
@@ -69,7 +68,7 @@ export function MailingListSection({ className }: MailingListSectionProps) {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        style={gpuStyle}
+        style={gpuAccelerated}
       >
         {/* Outer neumorphic card */}
         <div className="rounded-[24px] sm:rounded-[40px] bg-slate-100 p-5 sm:p-10 lg:p-12 shadow-[-12px_-12px_30px_#ffffff,12px_12px_30px_rgba(0,0,0,0.07)] sm:shadow-[-16px_-16px_40px_#ffffff,16px_16px_40px_rgba(0,0,0,0.08)]">

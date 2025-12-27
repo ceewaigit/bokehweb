@@ -4,50 +4,52 @@ import { useEffect, useRef } from "react";
 
 const CURSOR_SIZE = { width: 80, height: 80 };
 
+// Hotspot = the "click point" of the cursor relative to the image center
+// For 80x80 images: tip at top-left would be around x:4-8, y:4-8
 const cursorStates = {
     default: {
         image: "/features/cursors/arrowS.png",
-        hotspot: { x: 18, y: 16 },
+        hotspot: { x: 6, y: 4 }, // Arrow tip at top-left corner
     },
     pointer: {
         image: "/features/cursors/linkS.png",
-        hotspot: { x: 18, y: 16 },
+        hotspot: { x: 8, y: 6 }, // Finger tip at top
     },
     text: {
         image: "/features/cursors/beamS.png",
-        hotspot: { x: 40, y: 40 },
+        hotspot: { x: 40, y: 40 }, // I-beam centered
     },
     move: {
         image: "/features/cursors/moveS.png",
-        hotspot: { x: 40, y: 40 },
+        hotspot: { x: 40, y: 40 }, // Move cross centered
     },
     crosshair: {
         image: "/features/cursors/crossS.png",
-        hotspot: { x: 40, y: 40 },
+        hotspot: { x: 40, y: 40 }, // Crosshair centered
     },
     notAllowed: {
         image: "/features/cursors/noS.png",
-        hotspot: { x: 40, y: 40 },
+        hotspot: { x: 40, y: 40 }, // Circle centered
     },
     help: {
         image: "/features/cursors/helpS.png",
-        hotspot: { x: 18, y: 16 },
+        hotspot: { x: 6, y: 4 }, // Arrow tip at top-left
     },
     ewResize: {
         image: "/features/cursors/HsizeS.png",
-        hotspot: { x: 40, y: 40 },
+        hotspot: { x: 40, y: 40 }, // Resize arrow centered
     },
     nsResize: {
         image: "/features/cursors/VsizeS.png",
-        hotspot: { x: 40, y: 40 },
+        hotspot: { x: 40, y: 40 }, // Resize arrow centered
     },
     neswResize: {
         image: "/features/cursors/D2sizeS.png",
-        hotspot: { x: 40, y: 40 },
+        hotspot: { x: 40, y: 40 }, // Resize arrow centered
     },
     nwseResize: {
         image: "/features/cursors/D1sizeS.png",
-        hotspot: { x: 40, y: 40 },
+        hotspot: { x: 40, y: 40 }, // Resize arrow centered
     },
 };
 
@@ -78,6 +80,8 @@ export function CustomCursor() {
 
         const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
         const finePointer = window.matchMedia("(pointer: fine)");
+
+        // Exit early on mobile/touch devices or reduced motion preference
         if (prefersReducedMotion.matches || !finePointer.matches) return;
 
         document.body.classList.add("custom-cursor-active");
@@ -90,6 +94,7 @@ export function CustomCursor() {
         let rafId = 0;
         let isVisible = false;
         let isPressed = false;
+        let isIdle = false; // Track if cursor is idle
         let activeState = cursorStates.default;
         const current = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         const target = { x: current.x, y: current.y };
@@ -98,6 +103,8 @@ export function CustomCursor() {
         const scale = { current: 1 };
         let lastMoveAt = performance.now();
         let lastFrameAt = performance.now();
+        const IDLE_THRESHOLD = 0.5; // Distance threshold to consider idle
+        const IDLE_TIMEOUT = 100; // ms to wait before pausing RAF
 
         const setVisibility = (nextVisible: boolean) => {
             if (isVisible === nextVisible) return;
@@ -114,6 +121,21 @@ export function CustomCursor() {
             const dx = target.x - current.x;
             const dy = target.y - current.y;
             const distance = Math.hypot(dx, dy);
+
+            // Check if we've essentially converged (idle detection)
+            if (distance < IDLE_THRESHOLD && !isPressed && frameNow - lastMoveAt > IDLE_TIMEOUT) {
+                isIdle = true;
+                // Final position update before going idle
+                current.x = target.x;
+                current.y = target.y;
+                cursorEl.style.setProperty("--cursor-x", `${current.x - activeState.hotspot.x}px`);
+                cursorEl.style.setProperty("--cursor-y", `${current.y - activeState.hotspot.y}px`);
+                cursorEl.style.setProperty("--cursor-scale", "1");
+                cursorEl.style.setProperty("--cursor-rotate", "0deg");
+                // Don't schedule another frame - we're idle
+                return;
+            }
+
             const baseFollow = 1 - Math.pow(0.001, frameDelta / 16);
             const follow = Math.min(0.85, Math.max(0.35, baseFollow + distance / 650));
             current.x += dx * follow;
@@ -142,6 +164,14 @@ export function CustomCursor() {
             cursorEl.style.setProperty("--cursor-rotate", `${rotation.current}deg`);
 
             rafId = window.requestAnimationFrame(updatePosition);
+        };
+
+        // Wake up from idle state
+        const wakeFromIdle = () => {
+            if (isIdle) {
+                isIdle = false;
+                rafId = window.requestAnimationFrame(updatePosition);
+            }
         };
 
         const setCursorState = (state: typeof cursorStates.default) => {
@@ -187,6 +217,7 @@ export function CustomCursor() {
             target.x = event.clientX;
             target.y = event.clientY;
             setVisibility(true);
+            wakeFromIdle(); // Restart RAF loop if we were idle
         };
 
         const handlePointerOver = (event: PointerEvent) => {

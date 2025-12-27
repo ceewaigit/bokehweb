@@ -12,7 +12,7 @@ export const pricingCopy = {
 export const PRODUCT_READY = false;
 
 export const PRICING = {
-  trialDays: 7,
+  trialDays: 5,
   monthly: 13,        // $13/mo billed monthly
   annual: 8,          // $8/mo billed annually ($96/year)
   lifetime: 149,      // $149 per major release

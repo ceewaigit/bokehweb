@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { gpuAccelerated } from "@/lib/animation-utils";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { HandArrow } from "@/components/ui/hand-arrow";
@@ -40,7 +41,6 @@ export function CTASection({
     showFounderMessage = false,
     founder,
 }: CTASectionProps) {
-    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
 
     return (
         <TooltipProvider delayDuration={0}>
@@ -61,7 +61,7 @@ export function CTASection({
                             whileInView={{ opacity: 1, x: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             <span className="text-sm text-gray-400 italic">{arrowText}</span>
                             <HandArrow direction="down-right" size="sm" className="text-gray-400" />
@@ -75,7 +75,7 @@ export function CTASection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
-                        style={gpuStyle}
+                        style={gpuAccelerated}
                     >
                         {title}
                     </motion.h2>
@@ -88,7 +88,7 @@ export function CTASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {subtitle}
                         </motion.p>
@@ -100,7 +100,7 @@ export function CTASection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5, delay: 0.3 }}
-                        style={gpuStyle}
+                        style={gpuAccelerated}
                     >
                         <Tooltip>
                             <TooltipTrigger asChild>
@@ -148,7 +148,7 @@ export function CTASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5, delay: 0.6 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {founder.avatar ? (
                                 <img

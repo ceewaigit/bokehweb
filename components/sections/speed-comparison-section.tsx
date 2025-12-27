@@ -7,8 +7,7 @@ import { useRef, useEffect, useState } from "react";
 
 export function SpeedComparisonSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const isInViewOriginal = useInView(sectionRef, { once: true, margin: "-100px" }); // Renamed original for clarity if needed, or just keep it and add new one
-  const isInView = useInView(sectionRef, { margin: "0px" }); // Continuous visibility for pulse
+  const isInView = useInView(sectionRef, { once: true, margin: "-100px" });
   const [hasAnimated, setHasAnimated] = useState(false);
 
   const bokehProgress = useMotionValue(0);
@@ -20,12 +19,12 @@ export function SpeedComparisonSection() {
   const traditionalMinutes = useTransform(traditionalProgress, (v) => Math.round(v));
 
   useEffect(() => {
-    if (isInViewOriginal && !hasAnimated) {
+    if (isInView && !hasAnimated) {
       setHasAnimated(true);
       animate(bokehProgress, 3, { duration: 1.5, ease: [0.22, 1, 0.36, 1], delay: 0.3 });
       animate(traditionalProgress, 47, { duration: 2, ease: [0.22, 1, 0.36, 1], delay: 0.6 });
     }
-  }, [isInViewOriginal, hasAnimated, bokehProgress, traditionalProgress]);
+  }, [isInView, hasAnimated, bokehProgress, traditionalProgress]);
 
   return (
     <section
@@ -112,8 +111,7 @@ export function SpeedComparisonSection() {
                 style={{ width: bokehWidth, willChange: "width" }}
               />
               <div className={cn(
-                "absolute inset-0 bg-white/20",
-                isInView ? "animate-[pulse_2s_ease-in-out_infinite]" : ""
+                "absolute inset-0 bg-white/20"
               )} />
             </div>
           </motion.div>

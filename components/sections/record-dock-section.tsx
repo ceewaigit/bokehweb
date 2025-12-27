@@ -27,9 +27,9 @@ interface RecordDockSectionProps {
     subtitle?: string;
 }
 
-// Smooth spring config for snappy yet elegant animations
-const springConfig = { type: "spring", stiffness: 400, damping: 30 } as const;
-const softSpring = { type: "spring", stiffness: 300, damping: 25 } as const;
+// Simplified spring config for mobile - less stiff, more performant
+const springConfig = { type: "spring", stiffness: 300, damping: 25 } as const;
+const softSpring = { type: "spring", stiffness: 250, damping: 22 } as const;
 
 // Recording time display - no animation key to prevent flicker
 function RecordingTime({ duration }: { duration: number }) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { gpuAccelerated } from "@/lib/animation-utils";
 import { motion, useMotionValue, useSpring } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { BrowserFrame } from "@/components/ui/browser-frame";
@@ -187,7 +188,6 @@ export function FeatureShowcaseSection({
     features,
     heroImage,
 }: FeatureShowcaseSectionProps) {
-    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
     const spanClasses = {
         sm: "col-span-1",
         md: "col-span-1 sm:col-span-2",
@@ -284,7 +284,7 @@ export function FeatureShowcaseSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             <Badge
                                 variant="secondary"
@@ -300,7 +300,7 @@ export function FeatureShowcaseSection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
-                        style={gpuStyle}
+                        style={gpuAccelerated}
                     >
                         {title}
                     </motion.h2>
@@ -311,7 +311,7 @@ export function FeatureShowcaseSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {subtitle}
                         </motion.p>
@@ -387,7 +387,7 @@ export function FeatureShowcaseSection({
                                 whileHover={{ y: -4 }}
                                 viewport={{ once: true, margin: "-50px" }}
                                 transition={{ duration: 0.6, delay: index * 0.1, ease: [0.21, 0.47, 0.32, 0.98] }}
-                                style={gpuStyle}
+                                style={gpuAccelerated}
                             >
                                 {/* Base gradient surface */}
                                 <div className={cn(

@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { gpuAccelerated } from "@/lib/animation-utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { useState } from "react";
@@ -38,7 +39,6 @@ export function QASection({
     ];
 
     const [openIndex, setOpenIndex] = useState<number | null>(null);
-    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
 
     return (
         <section id={id} className={cn("relative py-24 px-6 overflow-hidden bg-slate-50/50", className)}>
@@ -53,7 +53,7 @@ export function QASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {eyebrow}
                         </motion.p>
@@ -63,7 +63,7 @@ export function QASection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {title}
                         </motion.h2>
@@ -74,7 +74,7 @@ export function QASection({
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.4, delay: 0.1 }}
-                                style={gpuStyle}
+                                style={gpuAccelerated}
                             >
                                 {subtitle}
                             </motion.p>
@@ -113,7 +113,7 @@ export function QASection({
                                         whileInView={{ opacity: 1, y: 0 }}
                                         viewport={{ once: true, margin: "-20px" }}
                                         transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.15), layout: { duration: 0.2 } }}
-                                        style={gpuStyle}
+                                        style={gpuAccelerated}
                                         onClick={() => setOpenIndex(isOpen ? null : index)}
                                     >
                                         <button

@@ -89,9 +89,10 @@ export function HeroSection({
                 y: "26%",
                 scale: initialScale,
                 transformOrigin: "center center",
+                force3D: true,
             });
-            gsap.set(text, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" });
-            gsap.set(workspace, { opacity: 0 });
+            gsap.set(text, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", force3D: true });
+            gsap.set(workspace, { opacity: 0, force3D: true });
 
             const heroRect = hero.getBoundingClientRect();
             const dockRect = dock.getBoundingClientRect();
@@ -110,10 +111,11 @@ export function HeroSection({
                     trigger: containerRef.current,
                     start: "top top",
                     end: "bottom top",
-                    scrub: true,
+                    scrub: 0.5, // Smoother than scrub: true, reduces jank
                     pin: pinRef.current,
                     anticipatePin: 1,
                     pinSpacing: true,
+                    fastScrollEnd: true,
                 },
             });
 
@@ -131,25 +133,24 @@ export function HeroSection({
         const refreshHandler = () => buildTimeline();
         ScrollTrigger.addEventListener("refreshInit", refreshHandler);
 
-        const resizeHandler = () => ScrollTrigger.refresh();
+        // Debounced resize handler for better performance
+        let resizeTimeout: NodeJS.Timeout;
+        const resizeHandler = () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                ScrollTrigger.refresh();
+            }, 100);
+        };
         window.addEventListener("resize", resizeHandler);
-
-        const observer = new ResizeObserver(() => {
-            buildTimeline();
-            ScrollTrigger.refresh();
-        });
-        observer.observe(containerRef.current);
-        observer.observe(pinRef.current);
-        observer.observe(workspaceRef.current);
 
         return () => {
             window.removeEventListener("resize", resizeHandler);
+            clearTimeout(resizeTimeout);
             ScrollTrigger.removeEventListener("refreshInit", refreshHandler);
             if (timeline) {
                 timeline.scrollTrigger?.kill();
                 timeline.kill();
             }
-            observer.disconnect();
         };
     }, [videoSrc, scrollVideoSrc]);
 
@@ -251,25 +252,25 @@ export function HeroSection({
                             </p>
 
                             {/* CTAs */}
-                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-1">
-                                <div className="hidden sm:block">
-                                    <Button
-                                        size="lg"
-                                        className="rounded-full h-10 px-6 text-[14px] font-medium shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] sm:h-12 sm:px-8 sm:text-[15px]"
-                                        asChild
-                                    >
-                                        <a href={primaryCta.href}>
-                                            <span className="flex items-center gap-2">
-                                                {primaryCta.label} <ChevronRight className="w-4 h-4 opacity-70" />
-                                            </span>
-                                        </a>
-                                    </Button>
-                                </div>
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-[1vh]">
+                                <Button
+                                    size="lg"
+                                    className="rounded-full h-10 px-6 text-[14px] font-medium shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] sm:h-12 sm:px-8 sm:text-[15px]"
+                                    asChild
+                                >
+                                    <a href={primaryCta.href}>
+                                        <span className="flex items-center gap-2">
+                                            <span className="sm:hidden">Get started</span>
+                                            <span className="hidden sm:inline">{primaryCta.label}</span>
+                                            <ChevronRight className="w-4 h-4 opacity-70" />
+                                        </span>
+                                    </a>
+                                </Button>
                                 {secondaryCta && (
                                     <Button
                                         variant="ghost"
                                         size="lg"
-                                        className="rounded-full h-10 px-6 text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 transition-all duration-300 sm:h-12 sm:px-8 sm:text-[15px]"
+                                        className="hidden sm:flex rounded-full h-12 px-8 text-[15px] font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 transition-all duration-300"
                                         asChild
                                     >
                                         <a href={secondaryCta.href}>
@@ -281,10 +282,10 @@ export function HeroSection({
                             </div>
                         </div>
 
-                        <div className="relative w-full max-w-5xl aspect-[2048/1377] max-h-[70vh] self-start -mt-8 sm:-mt-16">
+                        <div className="relative w-full max-w-[95%] sm:max-w-[90%] md:max-w-[75%] lg:max-w-5xl aspect-[2048/1377] self-start -mt-8 md:-mt-12 sm:-mt-16">
                             <div
                                 ref={workspaceRef}
-                                className="absolute inset-0 z-10 opacity-0 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] p-2 sm:p-3"
+                                className="absolute inset-0 z-10 opacity-0 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] overflow-hidden"
                             >
                                 {scrollVideoSrc && (
                                     <video
@@ -292,7 +293,7 @@ export function HeroSection({
                                         className="h-full w-full rounded-lg object-cover"
                                         muted
                                         playsInline
-                                        preload="auto"
+                                        preload="metadata"
                                         onLoadedMetadata={() => {
                                             readyRef.current.scroll = true;
                                             startScrollWhenHeroReady();
@@ -322,7 +323,7 @@ export function HeroSection({
                                             className="h-full w-full rounded-lg object-cover"
                                             muted
                                             playsInline
-                                            preload="auto"
+                                            preload="metadata"
                                             poster={screenshotSrc}
                                             onTimeUpdate={startScrollWhenHeroReady}
                                             onEnded={handleHeroLoop}

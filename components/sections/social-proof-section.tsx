@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { gpuAccelerated } from "@/lib/animation-utils";
 import { motion } from "framer-motion";
 import { Check, Star, Zap } from "lucide-react";
 
@@ -29,7 +30,6 @@ export function SocialProofSection({
     items = defaultItems,
     logos,
 }: SocialProofSectionProps) {
-    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
     const accentStyles = [
         "text-amber-600 bg-amber-50 ring-amber-100",
         "text-sky-600 bg-sky-50 ring-sky-100",
@@ -56,7 +56,7 @@ export function SocialProofSection({
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5 }}
-                    style={gpuStyle}
+                    style={gpuAccelerated}
                 >
                     {title}
                 </motion.h2>
@@ -68,7 +68,7 @@ export function SocialProofSection({
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.45, delay: 0.1, ease: "easeOut" }}
-                    style={gpuStyle}
+                    style={gpuAccelerated}
                 >
                     {items.map((item, index) => (
                         <div

@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { gpuAccelerated } from "@/lib/animation-utils";
 import { motion } from "framer-motion";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
 
@@ -187,10 +188,6 @@ function TestimonialCard({
     testimonial: Testimonial;
     index: number;
 }) {
-    const gpuStyle = {
-        willChange: "transform, opacity" as const,
-        backfaceVisibility: "hidden" as const,
-    };
 
     return (
         <motion.div
@@ -211,7 +208,7 @@ function TestimonialCard({
                 delay: index * 0.08,
                 ease: [0.22, 0.61, 0.36, 1],
             }}
-            style={gpuStyle}
+            style={gpuAccelerated}
         >
             {/* Quote content */}
             <p className="text-[15px] sm:text-base leading-[1.7] text-slate-700 mb-6">
@@ -257,10 +254,6 @@ export function TestimonialSection({
     subtitle,
     testimonials,
 }: TestimonialSectionProps) {
-    const gpuStyle = {
-        willChange: "transform, opacity" as const,
-        backfaceVisibility: "hidden" as const,
-    };
 
     return (
         <section className={cn("relative py-28 sm:py-36 overflow-hidden", className)}>
@@ -275,7 +268,7 @@ export function TestimonialSection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.6 }}
-                        style={gpuStyle}
+                        style={gpuAccelerated}
                     >
                         <span className="bg-gradient-to-b from-slate-800 via-slate-700 to-slate-500 bg-clip-text text-transparent">
                             {title}
@@ -288,7 +281,7 @@ export function TestimonialSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5, delay: 0.15 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {subtitle}
                         </motion.p>

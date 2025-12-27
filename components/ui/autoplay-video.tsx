@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useEffect, useRef, useState, VideoHTMLAttributes, useMemo } from "react";
+import { useEffect, useRef, useState, VideoHTMLAttributes, useMemo, useCallback } from "react";
 import { Play, Loader2, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence, useInView } from "framer-motion";
 
@@ -147,7 +147,7 @@ export function AutoplayVideo({
                 loop={loop}
                 // autoPlay removed to strictly control via JS
                 playsInline={true}
-                preload="auto"
+                preload="metadata" // Lazy load - only fetch metadata initially
                 // State handlers
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
@@ -156,13 +156,7 @@ export function AutoplayVideo({
                     setIsLoading(false);
                     setHasError(false);
                 }}
-                onTimeUpdate={(e) => {
-                    const video = e.currentTarget;
-                    if (!video.paused && video.currentTime > 0.1 && !isPlaying) {
-                        setIsPlaying(true); // Force verified playing state
-                        setIsLoading(false);
-                    }
-                }}
+                // Removed costly onTimeUpdate - onPlaying is sufficient for state sync
                 onWaiting={() => setIsLoading(true)}
                 onLoadedData={() => setIsLoading(false)}
                 onCanPlay={() => setIsLoading(false)}

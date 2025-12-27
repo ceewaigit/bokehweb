@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { gpuAccelerated } from "@/lib/animation-utils";
 import { motion, AnimatePresence, useInView, PanInfo } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
@@ -104,14 +105,6 @@ function MediaFrame({ children, className }: { children: React.ReactNode; classN
     );
 }
 
-
-
-const gpuStyle = {
-    willChange: 'transform, opacity' as const,
-    transform: 'translateZ(0)',
-    backfaceVisibility: 'hidden' as const
-};
-
 export function EditingFeaturesSection({
     className,
     id,
@@ -193,7 +186,7 @@ export function EditingFeaturesSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             <Badge
                                 variant="secondary"
@@ -209,7 +202,7 @@ export function EditingFeaturesSection({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
-                        style={gpuStyle}
+                        style={gpuAccelerated}
                     >
                         {title}
                     </motion.h2>
@@ -220,7 +213,7 @@ export function EditingFeaturesSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.15 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {subtitle}
                         </motion.p>
@@ -234,7 +227,7 @@ export function EditingFeaturesSection({
                     whileInView={{ opacity: 1, y: 0, scale: 1 }}
                     viewport={{ once: true, margin: "-50px" }}
                     transition={{ duration: 0.6, delay: 0.1 }}
-                    style={gpuStyle}
+                    style={gpuAccelerated}
                 >
                     <MediaFrame className="mx-auto">
                         {/* Swipe container for mobile navigation - disabled for interactive components */}
@@ -328,7 +321,7 @@ export function EditingFeaturesSection({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true, margin: "-30px" }}
                             transition={{ duration: 0.5, delay: 0.1 + index * 0.08 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {/* Feature Card */}
                             <div className="flex flex-col gap-3">

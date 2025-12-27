@@ -4,6 +4,7 @@ import React from "react"
 import { Check, Info } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { gpuAccelerated } from "@/lib/animation-utils"
 import { GlassCard } from "@/components/ui/glass-card"
 import { SectionBackdrop } from "@/components/ui/section-backdrop"
 import { pricingCopy, pricingPlans, enterprisePlan, pricingPhilosophy, PRICING, PRODUCT_READY } from "@/lib/pricing"
@@ -48,7 +49,6 @@ const CalloutTooltip = ({ short, expanded }: { short: string; expanded: string }
 const PricingSection: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<'individuals' | 'teams'>('individuals')
   const [billingCycle, setBillingCycle] = React.useState<'annual' | 'monthly'>('annual')
-  const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const }
 
   // Calculate savings percentage dynamically
   const savingsPercent = Math.round((1 - PRICING.annual / PRICING.monthly) * 100)
@@ -74,7 +74,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-          style={gpuStyle}
+          style={gpuAccelerated}
         >
           {pricingCopy.eyebrow}
         </motion.p>
@@ -86,7 +86,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-          style={gpuStyle}
+          style={gpuAccelerated}
         >
           {pricingCopy.title}{" "}
           <span className="whitespace-nowrap">
@@ -136,7 +136,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
-          style={gpuStyle}
+          style={gpuAccelerated}
         >
           {pricingCopy.subtitle}
         </motion.p>
@@ -148,7 +148,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-          style={gpuStyle}
+          style={gpuAccelerated}
         >
           {/* Billing cycle toggle */}
           <div className="relative flex items-center rounded-full border border-slate-200/70 bg-white/80 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_6px_18px_rgba(15,23,42,0.06)]">
@@ -373,7 +373,7 @@ const PricingSection: React.FC = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-          style={gpuStyle}
+          style={gpuAccelerated}
         >
           <p className="text-[14px] font-semibold text-slate-700">
             {pricingPhilosophy.tagline}

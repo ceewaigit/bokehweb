@@ -158,7 +158,7 @@
   }
 
   html {
-    scroll-behavior: smooth;
+    /* Note: scroll-behavior: smooth removed to prevent conflicts with scroll-driven animations */
     overflow-x: hidden;
     cursor: var(--cursor-default);
   }
@@ -274,8 +274,7 @@
     left: 0;
     z-index: 9999;
     pointer-events: none;
-    transform: translate3d(var(--cursor-x, 0px), var(--cursor-y, 0px), 0)
-      rotate(var(--cursor-rotate, 0deg)) scale(var(--cursor-scale, 1));
+    transform: translate3d(var(--cursor-x, 0px), var(--cursor-y, 0px), 0) rotate(var(--cursor-rotate, 0deg)) scale(var(--cursor-scale, 1));
     transform-origin: var(--cursor-hotspot-x, 18px) var(--cursor-hotspot-y, 16px);
     background-image: var(--cursor-image, url("/features/cursors/arrowS.png"));
     background-size: contain;
@@ -474,10 +473,12 @@
 
   .animate-marquee {
     animation: marquee-scroll 25s linear infinite;
+    will-change: transform;
   }
 
   .animate-marquee-slow {
     animation: marquee-scroll 40s linear infinite;
+    will-change: transform;
   }
 
   .pause-on-hover:hover .animate-marquee,

@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { gpuAccelerated } from "@/lib/animation-utils";
 import { motion } from "framer-motion";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +37,6 @@ export function FeatureGrid({
         4: "md:grid-cols-2 lg:grid-cols-4",
         5: "md:grid-cols-2 lg:grid-cols-5",
     };
-    const gpuStyle = { willChange: 'transform, opacity' as const, transform: 'translateZ(0)', backfaceVisibility: 'hidden' as const };
     const shouldCenterLgRow = columns === 3 && features.length % 3 === 2;
     const shouldCenterMdRow = columns === 3 && features.length % 2 === 1;
 
@@ -53,7 +53,7 @@ export function FeatureGrid({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             <Badge
                                 variant="secondary"
@@ -69,7 +69,7 @@ export function FeatureGrid({
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                         transition={{ duration: 0.5 }}
-                        style={gpuStyle}
+                        style={gpuAccelerated}
                     >
                         {title}
                     </motion.h2>
@@ -80,7 +80,7 @@ export function FeatureGrid({
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.4, delay: 0.2 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             {subtitle}
                         </motion.p>
@@ -110,7 +110,7 @@ export function FeatureGrid({
                             whileHover={{ y: -2 }}
                             viewport={{ once: true, margin: "-50px" }}
                             transition={{ duration: 0.4, delay: index * 0.06 }}
-                            style={gpuStyle}
+                            style={gpuAccelerated}
                         >
                             <div className="flex items-start gap-4">
                                 <div className="flex-shrink-0 w-11 h-11 rounded-2xl bg-white/80 text-slate-900 shadow-[0_6px_16px_rgba(15,23,42,0.12)] ring-1 ring-white/60 flex items-center justify-center transition-transform duration-300 group-hover:scale-105">

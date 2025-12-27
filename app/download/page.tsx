@@ -132,7 +132,7 @@ export default function DownloadPage() {
                                     <div className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 shadow-[-2px_-2px_5px_rgba(255,255,255,0.8),2px_2px_5px_rgba(0,0,0,0.1)]">
                                         <Check className="w-3 h-3 text-emerald-500" strokeWidth={3} />
                                     </div>
-                                    <span>7 days free trial</span>
+                                    <span>Free trial</span>
                                 </div>
                                 <div className="flex items-center gap-3 text-sm text-slate-500">
                                     <div className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 shadow-[-2px_-2px_5px_rgba(255,255,255,0.8),2px_2px_5px_rgba(0,0,0,0.1)]">
