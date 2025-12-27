@@ -211,7 +211,7 @@ export function HeroSection({
                     <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
                         <div
                             ref={textRef}
-                            className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[13vh]"
+                            className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[14vh] sm:mt-[10vh] md:mt-[8vh] mb-[0vh] sm:mb-[2vh]"
                         >
                             {/* Brand Mark */}
                             {brandMarkSrc && (
@@ -221,7 +221,7 @@ export function HeroSection({
                                         alt={brandMarkAlt}
                                         width={160}
                                         height={48}
-                                        className="h-9 w-auto rounded-xl sm:h-12"
+                                        className="h-6 w-auto rounded-xl sm:h-9"
                                         priority
                                     />
                                 </div>
@@ -230,7 +230,7 @@ export function HeroSection({
                             {/* Badge */}
                             {badge && (
                                 <div>
-                                    <Badge variant="outline" className="px-3 py-1 text-xs sm:text-sm sm:px-4 sm:py-1.5 font-medium rounded-full border-border/50 backdrop-blur-sm bg-background/50 text-foreground">
+                                    <Badge variant="outline" className="px-3 py-1 text-xs sm:text-xs sm:px-3 sm:py-1 font-medium rounded-full border-border/50 backdrop-blur-sm bg-background/50 text-foreground">
                                         {badge}
                                     </Badge>
                                 </div>
@@ -239,7 +239,7 @@ export function HeroSection({
                             {/* Title */}
                             <h1
                                 className={cn(
-                                    "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[1.02] text-foreground",
+                                    "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[0.7] tracking-tighter text-foreground",
                                     "text-balance font-[family-name:var(--font-geist-sans)]",
                                     "[&_em]:italic [&_em]:font-medium [&_em]:text-primary [&_em]:font-[family-name:var(--font-display)]"
                                 )}
@@ -283,7 +283,7 @@ export function HeroSection({
                             </div>
                         </div>
 
-                        <div className="relative w-full max-w-[95%] sm:max-w-[90%] md:max-w-[75%] lg:max-w-5xl aspect-[2048/1377] self-start -mt-8 md:-mt-12 sm:-mt-16">
+                        <div className="relative w-full max-w-[90%] sm:max-w-[65%] md:max-w-[60%] lg:max-w-5xl aspect-[2048/1377] self-start -mt-8 md:-mt-12 sm:-mt-16">
                             <div
                                 ref={workspaceRef}
                                 className="absolute inset-0 z-10 opacity-0 rounded-lg border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] overflow-hidden"

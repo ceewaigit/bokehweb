@@ -449,6 +449,79 @@
     }
   }
 
+  /* Hero backdrop floating orb animations - GPU accelerated */
+  @keyframes hero-backdrop-float-1 {
+
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+
+    33% {
+      transform: translate3d(-20px, 15px, 0) scale(1.08);
+    }
+
+    66% {
+      transform: translate3d(15px, -10px, 0) scale(0.95);
+    }
+  }
+
+  @keyframes hero-backdrop-float-2 {
+
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+
+    40% {
+      transform: translate3d(25px, -20px, 0) scale(1.05);
+    }
+
+    70% {
+      transform: translate3d(-10px, 12px, 0) scale(0.98);
+    }
+  }
+
+  @keyframes hero-backdrop-float-3 {
+
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+
+    25% {
+      transform: translate3d(-15px, -18px, 0) scale(1.03);
+    }
+
+    55% {
+      transform: translate3d(20px, 8px, 0) scale(0.96);
+    }
+
+    80% {
+      transform: translate3d(-8px, 15px, 0) scale(1.02);
+    }
+  }
+
+  .hero-backdrop-orb {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    will-change: transform;
+    filter: blur(60px);
+  }
+
+  .hero-backdrop-orb-1 {
+    animation: hero-backdrop-float-1 70s ease-in-out infinite;
+  }
+
+  .hero-backdrop-orb-2 {
+    animation: hero-backdrop-float-2 85s ease-in-out infinite;
+  }
+
+  .hero-backdrop-orb-3 {
+    animation: hero-backdrop-float-3 65s ease-in-out infinite;
+  }
+
   @keyframes dot-drift {
     0% {
       background-position: 0 0;
@@ -524,7 +597,10 @@
     .texture-sheen,
     .highlight-purple,
     .highlight-yellow,
-    .highlight-pink {
+    .highlight-pink,
+    .hero-backdrop-orb-1,
+    .hero-backdrop-orb-2,
+    .hero-backdrop-orb-3 {
       animation: none;
       transition: none;
       background-size: 100% 62%;
