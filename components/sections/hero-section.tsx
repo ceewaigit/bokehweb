@@ -209,7 +209,7 @@ export function HeroSection({
                     <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
                         <div
                             ref={textRef}
-                            className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-20"
+                            className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[13vh]"
                         >
                             {/* Brand Mark */}
                             {brandMarkSrc && (

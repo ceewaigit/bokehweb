@@ -4,7 +4,7 @@ export const pricingCopy = {
   strike: "cuts",
   titleAfter: "time",
   titleEmphasis: "and pays for itself",
-  subtitle: "Start with a free trial. Your subscription payments count toward a lifetime license.",
+  subtitle: "Start with a free trial. Clean exports from day one, and your subscription payments count toward a lifetime license.",
   footnote: "Reach $149 in payments, and the current major version is yours forever.",
 };
 
@@ -23,21 +23,20 @@ export const pricingPlans = [
     name: "Trial",
     price: "Free",
     priceSuffix: `${PRICING.trialDays} days`,
-    description: "Full access with a subtle watermark.",
+    description: "Full access with clean exports.",
     cta: "Start free trial",
     features: [
       "Full feature access",
+      "No watermark exports",
       "Email support",
       "Cancel anytime",
-    ],
-    limitations: [
-      "Exports include a small watermark",
     ],
     // Philosophy callout - integrated into card
     callout: {
       short: "No credit card needed",
       expanded: "Most tools rush you to pay. We'd rather you feel the difference first.",
     },
+    limitations: [],
     disabled: !PRODUCT_READY,
   },
   {
@@ -48,7 +47,7 @@ export const pricingPlans = [
     cta: "Go Pro",
     features: [
       "Unlimited clean exports",
-      "No watermark",
+      "No watermark exports",
       "Priority support",
       "3 devices per account",
       "Payments count toward lifetime license",
@@ -60,6 +59,7 @@ export const pricingPlans = [
       short: "Pay toward ownership",
       expanded: `Your subscription payments accumulate toward a lifetime license. Once you've paid $${PRICING.lifetime}, the current major version is yours forever.`,
     },
+    limitations: [],
     highlight: true,
     comingSoon: !PRODUCT_READY,
   },
@@ -71,7 +71,7 @@ export const pricingPlans = [
     cta: "Buy lifetime",
     features: [
       "All Pro features",
-      "No watermark",
+      "No watermark exports",
       "Priority support",
       "3 devices per account",
       "All updates within this major version",
@@ -82,6 +82,7 @@ export const pricingPlans = [
       short: "Own your tools",
       expanded: "One major version, one payment. Every update from v1.0 to v1.x is included. Future major releases (v2, v3...) are separate.",
     },
+    limitations: [],
     comingSoon: !PRODUCT_READY,
   },
 ];

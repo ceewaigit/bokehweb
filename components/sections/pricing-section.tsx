@@ -19,10 +19,10 @@ const CalloutTooltip = ({ short, expanded }: { short: string; expanded: string }
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <span className="text-[11px] font-medium tracking-wide text-gray-400 uppercase">
+      <span className="text-[10px] font-semibold tracking-[0.2em] text-slate-400 uppercase">
         {short}
       </span>
-      <Info className="h-3 w-3 text-gray-300 transition-colors group-hover:text-violet-400" strokeWidth={2} />
+      <Info className="h-3 w-3 text-slate-300 transition-colors group-hover:text-slate-600" strokeWidth={2} />
 
       <AnimatePresence>
         {isHovered && (
@@ -31,13 +31,13 @@ const CalloutTooltip = ({ short, expanded }: { short: string; expanded: string }
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.96 }}
             transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute left-0 top-full z-50 mt-2 w-64 rounded-xl border border-gray-200/80 bg-slate-100 p-3.5 shadow-xl backdrop-blur-sm"
+            className="absolute left-0 top-full z-50 mt-2 w-64 rounded-xl border border-slate-200/80 bg-white/90 p-3.5 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
           >
-            <p className="text-[12.5px] leading-relaxed text-gray-600">
+            <p className="text-[12px] leading-relaxed text-slate-600">
               {expanded}
             </p>
             {/* Tooltip arrow */}
-            <div className="absolute -top-1.5 left-4 h-3 w-3 rotate-45 border-l border-t border-gray-200/80 bg-slate-100" />
+            <div className="absolute -top-1.5 left-4 h-3 w-3 rotate-45 border-l border-t border-slate-200/80 bg-white/90" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -69,7 +69,7 @@ const PricingSection: React.FC = () => {
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 sm:px-6 text-center">
         {/* Section badge */}
         <motion.p
-          className="text-[10px] font-semibold uppercase tracking-[0.25em] text-gray-400"
+          className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
@@ -81,7 +81,7 @@ const PricingSection: React.FC = () => {
 
         {/* Main heading */}
         <motion.h2
-          className="mt-4 text-4xl font-semibold tracking-[-0.025em] leading-[1.1] text-gray-900 sm:text-5xl lg:text-6xl [text-wrap:balance] [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-orange-300"
+          className="mt-4 text-4xl font-semibold tracking-[-0.03em] leading-[1.06] text-slate-900 sm:text-5xl lg:text-6xl [text-wrap:balance] [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-orange-300"
           initial={{ opacity: 0, y: 10 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
@@ -90,7 +90,7 @@ const PricingSection: React.FC = () => {
         >
           {pricingCopy.title}{" "}
           <span className="whitespace-nowrap">
-            <span className="relative inline-block text-gray-400">
+            <span className="relative inline-block text-slate-400">
               {pricingCopy.strike}
               <motion.svg
                 className="pointer-events-none absolute left-[-2%] top-[60%] h-4 w-[104%] -translate-y-1/2"
@@ -131,7 +131,7 @@ const PricingSection: React.FC = () => {
 
         {/* Subtitle - improved typography */}
         <motion.p
-          className="mt-4 sm:mt-5 max-w-xl text-pretty text-[15px] sm:text-[17px] leading-relaxed text-gray-500 font-light"
+          className="mt-4 sm:mt-5 max-w-xl text-pretty text-[15px] sm:text-[17px] leading-relaxed text-slate-500"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
@@ -151,14 +151,14 @@ const PricingSection: React.FC = () => {
           style={gpuStyle}
         >
           {/* Billing cycle toggle */}
-          <div className="relative flex items-center rounded-full bg-slate-100 p-1 shadow-[inset_-2px_-2px_5px_rgba(255,255,255,0.7),inset_2px_2px_5px_rgba(0,0,0,0.1)]">
+          <div className="relative flex items-center rounded-full border border-slate-200/70 bg-white/80 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_6px_18px_rgba(15,23,42,0.06)]">
             <button
               onClick={() => setBillingCycle('annual')}
               className={cn(
-                "relative z-10 rounded-full px-5 py-2 text-[13px] font-medium tracking-wide transition-all duration-200",
+                "relative z-10 rounded-full px-5 py-2 text-[13px] font-semibold tracking-wide transition-all duration-200",
                 billingCycle === 'annual'
-                  ? "text-gray-900 shadow-[-2px_-2px_5px_rgba(255,255,255,0.8),2px_2px_5px_rgba(0,0,0,0.1)] bg-slate-100"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-slate-200/50"
+                  ? "text-slate-900 shadow-[0_6px_16px_rgba(15,23,42,0.08)] bg-white"
+                  : "text-slate-500 hover:text-slate-700 hover:bg-white/60"
               )}
             >
               Annual
@@ -167,10 +167,10 @@ const PricingSection: React.FC = () => {
             <button
               onClick={() => setBillingCycle('monthly')}
               className={cn(
-                "relative z-10 rounded-full px-5 py-2 text-[13px] font-medium tracking-wide transition-all duration-200",
+                "relative z-10 rounded-full px-5 py-2 text-[13px] font-semibold tracking-wide transition-all duration-200",
                 billingCycle === 'monthly'
-                  ? "text-gray-900 shadow-[-2px_-2px_5px_rgba(255,255,255,0.8),2px_2px_5px_rgba(0,0,0,0.1)] bg-slate-100"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-slate-200/50"
+                  ? "text-slate-900 shadow-[0_6px_16px_rgba(15,23,42,0.08)] bg-white"
+                  : "text-slate-500 hover:text-slate-700 hover:bg-white/60"
               )}
             >
               Monthly
@@ -204,8 +204,8 @@ const PricingSection: React.FC = () => {
                       "relative flex flex-col rounded-[24px] sm:rounded-[32px] px-5 py-6 sm:px-8 sm:py-9 text-left overflow-hidden",
                       "transition-all duration-300 ease-out will-change-transform",
                       plan.highlight
-                        ? "border-violet-200/50 bg-gradient-to-b from-violet-50/40 to-white shadow-[0_2px_16px_rgba(139,92,246,0.06),0_8px_32px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_24px_rgba(139,92,246,0.1),0_12px_40px_rgba(0,0,0,0.06)]"
-                        : "border-gray-200/70 bg-white/80 shadow-[0_1px_4px_rgba(0,0,0,0.02),0_4px_16px_rgba(0,0,0,0.03)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.04),0_12px_32px_rgba(0,0,0,0.06)]"
+                        ? "border-violet-200/50 bg-gradient-to-b from-violet-50/40 to-white shadow-[0_8px_30px_rgba(15,23,42,0.08),0_2px_12px_rgba(139,92,246,0.08)] hover:shadow-[0_10px_36px_rgba(15,23,42,0.12),0_6px_20px_rgba(139,92,246,0.12)]"
+                        : "border-slate-200/70 bg-white/80 shadow-[0_2px_10px_rgba(15,23,42,0.06),0_12px_24px_rgba(15,23,42,0.05)] hover:shadow-[0_4px_16px_rgba(15,23,42,0.08),0_16px_30px_rgba(15,23,42,0.08)]"
                     )}
                   >
                     {/* Coming Soon Overlay */}
@@ -225,18 +225,18 @@ const PricingSection: React.FC = () => {
 
                     {/* Plan header */}
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <h3 className="text-[15px] sm:text-[17px] font-bold tracking-[-0.01em] text-gray-800">
+                      <h3 className="text-[15px] sm:text-[17px] font-semibold tracking-[-0.02em] text-slate-800">
                         {plan.name}
                       </h3>
                       {plan.highlight && !plan.comingSoon && (
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.06em] text-violet-600 shadow-[-2px_-2px_4px_rgba(255,255,255,0.9),2px_2px_4px_rgba(0,0,0,0.1),inset_-1px_-1px_2px_rgba(255,255,255,0.5),inset_1px_1px_2px_rgba(0,0,0,0.05)]">
+                        <span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-600 shadow-[0_6px_16px_rgba(15,23,42,0.08)]">
                           Popular
                         </span>
                       )}
                     </div>
 
                     {/* Description */}
-                    <p className="min-h-[36px] sm:min-h-[40px] text-[13px] sm:text-[14px] leading-relaxed text-gray-500">
+                    <p className="min-h-[36px] sm:min-h-[40px] text-[13px] sm:text-[14px] leading-relaxed text-slate-500">
                       {plan.description}
                     </p>
 
@@ -244,14 +244,14 @@ const PricingSection: React.FC = () => {
                     <div className="mt-5 mb-5 sm:mt-8 sm:mb-8">
                       <div className="flex items-baseline gap-1">
                         <span className={cn(
-                          "font-bold tracking-[-0.03em] text-gray-900",
+                          "font-[family-name:var(--font-geist-mono)] tabular-nums font-semibold tracking-[-0.04em] text-slate-900",
                           plan.comingSoon ? "text-[24px] sm:text-[28px]" : "text-[36px] sm:text-[42px]"
                         )}>
                           {/* Use dynamic pricing for Pro plan */}
                           {plan.name === "Pro" ? getProPrice() : plan.price}
                         </span>
                         {(plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix) && (
-                          <span className="text-[12px] sm:text-[14px] font-medium text-gray-400 ml-1">
+                          <span className="text-[12px] sm:text-[14px] font-medium text-slate-400 ml-1">
                             {plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix}
                           </span>
                         )}
@@ -275,8 +275,8 @@ const PricingSection: React.FC = () => {
                             ? "opacity-60 cursor-not-allowed"
                             : "",
                           plan.highlight && !(plan.comingSoon || plan.disabled)
-                            ? "text-violet-600 shadow-[-5px_-5px_10px_rgba(255,255,255,0.9),5px_5px_10px_rgba(0,0,0,0.1)] hover:text-violet-700"
-                            : "text-gray-700"
+                            ? "text-violet-600 shadow-[0_10px_24px_rgba(15,23,42,0.1)] hover:text-violet-700"
+                            : "text-slate-700"
                         )}
                       >
                         {plan.comingSoon ? "Notify Me" : plan.cta}
@@ -287,10 +287,10 @@ const PricingSection: React.FC = () => {
                     <div className="flex-1 space-y-3 sm:space-y-4">
                       {plan.features.map((feature) => (
                         <div key={feature} className="flex items-start gap-2.5 sm:gap-3">
-                          <span className="mt-0.5 flex h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 shadow-[-2px_-2px_4px_rgba(255,255,255,0.9),2px_2px_4px_rgba(0,0,0,0.1)]">
+                          <span className="mt-0.5 flex h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/90 shadow-[0_4px_10px_rgba(15,23,42,0.08)]">
                             <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" strokeWidth={3} />
                           </span>
-                          <span className="text-[13px] sm:text-[14px] leading-snug text-gray-600">
+                          <span className="text-[13px] sm:text-[14px] leading-snug text-slate-600">
                             {feature}
                           </span>
                         </div>
@@ -298,10 +298,10 @@ const PricingSection: React.FC = () => {
                       {/* Limitations list - styled differently */}
                       {plan.limitations?.map((limitation) => (
                         <div key={limitation} className="flex items-start gap-2.5 sm:gap-3">
-                          <span className="mt-0.5 flex h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-100/60 shadow-[-1px_-1px_3px_rgba(255,255,255,0.7),1px_1px_3px_rgba(0,0,0,0.05)]">
+                          <span className="mt-0.5 flex h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 items-center justify-center rounded-full bg-slate-100/60 shadow-[0_2px_6px_rgba(15,23,42,0.06)]">
                             <Info className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-gray-400" strokeWidth={2.5} />
                           </span>
-                          <span className="text-[13px] sm:text-[14px] leading-snug text-gray-400 italic">
+                          <span className="text-[13px] sm:text-[14px] leading-snug text-slate-400 italic">
                             {limitation}
                           </span>
                         </div>
@@ -375,10 +375,10 @@ const PricingSection: React.FC = () => {
           transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
           style={gpuStyle}
         >
-          <p className="text-[14px] font-semibold text-gray-700">
+          <p className="text-[14px] font-semibold text-slate-700">
             {pricingPhilosophy.tagline}
           </p>
-          <p className="text-[13px] text-gray-500 max-w-md">
+          <p className="text-[13px] text-slate-500 max-w-md">
             {pricingPhilosophy.summary}
           </p>
 
@@ -386,7 +386,7 @@ const PricingSection: React.FC = () => {
           {activeTab === 'individuals' && (
             <button
               onClick={() => setActiveTab('teams')}
-              className="mt-2 text-[12px] text-gray-400 hover:text-violet-500 transition-colors flex items-center gap-1.5"
+              className="mt-2 text-[12px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1.5"
             >
               Looking for team pricing?
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -397,7 +397,7 @@ const PricingSection: React.FC = () => {
           {activeTab === 'teams' && (
             <button
               onClick={() => setActiveTab('individuals')}
-              className="mt-2 text-[12px] text-gray-400 hover:text-violet-500 transition-colors flex items-center gap-1.5"
+              className="mt-2 text-[12px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1.5"
             >
               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
