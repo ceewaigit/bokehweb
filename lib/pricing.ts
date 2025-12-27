@@ -4,7 +4,7 @@ export const pricingCopy = {
   strike: "cuts",
   titleAfter: "time",
   titleEmphasis: "and pays for itself",
-  subtitle: "Start with a free trial. Clean exports from day one, and your subscription payments count toward a lifetime license.",
+  subtitle: "Start with a free trial. Your subscription payments count toward a lifetime license.",
   footnote: "Reach $149 in payments, and the current major version is yours forever.",
 };
 
@@ -23,11 +23,10 @@ export const pricingPlans = [
     name: "Trial",
     price: "Free",
     priceSuffix: `${PRICING.trialDays} days`,
-    description: "Full access with clean exports.",
+    description: "Full access for a limited time.",
     cta: "Start free trial",
     features: [
       "Full feature access",
-      "No watermark exports",
       "Email support",
       "Cancel anytime",
     ],

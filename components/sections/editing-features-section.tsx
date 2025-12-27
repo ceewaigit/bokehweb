@@ -237,13 +237,16 @@ export function EditingFeaturesSection({
                     style={gpuStyle}
                 >
                     <MediaFrame className="mx-auto">
-                        {/* Swipe container for mobile navigation */}
+                        {/* Swipe container for mobile navigation - disabled for interactive components */}
                         <motion.div
-                            className="relative aspect-video overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
-                            drag="x"
+                            className={cn(
+                                "relative aspect-video overflow-hidden touch-pan-y",
+                                currentMedia?.type !== "component" && "cursor-grab active:cursor-grabbing"
+                            )}
+                            drag={currentMedia?.type !== "component" ? "x" : false}
                             dragConstraints={{ left: 0, right: 0 }}
                             dragElastic={0.2}
-                            onDragEnd={handleDragEnd}
+                            onDragEnd={currentMedia?.type !== "component" ? handleDragEnd : undefined}
                         >
                             <AnimatePresence mode="wait">
                                 <motion.div
