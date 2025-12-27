@@ -174,14 +174,53 @@
   button,
   [role="button"],
   summary,
-  label,
-  .cursor-pointer {
+  label {
     cursor: var(--cursor-pointer);
   }
 
   input,
   textarea,
-  [contenteditable="true"],
+  [contenteditable="true"] {
+    cursor: var(--cursor-text);
+  }
+
+  ::selection {
+    background-color: rgba(139, 92, 246, 0.3);
+    color: inherit;
+  }
+}
+
+/* Minimal, modern scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(15, 23, 42, 0.35);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(15, 23, 42, 0.55);
+}
+
+@layer utilities {
+  .cursor-pointer {
+    cursor: var(--cursor-pointer);
+  }
+
   .cursor-text {
     cursor: var(--cursor-text);
   }
@@ -223,45 +262,13 @@
     cursor: var(--cursor-nwse-resize);
   }
 
-  ::selection {
-    background-color: rgba(139, 92, 246, 0.3);
-    color: inherit;
-  }
-}
-
-/* Minimal, modern scrollbars */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(15, 23, 42, 0.35) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background-color: rgba(15, 23, 42, 0.35);
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: content-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(15, 23, 42, 0.55);
-}
-
-@layer utilities {
   .custom-cursor-active,
   .custom-cursor-active * {
     cursor: none !important;
   }
 
   .custom-cursor {
+    --cursor-pressed-scale: 0.8;
     position: fixed;
     top: 0;
     left: 0;

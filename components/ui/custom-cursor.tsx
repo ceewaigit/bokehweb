@@ -82,6 +82,11 @@ export function CustomCursor() {
 
         document.body.classList.add("custom-cursor-active");
 
+        const pressedScaleValue = Number.parseFloat(
+            window.getComputedStyle(cursorEl).getPropertyValue("--cursor-pressed-scale"),
+        );
+        const pressedScale = Number.isFinite(pressedScaleValue) ? pressedScaleValue : 0.8;
+
         let rafId = 0;
         let isVisible = false;
         let isPressed = false;
@@ -128,7 +133,7 @@ export function CustomCursor() {
             const rotateEase = targetRotate === 0 ? 0.5 : 0.2;
             rotation.current += (targetRotate - rotation.current) * rotateEase;
 
-            const targetScale = isPressed ? 0.7 : 1;
+            const targetScale = isPressed ? pressedScale : 1;
             scale.current += (targetScale - scale.current) * 0.35;
 
             cursorEl.style.setProperty("--cursor-x", `${drawX}px`);
@@ -149,7 +154,25 @@ export function CustomCursor() {
 
         const resolveCursorState = (targetElement: Element | null) => {
             if (!targetElement || !(targetElement instanceof HTMLElement)) return cursorStates.default;
+            const selectors = [
+                { selector: ".cursor-pointer, a, button, [role=\"button\"], summary, label", state: cursorStates.pointer },
+                { selector: ".cursor-text, input, textarea, [contenteditable=\"true\"]", state: cursorStates.text },
+                { selector: ".cursor-move, .cursor-grab, .cursor-grabbing", state: cursorStates.move },
+                { selector: ".cursor-crosshair", state: cursorStates.crosshair },
+                { selector: ".cursor-not-allowed", state: cursorStates.notAllowed },
+                { selector: ".cursor-help", state: cursorStates.help },
+                { selector: ".cursor-ew-resize", state: cursorStates.ewResize },
+                { selector: ".cursor-ns-resize", state: cursorStates.nsResize },
+                { selector: ".cursor-nesw-resize", state: cursorStates.neswResize },
+                { selector: ".cursor-nwse-resize", state: cursorStates.nwseResize },
+            ];
+            for (const entry of selectors) {
+                if (targetElement.closest(entry.selector)) {
+                    return entry.state;
+                }
+            }
             const cursor = window.getComputedStyle(targetElement).cursor.toLowerCase();
+            if (cursor === "none") return cursorStates.default;
             const keyword =
                 ["pointer", "text", "move", "grab", "grabbing", "crosshair", "not-allowed", "no-drop", "help", "ew-resize", "ns-resize", "nesw-resize", "nwse-resize", "default", "auto"]
                     .find((entry) => cursor.includes(entry)) ?? cursor;
