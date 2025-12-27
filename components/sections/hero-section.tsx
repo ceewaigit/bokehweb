@@ -128,13 +128,13 @@ export function HeroSection({
             timeline.to(hero, { y: 0, duration: 0.3, ease: "none" }, 0);
             timeline.to(
                 text,
-                { opacity: 0, y: 24, scale: 0.95, filter: "blur(10px)", duration: 0.25, ease: "none" },
+                { opacity: 0, y: 24, scale: 0.8, filter: "blur(10px)", duration: 0.25, ease: "none" },
                 0
             );
-            const dockDuration = 0.7;
-            const dockHold = 0.75;
+            const dockDuration = 0.3;
+            const dockHold = 0.3;
 
-            timeline.to(workspace, { opacity: 1, duration: 0.35, ease: "none" }, 0.15);
+            timeline.to(workspace, { opacity: 1, duration: 0.2, ease: "none" }, 0.15);
             timeline.to(hero, { x, y, scale, duration: dockDuration, ease: "none" }, 0.45);
             timeline.to(hero, { x, y, scale, duration: dockHold, ease: "none" }, 0.45 + dockDuration);
         };

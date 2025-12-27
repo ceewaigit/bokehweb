@@ -24,6 +24,7 @@ export function Navbar({ className }: NavbarProps) {
 
     const navLinks = [
         { href: "/about", label: "About" },
+        // { href: "/docs", label: "Docs" },
         { href: "/#features", label: "Features" },
         { href: "/#pricing", label: "Pricing" },
         { href: "/#resources", label: "Resources" },

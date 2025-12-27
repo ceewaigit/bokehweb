@@ -119,7 +119,10 @@ export default function AboutPage() {
                                 bokeh. started as a small tool we made for friends working on projects together. We wanted recordings that looked clean without hours of editing, and something we could trust to work every time.
                             </p>
                             <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
-                                We also noticed most people just hit the default screen recorder. It is easy, but the text comes out soft and hard to read, and they assume that is just how screen video looks. The better tools existed, but they were hidden behind heavy workflows or a steep price. We wanted to fill that gap with something simple: <Highlighter action="bracket" style="clean" color="#cbd5e1" delay={400}><strong>crisp capture</strong></Highlighter>, clean exports, and no learning curve.
+                                We kept trying the usual options and something always felt slightly off. The text came out soft, the controls chased trends, and the good tools were buried behind heavy workflows or a steep price. There were strong products in the market, but many optimized for hype and extra knobs instead of clarity.
+                            </p>
+                            <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
+                                That pushed us toward a simple belief: less can be better. Focus on the few things that matter most, and make them feel great every time. We wanted a tool built around <Highlighter action="bracket" style="clean" color="#cbd5e1" delay={400}><strong>crisp capture</strong></Highlighter>, clean exports, and a path from record to share that never feels heavy.
                             </p>
                             <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
                                 The real cost was not just time. It was hesitation: the moment you decide not to record because it is going to take too long. We focused on getting from recording to shareable in one smooth pass, with thoughtful defaults that make the output feel finished without another round of edits.
