@@ -51,12 +51,6 @@ export function HeroSection({
     const readyRef = useRef({ hero: false, scroll: false });
     const startedRef = useRef(false);
     const heroStartedRef = useRef(false);
-    const heroMp4Fallback = videoSrc?.endsWith(".webm")
-        ? videoSrc.replace(/\.webm$/i, ".mp4")
-        : undefined;
-    const scrollMp4Fallback = scrollVideoSrc?.endsWith(".webm")
-        ? scrollVideoSrc.replace(/\.webm$/i, ".mp4")
-        : undefined;
 
     useLayoutEffect(() => {
         if (
@@ -71,6 +65,10 @@ export function HeroSection({
         }
 
         gsap.registerPlugin(ScrollTrigger);
+        const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+        if (isCoarsePointer) {
+            ScrollTrigger.config({ ignoreMobileResize: true });
+        }
 
         let timeline: gsap.core.Timeline | null = null;
         const initialScale = 1.5;
@@ -119,7 +117,8 @@ export function HeroSection({
                     end: "bottom top",
                     scrub: 0.8,
                     pin: pinRef.current,
-                    anticipatePin: 1,
+                    anticipatePin: isCoarsePointer ? 0 : 1,
+                    pinType: isCoarsePointer ? "transform" : "fixed",
                     pinSpacing: true,
                     invalidateOnRefresh: true,
                 },
@@ -147,6 +146,7 @@ export function HeroSection({
 
         let resizeTimeout: NodeJS.Timeout;
         const resizeHandler = () => {
+            if (isCoarsePointer) return;
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
                 ScrollTrigger.refresh();
@@ -247,7 +247,7 @@ export function HeroSection({
 
                             <h1
                                 className={cn(
-                                    "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[1.1] tracking-[-0.04em] text-foreground",
+                                    "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[0.9] tracking-[-0.04em] text-foreground",
                                     "text-balance font-[family-name:var(--font-geist-sans)]",
                                     "[&_em]:italic [&_em]:font-medium [&_em]:text-primary [&_em]:font-[family-name:var(--font-display)]"
                                 )}
@@ -308,7 +308,6 @@ export function HeroSection({
                                         }}
                                     >
                                         <source src={scrollVideoSrc} type="video/webm" />
-                                        {scrollMp4Fallback && <source src={scrollMp4Fallback} type="video/mp4" />}
                                     </video>
                                 )}
                             </div>
@@ -357,7 +356,6 @@ export function HeroSection({
                                             onLoadedData={() => setHeroVisualReady(true)}
                                         >
                                             <source src={videoSrc} type="video/webm" />
-                                            {heroMp4Fallback && <source src={heroMp4Fallback} type="video/mp4" />}
                                         </video>
                                     ) : (
                                         screenshotSrc && <Image src={screenshotSrc} alt="Hero" fill className="object-cover" />

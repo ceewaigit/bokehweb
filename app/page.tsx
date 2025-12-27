@@ -96,7 +96,7 @@ const showcaseFeatures = [
     icon: Layers,
     title: "Brand-ready backgrounds",
     description: "On-brand, always. Backgrounds that fit your guidelines instantly.",
-    video: "/features/wallpaper.mp4",
+    video: "/features/wallpaper.webm",
     imagePlacement: "top" as const,
     textPosition: "left" as const,
     objectPosition: "right" as const,

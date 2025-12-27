@@ -284,11 +284,15 @@
 
   .custom-cursor {
     --cursor-pressed-scale: 0.85;
+    --cursor-width: 80px;
+    --cursor-height: 80px;
     position: fixed;
     top: 0;
     left: 0;
     z-index: 9999;
     pointer-events: none;
+    width: var(--cursor-width);
+    height: var(--cursor-height);
     transform: translate3d(var(--cursor-x, 0px), var(--cursor-y, 0px), 0) rotate(var(--cursor-rotate, 0deg)) scale(var(--cursor-scale, 1));
     transform-origin: var(--cursor-hotspot-x, 18px) var(--cursor-hotspot-y, 16px);
     background-image: var(--cursor-image, url("/features/cursors/arrowS.png"));

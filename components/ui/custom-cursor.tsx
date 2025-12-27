@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 
-const CURSOR_SIZE = { width: 80, height: 80 };
+const DEFAULT_CURSOR_SIZE = { width: 80, height: 80 };
+
+type CursorState = {
+    image: string;
+    hotspot: { x: number; y: number };
+};
 
 // Hotspot = the "click point" of the cursor relative to the image center
 // For 80x80 images: tip at top-left would be around x:4-8, y:4-8
@@ -53,25 +59,45 @@ const cursorStates = {
     },
 };
 
-const cursorMap: Record<string, typeof cursorStates.default> = {
-    auto: cursorStates.default,
-    default: cursorStates.default,
-    pointer: cursorStates.pointer,
-    text: cursorStates.text,
-    move: cursorStates.move,
-    grab: cursorStates.move,
-    grabbing: cursorStates.move,
-    crosshair: cursorStates.crosshair,
-    "not-allowed": cursorStates.notAllowed,
-    "no-drop": cursorStates.notAllowed,
-    help: cursorStates.help,
-    "ew-resize": cursorStates.ewResize,
-    "ns-resize": cursorStates.nsResize,
-    "nesw-resize": cursorStates.neswResize,
-    "nwse-resize": cursorStates.nwseResize,
+type CursorStateMap = {
+    [K in keyof typeof cursorStates]: CursorState;
 };
 
-export function CustomCursor() {
+type CustomCursorMotion = {
+    response?: number;
+    followMin?: number;
+    followMax?: number;
+    rotationMax?: number;
+    idleThreshold?: number;
+    idleTimeout?: number;
+    pressedScale?: number;
+};
+
+type CustomCursorProps = {
+    size?: { width: number; height: number };
+    states?: Partial<CursorStateMap>;
+    motion?: CustomCursorMotion;
+};
+
+const buildCursorMap = (states: CursorStateMap): Record<string, CursorState> => ({
+    auto: states.default,
+    default: states.default,
+    pointer: states.pointer,
+    text: states.text,
+    move: states.move,
+    grab: states.move,
+    grabbing: states.move,
+    crosshair: states.crosshair,
+    "not-allowed": states.notAllowed,
+    "no-drop": states.notAllowed,
+    help: states.help,
+    "ew-resize": states.ewResize,
+    "ns-resize": states.nsResize,
+    "nesw-resize": states.neswResize,
+    "nwse-resize": states.nwseResize,
+});
+
+export function CustomCursor({ size, states, motion }: CustomCursorProps) {
     const cursorRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -86,10 +112,22 @@ export function CustomCursor() {
 
         document.body.classList.add("custom-cursor-active");
 
+        const resolvedStates = { ...cursorStates, ...states } as CursorStateMap;
+        const cursorMap: Record<string, CursorState> = buildCursorMap(resolvedStates);
+        const motionConfig = {
+            response: motion?.response ?? 1,
+            followMin: motion?.followMin ?? 0.55,
+            followMax: motion?.followMax ?? 0.92,
+            rotationMax: motion?.rotationMax ?? 12,
+            idleThreshold: motion?.idleThreshold ?? 0.45,
+            idleTimeout: motion?.idleTimeout ?? 110,
+            pressedScale: motion?.pressedScale,
+        };
+
         const pressedScaleValue = Number.parseFloat(
             window.getComputedStyle(cursorEl).getPropertyValue("--cursor-pressed-scale"),
         );
-        const pressedScale = Number.isFinite(pressedScaleValue) ? pressedScaleValue : 0.8;
+        const pressedScale = motionConfig.pressedScale ?? (Number.isFinite(pressedScaleValue) ? pressedScaleValue : 0.8);
 
         let rafId = 0;
         let isVisible = false;
@@ -103,8 +141,8 @@ export function CustomCursor() {
         const scale = { current: 1 };
         let lastMoveAt = performance.now();
         let lastFrameAt = performance.now();
-        const IDLE_THRESHOLD = 0.5;
-        const IDLE_TIMEOUT = 100;
+        const IDLE_THRESHOLD = motionConfig.idleThreshold;
+        const IDLE_TIMEOUT = motionConfig.idleTimeout;
 
         const setVisibility = (nextVisible: boolean) => {
             if (isVisible === nextVisible) return;
@@ -121,9 +159,14 @@ export function CustomCursor() {
             const dx = target.x - current.x;
             const dy = target.y - current.y;
             const distance = Math.hypot(dx, dy);
+            const vX = target.x - lastTarget.x;
+            const vY = target.y - lastTarget.y;
+            const speed = Math.hypot(vX, vY);
+            lastTarget.x = target.x;
+            lastTarget.y = target.y;
 
             // Check if we've essentially converged (idle detection)
-            if (distance < IDLE_THRESHOLD && !isPressed && frameNow - lastMoveAt > IDLE_TIMEOUT) {
+            if (distance < IDLE_THRESHOLD && speed < 0.1 && !isPressed && frameNow - lastMoveAt > IDLE_TIMEOUT) {
                 isIdle = true;
                 // Final position update before going idle
                 current.x = target.x;
@@ -136,28 +179,29 @@ export function CustomCursor() {
                 return;
             }
 
-            const baseFollow = 1 - Math.pow(0.001, frameDelta / 16);
-            const follow = Math.min(0.85, Math.max(0.35, baseFollow + distance / 650));
+            const baseFollow = 1 - Math.pow(0.001, (frameDelta / 16) * motionConfig.response);
+            const follow = Math.min(
+                motionConfig.followMax,
+                Math.max(motionConfig.followMin, baseFollow + distance / 1200),
+            );
             current.x += dx * follow;
             current.y += dy * follow;
 
             const drawX = current.x - activeState.hotspot.x;
             const drawY = current.y - activeState.hotspot.y;
-            const vX = target.x - lastTarget.x;
-            const vY = target.y - lastTarget.y;
-            const speed = Math.hypot(vX, vY);
-            const isMoving = speed > 0.35 && frameNow - lastMoveAt < 140;
-            const angle = Math.atan2(dy, dx);
-            const tiltStrength = Math.min(1, speed / 18);
-            const targetRotate = isMoving
-                ? Math.max(-10, Math.min(10, angle * (180 / Math.PI) * 0.25)) * tiltStrength
+            const isMoving = speed > 0.2 && frameNow - lastMoveAt < 140;
+            const angle = Math.atan2(vY, vX);
+            const tiltStrength = Math.min(1, speed / 14);
+            const rotationTarget = isMoving
+                ? Math.max(-motionConfig.rotationMax, Math.min(motionConfig.rotationMax, angle * (180 / Math.PI))) *
+                  tiltStrength
                 : 0;
-            const rotateEase = targetRotate === 0 ? 0.5 : 0.2;
-            rotation.current += (targetRotate - rotation.current) * rotateEase;
+            const rotateEase = rotationTarget === 0 ? 0.35 : 0.18;
+            rotation.current += (rotationTarget - rotation.current) * rotateEase;
 
             // Simple fast easing for scale (subtle, snappy click)
             const targetScale = isPressed ? pressedScale : 1;
-            const easeFactor = isPressed ? 0.5 : 0.4; // Faster on press, smooth on release
+            const easeFactor = isPressed ? 0.5 : 0.38; // Faster on press, smooth on release
             scale.current += (targetScale - scale.current) * easeFactor;
 
             cursorEl.style.setProperty("--cursor-x", `${drawX}px`);
@@ -185,18 +229,18 @@ export function CustomCursor() {
         };
 
         const resolveCursorState = (targetElement: Element | null) => {
-            if (!targetElement || !(targetElement instanceof HTMLElement)) return cursorStates.default;
+            if (!targetElement || !(targetElement instanceof HTMLElement)) return resolvedStates.default;
             const selectors = [
-                { selector: ".cursor-pointer, a, button, [role=\"button\"], summary, label", state: cursorStates.pointer },
-                { selector: ".cursor-text, input, textarea, [contenteditable=\"true\"]", state: cursorStates.text },
-                { selector: ".cursor-move, .cursor-grab, .cursor-grabbing", state: cursorStates.move },
-                { selector: ".cursor-crosshair", state: cursorStates.crosshair },
-                { selector: ".cursor-not-allowed", state: cursorStates.notAllowed },
-                { selector: ".cursor-help", state: cursorStates.help },
-                { selector: ".cursor-ew-resize", state: cursorStates.ewResize },
-                { selector: ".cursor-ns-resize", state: cursorStates.nsResize },
-                { selector: ".cursor-nesw-resize", state: cursorStates.neswResize },
-                { selector: ".cursor-nwse-resize", state: cursorStates.nwseResize },
+                { selector: ".cursor-pointer, a, button, [role=\"button\"], summary, label", state: resolvedStates.pointer },
+                { selector: ".cursor-text, input, textarea, [contenteditable=\"true\"]", state: resolvedStates.text },
+                { selector: ".cursor-move, .cursor-grab, .cursor-grabbing", state: resolvedStates.move },
+                { selector: ".cursor-crosshair", state: resolvedStates.crosshair },
+                { selector: ".cursor-not-allowed", state: resolvedStates.notAllowed },
+                { selector: ".cursor-help", state: resolvedStates.help },
+                { selector: ".cursor-ew-resize", state: resolvedStates.ewResize },
+                { selector: ".cursor-ns-resize", state: resolvedStates.nsResize },
+                { selector: ".cursor-nesw-resize", state: resolvedStates.neswResize },
+                { selector: ".cursor-nwse-resize", state: resolvedStates.nwseResize },
             ];
             for (const entry of selectors) {
                 if (targetElement.closest(entry.selector)) {
@@ -204,17 +248,15 @@ export function CustomCursor() {
                 }
             }
             const cursor = window.getComputedStyle(targetElement).cursor.toLowerCase();
-            if (cursor === "none") return cursorStates.default;
+            if (cursor === "none") return resolvedStates.default;
             const keyword =
                 ["pointer", "text", "move", "grab", "grabbing", "crosshair", "not-allowed", "no-drop", "help", "ew-resize", "ns-resize", "nesw-resize", "nwse-resize", "default", "auto"]
                     .find((entry) => cursor.includes(entry)) ?? cursor;
-            return cursorMap[keyword] ?? cursorStates.default;
+            return cursorMap[keyword] ?? resolvedStates.default;
         };
 
         const handlePointerMove = (event: PointerEvent) => {
             if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-            lastTarget.x = target.x;
-            lastTarget.y = target.y;
             lastMoveAt = performance.now();
             target.x = event.clientX;
             target.y = event.clientY;
@@ -240,7 +282,7 @@ export function CustomCursor() {
 
         const handlePointerLeave = () => setVisibility(false);
 
-        setCursorState(cursorStates.default);
+        setCursorState(resolvedStates.default);
         window.addEventListener("pointermove", handlePointerMove, { passive: true });
         window.addEventListener("pointerover", handlePointerOver, { passive: true });
         window.addEventListener("pointerdown", handlePointerDown, { passive: true });
@@ -259,17 +301,19 @@ export function CustomCursor() {
             document.removeEventListener("mouseleave", handlePointerLeave);
             document.body.classList.remove("custom-cursor-active");
         };
-    }, []);
+    }, [states, motion]);
 
     return (
         <div
             ref={cursorRef}
             className="custom-cursor is-hidden"
             aria-hidden="true"
-            style={{
-                width: CURSOR_SIZE.width,
-                height: CURSOR_SIZE.height,
-            }}
+            style={
+                {
+                    "--cursor-width": `${(size ?? DEFAULT_CURSOR_SIZE).width}px`,
+                    "--cursor-height": `${(size ?? DEFAULT_CURSOR_SIZE).height}px`,
+                } as CSSProperties
+            }
         />
     );
 }

@@ -16,6 +16,7 @@ export function AutoplayVideo({
     loop = true,
     ...props
 }: AutoplayVideoProps) {
+    const isDev = process.env.NODE_ENV !== "production";
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -113,7 +114,9 @@ export function AutoplayVideo({
     const handleError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
         const video = e.currentTarget;
         const error = video.error;
-        console.error("AutoplayVideo Error:", error?.code, error?.message, "SRC:", src);
+        if (isDev) {
+            console.error("AutoplayVideo Error:", error?.code, error?.message, "SRC:", src);
+        }
 
         // Don't show error for simple aborts during navigation
         if (error?.code === MediaError.MEDIA_ERR_ABORTED) return;
@@ -121,7 +124,9 @@ export function AutoplayVideo({
         // Auto-retry logic
         if (retryCount.current < maxRetries) {
             retryCount.current++;
-            console.log(`AutoplayVideo: Retrying... (${retryCount.current}/${maxRetries})`);
+            if (isDev) {
+                console.log(`AutoplayVideo: Retrying... (${retryCount.current}/${maxRetries})`);
+            }
             setTimeout(() => {
                 if (videoRef.current) videoRef.current.load();
             }, 1000); // Wait 1s before retry
@@ -171,7 +176,7 @@ export function AutoplayVideo({
             <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none p-4">
                 <AnimatePresence mode="wait">
                     {/* Error State - Retry Button */}
-                    {hasError && (
+                    {hasError && isDev && (
                         <motion.button
                             key="error"
                             initial={{ opacity: 0, scale: 0.8 }}
