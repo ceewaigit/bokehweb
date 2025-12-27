@@ -261,9 +261,6 @@ export default function Home() {
 
           {/* <SocialProofSection /> */}
 
-          {/* Spacer for smooth transition from hero */}
-          <div className="h-[8vh] sm:h-[12vh]" aria-hidden="true" />
-
           <FeatureShowcaseSection
             id="features"
             badge="Features"
