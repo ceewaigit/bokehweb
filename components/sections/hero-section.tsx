@@ -130,7 +130,7 @@ export function HeroSection({
                     end: () => `+=${Math.round(window.innerHeight * 1.25)}`,
                     scrub: isTouchDevice ? 0.2 : 0.35, // Smooth out mobile scrub slightly to prevent jitter
                     pin: true,
-                    pinType: isTouchDevice ? "transform" : "fixed",
+                    pinType: "fixed", // Force fixed pinning to use native compositor and avoid JS vibration
                     pinSpacing: true,
                     anticipatePin: 2,
                     invalidateOnRefresh: true,
