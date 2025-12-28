@@ -146,7 +146,16 @@ export function HeroSection({
             timeline.to(hero, { x, y, scale, duration: dockHold, ease: "none" }, 0.45 + dockDuration);
         };
 
-        buildTimeline();
+        // On mobile, delay initial build slightly to let Safari settle viewport
+        if (isTouchDevice) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    buildTimeline();
+                });
+            });
+        } else {
+            buildTimeline();
+        }
 
         let resizeTimeout: NodeJS.Timeout;
         const resizeHandler = () => {
@@ -158,8 +167,19 @@ export function HeroSection({
         };
         window.addEventListener("resize", resizeHandler);
 
+        // Handle orientation changes on mobile (rebuilds with correct viewport)
+        const orientationHandler = () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                buildTimeline();
+                ScrollTrigger.refresh();
+            }, 300);
+        };
+        window.addEventListener("orientationchange", orientationHandler);
+
         return () => {
             window.removeEventListener("resize", resizeHandler);
+            window.removeEventListener("orientationchange", orientationHandler);
             clearTimeout(resizeTimeout);
             if (timeline) {
                 timeline.scrollTrigger?.kill();
