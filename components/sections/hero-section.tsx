@@ -122,8 +122,7 @@ export function HeroSection({
                     pin: true,
                     pinType: isTouchDevice ? "transform" : "fixed",
                     pinSpacing: true,
-                    fastScrollEnd: true,
-                    anticipatePin: 1,
+                    anticipatePin: 2,
                     invalidateOnRefresh: true,
                 },
             });
