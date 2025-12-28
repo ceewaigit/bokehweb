@@ -70,10 +70,15 @@ export function HeroSection({
             autoRefreshEvents: "visibilitychange,DOMContentLoaded,load",
         });
 
-        let timeline: gsap.core.Timeline | null = null;
-        const initialScale = 1.5;
+        // On touch devices, normalizeScroll prevents iOS Safari clamping/stalling
         const isTouchDevice =
             ScrollTrigger.isTouch === 1 || ScrollTrigger.isTouch === 2;
+        if (isTouchDevice) {
+            ScrollTrigger.normalizeScroll(true);
+        }
+
+        let timeline: gsap.core.Timeline | null = null;
+        const initialScale = 1.5;
 
         const buildTimeline = () => {
             if (timeline) {
@@ -92,11 +97,11 @@ export function HeroSection({
                 scale: initialScale,
                 transformOrigin: "center center",
                 force3D: true,
-                willChange: "transform",
+                willChange: "transform, opacity",
                 opacity: 1,
             });
-            gsap.set(text, { opacity: 1, y: 0, scale: 1, force3D: true });
-            gsap.set(workspace, { opacity: 0, force3D: true, willChange: "opacity" });
+            gsap.set(text, { opacity: 1, y: 0, scale: 1, force3D: true, willChange: "transform, opacity" });
+            gsap.set(workspace, { opacity: 0, force3D: true, willChange: "transform, opacity" });
 
             const heroRect = hero.getBoundingClientRect();
             const dockRect = dock.getBoundingClientRect();
@@ -143,9 +148,6 @@ export function HeroSection({
 
         buildTimeline();
 
-        const refreshHandler = () => buildTimeline();
-        ScrollTrigger.addEventListener("refreshInit", refreshHandler);
-
         let resizeTimeout: NodeJS.Timeout;
         const resizeHandler = () => {
             if (isTouchDevice) return;
@@ -159,11 +161,12 @@ export function HeroSection({
         return () => {
             window.removeEventListener("resize", resizeHandler);
             clearTimeout(resizeTimeout);
-            ScrollTrigger.removeEventListener("refreshInit", refreshHandler);
             if (timeline) {
                 timeline.scrollTrigger?.kill();
                 timeline.kill();
             }
+            // Clean up normalizeScroll on unmount
+            ScrollTrigger.normalizeScroll(false);
         };
     }, [videoSrc, scrollVideoSrc]);
 
