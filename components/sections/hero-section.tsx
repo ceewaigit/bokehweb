@@ -112,7 +112,13 @@ export function HeroSection({
                 scrollTrigger: {
                     trigger: containerRef.current,
                     start: "top top",
-                    end: "+=1280",
+                    end: () => {
+                        const container = containerRef.current;
+                        const baseDistance = 1280;
+                        if (!container) return `+=${baseDistance}`;
+                        const available = container.offsetHeight - window.innerHeight;
+                        return `+=${Math.max(baseDistance, available)}`;
+                    },
                     scrub: 0.3,
                     pin: pinRef.current,
                     anticipatePin: 1,
@@ -214,7 +220,7 @@ export function HeroSection({
         <TooltipProvider delayDuration={0}>
             <section
                 ref={containerRef}
-                className={cn("relative min-h-[100vh] w-full", className)}
+                className={cn("relative min-h-[calc(100vh+1280px)] w-full", className)}
             >
                 <div ref={pinRef} className="relative h-screen w-full bg-transparent">
                     <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
