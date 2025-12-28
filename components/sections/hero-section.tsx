@@ -71,11 +71,13 @@ export function HeroSection({
         });
 
         // On touch devices, normalizeScroll prevents iOS Safari clamping/stalling
-        const isTouchDevice =
-            ScrollTrigger.isTouch === 1 || ScrollTrigger.isTouch === 2;
-        if (isTouchDevice) {
-            ScrollTrigger.normalizeScroll(true);
-        }
+        // However, it can cause jank on some implementations. Disabling for now to see if native scroll is better.
+        // const isTouchDevice =
+        //     ScrollTrigger.isTouch === 1 || ScrollTrigger.isTouch === 2;
+        // if (isTouchDevice) {
+        //     ScrollTrigger.normalizeScroll(true);
+        // }
+        const isTouchDevice = ScrollTrigger.isTouch === 1 || ScrollTrigger.isTouch === 2;
 
         let timeline: gsap.core.Timeline | null = null;
         const initialScale = 1.5;
@@ -132,6 +134,15 @@ export function HeroSection({
                     pinSpacing: true,
                     anticipatePin: 2,
                     invalidateOnRefresh: true,
+                    onLeave: () => {
+                        heroVideoRef.current?.pause();
+                        scrollVideoRef.current?.pause();
+                        startedRef.current = false;
+                        heroStartedRef.current = false;
+                    },
+                    onEnterBack: () => {
+                        startHeroPlayback(false);
+                    },
                 },
             });
 
@@ -202,13 +213,16 @@ export function HeroSection({
         scrollVideoRef.current?.load();
     }, [videoSrc, scrollVideoSrc]);
 
-    const startHeroPlayback = () => {
+    const startHeroPlayback = (restart = true) => {
         const hero = heroVideoRef.current;
         if (!hero) return;
         if (heroStartedRef.current) return;
         heroStartedRef.current = true;
-        hero.pause();
-        hero.currentTime = 0;
+
+        if (restart) {
+            hero.currentTime = 0;
+        }
+
         const playHero = hero.play();
         if (playHero !== undefined) playHero.catch(() => { });
     };
@@ -219,11 +233,18 @@ export function HeroSection({
         if (!hero || !scroll) return;
         if (!readyRef.current.scroll) return;
         if (startedRef.current) return;
+
+        // Sync check: only update if desynced by more than 0.1s to save resources
+        if (Math.abs(scroll.currentTime - hero.currentTime) > 0.1) {
+            scroll.currentTime = hero.currentTime;
+        }
+
         if (hero.currentTime < 0.05) return;
-        scroll.pause();
-        scroll.currentTime = hero.currentTime;
-        const playScroll = scroll.play();
-        if (playScroll !== undefined) playScroll.catch(() => { });
+
+        if (scroll.paused) {
+            const playScroll = scroll.play();
+            if (playScroll !== undefined) playScroll.catch(() => { });
+        }
         startedRef.current = true;
     };
 
@@ -234,8 +255,8 @@ export function HeroSection({
         startedRef.current = false;
         heroStartedRef.current = false;
         scroll.pause();
-        scroll.currentTime = 0;
-        startHeroPlayback();
+        // scroll.currentTime = 0; // Don't snap scroll video, let startHeroPlayback handle sync if needed or just restart hero
+        startHeroPlayback(true);
     };
     return (
         <TooltipProvider delayDuration={0}>
@@ -325,7 +346,7 @@ export function HeroSection({
                             </div>
                             <div
                                 ref={workspaceRef}
-                                className="absolute inset-0 z-10 opacity-0 rounded-lg bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] overflow-hidden"
+                                className="absolute inset-0 z-10 opacity-0 rounded-lg bg-white/20 sm:backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] overflow-hidden"
                             >
                                 {scrollVideoSrc && (
                                     <video
