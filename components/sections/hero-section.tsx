@@ -234,8 +234,9 @@ export function HeroSection({
         if (!readyRef.current.scroll) return;
         if (startedRef.current) return;
 
-        // Sync check: only update if desynced by more than 0.1s to save resources
-        if (Math.abs(scroll.currentTime - hero.currentTime) > 0.1) {
+        // Sync check: only update if desynced by more than 0.5s to save resources
+        // Seeking (currentTime = ...) is expensive and causes jitter during scroll
+        if (Math.abs(scroll.currentTime - hero.currentTime) > 0.5) {
             scroll.currentTime = hero.currentTime;
         }
 
