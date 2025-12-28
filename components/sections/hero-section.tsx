@@ -353,7 +353,7 @@ export function HeroSection({
                             <div className="absolute inset-0 z-20 flex items-center justify-center">
                                 <div
                                     ref={heroWrapRef}
-                                    className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5 opacity-0"
+                                    className="relative w-[52%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5 opacity-0"
                                 >
                                     {!heroVisualReady && (
                                         <div className="absolute inset-0 z-10 rounded-lg overflow-hidden">
