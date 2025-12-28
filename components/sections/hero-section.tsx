@@ -40,8 +40,8 @@ export function HeroSection({
     scrollVideoSrc,
 }: HeroSectionProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const pinRef = useRef<HTMLDivElement>(null);
     const textRef = useRef<HTMLDivElement>(null);
+    const copyRef = useRef<HTMLDivElement>(null);
     const heroWrapRef = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<HTMLDivElement>(null);
     const dockRef = useRef<HTMLDivElement>(null);
@@ -55,8 +55,8 @@ export function HeroSection({
     useLayoutEffect(() => {
         if (
             !containerRef.current ||
-            !pinRef.current ||
             !textRef.current ||
+            !copyRef.current ||
             !heroWrapRef.current ||
             !workspaceRef.current ||
             !dockRef.current
@@ -76,8 +76,6 @@ export function HeroSection({
                 timeline.kill();
             }
 
-            const isTouch =
-                ScrollTrigger.isTouch === 1 || ScrollTrigger.isTouch === 2;
             const hero = heroWrapRef.current as HTMLDivElement;
             const dock = dockRef.current as HTMLDivElement;
             const text = textRef.current as HTMLDivElement;
@@ -97,7 +95,7 @@ export function HeroSection({
 
             const heroRect = hero.getBoundingClientRect();
             const dockRect = dock.getBoundingClientRect();
-            const textRect = text.getBoundingClientRect();
+            const copyRect = (copyRef.current as HTMLDivElement).getBoundingClientRect();
 
             const heroCenterX = heroRect.left + heroRect.width / 2;
             const heroCenterY = heroRect.top + heroRect.height / 2;
@@ -107,8 +105,11 @@ export function HeroSection({
             const x = dockCenterX - heroCenterX;
             const y = dockCenterY - heroCenterY;
             const scale = dockRect.width / heroRect.width;
-            const startGap = 32;
-            const startY = textRect.bottom + startGap - heroRect.top;
+            const minGap = window.innerHeight * -0.16;
+            const maxGap = window.innerHeight * -0.10;
+            const idealGap = copyRect.height * -0.10;
+            const startGap = Math.round(gsap.utils.clamp(minGap, maxGap, idealGap));
+            const startY = copyRect.bottom + startGap - heroRect.top;
 
             timeline = gsap.timeline({
                 scrollTrigger: {
@@ -116,10 +117,10 @@ export function HeroSection({
                     start: "top top",
                     end: () => `+=${Math.round(window.innerHeight * 1.25)}`,
                     scrub: 0.35,
-                    pin: pinRef.current,
-                    pinType: isTouch ? "transform" : "fixed",
+                    pin: true,
+                    pinType: "fixed",
                     pinSpacing: true,
-                    pinReparent: !isTouch,
+                    fastScrollEnd: true,
                     anticipatePin: 1,
                     invalidateOnRefresh: true,
                 },
@@ -212,48 +213,51 @@ export function HeroSection({
         <TooltipProvider delayDuration={0}>
             <section
                 ref={containerRef}
-                className={cn("relative min-h-[120vh] w-full", className)}
+                className={cn("relative min-h-[100vh] w-full", className)}
+                style={{ minHeight: "100svh" }}
             >
-                <div ref={pinRef} className="relative h-screen w-full bg-transparent">
+                <div className="relative h-full w-full bg-transparent">
                     <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
                         <div
                             ref={textRef}
-                            className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[14vh] sm:mt-[10vh] md:mt-[8vh] mb-[0vh] sm:mb-[2vh]"
+                            className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[14vh] sm:mt-[8vh] md:mt-[12vh] mb-[0vh] sm:mb-[2vh]"
                         >
-                            {brandMarkSrc && (
-                                <div className="flex justify-center">
-                                    <Image
-                                        src={brandMarkSrc}
-                                        alt={brandMarkAlt}
-                                        width={160}
-                                        height={48}
-                                        className="h-6 w-auto rounded-xl sm:h-9"
-                                        priority
-                                    />
-                                </div>
-                            )}
-
-                            {badge && (
-                                <div>
-                                    <Badge variant="outline" className="px-3 py-1 text-xs sm:text-xs sm:px-3 sm:py-1 font-medium rounded-fullbackdrop-blur-sm bg-background/50 text-foreground">
-                                        {badge}
-                                    </Badge>
-                                </div>
-                            )}
-
-                            <h1
-                                className={cn(
-                                    "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[0.9] tracking-[-0.04em] text-foreground",
-                                    "text-balance font-[family-name:var(--font-geist-sans)]",
-                                    "[&_em]:italic [&_em]:font-medium [&_em]:text-primary [&_em]:font-[family-name:var(--font-display)]"
+                            <div ref={copyRef} className="flex flex-col items-center gap-2">
+                                {brandMarkSrc && (
+                                    <div className="flex justify-center">
+                                        <Image
+                                            src={brandMarkSrc}
+                                            alt={brandMarkAlt}
+                                            width={160}
+                                            height={48}
+                                            className="h-6 w-auto rounded-xl sm:h-9"
+                                            priority
+                                        />
+                                    </div>
                                 )}
-                            >
-                                {title}
-                            </h1>
 
-                            <p className="text-[clamp(0.85rem,2vw,1.05rem)] text-muted-foreground max-w-2xl mx-auto leading-snug text-balance tracking-[-0.012em]">
-                                {subtitle} <Highlighter action="underline" style="clean" color="#cbd5e1" delay={800}>intentionality</Highlighter> that most tools miss.
-                            </p>
+                                {badge && (
+                                    <div>
+                                        <Badge variant="outline" className="px-3 py-1 text-xs sm:text-xs sm:px-3 sm:py-1 font-medium rounded-fullbackdrop-blur-sm bg-background/50 text-foreground">
+                                            {badge}
+                                        </Badge>
+                                    </div>
+                                )}
+
+                                <h1
+                                    className={cn(
+                                        "text-[clamp(2rem,5.4vw,4.25rem)] font-semibold leading-[0.9] tracking-[-0.04em] text-foreground",
+                                        "text-balance font-[family-name:var(--font-geist-sans)]",
+                                        "[&_em]:italic [&_em]:font-medium [&_em]:text-primary [&_em]:font-[family-name:var(--font-display)]"
+                                    )}
+                                >
+                                    {title}
+                                </h1>
+
+                                <p className="text-[clamp(0.85rem,2vw,1.05rem)] text-muted-foreground max-w-2xl mx-auto leading-snug text-balance tracking-[-0.012em]">
+                                    {subtitle} <Highlighter action="underline" style="clean" color="#cbd5e1" delay={800}>intentionality</Highlighter> that most tools miss.
+                                </p>
+                            </div>
 
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-[1vh]">
                                 <Button
