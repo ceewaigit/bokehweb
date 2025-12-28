@@ -76,6 +76,8 @@ export function HeroSection({
                 timeline.kill();
             }
 
+            const isTouch =
+                ScrollTrigger.isTouch === 1 || ScrollTrigger.isTouch === 2;
             const hero = heroWrapRef.current as HTMLDivElement;
             const dock = dockRef.current as HTMLDivElement;
             const text = textRef.current as HTMLDivElement;
@@ -112,11 +114,12 @@ export function HeroSection({
                 scrollTrigger: {
                     trigger: containerRef.current,
                     start: "top top",
-                    end: "bottom top",
+                    end: () => `+=${Math.round(window.innerHeight * 1.25)}`,
                     scrub: 0.35,
                     pin: pinRef.current,
-                    pinType: "fixed",
+                    pinType: isTouch ? "transform" : "fixed",
                     pinSpacing: true,
+                    pinReparent: !isTouch,
                     anticipatePin: 1,
                     invalidateOnRefresh: true,
                 },
