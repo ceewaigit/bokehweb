@@ -128,7 +128,7 @@ export function HeroSection({
                     trigger: containerRef.current,
                     start: "top top",
                     end: () => `+=${Math.round(window.innerHeight * 1.25)}`,
-                    scrub: isTouchDevice ? true : 0.35,
+                    scrub: isTouchDevice ? 0.2 : 0.35, // Smooth out mobile scrub slightly to prevent jitter
                     pin: true,
                     pinType: isTouchDevice ? "transform" : "fixed",
                     pinSpacing: true,
