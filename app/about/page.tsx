@@ -128,7 +128,7 @@ export default function AboutPage() {
                                 The real cost was not just time. It was hesitation: the moment you decide not to record because it is going to take too long. We focused on getting from recording to shareable in one smooth pass, with thoughtful defaults that make the output feel finished without another round of edits.
                             </p>
                             <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
-                                So we built something that just works: smart defaults, calm motion, and clean exports without a complicated timeline. After we shared it, friends and even our bosses kept asking for it. That was the moment it felt bigger than a <Highlighter action="circle" style="rough" color="#fca5a5" delay={600}><em>private tool</em></Highlighter>.
+                                So we built something that just works: smart defaults, calm motion, and clean exports with a timeline that stays out of your way. After we shared it, friends and even our bosses kept asking for it. That was the moment it felt bigger than a <Highlighter action="circle" style="rough" color="#fca5a5" delay={600}><em>private tool</em></Highlighter>.
                             </p>
                             <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
                                 Today, bokeh. is for professionals shipping product updates, support walkthroughs, and training. The goal is quiet confidence: you press record, you ship, and your audience gets the message without the noise.

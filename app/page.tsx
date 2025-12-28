@@ -70,7 +70,7 @@ const showcaseFeatures = [
   {
     icon: FileVideo,
     title: "Bring your media in",
-    description: "Drag, drop, done. Layer context without fighting a complex timeline.",
+    description: "Drag, drop, done. Timeline edits when you need them, auto-polish when you don't.",
     image: "/features/import.png",
     imagePlacement: "middle" as const,
     textPosition: "right" as const,
@@ -147,7 +147,7 @@ const testimonials = [
     author: { name: "Avery Chen", title: "Product Manager, Apple" },
   },
   {
-    content: "No timeline, no fuss. I record, let bokeh polish, and ship.",
+    content: "Timeline when I want it, auto-polish when I don't. I record, let bokeh polish, and ship.",
     author: { name: "Priya Kapoor", title: "Software Engineer, Google" },
   },
   {
@@ -253,7 +253,6 @@ export default function Home() {
             subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and intentionality that most tools miss."
             primaryCta={{ label: "Download", href: "/download" }}
             secondaryCta={{ label: "Watch demo", href: "#" }}
-            screenshotSrc="/hero.png"
             videoSrc="/hero/hero_export.webm"
             scrollVideoSrc="/hero/recording_workspace.webm"
             socialProof={{ count: "10,000+", label: "people shipping with bokeh" }}

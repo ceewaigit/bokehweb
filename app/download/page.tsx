@@ -24,7 +24,7 @@ export default function DownloadPage() {
         {
             icon: Sparkles,
             title: "Auto-polish built in",
-            description: "Zoom effects, cursor styling, and clean exports—no timeline needed.",
+            description: "Zoom effects, cursor styling, and clean exports—with a timeline when you need it.",
         },
         {
             icon: Shield,
@@ -88,7 +88,7 @@ export default function DownloadPage() {
                     {/* 2. Download Card */}
                     {/* Mobile: Order 2 (Visually below Header) | Desktop: Col 2, Row 1-2 (Spans height) */}
                     <motion.div
-                        className="order-2 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2 relative lg:sticky lg:top-24"
+                        className="order-2 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2 relative lg:self-center"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.5, delay: 0.1, ease }}
@@ -100,7 +100,13 @@ export default function DownloadPage() {
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                     v1.0.0
                                 </span>
-                                <span className="text-[12px] font-bold text-slate-400">macOS</span>
+                                <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-slate-400">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5 fill-current">
+                                        <path d="M16.365 1.43c0 1.14-.43 2.2-1.27 3.05-.86.88-2.16 1.56-3.37 1.46-.15-1.2.43-2.39 1.16-3.2.82-.92 2.17-1.6 3.48-1.31z" />
+                                        <path d="M20.16 17.5c-.53 1.22-.78 1.77-1.46 2.85-.95 1.47-2.29 3.31-3.95 3.33-1.48.01-1.86-.98-3.83-.97-1.96.01-2.39.99-3.87.98-1.66-.02-2.93-1.69-3.88-3.16-2.64-4.07-2.92-8.85-1.29-11.34 1.15-1.77 2.96-2.81 4.66-2.81 1.73 0 2.82 1.01 4.25 1.01 1.38 0 2.22-1.01 4.24-1.01 1.51 0 3.11.87 4.26 2.36-3.77 2.07-3.16 7.44.87 8.76z" />
+                                    </svg>
+                                    macOS
+                                </span>
                             </div>
 
                             {/* Title */}
@@ -119,13 +125,17 @@ export default function DownloadPage() {
                             </div>
 
                             {/* CTA */}
-                            <a href="#" className="group relative block w-full">
-                                <div className="absolute inset-0 rounded-2xl bg-slate-200 blur opacity-50 transition-opacity group-hover:opacity-75" />
-                                <button className="relative w-full rounded-2xl bg-slate-100 py-4 px-6 text-slate-700 font-semibold text-lg shadow-[-6px_-6px_12px_rgba(255,255,255,0.9),6px_6px_12px_rgba(0,0,0,0.12)] transition-all duration-200 group-hover:text-primary group-hover:translate-y-[-1px] group-hover:shadow-[-8px_-8px_16px_rgba(255,255,255,0.9),8px_8px_16px_rgba(0,0,0,0.15)] group-active:translate-y-[1px] group-active:shadow-[inset_-3px_-3px_6px_rgba(255,255,255,0.8),inset_3px_3px_6px_rgba(0,0,0,0.1)] flex items-center justify-center gap-3 cursor-pointer">
+                            <div className="group relative block w-full">
+                                <div className="absolute inset-0 rounded-2xl bg-slate-200 blur opacity-50" />
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="relative w-full rounded-2xl bg-slate-100 py-4 px-6 text-slate-500 font-semibold text-lg shadow-[-6px_-6px_12px_rgba(255,255,255,0.9),6px_6px_12px_rgba(0,0,0,0.12)] flex items-center justify-center gap-3 cursor-not-allowed"
+                                >
                                     <Download className="w-5 h-5" strokeWidth={2.5} />
-                                    Download Now
+                                    Coming soon
                                 </button>
-                            </a>
+                            </div>
 
                             <div className="mt-8 space-y-3">
                                 <div className="flex items-center gap-3 text-sm text-slate-500">
