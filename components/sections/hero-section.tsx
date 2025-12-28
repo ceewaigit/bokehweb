@@ -360,6 +360,8 @@ export function HeroSection({
                                         onLoadedMetadata={() => {
                                             readyRef.current.scroll = true;
                                             startScrollWhenHeroReady();
+                                            // Force refresh to ensure layout is correct after video loads
+                                            ScrollTrigger.refresh();
                                         }}
                                     >
                                         <source src={scrollVideoSrc} type="video/webm" />
@@ -408,6 +410,8 @@ export function HeroSection({
                                             onLoadedMetadata={() => {
                                                 readyRef.current.hero = true;
                                                 startHeroPlayback();
+                                                // Force refresh ensuring correct pinning dimensions
+                                                ScrollTrigger.refresh();
                                             }}
                                             onLoadedData={() => setHeroVisualReady(true)}
                                         >
