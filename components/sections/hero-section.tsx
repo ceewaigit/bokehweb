@@ -88,6 +88,7 @@ export function HeroSection({
                 transformOrigin: "center center",
                 force3D: true,
                 willChange: "transform",
+                opacity: 1,
             });
             gsap.set(text, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", force3D: true });
             gsap.set(workspace, { opacity: 0, force3D: true, willChange: "opacity" });
@@ -111,12 +112,13 @@ export function HeroSection({
                 scrollTrigger: {
                     trigger: containerRef.current,
                     start: "top top",
-                    end: "bottom top",
-                    scrub: true,
+                    end: "+=185%",
+                    scrub: 0.3,
                     pin: pinRef.current,
                     anticipatePin: 1,
                     pinType: "fixed",
                     pinSpacing: true,
+                    fastScrollEnd: true,
                     invalidateOnRefresh: true,
                 },
             });
@@ -212,9 +214,9 @@ export function HeroSection({
         <TooltipProvider delayDuration={0}>
             <section
                 ref={containerRef}
-                className={cn("relative min-h-[300vh] w-full", className)}
+                className={cn("relative min-h-[100vh] w-full", className)}
             >
-                <div ref={pinRef} className="relative h-screen w-full bg-background">
+                <div ref={pinRef} className="relative h-screen w-full bg-transparent">
                     <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
                         <div
                             ref={textRef}
@@ -286,6 +288,11 @@ export function HeroSection({
                         </div>
 
                         <div className="absolute left-1/2 top-1/2 w-full max-w-[90%] sm:max-w-[65%] md:max-w-[60%] lg:max-w-5xl aspect-[2048/1377] -translate-x-1/2 -translate-y-1/2">
+                            <div className="absolute inset-0 z-0">
+                                <div className="absolute left-1/2 top-1/2 h-[85%] w-[85%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.2),transparent_68%)] blur-2xl sm:h-[62%] sm:w-[62%]" />
+                                <div className="absolute left-[4%] top-[10%] h-[60%] w-[60%] rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.18),transparent_62%)] blur-3xl sm:left-[12%] sm:top-[18%] sm:h-[48%] sm:w-[48%]" />
+                                <div className="absolute right-[2%] bottom-[4%] h-[52%] w-[52%] rounded-full bg-[radial-gradient(circle,rgba(236,72,153,0.16),transparent_64%)] blur-3xl sm:right-[6%] sm:bottom-[8%] sm:h-[40%] sm:w-[40%]" />
+                            </div>
                             <div
                                 ref={workspaceRef}
                                 className="absolute inset-0 z-10 opacity-0 rounded-lg bg-white/20 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.12),0_4px_10px_rgba(0,0,0,0.06)] overflow-hidden"
@@ -316,19 +323,20 @@ export function HeroSection({
                             <div className="absolute inset-0 z-20 flex items-center justify-center">
                                 <div
                                     ref={heroWrapRef}
-                                    className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5"
+                                    className="relative w-[62%] aspect-[337/270] bg-white rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/5 opacity-0"
                                 >
                                     {!heroVisualReady && (
-                                        <div className="absolute inset-0 z-10">
+                                        <div className="absolute inset-0 z-10 rounded-lg overflow-hidden">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-white to-slate-200" />
                                             {screenshotSrc && (
                                                 <Image
                                                     src={screenshotSrc}
                                                     alt="Hero preview"
                                                     fill
-                                                    className="object-cover blur-md scale-[1.03]"
+                                                    className="object-cover scale-[1.01]"
                                                 />
                                             )}
-                                            <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-white/60 via-white/25 to-white/50" />
+                                            <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.65)_45%,rgba(255,255,255,0)_70%)] opacity-70 animate-pulse" />
                                         </div>
                                     )}
                                     {videoSrc ? (

@@ -262,6 +262,7 @@ export default function Home() {
 
           <FeatureShowcaseSection
             id="features"
+            className="pt-0 sm:pt-0 lg:pt-0"
             badge="Features"
             title={
               <>
