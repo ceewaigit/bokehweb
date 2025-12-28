@@ -65,7 +65,10 @@ export function HeroSection({
         }
 
         gsap.registerPlugin(ScrollTrigger);
-        ScrollTrigger.config({ ignoreMobileResize: true });
+        ScrollTrigger.config({
+            ignoreMobileResize: true,
+            autoRefreshEvents: "visibilitychange,DOMContentLoaded,load",
+        });
 
         let timeline: gsap.core.Timeline | null = null;
         const initialScale = 1.5;
