@@ -112,7 +112,7 @@ export function HeroSection({
                 scrollTrigger: {
                     trigger: containerRef.current,
                     start: "top top",
-                    end: "+=185%",
+                    end: "+=1280",
                     scrub: 0.3,
                     pin: pinRef.current,
                     anticipatePin: 1,
