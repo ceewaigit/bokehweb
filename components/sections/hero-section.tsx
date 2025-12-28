@@ -90,7 +90,7 @@ export function HeroSection({
                 willChange: "transform",
                 opacity: 1,
             });
-            gsap.set(text, { opacity: 1, y: 0, scale: 1, force3D: true, willChange: "transform,opacity" });
+            gsap.set(text, { opacity: 1, y: 0, scale: 1, force3D: true });
             gsap.set(workspace, { opacity: 0, force3D: true, willChange: "opacity" });
 
             const heroRect = hero.getBoundingClientRect();
@@ -112,13 +112,12 @@ export function HeroSection({
                 scrollTrigger: {
                     trigger: containerRef.current,
                     start: "top top",
-                    end: "bottom bottom",
-                    scrub: 0.2,
+                    end: "bottom top",
+                    scrub: 0.35,
                     pin: pinRef.current,
                     pinType: "fixed",
                     pinSpacing: true,
                     anticipatePin: 1,
-                    fastScrollEnd: true,
                     invalidateOnRefresh: true,
                 },
             });
@@ -210,7 +209,7 @@ export function HeroSection({
         <TooltipProvider delayDuration={0}>
             <section
                 ref={containerRef}
-                className={cn("relative min-h-[170vh] w-full", className)}
+                className={cn("relative min-h-[120vh] w-full", className)}
             >
                 <div ref={pinRef} className="relative h-screen w-full bg-transparent">
                     <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
