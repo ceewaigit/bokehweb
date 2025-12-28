@@ -65,10 +65,7 @@ export function HeroSection({
         }
 
         gsap.registerPlugin(ScrollTrigger);
-        const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
-        if (isCoarsePointer) {
-            ScrollTrigger.config({ ignoreMobileResize: true });
-        }
+        ScrollTrigger.config({ ignoreMobileResize: true });
 
         let timeline: gsap.core.Timeline | null = null;
         const initialScale = 1.5;
@@ -115,11 +112,11 @@ export function HeroSection({
                     trigger: containerRef.current,
                     start: "top top",
                     end: "bottom top",
-                    scrub: isCoarsePointer ? 0.25 : 0.8,
-                    pin: isCoarsePointer ? false : pinRef.current,
-                    anticipatePin: isCoarsePointer ? 0 : 1,
-                    pinType: isCoarsePointer ? undefined : "fixed",
-                    pinSpacing: !isCoarsePointer,
+                    scrub: true,
+                    pin: pinRef.current,
+                    anticipatePin: 1,
+                    pinType: "fixed",
+                    pinSpacing: true,
                     invalidateOnRefresh: true,
                 },
             });
@@ -146,7 +143,6 @@ export function HeroSection({
 
         let resizeTimeout: NodeJS.Timeout;
         const resizeHandler = () => {
-            if (isCoarsePointer) return;
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
                 ScrollTrigger.refresh();
