@@ -69,6 +69,8 @@ export function HeroSection({
 
         let timeline: gsap.core.Timeline | null = null;
         const initialScale = 1.5;
+        const isTouchDevice =
+            ScrollTrigger.isTouch === 1 || ScrollTrigger.isTouch === 2;
 
         const buildTimeline = () => {
             if (timeline) {
@@ -111,9 +113,6 @@ export function HeroSection({
             const startGap = Math.round(gsap.utils.clamp(minGap, maxGap, idealGap));
             const startY = copyRect.bottom + startGap - heroRect.top;
 
-            const isTouch =
-                ScrollTrigger.isTouch === 1 || ScrollTrigger.isTouch === 2;
-
             timeline = gsap.timeline({
                 scrollTrigger: {
                     trigger: containerRef.current,
@@ -121,7 +120,7 @@ export function HeroSection({
                     end: () => `+=${Math.round(window.innerHeight * 1.25)}`,
                     scrub: 0.35,
                     pin: true,
-                    pinType: isTouch ? "transform" : "fixed",
+                    pinType: isTouchDevice ? "transform" : "fixed",
                     pinSpacing: true,
                     fastScrollEnd: true,
                     anticipatePin: 1,
@@ -147,6 +146,7 @@ export function HeroSection({
 
         let resizeTimeout: NodeJS.Timeout;
         const resizeHandler = () => {
+            if (isTouchDevice) return;
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(() => {
                 ScrollTrigger.refresh();
