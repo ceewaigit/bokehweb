@@ -95,7 +95,7 @@ export function HeroSection({
         startedRef.current = false;
         heroStartedRef.current = false;
         scroll.pause();
-        // scroll.currentTime = 0; // Don't snap scroll video, let startHeroPlayback handle sync if needed or just restart hero
+        scroll.currentTime = 0; // Reset scroll video to 0 to sync with hero restart
         startHeroPlayback(true);
     };
 
