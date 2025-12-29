@@ -52,6 +52,53 @@ export function HeroSection({
     const startedRef = useRef(false);
     const heroStartedRef = useRef(false);
 
+    const startHeroPlayback = (restart = true) => {
+        const hero = heroVideoRef.current;
+        if (!hero) return;
+        if (heroStartedRef.current) return;
+        heroStartedRef.current = true;
+
+        if (restart) {
+            hero.currentTime = 0;
+        }
+
+        const playHero = hero.play();
+        if (playHero !== undefined) playHero.catch(() => { });
+    };
+
+    const startScrollWhenHeroReady = () => {
+        const hero = heroVideoRef.current;
+        const scroll = scrollVideoRef.current;
+        if (!hero || !scroll) return;
+        if (!readyRef.current.scroll) return;
+        if (startedRef.current) return;
+
+        // Sync check: only update if desynced by more than 0.5s to save resources
+        // Seeking (currentTime = ...) is expensive and causes jitter during scroll
+        // if (Math.abs(scroll.currentTime - hero.currentTime) > 0.5) {
+        //     scroll.currentTime = hero.currentTime;
+        // }
+
+        if (hero.currentTime < 0.05) return;
+
+        if (scroll.paused) {
+            const playScroll = scroll.play();
+            if (playScroll !== undefined) playScroll.catch(() => { });
+        }
+        startedRef.current = true;
+    };
+
+    const handleHeroLoop = () => {
+        const hero = heroVideoRef.current;
+        const scroll = scrollVideoRef.current;
+        if (!hero || !scroll) return;
+        startedRef.current = false;
+        heroStartedRef.current = false;
+        scroll.pause();
+        // scroll.currentTime = 0; // Don't snap scroll video, let startHeroPlayback handle sync if needed or just restart hero
+        startHeroPlayback(true);
+    };
+
     useLayoutEffect(() => {
         if (
             !containerRef.current ||
@@ -134,12 +181,6 @@ export function HeroSection({
                     pinSpacing: true,
                     anticipatePin: 2,
                     invalidateOnRefresh: true,
-                    onLeave: () => {
-                        heroVideoRef.current?.pause();
-                        scrollVideoRef.current?.pause();
-                        startedRef.current = false;
-                        heroStartedRef.current = false;
-                    },
                     onEnterBack: () => {
                         startHeroPlayback(false);
                     },
@@ -213,52 +254,7 @@ export function HeroSection({
         scrollVideoRef.current?.load();
     }, [videoSrc, scrollVideoSrc]);
 
-    const startHeroPlayback = (restart = true) => {
-        const hero = heroVideoRef.current;
-        if (!hero) return;
-        if (heroStartedRef.current) return;
-        heroStartedRef.current = true;
 
-        if (restart) {
-            hero.currentTime = 0;
-        }
-
-        const playHero = hero.play();
-        if (playHero !== undefined) playHero.catch(() => { });
-    };
-
-    const startScrollWhenHeroReady = () => {
-        const hero = heroVideoRef.current;
-        const scroll = scrollVideoRef.current;
-        if (!hero || !scroll) return;
-        if (!readyRef.current.scroll) return;
-        if (startedRef.current) return;
-
-        // Sync check: only update if desynced by more than 0.5s to save resources
-        // Seeking (currentTime = ...) is expensive and causes jitter during scroll
-        if (Math.abs(scroll.currentTime - hero.currentTime) > 0.5) {
-            scroll.currentTime = hero.currentTime;
-        }
-
-        if (hero.currentTime < 0.05) return;
-
-        if (scroll.paused) {
-            const playScroll = scroll.play();
-            if (playScroll !== undefined) playScroll.catch(() => { });
-        }
-        startedRef.current = true;
-    };
-
-    const handleHeroLoop = () => {
-        const hero = heroVideoRef.current;
-        const scroll = scrollVideoRef.current;
-        if (!hero || !scroll) return;
-        startedRef.current = false;
-        heroStartedRef.current = false;
-        scroll.pause();
-        // scroll.currentTime = 0; // Don't snap scroll video, let startHeroPlayback handle sync if needed or just restart hero
-        startHeroPlayback(true);
-    };
     return (
         <TooltipProvider delayDuration={0}>
             <section
