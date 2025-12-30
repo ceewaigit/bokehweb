@@ -36,11 +36,7 @@ export const metadata: Metadata = {
     "cursor smoothing",
     "video export",
   ],
-  icons: {
-    icon: "/brand/bokeh_logo.svg",
-    apple: "/brand/bokeh_logo.svg",
-    shortcut: "/brand/bokeh_logo.svg",
-  },
+
   openGraph: {
     title: "bokeh — Screen Recording That Just Works",
     description:
