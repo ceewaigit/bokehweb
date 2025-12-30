@@ -155,12 +155,7 @@ export default function AboutPage() {
                                     We keep bokeh. small on purpose. The focus is on the moments that make a recording feel <em>finished</em>, not on adding knobs for everything else.
                                 </p>
 
-                                <div className="relative mt-6 w-full aspect-square max-w-[240px] mx-auto lg:mx-0 flex items-center justify-center">
-                                    {/* Blob Background */}
-                                    <div className="absolute inset-0 flex items-center justify-center scale-150">
-                                        <BlobEffect />
-                                    </div>
-
+                                <div className="relative w-full aspect-square max-w-[240px] mx-auto lg:mx-0 flex items-center justify-center">
                                     {/* Quote Overlay */}
                                     <div className="relative z-10 max-w-[200px] text-center">
                                         <p className="text-lg font-medium text-slate-900/80 italic font-display leading-tight drop-shadow-sm mix-blend-multiply">
