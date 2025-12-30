@@ -300,14 +300,28 @@ export function EditingFeaturesSection({
                             <currentFeature.icon className="w-4 h-4 text-gray-600" strokeWidth={1.5} />
                             <span className="text-sm font-medium text-gray-700">{currentFeature?.title}</span>
                         </div>
-                        {/* Mobile progress: Only show for current feature */}
-                        <div className="flex justify-center mt-4 py-2">
-                            <div className="relative h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-gray-100">
-                                <motion.div
-                                    className="absolute inset-y-0 left-0 bg-gray-900"
-                                    style={{ width: progress }}
-                                />
-                            </div>
+                        {/* Mobile progress: Indicators for all features */}
+                        <div className="flex justify-center items-center gap-2 mt-4 py-2">
+                            {features.map((_, index) => {
+                                const isActive = index === currentIndex;
+                                return (
+                                    <div
+                                        key={index}
+                                        className="relative h-1.5 rounded-full overflow-hidden bg-gray-200 transition-all duration-300"
+                                        style={{
+                                            width: isActive ? "3rem" : "0.375rem", // w-12 vs w-1.5
+                                        }}
+                                    >
+                                        {isActive && (
+                                            <motion.div
+                                                className="absolute inset-y-0 left-0 bg-gray-900"
+                                                style={{ width: progress }}
+                                                layoutId="activeProgress"
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </motion.div>
                 </motion.div>

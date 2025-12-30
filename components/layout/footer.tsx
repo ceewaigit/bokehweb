@@ -40,8 +40,8 @@ export function Footer({ className }: FooterProps) {
             <div className="relative mx-auto max-w-7xl overflow-hidden rounded-3xl border border-slate-200/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_20px_rgba(15,23,42,0.04)] bg-gradient-to-b from-slate-50/50 to-transparent">
                 <SectionBackdrop variant="dots" texture fade="all" className="opacity-30" />
 
-                <div className="relative z-10 px-8 sm:px-12 lg:px-16 pb-10 pt-14">
-                    <div className="grid gap-10 lg:grid-cols-[1.2fr_2.2fr]">
+                <div className="relative z-10 px-8 sm:px-12 lg:px-16 pb-8 pt-8 sm:pb-10 sm:pt-14">
+                    <div className="grid gap-8 lg:gap-10 lg:grid-cols-[1.2fr_2.2fr]">
                         <div className="space-y-6">
                             <Link
                                 href="/"
@@ -74,36 +74,17 @@ export function Footer({ className }: FooterProps) {
                             </div>
                         </div>
 
-                        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-                            {Object.entries(footerLinks).map(([category, links]) => (
-                                <div key={category}>
-                                    <h3 className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4 font-medium">
-                                        {category}
-                                    </h3>
-                                    <ul className="space-y-2.5">
-                                        {links.map((link) => (
-                                            <li key={link.label}>
-                                                <Link
-                                                    href={link.href}
-                                                    className="group/link inline-flex items-center gap-1 text-sm text-slate-600 transition-all duration-200 ease-out hover:text-slate-900"
-                                                >
-                                                    <span className="transition-transform duration-200 ease-out will-change-transform group-hover/link:translate-x-0.5">
-                                                        {link.label}
-                                                    </span>
-                                                    <svg
-                                                        className="h-3 w-3 opacity-0 -translate-x-1 transition-all duration-200 ease-out will-change-transform group-hover/link:opacity-50 group-hover/link:translate-x-0"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                    >
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                    </svg>
-                                                </Link>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            ))}
+                        <div className="grid gap-8 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
+                            {/* Product - Left Column on Mobile */}
+                            <div className="lg:contents">
+                                <FooterLinkGroup category="Product" links={footerLinks.Product} />
+                            </div>
+
+                            {/* Company & Legal - Right Column on Mobile */}
+                            <div className="flex flex-col gap-8 lg:contents">
+                                <FooterLinkGroup category="Company" links={footerLinks.Company} />
+                                <FooterLinkGroup category="Legal" links={footerLinks.Legal} />
+                            </div>
                         </div>
                     </div>
 
@@ -115,5 +96,37 @@ export function Footer({ className }: FooterProps) {
                 </div>
             </div>
         </footer>
+    );
+}
+
+function FooterLinkGroup({ category, links }: { category: string; links: { label: string; href: string }[] }) {
+    return (
+        <div>
+            <h3 className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-4 font-medium">
+                {category}
+            </h3>
+            <ul className="space-y-2.5">
+                {links.map((link) => (
+                    <li key={link.label}>
+                        <Link
+                            href={link.href}
+                            className="group/link inline-flex items-center gap-1 text-sm text-slate-600 transition-all duration-200 ease-out hover:text-slate-900"
+                        >
+                            <span className="transition-transform duration-200 ease-out will-change-transform group-hover/link:translate-x-0.5">
+                                {link.label}
+                            </span>
+                            <svg
+                                className="h-3 w-3 opacity-0 -translate-x-1 transition-all duration-200 ease-out will-change-transform group-hover/link:opacity-50 group-hover/link:translate-x-0"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </div>
     );
 }
