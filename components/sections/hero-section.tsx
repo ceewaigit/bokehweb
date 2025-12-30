@@ -19,7 +19,6 @@ interface HeroSectionProps {
     title: React.ReactNode;
     subtitle: string;
     primaryCta?: { label: string; href: string };
-    secondaryCta?: { label: string; href: string };
     screenshotSrc?: string;
     videoSrc?: string;
     scrollVideoSrc?: string;
@@ -34,7 +33,6 @@ export function HeroSection({
     title,
     subtitle,
     primaryCta = { label: "Get started", href: "#" },
-    secondaryCta,
     screenshotSrc,
     videoSrc,
     scrollVideoSrc,
@@ -266,7 +264,7 @@ export function HeroSection({
                     <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
                         <div
                             ref={textRef}
-                            className="w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[14vh] sm:mt-[8vh] md:mt-[12vh] mb-[0vh] sm:mb-[2vh]"
+                            className="relative z-10 w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[14vh] sm:mt-[8vh] md:mt-[12vh] mb-[0vh] sm:mb-[2vh]"
                         >
                             <div ref={copyRef} className="flex flex-col items-center gap-2">
                                 {brandMarkSrc && (
@@ -319,19 +317,6 @@ export function HeroSection({
                                         </span>
                                     </a>
                                 </Button>
-                                {secondaryCta && (
-                                    <Button
-                                        variant="ghost"
-                                        size="lg"
-                                        className="hidden sm:flex rounded-full h-12 px-8 text-[15px] font-medium text-muted-foreground hover:text-foreground hover:bg-black/5 transition-all duration-300"
-                                        asChild
-                                    >
-                                        <a href={secondaryCta.href}>
-                                            <Play className="w-3.5 h-3.5 mr-2 fill-current opacity-80" />
-                                            {secondaryCta.label}
-                                        </a>
-                                    </Button>
-                                )}
                             </div>
                         </div>
 

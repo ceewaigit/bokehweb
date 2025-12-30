@@ -4,7 +4,7 @@ export const pricingCopy = {
   strike: "time",
   titleAfter: "",
   titleEmphasis: "and pays for itself",
-  subtitle: "Start with a free trial. Your subscription payments count toward a lifetime license.",
+  subtitle: "",
   footnote: "Reach $149 in payments, and the current major version is yours forever.",
 };
 
@@ -21,10 +21,10 @@ export const PRICING = {
 export const pricingPlans = [
   {
     name: "Trial",
-    price: "Free",
+    price: "$0",
     priceSuffix: `${PRICING.trialDays} days`,
     description: "Full access for a limited time.",
-    cta: "Start free trial",
+    cta: "Coming soon...",
     features: [
       "Full feature access",
       "Email support",
@@ -33,7 +33,7 @@ export const pricingPlans = [
     // Philosophy callout - integrated into card
     callout: {
       short: "No credit card needed",
-      expanded: "Most tools rush you to pay. We'd rather you feel the difference first.",
+      expanded: "Sometimes you just need a tool for one quick project. We give you full access so you can feel the difference immediately. If it saves your day, maybe you'll come back to support us.",
     },
     limitations: [],
     disabled: !PRODUCT_READY,
@@ -43,7 +43,7 @@ export const pricingPlans = [
     price: PRODUCT_READY ? `$${PRICING.annual}` : "Coming Soon",
     priceSuffix: PRODUCT_READY ? "/ mo, billed annually" : "",
     description: "Clean exports, priority support, and studio-grade polish.",
-    cta: "Go Pro",
+    cta: "Coming soon...",
     features: [
       "Unlimited clean exports",
       "No watermark exports",
@@ -52,7 +52,7 @@ export const pricingPlans = [
       "Payments count toward lifetime license",
       "Cancel anytime",
     ],
-    footnote: PRODUCT_READY ? `Or $${PRICING.monthly}/mo billed monthly` : undefined,
+    footnote: PRODUCT_READY ? `Or $${PRICING.monthly}USD/mo billed monthly` : undefined,
     // Philosophy callout - integrated into card
     callout: {
       short: "Pay toward ownership",
@@ -67,7 +67,7 @@ export const pricingPlans = [
     price: PRODUCT_READY ? `$${PRICING.lifetime}` : "Coming Soon",
     priceSuffix: PRODUCT_READY ? "once" : "",
     description: "Own the current major version outright.",
-    cta: "Buy lifetime",
+    cta: "Coming soon...",
     features: [
       "All Pro features",
       "No watermark exports",
@@ -79,7 +79,7 @@ export const pricingPlans = [
     // Philosophy callout - integrated into card
     callout: {
       short: "Own your tools",
-      expanded: "One major version, one payment. Every update from v1.0 to v1.x is included. Future major releases (v2, v3...) are separate.",
+      expanded: "We treat major versions like new apps. This model keeps our team fed and focused on quality. You own this version forever; we'll earn your business again for the next one.",
     },
     limitations: [],
     comingSoon: !PRODUCT_READY,
@@ -99,7 +99,7 @@ export const enterprisePlan = {
   price: "Custom",
   eyebrow: "Buying for a large team?",
   description: "For larger organizations with security and procurement needs.",
-  cta: "Contact sales",
+  cta: "Notify me",
   features: [
     "Everything in Lifetime",
     "SSO & Advanced Security",
@@ -108,5 +108,5 @@ export const enterprisePlan = {
     "Custom contracts & invoicing",
     "Audit logs",
   ],
-  comingSoon: true,
+  comingSoon: !PRODUCT_READY,
 };

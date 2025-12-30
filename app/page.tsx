@@ -245,14 +245,17 @@ export default function Home() {
             brandMarkSrc="/brand/bokeh_icon.svg"
             brandMarkAlt="bokeh logo"
             title={
+              // <>
+              //   The recorder that<br />
+              //   <Highlighter action="highlight" style="clean" color="#a78bfa"><em className="not-italic text-inherit">respects your craft.</em></Highlighter>
+              // </>
               <>
-                The recorder that<br />
-                <Highlighter action="highlight" style="clean" color="#a78bfa"><em className="not-italic text-inherit">respects your craft.</em></Highlighter>
+                better<br /> product demos<br />
+                <Highlighter action="highlight" style="clean" color="#a78bfa"><em className="not-italic text-inherit">15x faster.</em></Highlighter>
               </>
             }
             subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and intentionality that most tools miss."
             primaryCta={{ label: "Download", href: "/download" }}
-            secondaryCta={{ label: "Watch demo", href: "#" }}
             videoSrc="/hero/hero_export.webm"
             scrollVideoSrc="/hero/recording_workspace.webm"
             socialProof={{ count: "10,000+", label: "people shipping with bokeh" }}

@@ -53,7 +53,7 @@ export function MailingListSection({ className }: MailingListSectionProps) {
   };
 
   return (
-    <section className={cn("relative py-12 sm:py-20 px-4 sm:px-6", className)}>
+    <section id="newsletter" className={cn("relative py-12 sm:py-20 px-4 sm:px-6", className)}>
       {/* Background glow */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div

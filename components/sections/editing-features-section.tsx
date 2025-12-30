@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { gpuAccelerated } from "@/lib/animation-utils";
-import { motion, AnimatePresence, useInView, PanInfo } from "framer-motion";
+import { motion, AnimatePresence, useInView, PanInfo, useMotionValue } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
 import { LucideIcon, ZoomIn, Keyboard, Crop, Wand2, Type, ChevronLeft, ChevronRight } from "lucide-react";
@@ -115,14 +115,10 @@ export function EditingFeaturesSection({
     features = defaultFeatures,
 }: EditingFeaturesSectionProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const progress = useMotionValue(0);
     const sectionRef = useRef<HTMLElement | null>(null);
-    const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
     const isInView = useInView(sectionRef, { margin: "0px 0px 0px 0px" });
-
-    // Handle video end - advance to next
-    const handleVideoEnd = () => {
-        setCurrentIndex((prev) => (prev + 1) % features.length);
-    };
 
     // Navigation functions
     const goToNext = useCallback(() => {
@@ -149,22 +145,40 @@ export function EditingFeaturesSection({
         }
     }, [goToNext, goToPrevious]);
 
-    // For images, auto-advance after 4 seconds. Components (like slider) do NOT auto-advance.
+    // Unified high-frequency polling loop for buttery smooth progress
     useEffect(() => {
+        if (!isInView) return;
+
+        let rafId: number;
+        const startTime = Date.now();
+        const staticDuration = 4000;
         const currentFeature = features[currentIndex];
+        const isStatic = currentFeature?.media?.type !== "video";
 
-        if (isInView && currentFeature?.media?.type === "image") {
-            imageTimerRef.current = setTimeout(() => {
-                setCurrentIndex((prev) => (prev + 1) % features.length);
-            }, 4000);
-        }
-
-        return () => {
-            if (imageTimerRef.current) {
-                clearTimeout(imageTimerRef.current);
+        const poll = () => {
+            if (isStatic) {
+                const elapsed = Date.now() - startTime;
+                const p = Math.min((elapsed / staticDuration) * 100, 100);
+                progress.set(p);
+                if (elapsed >= staticDuration) {
+                    goToNext();
+                    return;
+                }
+            } else {
+                const video = videoRef.current;
+                if (video && video.duration) {
+                    const p = (video.currentTime / video.duration) * 100;
+                    progress.set(p);
+                }
             }
+            rafId = requestAnimationFrame(poll);
         };
-    }, [currentIndex, features, isInView]);
+
+        rafId = requestAnimationFrame(poll);
+        return () => {
+            if (rafId) cancelAnimationFrame(rafId);
+        };
+    }, [currentIndex, features, isInView, goToNext, progress]);
 
     const currentMedia = features[currentIndex]?.media;
     const currentFeature = features[currentIndex];
@@ -253,8 +267,9 @@ export function EditingFeaturesSection({
                                 >
                                     {currentMedia?.type === "video" ? (
                                         <AutoplayVideo
+                                            ref={videoRef}
                                             src={currentMedia.src!}
-                                            onEnded={handleVideoEnd}
+                                            onEnded={goToNext}
                                             loop={false}
                                         />
                                     ) : currentMedia?.type === "component" ? (
@@ -285,25 +300,14 @@ export function EditingFeaturesSection({
                             <currentFeature.icon className="w-4 h-4 text-gray-600" strokeWidth={1.5} />
                             <span className="text-sm font-medium text-gray-700">{currentFeature?.title}</span>
                         </div>
-                        {/* Mobile progress dots with larger touch targets */}
-                        <div className="flex justify-center gap-3 mt-3 py-2">
-                            {features.map((_, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => setCurrentIndex(index)}
-                                    className={cn(
-                                        "relative py-2 px-1 -my-2", // Large touch target
-                                    )}
-                                    aria-label={`Go to feature ${index + 1}`}
-                                >
-                                    <span className={cn(
-                                        "block h-1.5 rounded-full transition-all duration-300",
-                                        index === currentIndex
-                                            ? "w-6 bg-gray-900"
-                                            : "w-1.5 bg-gray-300"
-                                    )} />
-                                </button>
-                            ))}
+                        {/* Mobile progress: Only show for current feature */}
+                        <div className="flex justify-center mt-4 py-2">
+                            <div className="relative h-1 w-full max-w-[100px] rounded-full overflow-hidden bg-gray-100">
+                                <motion.div
+                                    className="absolute inset-y-0 left-0 bg-gray-900"
+                                    style={{ width: progress }}
+                                />
+                            </div>
                         </div>
                     </motion.div>
                 </motion.div>
@@ -353,11 +357,15 @@ export function EditingFeaturesSection({
                                 </p>
                             </div>
 
-                            {/* Active indicator bar */}
-                            <div className={cn(
-                                "absolute -bottom-2 left-0 h-0.5 bg-gray-900 rounded-full transition-all duration-300",
-                                index === currentIndex ? "w-full opacity-100" : "w-0 opacity-0"
-                            )} />
+                            {/* Active indicator bar - Only show when active */}
+                            {index === currentIndex && (
+                                <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <motion.div
+                                        className="h-full bg-gray-900"
+                                        style={{ width: progress }}
+                                    />
+                                </div>
+                            )}
                         </motion.button>
                     ))}
                 </div>

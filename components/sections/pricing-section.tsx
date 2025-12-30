@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Check, Info } from "lucide-react"
+import { Check, Info, Sparkles } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { gpuAccelerated } from "@/lib/animation-utils"
@@ -33,13 +33,13 @@ const CalloutTooltip = ({ short, expanded }: { short: string; expanded: string }
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.96 }}
             transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-            className="absolute left-0 top-full z-50 mt-2 w-64 rounded-xl border border-slate-200/80 bg-white/90 p-3.5 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
+            className="absolute left-0 bottom-full z-50 mb-2 w-64 rounded-xl border border-slate-200/80 bg-white/90 p-3.5 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
           >
             <p className="text-[12px] leading-relaxed text-slate-600">
               {expanded}
             </p>
             {/* Tooltip arrow */}
-            <div className="absolute -top-1.5 left-4 h-3 w-3 rotate-45 border-l border-t border-slate-200/80 bg-white/90" />
+            <div className="absolute -bottom-1.5 left-4 h-3 w-3 rotate-45 border-r border-b border-slate-200/80 bg-white/90" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -49,7 +49,14 @@ const CalloutTooltip = ({ short, expanded }: { short: string; expanded: string }
 
 const PricingSection: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<'individuals' | 'teams'>('individuals')
-  const [billingCycle, setBillingCycle] = React.useState<'annual' | 'monthly'>('annual')
+  const [billingCycle, setBillingCycle] = React.useState<'annual' | 'monthly' | 'lifetime'>('annual')
+
+  const scrollToNewsletter = () => {
+    const element = document.getElementById('newsletter')
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
 
   // Calculate savings percentage dynamically
   const savingsPercent = Math.round((1 - PRICING.annual / PRICING.monthly) * 100)
@@ -64,8 +71,16 @@ const PricingSection: React.FC = () => {
     return billingCycle === 'annual' ? "/ mo, billed annually" : "/ month"
   }
 
+  // Filter plans based on billing cycle
+  const visiblePlans = pricingPlans.filter(plan => {
+    if (billingCycle === 'lifetime') return plan.name === "Lifetime"
+    // For annual/monthly, show Trial and Pro
+    if (plan.name === "Trial" || plan.name === "Pro") return true
+    return false
+  })
+
   return (
-    <section id="pricing" className="relative w-full py-16 sm:py-24 md:py-32 overflow-hidden">
+    <section id="pricing" className="relative w-full py-12 sm:py-20 md:py-24 overflow-hidden">
       <SectionBackdrop variant="dots" texture fade="all" className="opacity-50" />
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 sm:px-6 text-center">
         {/* Section badge */}
@@ -82,7 +97,7 @@ const PricingSection: React.FC = () => {
 
         {/* Main heading */}
         <motion.h2
-          className="mt-4 text-4xl font-semibold tracking-[-0.03em] leading-[1.2] text-slate-900 sm:text-5xl lg:text-6xl [text-wrap:balance] [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-orange-300"
+          className="mt-3 text-4xl font-semibold tracking-[-0.03em] leading-[1.2] text-slate-900 sm:text-5xl lg:text-6xl [text-wrap:balance] [&_em]:font-[family-name:var(--font-display)] [&_em]:italic [&_em]:font-medium [&_em]:text-orange-300"
           initial={{ opacity: 0, y: 10 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
@@ -110,7 +125,7 @@ const PricingSection: React.FC = () => {
 
         {/* Subtitle - improved typography */}
         <motion.p
-          className="mt-4 sm:mt-5 max-w-xl text-pretty text-[15px] sm:text-[17px] leading-relaxed text-slate-500"
+          className="mt-3 sm:mt-4 max-w-xl text-pretty text-[15px] sm:text-[17px] leading-relaxed text-slate-500"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
@@ -120,45 +135,8 @@ const PricingSection: React.FC = () => {
           {pricingCopy.subtitle}
         </motion.p>
 
-        {/* Billing Toggle - Neumorphic Style */}
-        <motion.div
-          className="mt-5 sm:mt-6 flex justify-center"
-          initial={{ opacity: 0, y: 8 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-          style={gpuAccelerated}
-        >
-          {/* Billing cycle toggle */}
-          <div className="relative flex items-center rounded-full border border-slate-200/70 bg-white/80 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_6px_18px_rgba(15,23,42,0.06)]">
-            <button
-              onClick={() => setBillingCycle('annual')}
-              className={cn(
-                "relative z-10 rounded-full px-5 py-2 text-[13px] font-semibold tracking-wide transition-all duration-200",
-                billingCycle === 'annual'
-                  ? "text-slate-900 shadow-[0_6px_16px_rgba(15,23,42,0.08)] bg-white"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-white/60"
-              )}
-            >
-              Annual
-              <span className="ml-1.5 text-[10px] font-semibold text-emerald-500">Save {savingsPercent}%</span>
-            </button>
-            <button
-              onClick={() => setBillingCycle('monthly')}
-              className={cn(
-                "relative z-10 rounded-full px-5 py-2 text-[13px] font-semibold tracking-wide transition-all duration-200",
-                billingCycle === 'monthly'
-                  ? "text-slate-900 shadow-[0_6px_16px_rgba(15,23,42,0.08)] bg-white"
-                  : "text-slate-500 hover:text-slate-700 hover:bg-white/60"
-              )}
-            >
-              Monthly
-            </button>
-          </div>
-        </motion.div>
-
         {/* Content Container */}
-        <div className="mt-6 sm:mt-8 w-full" style={{ minHeight: 480 }}>
+        <div className="mt-6 w-full max-w-3xl" style={{ minHeight: 440 }}>
           <AnimatePresence mode="wait" initial={false}>
             {activeTab === 'individuals' ? (
               <motion.div
@@ -167,9 +145,12 @@ const PricingSection: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.25, ease: [0.21, 0.47, 0.32, 0.98] }}
-                className="grid w-full gap-4 sm:gap-6 lg:gap-8 sm:grid-cols-2 lg:grid-cols-3"
+                className={cn(
+                  "grid w-full gap-4 sm:gap-6 lg:gap-8 mx-auto",
+                  visiblePlans.length === 1 ? "max-w-md grid-cols-1" : "max-w-4xl sm:grid-cols-2 lg:grid-cols-2"
+                )}
               >
-                {pricingPlans.map((plan, index) => (
+                {visiblePlans.map((plan, index) => (
                   <GlassCard
                     key={plan.name}
                     variant="subtle"
@@ -180,28 +161,15 @@ const PricingSection: React.FC = () => {
                     viewport={{ once: true, margin: "-60px" }}
                     transition={{ duration: 0.5, delay: index * 0.08, ease: [0.21, 0.47, 0.32, 0.98] }}
                     className={cn(
-                      "relative flex flex-col rounded-[24px] sm:rounded-[32px] px-5 py-6 sm:px-8 sm:py-9 text-left overflow-hidden",
+                      "relative flex flex-col rounded-[24px] sm:rounded-[32px] px-5 py-6 sm:px-7 sm:py-7 text-left overflow-hidden",
                       "transition-all duration-300 ease-out will-change-transform",
-                      plan.highlight
-                        ? "border-violet-200/50 bg-gradient-to-b from-violet-50/40 to-white shadow-[0_8px_30px_rgba(15,23,42,0.08),0_2px_12px_rgba(139,92,246,0.08)] hover:shadow-[0_10px_36px_rgba(15,23,42,0.12),0_6px_20px_rgba(139,92,246,0.12)]"
-                        : "border-slate-200/70 bg-white/80 shadow-[0_2px_10px_rgba(15,23,42,0.06),0_12px_24px_rgba(15,23,42,0.05)] hover:shadow-[0_4px_16px_rgba(15,23,42,0.08),0_16px_30px_rgba(15,23,42,0.08)]"
+                      plan.name === "Trial"
+                        ? "border-transparent bg-transparent shadow-none"
+                        : plan.highlight
+                          ? "border-violet-200/50 bg-gradient-to-b from-violet-50/40 to-white shadow-[0_8px_30px_rgba(15,23,42,0.08),0_2px_12px_rgba(139,92,246,0.08)] hover:shadow-[0_10px_36px_rgba(15,23,42,0.12),0_6px_20px_rgba(139,92,246,0.12)]"
+                          : "border-slate-200/70 bg-white/80 shadow-[0_2px_10px_rgba(15,23,42,0.06),0_12px_24px_rgba(15,23,42,0.05)] hover:shadow-[0_4px_16px_rgba(15,23,42,0.08),0_16px_30px_rgba(15,23,42,0.08)]"
                     )}
                   >
-                    {/* Coming Soon Overlay */}
-                    {plan.comingSoon && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[24px] sm:rounded-[32px] overflow-hidden">
-                        <div className="absolute inset-0 backdrop-blur-[2px] bg-slate-100/50" />
-                        <motion.span
-                          className="relative z-20 rounded-full bg-slate-100 px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 shadow-[-4px_-4px_8px_rgba(255,255,255,0.9),4px_4px_8px_rgba(0,0,0,0.1)]"
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: 0.3, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                        >
-                          Coming Soon
-                        </motion.span>
-                      </div>
-                    )}
-
                     {/* Plan header */}
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
                       <h3 className="text-[15px] sm:text-[17px] font-semibold tracking-[-0.02em] text-slate-800">
@@ -220,8 +188,8 @@ const PricingSection: React.FC = () => {
                     </p>
 
                     {/* Price */}
-                    <div className="mt-5 mb-5 sm:mt-8 sm:mb-8">
-                      <div className="flex items-baseline gap-1">
+                    <div className="mt-4 mb-4 sm:mt-6 sm:mb-6">
+                      <div className="flex items-center gap-2">
                         <span className={cn(
                           "font-[family-name:var(--font-geist-mono)] tabular-nums font-semibold tracking-[-0.04em] text-slate-900",
                           plan.comingSoon ? "text-[24px] sm:text-[28px]" : "text-[36px] sm:text-[42px]"
@@ -230,9 +198,14 @@ const PricingSection: React.FC = () => {
                           {plan.name === "Pro" ? getProPrice() : plan.price}
                         </span>
                         {(plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix) && (
-                          <span className="text-[12px] sm:text-[14px] font-medium text-slate-400 ml-1">
-                            {plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix}
-                          </span>
+                          <div className="flex flex-col items-start leading-tight">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                              USD
+                            </span>
+                            <span className="text-[12px] sm:text-[13px] font-medium text-slate-500">
+                              {plan.name === "Pro" ? getProPriceSuffix() : plan.priceSuffix}
+                            </span>
+                          </div>
                         )}
                       </div>
 
@@ -242,24 +215,6 @@ const PricingSection: React.FC = () => {
                           <CalloutTooltip short={plan.callout.short} expanded={plan.callout.expanded} />
                         </div>
                       )}
-                    </div>
-
-                    {/* CTA button */}
-                    <div className="mb-5 sm:mb-8">
-                      <NeumorphicButton
-                        disabled={plan.comingSoon || plan.disabled}
-                        className={cn(
-                          "w-full py-3 sm:py-3.5 text-[13px] sm:text-[14px] font-semibold",
-                          (plan.comingSoon || plan.disabled)
-                            ? "opacity-60 cursor-not-allowed"
-                            : "",
-                          plan.highlight && !(plan.comingSoon || plan.disabled)
-                            ? "text-violet-600 shadow-[0_10px_24px_rgba(15,23,42,0.1)] hover:text-violet-700"
-                            : "text-slate-700"
-                        )}
-                      >
-                        {plan.comingSoon ? "Notify Me" : plan.cta}
-                      </NeumorphicButton>
                     </div>
 
                     {/* Features list */}
@@ -286,6 +241,25 @@ const PricingSection: React.FC = () => {
                         </div>
                       ))}
                     </div>
+
+                    {/* CTA button - Aligned at bottom */}
+                    <div className="mt-8">
+                      <NeumorphicButton
+                        disabled={plan.disabled}
+                        onClick={(plan.comingSoon || plan.cta === "Notify me") ? scrollToNewsletter : undefined}
+                        className={cn(
+                          "w-full py-3 sm:py-3.5 text-[13px] sm:text-[14px] font-semibold bg-white",
+                          plan.disabled
+                            ? "opacity-60 cursor-not-allowed"
+                            : "",
+                          plan.highlight && !(plan.comingSoon || plan.disabled)
+                            ? "text-violet-600 shadow-[0_10px_24px_rgba(15,23,42,0.1)] hover:text-violet-700"
+                            : "text-slate-700"
+                        )}
+                      >
+                        {plan.cta}
+                      </NeumorphicButton>
+                    </div>
                   </GlassCard>
                 ))}
               </motion.div>
@@ -301,42 +275,71 @@ const PricingSection: React.FC = () => {
                 <GlassCard
                   variant="subtle"
                   hover={false}
-                  className="relative flex flex-col md:flex-row items-center justify-between gap-8 rounded-2xl border border-gray-200/70 bg-white/60 px-8 py-8 md:px-10 md:py-8 shadow-sm overflow-hidden max-w-3xl"
+                  className={cn(
+                    "relative flex flex-col rounded-[24px] sm:rounded-[32px] px-5 py-6 sm:px-7 sm:py-7 text-left overflow-hidden max-w-md w-full",
+                    "transition-all duration-300 ease-out will-change-transform",
+                    "border-violet-200/50 bg-gradient-to-b from-violet-50/40 to-white shadow-[0_8px_30px_rgba(15,23,42,0.08),0_2px_12px_rgba(139,92,246,0.08)] hover:shadow-[0_10px_36px_rgba(15,23,42,0.12),0_6px_20px_rgba(139,92,246,0.12)]"
+                  )}
                 >
-                  {/* Background Pattern */}
-                  <div className="absolute inset-0 -z-10 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-20" />
-
-                  <div className="flex flex-col items-center md:items-start text-center md:text-left gap-2 max-w-md">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-violet-500">
-                      {enterprisePlan.eyebrow}
-                    </span>
-                    <h3 className="text-xl font-semibold tracking-[-0.02em] text-gray-900">
+                  {/* Plan header */}
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <h3 className="text-[15px] sm:text-[17px] font-semibold tracking-[-0.02em] text-slate-800">
                       {enterprisePlan.name}
                     </h3>
-                    <p className="text-[14px] leading-relaxed text-gray-500">
-                      {enterprisePlan.description}
-                    </p>
-                    <div className="mt-3 flex flex-wrap justify-center md:justify-start gap-x-5 gap-y-1.5">
-                      {enterprisePlan.features.slice(0, 4).map((feature) => (
-                        <div key={feature} className="flex items-center gap-1.5">
-                          <Check className="h-3.5 w-3.5 text-violet-500" strokeWidth={2.5} />
-                          <span className="text-[12px] font-medium text-gray-600">{feature}</span>
-                        </div>
-                      ))}
+                    <span className="rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-600 shadow-[0_6px_16px_rgba(15,23,42,0.08)]">
+                      {enterprisePlan.eyebrow}
+                    </span>
+                  </div>
+
+                  {/* Description */}
+                  <p className="min-h-[36px] sm:min-h-[40px] text-[13px] sm:text-[14px] leading-relaxed text-slate-500">
+                    {enterprisePlan.description}
+                  </p>
+
+                  {/* Price */}
+                  <div className="mt-4 mb-4 sm:mt-6 sm:mb-6">
+                    <div className="flex items-center gap-2">
+                      <span className="font-[family-name:var(--font-geist-mono)] tabular-nums font-semibold tracking-[-0.04em] text-slate-900 text-[32px] sm:text-[38px]">
+                        Custom
+                      </span>
+                      <div className="flex flex-col items-start leading-tight">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                          USD
+                        </span>
+                        <span className="text-[12px] sm:text-[13px] font-medium text-slate-500">
+                          quote
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex-shrink-0">
+                  {/* Features list */}
+                  <div className="flex-1 space-y-3 sm:space-y-4">
+                    {enterprisePlan.features.map((feature) => (
+                      <div key={feature} className="flex items-start gap-2.5 sm:gap-3">
+                        <span className="mt-0.5 flex h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/90 shadow-[0_4px_10px_rgba(15,23,42,0.08)]">
+                          <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-500" strokeWidth={3} />
+                        </span>
+                        <span className="text-[13px] sm:text-[14px] leading-snug text-slate-600">
+                          {feature}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* CTA button - Aligned at bottom */}
+                  <div className="mt-8">
                     <NeumorphicButton
-                      disabled={enterprisePlan.comingSoon}
+                      disabled={false}
+                      onClick={enterprisePlan.comingSoon ? scrollToNewsletter : undefined}
                       className={cn(
-                        "rounded-xl px-5 py-2.5 text-[12px] font-semibold tracking-wide transition-all duration-200",
-                        enterprisePlan.comingSoon
-                          ? "cursor-not-allowed bg-gray-100 text-gray-400"
-                          : "bg-gray-900 text-white shadow-sm hover:bg-gray-800"
+                        "w-full py-3 sm:py-3.5 text-[13px] sm:text-[14px] font-semibold bg-white",
+                        false
+                          ? "opacity-60 cursor-not-allowed"
+                          : "text-violet-600 shadow-[0_10px_24px_rgba(15,23,42,0.1)] hover:text-violet-700"
                       )}
                     >
-                      {enterprisePlan.comingSoon ? "Coming Soon" : enterprisePlan.cta}
+                      {enterprisePlan.cta}
                     </NeumorphicButton>
                   </div>
                 </GlassCard>
@@ -345,9 +348,78 @@ const PricingSection: React.FC = () => {
           </AnimatePresence>
         </div>
 
+        {/* Billing Toggle - Neumorphic Style */}
+        <AnimatePresence>
+          {activeTab === 'individuals' && (
+            <motion.div
+              className="mt-6 flex justify-center"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+              style={gpuAccelerated}
+            >
+              {/* Billing cycle toggle */}
+              <div className="relative flex items-center rounded-full border border-slate-200/70 bg-white/80 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_6px_18px_rgba(15,23,42,0.06)]">
+                <button
+                  onClick={() => setBillingCycle('lifetime')}
+                  className={cn(
+                    "relative z-10 rounded-full px-5 py-2 text-[13px] font-semibold tracking-wide transition-all duration-200",
+                    billingCycle === 'lifetime' ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {billingCycle === 'lifetime' && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-0 rounded-full bg-white shadow-[0_2px_8px_rgba(15,23,42,0.08)]"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <span className="relative z-20">Lifetime</span>
+                </button>
+                <button
+                  onClick={() => setBillingCycle('annual')}
+                  className={cn(
+                    "relative z-10 rounded-full px-5 py-2 text-[13px] font-semibold tracking-wide transition-all duration-200",
+                    billingCycle === 'annual' ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {billingCycle === 'annual' && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-0 rounded-full bg-white shadow-[0_2px_8px_rgba(15,23,42,0.08)]"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <span className="relative z-20">
+                    Annual
+                    <span className="ml-1.5 text-[10px] font-semibold text-emerald-500">Save {savingsPercent}%</span>
+                  </span>
+                </button>
+                <button
+                  onClick={() => setBillingCycle('monthly')}
+                  className={cn(
+                    "relative z-10 rounded-full px-5 py-2 text-[13px] font-semibold tracking-wide transition-all duration-200",
+                    billingCycle === 'monthly' ? "text-slate-900" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  {billingCycle === 'monthly' && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-0 rounded-full bg-white shadow-[0_2px_8px_rgba(15,23,42,0.08)]"
+                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <span className="relative z-20">Monthly</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Bottom philosophy tagline */}
         <motion.div
-          className="mt-10 flex flex-col items-center gap-1"
+          className="mt-6 flex flex-col items-center gap-1"
           initial={{ opacity: 0, y: 8 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}

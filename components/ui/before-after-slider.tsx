@@ -102,6 +102,7 @@ export function BeforeAfterSlider({
                     src={afterSrc}
                     alt={afterAlt}
                     fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
                     className="object-cover object-center pointer-events-none"
                     draggable={false}
                     priority
@@ -117,6 +118,7 @@ export function BeforeAfterSlider({
                     src={beforeSrc}
                     alt={beforeAlt}
                     fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
                     className="object-cover object-center pointer-events-none blur-[0.2px]"
                     draggable={false}
                     priority

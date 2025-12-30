@@ -239,7 +239,7 @@ export function Highlighter({
                 <span ref={elementRef} className={cn("relative inline-block", className)}>
                     <span className="relative z-10">{children}</span>
                     <svg
-                        className="pointer-events-none absolute left-0 bottom-0 w-full h-3 translate-y-2 z-0"
+                        className="pointer-events-none absolute left-0 bottom-0 w-full h-3 translate-y-0 z-0"
                         viewBox="0 0 300 14"
                         preserveAspectRatio="none"
                         fill="none"
