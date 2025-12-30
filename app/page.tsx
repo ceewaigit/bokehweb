@@ -262,21 +262,6 @@ export default function Home() {
           />
 
           {/* <SocialProofSection /> */}
-
-          <FeatureShowcaseSection
-            id="features"
-            className="pt-0 sm:pt-0 lg:pt-0"
-            badge="Features"
-            title={
-              <>
-                Cinematic motion.<br />
-                <Highlighter action="highlight" style="clean" color="#fde047"><em className="not-italic text-inherit">Zero effort.</em></Highlighter>
-              </>
-            }
-            subtitle="We automated the techniques top creators use. Smooth zooms, liquid cursors, and perfect pacing."
-            features={showcaseFeatures}
-          />
-
           <EditingFeaturesSection
             badge="Smart defaults"
             title={
@@ -289,7 +274,23 @@ export default function Home() {
               </>
             }
             subtitle="We automate the tedious edits like pacing, zoom, and cleanup. Ship fast using our defaults, or adjust anything manually."
+            className="pt-0 sm:pt-0 lg:pt-0"
           />
+
+          <FeatureShowcaseSection
+            id="features"
+            className=""
+            badge="Features"
+            title={
+              <>
+                Cinematic motion.<br />
+                <Highlighter action="highlight" style="clean" color="#fde047"><em className="not-italic text-inherit">Zero effort.</em></Highlighter>
+              </>
+            }
+            subtitle="We automated the techniques top creators use. Smooth zooms, liquid cursors, and perfect pacing."
+            features={showcaseFeatures}
+          />
+
 
           <SpeedComparisonSection />
 

@@ -46,13 +46,12 @@ export function CTASection({
         <TooltipProvider delayDuration={0}>
             <section
                 className={cn(
-                    "relative py-32 px-6 overflow-hidden",
+                    "relative px-6 overflow-hidden flex h-[80vh]",
                     className
                 )}
             >
 
-
-                <div className="mx-auto max-w-3xl text-center">
+                <div className="m-auto max-w-3xl text-center">
                     {/* Arrow with Text */}
                     {showArrow && (
                         <motion.div

@@ -1,0 +1,31 @@
+<svg width="1440" height="600" viewBox="0 0 1440 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<filter id="smokeBlur" x="-20%" y="-20%" width="140%" height="140%">
+<feGaussianBlur in="SourceGraphic" stdDeviation="40" />
+</filter>
+<linearGradient id="smokeGradient" x1="720" y1="0" x2="720" y2="600" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#FCFCFD" stop-opacity="0"/>
+<stop offset="0.4" stop-color="#FCFCFD" stop-opacity="0.9"/>
+<stop offset="1" stop-color="#FCFCFD" stop-opacity="1"/>
+</linearGradient>
+<linearGradient id="sharpBase" x1="720" y1="500" x2="720" y2="600" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#FCFCFD" stop-opacity="0"/>
+<stop offset="1" stop-color="#FCFCFD" stop-opacity="1"/>
+</linearGradient>
+</defs>
+
+<!-- Blurred Smoke Layer -->
+<g filter="url(#smokeBlur)">
+<path d="M-100 600V300C-100 300 100 250 300 280C500 310 600 200 800 240C1000 280 1200 220 1300 260C1400 300 1540 280 1540 280V600H-100Z" fill="url(#smokeGradient)"/>
+<circle cx="200" cy="500" r="150" fill="#FCFCFD" fill-opacity="0.5"/>
+<circle cx="500" cy="450" r="180" fill="#FCFCFD" fill-opacity="0.4"/>
+<circle cx="800" cy="520" r="160" fill="#FCFCFD" fill-opacity="0.6"/>
+<circle cx="1100" cy="480" r="170" fill="#FCFCFD" fill-opacity="0.5"/>
+<circle cx="1300" cy="550" r="140" fill="#FCFCFD" fill-opacity="0.4"/>
+</g>
+
+<!-- Sharp Bottom Fix Layer (No Blur) -->
+<rect x="0" y="550" width="1440" height="50" fill="#FCFCFD" />
+<rect x="0" y="450" width="1440" height="100" fill="url(#sharpBase)" />
+
+</svg>

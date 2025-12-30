@@ -43,6 +43,7 @@ export function HeroSection({
     const heroWrapRef = useRef<HTMLDivElement>(null);
     const workspaceRef = useRef<HTMLDivElement>(null);
     const dockRef = useRef<HTMLDivElement>(null);
+    const smokeRef = useRef<HTMLDivElement>(null);
     const heroVideoRef = useRef<HTMLVideoElement>(null);
     const scrollVideoRef = useRef<HTMLVideoElement>(null);
     const [heroVisualReady, setHeroVisualReady] = useState(false);
@@ -137,6 +138,7 @@ export function HeroSection({
             const dock = dockRef.current as HTMLDivElement;
             const text = textRef.current as HTMLDivElement;
             const workspace = workspaceRef.current as HTMLDivElement;
+            const smoke = smokeRef.current;
 
             gsap.set(hero, {
                 x: 0,
@@ -149,6 +151,9 @@ export function HeroSection({
             });
             gsap.set(text, { opacity: 1, y: 0, scale: 1, force3D: true, willChange: "transform, opacity" });
             gsap.set(workspace, { opacity: 0, force3D: true, willChange: "transform, opacity" });
+            if (smoke) {
+                gsap.set(smoke, { y: "100%", force3D: true, willChange: "transform" });
+            }
 
             const heroRect = hero.getBoundingClientRect();
             const dockRect = dock.getBoundingClientRect();
@@ -192,6 +197,12 @@ export function HeroSection({
             const dockHold = 0.3;
 
             timeline.to(workspace, { opacity: 1, duration: 0.2, ease: "none" }, 0.15);
+
+            // Smoke/Haze parallax: moves up as user scrolls (y goes from 100% to 0%)
+            if (smoke) {
+                timeline.to(smoke, { y: "0%", duration: 0.8, ease: "none" }, 0);
+            }
+
             timeline.to(hero, { x, y, scale, duration: dockDuration, ease: "none" }, 0.45);
             timeline.to(hero, { x, y, scale, duration: dockHold, ease: "none" }, 0.45 + dockDuration);
         };
@@ -261,10 +272,21 @@ export function HeroSection({
                 style={{ minHeight: "100svh" }}
             >
                 <div className="relative h-full w-full bg-transparent">
+                    <div className="fixed inset-x-0 bottom-0 z-20 pointer-events-none select-none">
+                        <div ref={smokeRef} className="relative w-full h-[60vh] translate-y-[20%]">
+                            <Image
+                                src="/hero/smoke_bottom_mask.svg"
+                                alt="Smoke overlay"
+                                fill
+                                className="object-cover object-bottom"
+                                priority
+                            />
+                        </div>
+                    </div>
                     <div className="grid h-full w-full grid-rows-[auto,1fr] items-start justify-items-center gap-0 px-4 pb-[2vh] pt-[3vh]">
                         <div
                             ref={textRef}
-                            className="relative z-10 w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[14vh] sm:mt-[8vh] md:mt-[12vh] mb-[0vh] sm:mb-[2vh]"
+                            className="relative z-10 w-full max-w-5xl text-center flex flex-col items-center gap-2 mt-[10vh] sm:mt-[12vh] md:mt-[18vh] mb-[0vh] sm:mb-[2vh]"
                         >
                             <div ref={copyRef} className="flex flex-col items-center gap-2">
                                 {brandMarkSrc && (
@@ -303,7 +325,7 @@ export function HeroSection({
                                 </p>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-[1vh]">
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                                 <Button
                                     size="lg"
                                     className="rounded-full h-10 px-6 text-[14px] font-medium shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] sm:h-12 sm:px-8 sm:text-[15px]"
@@ -325,6 +347,7 @@ export function HeroSection({
                                 <div className="absolute left-1/2 top-1/2 h-[85%] w-[85%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.2),transparent_68%)] blur-2xl sm:h-[62%] sm:w-[62%]" />
                                 <div className="absolute left-[4%] top-[10%] h-[60%] w-[60%] rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.18),transparent_62%)] blur-3xl sm:left-[12%] sm:top-[18%] sm:h-[48%] sm:w-[48%]" />
                                 <div className="absolute right-[2%] bottom-[4%] h-[52%] w-[52%] rounded-full bg-[radial-gradient(circle,rgba(236,72,153,0.16),transparent_64%)] blur-3xl sm:right-[6%] sm:bottom-[8%] sm:h-[40%] sm:w-[40%]" />
+
                             </div>
                             <div
                                 ref={workspaceRef}
