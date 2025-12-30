@@ -1,0 +1,493 @@
+@property --opc {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 100%;
+}
+
+@property --gradient-h {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 150%;
+}
+
+@property --gradient-w {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 100%;
+}
+
+@property --gradient-inner-opacity {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 0%;
+}
+
+@property --gradient-middle-opacity {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 100%;
+}
+
+@property --gradient-outer-opacity {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 100%;
+}
+
+@property --radial-center {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 40%;
+}
+
+@property --conic-rotate {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
+@property --s1 {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
+@property --s2 {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
+@property --s3 {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
+@property --rotation {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
+@property --mesh-x-0 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 85%;
+}
+
+@property --mesh-y-0 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 80%;
+}
+
+@property --mesh-c-0 {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: hsla(150.88, 62%, 73%, 1);
+}
+
+@property --mesh-s-start-0 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 9%;
+}
+
+@property --mesh-s-end-0 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 55%;
+}
+
+@property --mesh-x-1 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 60%;
+}
+
+@property --mesh-y-1 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 24%;
+}
+
+@property --mesh-c-1 {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: hsla(220, 100%, 72%, 1);
+}
+
+@property --mesh-s-start-1 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 5%;
+}
+
+@property --mesh-s-end-1 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 72%;
+}
+
+@property --mesh-x-2 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 13%;
+}
+
+@property --mesh-y-2 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 82%;
+}
+
+@property --mesh-c-2 {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: hsla(297.79, 100%, 55%, 0.49);
+}
+
+@property --mesh-s-start-2 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 5%;
+}
+
+@property --mesh-s-end-2 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 52%;
+}
+
+@property --mesh-x-3 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 24%;
+}
+
+@property --mesh-y-3 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 7%;
+}
+
+@property --mesh-c-3 {
+    syntax: "<color>";
+    inherits: false;
+    initial-value: hsla(182, 72%, 68%, 1);
+}
+
+@property --mesh-s-start-3 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 13%;
+}
+
+@property --mesh-s-end-3 {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 68%;
+}
+
+
+/* --- Pulse Card Styles --- */
+
+.pulseCard {
+    --hue1: 123;
+    --hue2: 145;
+
+    position: relative;
+    border-radius: 1rem;
+    background: hsl(260, 25%, 95%);
+    isolation: isolate;
+    overflow: hidden;
+    /* Reset defaults */
+    transform: translate3d(0, 0, 0);
+}
+
+.gradientMask {
+    position: absolute;
+    inset: 0;
+    aspect-ratio: 1.3;
+    border-radius: inherit;
+    /* Masking effectively creates the "inner border" feel if background is transparent, 
+       but here it acts as a container for the gradient light. */
+    transform: translate3d(0, 0, 0.01px);
+    mask-image: linear-gradient(to top, transparent 30%, black 90%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.gradient {
+    /* Set defaults to match the 100% keyframe state */
+    --opc: 80%;
+    --radial-center: 60%;
+    --conic-rotate: 50deg;
+    --gradient-h: 180%;
+    --gradient-w: 180%;
+    --gradient-inner-opacity: 0%;
+    --gradient-middle-opacity: 55%;
+    --gradient-outer-opacity: 55%;
+
+    border-radius: inherit;
+    position: absolute;
+    inset: 0;
+
+    background-color: transparent;
+    background-image:
+        radial-gradient(circle at 50% var(--radial-center),
+            oklch(0.87 0.28 var(--hue2) / var(--opc)) 10%,
+            oklch(0.87 0.25 var(--hue1) / 0%) 66%),
+        conic-gradient(from var(--conic-rotate) at 50% var(--radial-center),
+            oklch(0.87 0.25 var(--hue1) / var(--opc)) 15%,
+            oklch(0.87 0.28 var(--hue2) / var(--opc)) 57%,
+            oklch(0.87 0.25 var(--hue1) / var(--opc)) 100%);
+    background-blend-mode: color;
+
+    mask-image:
+        radial-gradient(var(--gradient-w) var(--gradient-h) at 50% var(--radial-center),
+            rgb(0 0 0 / var(--gradient-inner-opacity)) 20%,
+            rgb(0 0 0 / var(--gradient-middle-opacity)) 40%,
+            rgb(0 0 0 / var(--gradient-middle-opacity)) 50%,
+            rgb(0 0 0 / var(--gradient-outer-opacity)) 75%);
+
+    mask-size: cover;
+    mask-position: center;
+    mask-repeat: no-repeat;
+    z-index: -1;
+    /* Remove transition on vars for instant reset if needed, or keep for smooth updates */
+    transition: opacity 0.15s ease-in;
+}
+
+/* Animation triggered by class */
+.gradient.animate {
+    animation: gradientAnim 2.2s cubic-bezier(0.278, 0.001, 0.393, 1) both;
+}
+
+@keyframes gradientAnim {
+    0% {
+        --radial-center: 30%;
+        --conic-rotate: -100deg;
+        --opc: 50%;
+        --gradient-h: 0%;
+        --gradient-w: 0%;
+        --gradient-inner-opacity: 0%;
+        --gradient-middle-opacity: 30%;
+        --gradient-outer-opacity: 0%;
+    }
+
+    75% {
+        --radial-center: 60%;
+        --gradient-h: 180%;
+        --gradient-w: 140%;
+        --gradient-outer-opacity: 0%;
+    }
+
+    100% {
+        --opc: 80%;
+        --radial-center: 60%;
+        --conic-rotate: 50deg;
+        --gradient-h: 180%;
+        --gradient-w: 180%;
+        --gradient-inner-opacity: 0%;
+        --gradient-middle-opacity: 55%;
+        --gradient-outer-opacity: 55%;
+    }
+}
+
+/* --- Blob Styles --- */
+
+.blobWrapper {
+    /* Ensure filters are applied via SVG ID reference in React */
+    /* filter: url(#glow); */
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.blob {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.blobShape {
+    aspect-ratio: 1;
+    width: 100%;
+    max-width: 180px;
+    overflow: hidden;
+    transition: transform 0.4s ease-out;
+    cursor: pointer;
+
+    /* Mesh gradient background */
+    background-color: hsla(358, 0%, 100%, 1);
+    background-image: radial-gradient(circle at var(--mesh-x-0) var(--mesh-y-0),
+            var(--mesh-c-0) var(--mesh-s-start-0),
+            transparent var(--mesh-s-end-0)),
+        radial-gradient(circle at var(--mesh-x-1) var(--mesh-y-1),
+            var(--mesh-c-1) var(--mesh-s-start-1),
+            transparent var(--mesh-s-end-1)),
+        radial-gradient(circle at var(--mesh-x-2) var(--mesh-y-2),
+            var(--mesh-c-2) var(--mesh-s-start-2),
+            transparent var(--mesh-s-end-2)),
+        radial-gradient(circle at var(--mesh-x-3) var(--mesh-y-3),
+            var(--mesh-c-3) var(--mesh-s-start-3),
+            transparent var(--mesh-s-end-3));
+
+    /* Organic blob shape via animated border-radius */
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+
+    /* Multiple animations: mesh gradient + blob morphing */
+    animation:
+        mesh-gradient 10s linear infinite alternate,
+        blob-morph 8s ease-in-out infinite;
+}
+
+
+@keyframes s1 {
+    to {
+        --s1: 360deg;
+    }
+}
+
+@keyframes s2 {
+    to {
+        --s2: 360deg;
+    }
+}
+
+@keyframes s3 {
+    to {
+        --s3: 360deg;
+    }
+}
+
+@keyframes mesh-gradient {
+    0% {
+        --mesh-x-0: 85%;
+        --mesh-y-0: 80%;
+        --mesh-c-1: hsla(220, 100%, 82%, 1);
+        --mesh-x-1: 60%;
+        --mesh-y-1: 24%;
+        --mesh-x-2: 13%;
+        --mesh-y-2: 82%;
+        --mesh-x-3: 24%;
+        --mesh-y-3: 7%;
+    }
+
+    100% {
+        --mesh-x-0: 31%;
+        --mesh-y-0: 94%;
+        --mesh-c-1: hsla(220, 82%, 95%, 1);
+        --mesh-x-1: 2%;
+        --mesh-y-1: 25%;
+        --mesh-x-2: 98%;
+        --mesh-y-2: 20%;
+        --mesh-x-3: 95%;
+        --mesh-y-3: 92%;
+    }
+}
+
+@keyframes blob-morph {
+
+    0%,
+    100% {
+        border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    }
+
+    25% {
+        border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+    }
+
+    50% {
+        border-radius: 50% 60% 30% 60% / 30% 40% 70% 50%;
+    }
+
+    75% {
+        border-radius: 60% 40% 60% 40% / 70% 30% 50% 60%;
+    }
+}
+
+/* Hover effect for blob */
+.blobShape:hover {
+    transform: scale(1.08);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .blobShape {
+        max-width: 140px;
+    }
+}
+
+.grainOverlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background: white;
+    mix-blend-mode: multiply;
+    opacity: 0.4;
+    animation: grain-jitter 1s infinite steps(1);
+}
+
+@keyframes grain-jitter {
+    0% {
+        transform: translate(1px, 6px);
+    }
+
+    10% {
+        transform: translate(-8px, 14px);
+    }
+
+    20% {
+        transform: translate(9px, 13px);
+    }
+
+    30% {
+        transform: translate(-10px, -11px);
+    }
+
+    40% {
+        transform: translate(14px, -7px);
+    }
+
+    50% {
+        transform: translate(-13px, -6px);
+    }
+
+    60% {
+        transform: translate(10px, 9px);
+    }
+
+    70% {
+        transform: translate(-14px, -8px);
+    }
+
+    80% {
+        transform: translate(9px, 6px);
+    }
+
+    90% {
+        transform: translate(-10px, 7px);
+    }
+
+    100% {
+        transform: translate(14px, -9px);
+    }
+}
+
+/* Complex clip-path shape calculation support - minimal version for visual consistency */
+/* In a real implementation, we might inline this via style prop if we need full calc() support that CSS modules might struggle with if not careful, but usually it's fine. 
+   For brevity, I'll rely on the React component to set the style or just use the circle fallback if the complicated shape() isn't supported in all browsers yet (it is very new). 
+   The user snippet uses `shape()`, which is Chrome 128+ Canary. I should provide a fallback.
+   Actually, the user wants "these effects". I'll try to include the complex shape logic but fallback to radius.
+*/

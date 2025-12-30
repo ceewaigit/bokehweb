@@ -5,6 +5,8 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Highlighter } from "@/components/ui/highlighter";
 import { SectionBackdrop } from "@/components/ui/section-backdrop";
+import { BlobEffect } from "@/components/ui/blob-effect";
+import { PulseCard } from "@/components/ui/pulse-card";
 
 export default function AboutPage() {
     const ease = [0.22, 1, 0.36, 1] as const;
@@ -145,52 +147,63 @@ export default function AboutPage() {
                     {/* Philosophy Section */}
                     <motion.div className="pt-16 border-t border-slate-100" {...reveal}>
                         <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-                            <div>
+                            <div className="relative">
                                 <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-[-0.015em] font-display mb-4">
                                     How we think about the product
                                 </h2>
                                 <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.75]">
                                     We keep bokeh. small on purpose. The focus is on the moments that make a recording feel <em>finished</em>, not on adding knobs for everything else.
                                 </p>
-                                <div className="relative mt-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/70 px-5 py-4 text-sm text-slate-600 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-                                    <div className="absolute inset-0 opacity-35 texture-fine-lines" />
-                                    <div className="relative z-10">
-                                        “Quiet software that stays out of the way.”
+
+                                <div className="relative mt-6 w-full aspect-square max-w-[240px] mx-auto lg:mx-0 flex items-center justify-center">
+                                    {/* Blob Background */}
+                                    <div className="absolute inset-0 flex items-center justify-center scale-150">
+                                        <BlobEffect />
+                                    </div>
+
+                                    {/* Quote Overlay */}
+                                    <div className="relative z-10 max-w-[200px] text-center">
+                                        <p className="text-lg font-medium text-slate-900/80 italic font-display leading-tight drop-shadow-sm mix-blend-multiply">
+                                            "Intentional design that just work.”
+                                        </p>
+                                        <div className="mt-3 mx-auto h-0.5 w-8 bg-slate-400/30 rounded-full" />
                                     </div>
                                 </div>
                             </div>
-                            <div className="grid gap-4 sm:grid-cols-2">
+
+                            <div className="grid gap-4 grid-cols-2">
                                 {[
                                     {
                                         title: "Clarity",
                                         description: "Remove the clutter so the idea stands out.",
+                                        h1: 200, h2: 220
                                     },
                                     {
                                         title: "Restraint",
                                         description: "Fewer choices, better defaults, calmer output.",
+                                        h1: 340, h2: 360
                                     },
                                     {
                                         title: "Tempo",
                                         description: "A recording that moves at the right pace.",
+                                        h1: 160, h2: 180
                                     },
                                     {
                                         title: "Trust",
                                         description: "Dependable capture with clean, predictable exports.",
+                                        h1: 280, h2: 300
                                     },
                                 ].map((value, i) => (
-                                    <div
+                                    <PulseCard
                                         key={i}
-                                        className="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white/70 p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] transition-all duration-300 hover:border-slate-200 hover:bg-white"
+                                        className="p-6 h-full min-h-[180px] bg-white hover:bg-slate-50/50 transition-colors"
+                                        gradientHue1={value.h1}
+                                        gradientHue2={value.h2}
                                     >
-                                        <div className="absolute inset-0 opacity-35">
-                                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.05)_1px,transparent_0)] [background-size:24px_24px]" />
-                                        </div>
-                                        <div className="relative z-10">
-                                            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">{`0${i + 1}`}</div>
-                                            <h3 className="mt-2 text-base font-semibold text-slate-900">{value.title}</h3>
-                                            <p className="mt-1 text-sm text-slate-500 leading-relaxed">{value.description}</p>
-                                        </div>
-                                    </div>
+                                        <div className="text-xs uppercase tracking-[0.2em] text-slate-400 font-medium">{`0${i + 1}`}</div>
+                                        <h3 className="mt-3 text-lg font-semibold text-slate-900">{value.title}</h3>
+                                        <p className="mt-2 text-[15px] text-slate-500 leading-relaxed">{value.description}</p>
+                                    </PulseCard>
                                 ))}
                             </div>
                         </div>
