@@ -254,7 +254,7 @@ export default function Home() {
                 <Highlighter action="highlight" style="clean" color="#a78bfa"><em className="not-italic text-inherit">15x faster.</em></Highlighter>
               </>
             }
-            subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and intentionality that most tools miss."
+            subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and"
             primaryCta={{ label: "Download", href: "/download" }}
             videoSrc="/hero/hero_export.webm"
             scrollVideoSrc="/hero/recording_workspace.webm"
