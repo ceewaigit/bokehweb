@@ -7,8 +7,9 @@ export function generateStaticParams() {
     return docsNav.map((item) => ({ slug: item.slug }));
 }
 
-export default function DocPage({ params }: { params: { slug: string } }) {
-    const content = docContentMap[params.slug];
+export default async function DocPage({ params }: { params: Promise<{ slug: string }> }) {
+    const { slug } = await params;
+    const content = docContentMap[slug];
 
     if (!content) {
         notFound();
@@ -17,7 +18,7 @@ export default function DocPage({ params }: { params: { slug: string } }) {
     return (
         <div className="space-y-10">
             {content}
-            <DocsPrevNext slug={params.slug} />
+            <DocsPrevNext slug={slug} />
         </div>
     );
 }
