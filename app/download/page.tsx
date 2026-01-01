@@ -75,7 +75,7 @@ export default function DownloadPage() {
 
                         <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-semibold text-slate-800 mb-6 text-balance page-title">
                             Ready to share{" "}
-                            <Highlighter action="highlight" style="clean" color="#fde047">finished</Highlighter>{" "}
+                            <Highlighter action="highlight" style="clean" color="#fde047">studio-quality</Highlighter>{" "}
                             recordings?
                         </h1>
 

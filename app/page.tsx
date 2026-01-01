@@ -171,7 +171,7 @@ const testimonials = [
 const faqs = [
   {
     question: "Is this a video editor like Final Cut or DaVinci?",
-    answer: "No. bokeh focuses on the 90% of edits screen recordings actually need: remove mistakes fast, keep the video clean, and export something that looks polished.",
+    answer: "No. bokeh focuses on the 90% of edits screen recordings actually need: remove mistakes fast, keep the video clean, and export something that looks high-end.",
   },
   // {
   //   question: "How does subscription credit work?",

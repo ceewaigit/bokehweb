@@ -133,7 +133,7 @@ export function FeatureGrid({
                 </div>
 
                 <p className="mt-8 text-center text-sm text-muted-foreground">
-                    And many more, thoughtfully automated.
+                    And many more details, refined for your workflow.
                 </p>
             </div>
         </section>

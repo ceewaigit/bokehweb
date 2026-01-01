@@ -1,10 +1,10 @@
 export const pricingCopy = {
-  eyebrow: "Simple pricing, no surprises",
-  title: "Pricing that cuts",
-  strike: "time",
+  eyebrow: "Transparent terms, no hidden clauses",
+  title: "A model that",
+  strike: "costs",
   titleAfter: "",
-  titleEmphasis: "and pays for itself",
-  subtitle: "",
+  titleEmphasis: "builds ownership",
+  subtitle: "We believe you should own your tools. Your monthly payments build toward a lifetime license automatically.",
   footnote: "Reach $149 in payments, and the current major version is yours forever.",
 };
 
@@ -42,7 +42,7 @@ export const pricingPlans = [
     name: "Pro",
     price: PRODUCT_READY ? `$${PRICING.annual}` : "Coming Soon",
     priceSuffix: PRODUCT_READY ? "/ mo, billed annually" : "",
-    description: "Clean exports, priority support, and studio-grade polish.",
+    description: "Clean exports, priority support, and professional-grade finish.",
     cta: "Coming soon...",
     features: [
       "Unlimited clean exports",

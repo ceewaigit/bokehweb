@@ -20,7 +20,7 @@ interface SocialProofSectionProps {
 
 const defaultItems: SocialProofItem[] = [
     { icon: <Star className="w-4 h-4" />, text: "4.9/5 rating", highlight: "from early users" },
-    { icon: <Zap className="w-4 h-4" />, text: "10k+ videos polished", highlight: "automatically" },
+    { icon: <Zap className="w-4 h-4" />, text: "10k+ videos refined", highlight: "automatically" },
     { icon: <Check className="w-4 h-4" />, text: "Hours saved", highlight: "every week" },
 ];
 
