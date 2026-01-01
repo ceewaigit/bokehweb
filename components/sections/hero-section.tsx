@@ -321,7 +321,7 @@ export function HeroSection({
                                 </h1>
 
                                 <p className="text-[clamp(0.85rem,2vw,1.05rem)] text-muted-foreground max-w-2xl mx-auto leading-snug text-balance tracking-[-0.012em]">
-                                    {subtitle} <Highlighter action="underline" style="clean" color="#cbd5e1" delay={800}>intentionality</Highlighter> that most tools miss.
+                                    {subtitle}
                                 </p>
                             </div>
 

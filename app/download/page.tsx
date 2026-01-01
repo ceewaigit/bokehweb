@@ -19,11 +19,11 @@ export default function DownloadPage() {
         {
             icon: Zap,
             title: "Record → Share in minutes",
-            description: "Smart defaults mean your first take is often your final cut.",
+            description: "Intelligent presets mean your first take is often your final cut.",
         },
         {
             icon: Sparkles,
-            title: "Auto-polish built in",
+            title: "Auto-finish built in",
             description: "Zoom effects, cursor styling, and clean exports—with a timeline when you need it.",
         },
         {
@@ -74,14 +74,14 @@ export default function DownloadPage() {
                         </div>
 
                         <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-semibold text-slate-800 mb-6 text-balance page-title">
-                            Ready to ship{" "}
-                            <Highlighter action="highlight" style="clean" color="#fde047">polished</Highlighter>{" "}
+                            Ready to share{" "}
+                            <Highlighter action="highlight" style="clean" color="#fde047">finished</Highlighter>{" "}
                             recordings?
                         </h1>
 
                         <p className="text-[17px] sm:text-[18px] leading-[1.75] text-slate-500 max-w-lg">
                             Join teams who replaced their <Highlighter action="strike-through" style="clean" color="#94a3b8" delay={400}>clunky workflow</Highlighter> with something that{" "}
-                            <em className="font-[family-name:var(--font-display)] italic text-slate-700 font-medium">just works.</em>
+                            <em className="font-[family-name:var(--font-display)] italic text-slate-700 font-medium">simply performs.</em>
                         </p>
                     </motion.div>
 

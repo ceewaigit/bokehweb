@@ -84,7 +84,7 @@ export default function AboutPage() {
                     </h1>
                     <p className="text-[18px] sm:text-[19px] leading-[1.75] text-slate-500 max-w-2xl mx-auto text-balance">
                         We built bokeh. for people who need{" "}
-                        <em className="font-[family-name:var(--font-display)] italic text-slate-700">fast, polished</em> updates without the heavy edit.
+                        <em className="font-[family-name:var(--font-display)] italic text-slate-700">fast, elegant</em> updates without the heavy edit.
                     </p>
                     <div className="mt-10 flex justify-center">
                         <svg className="h-6 w-48 text-slate-300/80" viewBox="0 0 200 24" fill="none">
@@ -127,13 +127,13 @@ export default function AboutPage() {
                                 That pushed us toward a simple belief: less can be better. Focus on the few things that matter most, and make them feel great every time. We wanted a tool built around <Highlighter action="bracket" style="clean" color="#cbd5e1" delay={400}><strong>crisp capture</strong></Highlighter>, clean exports, and a path from record to share that never feels heavy.
                             </p>
                             <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
-                                The real cost was not just time. It was hesitation: the moment you decide not to record because it is going to take too long. We focused on getting from recording to shareable in one smooth pass, with thoughtful defaults that make the output feel finished without another round of edits.
+                                The real cost was not just time. It was hesitation: the moment you decide not to record because it is going to take too long. We focused on getting from recording to shareable in one smooth pass, with thoughtful presets that make the output feel finished without another round of edits.
                             </p>
                             <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
-                                So we built something that just works: smart defaults, calm motion, and clean exports with a timeline that stays out of your way. After we shared it, friends and even our bosses kept asking for it. That was the moment it felt bigger than a <Highlighter action="circle" style="rough" color="#fca5a5" delay={600}><em>private tool</em></Highlighter>.
+                                So we built something reliable: intelligent defaults, calm motion, and clean exports with a timeline that prioritizes your focus. After we shared it, friends and even our bosses kept asking for it. That was the moment it felt bigger than a <Highlighter action="circle" style="rough" color="#fca5a5" delay={600}><em>private tool</em></Highlighter>.
                             </p>
                             <p className="text-[17px] sm:text-[18px] text-slate-600 leading-[1.85] max-w-3xl mt-6">
-                                Today, bokeh. is for professionals shipping product updates, support walkthroughs, and training. The goal is quiet confidence: you press record, you ship, and your audience gets the message without the noise.
+                                Today, bokeh. is for professionals publishing product updates, support walkthroughs, and training. The goal is quiet confidence: you press record, you share, and your audience gets the message without the noise.
                             </p>
                             <div className="mt-10 flex items-center gap-3 text-sm text-slate-400">
                                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white/70">
@@ -159,7 +159,7 @@ export default function AboutPage() {
                                     {/* Quote Overlay */}
                                     <div className="relative z-10 max-w-[200px] text-center">
                                         <p className="text-lg font-medium text-slate-900/80 italic font-display leading-tight drop-shadow-sm mix-blend-multiply">
-                                            "Intentional design that just work.”
+                                            "Elegant design that delivers immediately.”
                                         </p>
                                         <div className="mt-3 mx-auto h-0.5 w-8 bg-slate-400/30 rounded-full" />
                                     </div>

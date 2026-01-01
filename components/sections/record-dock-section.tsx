@@ -388,10 +388,10 @@ export function RecordDockSection({
     title = (
         <>
             Capture anything.<br />
-            <em className="highlight-purple">One click.</em>
+            <em className="highlight-purple">Instantly.</em>
         </>
     ),
-    subtitle = "A floating dock that stays out of your way. Pick your source, hit record, and ship.",
+    subtitle = "An unobtrusive dock that simplifies your workflow. Pick your source, hit record, and share.",
 }: RecordDockSectionProps) {
     const [isRecording, setIsRecording] = useState(false);
     const [isPaused, setIsPaused] = useState(false);

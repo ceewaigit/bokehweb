@@ -37,7 +37,7 @@ export function CTASection({
     ctaLabel = "Get started for free",
     ctaHref = "#",
     showArrow = true,
-    arrowText = "Ready to ship a clearer update?",
+    arrowText = "Ready to see the difference?",
     showFounderMessage = false,
     founder,
 }: CTASectionProps) {

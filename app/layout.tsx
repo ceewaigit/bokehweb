@@ -22,9 +22,9 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "bokeh. Screen Recording That Just Works",
+  title: "bokeh. Screen Recording Refined",
   description:
-    "A macOS screen recording utility that removes dead time, smooths motion, and auto-zooms your recordings. Ship polished demos without the editing.",
+    "A macOS utility that automates the tedious parts of screen recording. Remove silence, smooth motion, and auto-zoom with ease.",
   keywords: [
     "screen recorder",
     "screen recording",
@@ -38,16 +38,16 @@ export const metadata: Metadata = {
   ],
 
   openGraph: {
-    title: "bokeh — Screen Recording That Just Works",
+    title: "bokeh — Professional Screen Recording",
     description:
-      "A macOS utility that cleans up screen recordings automatically. Record, polish, ship.",
+      "A macOS utility that cleans up screen recordings automatically. Record, polish, publish.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "bokeh — Screen Recording That Just Works",
+    title: "bokeh — Professional Screen Recording",
     description:
-      "A macOS utility that cleans up screen recordings automatically. Record, polish, ship.",
+      "A macOS utility that cleans up screen recordings automatically. Record, polish, publish.",
   },
 };
 

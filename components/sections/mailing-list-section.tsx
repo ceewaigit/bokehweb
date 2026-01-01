@@ -89,7 +89,7 @@ export function MailingListSection({ className }: MailingListSectionProps) {
               </h2>
 
               <p className="text-[14px] sm:text-base text-slate-500 leading-relaxed">
-                Thoughtful releases, behind-the-scenes notes, and early access, delivered only when there's something worth sharing.
+                Thoughtful releases, behind-the-scenes notes, and early access, delivered only when there's something worth a touch more refinement.
               </p>
 
               <div className="flex flex-wrap gap-2 pt-1 sm:pt-2">

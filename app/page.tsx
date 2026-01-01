@@ -36,8 +36,8 @@ import PricingSection from "@/components/sections/pricing-section";
 const features = [
   {
     icon: Clock,
-    title: "Idle cleanup",
-    description: "Dead air, gone. We trim the pauses so you don't have to.",
+    title: "Instant cleanup",
+    description: "Silent gaps, gone. We trim the pauses so you don't have to.",
   },
   {
     icon: Command,
@@ -51,16 +51,16 @@ const features = [
   },
   {
     icon: Wand2,
-    title: "Smart defaults",
-    description: "We pick the obvious settings. You override when it matters.",
+    title: "Sensible settings",
+    description: "We pick the obvious settings. You override when you need to.",
   },
 ];
 
 const showcaseFeatures = [
   {
     icon: Box,
-    title: "Cinematic depth",
-    description: "Instant production value. Add 3D depth and polish with a single click.",
+    title: "Instant depth",
+    description: "Instant production value. Add 3D depth and sheen with a click.",
     image: "/features/3d.png",
     imagePlacement: "bottom" as const,
     backdrop: "dots" as const,
@@ -70,7 +70,7 @@ const showcaseFeatures = [
   {
     icon: FileVideo,
     title: "Bring your media in",
-    description: "Drag, drop, done. Timeline edits when you need them, auto-polish when you don't.",
+    description: "Drag, drop, done. Simple timeline for quick adjustments, automated cleanup for everything else.",
     image: "/features/import.png",
     imagePlacement: "middle" as const,
     textPosition: "right" as const,
@@ -106,7 +106,7 @@ const showcaseFeatures = [
   {
     icon: Palette,
     title: "Deep control when you want it",
-    description: "Power when you need it. Smart defaults for speed, granular control for perfection.",
+    description: "Power when you need it. Opinionated presets for speed, granular control for perfection.",
     image: "/features/advanced.png",
     imagePlacement: "middle" as const,
     backdrop: "gradient" as const,
@@ -124,7 +124,7 @@ const showcaseFeatures = [
   {
     icon: Crop,
     title: "Social-ready sizes",
-    description: "Ship everywhere. Instantly reframe for TikTok, Reels, and Slack.",
+    description: "Ready for any platform. Instantly reframe for TikTok, Reels, and Slack.",
     image: "/features/crop.png",
     imagePlacement: "middle" as const,
     backdrop: "dots" as const,
@@ -143,11 +143,11 @@ const showcaseFeatures = [
 
 const testimonials = [
   {
-    content: "bokeh takes messy recordings and turns them into polished walkthroughs in minutes.",
+    content: "bokeh takes messy recordings and turns them into professional walkthroughs with ease.",
     author: { name: "Avery Chen", title: "Product Manager, Apple" },
   },
   {
-    content: "Timeline when I want it, auto-polish when I don't. I record, let bokeh polish, and ship.",
+    content: "Timeline when I want it, auto-editing when I don't. I record, let bokeh polish, and share.",
     author: { name: "Priya Kapoor", title: "Software Engineer, Google" },
   },
   {
@@ -254,40 +254,40 @@ export default function Home() {
                 <Highlighter action="highlight" style="clean" color="#a78bfa"><em className="not-italic text-inherit">15x faster.</em></Highlighter>
               </>
             }
-            subtitle="Your work deserves better than shaky cursors and dead air. bokeh automagically applies the cinematic polish and"
+            subtitle="Your work deserves better than jittery motion and awkward silences. bokeh automagically applies the cinematic finish your product deserves."
             primaryCta={{ label: "Download", href: "/download" }}
             videoSrc="/hero/hero_export.webm"
             scrollVideoSrc="/hero/recording_workspace.webm"
-            socialProof={{ count: "10,000+", label: "people shipping with bokeh" }}
+            socialProof={{ count: "10,000+", label: "people sharing with bokeh" }}
           />
 
           {/* <SocialProofSection /> */}
           <EditingFeaturesSection
-            badge="Smart defaults"
+            badge="Intelligent presets"
             title={
               <>
                 <span className="font-[family-name:var(--font-display)] italic font-medium">
                   <Highlighter action="underline" color="#cbd5e1" style="clean" delay={200}>Less work.</Highlighter>
                 </span>
                 <br />
-                <span className="font-[family-name:var(--font-display)] italic font-medium">More polish.</span>
+                <span className="font-[family-name:var(--font-display)] italic font-medium">More impact.</span>
               </>
             }
-            subtitle="We automate the tedious edits like pacing, zoom, and cleanup. Ship fast using our defaults, or adjust anything manually."
+            subtitle="We automate the tedious edits like pacing, zoom, and cleanup. Share fast using our presets, or adjust anything manually."
             className="pt-0 sm:pt-0 lg:pt-0"
           />
 
           <FeatureShowcaseSection
             id="features"
             className=""
-            badge="Features"
+            badge="The toolkit"
             title={
               <>
-                Cinematic motion.<br />
+                Liquid motion.<br />
                 <Highlighter action="highlight" style="clean" color="#fde047"><em className="not-italic text-inherit">Zero effort.</em></Highlighter>
               </>
             }
-            subtitle="We automated the techniques top creators use. Smooth zooms, liquid cursors, and perfect pacing."
+            subtitle="Inspired by the same techniques top creators use. Smooth zooms, stabilized cursors, and natural flow."
             features={showcaseFeatures}
           />
 
@@ -299,10 +299,10 @@ export default function Home() {
           <RecordDockSection />
 
           <FeatureGrid
-            badge="Intentional choices"
+            badge="The small stuff"
             title={
               <>
-                Intentional choices.<br />
+                Big difference.<br />
                 <Highlighter action="highlight" style="clean" color="#f472b6"><em className="not-italic text-inherit">Everywhere.</em></Highlighter>
               </>
             }
@@ -317,7 +317,7 @@ export default function Home() {
                 Trusted by teams who care about <Highlighter action="circle" style="clean" color="#8b5cf6" className="text-inherit"><em className="text-primary not-italic">craft.</em></Highlighter>
               </>
             }
-            subtitle="From changing the way they demo, to shipping faster updates. See why detail-oriented teams switched to bokeh."
+            subtitle="From changing the way they demo, to publishing faster updates. See why detail-oriented teams switched to bokeh."
             testimonials={testimonials}
           />
 
@@ -331,7 +331,7 @@ export default function Home() {
                 Everything you need to know about <em>bokeh.</em>
               </>
             }
-            subtitle="No hidden clauses. No gotchas. Just bokeh."
+            subtitle="Transparent answers. Clear terms. Just bokeh."
             items={faqs}
           />
 
@@ -339,11 +339,11 @@ export default function Home() {
 
           <CTASection
             title={<>Stop fighting with your <Highlighter action="circle" style="clean" className="text-inherit"><em className="not-italic">video editor.</em></Highlighter></>}
-            subtitle="Start shipping clearer, sharper, and more professional updates today."
+            subtitle="Start sharing clearer, sharper, and more impressive updates today."
             ctaLabel="Get started for free"
             ctaHref="/download"
             showArrow={true}
-            arrowText="Ready to ship a clearer update?"
+            arrowText="Ready to see the difference?"
           />
 
           <Footer />
